@@ -3,6 +3,23 @@
 import { useMemo, useState, useEffect } from 'react'
 import type { Session } from '@/types/session'
 import { formatDistanceToNow } from '@/lib/utils'
+import {
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  Layers,
+  Terminal,
+  Plus,
+  RefreshCw,
+  Edit2,
+  Trash2,
+  FileText,
+  Boxes,
+  Brain,
+  Package,
+  Zap,
+  Code2,
+} from 'lucide-react'
 
 interface SessionListProps {
   sessions: Session[]
@@ -12,6 +29,102 @@ interface SessionListProps {
   error?: Error | null
   onRefresh?: () => void
 }
+
+/**
+ * DYNAMIC COLOR SYSTEM
+ *
+ * Colors are automatically assigned to categories based on their name.
+ * The same category will always get the same color (using a hash function).
+ *
+ * HOW IT WORKS:
+ * 1. When a category appears, a hash is generated from its name
+ * 2. The hash picks a color from the COLOR_PALETTE array below
+ * 3. Same category name = same hash = same color (consistent)
+ *
+ * CUSTOMIZATION:
+ * - Edit COLOR_PALETTE below to change the available colors
+ * - Add more color objects to increase variety
+ * - Colors are stored in localStorage if you want to override specific categories
+ *
+ * NO HARDCODING NEEDED - works with ANY category name!
+ */
+const COLOR_PALETTE = [
+  {
+    primary: 'rgb(59, 130, 246)',      // Blue
+    bg: 'rgba(59, 130, 246, 0.05)',
+    border: 'rgb(59, 130, 246)',
+    icon: 'rgb(96, 165, 250)',
+    hover: 'rgba(59, 130, 246, 0.1)',
+    active: 'rgba(59, 130, 246, 0.15)',
+    activeText: 'rgb(147, 197, 253)',
+  },
+  {
+    primary: 'rgb(168, 85, 247)',      // Purple
+    bg: 'rgba(168, 85, 247, 0.05)',
+    border: 'rgb(168, 85, 247)',
+    icon: 'rgb(192, 132, 252)',
+    hover: 'rgba(168, 85, 247, 0.1)',
+    active: 'rgba(168, 85, 247, 0.15)',
+    activeText: 'rgb(216, 180, 254)',
+  },
+  {
+    primary: 'rgb(34, 197, 94)',       // Green
+    bg: 'rgba(34, 197, 94, 0.05)',
+    border: 'rgb(34, 197, 94)',
+    icon: 'rgb(74, 222, 128)',
+    hover: 'rgba(34, 197, 94, 0.1)',
+    active: 'rgba(34, 197, 94, 0.15)',
+    activeText: 'rgb(134, 239, 172)',
+  },
+  {
+    primary: 'rgb(234, 179, 8)',       // Yellow/Gold
+    bg: 'rgba(234, 179, 8, 0.05)',
+    border: 'rgb(234, 179, 8)',
+    icon: 'rgb(250, 204, 21)',
+    hover: 'rgba(234, 179, 8, 0.1)',
+    active: 'rgba(234, 179, 8, 0.15)',
+    activeText: 'rgb(253, 224, 71)',
+  },
+  {
+    primary: 'rgb(236, 72, 153)',      // Pink
+    bg: 'rgba(236, 72, 153, 0.05)',
+    border: 'rgb(236, 72, 153)',
+    icon: 'rgb(244, 114, 182)',
+    hover: 'rgba(236, 72, 153, 0.1)',
+    active: 'rgba(236, 72, 153, 0.15)',
+    activeText: 'rgb(251, 207, 232)',
+  },
+  {
+    primary: 'rgb(20, 184, 166)',      // Teal
+    bg: 'rgba(20, 184, 166, 0.05)',
+    border: 'rgb(20, 184, 166)',
+    icon: 'rgb(45, 212, 191)',
+    hover: 'rgba(20, 184, 166, 0.1)',
+    active: 'rgba(20, 184, 166, 0.15)',
+    activeText: 'rgb(94, 234, 212)',
+  },
+  {
+    primary: 'rgb(249, 115, 22)',      // Orange
+    bg: 'rgba(249, 115, 22, 0.05)',
+    border: 'rgb(249, 115, 22)',
+    icon: 'rgb(251, 146, 60)',
+    hover: 'rgba(249, 115, 22, 0.1)',
+    active: 'rgba(249, 115, 22, 0.15)',
+    activeText: 'rgb(253, 186, 116)',
+  },
+  {
+    primary: 'rgb(239, 68, 68)',       // Red
+    bg: 'rgba(239, 68, 68, 0.05)',
+    border: 'rgb(239, 68, 68)',
+    icon: 'rgb(248, 113, 113)',
+    hover: 'rgba(239, 68, 68, 0.1)',
+    active: 'rgba(239, 68, 68, 0.15)',
+    activeText: 'rgb(252, 165, 165)',
+  },
+]
+
+// Default icon for categories
+const DEFAULT_ICON = Layers
 
 export default function SessionList({
   sessions,
@@ -119,12 +232,39 @@ export default function SessionList({
     })
   }
 
-  const sortedSessions = useMemo(() => {
-    return [...sessions].sort(
-      (a, b) =>
-        new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
-    )
-  }, [sessions])
+  // Get color scheme for a category - dynamically assigns from palette
+  const getCategoryColor = (category: string) => {
+    // Try to load custom color from localStorage first
+    const storageKey = `category-color-${category.toLowerCase()}`
+    const savedColor = localStorage.getItem(storageKey)
+    if (savedColor) {
+      try {
+        return JSON.parse(savedColor)
+      } catch (e) {
+        // Invalid stored color, continue to default
+      }
+    }
+
+    // Generate a consistent hash from the category name
+    const hash = category.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc)
+    }, 0)
+
+    // Use hash to pick a color from palette (ensures same category always gets same color)
+    const colorIndex = Math.abs(hash) % COLOR_PALETTE.length
+    return COLOR_PALETTE[colorIndex]
+  }
+
+  // Get icon for a category - uses default icon for all
+  const getCategoryIcon = (category: string, isExpanded: boolean) => {
+    return DEFAULT_ICON
+  }
+
+  // Count total sessions in a level1 category
+  const countSessionsInCategory = (level1: string) => {
+    const level2Groups = groupedSessions[level1]
+    return Object.values(level2Groups).reduce((sum, sessions) => sum + sessions.length, 0)
+  }
 
   const handleCreateSession = async (name: string, workingDirectory?: string) => {
     setActionLoading(true)
@@ -214,33 +354,19 @@ export default function SessionList({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="p-1.5 rounded hover:bg-sidebar-hover transition-colors text-green-400 hover:text-green-300"
+              className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110"
               aria-label="Create new agent"
               title="Create new agent"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="w-4 h-4" />
             </button>
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="p-1.5 rounded hover:bg-sidebar-hover transition-colors disabled:opacity-50"
+              className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 disabled:opacity-50 hover:scale-110"
               aria-label="Refresh sessions"
             >
-              <svg
-                className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -278,115 +404,207 @@ export default function SessionList({
           </div>
         ) : (
           <div className="py-2">
-            {Object.entries(groupedSessions).map(([level1, level2Groups]) => (
-              <div key={level1}>
-                {/* Level 1 Header */}
-                <button
-                  onClick={() => toggleLevel1(level1)}
-                  className="w-full px-4 py-2 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-colors"
-                >
-                  <svg
-                    className={`w-4 h-4 transition-transform ${
-                      expandedLevel1.has(level1) ? 'rotate-90' : ''
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            {Object.entries(groupedSessions).map(([level1, level2Groups]) => {
+              const colors = getCategoryColor(level1)
+              const isExpanded = expandedLevel1.has(level1)
+              const CategoryIcon = getCategoryIcon(level1, isExpanded)
+              const sessionCount = countSessionsInCategory(level1)
+
+              return (
+                <div key={level1} className="mb-1">
+                  {/* Level 1 Header */}
+                  <button
+                    onClick={() => toggleLevel1(level1)}
+                    className="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-sidebar-hover transition-all duration-200 group rounded-lg mx-1"
+                    style={{
+                      backgroundColor: isExpanded ? colors.bg : 'transparent',
+                    }}
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span className="font-semibold text-gray-200 uppercase text-xs tracking-wide">
-                    {level1}
-                  </span>
-                </button>
+                    {/* Icon with colored background */}
+                    <div
+                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
+                      style={{
+                        backgroundColor: colors.bg,
+                        border: `1px solid ${colors.border}40`,
+                      }}
+                    >
+                      <CategoryIcon className="w-4 h-4" style={{ color: colors.icon }} />
+                    </div>
 
-                {/* Level 2 Groups */}
-                {expandedLevel1.has(level1) && (
-                  <div>
-                    {Object.entries(level2Groups).map(([level2, sessionsList]) => (
-                      <div key={`${level1}-${level2}`}>
-                        {/* Level 2 Header (hide if it's "default") */}
-                        {level2 !== 'default' && (
-                          <button
-                            onClick={() => toggleLevel2(level1, level2)}
-                            className="w-full px-4 py-2 pl-8 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-colors"
-                          >
-                            <svg
-                              className={`w-3 h-3 transition-transform ${
-                                expandedLevel2.has(`${level1}-${level2}`) ? 'rotate-90' : ''
-                              }`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                            <span className="text-sm text-gray-300 capitalize">{level2}</span>
-                            <span className="text-xs text-gray-500">({sessionsList.length})</span>
-                          </button>
-                        )}
+                    {/* Category name and count */}
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <span
+                        className="font-semibold uppercase text-xs tracking-wider truncate"
+                        style={{ color: isExpanded ? colors.activeText : colors.icon }}
+                      >
+                        {level1}
+                      </span>
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full transition-all duration-200"
+                        style={{
+                          backgroundColor: colors.bg,
+                          color: colors.icon,
+                          border: `1px solid ${colors.border}30`,
+                        }}
+                      >
+                        {sessionCount}
+                      </span>
+                    </div>
 
-                        {/* Sessions */}
-                        {(level2 === 'default' || expandedLevel2.has(`${level1}-${level2}`)) && (
-                          <ul>
-                            {sessionsList.map((session) => (
-                              <li key={session.id} className="group relative">
-                                <div
-                                  onClick={() => onSessionSelect(session.id)}
-                                  className={`w-full py-2 px-4 ${
-                                    level2 === 'default' ? 'pl-8' : 'pl-12'
-                                  } text-left transition-colors cursor-pointer ${
-                                    activeSessionId === session.id
-                                      ? 'bg-sidebar-active border-l-2 border-blue-500'
-                                      : 'hover:bg-sidebar-hover border-l-2 border-transparent'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex-1 min-w-0 flex items-center gap-2">
-                                      <span className="text-sm text-gray-200 truncate">{session.name || session.id}</span>
-                                      <SessionStatus status={session.status} />
-                                    </div>
-                                    {/* Action buttons - show on hover */}
-                                    <div className="hidden group-hover:flex items-center gap-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedSession(session)
-                                          setShowRenameModal(true)
-                                        }}
-                                        className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors"
-                                        title="Rename agent"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedSession(session)
-                                          setShowDeleteConfirm(true)
-                                        }}
-                                        className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-red-400 transition-colors"
-                                        title="Delete agent"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  </div>
+                    {/* Chevron */}
+                    <ChevronRight
+                      className={`w-4 h-4 transition-transform duration-200 flex-shrink-0 ${
+                        isExpanded ? 'rotate-90' : ''
+                      }`}
+                      style={{ color: colors.icon }}
+                    />
+                  </button>
+
+                  {/* Level 2 Groups */}
+                  {isExpanded && (
+                    <div className="ml-2 mt-1 space-y-0.5">
+                      {Object.entries(level2Groups).map(([level2, sessionsList]) => {
+                        const level2Key = `${level1}-${level2}`
+                        const isLevel2Expanded = expandedLevel2.has(level2Key)
+
+                        return (
+                          <div key={level2Key}>
+                            {/* Level 2 Header (hide if it's "default") */}
+                            {level2 !== 'default' && (
+                              <button
+                                onClick={() => toggleLevel2(level1, level2)}
+                                className="w-full px-3 py-2 pl-10 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-all duration-200 rounded-lg group"
+                              >
+                                {/* Folder icon */}
+                                <div className="flex-shrink-0">
+                                  {isLevel2Expanded ? (
+                                    <FolderOpen className="w-3.5 h-3.5" style={{ color: colors.icon }} />
+                                  ) : (
+                                    <Folder className="w-3.5 h-3.5" style={{ color: colors.icon }} />
+                                  )}
                                 </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+
+                                {/* Subcategory name */}
+                                <span className="text-sm text-gray-300 capitalize flex-1 truncate">
+                                  {level2}
+                                </span>
+
+                                {/* Count badge */}
+                                <span
+                                  className="text-xs px-1.5 py-0.5 rounded-full"
+                                  style={{
+                                    backgroundColor: colors.bg,
+                                    color: colors.icon,
+                                  }}
+                                >
+                                  {sessionsList.length}
+                                </span>
+
+                                {/* Chevron */}
+                                <ChevronRight
+                                  className={`w-3 h-3 transition-transform duration-200 ${
+                                    isLevel2Expanded ? 'rotate-90' : ''
+                                  }`}
+                                  style={{ color: colors.icon }}
+                                />
+                              </button>
+                            )}
+
+                            {/* Sessions */}
+                            {(level2 === 'default' || isLevel2Expanded) && (
+                              <ul className="space-y-0.5">
+                                {sessionsList.map((session) => {
+                                  const isActive = activeSessionId === session.id
+                                  const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
+
+                                  return (
+                                    <li key={session.id} className="group/session relative">
+                                      <div
+                                        onClick={() => onSessionSelect(session.id)}
+                                        className={`w-full py-2.5 px-3 ${indentClass} text-left transition-all duration-200 cursor-pointer rounded-lg relative overflow-hidden ${
+                                          isActive
+                                            ? 'shadow-sm'
+                                            : 'hover:bg-sidebar-hover'
+                                        }`}
+                                        style={{
+                                          backgroundColor: isActive ? colors.active : 'transparent',
+                                        }}
+                                      >
+                                        {/* Active indicator - left accent */}
+                                        {isActive && (
+                                          <div
+                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full transition-all duration-200"
+                                            style={{ backgroundColor: colors.border }}
+                                          />
+                                        )}
+
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                                            {/* Terminal icon */}
+                                            <Terminal
+                                              className="w-3.5 h-3.5 flex-shrink-0"
+                                              style={{ color: isActive ? colors.activeText : colors.icon }}
+                                            />
+
+                                            {/* Session name */}
+                                            <span
+                                              className={`text-sm truncate font-medium ${
+                                                isActive ? 'font-semibold' : ''
+                                              }`}
+                                              style={{
+                                                color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
+                                              }}
+                                            >
+                                              {session.name || session.id}
+                                            </span>
+
+                                            {/* Status indicator */}
+                                            <SessionStatus status={session.status} />
+                                          </div>
+
+                                          {/* Action buttons - show on hover */}
+                                          <div className="hidden group-hover/session:flex items-center gap-1">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setSelectedSession(session)
+                                                setShowRenameModal(true)
+                                              }}
+                                              className="p-1 rounded hover:bg-gray-700/50 text-gray-400 hover:text-blue-400 transition-all duration-200"
+                                              title="Rename agent"
+                                            >
+                                              <Edit2 className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setSelectedSession(session)
+                                                setShowDeleteConfirm(true)
+                                              }}
+                                              className="p-1 rounded hover:bg-gray-700/50 text-gray-400 hover:text-red-400 transition-all duration-200"
+                                              title="Delete agent"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Divider between Level 1 categories */}
+                  <div className="my-2 mx-4 border-t border-gray-800/50" />
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -431,17 +649,17 @@ export default function SessionList({
 
 function SessionStatus({ status }: { status: Session['status'] }) {
   const statusConfig = {
-    active: { color: 'bg-green-500', label: 'Active' },
-    idle: { color: 'bg-yellow-500', label: 'Idle' },
-    disconnected: { color: 'bg-red-500', label: 'Disconnected' },
+    active: { color: 'bg-green-500', label: 'Active', ring: 'ring-green-500/30' },
+    idle: { color: 'bg-yellow-500', label: 'Idle', ring: 'ring-yellow-500/30' },
+    disconnected: { color: 'bg-red-500', label: 'Disconnected', ring: 'ring-red-500/30' },
   }
 
   const config = statusConfig[status]
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className={`w-2 h-2 rounded-full ${config.color}`} />
-      <span className="text-xs text-gray-400">{config.label}</span>
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      <div className={`w-2 h-2 rounded-full ${config.color} ring-2 ${config.ring} animate-pulse`} />
+      <span className="text-xs text-gray-400 hidden lg:inline">{config.label}</span>
     </div>
   )
 }
@@ -467,8 +685,8 @@ function CreateSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-700" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
@@ -482,7 +700,7 @@ function CreateSessionModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="apps-notify-session1"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 autoFocus
                 pattern="[a-zA-Z0-9_-]+"
                 title="Only letters, numbers, dashes, and underscores allowed"
@@ -501,7 +719,7 @@ function CreateSessionModal({
                 value={workingDirectory}
                 onChange={(e) => setWorkingDirectory(e.target.value)}
                 placeholder={process.env.HOME || '/home/user'}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
@@ -510,14 +728,14 @@ function CreateSessionModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !name.trim()}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
             >
               {loading ? 'Creating...' : 'Create Agent'}
             </button>
@@ -549,8 +767,8 @@ function RenameSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-700" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-100 mb-4">Rename Agent</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
@@ -563,7 +781,7 @@ function RenameSessionModal({
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 autoFocus
                 pattern="[a-zA-Z0-9_-]+"
                 title="Only letters, numbers, dashes, and underscores allowed"
@@ -578,14 +796,14 @@ function RenameSessionModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !newName.trim() || newName === currentName}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
             >
               {loading ? 'Renaming...' : 'Rename'}
             </button>
@@ -608,8 +826,8 @@ function DeleteConfirmModal({
   loading: boolean
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-700" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-red-400 mb-4">Delete Agent</h3>
         <p className="text-gray-300 mb-2">
           Are you sure you want to delete the agent <span className="font-mono font-bold">{sessionName}</span>?
@@ -622,14 +840,14 @@ function DeleteConfirmModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
           >
             Cancel
           </button>
           <button
             onClick={onDelete}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-red-500/25"
           >
             {loading ? 'Deleting...' : 'Delete Session'}
           </button>

@@ -14,6 +14,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
+  const [notes, setNotes] = useState('')
+  const [notesCollapsed, setNotesCollapsed] = useState(false)
 
   const { terminal, initializeTerminal } = useTerminal()
 
@@ -101,6 +103,34 @@ export default function TerminalView({ session }: TerminalViewProps) {
     }
   }, [terminal, isConnected, sendMessage])
 
+  // Load notes from localStorage when session changes
+  useEffect(() => {
+    const storageKey = `session-notes-${session.id}`
+    const savedNotes = localStorage.getItem(storageKey)
+    if (savedNotes !== null) {
+      setNotes(savedNotes)
+    } else {
+      setNotes('')
+    }
+
+    // Load collapsed state
+    const collapsedKey = `session-notes-collapsed-${session.id}`
+    const savedCollapsed = localStorage.getItem(collapsedKey)
+    setNotesCollapsed(savedCollapsed === 'true')
+  }, [session.id])
+
+  // Save notes to localStorage when they change
+  useEffect(() => {
+    const storageKey = `session-notes-${session.id}`
+    localStorage.setItem(storageKey, notes)
+  }, [notes, session.id])
+
+  // Save collapsed state to localStorage
+  useEffect(() => {
+    const collapsedKey = `session-notes-collapsed-${session.id}`
+    localStorage.setItem(collapsedKey, String(notesCollapsed))
+  }, [notesCollapsed, session.id])
+
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg">
       {/* Terminal Header */}
@@ -150,6 +180,66 @@ export default function TerminalView({ session }: TerminalViewProps) {
           </div>
         )}
       </div>
+
+      {/* Notes Section */}
+      {!notesCollapsed && (
+        <div className="border-t border-gray-700 bg-gray-900 flex flex-col" style={{ height: '200px' }}>
+          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
+            <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
+            <button
+              onClick={() => setNotesCollapsed(true)}
+              className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              title="Collapse notes"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+          </div>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Take notes while working with your agent..."
+            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
+            style={{ minHeight: 0 }}
+          />
+        </div>
+      )}
+
+      {/* Collapsed Notes Bar */}
+      {notesCollapsed && (
+        <div className="border-t border-gray-700 bg-gray-800 px-4 py-2">
+          <button
+            onClick={() => setNotesCollapsed(false)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 15l7-7 7 7"
+              />
+            </svg>
+            <span>Show Session Notes</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

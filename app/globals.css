@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+/* Custom scrollbar for terminal and sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}
+
+/* xterm.js container styles */
+.xterm {
+  height: 100%;
+  width: 100%;
+  padding: 10px;
+}
+
+.xterm .xterm-viewport {
+  overflow-y: auto;
+}
+
+.xterm-screen {
+  cursor: text;
+}
+
+/* Prevent text selection on UI elements */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

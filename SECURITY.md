@@ -11,12 +11,30 @@ We release patches for security vulnerabilities for the following versions:
 
 ## Security Considerations
 
-### Localhost-Only Operation
+### Network Access Configuration
 
-**By default, AI Maestro runs on localhost (127.0.0.1) only:**
-- Not accessible from other machines on your network
-- No authentication required (OS-level security only)
-- Not intended for remote access or production use
+**⚠️ IMPORTANT: AI Maestro runs on 0.0.0.0:23000 by default**
+
+This means it's accessible from ANY device on your local network:
+- **Accessible from other machines on your network** (tablets, phones, other computers)
+- **No authentication required** - anyone on your WiFi can access it
+- **Full terminal access** - anyone connected can run commands with your permissions
+- **Unencrypted** - WebSocket connections use ws:// (not wss://)
+
+**Safe for:**
+- Home networks (trusted WiFi)
+- Private office networks
+- Development on trusted LANs
+
+**NOT safe for:**
+- Public WiFi
+- Shared/untrusted networks
+- Exposing port 23000 to the internet
+
+**To run localhost-only (more secure):**
+```bash
+HOSTNAME=localhost PORT=3000 yarn dev
+```
 
 ### Data Storage
 

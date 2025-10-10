@@ -72,16 +72,22 @@ cd /Users/juanpelaez/23blocks/webApps/agents-web
 # Start the dashboard
 yarn dev
 
-# Wait for: "ready - started server on 0.0.0.0:3000"
+# Wait for: "ready - started server on 0.0.0.0:23000"
 ```
+
+**⚠️ Network Access Warning:** By default, AI Maestro is accessible on your local network at port 23000. This means anyone on your WiFi can access it. See the [Security](#security) section for important information.
 
 ### Step 5: Open the Dashboard
 
 ```bash
 # Open in your default browser
-open http://localhost:3000
+open http://localhost:23000
 
-# Or manually visit: http://localhost:3000
+# Or manually visit: http://localhost:23000
+
+# From another device on your network (tablet, phone, etc.)
+# Visit: http://YOUR-LOCAL-IP:23000
+# To find your local IP: ifconfig | grep "inet " | grep -v 127.0.0.1
 ```
 
 **🎉 Success!** You should see "my-app-dev" in the sidebar. Click it to view the terminal.
@@ -247,7 +253,7 @@ tmux send-keys -t db-migration 'copilot' C-m
 
 ### Switch Between Sessions in Dashboard
 
-1. Open dashboard: http://localhost:3000
+1. Open dashboard: http://localhost:23000
 2. Click any session name in the left sidebar
 3. Terminal content updates instantly
 4. Previous sessions keep running in background
@@ -336,7 +342,7 @@ tmux send-keys -t "$SESSION_NAME" "$AI_COMMAND" C-m
 
 echo "✅ Session '$SESSION_NAME' created with $AI_COMMAND"
 echo "   Directory: $WORK_DIR"
-echo "   View in dashboard: http://localhost:3000"
+echo "   View in dashboard: http://localhost:23000"
 echo "   Attach manually: tmux a -t $SESSION_NAME"
 ```
 
@@ -386,7 +392,7 @@ while IFS='|' read -r name created windows; do
     echo ""
 done
 
-echo "💡 Tip: View all sessions in dashboard at http://localhost:3000"
+echo "💡 Tip: View all sessions in dashboard at http://localhost:23000"
 ```
 
 **Make executable and run:**
@@ -466,34 +472,73 @@ cd /Users/juanpelaez/23blocks/webApps/agents-web
 # Development mode (with hot reload)
 yarn dev
 
-# Production mode
+# Production mode (with PM2 for auto-restart)
 yarn build
-yarn start
+pm2 start server.mjs --name ai-maestro
 
-# Custom port
+# Custom port and hostname
 PORT=3001 yarn dev
+HOSTNAME=localhost PORT=3001 yarn dev  # Localhost-only for better security
+
+# Run localhost-only (more secure, not accessible on network)
+HOSTNAME=localhost yarn dev
 ```
 
 ### Accessing the Dashboard
 
 ```bash
-# Default URL
-open http://localhost:3000
+# Default URL (from same machine)
+open http://localhost:23000
+
+# From another device on your local network
+# 1. Find your local IP address:
+ifconfig | grep "inet " | grep -v 127.0.0.1
+# Example output: inet 10.0.0.87 ...
+
+# 2. On your other device (tablet, phone, another computer):
+# Visit: http://10.0.0.87:23000
+# (Replace 10.0.0.87 with your actual local IP)
 
 # Custom port
 open http://localhost:3001
-
-# From another machine (if needed later)
-# Note: Currently localhost-only, this won't work without config changes
 ```
+
+### Security
+
+**⚠️ Important:** By default, AI Maestro is accessible from any device on your local network:
+- ✅ **Convenient** - Access from tablets, phones, other computers
+- ⚠️ **No authentication** - Anyone on your WiFi can access it
+- ⚠️ **Unencrypted** - WebSocket connections use ws:// (not wss://)
+- ⚠️ **Full terminal access** - Anyone connected can run commands
+
+**Safe for:**
+- Home networks (trusted WiFi)
+- Private office networks
+- Development on trusted LANs
+
+**NOT safe for:**
+- Public WiFi (coffee shops, airports)
+- Shared office WiFi with untrusted users
+- Exposing to the internet
+
+**To run localhost-only (more secure):**
+```bash
+HOSTNAME=localhost PORT=3000 yarn dev
+```
+
+See [SECURITY.md](../SECURITY.md) for full security details.
 
 ### Stopping the Dashboard
 
 ```bash
-# Press Ctrl+C in the terminal running the dashboard
+# If running with yarn dev: Press Ctrl+C in the terminal
+
+# If running with PM2:
+pm2 stop ai-maestro
+pm2 delete ai-maestro  # To remove from PM2 completely
 
 # If running in background, find and kill the process:
-lsof -i :3000
+lsof -i :23000
 kill -9 <PID>
 ```
 
@@ -563,8 +608,8 @@ claude  # or aider, cursor, copilot, etc.
 
 **Solution:**
 ```bash
-# 1. Check if port 3000 is in use
-lsof -i :3000
+# 1. Check if port 23000 is in use
+lsof -i :23000
 kill -9 <PID>
 
 # 2. Reinstall dependencies
@@ -637,7 +682,7 @@ tmux capture-pane -pt <session-name> -S - > ~/backups/session-backup.txt
 cd ~/agents-web && yarn dev &           # Start dashboard
 start-ai-session main-work claude ~/projects
 start-ai-session experiments aider ~/tests
-open http://localhost:3000              # Open dashboard
+open http://localhost:23000             # Open dashboard
 
 # Evening routine
 list-ai-sessions                        # Review active sessions
@@ -727,8 +772,9 @@ Ctrl+D                        # Exit AI agent (closes session)
 
 # Dashboard
 yarn dev                      # Start dashboard
-open http://localhost:3000    # Open dashboard
+open http://localhost:23000   # Open dashboard
 Ctrl+C                        # Stop dashboard
+pm2 start server.mjs --name ai-maestro  # Start with PM2
 
 # Helper Scripts (if created)
 start-ai-session name agent   # Create session with AI agent

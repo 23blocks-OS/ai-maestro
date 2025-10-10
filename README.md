@@ -1,361 +1,292 @@
-# Claude Code Dashboard
+<div align="center">
 
-A browser-based terminal dashboard for managing multiple Claude Code sessions running in tmux on your local Mac.
+# 🎼 AI Maestro
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
-![Node](https://img.shields.io/badge/node-%3E%3D18.17-green)
+**Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
----
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
 
-## Overview
+[Quick Start](#-quick-start) • [Features](#-features) • [Documentation](./docs) • [Contributing](./CONTRIBUTING.md)
 
-Claude Code Dashboard provides a unified web interface for interacting with multiple Claude Code AI assistant sessions. Instead of switching between terminal windows and tmux panes, view all your sessions in one place with full terminal functionality.
-
-### Key Features
-
-- 🖥️ **Browser-Based Terminal** - Full xterm.js terminal with proper rendering
-- 🔄 **Auto-Discovery** - Automatically detects tmux sessions running Claude Code
-- ⚡ **Instant Switching** - Click between sessions without losing context
-- 🎯 **Session Management** - View, organize, and interact with multiple sessions
-- 🌐 **WebSocket Streaming** - Real-time terminal I/O with low latency
-- 💻 **macOS Optimized** - Native performance on Mac
-
-### Phase 1 Scope (Current)
-
-- ✅ Local tmux session discovery and interaction
-- ✅ Localhost-only access (no authentication required)
-- ✅ Real-time terminal streaming via WebSocket
-- ✅ Session status indicators and metadata
-- ❌ Session creation from UI (manual tmux creation only)
-- ❌ Remote SSH sessions (local Mac only)
+</div>
 
 ---
 
-## Quick Start
+## The Problem
 
-### Prerequisites
+You're using Claude Code for backend, Aider for frontend, and Cursor for docs. Each in its own terminal window. Each in a different tmux pane. You're constantly switching contexts, losing track of which agent is where, and your terminal tabs look like chaos.
 
-- macOS 12.0+ (Monterey or later)
-- Node.js 18.17+ or 20.x
-- tmux 3.0+
-- Claude Code CLI installed and authenticated
+## The Solution
 
-### Installation
+![AI Maestro Dashboard](./docs/images/aiteam-web.png)
+
+AI Maestro gives you one beautiful web dashboard for all your AI coding agents. Click between sessions instantly. Organize them hierarchically. Take notes. Never lose track again.
+
+---
+
+## ✨ Features
+
+### Universal Agent Support
+Works with **any** terminal-based AI:
+- Claude Code
+- Aider
+- Cursor
+- GitHub Copilot CLI
+- OpenAI Codex
+- Your custom AI scripts
+
+### Smart Organization
+- **3-level hierarchy**: Use hyphens to create structure (e.g., `project-category-agent`)
+- **Dynamic color coding**: Each top-level category gets its own color automatically
+- **Visual hierarchy**: Expandable accordion with icons
+- **Auto-grouping**: Sessions with hyphens are automatically organized
+- **Instant search**: Find any session immediately *(coming in v1.1)*
+
+### Session Management
+- **Create** sessions from the UI
+- **Rename** with a click
+- **Delete** when done
+- **Notes** for each session (auto-saved to localStorage)
+- **Auto-discovery**: Detects all your tmux sessions automatically
+
+### Built for Speed
+- WebSocket streaming for real-time terminal I/O
+- No lag, no polling
+- Keyboard shortcuts for power users
+- Native macOS performance
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install
 
 ```bash
-# Clone or navigate to the project
-cd /Users/juanpelaez/23blocks/webApps/agents-web
-
-# Install dependencies
+git clone https://github.com/23blocks-OS/ai-maestro.git
+cd ai-maestro
 yarn install
-
-# Start the dashboard
 yarn dev
 ```
 
-### Create Your First Session
+Dashboard opens at `http://localhost:3000`
+
+### 2. Create Your First Session
+
+**Option A: From the UI** (Recommended)
+
+1. Click the **"+" button** in the sidebar
+2. Enter a session name using hyphens for hierarchy:
+   - Simple: `my-project`
+   - Organized: `myproject-backend-api` (creates 3 levels)
+3. Choose your working directory
+4. Click "Create Agent"
+5. Start your AI agent in the terminal that appears
+
+**Option B: From Terminal** (For tmux users)
 
 ```bash
-# In a new terminal, create a tmux session
-cd ~/projects/my-app
-tmux new-session -s my-app-dev
+# In another terminal
+cd ~/my-project
+tmux new-session -s myproject-backend-api
 
-# Start Claude Code inside tmux
+# Start your AI agent (claude, aider, cursor, copilot, etc.)
 claude
 
-# Detach from tmux (Ctrl+B, then D)
-# Open dashboard: http://localhost:3000
+# Detach: Ctrl+B then D
 ```
 
-Your session will automatically appear in the sidebar!
+> **💡 Hierarchy Tip**: Session names with hyphens create automatic organization:
+> - `project-backend` → 2 levels (project > backend)
+> - `project-backend-api` → 3 levels (project > backend > api)
+> - Each top level gets its own color automatically!
+
+### 3. Start Coding
+
+Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.
 
 ---
 
-## Documentation
+## 📸 Screenshots
 
-### Getting Started
+<details>
+<summary><b>Hierarchical Session Organization</b></summary>
 
-1. **[Requirements](./docs/REQUIREMENTS.md)** - System requirements and installation
-2. **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to create and manage sessions
-3. **[Quick Reference](#quick-reference)** - Essential commands
+Sessions organized automatically using hyphens, with color coding and icons:
 
-### Technical Documentation
+**Example session names:**
+- `fluidmind-agents-backend-architect`
+- `fluidmind-agents-frontend-developer`
+- `fluidmind-experiments-api-tester`
+- `ecommerce-development-cart-api`
+- `ecommerce-development-checkout-flow`
 
-- **[Technical Specifications](./docs/TECHNICAL-SPECIFICATIONS.md)** - System architecture and design
-- **[UX Specifications](./docs/UX-SPECIFICATIONS.md)** - User experience and interface design
-- **[Frontend Implementation](./docs/FRONTEND-IMPLEMENTATION.md)** - React/Next.js implementation guide
+**Displays as:**
+```
+🎨 fluidmind (purple)
+  📁 agents
+    🤖 backend-architect
+    🤖 frontend-developer
+  📁 experiments
+    🧪 api-tester
 
-### Additional Resources
+🛒 ecommerce (blue)
+  📁 development
+    💻 cart-api
+    💻 checkout-flow
+```
 
-- **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[API Documentation](./docs/API.md)** - REST and WebSocket API reference
-- **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute to this project
+Each top-level category gets a unique color automatically - no configuration needed.
+
+</details>
+
+<details>
+<summary><b>Session Notes</b></summary>
+
+Take notes for each session. They're saved automatically to your browser:
+- Track architectural decisions
+- Save commands for later
+- Keep TODO lists
+- Leave context for tomorrow
+
+</details>
 
 ---
 
-## Architecture
+## 🎯 Why AI Maestro?
 
-```
-┌─────────────────────────────────────────────────┐
-│                   Browser                        │
-│  ┌─────────────┐        ┌──────────────────┐   │
-│  │  React UI   │◄──────►│  xterm.js        │   │
-│  │  (Next.js)  │        │  Terminal        │   │
-│  └─────────────┘        └──────────────────┘   │
-│         │                        │               │
-│         │ HTTP                   │ WebSocket     │
-└─────────┼────────────────────────┼───────────────┘
-          │                        │
-          ▼                        ▼
-┌─────────────────────────────────────────────────┐
-│         Custom Next.js Server (server.mjs)      │
-│  ┌──────────────┐      ┌────────────────────┐  │
-│  │ HTTP Server  │      │ WebSocket Server   │  │
-│  │ (API Routes) │      │ (Terminal Stream)  │  │
-│  └──────────────┘      └────────────────────┘  │
-│         │                        │               │
-│         │                        │               │
-│  ┌──────┴────────────────────────┴────────────┐ │
-│  │         Session Auto-Discovery             │ │
-│  │         (tmux ls + node-pty)               │ │
-│  └────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────┘
-          │                        │
-          ▼                        ▼
-┌─────────────────────────────────────────────────┐
-│            Local tmux Sessions                   │
-│  ┌──────────────┐  ┌──────────────┐            │
-│  │  session-1   │  │  session-2   │            │
-│  │  (Claude)    │  │  (Claude)    │  ...       │
-│  └──────────────┘  └──────────────┘            │
-└─────────────────────────────────────────────────┘
-```
+**Problem**: Managing multiple AI agents is chaotic.
+**Solution**: One dashboard to rule them all.
 
-### Tech Stack
+**Why not just use tmux directly?**
+You can! AI Maestro is built on tmux. But instead of memorizing keybindings and switching between panes, you get:
+- Visual organization
+- Point-and-click switching
+- Persistent notes
+- Beautiful UI
 
-- **Frontend:** Next.js 14 (App Router), React 18, Tailwind CSS
-- **Terminal:** xterm.js with WebGL rendering
-- **Backend:** Custom Node.js server with WebSocket support
-- **Session Management:** node-pty for PTY interaction
-- **Communication:** WebSocket for bidirectional terminal I/O
+**Is it just a tmux GUI?**
+Think of it as tmux + organization + notes + visual hierarchy. You still have full access to your tmux sessions from the terminal.
 
 ---
 
-## Project Structure
+## 📋 Requirements
 
-```
-agents-web/
-├── app/                          # Next.js App Router
-│   ├── layout.tsx                # Root layout
-│   ├── page.tsx                  # Main dashboard page
-│   ├── globals.css               # Global styles
-│   └── api/                      # API routes
-│       └── sessions/
-│           └── route.ts          # Session discovery endpoint
-├── components/                   # React components
-│   ├── SessionList.tsx           # Sidebar session list
-│   ├── TerminalView.tsx          # Terminal display
-│   └── ...
-├── hooks/                        # Custom React hooks
-│   ├── useWebSocket.ts           # WebSocket connection
-│   ├── useTerminal.ts            # xterm.js management
-│   └── useSessions.ts            # Session data fetching
-├── lib/                          # Utilities
-│   ├── websocket.ts              # WebSocket helpers
-│   ├── terminal.ts               # Terminal utilities
-│   └── api.ts                    # API client
-├── types/                        # TypeScript definitions
-│   ├── session.ts                # Session types
-│   ├── terminal.ts               # Terminal types
-│   └── websocket.ts              # WebSocket types
-├── docs/                         # Documentation
-│   ├── REQUIREMENTS.md
-│   ├── OPERATIONS-GUIDE.md
-│   ├── TECHNICAL-SPECIFICATIONS.md
-│   ├── UX-SPECIFICATIONS.md
-│   └── FRONTEND-IMPLEMENTATION.md
-├── server.mjs                    # Custom server (HTTP + WS)
-├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-└── README.md                     # This file
-```
+- **macOS 12.0+** (Monterey or later)
+- **Node.js 18.17+**
+- **tmux 3.0+**
+- **Your favorite AI agent** (Claude, Aider, Cursor, Copilot, etc.)
 
 ---
 
-## Quick Reference
+## 🛠️ Tech Stack
 
-### Essential Commands
+Built with modern, battle-tested tools:
 
-```bash
-# Dashboard
-yarn dev                          # Start development server
-yarn build                        # Build for production
-yarn start                        # Start production server
-open http://localhost:3000        # Open dashboard
-
-# Session Management
-tmux new-session -s name          # Create new session
-tmux list-sessions                # List all sessions
-tmux attach -t name               # Attach to session
-tmux kill-session -t name         # Kill specific session
-
-# Inside tmux
-Ctrl+B, D                         # Detach from session
-Ctrl+B, $                         # Rename session
-exit                              # Exit Claude (ends session)
-```
-
-### Keyboard Shortcuts (in Dashboard)
-
-- `Cmd/Ctrl + 1-9` - Switch to session 1-9
-- `Cmd/Ctrl + [/]` - Previous/Next session
-- `Cmd/Ctrl + R` - Refresh session list
-- `Esc` - Return focus to terminal
+- **Frontend**: Next.js 14, React 18, Tailwind CSS
+- **Terminal**: xterm.js with WebGL acceleration
+- **Backend**: Custom Node.js server with WebSocket
+- **Font**: Space Grotesk for a modern feel
+- **Icons**: lucide-react
 
 ---
 
-## Development
+## 📚 Documentation
 
-### Running in Development Mode
-
-```bash
-# Install dependencies
-yarn install
-
-# Start with hot reload
-yarn dev
-
-# The dashboard will be available at:
-# http://localhost:3000
-```
-
-### Building for Production
-
-```bash
-# Build optimized production bundle
-yarn build
-
-# Start production server
-yarn start
-```
-
-### Environment Variables
-
-Create `.env.local` for custom configuration:
-
-```bash
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# WebSocket Configuration
-WS_RECONNECT_DELAY=3000
-WS_MAX_RECONNECT_ATTEMPTS=5
-
-# Terminal Configuration
-TERMINAL_FONT_SIZE=14
-TERMINAL_SCROLLBACK=10000
-```
+- **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
+- **[Technical Specs](./docs/TECHNICAL-SPECIFICATIONS.md)** - Architecture deep-dive
+- **[UX Specs](./docs/UX-SPECIFICATIONS.md)** - Design decisions
+- **[Contributing](./CONTRIBUTING.md)** - How to contribute
+- **[Security](./SECURITY.md)** - Security model
 
 ---
 
-## Troubleshooting
-
-### Dashboard Won't Start
-
-```bash
-# Check if port 3000 is in use
-lsof -i :3000
-
-# Use different port
-PORT=3001 yarn dev
-```
-
-### Sessions Not Appearing
-
-```bash
-# Verify tmux sessions exist
-tmux ls
-
-# Refresh browser page (Cmd+R)
-
-# Check dashboard logs for errors
-```
-
-### Terminal Not Responsive
-
-1. Click directly in the terminal area
-2. Refresh the browser page
-3. Check if Claude Code is still running in tmux
-4. Check browser console for errors (F12)
-
-See [TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) for more solutions.
-
----
-
-## Roadmap
+## 🗺️ Roadmap
 
 ### Phase 1 (Current) ✅
-- Local tmux session auto-discovery
-- Real-time terminal interaction
-- Session status indicators
-- Basic session management
+- Local tmux session management
+- Hierarchical organization
+- Dynamic color coding
+- Session notes
+- Full CRUD from UI
 
-### Phase 2 (Planned)
-- [ ] Create new sessions from UI
-- [ ] Session grouping and organization
-- [ ] Search and filter sessions
-- [ ] Session templates
-- [ ] Enhanced keyboard shortcuts
+### Phase 2 (Q4 2025)
+- [ ] Search & filter
+- [ ] Export session transcripts
 
 ### Phase 3 (Future)
-- [ ] Remote SSH session support
-- [ ] Session sharing and collaboration
-- [ ] Session recording and playback
-- [ ] AI-generated session summaries
-- [ ] Custom themes and layouts
+- [ ] Remote SSH sessions
+- [ ] Session sharing
+- [ ] AI-generated summaries
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+We love contributions! AI Maestro is built for developers, by developers.
 
-### Development Setup
+**Ways to contribute**:
+- 🐛 Report bugs
+- 💡 Suggest features
+- 📝 Improve docs
+- 🔧 Submit PRs
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
----
-
-## License
-
-[MIT License](./LICENSE)
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ---
 
-## Support
+## ⚠️ Important Notes
 
-- 📖 **Documentation:** See [docs/](./docs/) directory
-- 🐛 **Bug Reports:** Open an issue on GitHub
-- 💡 **Feature Requests:** Open an issue with the `enhancement` label
-- 💬 **Questions:** Check existing issues or create a new one
+### Security
+- **Localhost-only** by default (127.0.0.1)
+- No data sent over the internet
+- Notes stored in browser localStorage only
+- **Not for production use** without additional security
+
+### Compatibility
+- Works with **any** terminal-based AI agent
+- Not affiliated with Anthropic, OpenAI, GitHub, or any AI provider
+- Each AI agent requires separate installation/authentication
+
+### License
+MIT License - see [LICENSE](./LICENSE)
+
+**Copyright © 2025 Juan Peláez / 23blocks**
+
+Free to use for any purpose, including commercial.
 
 ---
 
-## Acknowledgments
+## 💬 Support
 
-- **Claude Code CLI** by Anthropic
-- **xterm.js** - Terminal emulator for the web
-- **Next.js** - React framework
-- **tmux** - Terminal multiplexer
+- 🐛 **Bugs**: [Open an issue](https://github.com/23blocks-OS/ai-maestro/issues)
+- 💡 **Features**: [Request here](https://github.com/23blocks-OS/ai-maestro/issues/new?labels=enhancement)
+- 📖 **Docs**: [See /docs](./docs)
 
 ---
 
-**Built with ❤️ for developers who love AI pair programming**
+## 🙏 Acknowledgments
 
+Built with amazing open source tools:
+- [Claude Code](https://claude.ai) by Anthropic
+- [xterm.js](https://xtermjs.org/) - Terminal emulator
+- [Next.js](https://nextjs.org/) - React framework
+- [tmux](https://github.com/tmux/tmux) - Terminal multiplexer
+- [lucide-react](https://lucide.dev/) - Icons
+
+---
+
+<div align="center">
+
+**Made with ♥ in Boulder, Colorado**
+
+[Juan Peláez](https://x.com/jkpelaez) @ [23blocks](https://23blocks.com)
+*Coded with Claude*
+
+**Built for developers who love AI pair programming**
+
+[⭐ Star us on GitHub](https://github.com/23blocks-OS/ai-maestro) • [🐦 Follow updates](https://x.com/jkpelaez)
+
+</div>

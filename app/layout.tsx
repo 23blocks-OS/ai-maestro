@@ -5,8 +5,8 @@ import './globals.css'
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AI Team',
-  description: 'Terminal dashboard for Claude Code sessions',
+  title: 'AI Maestro',
+  description: 'Orchestrate multiple AI coding agents from one beautiful dashboard',
 }
 
 export default function RootLayout({

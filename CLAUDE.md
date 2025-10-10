@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Claude Code Dashboard** - A browser-based terminal dashboard for managing multiple Claude Code sessions running in tmux on macOS. The application auto-discovers tmux sessions and provides a unified web interface with real-time terminal streaming.
 
 **Current Phase:** Phase 1 - Local-only, auto-discovery, no authentication
-**Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS
+**Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS, lucide-react
 **Platform:** macOS 12.0+, Node.js 18.17+/20.x, tmux 3.0+
+**Branding:** Space Grotesk font, titled "AI Maestro"
 
 ## Development Commands
 
@@ -121,7 +122,57 @@ When adding new state:
 - Use Context only if 3+ components need the same state
 - Never store terminal content in React state (xterm.js manages this)
 
-### 5. TypeScript Type System Organization
+### 5. UI Enhancement Patterns
+
+**Hierarchical Session Organization:**
+
+Sessions are organized in a 3-level hierarchy based on their names:
+```
+fluidmind/agents/backend-architect  →  Level 1: "fluidmind"
+                                        Level 2: "agents"
+                                        Session: "backend-architect"
+```
+
+**Dynamic Color System:**
+- Colors assigned via hash function (same category = same color)
+- 8-color palette in `SessionList.tsx` (easily customizable)
+- Supports localStorage overrides per category
+- No hardcoded category names - works with ANY category
+
+```typescript
+const getCategoryColor = (category: string) => {
+  // Hash-based color assignment from COLOR_PALETTE
+  const hash = category.split('').reduce((acc, char) =>
+    char.charCodeAt(0) + ((acc << 5) - acc), 0)
+  const colorIndex = Math.abs(hash) % COLOR_PALETTE.length
+  return COLOR_PALETTE[colorIndex]
+}
+```
+
+**Icon System:**
+- Uses lucide-react for consistent, accessible icons
+- Default icon: `Layers` (can be customized per category)
+- Icons for: folders, terminals, actions (edit, delete, create)
+
+**Session Notes Feature:**
+- Collapsible textarea below terminal for per-session notes
+- Auto-saves to localStorage (`session-notes-${sessionId}`)
+- Collapse state persisted (`session-notes-collapsed-${sessionId}`)
+- Full copy/paste/edit support
+
+**Session Management:**
+- Rename sessions with validation (API call to backend)
+- Delete sessions with confirmation modal
+- Create new sessions with optional working directory
+- All actions update UI optimistically with error handling
+
+**UI Best Practices:**
+- Avoid nested buttons (causes React hydration errors)
+- Use `<div>` with `cursor-pointer` for clickable containers
+- Always use `e.stopPropagation()` for nested interactive elements
+- Keep hover states smooth with `transition-all duration-200`
+
+### 6. TypeScript Type System Organization
 
 **Strict separation by domain:**
 
@@ -150,17 +201,17 @@ All WebSocket messages are JSON. Raw terminal output (ANSI codes) is wrapped in 
 - `public/` - No static assets currently needed
 - `styles/` - Styles in `app/globals.css` + Tailwind only
 
-**Expected structure (when implementing):**
+**Current structure:**
 ```
 app/
-  page.tsx              - Main dashboard (SessionList + TerminalView)
-  layout.tsx            - Root layout, global styles
+  page.tsx              - Main dashboard with footer (SessionList + TerminalView)
+  layout.tsx            - Root layout, Space Grotesk font, app title "AI Maestro"
   globals.css           - Tailwind imports + terminal scrollbar styles
   api/sessions/route.ts - GET endpoint for tmux session discovery
 
 components/
-  SessionList.tsx       - Sidebar with session list
-  TerminalView.tsx      - Terminal display with header
+  SessionList.tsx       - Hierarchical sidebar with icons, colors, session management
+  TerminalView.tsx      - Terminal display with collapsible notes area
   [Other components]    - Keep them small, single responsibility
 
 hooks/
@@ -172,11 +223,20 @@ lib/
   api.ts                - Fetch wrappers for /api/sessions
   websocket.ts          - WebSocket message creators
   terminal.ts           - Terminal utility functions
+  utils.ts              - Shared utilities (date formatting, etc.)
 
 types/
-  [domain].ts           - One file per domain (session, terminal, websocket)
+  session.ts            - Session metadata, status enums, hierarchical structure
+  terminal.ts           - xterm.js configuration, dimensions
+  websocket.ts          - Message protocol, connection states
+
+docs/
+  images/               - Screenshots for README documentation
+  REQUIREMENTS.md       - Installation prerequisites
+  OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
 server.mjs              - Custom Next.js server (HTTP + WebSocket)
+CLAUDE.md               - This file - guidance for Claude Code
 ```
 
 ## Critical Implementation Details
@@ -344,17 +404,26 @@ When implementing features:
 - **Don't implement authentication** - Phase 1 is localhost-only
 - **Don't store terminal history** - xterm.js manages scrollback in-memory
 - **Don't use polling** - WebSocket only for terminal I/O
-- **Don't create sessions from the UI** - Phase 2 feature, not Phase 1
 - **Don't support remote SSH** - Phase 3 feature, not Phase 1
+- **Don't nest interactive elements** - Causes React hydration errors (use div with onClick instead)
+- **Don't hardcode category colors** - Use the hash-based dynamic color system
 
 ## Key Files to Understand
 
 **Must read to understand the system:**
 
 1. `server.mjs` - Custom server combining HTTP and WebSocket
-2. `app/page.tsx` - Main UI composition (SessionList + TerminalView)
-3. `hooks/useWebSocket.ts` - WebSocket connection management
-4. `hooks/useTerminal.ts` - xterm.js lifecycle management
-5. `app/api/sessions/route.ts` - tmux session discovery logic
+2. `app/page.tsx` - Main UI composition with footer (SessionList + TerminalView)
+3. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, session management
+4. `components/TerminalView.tsx` - Terminal display with collapsible notes feature
+5. `hooks/useWebSocket.ts` - WebSocket connection management
+6. `hooks/useTerminal.ts` - xterm.js lifecycle management
+7. `app/api/sessions/route.ts` - tmux session discovery logic
 
 **Read these in order** to understand the full data flow from tmux → browser.
+
+**Key UI patterns:**
+- Dynamic color assignment (hash-based, no hardcoding)
+- Hierarchical grouping (3-level: category/subcategory/session)
+- Session notes (per-session localStorage)
+- Avoid nested buttons (use div with cursor-pointer)

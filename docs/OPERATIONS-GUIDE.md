@@ -1,14 +1,14 @@
-# Operations Guide: Claude Code Dashboard
+# Operations Guide: AI Maestro
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-09
-**Phase:** 1 - Local Sessions Only
+**Phase:** 1 - Local Sessions with Full UI Management
 
 ---
 
 ## Overview
 
-This guide explains how to start and manage Claude Code sessions so they appear in the dashboard. In Phase 1, the dashboard **automatically discovers** sessions from `tmux ls` - no manual configuration required!
+This guide explains how to create and manage AI coding assistant sessions using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing sessions from `tmux ls` and provides full session management (create, rename, delete) directly from the UI!
 
 ---
 
@@ -18,8 +18,8 @@ Before starting, ensure you have:
 
 - ✅ macOS with all requirements installed (see [REQUIREMENTS.md](./REQUIREMENTS.md))
 - ✅ tmux installed and working (`tmux -V`)
-- ✅ Claude Code CLI installed (`claude --version`)
-- ✅ Claude Code authenticated (`claude login`)
+- ✅ **Your AI agent installed**: Claude Code, Aider, Copilot CLI, Cursor, etc.
+- ✅ AI agent authenticated (e.g., `claude login`, `aider --check`, etc.)
 - ✅ Dashboard installed (`yarn install` completed)
 
 ---
@@ -38,14 +38,19 @@ tmux new-session -s my-app-dev
 # You're now inside tmux - your prompt should show a green bar at bottom
 ```
 
-### Step 2: Start Claude Code
+### Step 2: Start Your AI Agent
 
 ```bash
-# Inside the tmux session, start Claude Code
-claude
+# Inside the tmux session, start your AI assistant
+# Choose one:
+claude              # Claude Code
+aider               # Aider AI
+copilot             # GitHub Copilot CLI
+cursor              # Cursor AI
+# or any other terminal-based AI tool
 
-# Claude Code will initialize and greet you
-# You can now chat with Claude about your code
+# Your AI agent will initialize
+# You can now start coding with AI assistance
 ```
 
 ### Step 3: Detach from tmux
@@ -85,40 +90,89 @@ open http://localhost:3000
 
 ## 2. Session Naming Best Practices
 
-The dashboard discovers sessions automatically, so naming is important for organization.
+The dashboard automatically organizes sessions hierarchically using forward slashes in names. This creates a beautiful, color-coded sidebar!
 
-### Recommended Naming Patterns
+### Hierarchical Naming Pattern (RECOMMENDED)
+
+Use forward slashes to create 3-level organization:
+
+```bash
+# Format: category/subcategory/agent-name
+fluidmind/agents/backend-architect
+fluidmind/agents/frontend-developer
+fluidmind/experiments/api-tester
+
+ecommerce/development/cart-api
+ecommerce/development/checkout-flow
+ecommerce/testing/integration-tests
+
+personal/projects/blog-redesign
+personal/learning/rust-tutorial
+```
+
+**Result in Dashboard:**
+- **Level 1 (category)**: "fluidmind" - Gets a unique color and icon
+- **Level 2 (subcategory)**: "agents" - Folder under category
+- **Level 3 (agent)**: "backend-architect" - Individual terminal
+
+### Alternative: Simple Names
 
 ```bash
 # Pattern: project-purpose
 tmux new-session -s ecommerce-api
 tmux new-session -s blog-frontend
-tmux new-session -s admin-bugfix
 
-# Pattern: client-project
-tmux new-session -s acme-website
-tmux new-session -s acme-backend
-
-# Pattern: feature branches
-tmux new-session -s feat-user-auth
-tmux new-session -s fix-payment-bug
-
-# Pattern: environments
-tmux new-session -s dev-main
-tmux new-session -s staging-test
+# These appear under "default" category
 ```
 
 ### Naming Rules
 
+- ✅ Use forward slashes for hierarchy (category/sub/name)
 - ✅ Use lowercase letters, numbers, hyphens, underscores
-- ✅ Keep names under 30 characters
-- ✅ Use descriptive names (not "session1", "test", etc.)
+- ✅ Keep names descriptive and meaningful
+- ✅ Same category name = same color (automatic!)
 - ❌ Avoid spaces (use hyphens instead)
 - ❌ Avoid special characters (!, @, #, etc.)
+- ❌ More than 3 levels (category/sub1/sub2/name)
 
 ---
 
-## 3. Managing Sessions
+## 3. UI-Based Session Management
+
+You can now manage sessions directly from the dashboard UI!
+
+### Create a New Session (From UI)
+
+1. Click the **"+" (Create)** button in the sidebar header
+2. Enter session name (use forward slashes for hierarchy)
+3. Optionally specify working directory
+4. Click "Create Agent"
+5. Session appears immediately in sidebar
+
+**Example:**
+- Name: `fluidmind/agents/api-developer`
+- Working Dir: `/Users/you/projects/api`
+
+### Rename a Session (From UI)
+
+1. Hover over any session in the sidebar
+2. Click the **Edit** icon that appears
+3. Enter new name
+4. Click "Rename"
+5. Dashboard updates immediately
+
+### Delete a Session (From UI)
+
+1. Hover over any session in the sidebar
+2. Click the **Delete** icon that appears
+3. Confirm deletion in modal
+4. Session is terminated and removed
+
+**Warning:** Deletion is permanent and cannot be undone!
+
+## 4. Command-Line Session Management
+
+You can also manage sessions via terminal commands:
 
 ### List All Sessions
 
@@ -129,27 +183,26 @@ tmux list-sessions
 tmux ls
 
 # Example output:
-# my-app-dev: 1 windows (created Wed Jan 10 14:23:45 2025)
-# blog-fix: 1 windows (created Wed Jan 10 15:10:12 2025)
+# fluidmind/agents/backend: 1 windows (created Wed Jan 10 14:23:45 2025)
+# ecommerce/api: 1 windows (created Wed Jan 10 15:10:12 2025)
 ```
 
-### Attach to a Session (Outside Dashboard)
+### Attach to a Session
 
 ```bash
 # Attach to a specific session
-tmux attach-session -t my-app-dev
+tmux attach-session -t "fluidmind/agents/backend"
 # or shorthand:
-tmux a -t my-app-dev
+tmux a -t "fluidmind/agents/backend"
 
-# Once attached, you'll see the live Claude Code session
-# Detach again with: Ctrl+B, then D
+# Note: Use quotes for names with slashes!
 ```
 
 ### Kill a Session
 
 ```bash
-# Kill a specific session (CAUTION: This ends the session permanently)
-tmux kill-session -t my-app-dev
+# Kill a specific session (CAUTION: Permanent!)
+tmux kill-session -t "my-app-dev"
 
 # Kill all sessions (CAUTION!)
 tmux kill-server
@@ -163,7 +216,7 @@ tmux kill-server
 # Type new name and press Enter
 
 # From outside the session:
-tmux rename-session -t old-name new-name
+tmux rename-session -t "old-name" "new-name"
 ```
 
 ---
@@ -173,20 +226,20 @@ tmux rename-session -t old-name new-name
 ### Create Multiple Sessions
 
 ```bash
-# Create first session (with Claude)
+# Create first session (with your AI agent)
 cd ~/projects/frontend
 tmux new-session -s frontend-dev -d
-tmux send-keys -t frontend-dev 'claude' C-m
+tmux send-keys -t frontend-dev 'claude' C-m  # or aider, cursor, copilot, etc.
 
-# Create second session (with Claude)
+# Create second session (different AI agent)
 cd ~/projects/backend
 tmux new-session -s backend-api -d
-tmux send-keys -t backend-api 'claude' C-m
+tmux send-keys -t backend-api 'aider' C-m
 
-# Create third session (with Claude)
+# Create third session (another AI agent)
 cd ~/projects/database
 tmux new-session -s db-migration -d
-tmux send-keys -t db-migration 'claude' C-m
+tmux send-keys -t db-migration 'copilot' C-m
 
 # All three sessions are now running in background
 # Dashboard will show all three
@@ -206,18 +259,18 @@ tmux send-keys -t db-migration 'claude' C-m
 ### Session States
 
 **Active** 🟢
-- Claude Code is running
+- AI agent is running
 - You or dashboard is interacting with it
 - Terminal is responsive
 
 **Idle** 🟡
 - Session running but no recent activity
-- Claude Code still active
+- AI agent still active
 - Safe to interact
 
 **Ended** ⚪
 - tmux session was killed
-- Claude Code exited
+- AI agent exited
 - Appears in dashboard until refresh
 
 ### Typical Workflow
@@ -225,7 +278,7 @@ tmux send-keys -t db-migration 'claude' C-m
 ```bash
 # Morning: Start work sessions
 cd ~/projects/app-a && tmux new -s app-a -d && tmux send-keys -t app-a 'claude' C-m
-cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'claude' C-m
+cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'aider' C-m
 
 # Start dashboard
 cd ~/agents-web && yarn dev
@@ -245,20 +298,25 @@ tmux kill-session -t app-b
 
 ## 6. Automation Scripts
 
-### Helper: Start Session with Claude
+### Helper: Start Session with AI Agent
 
-Save as `~/bin/start-claude-session`:
+Save as `~/bin/start-ai-session`:
 
 ```bash
 #!/bin/bash
 
-# Usage: start-claude-session <session-name> [directory]
+# Usage: start-ai-session <session-name> <ai-command> [directory]
+# Example: start-ai-session my-project claude ~/projects/app
+# Example: start-ai-session backend aider ~/projects/api
 
 SESSION_NAME=$1
-WORK_DIR=${2:-$(pwd)}
+AI_COMMAND=${2:-claude}  # Default to claude if not specified
+WORK_DIR=${3:-$(pwd)}
 
 if [ -z "$SESSION_NAME" ]; then
-    echo "Usage: start-claude-session <session-name> [directory]"
+    echo "Usage: start-ai-session <session-name> <ai-command> [directory]"
+    echo "Example: start-ai-session my-project claude ~/projects/app"
+    echo "AI commands: claude, aider, copilot, cursor, etc."
     exit 1
 fi
 
@@ -273,10 +331,10 @@ fi
 cd "$WORK_DIR"
 tmux new-session -d -s "$SESSION_NAME" -c "$WORK_DIR"
 
-# Start Claude in the session
-tmux send-keys -t "$SESSION_NAME" 'claude' C-m
+# Start AI agent in the session
+tmux send-keys -t "$SESSION_NAME" "$AI_COMMAND" C-m
 
-echo "✅ Session '$SESSION_NAME' created"
+echo "✅ Session '$SESSION_NAME' created with $AI_COMMAND"
 echo "   Directory: $WORK_DIR"
 echo "   View in dashboard: http://localhost:3000"
 echo "   Attach manually: tmux a -t $SESSION_NAME"
@@ -284,7 +342,7 @@ echo "   Attach manually: tmux a -t $SESSION_NAME"
 
 **Make executable:**
 ```bash
-chmod +x ~/bin/start-claude-session
+chmod +x ~/bin/start-ai-session
 
 # Add ~/bin to PATH in ~/.zshrc or ~/.bash_profile:
 echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
@@ -293,26 +351,26 @@ source ~/.zshrc
 
 **Usage:**
 ```bash
-# Start session in current directory
-start-claude-session my-project
+# Start session with Claude in current directory
+start-ai-session my-project claude
 
-# Start session in specific directory
-start-claude-session api-work ~/projects/api
+# Start session with Aider in specific directory
+start-ai-session api-work aider ~/projects/api
 
-# Start multiple sessions
-start-claude-session frontend ~/projects/web
-start-claude-session backend ~/projects/api
-start-claude-session mobile ~/projects/app
+# Start multiple sessions with different AI agents
+start-ai-session frontend claude ~/projects/web
+start-ai-session backend aider ~/projects/api
+start-ai-session mobile cursor ~/projects/app
 ```
 
 ### Helper: List Active Sessions
 
-Save as `~/bin/list-claude-sessions`:
+Save as `~/bin/list-ai-sessions`:
 
 ```bash
 #!/bin/bash
 
-echo "🎯 Active Claude Code Sessions:"
+echo "🎯 Active AI Agent Sessions:"
 echo ""
 
 if ! tmux has-session 2>/dev/null; then
@@ -333,18 +391,18 @@ echo "💡 Tip: View all sessions in dashboard at http://localhost:3000"
 
 **Make executable and run:**
 ```bash
-chmod +x ~/bin/list-claude-sessions
-list-claude-sessions
+chmod +x ~/bin/list-ai-sessions
+list-ai-sessions
 ```
 
-### Helper: Kill All Claude Sessions
+### Helper: Kill All AI Sessions
 
-Save as `~/bin/cleanup-claude-sessions`:
+Save as `~/bin/cleanup-ai-sessions`:
 
 ```bash
 #!/bin/bash
 
-echo "🧹 Cleaning up Claude Code sessions..."
+echo "🧹 Cleaning up AI agent sessions..."
 
 if ! tmux has-session 2>/dev/null; then
     echo "No active sessions to clean up"
@@ -369,12 +427,35 @@ fi
 
 **Make executable:**
 ```bash
-chmod +x ~/bin/cleanup-claude-sessions
+chmod +x ~/bin/cleanup-ai-sessions
 ```
 
 ---
 
-## 7. Dashboard Operations
+## 7. Session Notes Feature
+
+Each session has a built-in notes area for capturing important information while working with your AI agent.
+
+### Using Session Notes
+
+1. **Expand Notes**: Click "Show Session Notes" button below the terminal (if collapsed)
+2. **Take Notes**: Type directly in the textarea - supports copy/paste
+3. **Auto-Save**: Notes save automatically to localStorage (per-session)
+4. **Collapse**: Click the down arrow to hide notes and maximize terminal space
+
+### Notes Use Cases
+
+- **Track decisions**: Record architectural decisions made with your AI agent
+- **Save commands**: Copy/paste useful commands your AI suggests
+- **Todo lists**: Keep track of what's left to implement
+- **Context**: Notes for when you return to the session later
+- **Code snippets**: Temporary storage for code before committing
+
+**Note:** Notes are stored in browser localStorage and persist between dashboard restarts!
+
+---
+
+## 8. Dashboard Operations
 
 ### Starting the Dashboard
 
@@ -452,7 +533,7 @@ tmux attach -t <session-name>
 
 # 3. If session is frozen, kill and recreate it
 tmux kill-session -t <session-name>
-start-claude-session <session-name>
+start-ai-session <session-name> claude  # or your preferred AI agent
 
 # 4. Check dashboard WebSocket connection
 # Open browser console (F12) and look for errors
@@ -468,10 +549,10 @@ start-claude-session <session-name>
 
 # 2. Refresh the browser page
 
-# 3. Check if Claude Code is still running in tmux:
+# 3. Check if your AI agent is still running in tmux:
 tmux attach -t <session-name>
-# If Claude exited, restart it:
-claude
+# If your AI exited, restart it:
+claude  # or aider, cursor, copilot, etc.
 
 # 4. Check browser console for JavaScript errors
 ```
@@ -545,8 +626,8 @@ tmux kill-session -t completed-task
 # Capture terminal content before killing session
 tmux capture-pane -pt <session-name> -S - > ~/backups/session-backup.txt
 
-# Or use Claude to save the conversation
-# (Ask Claude: "Please summarize our conversation and save it")
+# Or ask your AI agent to save the conversation
+# (e.g., "Please summarize our conversation and save it")
 ```
 
 ### Daily Workflow
@@ -554,13 +635,13 @@ tmux capture-pane -pt <session-name> -S - > ~/backups/session-backup.txt
 ```bash
 # Morning routine
 cd ~/agents-web && yarn dev &           # Start dashboard
-start-claude-session main-work ~/projects
-start-claude-session experiments ~/tests
+start-ai-session main-work claude ~/projects
+start-ai-session experiments aider ~/tests
 open http://localhost:3000              # Open dashboard
 
 # Evening routine
-list-claude-sessions                    # Review active sessions
-cleanup-claude-sessions                 # Kill all sessions (optional)
+list-ai-sessions                        # Review active sessions
+cleanup-ai-sessions                     # Kill all sessions (optional)
 # Or keep them running overnight
 ```
 
@@ -568,9 +649,9 @@ cleanup-claude-sessions                 # Kill all sessions (optional)
 
 ## 10. Advanced Tips
 
-### Auto-start Sessions on Boot
+### Auto-start Dashboard on Boot
 
-Create `~/Library/LaunchAgents/com.user.claude-dashboard.plist`:
+Create `~/Library/LaunchAgents/com.user.ai-team-dashboard.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -578,7 +659,7 @@ Create `~/Library/LaunchAgents/com.user.claude-dashboard.plist`:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.claude-dashboard</string>
+    <string>com.user.ai-team-dashboard</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
@@ -590,19 +671,19 @@ Create `~/Library/LaunchAgents/com.user.claude-dashboard.plist`:
     <key>KeepAlive</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>/tmp/claude-dashboard.log</string>
+    <string>/tmp/ai-team-dashboard.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/claude-dashboard.error.log</string>
+    <string>/tmp/ai-team-dashboard.error.log</string>
 </dict>
 </plist>
 ```
 
 ```bash
 # Load the launch agent
-launchctl load ~/Library/LaunchAgents/com.user.claude-dashboard.plist
+launchctl load ~/Library/LaunchAgents/com.user.ai-team-dashboard.plist
 
 # Unload if needed
-launchctl unload ~/Library/LaunchAgents/com.user.claude-dashboard.plist
+launchctl unload ~/Library/LaunchAgents/com.user.ai-team-dashboard.plist
 ```
 
 ### Persistent Sessions Across Reboots
@@ -619,9 +700,9 @@ Example restoration script `~/bin/restore-sessions`:
 #!/bin/bash
 
 # Restore common sessions after reboot
-start-claude-session main ~/projects/main
-start-claude-session experiments ~/experiments
-start-claude-session docs ~/documentation
+start-ai-session main claude ~/projects/main
+start-ai-session experiments aider ~/experiments
+start-ai-session docs cursor ~/documentation
 
 echo "✅ Sessions restored"
 ```
@@ -642,7 +723,7 @@ tmux kill-session -t name     # Kill session
 # Inside tmux
 Ctrl+B, D                     # Detach
 Ctrl+B, $                     # Rename session
-Ctrl+D                        # Exit Claude (closes session)
+Ctrl+D                        # Exit AI agent (closes session)
 
 # Dashboard
 yarn dev                      # Start dashboard
@@ -650,9 +731,9 @@ open http://localhost:3000    # Open dashboard
 Ctrl+C                        # Stop dashboard
 
 # Helper Scripts (if created)
-start-claude-session name     # Create session with Claude
-list-claude-sessions          # List all sessions
-cleanup-claude-sessions       # Kill all sessions
+start-ai-session name agent   # Create session with AI agent
+list-ai-sessions              # List all sessions
+cleanup-ai-sessions           # Kill all sessions
 ```
 
 ---
@@ -678,4 +759,4 @@ Questions or issues?
 
 ---
 
-**Happy coding with Claude! 🤖**
+**Happy coding with your AI agents! 🤖**

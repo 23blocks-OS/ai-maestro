@@ -100,11 +100,22 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // DISABLED: History replay causes duplicate lines with Claude Code's cursor positioning
-    // When Claude Code updates status indicators, each cursor movement gets recorded
-    // to scrollback. Replaying this history shows all the duplicates.
-    // For now, we start with a clean terminal on each connect.
-    // TODO: Find a way to distinguish between "real" content and cursor positioning updates
+    // TEMPORARILY DISABLED: History replay to debug input issue
+    // Will re-enable once input is working
+    // setTimeout(async () => {
+    //   try {
+    //     const { execSync } = await import('child_process')
+    //     const visibleContent = execSync(
+    //       `tmux capture-pane -t ${sessionName} -p`,
+    //       { encoding: 'utf8', timeout: 2000 }
+    //     ).toString()
+    //     if (ws.readyState === 1 && visibleContent) {
+    //       ws.send(visibleContent)
+    //     }
+    //   } catch (error) {
+    //     console.error('Error capturing visible pane:', error)
+    //   }
+    // }, 150)
 
     // Handle client input
     ws.on('message', (data) => {

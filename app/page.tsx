@@ -74,7 +74,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-6 py-3">
         <div className="flex justify-between items-center">
           <p className="text-sm text-white">
-            Version 0.1.3 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.1.4 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-sm text-white">
             Concept by{' '}

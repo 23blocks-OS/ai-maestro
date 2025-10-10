@@ -62,18 +62,41 @@ Works with **any** terminal-based AI:
 
 ## 🚀 Quick Start
 
-### 1. Install
+### 1. Install & Setup
 
 ```bash
 git clone https://github.com/23blocks-OS/ai-maestro.git
 cd ai-maestro
 yarn install
+```
+
+**Configure tmux for optimal scrolling** (highly recommended):
+```bash
+./scripts/setup-tmux.sh
+```
+
+This enables:
+- ✅ Mouse wheel scrolling (works with Claude Code's alternate screen)
+- ✅ 50,000 line scrollback buffer (up from 2,000)
+- ✅ Better terminal colors
+
+**Start the dashboard**:
+```bash
 yarn dev
 ```
 
 Dashboard opens at `http://localhost:23000`
 
-**Network Access:** By default, AI Maestro is accessible on your local network at port 23000. See [Security](#-important-notes) for important information.
+**Network Access:** By default, AI Maestro is accessible on your local network at port 23000. See [Security](#security) below for important information.
+
+**Optional: Configure security settings**
+```bash
+# Copy the example environment file
+cp .env.example .env.local
+
+# Edit .env.local to change HOSTNAME to 'localhost' for local-only access
+# See the Security section below for all configuration options
+```
 
 ### 2. Create Your First Session
 
@@ -198,6 +221,7 @@ Built with modern, battle-tested tools:
 ## 📚 Documentation
 
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
+- **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions for common issues
 - **[Technical Specs](./docs/TECHNICAL-SPECIFICATIONS.md)** - Architecture deep-dive
 - **[UX Specs](./docs/UX-SPECIFICATIONS.md)** - Design decisions
 - **[Contributing](./CONTRIBUTING.md)** - How to contribute
@@ -261,16 +285,84 @@ AI Maestro runs on `0.0.0.0:23000` which means:
 - Shared office WiFi with untrusted users
 - Exposing port 23000 to the internet
 
-**To run localhost-only (more secure):**
+---
+
+#### 🔒 Localhost-Only Mode (Recommended for Maximum Security)
+
+For the most secure setup, restrict AI Maestro to only accept connections from your local machine:
+
+**Option 1: One-time run**
 ```bash
-HOSTNAME=localhost PORT=3000 yarn dev
+HOSTNAME=localhost yarn dev
+# or
+HOSTNAME=127.0.0.1 yarn dev
 ```
 
-**Additional Security:**
+**Option 2: Persistent configuration** (recommended)
+
+Create a `.env.local` file in the project root:
+
+```bash
+# .env.local
+HOSTNAME=localhost
+PORT=23000
+```
+
+Then run normally:
+```bash
+yarn dev
+```
+
+**Production build:**
+```bash
+HOSTNAME=localhost yarn build
+HOSTNAME=localhost yarn start
+```
+
+---
+
+#### 🌐 Network Configuration Options
+
+| Configuration | Access Level | Use Case |
+|--------------|--------------|----------|
+| `HOSTNAME=localhost` | **Local machine only** | Maximum security, single developer |
+| `HOSTNAME=127.0.0.1` | **Local machine only** | Same as localhost (explicit IP) |
+| `HOSTNAME=0.0.0.0` (default) | **Local network** | Access from phone/tablet/other computers |
+| `HOSTNAME=192.168.x.x` | **Specific network interface** | Control which network accepts connections |
+
+**Testing your configuration:**
+
+```bash
+# After starting the server, test access:
+
+# Should always work (local access)
+curl http://localhost:23000
+
+# Will only work if HOSTNAME is 0.0.0.0 or your local IP
+curl http://192.168.1.100:23000  # Replace with your machine's IP
+```
+
+---
+
+#### 🛡️ Additional Security Measures
+
+**Built-in protections:**
 - No data sent over the internet (runs 100% locally)
 - Notes stored in browser localStorage only
 - tmux sessions run with your user permissions
-- **Not for production use** without adding authentication & HTTPS
+- No external API calls or telemetry
+
+**Recommended practices:**
+- Use localhost-only mode when on untrusted networks
+- Never expose port 23000 to the internet (no port forwarding)
+- Review tmux session permissions regularly
+- Consider using a firewall to restrict port 23000 access
+
+**⚠️ Not for production use** without adding:
+- Authentication (user login)
+- HTTPS/WSS encryption
+- Rate limiting
+- Access logging
 
 ### Compatibility
 - Works with **any** terminal-based AI agent

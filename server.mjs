@@ -102,22 +102,50 @@ app.prepare().then(() => {
     setTimeout(async () => {
       try {
         const { execSync } = await import('child_process')
-        // Capture tmux pane's scrollback (last 10000 lines)
-        const history = execSync(`tmux capture-pane -t ${sessionName} -p -S -10000`, {
-          encoding: 'utf8',
-          maxBuffer: 50 * 1024 * 1024, // 50MB buffer
-        }).toString()
 
-        // Send the history to the client
-        if (ws.readyState === 1) {
-          ws.send(history)
+        // Capture both normal and alternate screen buffer content
+        // -p: print to stdout, -S: start line (negative = lines from history), -e: end line
+        // First, try to capture the entire scrollback history
+        try {
+          const history = execSync(
+            `tmux capture-pane -t ${sessionName} -p -S -50000 -e -1 2>/dev/null || tmux capture-pane -t ${sessionName} -p -S - -e -`,
+            {
+              encoding: 'utf8',
+              maxBuffer: 100 * 1024 * 1024, // 100MB buffer for large histories
+              timeout: 5000, // 5 second timeout
+            }
+          ).toString()
+
+          // Send the history to the client if we got content
+          if (ws.readyState === 1 && history && history.trim().length > 0) {
+            ws.send(history)
+          }
+        } catch (captureError) {
+          console.warn('Could not capture full history, trying visible pane only:', captureError.message)
+
+          // Fallback: capture just the visible pane content
+          try {
+            const visibleContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p`,
+              {
+                encoding: 'utf8',
+                timeout: 2000,
+              }
+            ).toString()
+
+            if (ws.readyState === 1 && visibleContent) {
+              ws.send(visibleContent)
+            }
+          } catch (fallbackError) {
+            console.error('Could not capture visible content either:', fallbackError.message)
+          }
         }
       } catch (error) {
-        console.error('Error capturing tmux history:', error)
-        // If capture fails, just redraw the screen
-        sessionState.ptyProcess.write('\x0c') // Ctrl-L
+        console.error('Error in history capture process:', error)
+        // Don't send Ctrl-L as it might interfere with running applications
+        // Just let the session load naturally
       }
-    }, 100)
+    }, 150) // Slightly longer delay to let tmux settle
 
     // Handle client input
     ws.on('message', (data) => {

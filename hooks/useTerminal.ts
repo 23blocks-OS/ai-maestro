@@ -64,13 +64,18 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightWhite: '#ffffff',
       },
       scrollback: 50000,
-      convertEol: true,
+      // CRITICAL: Disable convertEol for PTY connections
+      // PTY/tmux handles line endings correctly - converting them in xterm.js causes duplication
+      convertEol: false,
       allowTransparency: false,
       scrollSensitivity: 1,
       fastScrollSensitivity: 5,
       // Ensure scrollback works in all modes
       altClickMovesCursor: false,
-      windowOptions: {},
+      // Support alternate screen buffer (used by Claude Code, vim, etc.)
+      windowOptions: {
+        setWinLines: true,
+      },
     })
 
     // Initialize addons

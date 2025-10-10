@@ -97,9 +97,26 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // Force tmux to redraw after client connects
-    setTimeout(() => {
-      sessionState.ptyProcess.write('\x0c') // Ctrl-L
+    // Send tmux scrollback history to the new client
+    // This captures the tmux pane's scrollback and sends it to xterm.js
+    setTimeout(async () => {
+      try {
+        const { execSync } = await import('child_process')
+        // Capture tmux pane's scrollback (last 10000 lines)
+        const history = execSync(`tmux capture-pane -t ${sessionName} -p -S -10000`, {
+          encoding: 'utf8',
+          maxBuffer: 50 * 1024 * 1024, // 50MB buffer
+        }).toString()
+
+        // Send the history to the client
+        if (ws.readyState === 1) {
+          ws.send(history)
+        }
+      } catch (error) {
+        console.error('Error capturing tmux history:', error)
+        // If capture fails, just redraw the screen
+        sessionState.ptyProcess.write('\x0c') // Ctrl-L
+      }
     }, 100)
 
     // Handle client input

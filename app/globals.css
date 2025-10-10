@@ -39,7 +39,27 @@ body {
 }
 
 .xterm .xterm-viewport {
-  overflow-y: auto;
+  overflow-y: scroll !important;
+  scrollbar-width: thin;
+  scrollbar-color: #424242 #1e1e1e;
+}
+
+/* Custom scrollbar for xterm viewport */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
 }
 
 .xterm-screen {

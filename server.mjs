@@ -6,8 +6,8 @@ import pty from 'node-pty'
 import os from 'os'
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = 'localhost'
-const port = parseInt(process.env.PORT || '3000', 10)
+const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
+const port = parseInt(process.env.PORT || '23000', 10)
 
 // Initialize Next.js
 const app = next({ dev, hostname, port })

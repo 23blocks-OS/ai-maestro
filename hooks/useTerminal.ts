@@ -64,9 +64,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightWhite: '#ffffff',
       },
       scrollback: 50000,
-      // CRITICAL: Disable convertEol for PTY connections
-      // PTY/tmux handles line endings correctly - converting them in xterm.js causes duplication
-      convertEol: false,
+      // Enable convertEol for proper line ending handling
+      convertEol: true,
       allowTransparency: false,
       scrollSensitivity: 1,
       fastScrollSensitivity: 5,
@@ -76,6 +75,10 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       windowOptions: {
         setWinLines: true,
       },
+      // Disable Windows mode - we're on Unix/macOS
+      windowsMode: false,
+      // CRITICAL: This might help with carriage return handling
+      macOptionIsMeta: true,
     })
 
     // Initialize addons

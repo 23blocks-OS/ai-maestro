@@ -71,8 +71,11 @@ app.prepare().then(() => {
       }
       sessions.set(sessionName, sessionState)
 
-      // Stream PTY output to all clients
+      // Stream PTY output directly to all clients
+      // Claude Code uses cursor positioning (\x1b[nA, \x1b[nB) which must be sent immediately
       ptyProcess.onData((data) => {
+        // Send data directly to all clients without buffering
+        // Buffering was causing xterm.js to add each intermediate cursor position to scrollback
         sessionState.clients.forEach((client) => {
           if (client.readyState === 1) { // WebSocket.OPEN
             try {
@@ -97,55 +100,11 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // Send tmux scrollback history to the new client
-    // This captures the tmux pane's scrollback and sends it to xterm.js
-    setTimeout(async () => {
-      try {
-        const { execSync } = await import('child_process')
-
-        // Capture both normal and alternate screen buffer content
-        // -p: print to stdout, -S: start line (negative = lines from history), -e: end line
-        // First, try to capture the entire scrollback history
-        try {
-          const history = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -50000 -e -1 2>/dev/null || tmux capture-pane -t ${sessionName} -p -S - -e -`,
-            {
-              encoding: 'utf8',
-              maxBuffer: 100 * 1024 * 1024, // 100MB buffer for large histories
-              timeout: 5000, // 5 second timeout
-            }
-          ).toString()
-
-          // Send the history to the client if we got content
-          if (ws.readyState === 1 && history && history.trim().length > 0) {
-            ws.send(history)
-          }
-        } catch (captureError) {
-          console.warn('Could not capture full history, trying visible pane only:', captureError.message)
-
-          // Fallback: capture just the visible pane content
-          try {
-            const visibleContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p`,
-              {
-                encoding: 'utf8',
-                timeout: 2000,
-              }
-            ).toString()
-
-            if (ws.readyState === 1 && visibleContent) {
-              ws.send(visibleContent)
-            }
-          } catch (fallbackError) {
-            console.error('Could not capture visible content either:', fallbackError.message)
-          }
-        }
-      } catch (error) {
-        console.error('Error in history capture process:', error)
-        // Don't send Ctrl-L as it might interfere with running applications
-        // Just let the session load naturally
-      }
-    }, 150) // Slightly longer delay to let tmux settle
+    // DISABLED: History replay causes duplicate lines with Claude Code's cursor positioning
+    // When Claude Code updates status indicators, each cursor movement gets recorded
+    // to scrollback. Replaying this history shows all the duplicates.
+    // For now, we start with a clean terminal on each connect.
+    // TODO: Find a way to distinguish between "real" content and cursor positioning updates
 
     // Handle client input
     ws.on('message', (data) => {

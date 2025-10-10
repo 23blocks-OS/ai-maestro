@@ -364,6 +364,23 @@ curl http://192.168.1.100:23000  # Replace with your machine's IP
 - Rate limiting
 - Access logging
 
+### Known Limitations
+
+#### Scrollback with Claude Code
+When Claude Code updates status indicators (like "Thinking..."), you may see duplicate lines in the scrollback buffer. This is a known limitation of xterm.js (the terminal library used by VS Code, JupyterLab, and most web terminals).
+
+**Why this happens:**
+- Native terminals (iTerm2, Terminal.app) only add content to scrollback when it scrolls off the top
+- xterm.js records every cursor movement, including in-place status updates
+- Claude Code uses cursor positioning to update indicators, creating intermediate states in scrollback
+
+**Workarounds included:**
+- 🧹 **Clear button** in terminal header - manually clean scrollback when needed
+- **No history replay** - start with clean terminal on reconnect
+- These are the same workarounds used by other xterm.js-based terminals
+
+**Note:** This is not specific to AI Maestro - it affects all web terminals using xterm.js with tools that update status indicators in place.
+
 ### Compatibility
 - Works with **any** terminal-based AI agent
 - Not affiliated with Anthropic, OpenAI, GitHub, or any AI provider

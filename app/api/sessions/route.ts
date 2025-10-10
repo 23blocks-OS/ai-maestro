@@ -16,7 +16,7 @@ export async function GET() {
     }
 
     // Parse tmux output
-    const sessions: Session[] = stdout
+    const sessions = stdout
       .trim()
       .split('\n')
       .map((line) => {
@@ -53,7 +53,7 @@ export async function GET() {
           windows: parseInt(windows, 10),
         }
       })
-      .filter((session): session is Session => session !== null)
+      .filter(session => session !== null) as Session[]
 
     return NextResponse.json({ sessions })
   } catch (error) {

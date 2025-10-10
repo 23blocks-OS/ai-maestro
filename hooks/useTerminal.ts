@@ -32,7 +32,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { WebglAddon } = await import('@xterm/addon-webgl')
-    await import('@xterm/xterm/css/xterm.css')
 
     // Create terminal instance
     const terminal = new Terminal({

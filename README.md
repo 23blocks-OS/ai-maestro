@@ -71,7 +71,9 @@ yarn install
 yarn dev
 ```
 
-Dashboard opens at `http://localhost:3000`
+Dashboard opens at `http://localhost:23000`
+
+**Network Access:** By default, AI Maestro is accessible on your local network at port 23000. See [Security](#-important-notes) for important information.
 
 ### 2. Create Your First Session
 
@@ -240,10 +242,35 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 ## ⚠️ Important Notes
 
 ### Security
-- **Localhost-only** by default (127.0.0.1)
-- No data sent over the internet
+
+**⚠️ Network Access Enabled by Default**
+
+AI Maestro runs on `0.0.0.0:23000` which means:
+- ✅ **Accessible from any device on your local network**
+- ⚠️ **No authentication required** - anyone on your WiFi can access it
+- ⚠️ **Unencrypted connections** (ws://) - data sent in plain text
+- ⚠️ **Full terminal access** - anyone connected can run commands
+
+**Safe for:**
+- Home networks (trusted WiFi)
+- Private office networks
+- Development on trusted LANs
+
+**NOT safe for:**
+- Public WiFi (coffee shops, airports, etc.)
+- Shared office WiFi with untrusted users
+- Exposing port 23000 to the internet
+
+**To run localhost-only (more secure):**
+```bash
+HOSTNAME=localhost PORT=3000 yarn dev
+```
+
+**Additional Security:**
+- No data sent over the internet (runs 100% locally)
 - Notes stored in browser localStorage only
-- **Not for production use** without additional security
+- tmux sessions run with your user permissions
+- **Not for production use** without adding authentication & HTTPS
 
 ### Compatibility
 - Works with **any** terminal-based AI agent

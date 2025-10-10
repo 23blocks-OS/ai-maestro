@@ -155,6 +155,14 @@ export default function TerminalView({ session }: TerminalViewProps) {
               <span title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
                 ⌨️ Shift+PgUp/PgDn • Shift+↑/↓
               </span>
+              <span className="text-gray-500">|</span>
+              <button
+                onClick={() => terminal.clear()}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
+                title="Clear terminal scrollback buffer (removes duplicate lines from Claude Code status updates)"
+              >
+                🧹 Clear
+              </button>
             </div>
           )}
         </div>

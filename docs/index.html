@@ -15,15 +15,61 @@
         <div class="container">
             <div class="nav-content">
                 <div class="logo">🎼 AI Maestro</div>
-                <div class="nav-links">
+
+                <!-- Desktop Navigation -->
+                <div class="nav-links desktop-nav">
                     <a href="#features">Features</a>
                     <a href="#quick-start">Quick Start</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank">GitHub</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="btn-primary" target="_blank">Get Started</a>
                 </div>
+
+                <!-- Mobile Navigation -->
+                <div class="mobile-nav">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="btn-primary mobile-cta" target="_blank">Get Started</a>
+                    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu" id="mobile-menu">
+                <a href="#features">Features</a>
+                <a href="#quick-start">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank">GitHub</a>
             </div>
         </div>
     </nav>
+
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
 
     <header class="hero">
         <div class="container">

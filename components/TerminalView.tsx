@@ -143,9 +143,17 @@ export default function TerminalView({ session }: TerminalViewProps) {
             <ConnectionIndicator isConnected={isConnected} />
           </div>
           {terminal && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
               <span>
                 {terminal.cols}x{terminal.rows}
+              </span>
+              <span className="text-gray-500">|</span>
+              <span title={`Buffer: ${terminal.buffer.active.length} lines (max: 50000)`}>
+                📜 {terminal.buffer.active.length} lines
+              </span>
+              <span className="text-gray-500">|</span>
+              <span title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
+                ⌨️ Shift+PgUp/PgDn • Shift+↑/↓
               </span>
             </div>
           )}

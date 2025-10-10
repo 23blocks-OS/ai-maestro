@@ -33,7 +33,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { WebglAddon } = await import('@xterm/addon-webgl')
 
-    // Create terminal instance
+    // Create terminal instance with explicit scrollback configuration
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: options.fontSize || 16,
@@ -63,9 +63,14 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightCyan: '#29b8db',
         brightWhite: '#ffffff',
       },
-      scrollback: 10000,
+      scrollback: 50000,
       convertEol: true,
       allowTransparency: false,
+      scrollSensitivity: 1,
+      fastScrollSensitivity: 5,
+      // Ensure scrollback works in all modes
+      altClickMovesCursor: false,
+      windowOptions: {},
     })
 
     // Initialize addons
@@ -89,9 +94,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
-    // Clear the terminal buffer
-    terminal.clear()
-
     // Fit terminal to container
     fitAddon.fit()
 
@@ -99,21 +101,72 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
 
-    // Handle window resize
+    // Handle window resize with debouncing to prevent buffer issues
+    let resizeTimeout: NodeJS.Timeout
     const resizeObserver = new ResizeObserver(() => {
-      if (fitAddonRef.current && terminalRef.current) {
-        try {
-          fitAddonRef.current.fit()
-        } catch (e) {
-          console.error('Failed to fit terminal:', e)
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        if (fitAddonRef.current && terminalRef.current) {
+          try {
+            // Store current scroll position
+            const scrollPos = terminal.buffer.active.viewportY
+
+            // Resize
+            fitAddonRef.current.fit()
+
+            // Restore scroll position if we were at the bottom
+            if (scrollPos === terminal.buffer.active.baseY) {
+              terminal.scrollToBottom()
+            }
+          } catch (e) {
+            console.error('Failed to fit terminal:', e)
+          }
         }
-      }
+      }, 100) // Debounce by 100ms
     })
 
     resizeObserver.observe(container)
 
     // Focus terminal
     terminal.focus()
+
+    // Add keyboard shortcuts for scrolling
+    terminal.attachCustomKeyEventHandler((event) => {
+      // Calculate scroll amount based on terminal height (scroll by page)
+      const scrollAmount = Math.max(1, terminal.rows - 2)
+
+      // Shift + Page Up - Scroll up by page
+      if (event.shiftKey && event.key === 'PageUp') {
+        terminal.scrollLines(-scrollAmount)
+        return false
+      }
+      // Shift + Page Down - Scroll down by page
+      if (event.shiftKey && event.key === 'PageDown') {
+        terminal.scrollLines(scrollAmount)
+        return false
+      }
+      // Shift + Arrow Up - Scroll up 5 lines
+      if (event.shiftKey && event.key === 'ArrowUp') {
+        terminal.scrollLines(-5)
+        return false
+      }
+      // Shift + Arrow Down - Scroll down 5 lines
+      if (event.shiftKey && event.key === 'ArrowDown') {
+        terminal.scrollLines(5)
+        return false
+      }
+      // Shift + Home - Scroll to top
+      if (event.shiftKey && event.key === 'Home') {
+        terminal.scrollToTop()
+        return false
+      }
+      // Shift + End - Scroll to bottom
+      if (event.shiftKey && event.key === 'End') {
+        terminal.scrollToBottom()
+        return false
+      }
+      return true
+    })
 
     // Cleanup function
     return () => {

@@ -257,6 +257,31 @@ try {
 
 **Never** read terminal content via React state. Always use xterm.js APIs (`terminal.write()`, `terminal.onData()`).
 
+### Critical Terminal Configuration for PTY/tmux
+
+**IMPORTANT:** The following terminal settings are critical for proper Claude Code CLI behavior:
+
+1. **`convertEol: false`** - PTY and tmux handle line endings correctly. Setting this to `true` causes character duplication and incorrect line breaks because xterm.js will convert `\n` to `\r\n`, but the PTY has already handled this.
+
+2. **Alternate Screen Buffer Support** - Claude Code (like vim, less, etc.) uses tmux's alternate screen buffer. This means:
+   - When Claude is active, it uses a separate screen that doesn't mix with your shell history
+   - Scrollback must be captured from tmux's buffer, not just xterm.js's buffer
+   - The `windowOptions: { setWinLines: true }` setting enables proper alternate buffer support
+
+3. **Scrollback Capture Strategy** - On initial connection, capture both normal and alternate screen content:
+   ```bash
+   # Try to capture full history (50000 lines)
+   tmux capture-pane -t <session> -p -S -50000 -e -1
+   # Fallback to visible content only
+   tmux capture-pane -t <session> -p
+   ```
+
+**Common Issues and Fixes:**
+
+- **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
+- **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
+- **Lost history after switching sessions**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
+
 ### WebSocket Reconnection Strategy
 
 ```typescript

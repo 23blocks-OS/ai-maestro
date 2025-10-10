@@ -702,7 +702,7 @@ function CreateSessionModal({
                 placeholder="apps-notify-session1"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 autoFocus
-                pattern="[a-zA-Z0-9_-]+"
+                pattern="[a-zA-Z0-9_\-]+"
                 title="Only letters, numbers, dashes, and underscores allowed"
               />
               <p className="text-xs text-gray-400 mt-1">
@@ -783,7 +783,7 @@ function RenameSessionModal({
                 onChange={(e) => setNewName(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 autoFocus
-                pattern="[a-zA-Z0-9_-]+"
+                pattern="[a-zA-Z0-9_\-]+"
                 title="Only letters, numbers, dashes, and underscores allowed"
               />
               <p className="text-xs text-gray-400 mt-1">

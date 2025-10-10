@@ -100,22 +100,21 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // TEMPORARILY DISABLED: History replay to debug input issue
-    // Will re-enable once input is working
-    // setTimeout(async () => {
-    //   try {
-    //     const { execSync } = await import('child_process')
-    //     const visibleContent = execSync(
-    //       `tmux capture-pane -t ${sessionName} -p`,
-    //       { encoding: 'utf8', timeout: 2000 }
-    //     ).toString()
-    //     if (ws.readyState === 1 && visibleContent) {
-    //       ws.send(visibleContent)
-    //     }
-    //   } catch (error) {
-    //     console.error('Error capturing visible pane:', error)
-    //   }
-    // }, 150)
+    // Send current visible terminal content to new clients
+    setTimeout(async () => {
+      try {
+        const { execSync } = await import('child_process')
+        const visibleContent = execSync(
+          `tmux capture-pane -t ${sessionName} -p`,
+          { encoding: 'utf8', timeout: 2000 }
+        ).toString()
+        if (ws.readyState === 1 && visibleContent) {
+          ws.send(visibleContent)
+        }
+      } catch (error) {
+        console.error('Error capturing visible pane:', error)
+      }
+    }, 150)
 
     // Handle client input
     ws.on('message', (data) => {

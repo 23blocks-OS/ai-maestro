@@ -136,6 +136,81 @@ Your session is now live in the dashboard. Click to switch between sessions. Add
 
 ---
 
+## 📱 Access from Mobile Devices
+
+AI Maestro is fully mobile-optimized, letting you monitor and control your AI agents from your phone or tablet - perfect for checking progress while away from your desk.
+
+<div align="center">
+<img src="./docs/images/aimaestro-mobile.png" alt="AI Maestro on Mobile" width="300"/>
+<img src="./docs/images/aimaestro-sidebar.png" alt="Mobile Sidebar" width="300"/>
+</div>
+
+### Secure Remote Access with Tailscale
+
+The best way to access AI Maestro from anywhere is using [Tailscale](https://tailscale.com) - a zero-config VPN that creates a secure network between your devices.
+
+> **Note:** AI Maestro is not endorsed by or affiliated with Tailscale in any way. We simply use it and recommend it based on our positive experience.
+
+**Why Tailscale?**
+- ✅ **Zero port forwarding** - No need to expose ports to the internet
+- ✅ **Encrypted connections** - All traffic is automatically encrypted
+- ✅ **No public IP needed** - Works behind NAT, firewalls, and routers
+- ✅ **Cross-platform** - iOS, Android, macOS, Windows, Linux
+- ✅ **Free for personal use** - Up to 100 devices
+
+### Setup Guide
+
+**1. Install Tailscale on your development machine:**
+```bash
+# macOS
+brew install tailscale
+
+# Or download from https://tailscale.com/download
+```
+
+**2. Install Tailscale on your mobile device:**
+- iOS: [App Store](https://apps.apple.com/app/tailscale/id1470499037)
+- Android: [Google Play](https://play.google.com/store/apps/details?id=com.tailscale.ipn)
+
+**3. Connect both devices:**
+- Open Tailscale on both devices
+- Sign in with the same account (Google, Microsoft, GitHub, etc.)
+- Both devices will appear in your Tailscale network
+
+**4. Start AI Maestro:**
+```bash
+# On your development machine
+yarn dev
+```
+
+**5. Access from your mobile device:**
+```
+http://YOUR-MACHINE-NAME:23000
+```
+
+Find your machine name in Tailscale settings (e.g., `macbook-pro`, `desktop-work`)
+
+### Mobile Features
+
+- **Touch-optimized interface** - Swipe to open sidebar, tap to close
+- **Auto-collapsing sidebar** - Sidebar starts collapsed on mobile for maximum terminal space
+- **Compact header** - Essential info only, optimized for small screens
+- **Notes panel collapsed by default** - More room for terminal output
+- **Full terminal access** - View output, run commands, monitor progress
+- **Responsive layout** - Adapts perfectly to any screen size
+
+### Use Cases
+
+- 📊 **Monitor long-running builds** from your phone
+- 🐛 **Check agent progress** while away from desk
+- 📝 **Read session notes** on your tablet
+- ✅ **Verify completions** without being at your computer
+- 🔄 **Switch between agents** from anywhere
+
+**Note:** For security, AI Maestro doesn't support direct input on mobile (by design). Use it for monitoring and reading. For active coding, use your desktop.
+
+---
+
 ## 📸 Screenshots
 
 <details>

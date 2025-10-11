@@ -213,8 +213,7 @@ Find your machine name in Tailscale settings (e.g., `macbook-pro`, `desktop-work
 - 📝 **Read session notes** on your tablet
 - ✅ **Verify completions** without being at your computer
 - 🔄 **Switch between agents** from anywhere
-
-**Note:** For security, AI Maestro doesn't support direct input on mobile (by design). Use it for monitoring and reading. For active coding, use your desktop.
+- 💻 **Full terminal input** - Type commands and interact with agents from any device
 
 ---
 

@@ -60,10 +60,13 @@
             opacity: 0;
             transform: translateY(-10px);
             transition: all 0.3s ease;
+            pointer-events: none;
         }
         .mobile-menu.active {
             opacity: 1;
             transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
         }
 
         /* Typing cursor animation */
@@ -86,10 +89,10 @@
 <body class="font-sans text-gray-800 leading-relaxed antialiased">
     <!-- Navigation -->
     <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
-        <div class="max-w-[1200px] mx-auto px-8">
-            <div class="flex justify-between items-center py-4">
-                <a href="#" class="flex items-center gap-3 text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" style="width: 48px; height: 48px;">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="#" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
                     AI Maestro
                 </a>
 
@@ -102,9 +105,9 @@
                 </div>
 
                 <!-- Mobile Navigation -->
-                <div class="flex md:hidden items-center gap-4">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
-                    <button class="bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>
                         <span></span>
@@ -113,7 +116,7 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div class="hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
                 <a href="#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
                 <a href="#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
                 <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
@@ -149,7 +152,7 @@
     </script>
 
     <!-- Hero Section -->
-    <header class="py-24 md:py-32 text-center px-8 md:px-0">
+    <header class="py-12 md:py-32 text-center px-4 md:px-0">
         <div class="max-w-[1200px] mx-auto">
             <div>
                 <p class="text-[2rem] md:text-[3rem] font-semibold text-gray-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>

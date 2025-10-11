@@ -60,6 +60,13 @@ Works with **any** terminal-based AI:
 - Keyboard shortcuts for power users
 - Native macOS performance
 
+### Access from Anywhere
+- **Fully mobile-optimized** interface for phones and tablets
+- **Touch-optimized** controls with swipe gestures
+- **Secure remote access** via Tailscale VPN
+- **Monitor agents** while away from your desk
+- See [📱 Mobile Access](#-access-from-mobile-devices) section below for setup and screenshots
+
 ---
 
 ## 🚀 Quick Start

@@ -90,6 +90,17 @@ body {
 
 .xterm-screen {
   cursor: text;
+  /* Explicitly enable text selection in terminal */
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+/* Make selection visible */
+.xterm .xterm-selection div {
+  background-color: rgba(58, 61, 65, 0.8) !important;
+  color: #ffffff !important;
 }
 
 /* Prevent text selection on UI elements */

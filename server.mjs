@@ -4,18 +4,29 @@ import next from 'next'
 import { WebSocketServer } from 'ws'
 import pty from 'node-pty'
 import os from 'os'
+import fs from 'fs'
+import path from 'path'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
 const port = parseInt(process.env.PORT || '23000', 10)
+
+// Global logging master switch - set ENABLE_LOGGING=true to enable all logging
+const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
 
 // Initialize Next.js
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
 // Session state management
-const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, lastActivity: timestamp }
+const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
 const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(process.cwd(), 'logs')
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true })
+}
 
 // Expose sessionActivity globally for API routes
 global.sessionActivity = sessionActivity
@@ -69,9 +80,18 @@ app.prepare().then(() => {
         env: process.env
       })
 
+      // Create log file for this session (only if global logging is enabled)
+      let logStream = null
+      if (globalLoggingEnabled) {
+        const logFilePath = path.join(logsDir, `${sessionName}.txt`)
+        logStream = fs.createWriteStream(logFilePath, { flags: 'a' }) // 'a' for append mode
+      }
+
       sessionState = {
         clients: new Set(),
-        ptyProcess
+        ptyProcess,
+        logStream,
+        loggingEnabled: true // Default to enabled (but only works if globalLoggingEnabled is true)
       }
       sessions.set(sessionName, sessionState)
 
@@ -80,6 +100,28 @@ app.prepare().then(() => {
       ptyProcess.onData((data) => {
         // Pause PTY to implement backpressure
         ptyProcess.pause()
+
+        // Check if this is a redraw/status update we should filter from logs
+        const cleanedData = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '') // Remove all ANSI codes
+
+        // Detect Claude Code status patterns and thinking steps
+        const isStatusPattern =
+          /[✳·]\s*\w+ing[\.…]/.test(cleanedData) || // "✳ Forming...", "· Thinking…", etc.
+          cleanedData.includes('esc to interrupt') ||
+          cleanedData.includes('? for shortcuts') ||
+          /Tip:/.test(cleanedData) ||
+          /^[─>]+\s*$/.test(cleanedData.replace(/[\r\n]/g, '')) || // Just border characters
+          /\[\d+\/\d+\]/.test(cleanedData) || // Thinking step markers like [1/418], [2/418]
+          /^\d{2}:\d{2}:\d{2}\s+\[\d+\/\d+\]/.test(cleanedData) // Timestamped steps like "15:34:46 [1/418]"
+
+        // Write to log file only if global logging is enabled, session logging is enabled, and it's not a status pattern
+        if (globalLoggingEnabled && sessionState.logStream && sessionState.loggingEnabled && !isStatusPattern) {
+          try {
+            sessionState.logStream.write(data)
+          } catch (error) {
+            console.error(`Error writing to log file for session ${sessionName}:`, error)
+          }
+        }
 
         // Track substantial activity (filter out cursor blinks and pure escape sequences)
         const hasSubstantialContent = data.length >= 3 &&
@@ -119,8 +161,15 @@ app.prepare().then(() => {
       })
 
       ptyProcess.onExit(({ exitCode, signal }) => {
+        // Close the log stream
+        if (sessionState.logStream) {
+          sessionState.logStream.end()
+          console.log(`Log file closed for session: ${sessionName}`)
+        }
+
         // Clean up session
         sessions.delete(sessionName)
+
         // Close all clients
         sessionState.clients.forEach((client) => {
           client.close()
@@ -152,12 +201,18 @@ app.prepare().then(() => {
       try {
         const message = data.toString()
 
-        // Check if it's a JSON message (for resize events, etc.)
+        // Check if it's a JSON message (for resize events, logging control, etc.)
         try {
           const parsed = JSON.parse(message)
 
           if (parsed.type === 'resize' && parsed.cols && parsed.rows) {
             sessionState.ptyProcess.resize(parsed.cols, parsed.rows)
+            return
+          }
+
+          if (parsed.type === 'set-logging') {
+            sessionState.loggingEnabled = parsed.enabled
+            console.log(`Logging ${parsed.enabled ? 'enabled' : 'disabled'} for session: ${sessionName}`)
             return
           }
         } catch {
@@ -191,6 +246,11 @@ app.prepare().then(() => {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     sessions.forEach((state) => {
+      // Close log stream
+      if (state.logStream) {
+        state.logStream.end()
+      }
+      // Kill PTY process
       if (state.ptyProcess) {
         state.ptyProcess.kill()
       }

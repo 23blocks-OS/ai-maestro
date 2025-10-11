@@ -19,6 +19,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const [isMobile, setIsMobile] = useState(false)
   // Default to collapsed on mobile, expanded on desktop
   const [notesCollapsed, setNotesCollapsed] = useState(false)
+  const [loggingEnabled, setLoggingEnabled] = useState(true)
+  const [globalLoggingEnabled, setGlobalLoggingEnabled] = useState(false)
 
   // Detect mobile on mount
   useEffect(() => {
@@ -29,6 +31,14 @@ export default function TerminalView({ session }: TerminalViewProps) {
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Fetch global logging configuration on mount
+  useEffect(() => {
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(data => setGlobalLoggingEnabled(data.loggingEnabled))
+      .catch(err => console.error('Failed to fetch config:', err))
   }, [])
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
@@ -177,6 +187,15 @@ export default function TerminalView({ session }: TerminalViewProps) {
       // Default behavior: collapsed on mobile, expanded on desktop
       setNotesCollapsed(isMobile)
     }
+
+    // Load logging state - default to enabled
+    const loggingKey = `session-logging-${session.id}`
+    const savedLogging = localStorage.getItem(loggingKey)
+    if (savedLogging !== null) {
+      setLoggingEnabled(savedLogging === 'true')
+    } else {
+      setLoggingEnabled(true)
+    }
   }, [session.id, isMobile])
 
   // Save notes to localStorage when they change
@@ -190,6 +209,29 @@ export default function TerminalView({ session }: TerminalViewProps) {
     const collapsedKey = `session-notes-collapsed-${session.id}`
     localStorage.setItem(collapsedKey, String(notesCollapsed))
   }, [notesCollapsed, session.id])
+
+  // Save logging state to localStorage
+  useEffect(() => {
+    const loggingKey = `session-logging-${session.id}`
+    localStorage.setItem(loggingKey, String(loggingEnabled))
+  }, [loggingEnabled, session.id])
+
+  // Send logging state to server when it changes
+  useEffect(() => {
+    if (!isConnected) return
+
+    // Send logging state through WebSocket
+    const message = JSON.stringify({
+      type: 'set-logging',
+      enabled: loggingEnabled
+    })
+    sendMessage(message)
+  }, [loggingEnabled, isConnected, sendMessage])
+
+  // Toggle logging handler
+  const toggleLogging = () => {
+    setLoggingEnabled(!loggingEnabled)
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg">
@@ -216,6 +258,27 @@ export default function TerminalView({ session }: TerminalViewProps) {
               <span className="hidden md:inline" title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
                 ⌨️ Shift+PgUp/PgDn • Shift+↑/↓
               </span>
+              <span className="text-gray-500 hidden md:inline">|</span>
+              <button
+                onClick={globalLoggingEnabled ? toggleLogging : undefined}
+                disabled={!globalLoggingEnabled}
+                className={`px-2 py-1 rounded transition-colors text-xs ${
+                  !globalLoggingEnabled
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
+                    : loggingEnabled
+                    ? 'bg-green-700 hover:bg-green-600 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                }`}
+                title={
+                  !globalLoggingEnabled
+                    ? 'Session logging disabled globally (set ENABLE_LOGGING=true in .env.local to enable)'
+                    : loggingEnabled
+                    ? 'Logging enabled - Click to disable'
+                    : 'Logging disabled - Click to enable'
+                }
+              >
+                {loggingEnabled ? '📝' : '🚫'} <span className="hidden md:inline">{loggingEnabled ? 'Logging' : 'No Log'}</span>
+              </button>
               <span className="text-gray-500 hidden md:inline">|</span>
               <button
                 onClick={() => terminal.clear()}
@@ -246,7 +309,10 @@ export default function TerminalView({ session }: TerminalViewProps) {
       )}
 
       {/* Terminal Container */}
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className="flex-1 relative overflow-hidden"
+        onClick={() => terminal?.focus()}
+      >
         <div ref={terminalRef} className="absolute inset-0 custom-scrollbar" />
         {!isReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">

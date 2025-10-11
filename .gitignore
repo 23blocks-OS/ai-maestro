@@ -90,3 +90,7 @@ Desktop.ini
 tmp
 temp
 *.tmp
+
+# Session logs
+logs/
+*.log

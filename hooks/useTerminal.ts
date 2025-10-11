@@ -35,6 +35,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { WebglAddon } = await import('@xterm/addon-webgl')
+    const { ClipboardAddon } = await import('@xterm/addon-clipboard')
 
     // Create terminal instance with explicit scrollback configuration
     const terminal = new Terminal({
@@ -48,7 +49,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         background: '#1e1e1e',
         foreground: '#d4d4d4',
         cursor: '#aeafad',
-        selection: '#264f78',
+        selectionBackground: '#3a3d41',    // Visible selection background
+        selectionForeground: '#ffffff',     // White text when selected
+        selectionInactiveBackground: '#3a3d41', // Selection when terminal not focused
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',
@@ -82,14 +85,18 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       windowsMode: false,
       // CRITICAL: This might help with carriage return handling
       macOptionIsMeta: true,
+      // Enable right-click for context menu (paste, copy)
+      rightClickSelectsWord: true,
     })
 
     // Initialize addons
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
+    const clipboardAddon = new ClipboardAddon()
 
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
+    terminal.loadAddon(clipboardAddon)
 
     // Try to load WebGL addon (fallback to canvas if fails)
     try {

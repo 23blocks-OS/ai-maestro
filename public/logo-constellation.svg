@@ -1,0 +1,24 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- AI Maestro Logo - Constellation Only -->
+
+  <!-- Connection lines (showing orchestration) - drawn first so nodes appear on top -->
+  <line x1="50" y1="80" x2="100" y2="60" stroke="#3b82f6" stroke-width="6" opacity="0.8"/>
+  <line x1="100" y1="60" x2="150" y2="85" stroke="#3b82f6" stroke-width="6" opacity="0.8"/>
+  <line x1="50" y1="80" x2="70" y2="130" stroke="#8b5cf6" stroke-width="5" opacity="0.7"/>
+  <line x1="150" y1="85" x2="130" y2="140" stroke="#8b5cf6" stroke-width="5" opacity="0.7"/>
+  <line x1="70" y1="130" x2="130" y2="140" stroke="#8b5cf6" stroke-width="5" opacity="0.7"/>
+
+  <!-- Glow effect for active nodes -->
+  <circle cx="50" cy="80" r="20" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.4"/>
+  <circle cx="100" cy="60" r="20" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.4"/>
+  <circle cx="150" cy="85" r="20" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.4"/>
+  <circle cx="70" cy="130" r="18" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.3"/>
+  <circle cx="130" cy="140" r="18" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.3"/>
+
+  <!-- AI agent nodes (larger circles with white borders) -->
+  <circle cx="50" cy="80" r="16" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="100" cy="60" r="16" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="150" cy="85" r="16" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="70" cy="130" r="14" fill="#8b5cf6" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="130" cy="140" r="14" fill="#8b5cf6" stroke="#ffffff" stroke-width="2"/>
+</svg>

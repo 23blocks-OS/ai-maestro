@@ -1,0 +1,40 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 4: Abstract "M" with Agent Nodes -->
+  <defs>
+    <linearGradient id="mGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- M shape formed by nodes and paths -->
+  <!-- Left vertical -->
+  <circle cx="50" cy="60" r="8" fill="#3b82f6"/>
+  <circle cx="50" cy="90" r="6" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="50" cy="120" r="6" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="50" cy="150" r="8" fill="#3b82f6"/>
+
+  <!-- Left diagonal to center -->
+  <circle cx="70" cy="80" r="5" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="90" cy="100" r="6" fill="#8b5cf6"/>
+
+  <!-- Center peak -->
+  <circle cx="100" cy="90" r="8" fill="#8b5cf6"/>
+
+  <!-- Right diagonal from center -->
+  <circle cx="110" cy="100" r="6" fill="#8b5cf6"/>
+  <circle cx="130" cy="80" r="5" fill="#8b5cf6" opacity="0.6"/>
+
+  <!-- Right vertical -->
+  <circle cx="150" cy="60" r="8" fill="#3b82f6"/>
+  <circle cx="150" cy="90" r="6" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="150" cy="120" r="6" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="150" cy="150" r="8" fill="#3b82f6"/>
+
+  <!-- Connection paths forming M -->
+  <path d="M 50 60 L 50 90 L 50 120 L 50 150" stroke="#3b82f6" stroke-width="3" fill="none" opacity="0.4"/>
+  <path d="M 50 60 L 70 80 L 90 100 L 100 90" stroke="url(#mGrad)" stroke-width="3" fill="none" opacity="0.5"/>
+  <path d="M 100 90 L 110 100 L 130 80 L 150 60" stroke="url(#mGrad)" stroke-width="3" fill="none" opacity="0.5"/>
+  <path d="M 150 60 L 150 90 L 150 120 L 150 150" stroke="#3b82f6" stroke-width="3" fill="none" opacity="0.4"/>
+</svg>

@@ -1,0 +1,31 @@
+<svg width="64" height="64" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- AI Maestro Logo - Small Version -->
+  <defs>
+    <linearGradient id="termGradSmall" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Terminal window -->
+  <rect x="30" y="40" width="140" height="120" rx="8" fill="url(#termGradSmall)" stroke="#3b82f6" stroke-width="3"/>
+
+  <!-- Terminal header dots -->
+  <circle cx="45" cy="55" r="5" fill="#ef4444"/>
+  <circle cx="60" cy="55" r="5" fill="#f59e0b"/>
+  <circle cx="75" cy="55" r="5" fill="#10b981"/>
+
+  <!-- Constellation inside (simplified) -->
+  <circle cx="70" cy="90" r="6" fill="#3b82f6"/>
+  <circle cx="100" cy="80" r="6" fill="#3b82f6"/>
+  <circle cx="130" cy="95" r="6" fill="#3b82f6"/>
+  <circle cx="85" cy="120" r="5" fill="#8b5cf6"/>
+  <circle cx="115" cy="125" r="5" fill="#8b5cf6"/>
+
+  <!-- Connection lines (thicker for small size) -->
+  <line x1="70" y1="90" x2="100" y2="80" stroke="#3b82f6" stroke-width="3" opacity="0.6"/>
+  <line x1="100" y1="80" x2="130" y2="95" stroke="#3b82f6" stroke-width="3" opacity="0.6"/>
+  <line x1="70" y1="90" x2="85" y2="120" stroke="#8b5cf6" stroke-width="2.5" opacity="0.5"/>
+  <line x1="130" y1="95" x2="115" y2="125" stroke="#8b5cf6" stroke-width="2.5" opacity="0.5"/>
+  <line x1="85" y1="120" x2="115" y2="125" stroke="#8b5cf6" stroke-width="2.5" opacity="0.5"/>
+</svg>

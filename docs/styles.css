@@ -226,6 +226,18 @@ body {
     box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
 }
 
+.feature-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    cursor: pointer;
+}
+
+.feature-card-link:hover {
+    border-color: var(--secondary);
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.2);
+}
+
 .feature-icon {
     font-size: 3rem;
     margin-bottom: 1rem;
@@ -433,6 +445,11 @@ body {
     color: white;
 }
 
+.footer-section .inline-links a {
+    display: inline;
+    margin-bottom: 0;
+}
+
 .footer-small {
     font-size: 0.9rem;
     opacity: 0.7;
@@ -627,4 +644,202 @@ code {
 pre code {
     background: none;
     padding: 0;
+}
+
+/* Mobile Section */
+.mobile-section {
+    padding: 6rem 0;
+    background: var(--bg-light);
+}
+
+.mobile-section h2 {
+    font-size: 2.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.section-subtitle {
+    text-align: center;
+    font-size: 1.125rem;
+    color: var(--text-light);
+    max-width: 700px;
+    margin: 0 auto 3rem;
+}
+
+.mobile-showcase {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+}
+
+.mobile-screenshot {
+    width: 280px;
+    border-radius: 1rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-features {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    margin-bottom: 2rem;
+}
+
+.mobile-features h3 {
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0;
+}
+
+.feature-list li {
+    padding: 0.5rem 0;
+    color: var(--text-light);
+}
+
+.tailscale-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+}
+
+.tailscale-section h3 {
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.tailscale-section p {
+    margin-bottom: 2rem;
+    color: var(--text-light);
+}
+
+.disclaimer {
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    padding: 0.75rem 1rem;
+    margin-bottom: 2rem;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+    color: #92400e;
+}
+
+.tailscale-benefits {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.benefit-card {
+    text-align: center;
+    padding: 1.5rem;
+    background: var(--bg-light);
+    border-radius: 0.75rem;
+    transition: transform 0.2s;
+}
+
+.benefit-card:hover {
+    transform: translateY(-2px);
+}
+
+.benefit-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.benefit-card h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+
+.benefit-card p {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin: 0;
+}
+
+.setup-steps {
+    background: var(--bg-light);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    margin-bottom: 2rem;
+}
+
+.setup-steps h4 {
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.setup-steps ol {
+    margin-left: 1.5rem;
+}
+
+.setup-steps li {
+    margin-bottom: 0.75rem;
+    color: var(--text-light);
+}
+
+.setup-steps a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.setup-steps a:hover {
+    text-decoration: underline;
+}
+
+.use-cases h4 {
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.use-case-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.use-case {
+    padding: 1rem;
+    background: var(--bg-light);
+    border-radius: 0.5rem;
+    color: var(--text-light);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+/* Mobile Responsive for Mobile Section */
+@media (max-width: 768px) {
+    .mobile-section {
+        padding: 4rem 0;
+    }
+
+    .mobile-section h2 {
+        font-size: 2rem;
+    }
+
+    .mobile-showcase {
+        gap: 1rem;
+    }
+
+    .mobile-screenshot {
+        width: 45%;
+        min-width: 200px;
+    }
+
+    .tailscale-benefits {
+        grid-template-columns: 1fr;
+    }
+
+    .use-case-grid {
+        grid-template-columns: 1fr;
+    }
 }

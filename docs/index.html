@@ -8,26 +8,87 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#6366f1',
+                        'primary-dark': '#4f46e5',
+                        secondary: '#8b5cf6',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <style>
+        /* Smooth scrolling with offset for fixed header */
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        /* Only keep hamburger animation styles and mobile menu transition */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
 </head>
-<body>
-    <nav class="nav">
-        <div class="container">
-            <div class="nav-content">
-                <div class="logo" style="display: flex; align-items: center; gap: 12px;"><img src="../public/logo-constellation.svg" alt="AI Maestro" style="width: 48px; height: 48px;">AI Maestro</div>
+<body class="font-sans text-gray-800 leading-relaxed antialiased">
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="#" class="flex items-center gap-3 text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="../public/logo-constellation.svg" alt="AI Maestro" style="width: 48px; height: 48px;">
+                    AI Maestro
+                </a>
 
                 <!-- Desktop Navigation -->
-                <div class="nav-links desktop-nav">
-                    <a href="#features">Features</a>
-                    <a href="#quick-start">Quick Start</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="btn-primary" target="_blank">Get Started</a>
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
                 </div>
 
                 <!-- Mobile Navigation -->
-                <div class="mobile-nav">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="btn-primary mobile-cta" target="_blank">Get Started</a>
-                    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+                <div class="flex md:hidden items-center gap-4">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>
                         <span></span>
@@ -36,10 +97,10 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div class="mobile-menu" id="mobile-menu">
-                <a href="#features">Features</a>
-                <a href="#quick-start">Quick Start</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank">GitHub</a>
+            <div class="hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
             </div>
         </div>
     </nav>
@@ -71,21 +132,22 @@
         });
     </script>
 
-    <header class="hero">
-        <div class="container">
-            <div class="hero-content">
-                <h1>Stop juggling terminal windows.<br>Orchestrate your AI coding agents from one dashboard.</h1>
-                <p class="hero-subtitle">Manage Claude Code, Aider, Cursor, and any terminal-based AI agent from a beautiful web interface. Built for developers who love AI pair programming.</p>
-                <div class="hero-buttons">
-                    <a href="https://github.com/23blocks-OS/ai-maestro" class="btn-primary btn-large" target="_blank">
+    <!-- Hero Section -->
+    <header class="py-24 md:py-32 text-center px-8 md:px-0">
+        <div class="max-w-[1200px] mx-auto">
+            <div>
+                <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Stop juggling terminal windows.<br>Orchestrate your AI coding agents from one dashboard.</h1>
+                <p class="text-lg md:text-xl text-gray-500 max-w-[700px] mx-auto mb-8">Manage Claude Code, Aider, Cursor, and any terminal-based AI agent from a beautiful web interface. Built for developers who love AI pair programming.</p>
+                <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)] text-lg" target="_blank">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                         </svg>
                         View on GitHub
                     </a>
-                    <a href="#quick-start" class="btn-secondary btn-large">Learn More</a>
+                    <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
-                <div class="badges">
+                <div class="flex flex-wrap gap-2 justify-center">
                     <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
                     <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
@@ -94,184 +156,339 @@
         </div>
     </header>
 
-    <section class="screenshot">
-        <div class="container">
-            <img src="images/aiteam-web.png" alt="AI Maestro Dashboard" class="screenshot-img">
+    <!-- Screenshot Section -->
+    <section class="py-8 md:py-16 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <img src="images/aiteam-web.png" alt="AI Maestro Dashboard" class="w-full max-w-[1100px] mx-auto rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] block">
         </div>
     </section>
 
-    <section class="problem-solution">
-        <div class="container">
-            <div class="problem-box">
-                <h2>The Problem</h2>
-                <p>You're using Claude Code for backend, Aider for frontend, and Cursor for docs. Each in its own terminal window. Each in a different tmux pane. You're constantly switching contexts, losing track of which agent is where, and your terminal tabs look like chaos.</p>
+    <!-- Problem-Solution Section -->
+    <section class="py-16 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-red-600 mb-4 text-2xl font-bold">The Problem</h2>
+                <p class="leading-relaxed">You're using Claude Code for backend, Aider for frontend, and Cursor for docs. Each in its own terminal window. Each in a different tmux pane. You're constantly switching contexts, losing track of which agent is where, and your terminal tabs look like chaos.</p>
             </div>
-            <div class="solution-box">
-                <h2>The Solution</h2>
-                <p>AI Maestro gives you one beautiful web dashboard for all your AI coding agents. Click between sessions instantly. Organize them hierarchically. Take notes. Never lose track again.</p>
-            </div>
-        </div>
-    </section>
-
-    <section id="features" class="features">
-        <div class="container">
-            <h2>Features</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🤖</div>
-                    <h3>Universal Agent Support</h3>
-                    <p>Works with any terminal-based AI: Claude Code, Aider, Cursor, GitHub Copilot CLI, OpenAI Codex, and your custom AI scripts.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📁</div>
-                    <h3>Smart Organization</h3>
-                    <p>3-level hierarchy using hyphens (e.g., <code>project-category-agent</code>). Dynamic color coding and auto-grouping for instant visual organization.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Built for Speed</h3>
-                    <p>WebSocket streaming for real-time terminal I/O. No lag, no polling. Keyboard shortcuts for power users.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📝</div>
-                    <h3>Session Notes</h3>
-                    <p>Take notes for each session, auto-saved to localStorage. Track decisions, save commands, keep TODOs.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
-                    <h3>Full Session Management</h3>
-                    <p>Create, rename, and delete sessions from the UI. Auto-discovery of existing tmux sessions.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
-                    <h3>Beautiful UI</h3>
-                    <p>Modern design with expandable accordion, icons, and automatic color coding. Built with Next.js and Tailwind CSS.</p>
-                </div>
+            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-emerald-600 mb-4 text-2xl font-bold">The Solution</h2>
+                <p class="leading-relaxed">AI Maestro gives you one beautiful web dashboard for all your AI coding agents. Click between sessions instantly. Organize them hierarchically. Take notes. Never lose track again.</p>
             </div>
         </div>
     </section>
 
-    <section id="quick-start" class="quick-start">
-        <div class="container">
-            <h2>Quick Start</h2>
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Install</h3>
-                    <pre><code>git clone https://github.com/23blocks-OS/ai-maestro.git
+    <!-- Features Section -->
+    <section id="features" class="py-16 md:py-24 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Features</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">🤖</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Universal Agent Support</h3>
+                    <p class="leading-relaxed text-gray-600">Works with any terminal-based AI: Claude Code, Aider, Cursor, GitHub Copilot CLI, OpenAI Codex, and your custom AI scripts.</p>
+                </div>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">📁</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Smart Organization</h3>
+                    <p class="leading-relaxed text-gray-600">3-level hierarchy using hyphens (e.g., <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em]">project-category-agent</code>). Dynamic color coding and auto-grouping for instant visual organization.</p>
+                </div>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">⚡</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Built for Speed</h3>
+                    <p class="leading-relaxed text-gray-600">WebSocket streaming for real-time terminal I/O. No lag, no polling. Keyboard shortcuts for power users.</p>
+                </div>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">📝</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Session Notes</h3>
+                    <p class="leading-relaxed text-gray-600">Take notes for each session, auto-saved to localStorage. Track decisions, save commands, keep TODOs.</p>
+                </div>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">🔄</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Full Session Management</h3>
+                    <p class="leading-relaxed text-gray-600">Create, rename, and delete sessions from the UI. Auto-discovery of existing tmux sessions.</p>
+                </div>
+                <a href="#mobile-section" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-secondary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.2)] no-underline text-inherit block cursor-pointer">
+                    <div class="text-5xl mb-4">📱</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Access from Anywhere</h3>
+                    <p class="leading-relaxed text-gray-600">Monitor your AI agents from your phone or tablet. Touch-optimized interface with secure Tailscale connectivity.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section id="quick-start" class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Quick Start</h2>
+            <div class="flex flex-col gap-12">
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">1</div>
+                    <h3 class="text-2xl mb-4 font-semibold">Install</h3>
+                    <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code class="font-mono text-sm">git clone https://github.com/23blocks-OS/ai-maestro.git
 cd ai-maestro
 yarn install
 yarn dev</code></pre>
-                    <p>Dashboard opens at <code>http://localhost:3000</code></p>
+                    <p class="leading-relaxed">Dashboard opens at <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">http://localhost:3000</code></p>
                 </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Create Your First Session</h3>
-                    <p><strong>From the UI (Recommended):</strong></p>
-                    <ol>
-                        <li>Click the <strong>"+" button</strong> in the sidebar</li>
-                        <li>Enter a session name using hyphens for hierarchy:<br>
-                            <code>myproject-backend-api</code> → creates 3 levels</li>
-                        <li>Choose your working directory</li>
-                        <li>Click "Create Agent"</li>
-                        <li>Start your AI agent in the terminal</li>
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">2</div>
+                    <h3 class="text-2xl mb-4 font-semibold">Create Your First Session</h3>
+                    <p class="leading-relaxed"><strong>From the UI (Recommended):</strong></p>
+                    <ol class="ml-6 mt-2 list-decimal">
+                        <li class="mb-2">Click the <strong>"+" button</strong> in the sidebar</li>
+                        <li class="mb-2">Enter a session name using hyphens for hierarchy:<br>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">myproject-backend-api</code> → creates 3 levels</li>
+                        <li class="mb-2">Choose your working directory</li>
+                        <li class="mb-2">Click "Create Agent"</li>
+                        <li class="mb-2">Start your AI agent in the terminal</li>
                     </ol>
-                    <div class="tip">
+                    <div class="bg-blue-50 border-l-4 border-primary p-4 mt-4 rounded">
                         💡 <strong>Hierarchy Tip:</strong> Hyphens create automatic organization<br>
-                        <code>project-backend</code> → 2 levels<br>
-                        <code>project-backend-api</code> → 3 levels<br>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">project-backend</code> → 2 levels<br>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">project-backend-api</code> → 3 levels<br>
                         Each top level gets its own color!
                     </div>
                 </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Start Coding</h3>
-                    <p>Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.</p>
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">3</div>
+                    <h3 class="text-2xl mb-4 font-semibold">Start Coding</h3>
+                    <p class="leading-relaxed">Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="tech-stack">
-        <div class="container">
-            <h2>Tech Stack</h2>
-            <div class="tech-list">
-                <div class="tech-item">
+    <!-- Mobile Section -->
+    <section id="mobile-section" class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">📱 Access from Anywhere</h2>
+            <p class="text-center text-lg text-gray-500 max-w-[700px] mx-auto mb-12">Monitor and control your AI agents from your phone or tablet - perfect for checking progress while away from your desk.</p>
+
+            <div class="flex justify-center gap-8 md:gap-8 mb-12 flex-wrap">
+                <img src="images/aimaestro-mobile.png" alt="AI Maestro on Mobile" class="w-[45%] md:w-[280px] min-w-[200px] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
+                <img src="images/aimaestro-sidebar.png" alt="Mobile Sidebar" class="w-[45%] md:w-[280px] min-w-[200px] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
+            </div>
+
+            <div class="bg-white p-8 rounded-2xl border border-gray-200 mb-8">
+                <h3 class="mb-4 text-gray-800 text-2xl font-semibold">Mobile Features</h3>
+                <ul class="list-none p-0">
+                    <li class="py-2 text-gray-500">✨ Touch-optimized interface with swipe gestures</li>
+                    <li class="py-2 text-gray-500">📱 Auto-collapsing sidebar for maximum terminal space</li>
+                    <li class="py-2 text-gray-500">🎯 Compact header showing only essential information</li>
+                    <li class="py-2 text-gray-500">📝 Notes panel collapsed by default on mobile</li>
+                    <li class="py-2 text-gray-500">⚡ Full terminal access for viewing output and monitoring</li>
+                    <li class="py-2 text-gray-500">🎨 Responsive layout adapting to any screen size</li>
+                </ul>
+            </div>
+
+            <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                <h3 class="mb-4 text-gray-800 text-2xl font-semibold">🔒 Secure Remote Access with Tailscale</h3>
+                <p class="mb-8 text-gray-500">Connect to your AI agents from anywhere using Tailscale - a zero-config VPN that creates a secure, encrypted network between your devices.</p>
+                <p class="bg-amber-50 border-l-[3px] border-amber-500 px-4 py-3 mb-8 rounded text-sm text-amber-900"><strong>Note:</strong> AI Maestro is not endorsed by or affiliated with Tailscale in any way. We simply use it and recommend it based on our positive experience.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-8">
+                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
+                        <div class="text-4xl mb-2">🛡️</div>
+                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Zero Port Forwarding</h4>
+                        <p class="text-sm text-gray-500 m-0">No need to expose ports to the internet</p>
+                    </div>
+                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
+                        <div class="text-4xl mb-2">🔐</div>
+                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Encrypted Connections</h4>
+                        <p class="text-sm text-gray-500 m-0">All traffic is automatically encrypted</p>
+                    </div>
+                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
+                        <div class="text-4xl mb-2">🌍</div>
+                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Works Anywhere</h4>
+                        <p class="text-sm text-gray-500 m-0">Behind NAT, firewalls, and routers</p>
+                    </div>
+                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
+                        <div class="text-4xl mb-2">💰</div>
+                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Free for Personal Use</h4>
+                        <p class="text-sm text-gray-500 m-0">Up to 100 devices</p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-6 rounded-xl mb-8">
+                    <h4 class="mb-4 text-gray-800 font-semibold">Quick Setup</h4>
+                    <ol class="ml-6 list-decimal">
+                        <li class="mb-3 text-gray-500"><strong>Install Tailscale</strong> on your development machine (<code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">brew install tailscale</code>)</li>
+                        <li class="mb-3 text-gray-500"><strong>Install on mobile</strong> from <a href="https://apps.apple.com/app/tailscale/id1470499037" target="_blank" class="text-primary no-underline hover:underline">App Store</a> or <a href="https://play.google.com/store/apps/details?id=com.tailscale.ipn" target="_blank" class="text-primary no-underline hover:underline">Google Play</a></li>
+                        <li class="mb-3 text-gray-500"><strong>Sign in</strong> with the same account on both devices</li>
+                        <li class="mb-3 text-gray-500"><strong>Start AI Maestro</strong> with <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">yarn dev</code></li>
+                        <li class="mb-3 text-gray-500"><strong>Access from mobile</strong> at <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">http://YOUR-MACHINE-NAME:23000</code></li>
+                    </ol>
+                </div>
+
+                <div>
+                    <h4 class="mb-4 text-gray-800 font-semibold">Use Cases</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
+                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">📊 Monitor long-running builds from your phone</div>
+                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">🐛 Check agent progress while away from desk</div>
+                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">📝 Read session notes on your tablet</div>
+                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">✅ Verify completions without being at your computer</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack Section -->
+    <section class="py-16 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-8 font-bold">Tech Stack</h2>
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4 max-w-[900px] mx-auto">
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
                     <strong>Frontend:</strong> Next.js 14, React 18, Tailwind CSS
                 </div>
-                <div class="tech-item">
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
                     <strong>Terminal:</strong> xterm.js with WebGL acceleration
                 </div>
-                <div class="tech-item">
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
                     <strong>Backend:</strong> Custom Node.js server with WebSocket
                 </div>
-                <div class="tech-item">
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
                     <strong>Font:</strong> Space Grotesk
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="why">
-        <div class="container">
-            <h2>Why AI Maestro?</h2>
-            <div class="why-grid">
-                <div class="why-item">
-                    <h3>Problem → Solution</h3>
-                    <p>Managing multiple AI agents is chaotic. One dashboard to rule them all.</p>
+    <!-- Why Section -->
+    <section class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Why AI Maestro?</h2>
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-8">
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <h3 class="text-primary mb-4 text-xl font-semibold">Problem → Solution</h3>
+                    <p class="leading-relaxed">Managing multiple AI agents is chaotic. One dashboard to rule them all.</p>
                 </div>
-                <div class="why-item">
-                    <h3>Why not just use tmux?</h3>
-                    <p>You can! AI Maestro is built on tmux. But instead of memorizing keybindings, you get visual organization, point-and-click switching, persistent notes, and a beautiful UI.</p>
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <h3 class="text-primary mb-4 text-xl font-semibold">Why not just use tmux?</h3>
+                    <p class="leading-relaxed">You can! AI Maestro is built on tmux. But instead of memorizing keybindings, you get visual organization, point-and-click switching, persistent notes, and a beautiful UI.</p>
                 </div>
-                <div class="why-item">
-                    <h3>More than a tmux GUI</h3>
-                    <p>Think of it as tmux + organization + notes + visual hierarchy. You still have full access to your tmux sessions from the terminal.</p>
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <h3 class="text-primary mb-4 text-xl font-semibold">More than a tmux GUI</h3>
+                    <p class="leading-relaxed">Think of it as tmux + organization + notes + visual hierarchy. You still have full access to your tmux sessions from the terminal.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="cta">
-        <div class="container">
-            <div class="cta-content">
-                <h2>Ready to orchestrate your AI team?</h2>
-                <p>Free and open source. MIT Licensed.</p>
-                <a href="https://github.com/23blocks-OS/ai-maestro" class="btn-primary btn-large" target="_blank">
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 text-center bg-gradient-to-br from-primary to-secondary text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div>
+                <h2 class="text-4xl md:text-5xl mb-4 font-bold">Ready to orchestrate your AI team?</h2>
+                <p class="text-xl mb-8 opacity-90">Free and open source. MIT Licensed.</p>
+                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary hover:bg-gray-50 hover:-translate-y-0.5 text-lg" target="_blank">
                     Get Started on GitHub
                 </a>
             </div>
         </div>
     </section>
 
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>AI Maestro</h4>
-                    <p>Orchestrate multiple AI coding agents from one dashboard</p>
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
                 </div>
-                <div class="footer-section">
-                    <h4>Links</h4>
-                    <a href="https://github.com/23blocks-OS/ai-maestro">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/issues">Issues</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md">Contributing</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE">License</a>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
                 </div>
-                <div class="footer-section">
-                    <h4>Built by</h4>
-                    <p>
-                        <a href="https://x.com/jkpelaez" target="_blank">Juan Peláez</a> @
-                        <a href="https://23blocks.com" target="_blank">23blocks</a>
-                    </p>
-                    <p class="footer-small">Made with ♥ in Boulder, Colorado</p>
-                    <p class="footer-small">Coded with Claude</p>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
                 </div>
             </div>
-            <div class="footer-bottom">
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
                 <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>
+
+    <!-- GSAP ScrollTrigger Animations -->
+    <script>
+        // Register ScrollTrigger plugin
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Hero fade in
+        gsap.from("header h1", {
+            opacity: 0,
+            y: 30,
+            duration: 0.8,
+            ease: "power2.out"
+        });
+
+        gsap.from("header p", {
+            opacity: 0,
+            y: 20,
+            duration: 0.8,
+            delay: 0.2,
+            ease: "power2.out"
+        });
+
+        gsap.from("header .flex", {
+            opacity: 0,
+            y: 20,
+            duration: 0.8,
+            delay: 0.4,
+            ease: "power2.out"
+        });
+
+        // Fade in sections on scroll (skip features section - no animation needed)
+        gsap.utils.toArray("section").forEach((section) => {
+            // Skip the features section - show cards immediately without animation
+            if (section.id !== 'features') {
+                gsap.from(section, {
+                    opacity: 0,
+                    y: 50,
+                    duration: 0.8,
+                    ease: "power2.out",
+                    scrollTrigger: {
+                        trigger: section,
+                        start: "top 80%",
+                        end: "top 50%",
+                        toggleActions: "play none none none"
+                    }
+                });
+            }
+        });
+
+        // Quick Start steps stagger
+        gsap.from("#quick-start .flex > *", {
+            opacity: 0,
+            x: -30,
+            duration: 0.8,
+            stagger: 0.2,
+            ease: "power2.out",
+            scrollTrigger: {
+                trigger: "#quick-start",
+                start: "top 70%",
+                toggleActions: "play none none none"
+            }
+        });
+
+        // Mobile screenshots parallax effect
+        gsap.to("#mobile-section img", {
+            y: -20,
+            ease: "none",
+            scrollTrigger: {
+                trigger: "#mobile-section",
+                start: "top bottom",
+                end: "bottom top",
+                scrub: 1
+            }
+        });
+    </script>
 </body>
 </html>

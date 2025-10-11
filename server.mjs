@@ -14,7 +14,11 @@ const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
 // Session state management
-const sessions = new Map() // sessionName -> { clients: Set, ptyProcess }
+const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, lastActivity: timestamp }
+const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+
+// Expose sessionActivity globally for API routes
+global.sessionActivity = sessionActivity
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
@@ -74,6 +78,14 @@ app.prepare().then(() => {
       // Stream PTY output directly to all clients
       // Claude Code uses cursor positioning (\x1b[nA, \x1b[nB) which must be sent immediately
       ptyProcess.onData((data) => {
+        // Track substantial activity (filter out cursor blinks and pure escape sequences)
+        const hasSubstantialContent = data.length >= 3 &&
+          !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
+
+        if (hasSubstantialContent) {
+          sessionActivity.set(sessionName, Date.now())
+        }
+
         // Send data directly to all clients without buffering
         // Buffering was causing xterm.js to add each intermediate cursor position to scrollback
         sessionState.clients.forEach((client) => {

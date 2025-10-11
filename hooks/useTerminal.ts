@@ -8,6 +8,9 @@ export interface UseTerminalOptions {
   fontSize?: number
   fontFamily?: string
   theme?: Record<string, string>
+  sessionId?: string
+  onRegister?: (fitAddon: FitAddon) => void
+  onUnregister?: () => void
 }
 
 export function useTerminal(options: UseTerminalOptions = {}) {
@@ -109,6 +112,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
 
+    // Register with global terminal registry
+    if (options.onRegister) {
+      options.onRegister(fitAddon)
+    }
+
     // Handle window resize with debouncing to prevent buffer issues
     let resizeTimeout: NodeJS.Timeout
     const resizeObserver = new ResizeObserver(() => {
@@ -179,6 +187,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Cleanup function
     return () => {
       resizeObserver.disconnect()
+      if (options.onUnregister) {
+        options.onUnregister()
+      }
       terminal.dispose()
       terminalRef.current = null
       fitAddonRef.current = null

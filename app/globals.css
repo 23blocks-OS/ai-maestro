@@ -10,6 +10,25 @@
 
 body {
   @apply bg-gray-900 text-gray-100;
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: none;
+  /* Better touch scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 768px) {
+  /* Ensure full height on mobile */
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Better tap targets on mobile */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Custom scrollbar for terminal and sidebar */
@@ -36,6 +55,13 @@ body {
   height: 100%;
   width: 100%;
   padding: 10px;
+}
+
+/* Mobile: reduce padding for more screen space */
+@media (max-width: 768px) {
+  .xterm {
+    padding: 5px;
+  }
 }
 
 .xterm .xterm-viewport {

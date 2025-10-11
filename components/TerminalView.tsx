@@ -16,7 +16,20 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+  // Default to collapsed on mobile, expanded on desktop
   const [notesCollapsed, setNotesCollapsed] = useState(false)
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
@@ -155,11 +168,16 @@ export default function TerminalView({ session }: TerminalViewProps) {
       setNotes('')
     }
 
-    // Load collapsed state
+    // Load collapsed state - default to collapsed on mobile if no saved state
     const collapsedKey = `session-notes-collapsed-${session.id}`
     const savedCollapsed = localStorage.getItem(collapsedKey)
-    setNotesCollapsed(savedCollapsed === 'true')
-  }, [session.id])
+    if (savedCollapsed !== null) {
+      setNotesCollapsed(savedCollapsed === 'true')
+    } else {
+      // Default behavior: collapsed on mobile, expanded on desktop
+      setNotesCollapsed(isMobile)
+    }
+  }, [session.id, isMobile])
 
   // Save notes to localStorage when they change
   useEffect(() => {
@@ -176,34 +194,35 @@ export default function TerminalView({ session }: TerminalViewProps) {
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg">
       {/* Terminal Header */}
-      <div className="px-4 py-2 border-b border-gray-700 bg-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="font-medium text-gray-100">
+      <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
               {session.name || session.id}
             </h3>
             <ConnectionIndicator isConnected={isConnected} />
           </div>
           {terminal && (
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <span>
+            <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
+              {/* Hide on mobile except Clear button */}
+              <span className="hidden md:inline">
                 {terminal.cols}x{terminal.rows}
               </span>
-              <span className="text-gray-500">|</span>
-              <span title={`Buffer: ${terminal.buffer.active.length} lines (max: 50000)`}>
+              <span className="text-gray-500 hidden md:inline">|</span>
+              <span className="hidden md:inline" title={`Buffer: ${terminal.buffer.active.length} lines (max: 50000)`}>
                 📜 {terminal.buffer.active.length} lines
               </span>
-              <span className="text-gray-500">|</span>
-              <span title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
+              <span className="text-gray-500 hidden md:inline">|</span>
+              <span className="hidden md:inline" title="Shift+PageUp/PageDown: Scroll by page&#10;Shift+Arrow Up/Down: Scroll 5 lines&#10;Shift+Home/End: Jump to top/bottom&#10;Or use mouse wheel/trackpad">
                 ⌨️ Shift+PgUp/PgDn • Shift+↑/↓
               </span>
-              <span className="text-gray-500">|</span>
+              <span className="text-gray-500 hidden md:inline">|</span>
               <button
                 onClick={() => terminal.clear()}
-                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                 title="Clear terminal scrollback buffer (removes duplicate lines from Claude Code status updates)"
               >
-                🧹 Clear
+                🧹 <span className="hidden md:inline">Clear</span>
               </button>
             </div>
           )}

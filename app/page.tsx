@@ -11,6 +11,22 @@ export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+      // Auto-collapse sidebar on mobile
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true)
+      }
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     // Auto-select first session when sessions load
@@ -21,6 +37,10 @@ export default function DashboardPage() {
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
+    // Auto-close sidebar on mobile after selection
+    if (isMobile) {
+      setSidebarCollapsed(true)
+    }
   }
 
   const toggleSidebar = () => {
@@ -36,11 +56,21 @@ export default function DashboardPage() {
       <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile overlay backdrop */}
+        {isMobile && !sidebarCollapsed && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSidebarCollapsed(true)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className={`border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 ${
-          sidebarCollapsed ? 'w-0' : 'w-80'
-        } overflow-hidden`}>
+        <aside className={`
+          border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden
+          ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
+          ${sidebarCollapsed ? (isMobile ? '-translate-x-full' : 'w-0') : (isMobile ? 'w-80 translate-x-0' : 'w-80')}
+        `}>
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -86,11 +116,11 @@ export default function DashboardPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2">
-        <div className="flex justify-between items-center h-5">
-          <p className="text-sm text-white leading-none">
-            Version 0.1.7 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+        <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
+          <p className="text-xs md:text-sm text-white leading-none">
+            Version 0.1.8 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
-          <p className="text-sm text-white leading-none">
+          <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}
             <a
               href="https://x.com/jkpelaez"

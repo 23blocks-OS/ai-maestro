@@ -7,6 +7,10 @@ const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'AI Maestro',
   description: 'Orchestrate multiple AI coding agents from one beautiful dashboard',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/logo.svg',
+  },
 }
 
 export default function RootLayout({

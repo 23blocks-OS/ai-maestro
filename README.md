@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🎼 AI Maestro
+<img src="./public/logo.svg" alt="AI Maestro Logo" width="120"/>
+
+# AI Maestro
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 

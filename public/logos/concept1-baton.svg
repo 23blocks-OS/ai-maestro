@@ -1,0 +1,26 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Concept 1: Conductor's Baton + Neural Network -->
+  <defs>
+    <linearGradient id="batonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Baton -->
+  <line x1="50" y1="150" x2="120" y2="50" stroke="url(#batonGrad)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="50" cy="150" r="8" fill="#3b82f6"/>
+
+  <!-- Neural network nodes emanating from tip -->
+  <circle cx="120" cy="50" r="6" fill="#8b5cf6"/>
+  <circle cx="140" cy="60" r="5" fill="#8b5cf6" opacity="0.8"/>
+  <circle cx="145" cy="85" r="5" fill="#8b5cf6" opacity="0.8"/>
+  <circle cx="130" cy="95" r="4" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="155" cy="70" r="4" fill="#8b5cf6" opacity="0.6"/>
+
+  <!-- Connections -->
+  <line x1="120" y1="50" x2="140" y2="60" stroke="#8b5cf6" stroke-width="2" opacity="0.4"/>
+  <line x1="120" y1="50" x2="145" y2="85" stroke="#8b5cf6" stroke-width="2" opacity="0.4"/>
+  <line x1="140" y1="60" x2="155" y2="70" stroke="#8b5cf6" stroke-width="1.5" opacity="0.3"/>
+  <line x1="145" y1="85" x2="130" y2="95" stroke="#8b5cf6" stroke-width="1.5" opacity="0.3"/>
+</svg>

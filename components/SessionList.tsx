@@ -28,6 +28,7 @@ interface SessionListProps {
   loading?: boolean
   error?: Error | null
   onRefresh?: () => void
+  onToggleSidebar?: () => void
 }
 
 /**
@@ -133,6 +134,7 @@ export default function SessionList({
   loading,
   error,
   onRefresh,
+  onToggleSidebar,
 }: SessionListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showRenameModal, setShowRenameModal] = useState(false)

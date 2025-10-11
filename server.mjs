@@ -75,9 +75,12 @@ app.prepare().then(() => {
       }
       sessions.set(sessionName, sessionState)
 
-      // Stream PTY output directly to all clients
-      // Claude Code uses cursor positioning (\x1b[nA, \x1b[nB) which must be sent immediately
+      // Stream PTY output to all clients with flow control (backpressure)
+      // This prevents overwhelming xterm.js with too much data at once
       ptyProcess.onData((data) => {
+        // Pause PTY to implement backpressure
+        ptyProcess.pause()
+
         // Track substantial activity (filter out cursor blinks and pure escape sequences)
         const hasSubstantialContent = data.length >= 3 &&
           !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
@@ -86,16 +89,32 @@ app.prepare().then(() => {
           sessionActivity.set(sessionName, Date.now())
         }
 
-        // Send data directly to all clients without buffering
-        // Buffering was causing xterm.js to add each intermediate cursor position to scrollback
+        // Send data to all clients and wait for write completion
+        const writePromises = []
         sessionState.clients.forEach((client) => {
           if (client.readyState === 1) { // WebSocket.OPEN
-            try {
-              client.send(data)
-            } catch (error) {
-              console.error('Error sending data to client:', error)
-            }
+            writePromises.push(
+              new Promise((resolve) => {
+                try {
+                  // WebSocket.send() is synchronous, but we wrap it to handle errors
+                  client.send(data, (error) => {
+                    if (error) {
+                      console.error('Error sending data to client:', error)
+                    }
+                    resolve()
+                  })
+                } catch (error) {
+                  console.error('Error sending data to client:', error)
+                  resolve()
+                }
+              })
+            )
           }
+        })
+
+        // Resume PTY after all clients have received the data
+        Promise.all(writePromises).finally(() => {
+          ptyProcess.resume()
         })
       })
 

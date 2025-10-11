@@ -65,6 +65,22 @@
             opacity: 1;
             transform: translateY(0);
         }
+
+        /* Typing cursor animation */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1.2em;
+            background-color: #6366f1;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
     </style>
 </head>
 <body class="font-sans text-gray-800 leading-relaxed antialiased">
@@ -136,7 +152,8 @@
     <header class="py-24 md:py-32 text-center px-8 md:px-0">
         <div class="max-w-[1200px] mx-auto">
             <div>
-                <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Stop juggling terminal windows.<br>Orchestrate your AI coding agents from one dashboard.</h1>
+                <p class="text-[2rem] md:text-[3rem] font-semibold text-gray-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
+                <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Orchestrate your AI coding agents from one dashboard.</h1>
                 <p class="text-lg md:text-xl text-gray-500 max-w-[700px] mx-auto mb-8">Manage Claude Code, Aider, Cursor, and any terminal-based AI agent from a beautiful web interface. Built for developers who love AI pair programming.</p>
                 <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
                     <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)] text-lg" target="_blank">
@@ -421,13 +438,32 @@ yarn dev</code></pre>
         // Register ScrollTrigger plugin
         gsap.registerPlugin(ScrollTrigger);
 
-        // Hero fade in
-        gsap.from("header h1", {
-            opacity: 0,
-            y: 30,
-            duration: 0.8,
-            ease: "power2.out"
-        });
+        // Typing animation for announcement
+        const announcement = document.getElementById('announcement');
+        const text = "Stop juggling terminal windows.";
+        const cursor = announcement.querySelector('.typing-cursor');
+        let charIndex = 0;
+
+        function typeCharacter() {
+            if (charIndex < text.length) {
+                const char = text[charIndex];
+                const textNode = document.createTextNode(char);
+                announcement.insertBefore(textNode, cursor);
+                charIndex++;
+                setTimeout(typeCharacter, 50); // 50ms per character for slower typing
+            }
+        }
+
+        // Start typing after 1.5 second delay
+        setTimeout(typeCharacter, 1500);
+
+        // Hero fade in (removed - replaced by typing animation)
+        // gsap.from("header h1", {
+        //     opacity: 0,
+        //     y: 30,
+        //     duration: 0.8,
+        //     ease: "power2.out"
+        // });
 
         gsap.from("header p", {
             opacity: 0,

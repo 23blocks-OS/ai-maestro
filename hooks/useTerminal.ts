@@ -52,7 +52,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',
-        yellow: '#e5e510',
+        yellow: '#dcdcaa',  // Softer yellow (VS Code default)
         blue: '#2472c8',
         magenta: '#bc3fbc',
         cyan: '#11a8cd',
@@ -60,7 +60,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightBlack: '#666666',
         brightRed: '#f14c4c',
         brightGreen: '#23d18b',
-        brightYellow: '#f5f543',
+        brightYellow: '#dcdcaa',  // Match normal yellow for consistency
         brightBlue: '#3b8eea',
         brightMagenta: '#d670d6',
         brightCyan: '#29b8db',

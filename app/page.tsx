@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
+import Header from '@/components/Header'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     // Auto-select first session when sessions load
@@ -21,15 +23,24 @@ export default function DashboardPage() {
     setActiveSessionId(sessionId)
   }
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed)
+  }
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
   return (
     <TerminalProvider>
       <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
+      {/* Header */}
+      <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
+
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-80 border-r border-sidebar-border bg-sidebar-bg">
+        <aside className={`border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 ${
+          sidebarCollapsed ? 'w-0' : 'w-80'
+        } overflow-hidden`}>
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -37,6 +48,7 @@ export default function DashboardPage() {
             loading={loading}
             error={error}
             onRefresh={refreshSessions}
+            onToggleSidebar={toggleSidebar}
           />
         </aside>
 
@@ -73,12 +85,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 bg-gray-950 px-6 py-3">
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-white">
-            AI Maestro • Version 0.1.6 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+      <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2">
+        <div className="flex justify-between items-center h-5">
+          <p className="text-sm text-white leading-none">
+            Version 0.1.7 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
-          <p className="text-sm text-white">
+          <p className="text-sm text-white leading-none">
             Concept by{' '}
             <a
               href="https://x.com/jkpelaez"

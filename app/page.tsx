@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
 import { useSessions } from '@/hooks/useSessions'
+import { TerminalProvider } from '@/contexts/TerminalContext'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
@@ -23,7 +24,8 @@ export default function DashboardPage() {
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
+    <TerminalProvider>
+      <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -74,7 +76,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-6 py-3">
         <div className="flex justify-between items-center">
           <p className="text-sm text-white">
-            Version 0.1.5 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.1.6 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-sm text-white">
             Concept by{' '}
@@ -100,5 +102,6 @@ export default function DashboardPage() {
         </div>
       </footer>
     </div>
+    </TerminalProvider>
   )
 }

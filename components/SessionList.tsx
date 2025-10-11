@@ -648,17 +648,22 @@ export default function SessionList({
 }
 
 function SessionStatus({ status }: { status: Session['status'] }) {
+
   const statusConfig = {
     active: { color: 'bg-green-500', label: 'Active', ring: 'ring-green-500/30' },
     idle: { color: 'bg-yellow-500', label: 'Idle', ring: 'ring-yellow-500/30' },
-    disconnected: { color: 'bg-red-500', label: 'Disconnected', ring: 'ring-red-500/30' },
+    disconnected: { color: 'bg-gray-500', label: 'Disconnected', ring: 'ring-gray-500/30' },
   }
 
   const config = statusConfig[status]
 
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0">
-      <div className={`w-2 h-2 rounded-full ${config.color} ring-2 ${config.ring} animate-pulse`} />
+      <div
+        className={`w-2 h-2 rounded-full ${config.color} ring-2 ${config.ring} ${
+          status === 'active' ? 'animate-pulse' : ''
+        }`}
+      />
       <span className="text-xs text-gray-400 hidden lg:inline">{config.label}</span>
     </div>
   )

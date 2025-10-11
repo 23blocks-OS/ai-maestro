@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
+import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import type { Session } from '@/types/session'
 
 interface TerminalViewProps {
@@ -17,7 +18,30 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const [notes, setNotes] = useState('')
   const [notesCollapsed, setNotesCollapsed] = useState(false)
 
-  const { terminal, initializeTerminal } = useTerminal()
+  const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
+
+  // Register session immediately when component mounts (for activity tracking)
+  // This ensures status shows correctly even before terminal is fully initialized
+  useEffect(() => {
+    // Register with a dummy fitAddon initially - will be updated when terminal initializes
+    const dummyFitAddon = { fit: () => {} } as any
+    registerTerminal(session.id, dummyFitAddon)
+
+    return () => {
+      unregisterTerminal(session.id)
+    }
+  }, [session.id, registerTerminal, unregisterTerminal])
+
+  const { terminal, initializeTerminal } = useTerminal({
+    sessionId: session.id,
+    onRegister: (fitAddon) => {
+      // Update registration with real fitAddon when terminal is ready
+      registerTerminal(session.id, fitAddon)
+    },
+    onUnregister: () => {
+      // Don't unregister here - let the component unmount handle it
+    },
+  })
 
   // Store terminal in a ref so the WebSocket callback can access the current value
   const terminalInstanceRef = useRef<typeof terminal>(null)
@@ -28,13 +52,31 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
   const { isConnected, sendMessage, connectionError, errorHint } = useWebSocket({
     sessionId: session.id,
+    onOpen: () => {
+      // Report activity when WebSocket connects
+      reportActivity(session.id)
+    },
     onMessage: (data) => {
-      // Use ref to get current terminal value, not captured closure value
+      // Only report activity for substantial content (not cursor blinks or control sequences)
+      // Filter out idle terminal noise to properly detect active vs idle state
+
+      // Always write data to terminal first
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
       } else {
         messageBufferRef.current.push(data)
       }
+
+      // Skip reporting activity for tiny packets (likely just control codes)
+      if (data.length < 3) return
+
+      // Skip pure escape sequences without printable content
+      // Escape sequences start with ESC (\x1b) and contain only control characters
+      const isPureEscape = data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data)
+      if (isPureEscape) return
+
+      // This looks like real content - report activity
+      reportActivity(session.id)
     },
   })
 

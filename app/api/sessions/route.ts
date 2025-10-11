@@ -16,10 +16,10 @@ export async function GET() {
     }
 
     // Parse tmux output
-    const sessions = stdout
+    const sessionPromises = stdout
       .trim()
       .split('\n')
-      .map((line) => {
+      .map(async (line) => {
         // Format: "session-name: 1 windows (created Wed Jan 10 14:23:45 2025) (attached)"
         // Or: "session-name: 1 windows (created Wed Jan 10 14:23:45 2025)"
         const match = line.match(/^([^:]+):\s+(\d+)\s+windows?\s+\(created\s+(.+?)\)/)
@@ -43,16 +43,36 @@ export async function GET() {
           createdAt = new Date().toISOString()
         }
 
+        // Get last activity from global sessionActivity Map (populated by server.mjs)
+        let lastActivity: string
+        let status: 'active' | 'idle' | 'disconnected'
+
+        const activityTimestamp = (global as any).sessionActivity?.get(name)
+
+        if (activityTimestamp) {
+          lastActivity = new Date(activityTimestamp).toISOString()
+
+          // Calculate if session is idle (no activity for 3+ seconds)
+          const secondsSinceActivity = (Date.now() - activityTimestamp) / 1000
+          status = secondsSinceActivity > 3 ? 'idle' : 'active'
+        } else {
+          // No activity data yet - assume disconnected
+          lastActivity = createdAt
+          status = 'disconnected'
+        }
+
         return {
           id: name,
           name,
           workingDirectory: '', // Not available from tmux ls
-          status: 'active' as const,
+          status,
           createdAt,
-          lastActivity: new Date().toISOString(),
+          lastActivity,
           windows: parseInt(windows, 10),
         }
       })
+
+    const sessions = (await Promise.all(sessionPromises))
       .filter(session => session !== null) as Session[]
 
     return NextResponse.json({ sessions })

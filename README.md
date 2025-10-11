@@ -98,13 +98,15 @@ Dashboard opens at `http://localhost:23000`
 
 **Network Access:** By default, AI Maestro is accessible on your local network at port 23000. See [Security](#security) below for important information.
 
-**Optional: Configure security settings**
+**Optional: Configure settings**
 ```bash
 # Copy the example environment file
 cp .env.example .env.local
 
-# Edit .env.local to change HOSTNAME to 'localhost' for local-only access
-# See the Security section below for all configuration options
+# Edit .env.local to customize:
+# - HOSTNAME: Change to 'localhost' for local-only access
+# - ENABLE_LOGGING: Set to 'true' to enable session logging
+# See the Security and Configuration sections below for all options
 ```
 
 ### 2. Create Your First Session
@@ -424,6 +426,49 @@ curl http://localhost:23000
 # Will only work if HOSTNAME is 0.0.0.0 or your local IP
 curl http://192.168.1.100:23000  # Replace with your machine's IP
 ```
+
+---
+
+#### 📝 Session Logging Configuration
+
+**Session Logging (Disabled by Default)**
+
+AI Maestro can optionally log terminal session content to `./logs/{sessionName}.txt` files. This is useful for:
+- 📊 Reviewing AI agent conversations
+- 🐛 Debugging issues after sessions end
+- 📖 Creating documentation from agent interactions
+- 🔍 Searching through past work
+
+**What gets logged:**
+- ✅ All terminal output and commands
+- ✅ AI agent responses and reasoning
+- 🚫 Filtered out: Claude Code status updates and thinking steps (reduces noise)
+- 🚫 Not logged: Browser notes (stored in localStorage only)
+
+**Controls:**
+
+1. **Global master switch** (in `.env.local`):
+```bash
+# Enable session logging
+ENABLE_LOGGING=true
+
+# Disable all session logging (default)
+ENABLE_LOGGING=false
+```
+
+2. **Per-session toggle**: Each terminal has a 📝/🚫 button in the header to enable/disable logging for that specific session
+
+**Privacy considerations:**
+- Log files are stored locally only (`./logs/` directory)
+- Logs are gitignored by default (never committed to git)
+- No logs are sent over the network
+- Logs contain whatever commands and data you run in terminals
+- Consider disabling logging when working with sensitive data
+
+**Disk usage:**
+- Log files grow with session activity
+- No automatic cleanup or rotation (manage manually)
+- Disable logging globally or per-session to save disk space
 
 ---
 

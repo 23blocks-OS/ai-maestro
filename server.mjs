@@ -180,19 +180,40 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // Send current visible terminal content to new clients
+    // Send full scrollback history to new clients
+    // Critical: We need to capture the full history so scrollback works on reconnect
     setTimeout(async () => {
       try {
         const { execSync } = await import('child_process')
-        const visibleContent = execSync(
-          `tmux capture-pane -t ${sessionName} -p`,
-          { encoding: 'utf8', timeout: 2000 }
-        ).toString()
-        if (ws.readyState === 1 && visibleContent) {
-          ws.send(visibleContent)
+
+        // Try to capture full scrollback history (up to 50000 lines)
+        let historyContent = ''
+        try {
+          // -S -50000: Start from 50000 lines back (tmux scrollback limit)
+          // -e: Include escape sequences (colors, formatting)
+          // -p: Print to stdout
+          historyContent = execSync(
+            `tmux capture-pane -t ${sessionName} -p -S -50000 -e`,
+            { encoding: 'utf8', timeout: 3000 }
+          ).toString()
+        } catch (historyError) {
+          // Fallback: if full history fails, at least get visible content
+          historyContent = execSync(
+            `tmux capture-pane -t ${sessionName} -p`,
+            { encoding: 'utf8', timeout: 2000 }
+          ).toString()
+        }
+
+        if (ws.readyState === 1 && historyContent) {
+          // Send history content as raw data
+          ws.send(historyContent)
+
+          // Send a special message to signal that initial history load is complete
+          // This allows the client to trigger fitAddon.fit() to recalculate scrollback
+          ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
-        console.error('Error capturing visible pane:', error)
+        console.error('Error capturing terminal history:', error)
       }
     }, 150)
 

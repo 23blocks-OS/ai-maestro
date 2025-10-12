@@ -3,15 +3,18 @@
 import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
+import MessageCenter from '@/components/MessageCenter'
 import Header from '@/components/Header'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
+import { Terminal, Mail } from 'lucide-react'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
 
   // Detect mobile screen size
   useEffect(() => {
@@ -85,7 +88,45 @@ export default function DashboardPage() {
         {/* Main Content */}
         <main className="flex-1 flex flex-col">
           {activeSession ? (
-            <TerminalView session={activeSession} />
+            <>
+              {/* Tab Navigation */}
+              <div className="flex border-b border-gray-800 bg-gray-900">
+                <button
+                  onClick={() => setActiveTab('terminal')}
+                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                    activeTab === 'terminal'
+                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                  }`}
+                >
+                  <Terminal className="w-4 h-4" />
+                  Terminal
+                </button>
+                <button
+                  onClick={() => setActiveTab('messages')}
+                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                    activeTab === 'messages'
+                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                  }`}
+                >
+                  <Mail className="w-4 h-4" />
+                  Messages
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 flex overflow-hidden">
+                {activeTab === 'terminal' ? (
+                  <TerminalView session={activeSession} />
+                ) : (
+                  <MessageCenter
+                    sessionName={activeSession.id}
+                    allSessions={sessions.map(s => s.id)}
+                  />
+                )}
+              </div>
+            </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-400">
               <div className="text-center">
@@ -118,7 +159,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.1.8 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.2.0 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}

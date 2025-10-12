@@ -55,7 +55,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
     }
   }, [session.id, registerTerminal, unregisterTerminal])
 
-  const { terminal, initializeTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Update registration with real fitAddon when terminal is ready
@@ -80,6 +80,23 @@ export default function TerminalView({ session }: TerminalViewProps) {
       reportActivity(session.id)
     },
     onMessage: (data) => {
+      // Check if this is a control message (JSON)
+      try {
+        const parsed = JSON.parse(data)
+
+        // Handle history-complete message
+        if (parsed.type === 'history-complete') {
+          // After initial history loads, trigger fit to recalculate scrollback viewport
+          // This fixes the issue where scrollback is unreachable until window resize
+          setTimeout(() => {
+            fitTerminal()
+          }, 50)
+          return
+        }
+      } catch {
+        // Not JSON - it's terminal data, continue processing
+      }
+
       // Only report activity for substantial content (not cursor blinks or control sequences)
       // Filter out idle terminal noise to properly detect active vs idle state
 
@@ -309,10 +326,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
       )}
 
       {/* Terminal Container */}
-      <div
-        className="flex-1 relative overflow-hidden"
-        onClick={() => terminal?.focus()}
-      >
+      <div className="flex-1 relative overflow-hidden">
         <div ref={terminalRef} className="absolute inset-0 custom-scrollbar" />
         {!isReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">

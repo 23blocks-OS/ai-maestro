@@ -70,8 +70,10 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightWhite: '#ffffff',
       },
       scrollback: 50000,
-      // Enable convertEol for proper line ending handling
-      convertEol: true,
+      // CRITICAL: Must be false for PTY connections
+      // PTY and tmux handle line endings correctly - setting this to true causes
+      // Claude Code status updates (using \r) to create new lines instead of overwriting
+      convertEol: false,
       allowTransparency: false,
       scrollSensitivity: 1,
       fastScrollSensitivity: 5,
@@ -92,11 +94,17 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Initialize addons
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
-    const clipboardAddon = new ClipboardAddon()
 
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
-    terminal.loadAddon(clipboardAddon)
+
+    // Load clipboard addon for copy/paste support
+    try {
+      const clipboardAddon = new ClipboardAddon()
+      terminal.loadAddon(clipboardAddon)
+    } catch (e) {
+      console.warn('Failed to load clipboard addon:', e)
+    }
 
     // Try to load WebGL addon (fallback to canvas if fails)
     try {
@@ -150,8 +158,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     resizeObserver.observe(container)
 
-    // Focus terminal
-    terminal.focus()
+    // Don't auto-focus - let the user click to focus
+    // Auto-focusing breaks text selection when switching sessions
+    // terminal.focus()
 
     // Add keyboard shortcuts for scrolling
     terminal.attachCustomKeyEventHandler((event) => {

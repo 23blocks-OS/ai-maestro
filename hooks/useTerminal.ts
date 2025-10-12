@@ -106,16 +106,17 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       console.warn('Failed to load clipboard addon:', e)
     }
 
-    // Try to load WebGL addon (fallback to canvas if fails)
-    try {
-      const webglAddon = new WebglAddon()
-      terminal.loadAddon(webglAddon)
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose()
-      })
-    } catch (e) {
-      // Fallback to canvas renderer
-    }
+    // Don't use WebGL addon - it can interfere with text selection on resize
+    // Stick with canvas renderer which is more stable for our use case
+    // try {
+    //   const webglAddon = new WebglAddon()
+    //   terminal.loadAddon(webglAddon)
+    //   webglAddon.onContextLoss(() => {
+    //     webglAddon.dispose()
+    //   })
+    // } catch (e) {
+    //   // Fallback to canvas renderer
+    // }
 
     // Open terminal in container
     terminal.open(container)

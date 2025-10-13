@@ -189,17 +189,14 @@ app.prepare().then(() => {
         // Try to capture full scrollback history (up to 50000 lines)
         let historyContent = ''
         try {
-          // CRITICAL: Capture pane with exact terminal dimensions
-          // This prevents tmux from adding extra padding/spaces due to width mismatch
-          const cols = sessionState.ptyProcess.cols || 80
-          const rows = sessionState.ptyProcess.rows || 24
-
+          // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
           // -S -50000: Start from 50000 lines back (tmux scrollback limit)
-          // -e: Include escape sequences (colors, formatting)
           // -p: Print to stdout
           // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
+          // NO -e flag: Without escape sequences, tmux sends plain text with newlines
+          // This allows xterm.js to add lines to scrollback instead of repositioning cursor
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -50000 -e -J`,
+            `tmux capture-pane -t ${sessionName} -p -S -50000 -J`,
             { encoding: 'utf8', timeout: 3000 }
           ).toString()
         } catch (historyError) {
@@ -219,8 +216,16 @@ app.prepare().then(() => {
         }
 
         if (ws.readyState === 1 && historyContent) {
-          // Send history content as raw data
-          ws.send(historyContent)
+          // CRITICAL: Convert plain text to terminal-friendly format
+          // Each line must end with \r\n for xterm.js to add it to scrollback
+          // Plain newlines (\n) would just move cursor down without creating history
+          const lines = historyContent.split('\n')
+          const formattedHistory = lines.map(line => line + '\r\n').join('')
+
+          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
+
+          // Send history content as formatted data
+          ws.send(formattedHistory)
 
           // Send a special message to signal that initial history load is complete
           // This allows the client to trigger scrollToBottom() and fit()

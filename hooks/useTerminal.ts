@@ -202,26 +202,17 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       optionsRef.current.onRegister(fitAddon)
     }
 
-    // Handle window resize - ONLY for actual window resizes, not initial layout oscillations
+    // Handle window resize - for actual window resizes
     let resizeTimeout: NodeJS.Timeout
     let prevWidth = containerWidth
     let prevHeight = containerHeight
-    const initTime = Date.now()
-    const STABILIZATION_PERIOD = 1500 // Ignore resizes for first 1.5 seconds
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
       const newWidth = Math.floor(entry.contentRect.width)
       const newHeight = Math.floor(entry.contentRect.height)
 
-      // CRITICAL: Ignore ALL resizes during initial stabilization period
-      const elapsed = Date.now() - initTime
-      if (elapsed < STABILIZATION_PERIOD) {
-        console.log(`👁️ [RESIZE-OBSERVER] Ignoring resize during stabilization (${elapsed}ms): ${prevWidth}x${prevHeight} → ${newWidth}x${newHeight}`)
-        return
-      }
-
-      // Ignore micro-oscillations (< 5px) after stabilization period
+      // Ignore micro-oscillations (< 5px)
       const widthDiff = Math.abs(newWidth - prevWidth)
       const heightDiff = Math.abs(newHeight - prevHeight)
 
@@ -239,7 +230,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       resizeTimeout = setTimeout(() => {
         if (fitAddonRef.current && terminalRef.current) {
           try {
-            console.log(`⏰ [RESIZE-OBSERVER-TIMEOUT] Firing fit after 150ms debounce for session ${optionsRef.current.sessionId}`)
+            console.log(`⏰ [RESIZE-OBSERVER-TIMEOUT] Firing fit after 50ms debounce for session ${optionsRef.current.sessionId}`)
 
             // Store current scroll position
             const scrollPos = terminal.buffer.active.viewportY
@@ -265,7 +256,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
             console.error('Failed to resize terminal:', e)
           }
         }
-      }, 150) // Longer debounce to avoid thrashing during animations
+      }, 50) // Debounce to avoid thrashing during resize
     })
 
     resizeObserver.observe(container)

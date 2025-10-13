@@ -17,9 +17,27 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [isMobile, setIsMobile] = useState(false)
-  // Default to collapsed on mobile, expanded on desktop
-  const [notesCollapsed, setNotesCollapsed] = useState(false)
-  const [loggingEnabled, setLoggingEnabled] = useState(true)
+
+  // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
+  // This ensures the terminal container has the correct height BEFORE xterm.js initializes
+  const [notesCollapsed, setNotesCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const mobile = window.innerWidth < 768
+    const collapsedKey = `session-notes-collapsed-${session.id}`
+    const savedCollapsed = localStorage.getItem(collapsedKey)
+    if (savedCollapsed !== null) {
+      return savedCollapsed === 'true'
+    }
+    return mobile // Default to collapsed on mobile, expanded on desktop
+  })
+
+  const [loggingEnabled, setLoggingEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const loggingKey = `session-logging-${session.id}`
+    const savedLogging = localStorage.getItem(loggingKey)
+    return savedLogging !== null ? savedLogging === 'true' : true
+  })
+
   const [globalLoggingEnabled, setGlobalLoggingEnabled] = useState(false)
 
   // Detect mobile on mount
@@ -43,26 +61,15 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  // Register session immediately when component mounts (for activity tracking)
-  // This ensures status shows correctly even before terminal is fully initialized
-  useEffect(() => {
-    // Register with a dummy fitAddon initially - will be updated when terminal initializes
-    const dummyFitAddon = { fit: () => {} } as any
-    registerTerminal(session.id, dummyFitAddon)
-
-    return () => {
-      unregisterTerminal(session.id)
-    }
-  }, [session.id, registerTerminal, unregisterTerminal])
-
-  const { terminal, initializeTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
-      // Update registration with real fitAddon when terminal is ready
+      // Register terminal when it's fully initialized
       registerTerminal(session.id, fitAddon)
     },
     onUnregister: () => {
-      // Don't unregister here - let the component unmount handle it
+      // Unregister when terminal is disposed
+      unregisterTerminal(session.id)
     },
   })
 
@@ -80,13 +87,55 @@ export default function TerminalView({ session }: TerminalViewProps) {
       reportActivity(session.id)
     },
     onMessage: (data) => {
+      console.log(`📨 [WS-MESSAGE] Received ${data.length} bytes for session ${session.id}`)
+
+      // Check if this is a control message (JSON)
+      try {
+        const parsed = JSON.parse(data)
+
+        // Handle history-complete message
+        if (parsed.type === 'history-complete') {
+          // After initial history loads, force a complete refresh of all xterm layers
+          // This fixes: yellow selection, scrollbar not updating, and layer misalignment
+          if (terminalInstanceRef.current) {
+            const term = terminalInstanceRef.current
+
+            console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
+
+            // CRITICAL: Large history chunks (458KB+) need significant time to process
+            // xterm.js writes the data asynchronously, so we need to wait for it to finish
+            // Use a short timeout to allow xterm.js to complete processing
+            setTimeout(() => {
+              console.log(`📊 [HISTORY-WAIT] After 100ms wait - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
+
+              // 1. Force complete re-render of all layers (selection, scrollbar, canvas)
+              term.refresh(0, term.rows - 1)
+
+              // 2. Scroll to bottom to show the prompt
+              term.scrollToBottom()
+
+              console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
+              console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
+            }, 100)
+          }
+          return
+        }
+      } catch {
+        // Not JSON - it's terminal data, continue processing
+        console.log(`📝 [WS-DATA] Not JSON, treating as terminal data (${data.length} bytes)`)
+      }
+
       // Only report activity for substantial content (not cursor blinks or control sequences)
       // Filter out idle terminal noise to properly detect active vs idle state
 
       // Always write data to terminal first
       if (terminalInstanceRef.current) {
+        console.log(`✍️ [TERMINAL-WRITE] Writing ${data.length} bytes to terminal for session ${session.id}`)
+        console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
+        console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
       } else {
+        console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)
       }
 
@@ -104,21 +153,86 @@ export default function TerminalView({ session }: TerminalViewProps) {
   })
 
   // Initialize terminal when component mounts or session changes
-  useEffect(() => {
-    if (!terminalRef.current) return
+  // CRITICAL: Track initialization per session to prevent race conditions
+  const currentSessionRef = useRef<string | null>(null)
+  const initializingRef = useRef(false)
 
+  useEffect(() => {
+    // CRITICAL: Detect session change BEFORE any async operations
+    const sessionChanged = currentSessionRef.current !== session.id
+    const isNewSession = currentSessionRef.current === null
+
+    if (sessionChanged && !isNewSession) {
+      console.log(`🔄 [SESSION-CHANGE] Switching from ${currentSessionRef.current} → ${session.id}`)
+    }
+
+    // Update current session ref immediately
+    currentSessionRef.current = session.id
+
+    // Wait for the DOM ref to be ready
+    if (!terminalRef.current) {
+      console.log(`⚠️ [INIT-SKIP] DOM ref not ready for session ${session.id}`)
+      return
+    }
+
+    // Check if container is actually visible and has dimensions
+    const rect = terminalRef.current.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) {
+      console.log(`⚠️ [INIT-SKIP] Container not visible yet for session ${session.id} (${rect.width}x${rect.height}), waiting...`)
+      return
+    }
+
+    console.log(`📐 [INIT-CHECK] Container visible for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
+
+    // Prevent duplicate initialization while already initializing
+    if (initializingRef.current) {
+      console.log(`⚠️ [INIT-SKIP] Already initializing session ${session.id}, skipping duplicate call`)
+      return
+    }
+
+    initializingRef.current = true
     let cleanup: (() => void) | undefined
 
     const init = async () => {
+      console.log(`🚀 [INIT-START] Starting terminal initialization for session ${session.id}`)
+
       // Clear message buffer for new session
       messageBufferRef.current = []
-      cleanup = await initializeTerminal(terminalRef.current!)
+
+      // CRITICAL: Pass the current container element (not the ref that might change)
+      const containerElement = terminalRef.current
+      if (!containerElement) {
+        console.error(`❌ [INIT-ERROR] Container disappeared during init for session ${session.id}`)
+        initializingRef.current = false
+        return
+      }
+
+      cleanup = await initializeTerminal(containerElement)
+
+      // CRITICAL: Verify we're still on the same session after async initialization
+      if (currentSessionRef.current !== session.id) {
+        console.warn(`⚠️ [INIT-STALE] Session changed during initialization (was ${session.id}, now ${currentSessionRef.current}), cleaning up stale terminal`)
+        if (cleanup) {
+          cleanup()
+        }
+        initializingRef.current = false
+        return
+      }
+
+      // Terminal is ready immediately after initialization
+      console.log(`✅ [INIT-COMPLETE] Terminal ready for session ${session.id}`)
       setIsReady(true)
+      initializingRef.current = false
     }
 
-    init()
+    init().catch((error) => {
+      console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
+      initializingRef.current = false
+    })
 
     return () => {
+      console.log(`🧹 [CLEANUP] Cleaning up terminal for session ${session.id}`)
+      initializingRef.current = false
       if (cleanup) {
         cleanup()
       }
@@ -138,6 +252,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
       messageBufferRef.current = []
     }
   }, [terminal])
+
+  // Mobile-specific: trigger fit when notes collapse/expand (changes terminal height on mobile)
+  useEffect(() => {
+    if (isMobile && isReady && terminal) {
+      console.log(`📝 [NOTES-TOGGLE] Notes ${notesCollapsed ? 'collapsed' : 'expanded'} on session ${session.id}, scheduling 150ms fit`)
+      // Notes state changed on mobile, terminal height changed dramatically
+      const timeout = setTimeout(() => {
+        console.log(`⏰ [NOTES-TOGGLE-TIMEOUT] Firing fit for session ${session.id}`)
+        fitTerminal()
+      }, 150)
+      return () => clearTimeout(timeout)
+    }
+  }, [notesCollapsed, isMobile, isReady, terminal, fitTerminal, session.id])
 
   // Handle terminal input
   useEffect(() => {
@@ -169,7 +296,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
   }, [terminal, isConnected, sendMessage])
 
   // Load notes from localStorage when session changes
+  // Note: notesCollapsed and loggingEnabled are now loaded synchronously in useState initializer
   useEffect(() => {
+    console.log(`📂 [LOAD-NOTES] Loading notes for session ${session.id}`)
     const storageKey = `session-notes-${session.id}`
     const savedNotes = localStorage.getItem(storageKey)
     if (savedNotes !== null) {
@@ -178,17 +307,15 @@ export default function TerminalView({ session }: TerminalViewProps) {
       setNotes('')
     }
 
-    // Load collapsed state - default to collapsed on mobile if no saved state
+    // Re-sync notesCollapsed state when session changes (in case it wasn't loaded during init)
     const collapsedKey = `session-notes-collapsed-${session.id}`
     const savedCollapsed = localStorage.getItem(collapsedKey)
-    if (savedCollapsed !== null) {
-      setNotesCollapsed(savedCollapsed === 'true')
-    } else {
-      // Default behavior: collapsed on mobile, expanded on desktop
-      setNotesCollapsed(isMobile)
-    }
+    const newCollapsed = savedCollapsed !== null ? savedCollapsed === 'true' : isMobile
 
-    // Load logging state - default to enabled
+    console.log(`📂 [LOAD-NOTES] Session ${session.id} notesCollapsed should be: ${newCollapsed}`)
+    setNotesCollapsed(newCollapsed)
+
+    // Re-sync logging state when session changes
     const loggingKey = `session-logging-${session.id}`
     const savedLogging = localStorage.getItem(loggingKey)
     if (savedLogging !== null) {
@@ -234,7 +361,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-terminal-bg">
+    <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Terminal Header */}
       <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between gap-2">
@@ -309,11 +436,11 @@ export default function TerminalView({ session }: TerminalViewProps) {
       )}
 
       {/* Terminal Container */}
-      <div
-        className="flex-1 relative overflow-hidden"
-        onClick={() => terminal?.focus()}
-      >
-        <div ref={terminalRef} className="absolute inset-0 custom-scrollbar" />
+      <div className="flex-1 relative overflow-hidden touch-pan-y md:flex-1" style={{ minHeight: isMobile && !notesCollapsed ? '50vh' : undefined, maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined }}>
+        <div
+          ref={terminalRef}
+          className="absolute inset-0"
+        />
         {!isReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">
             <div className="text-center">
@@ -326,7 +453,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Notes Section */}
       {!notesCollapsed && (
-        <div className="border-t border-gray-700 bg-gray-900 flex flex-col" style={{ height: '200px' }}>
+        <div className="border-t border-gray-700 bg-gray-900 flex flex-col flex-shrink-0" style={{ height: isMobile ? '40vh' : '200px' }}>
           <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
             <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
             <button

@@ -86,73 +86,85 @@ export default function DashboardPage() {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col">
-            {activeSession ? (
-              <>
-                {/* Tab Navigation */}
-                <div className="flex border-b border-gray-800 bg-gray-900">
-                <button
-                  onClick={() => setActiveTab('terminal')}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'terminal'
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                  }`}
-                >
-                  <Terminal className="w-4 h-4" />
-                  Terminal
-                </button>
-                <button
-                  onClick={() => setActiveTab('messages')}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'messages'
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  Messages
-                </button>
+          <main className="flex-1 flex flex-col relative">
+            {/* Empty State - shown when no sessions */}
+            {sessions.length === 0 && (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="text-xl mb-2">No sessions found</p>
+                  <p className="text-sm">
+                    Create a tmux session with Claude Code to get started
+                  </p>
+                </div>
               </div>
+            )}
 
-              {/* Tab Content */}
-              <div className="flex-1 flex overflow-hidden">
-                {activeTab === 'terminal' ? (
-                  <TerminalView session={activeSession} />
-                ) : (
-                  <MessageCenter
-                    sessionName={activeSession.id}
-                    allSessions={sessions.map(s => s.id)}
-                  />
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <svg
-                  className="w-16 h-16 mx-auto mb-4 text-gray-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+            {/* All Sessions Mounted as Tabs - toggle visibility with CSS */}
+            {sessions.map(session => {
+              const isActive = session.id === activeSessionId
+
+              return (
+                <div
+                  key={session.id}
+                  className="absolute inset-0 flex flex-col"
+                  style={{
+                    display: isActive ? 'flex' : 'none'
+                  }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <p className="text-xl mb-2">No session selected</p>
-                <p className="text-sm">
-                  {sessions.length === 0
-                    ? 'Create a tmux session with Claude Code to get started'
-                    : 'Select a session from the sidebar to view its terminal'}
-                </p>
-              </div>
-            </div>
-          )}
-        </main>
+                  {/* Tab Navigation */}
+                  <div className="flex border-b border-gray-800 bg-gray-900 flex-shrink-0">
+                    <button
+                      onClick={() => setActiveTab('terminal')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'terminal'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Terminal className="w-4 h-4" />
+                      Terminal
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('messages')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'messages'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Messages
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="flex-1 flex overflow-hidden">
+                    {activeTab === 'terminal' ? (
+                      <TerminalView session={session} />
+                    ) : (
+                      <MessageCenter
+                        sessionName={session.id}
+                        allSessions={sessions.map(s => s.id)}
+                      />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </main>
       </div>
 
       {/* Footer */}

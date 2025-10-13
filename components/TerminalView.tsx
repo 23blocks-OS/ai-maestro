@@ -295,6 +295,70 @@ export default function TerminalView({ session }: TerminalViewProps) {
     }
   }, [terminal, isConnected, sendMessage])
 
+  // Mobile touch scroll handler - attach to document to capture all touches
+  useEffect(() => {
+    if (!isMobile || !terminal || !terminalRef.current) return
+
+    let touchStartY = 0
+    let isTouchingTerminal = false
+    const terminalElement = terminalRef.current
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // Check if touch is within terminal bounds
+      const rect = terminalElement.getBoundingClientRect()
+      const touch = e.touches[0]
+
+      if (
+        touch.clientX >= rect.left &&
+        touch.clientX <= rect.right &&
+        touch.clientY >= rect.top &&
+        touch.clientY <= rect.bottom
+      ) {
+        isTouchingTerminal = true
+        touchStartY = touch.clientY
+        console.log('📱 [TOUCH] Started on terminal')
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isTouchingTerminal) return
+
+      const touchY = e.touches[0].clientY
+      const deltaY = touchStartY - touchY
+      const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
+
+      if (Math.abs(linesToScroll) > 0) {
+        console.log(`📱 [TOUCH] Scrolling ${linesToScroll} lines`)
+        terminal.scrollLines(linesToScroll)
+        touchStartY = touchY
+      }
+
+      // CRITICAL: Always prevent default to stop page scroll
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const handleTouchEnd = () => {
+      if (isTouchingTerminal) {
+        console.log('📱 [TOUCH] Ended')
+      }
+      isTouchingTerminal = false
+    }
+
+    // Attach to document with capture phase to intercept before xterm.js
+    document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true })
+    document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true })
+    document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true })
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: true, capture: true })
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart, true)
+      document.removeEventListener('touchmove', handleTouchMove, true)
+      document.removeEventListener('touchend', handleTouchEnd, true)
+      document.removeEventListener('touchcancel', handleTouchEnd, true)
+    }
+  }, [isMobile, terminal])
+
   // Load notes from localStorage when session changes
   // Note: notesCollapsed and loggingEnabled are now loaded synchronously in useState initializer
   useEffect(() => {
@@ -436,10 +500,22 @@ export default function TerminalView({ session }: TerminalViewProps) {
       )}
 
       {/* Terminal Container */}
-      <div className="flex-1 relative overflow-hidden touch-pan-y md:flex-1" style={{ minHeight: isMobile && !notesCollapsed ? '50vh' : undefined, maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined }}>
+      <div
+        className="flex-1 relative overflow-hidden md:flex-1"
+        style={{
+          minHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
+          maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
+          // Prevent mobile rubber-band scrolling
+          overscrollBehavior: 'contain'
+        }}
+      >
         <div
           ref={terminalRef}
           className="absolute inset-0"
+          style={{
+            // CRITICAL: Prevent touch events from bubbling to parent on mobile
+            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto'
+          }}
         />
         {!isReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">

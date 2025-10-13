@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
   return (
     <TerminalProvider>
-      <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
+      <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
 

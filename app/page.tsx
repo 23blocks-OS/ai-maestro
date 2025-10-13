@@ -55,42 +55,42 @@ export default function DashboardPage() {
   return (
     <TerminalProvider>
       <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
-      {/* Header */}
-      <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
+        {/* Header */}
+        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Mobile overlay backdrop */}
-        {isMobile && !sidebarCollapsed && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setSidebarCollapsed(true)}
-          />
-        )}
+        {/* Main Content Area */}
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Mobile overlay backdrop */}
+          {isMobile && !sidebarCollapsed && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setSidebarCollapsed(true)}
+            />
+          )}
 
-        {/* Sidebar */}
-        <aside className={`
-          border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden
-          ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
-          ${sidebarCollapsed ? (isMobile ? '-translate-x-full' : 'w-0') : (isMobile ? 'w-80 translate-x-0' : 'w-80')}
-        `}>
-          <SessionList
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSessionSelect={handleSessionSelect}
-            loading={loading}
-            error={error}
-            onRefresh={refreshSessions}
-            onToggleSidebar={toggleSidebar}
-          />
-        </aside>
+          {/* Sidebar */}
+          <aside className={`
+            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden
+            ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
+            ${sidebarCollapsed ? (isMobile ? '-translate-x-full' : 'w-0') : (isMobile ? 'w-80 translate-x-0' : 'w-80')}
+          `}>
+            <SessionList
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSessionSelect={handleSessionSelect}
+              loading={loading}
+              error={error}
+              onRefresh={refreshSessions}
+              onToggleSidebar={toggleSidebar}
+            />
+          </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col">
-          {activeSession ? (
-            <>
-              {/* Tab Navigation */}
-              <div className="flex border-b border-gray-800 bg-gray-900">
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col">
+            {activeSession ? (
+              <>
+                {/* Tab Navigation */}
+                <div className="flex border-b border-gray-800 bg-gray-900">
                 <button
                   onClick={() => setActiveTab('terminal')}
                   className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
@@ -156,10 +156,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2">
+      <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.2.1 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.2.2 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}

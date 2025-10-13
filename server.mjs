@@ -189,19 +189,33 @@ app.prepare().then(() => {
         // Try to capture full scrollback history (up to 50000 lines)
         let historyContent = ''
         try {
+          // CRITICAL: Capture pane with exact terminal dimensions
+          // This prevents tmux from adding extra padding/spaces due to width mismatch
+          const cols = sessionState.ptyProcess.cols || 80
+          const rows = sessionState.ptyProcess.rows || 24
+
           // -S -50000: Start from 50000 lines back (tmux scrollback limit)
           // -e: Include escape sequences (colors, formatting)
           // -p: Print to stdout
+          // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -50000 -e`,
+            `tmux capture-pane -t ${sessionName} -p -S -50000 -e -J`,
             { encoding: 'utf8', timeout: 3000 }
           ).toString()
         } catch (historyError) {
           // Fallback: if full history fails, at least get visible content
-          historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p`,
-            { encoding: 'utf8', timeout: 2000 }
-          ).toString()
+          try {
+            historyContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p -J`,
+              { encoding: 'utf8', timeout: 2000 }
+            ).toString()
+          } catch (fallbackError) {
+            // Last resort: no -J flag
+            historyContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p`,
+              { encoding: 'utf8', timeout: 2000 }
+            ).toString()
+          }
         }
 
         if (ws.readyState === 1 && historyContent) {
@@ -209,7 +223,7 @@ app.prepare().then(() => {
           ws.send(historyContent)
 
           // Send a special message to signal that initial history load is complete
-          // This allows the client to trigger fitAddon.fit() to recalculate scrollback
+          // This allows the client to trigger scrollToBottom() and fit()
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {

@@ -492,27 +492,25 @@ export default function TerminalView({ session }: TerminalViewProps) {
             flexShrink: 0
           }}
         >
-          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
+          <div
+            onClick={() => setNotesCollapsed(true)}
+            className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0 cursor-pointer hover:bg-gray-750 transition-colors"
+            title="Click to collapse notes"
+          >
             <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
-            <button
-              onClick={() => setNotesCollapsed(true)}
-              className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              title="Collapse notes"
+            <svg
+              className="w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
           </div>
           <textarea
             value={notes}
@@ -531,26 +529,25 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Collapsed Notes Bar */}
       {notesCollapsed && (
-        <div className="border-t border-gray-700 bg-gray-800 px-4 py-2">
-          <button
-            onClick={() => setNotesCollapsed(false)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+        <div
+          onClick={() => setNotesCollapsed(false)}
+          className="border-t border-gray-700 bg-gray-800 px-4 py-2 cursor-pointer hover:bg-gray-750 transition-colors flex items-center gap-2"
+          title="Click to expand notes"
+        >
+          <svg
+            className="w-4 h-4 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 15l7-7 7 7"
-              />
-            </svg>
-            <span>Show Session Notes</span>
-          </button>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 15l7-7 7 7"
+            />
+          </svg>
+          <span className="text-sm text-gray-400">Show Session Notes</span>
         </div>
       )}
     </div>

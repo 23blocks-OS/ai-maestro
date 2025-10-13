@@ -437,7 +437,17 @@ export default function TerminalView({ session }: TerminalViewProps) {
           </div>
           {terminal && (
             <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
-              {/* Hide on mobile except Clear button */}
+              {/* Mobile: Notes toggle button */}
+              <button
+                onClick={() => setNotesCollapsed(!notesCollapsed)}
+                className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title={notesCollapsed ? "Show notes" : "Hide notes"}
+              >
+                📝
+              </button>
+              <span className="text-gray-500 md:hidden">|</span>
+
+              {/* Hide on mobile except Clear and Notes buttons */}
               <span className="hidden md:inline">
                 {terminal.cols}x{terminal.rows}
               </span>
@@ -501,10 +511,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Terminal Container */}
       <div
-        className="flex-1 relative overflow-hidden md:flex-1"
+        className="flex-1 relative overflow-hidden"
         style={{
-          minHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
-          maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
           // Prevent mobile rubber-band scrolling
           overscrollBehavior: 'contain'
         }}
@@ -529,8 +537,16 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Notes Section */}
       {!notesCollapsed && (
-        <div className="border-t border-gray-700 bg-gray-900 flex flex-col flex-shrink-0" style={{ height: isMobile ? '40vh' : '200px' }}>
-          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
+        <div
+          className="border-t border-gray-700 bg-gray-900 flex flex-col"
+          style={{
+            height: isMobile ? '40vh' : '200px',
+            minHeight: isMobile ? '40vh' : '200px',
+            maxHeight: isMobile ? '40vh' : '200px',
+            flexShrink: 0
+          }}
+        >
+          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
             <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
             <button
               onClick={() => setNotesCollapsed(true)}
@@ -556,8 +572,13 @@ export default function TerminalView({ session }: TerminalViewProps) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Take notes while working with your agent..."
-            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
-            style={{ minHeight: 0 }}
+            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono overflow-y-auto"
+            style={{
+              minHeight: 0,
+              maxHeight: '100%',
+              height: '100%',
+              WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
+            }}
           />
         </div>
       )}

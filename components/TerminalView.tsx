@@ -152,23 +152,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
     },
   })
 
-  // Initialize terminal when component mounts or session changes
-  // CRITICAL: Track initialization per session to prevent race conditions
-  const currentSessionRef = useRef<string | null>(null)
-  const initializingRef = useRef(false)
-
+  // Initialize terminal ONCE on mount - never re-initialize
+  // Tab-based architecture: terminal stays mounted, just hidden via CSS
   useEffect(() => {
-    // CRITICAL: Detect session change BEFORE any async operations
-    const sessionChanged = currentSessionRef.current !== session.id
-    const isNewSession = currentSessionRef.current === null
-
-    if (sessionChanged && !isNewSession) {
-      console.log(`🔄 [SESSION-CHANGE] Switching from ${currentSessionRef.current} → ${session.id}`)
-    }
-
-    // Update current session ref immediately
-    currentSessionRef.current = session.id
-
     // Wait for the DOM ref to be ready
     if (!terminalRef.current) {
       console.log(`⚠️ [INIT-SKIP] DOM ref not ready for session ${session.id}`)
@@ -182,66 +168,41 @@ export default function TerminalView({ session }: TerminalViewProps) {
       return
     }
 
-    console.log(`📐 [INIT-CHECK] Container visible for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
+    console.log(`📐 [INIT] Container dimensions for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
 
-    // Prevent duplicate initialization while already initializing
-    if (initializingRef.current) {
-      console.log(`⚠️ [INIT-SKIP] Already initializing session ${session.id}, skipping duplicate call`)
-      return
-    }
-
-    initializingRef.current = true
     let cleanup: (() => void) | undefined
 
     const init = async () => {
-      console.log(`🚀 [INIT-START] Starting terminal initialization for session ${session.id}`)
+      console.log(`🚀 [INIT] Initializing terminal for session ${session.id}`)
 
-      // Clear message buffer for new session
-      messageBufferRef.current = []
-
-      // CRITICAL: Pass the current container element (not the ref that might change)
       const containerElement = terminalRef.current
       if (!containerElement) {
         console.error(`❌ [INIT-ERROR] Container disappeared during init for session ${session.id}`)
-        initializingRef.current = false
         return
       }
 
       cleanup = await initializeTerminal(containerElement)
 
-      // CRITICAL: Verify we're still on the same session after async initialization
-      if (currentSessionRef.current !== session.id) {
-        console.warn(`⚠️ [INIT-STALE] Session changed during initialization (was ${session.id}, now ${currentSessionRef.current}), cleaning up stale terminal`)
-        if (cleanup) {
-          cleanup()
-        }
-        initializingRef.current = false
-        return
-      }
-
-      // Terminal is ready immediately after initialization
       console.log(`✅ [INIT-COMPLETE] Terminal ready for session ${session.id}`)
       setIsReady(true)
-      initializingRef.current = false
     }
 
     init().catch((error) => {
       console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
-      initializingRef.current = false
     })
 
+    // Cleanup only on unmount (when tab is removed from DOM)
     return () => {
       console.log(`🧹 [CLEANUP] Cleaning up terminal for session ${session.id}`)
-      initializingRef.current = false
       if (cleanup) {
         cleanup()
       }
       setIsReady(false)
       messageBufferRef.current = []
     }
-    // Only re-initialize when session changes, not when initializeTerminal changes
+    // Empty deps = initialize once on mount, cleanup only on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id])
+  }, [])
 
   // Flush buffered messages when terminal becomes ready
   useEffect(() => {
@@ -359,8 +320,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
     }
   }, [isMobile, terminal])
 
-  // Load notes from localStorage when session changes
-  // Note: notesCollapsed and loggingEnabled are now loaded synchronously in useState initializer
+  // Load notes from localStorage ONCE on mount
+  // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
     console.log(`📂 [LOAD-NOTES] Loading notes for session ${session.id}`)
     const storageKey = `session-notes-${session.id}`
@@ -370,24 +331,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
     } else {
       setNotes('')
     }
-
-    // Re-sync notesCollapsed state when session changes (in case it wasn't loaded during init)
-    const collapsedKey = `session-notes-collapsed-${session.id}`
-    const savedCollapsed = localStorage.getItem(collapsedKey)
-    const newCollapsed = savedCollapsed !== null ? savedCollapsed === 'true' : isMobile
-
-    console.log(`📂 [LOAD-NOTES] Session ${session.id} notesCollapsed should be: ${newCollapsed}`)
-    setNotesCollapsed(newCollapsed)
-
-    // Re-sync logging state when session changes
-    const loggingKey = `session-logging-${session.id}`
-    const savedLogging = localStorage.getItem(loggingKey)
-    if (savedLogging !== null) {
-      setLoggingEnabled(savedLogging === 'true')
-    } else {
-      setLoggingEnabled(true)
-    }
-  }, [session.id, isMobile])
+    // Only load once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Save notes to localStorage when they change
   useEffect(() => {

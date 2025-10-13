@@ -87,6 +87,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
       reportActivity(session.id)
     },
     onMessage: (data) => {
+      console.log(`📨 [WS-MESSAGE] Received ${data.length} bytes for session ${session.id}`)
+
       // Check if this is a control message (JSON)
       try {
         const parsed = JSON.parse(data)
@@ -95,24 +97,26 @@ export default function TerminalView({ session }: TerminalViewProps) {
         if (parsed.type === 'history-complete') {
           // After initial history loads, force a complete refresh of all xterm layers
           // This fixes: yellow selection, scrollbar not updating, and layer misalignment
-          setTimeout(() => {
-            if (terminalInstanceRef.current) {
-              // Force complete re-render of all layers (selection, scrollbar, canvas)
-              terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
+          if (terminalInstanceRef.current) {
+            const term = terminalInstanceRef.current
 
-              // Scroll to bottom so user sees the prompt
-              terminalInstanceRef.current.scrollToBottom()
+            console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
-              console.log(`🎨 [HISTORY-COMPLETE] Refreshed all layers and scrolled to bottom for session ${session.id}`)
-            }
+            // 1. Force complete re-render of all layers (selection, scrollbar, canvas)
+            term.refresh(0, term.rows - 1)
 
-            // Then trigger fit to recalculate dimensions if needed
-            fitTerminal()
-          }, 100)
+            // 2. Scroll to bottom immediately (don't wait for fit)
+            // Terminal dimensions are already correct from initialization
+            term.scrollToBottom()
+
+            console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}`)
+            console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
+          }
           return
         }
       } catch {
         // Not JSON - it's terminal data, continue processing
+        console.log(`📝 [WS-DATA] Not JSON, treating as terminal data (${data.length} bytes)`)
       }
 
       // Only report activity for substantial content (not cursor blinks or control sequences)
@@ -120,8 +124,12 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       // Always write data to terminal first
       if (terminalInstanceRef.current) {
+        console.log(`✍️ [TERMINAL-WRITE] Writing ${data.length} bytes to terminal for session ${session.id}`)
+        console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
+        console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
       } else {
+        console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)
       }
 
@@ -425,11 +433,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
       <div className="flex-1 relative overflow-hidden touch-pan-y md:flex-1" style={{ minHeight: isMobile && !notesCollapsed ? '50vh' : undefined, maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined }}>
         <div
           ref={terminalRef}
-          className="absolute inset-0 custom-scrollbar overflow-auto"
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            touchAction: 'pan-y'
-          }}
+          className="absolute inset-0"
         />
         {!isReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">

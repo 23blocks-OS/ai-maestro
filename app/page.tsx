@@ -121,7 +121,9 @@ export default function DashboardPage() {
                   key={session.id}
                   className="absolute inset-0 flex flex-col"
                   style={{
-                    display: isActive ? 'flex' : 'none'
+                    visibility: isActive ? 'visible' : 'hidden',
+                    pointerEvents: isActive ? 'auto' : 'none',
+                    zIndex: isActive ? 10 : 0
                   }}
                 >
                   {/* Tab Navigation */}

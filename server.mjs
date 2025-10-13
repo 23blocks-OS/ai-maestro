@@ -180,19 +180,59 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
-    // Send current visible terminal content to new clients
+    // Send full scrollback history to new clients
+    // Critical: We need to capture the full history so scrollback works on reconnect
     setTimeout(async () => {
       try {
         const { execSync } = await import('child_process')
-        const visibleContent = execSync(
-          `tmux capture-pane -t ${sessionName} -p`,
-          { encoding: 'utf8', timeout: 2000 }
-        ).toString()
-        if (ws.readyState === 1 && visibleContent) {
-          ws.send(visibleContent)
+
+        // Try to capture full scrollback history (up to 50000 lines)
+        let historyContent = ''
+        try {
+          // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
+          // -S -50000: Start from 50000 lines back (tmux scrollback limit)
+          // -p: Print to stdout
+          // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
+          // NO -e flag: Without escape sequences, tmux sends plain text with newlines
+          // This allows xterm.js to add lines to scrollback instead of repositioning cursor
+          historyContent = execSync(
+            `tmux capture-pane -t ${sessionName} -p -S -50000 -J`,
+            { encoding: 'utf8', timeout: 3000 }
+          ).toString()
+        } catch (historyError) {
+          // Fallback: if full history fails, at least get visible content
+          try {
+            historyContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p -J`,
+              { encoding: 'utf8', timeout: 2000 }
+            ).toString()
+          } catch (fallbackError) {
+            // Last resort: no -J flag
+            historyContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p`,
+              { encoding: 'utf8', timeout: 2000 }
+            ).toString()
+          }
+        }
+
+        if (ws.readyState === 1 && historyContent) {
+          // CRITICAL: Convert plain text to terminal-friendly format
+          // Each line must end with \r\n for xterm.js to add it to scrollback
+          // Plain newlines (\n) would just move cursor down without creating history
+          const lines = historyContent.split('\n')
+          const formattedHistory = lines.map(line => line + '\r\n').join('')
+
+          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
+
+          // Send history content as formatted data
+          ws.send(formattedHistory)
+
+          // Send a special message to signal that initial history load is complete
+          // This allows the client to trigger scrollToBottom() and fit()
+          ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
-        console.error('Error capturing visible pane:', error)
+        console.error('Error capturing terminal history:', error)
       }
     }, 150)
 

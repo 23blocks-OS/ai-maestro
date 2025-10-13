@@ -19,6 +19,7 @@ import {
   Package,
   Zap,
   Code2,
+  Mail,
 } from 'lucide-react'
 
 interface SessionListProps {
@@ -141,6 +142,7 @@ export default function SessionList({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
 
   // State for accordion panels
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(new Set())
@@ -208,6 +210,33 @@ export default function SessionList({
     setExpandedLevel1(level1Keys)
     setExpandedLevel2(level2Keys)
   }, [groupedSessions])
+
+  // Fetch unread message counts for all sessions
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      const counts: Record<string, number> = {}
+
+      for (const session of sessions) {
+        try {
+          const response = await fetch(`/api/messages?session=${encodeURIComponent(session.id)}&action=unread-count`)
+          const data = await response.json()
+          if (data.count > 0) {
+            counts[session.id] = data.count
+          }
+        } catch (error) {
+          // Silently fail - message counts are not critical
+        }
+      }
+
+      setUnreadCounts(counts)
+    }
+
+    fetchUnreadCounts()
+
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchUnreadCounts, 10000)
+    return () => clearInterval(interval)
+  }, [sessions])
 
   const toggleLevel1 = (level1: string) => {
     setExpandedLevel1((prev) => {
@@ -559,6 +588,16 @@ export default function SessionList({
                                             >
                                               {session.name || session.id}
                                             </span>
+
+                                            {/* Unread message indicator */}
+                                            {unreadCounts[session.id] && unreadCounts[session.id] > 0 && (
+                                              <div className="flex items-center gap-1 flex-shrink-0">
+                                                <Mail className="w-3 h-3 text-blue-400" />
+                                                <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">
+                                                  {unreadCounts[session.id]}
+                                                </span>
+                                              </div>
+                                            )}
 
                                             {/* Status indicator */}
                                             <SessionStatus status={session.status} />

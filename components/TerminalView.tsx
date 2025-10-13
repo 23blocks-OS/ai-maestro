@@ -102,15 +102,21 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
             console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
-            // 1. Force complete re-render of all layers (selection, scrollbar, canvas)
-            term.refresh(0, term.rows - 1)
+            // CRITICAL: Large history chunks (458KB+) need significant time to process
+            // xterm.js writes the data asynchronously, so we need to wait for it to finish
+            // Use a short timeout to allow xterm.js to complete processing
+            setTimeout(() => {
+              console.log(`📊 [HISTORY-WAIT] After 100ms wait - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
-            // 2. Scroll to bottom immediately (don't wait for fit)
-            // Terminal dimensions are already correct from initialization
-            term.scrollToBottom()
+              // 1. Force complete re-render of all layers (selection, scrollbar, canvas)
+              term.refresh(0, term.rows - 1)
 
-            console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}`)
-            console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
+              // 2. Scroll to bottom to show the prompt
+              term.scrollToBottom()
+
+              console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
+              console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
+            }, 100)
           }
           return
         }

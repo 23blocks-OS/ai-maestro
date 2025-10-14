@@ -163,8 +163,11 @@ export default function MobileDashboard({
           onClick={() => setShowSessionSwitcher(false)}
         >
           <div
-            className="w-full bg-gray-900 rounded-t-2xl flex flex-col"
-            style={{ maxHeight: '80vh' }}
+            className="w-full bg-gray-900 rounded-t-2xl flex flex-col overflow-hidden"
+            style={{
+              maxHeight: '80vh',
+              height: '80vh'
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -179,7 +182,13 @@ export default function MobileDashboard({
             </div>
 
             {/* Session List */}
-            <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div
+              className="flex-1 overflow-y-scroll min-h-0"
+              style={{
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain'
+              }}
+            >
               {sessions.map((session) => {
                 const isActive = session.id === activeSessionId
                 const parts = session.id.split('/')

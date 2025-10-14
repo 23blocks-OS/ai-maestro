@@ -96,24 +96,86 @@ When working with terminal components:
 - PTY errors (session not found, tmux crashed) must close WebSocket gracefully
 - Terminal dimensions (cols/rows) must sync on window resize
 
-### 4. React State Management Pattern
+### 4. Tab-Based Multi-Terminal Architecture
+
+**Critical architectural pattern (v0.3.0+):** All sessions are mounted simultaneously as "virtual tabs" with CSS visibility toggling.
+
+**Why this architecture:**
+- Eliminates complex session-switching logic (was 85+ lines of race condition handling)
+- Terminals initialize once on mount, never re-initialize on session switch
+- Instant session switching (no unmount/remount cycle)
+- Preserves terminal state, scrollback, and WebSocket connections
+- Session notes stay in memory (no localStorage reload on switch)
+
+**Implementation:**
+```tsx
+// app/page.tsx - All sessions rendered, toggle visibility
+{sessions.map(session => {
+  const isActive = session.id === activeSessionId
+  return (
+    <div
+      key={session.id}
+      className="absolute inset-0 flex flex-col"
+      style={{
+        visibility: isActive ? 'visible' : 'hidden',
+        pointerEvents: isActive ? 'auto' : 'none',
+        zIndex: isActive ? 10 : 0
+      }}
+    >
+      <TerminalView session={session} />
+    </div>
+  )
+})}
+```
+
+**Why visibility:hidden instead of display:none:**
+- `display: none` removes element from layout → getBoundingClientRect() returns 0 dimensions → terminal initializes with incorrect width
+- `visibility: hidden` keeps element in layout → correct dimensions → proper terminal sizing
+- `pointerEvents: none` prevents hidden tabs from capturing mouse events
+- Text selection works immediately without session switching
+
+**Terminal initialization pattern:**
+```typescript
+// components/TerminalView.tsx
+useEffect(() => {
+  // Initialize ONCE on mount, never cleanup until unmount
+  const init = async () => {
+    cleanup = await initializeTerminal(containerElement)
+    setIsReady(true)
+  }
+  init()
+
+  return () => {
+    if (cleanup) cleanup()
+  }
+}, []) // Empty deps = mount once, no session.id dependency
+```
+
+**What was removed:**
+- Session change detection (currentSessionRef, sessionChanged checks)
+- Race condition handling (initializingRef, duplicate initialization prevention)
+- Stale initialization cleanup verification
+- Notes/logging re-sync on session change (loaded once on mount)
+
+### 5. React State Management Pattern
 
 **Deliberately minimal:** No Redux, Zustand, or complex state libraries.
 
 ```
 App State:
-- Active session ID (localStorage persistence)
+- Active session ID (localStorage persistence, drives visibility toggle)
 - Session list (fetched from /api/sessions every 10s)
-- WebSocket connection state (per session)
+- WebSocket connection state (per session, persistent)
 
 Component State:
-- Terminal instance (xterm.js, created per session)
+- Terminal instance (xterm.js, created once per session)
 - Connection errors (transient, cleared on retry)
+- Session notes (loaded once, persist in component state)
 ```
 
 **Key hooks:**
 - `useSessions()` - Fetches session list, auto-refreshes
-- `useTerminal()` - Manages xterm.js lifecycle (init, resize, dispose)
+- `useTerminal()` - Manages xterm.js lifecycle (init once, resize, dispose)
 - `useWebSocket()` - Handles WebSocket connection, reconnection, message routing
 - `useActiveSession()` - Tracks selected session with localStorage
 
@@ -121,8 +183,9 @@ When adding new state:
 - Keep it in the nearest component that needs it
 - Use Context only if 3+ components need the same state
 - Never store terminal content in React state (xterm.js manages this)
+- Consider if state needs to persist across session switches (keep in component) vs. reload (use effect with session.id dependency)
 
-### 5. UI Enhancement Patterns
+### 6. UI Enhancement Patterns
 
 **Hierarchical Session Organization:**
 
@@ -172,7 +235,7 @@ const getCategoryColor = (category: string) => {
 - Always use `e.stopPropagation()` for nested interactive elements
 - Keep hover states smooth with `transition-all duration-200`
 
-### 6. TypeScript Type System Organization
+### 7. TypeScript Type System Organization
 
 **Strict separation by domain:**
 
@@ -329,7 +392,31 @@ window.addEventListener('resize', () => fitAddon.fit())
 
 Without this, terminal dimensions won't match the container, causing ugly scrollbars.
 
-### 2. WebSocket Lifecycle vs React Lifecycle
+### 2. Hidden Terminals Must Use visibility:hidden, NOT display:none
+
+**CRITICAL (v0.3.0+):** When hiding inactive terminal tabs, use `visibility: hidden` instead of `display: none`.
+
+```tsx
+// ✅ CORRECT - Keeps element in layout
+style={{
+  visibility: isActive ? 'visible' : 'hidden',
+  pointerEvents: isActive ? 'auto' : 'none',
+  zIndex: isActive ? 10 : 0
+}}
+
+// ❌ WRONG - Removes from layout
+style={{
+  display: isActive ? 'flex' : 'none'
+}}
+```
+
+**Why this matters:**
+- `display: none` removes element from layout → `getBoundingClientRect()` returns width/height = 0
+- Terminal initializes with 0 dimensions → gets minimum columns (2) instead of full width
+- Hidden elements don't receive mouse events → selection/copy doesn't work
+- Using `visibility: hidden` + `pointerEvents: none` keeps correct dimensions while preventing interaction
+
+### 3. WebSocket Lifecycle vs React Lifecycle
 
 ```typescript
 useEffect(() => {
@@ -339,12 +426,12 @@ useEffect(() => {
   return () => {
     ws.close()  // CRITICAL: Clean up on unmount
   }
-}, [sessionId])  // Recreate WebSocket when session changes
+}, []) // Empty deps with tab architecture - WebSocket persists across visibility changes
 ```
 
-Forgetting to close the WebSocket causes connection leaks. Each session switch creates a new WebSocket.
+**Tab-based architecture change (v0.3.0+):** WebSocket connections are no longer recreated on session switch. They're created once on mount and persist until component unmounts (when session is removed from session list).
 
-### 3. tmux Session Name Parsing
+### 4. tmux Session Name Parsing
 
 `tmux list-sessions` output format:
 ```
@@ -358,7 +445,7 @@ Parsing must handle:
 
 Use robust regex: `/^([a-zA-Z0-9_-]+):/`
 
-### 4. xterm.js Addon Loading Order
+### 5. xterm.js Addon Loading Order
 
 ```typescript
 terminal.loadAddon(fitAddon)       // 1. Load addons first
@@ -432,6 +519,8 @@ When implementing features:
 - **Don't support remote SSH** - Phase 3 feature, not Phase 1
 - **Don't nest interactive elements** - Causes React hydration errors (use div with onClick instead)
 - **Don't hardcode category colors** - Use the hash-based dynamic color system
+- **Don't use display:none for hidden terminals** - Use visibility:hidden to maintain correct dimensions and enable selection (v0.3.0+)
+- **Don't add session.id to terminal initialization useEffect** - Terminals initialize once with empty dependency array in tab architecture (v0.3.0+)
 
 ## Key Files to Understand
 
@@ -448,7 +537,9 @@ When implementing features:
 **Read these in order** to understand the full data flow from tmux → browser.
 
 **Key UI patterns:**
+- Tab-based multi-terminal architecture (v0.3.0+) - all sessions mounted, visibility toggling
 - Dynamic color assignment (hash-based, no hardcoding)
 - Hierarchical grouping (3-level: category/subcategory/session)
 - Session notes (per-session localStorage)
 - Avoid nested buttons (use div with cursor-pointer)
+- Use visibility:hidden for inactive tabs (not display:none)

@@ -5,6 +5,7 @@ import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
 import MessageCenter from '@/components/MessageCenter'
 import Header from '@/components/Header'
+import MobileDashboard from '@/components/MobileDashboard'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail } from 'lucide-react'
@@ -40,10 +41,6 @@ export default function DashboardPage() {
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
-    // Auto-close sidebar on mobile after selection
-    if (isMobile) {
-      setSidebarCollapsed(true)
-    }
   }
 
   const toggleSidebar = () => {
@@ -52,6 +49,21 @@ export default function DashboardPage() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
+  // Render mobile-specific dashboard for small screens
+  if (isMobile) {
+    return (
+      <TerminalProvider>
+        <MobileDashboard
+          sessions={sessions}
+          loading={loading}
+          error={error}
+          onRefresh={refreshSessions}
+        />
+      </TerminalProvider>
+    )
+  }
+
+  // Desktop dashboard
   return (
     <TerminalProvider>
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
@@ -60,19 +72,10 @@ export default function DashboardPage() {
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Mobile overlay backdrop */}
-          {isMobile && !sidebarCollapsed && (
-            <div
-              className="fixed inset-0 bg-black/50 z-40 md:hidden"
-              onClick={() => setSidebarCollapsed(true)}
-            />
-          )}
-
           {/* Sidebar */}
           <aside className={`
-            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden
-            ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
-            ${sidebarCollapsed ? (isMobile ? '-translate-x-full' : 'w-0') : (isMobile ? 'w-80 translate-x-0' : 'w-80')}
+            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden relative
+            ${sidebarCollapsed ? 'w-0' : 'w-80'}
           `}>
             <SessionList
               sessions={sessions}

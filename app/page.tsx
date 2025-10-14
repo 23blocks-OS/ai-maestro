@@ -50,9 +50,11 @@ export default function DashboardPage() {
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
   // Render mobile-specific dashboard for small screens
+  // CRITICAL: Use key prop to force complete unmount/remount when switching layouts
+  // This prevents duplicate WebSocket connections and terminal instances
   if (isMobile) {
     return (
-      <TerminalProvider>
+      <TerminalProvider key="mobile-dashboard">
         <MobileDashboard
           sessions={sessions}
           loading={loading}
@@ -65,7 +67,7 @@ export default function DashboardPage() {
 
   // Desktop dashboard
   return (
-    <TerminalProvider>
+    <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />

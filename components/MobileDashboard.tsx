@@ -161,9 +161,6 @@ export default function MobileDashboard({
         <div
           className="fixed inset-0 bg-black/70 z-50 flex items-end"
           onClick={() => setShowSessionSwitcher(false)}
-          style={{
-            touchAction: 'none'
-          }}
         >
           <div
             className="w-full bg-gray-900 rounded-t-2xl flex flex-col"

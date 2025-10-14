@@ -17,6 +17,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [isMobile, setIsMobile] = useState(false)
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
   // This ensures the terminal container has the correct height BEFORE xterm.js initializes
@@ -149,6 +150,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
         console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
         console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
+
+        // CRITICAL: Refresh selection layer after content updates
+        // Debounced to avoid performance issues during rapid updates
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        refreshTimeoutRef.current = setTimeout(() => {
+          if (terminalInstanceRef.current) {
+            // Refresh only the visible portion to maintain performance
+            terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
+            console.log(`🎨 [AUTO-REFRESH] Refreshed selection layer for session ${session.id}`)
+          }
+        }, 200) // Wait 200ms after last write
       } else {
         console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)

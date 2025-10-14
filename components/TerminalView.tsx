@@ -114,6 +114,21 @@ export default function TerminalView({ session }: TerminalViewProps) {
               // 2. Scroll to bottom to show the prompt
               term.scrollToBottom()
 
+              // 3. CRITICAL: Force terminal to regain focus to enable selection
+              // This fixes yellow selection issue after key prop remount
+              try {
+                term.focus()
+                console.log(`🎯 [HISTORY-COMPLETE] Terminal focused for session ${session.id}`)
+              } catch (e) {
+                console.warn(`⚠️ [HISTORY-COMPLETE] Could not focus terminal:`, e)
+              }
+
+              // 4. Additional refresh after focus to ensure selection layer is ready
+              setTimeout(() => {
+                term.refresh(0, term.rows - 1)
+                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh after focus for session ${session.id}`)
+              }, 50)
+
               console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
               console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
             }, 100)

@@ -489,7 +489,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
         className="flex-1 relative overflow-hidden"
         style={{
           // Prevent mobile rubber-band scrolling
-          overscrollBehavior: 'contain'
+          overscrollBehavior: 'contain',
+          // Ensure terminal stays within flex boundaries
+          minHeight: 0
         }}
       >
         <div
@@ -497,7 +499,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
           className="absolute inset-0"
           style={{
             // CRITICAL: Prevent touch events from bubbling to parent on mobile
-            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto'
+            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto',
+            // Ensure terminal doesn't overflow behind notes
+            zIndex: 1
           }}
         />
         {!isReady && (

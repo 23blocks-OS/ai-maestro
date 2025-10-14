@@ -163,11 +163,12 @@ export default function MobileDashboard({
           onClick={() => setShowSessionSwitcher(false)}
         >
           <div
-            className="w-full bg-gray-900 rounded-t-2xl max-h-[80vh] overflow-hidden flex flex-col"
+            className="w-full bg-gray-900 rounded-t-2xl flex flex-col"
+            style={{ maxHeight: '80vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800 flex-shrink-0">
               <h2 className="text-lg font-semibold text-white">Sessions</h2>
               <button
                 onClick={() => setShowSessionSwitcher(false)}
@@ -178,7 +179,7 @@ export default function MobileDashboard({
             </div>
 
             {/* Session List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
               {sessions.map((session) => {
                 const isActive = session.id === activeSessionId
                 const parts = session.id.split('/')

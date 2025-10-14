@@ -159,20 +159,30 @@ export default function MobileDashboard({
       {/* Session Switcher Modal */}
       {showSessionSwitcher && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-end"
+          className="fixed inset-0 z-50"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
           onClick={() => setShowSessionSwitcher(false)}
         >
           <div
-            className="w-full bg-gray-900 rounded-t-2xl flex flex-col"
+            className="w-full bg-gray-900 rounded-t-2xl"
             style={{
               maxHeight: '80vh',
-              height: '80vh',
-              overflow: 'hidden'
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800 flex-shrink-0">
+            <div
+              className="flex items-center justify-between px-4 py-4 border-b border-gray-800"
+              style={{ flexShrink: 0 }}
+            >
               <h2 className="text-lg font-semibold text-white">Sessions</h2>
               <button
                 onClick={() => setShowSessionSwitcher(false)}
@@ -184,11 +194,12 @@ export default function MobileDashboard({
 
             {/* Session List */}
             <div
-              className="flex-1 overflow-y-auto min-h-0"
               style={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
                 WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
-                touchAction: 'pan-y'
+                position: 'relative'
               }}
             >
               {sessions.map((session) => {

@@ -5,6 +5,7 @@ import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
 import MessageCenter from '@/components/MessageCenter'
 import Header from '@/components/Header'
+import MobileDashboard from '@/components/MobileDashboard'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail } from 'lucide-react'
@@ -40,10 +41,6 @@ export default function DashboardPage() {
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
-    // Auto-close sidebar on mobile after selection
-    if (isMobile) {
-      setSidebarCollapsed(true)
-    }
   }
 
   const toggleSidebar = () => {
@@ -52,27 +49,35 @@ export default function DashboardPage() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
+  // Render mobile-specific dashboard for small screens
+  // CRITICAL: Use key prop to force complete unmount/remount when switching layouts
+  // This prevents duplicate WebSocket connections and terminal instances
+  if (isMobile) {
+    return (
+      <TerminalProvider key="mobile-dashboard">
+        <MobileDashboard
+          sessions={sessions}
+          loading={loading}
+          error={error}
+          onRefresh={refreshSessions}
+        />
+      </TerminalProvider>
+    )
+  }
+
+  // Desktop dashboard
   return (
-    <TerminalProvider>
+    <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Mobile overlay backdrop */}
-          {isMobile && !sidebarCollapsed && (
-            <div
-              className="fixed inset-0 bg-black/50 z-40 md:hidden"
-              onClick={() => setSidebarCollapsed(true)}
-            />
-          )}
-
           {/* Sidebar */}
           <aside className={`
-            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden
-            ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
-            ${sidebarCollapsed ? (isMobile ? '-translate-x-full' : 'w-0') : (isMobile ? 'w-80 translate-x-0' : 'w-80')}
+            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden relative
+            ${sidebarCollapsed ? 'w-0' : 'w-80'}
           `}>
             <SessionList
               sessions={sessions}
@@ -86,80 +91,94 @@ export default function DashboardPage() {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col">
-            {activeSession ? (
-              <>
-                {/* Tab Navigation */}
-                <div className="flex border-b border-gray-800 bg-gray-900">
-                <button
-                  onClick={() => setActiveTab('terminal')}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'terminal'
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                  }`}
-                >
-                  <Terminal className="w-4 h-4" />
-                  Terminal
-                </button>
-                <button
-                  onClick={() => setActiveTab('messages')}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'messages'
-                      ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  Messages
-                </button>
+          <main className="flex-1 flex flex-col relative">
+            {/* Empty State - shown when no sessions */}
+            {sessions.length === 0 && (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="text-xl mb-2">No sessions found</p>
+                  <p className="text-sm">
+                    Create a tmux session with Claude Code to get started
+                  </p>
+                </div>
               </div>
+            )}
 
-              {/* Tab Content */}
-              <div className="flex-1 flex overflow-hidden">
-                {activeTab === 'terminal' ? (
-                  <TerminalView session={activeSession} />
-                ) : (
-                  <MessageCenter
-                    sessionName={activeSession.id}
-                    allSessions={sessions.map(s => s.id)}
-                  />
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <svg
-                  className="w-16 h-16 mx-auto mb-4 text-gray-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+            {/* All Sessions Mounted as Tabs - toggle visibility with CSS */}
+            {sessions.map(session => {
+              const isActive = session.id === activeSessionId
+
+              return (
+                <div
+                  key={session.id}
+                  className="absolute inset-0 flex flex-col"
+                  style={{
+                    visibility: isActive ? 'visible' : 'hidden',
+                    pointerEvents: isActive ? 'auto' : 'none',
+                    zIndex: isActive ? 10 : 0
+                  }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <p className="text-xl mb-2">No session selected</p>
-                <p className="text-sm">
-                  {sessions.length === 0
-                    ? 'Create a tmux session with Claude Code to get started'
-                    : 'Select a session from the sidebar to view its terminal'}
-                </p>
-              </div>
-            </div>
-          )}
-        </main>
+                  {/* Tab Navigation */}
+                  <div className="flex border-b border-gray-800 bg-gray-900 flex-shrink-0">
+                    <button
+                      onClick={() => setActiveTab('terminal')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'terminal'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Terminal className="w-4 h-4" />
+                      Terminal
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('messages')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'messages'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Messages
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="flex-1 flex overflow-hidden">
+                    {activeTab === 'terminal' ? (
+                      <TerminalView session={session} />
+                    ) : (
+                      <MessageCenter
+                        sessionName={session.id}
+                        allSessions={sessions.map(s => s.id)}
+                      />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </main>
       </div>
 
       {/* Footer */}
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.2.3 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.3.1 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}

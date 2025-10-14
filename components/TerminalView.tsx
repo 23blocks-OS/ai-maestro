@@ -17,6 +17,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [isMobile, setIsMobile] = useState(false)
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
   // This ensures the terminal container has the correct height BEFORE xterm.js initializes
@@ -114,6 +115,21 @@ export default function TerminalView({ session }: TerminalViewProps) {
               // 2. Scroll to bottom to show the prompt
               term.scrollToBottom()
 
+              // 3. CRITICAL: Force terminal to regain focus to enable selection
+              // This fixes yellow selection issue after key prop remount
+              try {
+                term.focus()
+                console.log(`🎯 [HISTORY-COMPLETE] Terminal focused for session ${session.id}`)
+              } catch (e) {
+                console.warn(`⚠️ [HISTORY-COMPLETE] Could not focus terminal:`, e)
+              }
+
+              // 4. Additional refresh after focus to ensure selection layer is ready
+              setTimeout(() => {
+                term.refresh(0, term.rows - 1)
+                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh after focus for session ${session.id}`)
+              }, 50)
+
               console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
               console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
             }, 100)
@@ -134,6 +150,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
         console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
         console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
+
+        // CRITICAL: Refresh selection layer after content updates
+        // Debounced to avoid performance issues during rapid updates
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        refreshTimeoutRef.current = setTimeout(() => {
+          if (terminalInstanceRef.current) {
+            // Refresh only the visible portion to maintain performance
+            terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
+            console.log(`🎨 [AUTO-REFRESH] Refreshed selection layer for session ${session.id}`)
+          }
+        }, 200) // Wait 200ms after last write
       } else {
         console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)
@@ -152,23 +181,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
     },
   })
 
-  // Initialize terminal when component mounts or session changes
-  // CRITICAL: Track initialization per session to prevent race conditions
-  const currentSessionRef = useRef<string | null>(null)
-  const initializingRef = useRef(false)
-
+  // Initialize terminal ONCE on mount - never re-initialize
+  // Tab-based architecture: terminal stays mounted, just hidden via CSS
   useEffect(() => {
-    // CRITICAL: Detect session change BEFORE any async operations
-    const sessionChanged = currentSessionRef.current !== session.id
-    const isNewSession = currentSessionRef.current === null
-
-    if (sessionChanged && !isNewSession) {
-      console.log(`🔄 [SESSION-CHANGE] Switching from ${currentSessionRef.current} → ${session.id}`)
-    }
-
-    // Update current session ref immediately
-    currentSessionRef.current = session.id
-
     // Wait for the DOM ref to be ready
     if (!terminalRef.current) {
       console.log(`⚠️ [INIT-SKIP] DOM ref not ready for session ${session.id}`)
@@ -182,66 +197,41 @@ export default function TerminalView({ session }: TerminalViewProps) {
       return
     }
 
-    console.log(`📐 [INIT-CHECK] Container visible for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
+    console.log(`📐 [INIT] Container dimensions for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
 
-    // Prevent duplicate initialization while already initializing
-    if (initializingRef.current) {
-      console.log(`⚠️ [INIT-SKIP] Already initializing session ${session.id}, skipping duplicate call`)
-      return
-    }
-
-    initializingRef.current = true
     let cleanup: (() => void) | undefined
 
     const init = async () => {
-      console.log(`🚀 [INIT-START] Starting terminal initialization for session ${session.id}`)
+      console.log(`🚀 [INIT] Initializing terminal for session ${session.id}`)
 
-      // Clear message buffer for new session
-      messageBufferRef.current = []
-
-      // CRITICAL: Pass the current container element (not the ref that might change)
       const containerElement = terminalRef.current
       if (!containerElement) {
         console.error(`❌ [INIT-ERROR] Container disappeared during init for session ${session.id}`)
-        initializingRef.current = false
         return
       }
 
       cleanup = await initializeTerminal(containerElement)
 
-      // CRITICAL: Verify we're still on the same session after async initialization
-      if (currentSessionRef.current !== session.id) {
-        console.warn(`⚠️ [INIT-STALE] Session changed during initialization (was ${session.id}, now ${currentSessionRef.current}), cleaning up stale terminal`)
-        if (cleanup) {
-          cleanup()
-        }
-        initializingRef.current = false
-        return
-      }
-
-      // Terminal is ready immediately after initialization
       console.log(`✅ [INIT-COMPLETE] Terminal ready for session ${session.id}`)
       setIsReady(true)
-      initializingRef.current = false
     }
 
     init().catch((error) => {
       console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
-      initializingRef.current = false
     })
 
+    // Cleanup only on unmount (when tab is removed from DOM)
     return () => {
       console.log(`🧹 [CLEANUP] Cleaning up terminal for session ${session.id}`)
-      initializingRef.current = false
       if (cleanup) {
         cleanup()
       }
       setIsReady(false)
       messageBufferRef.current = []
     }
-    // Only re-initialize when session changes, not when initializeTerminal changes
+    // Empty deps = initialize once on mount, cleanup only on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id])
+  }, [])
 
   // Flush buffered messages when terminal becomes ready
   useEffect(() => {
@@ -359,8 +349,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
     }
   }, [isMobile, terminal])
 
-  // Load notes from localStorage when session changes
-  // Note: notesCollapsed and loggingEnabled are now loaded synchronously in useState initializer
+  // Load notes from localStorage ONCE on mount
+  // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
     console.log(`📂 [LOAD-NOTES] Loading notes for session ${session.id}`)
     const storageKey = `session-notes-${session.id}`
@@ -370,24 +360,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
     } else {
       setNotes('')
     }
-
-    // Re-sync notesCollapsed state when session changes (in case it wasn't loaded during init)
-    const collapsedKey = `session-notes-collapsed-${session.id}`
-    const savedCollapsed = localStorage.getItem(collapsedKey)
-    const newCollapsed = savedCollapsed !== null ? savedCollapsed === 'true' : isMobile
-
-    console.log(`📂 [LOAD-NOTES] Session ${session.id} notesCollapsed should be: ${newCollapsed}`)
-    setNotesCollapsed(newCollapsed)
-
-    // Re-sync logging state when session changes
-    const loggingKey = `session-logging-${session.id}`
-    const savedLogging = localStorage.getItem(loggingKey)
-    if (savedLogging !== null) {
-      setLoggingEnabled(savedLogging === 'true')
-    } else {
-      setLoggingEnabled(true)
-    }
-  }, [session.id, isMobile])
+    // Only load once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Save notes to localStorage when they change
   useEffect(() => {
@@ -437,7 +412,17 @@ export default function TerminalView({ session }: TerminalViewProps) {
           </div>
           {terminal && (
             <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
-              {/* Hide on mobile except Clear button */}
+              {/* Mobile: Notes toggle button */}
+              <button
+                onClick={() => setNotesCollapsed(!notesCollapsed)}
+                className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title={notesCollapsed ? "Show notes" : "Hide notes"}
+              >
+                📝
+              </button>
+              <span className="text-gray-500 md:hidden">|</span>
+
+              {/* Hide on mobile except Clear and Notes buttons */}
               <span className="hidden md:inline">
                 {terminal.cols}x{terminal.rows}
               </span>
@@ -501,10 +486,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Terminal Container */}
       <div
-        className="flex-1 relative overflow-hidden md:flex-1"
+        className="flex-1 relative overflow-hidden"
         style={{
-          minHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
-          maxHeight: isMobile && !notesCollapsed ? '50vh' : undefined,
           // Prevent mobile rubber-band scrolling
           overscrollBehavior: 'contain'
         }}
@@ -529,48 +512,23 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       {/* Notes Section */}
       {!notesCollapsed && (
-        <div className="border-t border-gray-700 bg-gray-900 flex flex-col flex-shrink-0" style={{ height: isMobile ? '40vh' : '200px' }}>
-          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
-            <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
-            <button
-              onClick={() => setNotesCollapsed(true)}
-              className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              title="Collapse notes"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-          </div>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Take notes while working with your agent..."
-            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
-            style={{ minHeight: 0 }}
-          />
-        </div>
-      )}
-
-      {/* Collapsed Notes Bar */}
-      {notesCollapsed && (
-        <div className="border-t border-gray-700 bg-gray-800 px-4 py-2">
-          <button
-            onClick={() => setNotesCollapsed(false)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+        <div
+          className="border-t border-gray-700 bg-gray-900 flex flex-col"
+          style={{
+            height: isMobile ? '40vh' : '200px',
+            minHeight: isMobile ? '40vh' : '200px',
+            maxHeight: isMobile ? '40vh' : '200px',
+            flexShrink: 0
+          }}
+        >
+          <div
+            onClick={() => setNotesCollapsed(true)}
+            className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0 cursor-pointer hover:bg-gray-750 transition-colors"
+            title="Click to collapse notes"
           >
+            <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
             <svg
-              className="w-4 h-4"
+              className="w-4 h-4 text-gray-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -579,11 +537,46 @@ export default function TerminalView({ session }: TerminalViewProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M5 15l7-7 7 7"
+                d="M19 9l-7 7-7-7"
               />
             </svg>
-            <span>Show Session Notes</span>
-          </button>
+          </div>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Take notes while working with your agent..."
+            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono overflow-y-auto"
+            style={{
+              minHeight: 0,
+              maxHeight: '100%',
+              height: '100%',
+              WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
+            }}
+          />
+        </div>
+      )}
+
+      {/* Collapsed Notes Bar */}
+      {notesCollapsed && (
+        <div
+          onClick={() => setNotesCollapsed(false)}
+          className="border-t border-gray-700 bg-gray-800 px-4 py-2 cursor-pointer hover:bg-gray-750 transition-colors flex items-center gap-2"
+          title="Click to expand notes"
+        >
+          <svg
+            className="w-4 h-4 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 15l7-7 7 7"
+            />
+          </svg>
+          <span className="text-sm text-gray-400">Show Session Notes</span>
         </div>
       )}
     </div>

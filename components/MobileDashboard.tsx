@@ -161,12 +161,16 @@ export default function MobileDashboard({
         <div
           className="fixed inset-0 bg-black/70 z-50 flex items-end"
           onClick={() => setShowSessionSwitcher(false)}
+          style={{
+            touchAction: 'none'
+          }}
         >
           <div
-            className="w-full bg-gray-900 rounded-t-2xl flex flex-col overflow-hidden"
+            className="w-full bg-gray-900 rounded-t-2xl flex flex-col"
             style={{
               maxHeight: '80vh',
-              height: '80vh'
+              height: '80vh',
+              overflow: 'hidden'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -183,10 +187,11 @@ export default function MobileDashboard({
 
             {/* Session List */}
             <div
-              className="flex-1 overflow-y-scroll min-h-0"
+              className="flex-1 overflow-y-auto min-h-0"
               style={{
                 WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain'
+                overscrollBehavior: 'contain',
+                touchAction: 'pan-y'
               }}
             >
               {sessions.map((session) => {

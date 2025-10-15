@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Terminal } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import { WebglAddon } from 'xterm-addon-webgl'
-import 'xterm/css/xterm.css'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebglAddon } from '@xterm/addon-webgl'
+import '@xterm/xterm/css/xterm.css'
 import type { Session } from '@/types/session'
 
 export default function ImmersivePage() {
@@ -15,6 +15,15 @@ export default function ImmersivePage() {
   const terminalInstanceRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
+
+  // Read session from URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const sessionParam = params.get('session')
+    if (sessionParam) {
+      setActiveSessionId(decodeURIComponent(sessionParam))
+    }
+  }, [])
 
   // Fetch sessions
   useEffect(() => {

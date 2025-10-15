@@ -5,9 +5,12 @@ import { Menu } from 'lucide-react'
 interface HeaderProps {
   onToggleSidebar?: () => void
   sidebarCollapsed?: boolean
+  activeSessionId?: string | null
 }
 
-export default function Header({ onToggleSidebar, sidebarCollapsed }: HeaderProps) {
+export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessionId }: HeaderProps) {
+  const immersiveUrl = activeSessionId ? `/immersive?session=${encodeURIComponent(activeSessionId)}` : '/immersive'
+
   return (
     <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">
       <div className="flex items-center justify-between">
@@ -25,7 +28,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed }: HeaderProp
           <h1 className="text-sm text-white">AI Maestro</h1>
         </div>
         <a
-          href="/immersive"
+          href={immersiveUrl}
           className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
         >
           Immersive Experience

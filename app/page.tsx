@@ -70,7 +70,7 @@ export default function DashboardPage() {
     <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
-        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
+        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">

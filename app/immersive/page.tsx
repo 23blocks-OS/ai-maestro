@@ -131,10 +131,31 @@ export default function ImmersivePage() {
           const parsed = JSON.parse(event.data)
           if (parsed.type === 'history-complete') {
             setTimeout(() => {
+              // 1. Scroll to bottom
               term.scrollToBottom()
-              fitAddon.fit()
+
+              // 2. Focus terminal
               term.focus()
+
+              // 3. Clear any existing selection to activate selection layer
+              term.clearSelection()
+
+              // 4. Refresh
+              term.refresh(0, term.rows - 1)
+
+              // 5. Synthetic click to fully activate
               setTimeout(() => {
+                const terminalElement = term.element
+                if (terminalElement) {
+                  const clickEvent = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                  })
+                  terminalElement.dispatchEvent(clickEvent)
+                }
+
+                fitAddon.fit()
                 term.refresh(0, term.rows - 1)
               }, 50)
             }, 100)

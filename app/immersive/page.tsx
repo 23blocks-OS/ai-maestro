@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import { WebglAddon } from '@xterm/addon-webgl'
-import '@xterm/xterm/css/xterm.css'
 import type { Session } from '@/types/session'
+import dynamic from 'next/dynamic'
+
+// Import xterm CSS
+import '@xterm/xterm/css/xterm.css'
 
 export default function ImmersivePage() {
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -20,8 +20,11 @@ export default function ImmersivePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const sessionParam = params.get('session')
+    console.log('URL session parameter:', sessionParam)
     if (sessionParam) {
-      setActiveSessionId(decodeURIComponent(sessionParam))
+      const decodedSession = decodeURIComponent(sessionParam)
+      console.log('Setting active session to:', decodedSession)
+      setActiveSessionId(decodedSession)
     }
   }, [])
 
@@ -51,110 +54,138 @@ export default function ImmersivePage() {
   useEffect(() => {
     if (!terminalRef.current || !activeSessionId) return
 
-    // Create terminal instance
-    const term = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#1a1b26',
-        foreground: '#a9b1d6',
-        cursor: '#c0caf5',
-        selection: '#33467C'
-      },
-      scrollback: 10000,
-      convertEol: false
-    })
+    let term: any
+    let fitAddon: any
 
-    // Add fit addon
-    const fitAddon = new FitAddon()
-    term.loadAddon(fitAddon)
+    const initTerminal = async () => {
+      // Dynamically import xterm modules (client-side only)
+      const { Terminal } = await import('@xterm/xterm')
+      const { FitAddon } = await import('@xterm/addon-fit')
+      const { WebglAddon } = await import('@xterm/addon-webgl')
 
-    // Try to add WebGL addon for performance
-    try {
-      const webglAddon = new WebglAddon()
-      term.loadAddon(webglAddon)
-    } catch (e) {
-      console.warn('WebGL addon failed to load, using canvas renderer')
-    }
+      // Create terminal instance
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: {
+          background: '#1a1b26',
+          foreground: '#a9b1d6',
+          cursor: '#c0caf5',
+          selection: '#33467C'
+        },
+        scrollback: 10000,
+        convertEol: false
+      })
 
-    // Open terminal
-    term.open(terminalRef.current)
-    fitAddon.fit()
+      // Add fit addon
+      fitAddon = new FitAddon()
+      term.loadAddon(fitAddon)
 
-    terminalInstanceRef.current = term
-    fitAddonRef.current = fitAddon
+      // Try to add WebGL addon for performance
+      try {
+        const webglAddon = new WebglAddon()
+        term.loadAddon(webglAddon)
+      } catch (e) {
+        console.warn('WebGL addon failed to load, using canvas renderer')
+      }
 
-    // Handle window resize
-    const handleResize = () => {
+      // Open terminal
+      term.open(terminalRef.current!)
       fitAddon.fit()
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
+
+      terminalInstanceRef.current = term
+      fitAddonRef.current = fitAddon
+
+      // Handle window resize
+      const handleResize = () => {
+        fitAddon.fit()
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'resize',
+            cols: term.cols,
+            rows: term.rows
+          }))
+        }
+      }
+
+      window.addEventListener('resize', handleResize)
+
+      // Connect WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${protocol}//${window.location.host}/term?name=${activeSessionId}`)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        console.log('WebSocket connected')
+        // Send initial resize
+        ws.send(JSON.stringify({
           type: 'resize',
           cols: term.cols,
           rows: term.rows
         }))
       }
-    }
 
-    window.addEventListener('resize', handleResize)
-
-    // Connect WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/term?name=${activeSessionId}`)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      console.log('WebSocket connected')
-      // Send initial resize
-      ws.send(JSON.stringify({
-        type: 'resize',
-        cols: term.cols,
-        rows: term.rows
-      }))
-    }
-
-    ws.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data)
-        if (parsed.type === 'history-complete') {
-          setTimeout(() => {
-            term.scrollToBottom()
-            fitAddon.fit()
-            term.focus()
+      ws.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data)
+          if (parsed.type === 'history-complete') {
             setTimeout(() => {
-              term.refresh(0, term.rows - 1)
-            }, 50)
-          }, 100)
-          return
+              term.scrollToBottom()
+              fitAddon.fit()
+              term.focus()
+              setTimeout(() => {
+                term.refresh(0, term.rows - 1)
+              }, 50)
+            }, 100)
+            return
+          }
+        } catch {
+          // Not JSON, it's raw terminal data
+          term.write(event.data)
         }
-      } catch {
-        // Not JSON, it's raw terminal data
-        term.write(event.data)
+      }
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error)
+      }
+
+      ws.onclose = () => {
+        console.log('WebSocket closed')
+      }
+
+      // Handle terminal input
+      const disposable = term.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data)
+        }
+      })
+
+      // Store cleanup
+      return () => {
+        disposable.dispose()
+        ws.close()
+        term.dispose()
+        window.removeEventListener('resize', handleResize)
       }
     }
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-    }
-
-    ws.onclose = () => {
-      console.log('WebSocket closed')
-    }
-
-    // Handle terminal input
-    const disposable = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
+    // Call init and store cleanup
+    initTerminal().then(cleanup => {
+      if (cleanup) {
+        // Store cleanup for later
+        return cleanup
       }
     })
 
-    // Cleanup
+    // Cleanup on unmount
     return () => {
-      disposable.dispose()
-      ws.close()
-      term.dispose()
-      window.removeEventListener('resize', handleResize)
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.dispose()
+      }
     }
   }, [activeSessionId])
 

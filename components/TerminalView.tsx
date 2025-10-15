@@ -103,35 +103,44 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
             console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
-            // CRITICAL: Large history chunks (458KB+) need significant time to process
-            // xterm.js writes the data asynchronously, so we need to wait for it to finish
-            // Use a short timeout to allow xterm.js to complete processing
+            // CRITICAL: Wait for xterm.js to finish processing history
             setTimeout(() => {
               console.log(`📊 [HISTORY-WAIT] After 100ms wait - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
-              // 1. Force complete re-render of all layers (selection, scrollbar, canvas)
-              term.refresh(0, term.rows - 1)
-
-              // 2. Scroll to bottom to show the prompt
+              // 1. Scroll to bottom first
               term.scrollToBottom()
 
-              // 3. CRITICAL: Force terminal to regain focus to enable selection
-              // This fixes yellow selection issue after key prop remount
-              try {
-                term.focus()
-                console.log(`🎯 [HISTORY-COMPLETE] Terminal focused for session ${session.id}`)
-              } catch (e) {
-                console.warn(`⚠️ [HISTORY-COMPLETE] Could not focus terminal:`, e)
-              }
+              // 2. Focus terminal to activate selection layer
+              term.focus()
 
-              // 4. Additional refresh after focus to ensure selection layer is ready
+              // 3. CRITICAL: Force selection service to re-initialize
+              // This ensures xterm.js's selection layer is active, not browser default
+              term.clearSelection()
+
+              // 4. Refresh all layers (canvas, selection, scrollbar)
+              term.refresh(0, term.rows - 1)
+
+              console.log(`🎯 [HISTORY-COMPLETE] Terminal focused and selection cleared for session ${session.id}`)
+
+              // 5. Final refresh after a small delay to ensure selection layer is ready
               setTimeout(() => {
+                // Click on terminal to ensure it's truly active
+                const terminalElement = term.element
+                if (terminalElement) {
+                  // Dispatch a synthetic click to fully activate the terminal
+                  const clickEvent = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                  })
+                  terminalElement.dispatchEvent(clickEvent)
+                }
+
                 term.refresh(0, term.rows - 1)
-                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh after focus for session ${session.id}`)
+                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh and click for session ${session.id}`)
               }, 50)
 
               console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
-              console.log(`🎨 [HISTORY-COMPLETE] Refreshed and scrolled to bottom for session ${session.id}`)
             }, 100)
           }
           return

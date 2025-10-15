@@ -223,7 +223,7 @@ export default function ImmersivePage() {
       <header className="bg-gray-950 border-b border-gray-800 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
           <a
-            href="/"
+            href={activeSessionId ? `/?session=${encodeURIComponent(activeSessionId)}` : '/'}
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             ← Back to Dashboard

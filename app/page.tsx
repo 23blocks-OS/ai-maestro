@@ -17,6 +17,16 @@ export default function DashboardPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
 
+  // Read session from URL parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const sessionParam = params.get('session')
+    if (sessionParam) {
+      setActiveSessionId(decodeURIComponent(sessionParam))
+      console.log('Dashboard: Setting session from URL:', decodeURIComponent(sessionParam))
+    }
+  }, [])
+
   // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => {
@@ -33,7 +43,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Auto-select first session when sessions load
+    // Auto-select first session when sessions load (only if no session is set)
     if (sessions.length > 0 && !activeSessionId) {
       setActiveSessionId(sessions[0].id)
     }

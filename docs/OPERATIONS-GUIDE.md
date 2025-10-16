@@ -544,7 +544,280 @@ kill -9 <PID>
 
 ---
 
-## 8. Troubleshooting
+## 8. SSH Configuration for Git Operations
+
+### The Problem
+
+When working with AI agents in tmux sessions (especially after system restarts), you may encounter:
+```
+git@gitlab.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+**Root cause:** The SSH agent socket path (`SSH_AUTH_SOCK`) changes between system restarts. tmux sessions started at boot don't inherit the updated socket path.
+
+### The Solution: Stable SSH Symlink
+
+Create a stable symlink that tmux always uses, which your shell keeps updated with the current SSH agent socket.
+
+### One-Time Setup
+
+**Step 1: Configure tmux to use a stable symlink**
+
+Add to `~/.tmux.conf`:
+```bash
+# SSH Agent Configuration - AI Maestro
+# This tells tmux to use a stable symlink instead of the changing socket path
+set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
+```
+
+**Step 2: Configure your shell to maintain the symlink**
+
+Add to `~/.zshrc` (or `~/.bashrc` if using bash):
+```bash
+# SSH Agent for tmux - AI Maestro
+# Create/update stable symlink to current SSH agent socket
+if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+    mkdir -p ~/.ssh
+    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+```
+
+**Step 3: Apply the configuration**
+
+```bash
+# Create initial symlink
+mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+
+# Reload tmux configuration
+tmux source-file ~/.tmux.conf
+
+# Reload shell configuration (or open new terminal)
+source ~/.zshrc
+```
+
+### How It Works
+
+1. **SSH Agent** creates a socket at `/private/tmp/com.apple.launchd.XXXXX/Listeners` (path changes on restart)
+2. **Your shell** keeps `~/.ssh/ssh_auth_sock` symlinked to the current socket
+3. **tmux sessions** use the stable `~/.ssh/ssh_auth_sock` path
+4. **Result:** Git/SSH operations work in all tmux sessions, even after restarts
+
+### Verifying It Works
+
+**Test in a new tmux session:**
+```bash
+# Create test session
+tmux new-session -s test-ssh -d
+
+# Test SSH
+tmux send-keys -t test-ssh 'ssh-add -l' C-m
+sleep 1
+tmux capture-pane -t test-ssh -p | tail -5
+
+# Should show your SSH keys
+# Clean up
+tmux kill-session -t test-ssh
+```
+
+**Or test directly:**
+```bash
+# Should show your SSH keys
+SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock ssh-add -l
+
+# Should authenticate successfully
+SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock ssh -T git@github.com
+```
+
+### Fixing Existing Sessions
+
+If you have tmux sessions that were created before this setup, they'll still have the old SSH config. Two options:
+
+**Option 1: Restart the shell (quick)**
+```bash
+# In AI Maestro terminal or attached tmux session
+exec $SHELL
+
+# Then test
+git push  # Should work now
+```
+
+**Option 2: Create new sessions**
+
+New sessions from AI Maestro will automatically have SSH configured correctly.
+
+### Troubleshooting SSH Issues
+
+**Problem: SSH still not working in tmux**
+
+1. **Verify symlink exists and points to correct socket:**
+   ```bash
+   ls -la ~/.ssh/ssh_auth_sock
+   # Should show symlink to /private/tmp/com.apple.launchd.*/Listeners
+   ```
+
+2. **Verify tmux is using the symlink:**
+   ```bash
+   tmux show-environment | grep SSH_AUTH_SOCK
+   # Should show: SSH_AUTH_SOCK=/Users/you/.ssh/ssh_auth_sock
+   ```
+
+3. **Recreate the symlink:**
+   ```bash
+   rm ~/.ssh/ssh_auth_sock
+   ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+   tmux source-file ~/.tmux.conf
+   ```
+
+4. **Check SSH agent is running:**
+   ```bash
+   ssh-add -l
+   # Should list your keys, not "Could not open a connection"
+   ```
+
+**Problem: Works in terminal but not in AI Maestro**
+
+This means the shell environment in your tmux session needs refreshing:
+```bash
+# In the AI Maestro terminal
+exec $SHELL
+```
+
+**Problem: SSH works but git still fails**
+
+Check your git remote URL:
+```bash
+git remote -v
+
+# Should use SSH format:
+# origin  git@github.com:user/repo.git (fetch)
+
+# NOT HTTPS format:
+# origin  https://github.com/user/repo.git (fetch)
+
+# Fix if needed:
+git remote set-url origin git@github.com:user/repo.git
+```
+
+---
+
+## 9. Troubleshooting
+
+### Services Not Running After Restart (MOST COMMON)
+
+**Problem:** After restarting your Mac, the dashboard shows "Socket Error" or "Cannot connect" when trying to create sessions.
+
+**Cause:** The tmux server is not running. tmux sessions don't survive system restarts by default.
+
+**Immediate Fix:**
+```bash
+# Create a tmux session to start the tmux server
+tmux new-session -s default -d
+
+# Now refresh your dashboard - it should work
+```
+
+**Permanent Fix - Auto-start tmux on Login:**
+
+Create a LaunchAgent to automatically start tmux after every restart:
+
+```bash
+# 1. Find your tmux path
+which tmux
+# Output example: /opt/homebrew/bin/tmux
+
+# 2. Create the LaunchAgent directory (if it doesn't exist)
+mkdir -p ~/Library/LaunchAgents
+
+# 3. Create the LaunchAgent file
+cat > ~/Library/LaunchAgents/com.user.tmux.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.tmux</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/tmux</string>
+        <string>new-session</string>
+        <string>-d</string>
+        <string>-s</string>
+        <string>default</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/tmp/tmux-launchagent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/tmux-launchagent.error.log</string>
+</dict>
+</plist>
+EOF
+
+# 4. Update the tmux path in the file if yours is different
+# Edit the file and replace /opt/homebrew/bin/tmux with your path from step 1
+
+# 5. Load the LaunchAgent
+launchctl load ~/Library/LaunchAgents/com.user.tmux.plist
+
+# 6. Verify it's running
+tmux ls
+# Should show: default: 1 windows (created ...)
+```
+
+**Permanent Fix - Auto-start Dashboard with pm2:**
+
+Configure pm2 to auto-start your dashboard on every restart:
+
+```bash
+# 1. Generate the pm2 startup script
+pm2 startup
+# This will output a sudo command - copy and run it
+
+# 2. Save your current pm2 processes
+pm2 save
+
+# 3. Verify pm2 LaunchAgent was created
+ls ~/Library/LaunchAgents/ | grep pm2
+# Should show: pm2.yourusername.plist
+```
+
+**Verify Both Services:**
+```bash
+# Check tmux is running
+tmux ls
+
+# Check pm2 is running
+pm2 list
+
+# Check LaunchAgents are loaded
+launchctl list | grep tmux
+launchctl list | grep pm2
+```
+
+Now after every restart, both tmux and your dashboard will start automatically!
+
+**⚠️ Important:** After setting up auto-start, also configure SSH for git operations. See [Section 8: SSH Configuration](#8-ssh-configuration-for-git-operations) for detailed setup to avoid "Permission denied (publickey)" errors.
+
+---
+
+### Git/SSH Permission Denied Errors
+
+**Problem:** Getting `git@gitlab.com: Permission denied (publickey)` errors in tmux sessions.
+
+**Solution:** This is an SSH configuration issue. Follow the comprehensive guide in [Section 8: SSH Configuration for Git Operations](#8-ssh-configuration-for-git-operations).
+
+Quick fix for existing sessions:
+```bash
+# In AI Maestro terminal
+exec $SHELL
+```
+
+---
 
 ### Session Not Appearing in Dashboard
 
@@ -694,42 +967,16 @@ cleanup-ai-sessions                     # Kill all sessions (optional)
 
 ## 10. Advanced Tips
 
-### Auto-start Dashboard on Boot
+### Auto-start Services on Boot
 
-Create `~/Library/LaunchAgents/com.user.ai-team-dashboard.plist`:
+**⚠️ Important:** After a system restart, both tmux and the dashboard need to be running for AI Maestro to work.
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.user.ai-team-dashboard</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/bash</string>
-        <string>-c</string>
-        <string>cd /Users/juanpelaez/23blocks/webApps/agents-web && yarn start</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-    <key>StandardOutPath</key>
-    <string>/tmp/ai-team-dashboard.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/ai-team-dashboard.error.log</string>
-</dict>
-</plist>
-```
+For comprehensive setup instructions, see the **"Services Not Running After Restart"** section in [Troubleshooting (Section 8)](#8-troubleshooting).
 
-```bash
-# Load the launch agent
-launchctl load ~/Library/LaunchAgents/com.user.ai-team-dashboard.plist
-
-# Unload if needed
-launchctl unload ~/Library/LaunchAgents/com.user.ai-team-dashboard.plist
-```
+Quick summary:
+- **tmux auto-start**: Create a LaunchAgent to start tmux server on login
+- **Dashboard auto-start**: Use `pm2 startup` and `pm2 save` to auto-start the dashboard
+- **Verification**: Both services will start automatically after every restart
 
 ### Persistent Sessions Across Reboots
 

@@ -17,6 +17,16 @@ export default function DashboardPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
 
+  // Read session from URL parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const sessionParam = params.get('session')
+    if (sessionParam) {
+      setActiveSessionId(decodeURIComponent(sessionParam))
+      console.log('Dashboard: Setting session from URL:', decodeURIComponent(sessionParam))
+    }
+  }, [])
+
   // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => {
@@ -33,7 +43,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Auto-select first session when sessions load
+    // Auto-select first session when sessions load (only if no session is set)
     if (sessions.length > 0 && !activeSessionId) {
       setActiveSessionId(sessions[0].id)
     }
@@ -58,7 +68,7 @@ export default function DashboardPage() {
         <MobileDashboard
           sessions={sessions}
           loading={loading}
-          error={error}
+          error={error?.message || null}
           onRefresh={refreshSessions}
         />
       </TerminalProvider>
@@ -70,7 +80,7 @@ export default function DashboardPage() {
     <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
-        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
+        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
@@ -178,7 +188,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.3.1 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.3.3 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}

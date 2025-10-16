@@ -22,6 +22,7 @@ export default function MobileDashboard({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
   const [showSessionSwitcher, setShowSessionSwitcher] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Auto-select first session when sessions load
   useEffect(() => {
@@ -35,7 +36,13 @@ export default function MobileDashboard({
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
     setShowSessionSwitcher(false)
+    setSearchQuery('') // Clear search when closing
   }
+
+  // Filter sessions based on search query
+  const filteredSessions = sessions.filter((session) =>
+    session.id.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   // Parse session name for display (show last part if hierarchical)
   const getDisplayName = (sessionId: string) => {
@@ -159,37 +166,69 @@ export default function MobileDashboard({
       {/* Session Switcher Modal */}
       {showSessionSwitcher && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-end"
+          className="fixed inset-0 z-50"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
           onClick={() => setShowSessionSwitcher(false)}
         >
           <div
-            className="w-full bg-gray-900 rounded-t-2xl flex flex-col overflow-hidden"
+            className="w-full bg-gray-900 rounded-t-2xl"
             style={{
               maxHeight: '80vh',
-              height: '80vh'
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800 flex-shrink-0">
-              <h2 className="text-lg font-semibold text-white">Sessions</h2>
-              <button
-                onClick={() => setShowSessionSwitcher(false)}
-                className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <span className="text-gray-400 text-2xl leading-none">&times;</span>
-              </button>
+            <div
+              className="px-4 py-4 border-b border-gray-800"
+              style={{ flexShrink: 0 }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-white">Sessions</h2>
+                <button
+                  onClick={() => {
+                    setShowSessionSwitcher(false)
+                    setSearchQuery('')
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <span className="text-gray-400 text-2xl leading-none">&times;</span>
+                </button>
+              </div>
+              {/* Search Input */}
+              <input
+                type="text"
+                placeholder="Search sessions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
+                autoFocus
+              />
             </div>
 
             {/* Session List */}
             <div
-              className="flex-1 overflow-y-scroll min-h-0"
               style={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
                 WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain'
+                position: 'relative'
               }}
             >
-              {sessions.map((session) => {
+              {filteredSessions.length === 0 ? (
+                <div className="flex items-center justify-center py-8 text-gray-400">
+                  <p>No sessions found</p>
+                </div>
+              ) : (
+                filteredSessions.map((session) => {
                 const isActive = session.id === activeSessionId
                 const parts = session.id.split('/')
                 const displayName = parts[parts.length - 1]
@@ -219,7 +258,8 @@ export default function MobileDashboard({
                     )}
                   </button>
                 )
-              })}
+              })
+              )}
             </div>
           </div>
         </div>
@@ -229,7 +269,7 @@ export default function MobileDashboard({
       <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-4 py-2">
         <div className="text-center">
           <p className="text-xs text-gray-400">
-            AI Maestro v0.3.1
+            AI Maestro v0.3.2
           </p>
         </div>
       </footer>

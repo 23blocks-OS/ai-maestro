@@ -186,17 +186,17 @@ app.prepare().then(() => {
       try {
         const { execSync } = await import('child_process')
 
-        // Try to capture full scrollback history (up to 50000 lines)
+        // Try to capture scrollback history (last 1000 lines for reasonable performance)
         let historyContent = ''
         try {
           // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
-          // -S -50000: Start from 50000 lines back (tmux scrollback limit)
+          // -S -1000: Start from 1000 lines back (enough for context, not overwhelming)
           // -p: Print to stdout
           // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
           // NO -e flag: Without escape sequences, tmux sends plain text with newlines
           // This allows xterm.js to add lines to scrollback instead of repositioning cursor
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -50000 -J`,
+            `tmux capture-pane -t ${sessionName} -p -S -1000 -J`,
             { encoding: 'utf8', timeout: 3000 }
           ).toString()
         } catch (historyError) {

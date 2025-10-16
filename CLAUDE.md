@@ -30,6 +30,42 @@ tmux kill-session -t test-session    # Clean up test session
 
 **Port Configuration:** Use `PORT=3001 yarn dev` if port 3000 is occupied.
 
+## Release & Marketing Workflow
+
+### Pull Request Protocol
+
+**IMPORTANT:** Every time you create a Pull Request to main, also draft an X (Twitter) post to announce the release.
+
+**PR Creation Checklist:**
+1. Create PR with comprehensive description (summary, features, bug fixes, breaking changes)
+2. Draft X post highlighting key features and improvements
+3. Include release notes or link to PR in the post
+4. Use relevant hashtags: #AIcoding #DevTools #OpenSource
+5. Consider adding screenshots/GIFs for visual features
+6. Post during peak hours (9-11am or 1-3pm EST)
+
+**X Post Template:**
+```
+[Emoji] Shipping [Feature Name] today!
+
+Key improvements:
+• [Feature 1]
+• [Feature 2]
+• [Feature 3]
+
+[Call to action - Star/Try/Share]
+[Link to PR or GitHub]
+
+#AIcoding #DevTools
+```
+
+**Examples:**
+- Major release: "Shipping AI Maestro v0.3.3! 🚀"
+- Feature addition: "New feature: SSH configuration for tmux 🔐"
+- Bug fixes: "Squashed bugs and improved stability 🐛"
+
+Keep posts concise (<280 chars when possible), engaging, and focused on user benefits rather than technical implementation.
+
 ## Architecture: Critical Design Patterns
 
 ### 1. Custom Server Architecture (server.mjs)

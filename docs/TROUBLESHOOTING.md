@@ -166,6 +166,125 @@ yarn dev
 
 ---
 
+## SSH and Git Issues
+
+### Problem: "Permission denied (publickey)" in tmux Sessions
+
+**Symptom**: Git operations fail with:
+```
+git@gitlab.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+**Why This Happens**:
+
+The SSH agent socket path (`SSH_AUTH_SOCK`) changes between system restarts. tmux sessions (especially those started at boot via LaunchAgent) don't automatically get the updated socket path, leaving them unable to access your SSH keys.
+
+**Permanent Solution: Configure Stable SSH Symlink**
+
+This is the recommended setup for all AI Maestro users who use git/SSH.
+
+**Step 1: Add to `~/.tmux.conf`**
+```bash
+# SSH Agent Configuration - AI Maestro
+set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
+```
+
+**Step 2: Add to `~/.zshrc` (or `~/.bashrc`)**
+```bash
+# SSH Agent for tmux - AI Maestro
+if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+    mkdir -p ~/.ssh
+    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+```
+
+**Step 3: Apply immediately**
+```bash
+# Create symlink
+mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+
+# Reload tmux config
+tmux source-file ~/.tmux.conf
+
+# Reload shell
+source ~/.zshrc
+```
+
+**Quick Fix for Existing Sessions**:
+
+If you need SSH to work RIGHT NOW in your current session:
+
+```bash
+# Option 1: Restart the shell (picks up new config)
+exec $SHELL
+
+# Option 2: Export manually (temporary until shell restarts)
+export SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock
+```
+
+**Verify It's Working**:
+
+```bash
+# Should show your SSH keys
+ssh-add -l
+
+# Should authenticate successfully
+ssh -T git@github.com
+# or
+ssh -T git@gitlab.com
+
+# Now git should work
+git push
+```
+
+**Troubleshooting SSH Setup**:
+
+1. **Check symlink exists**:
+   ```bash
+   ls -la ~/.ssh/ssh_auth_sock
+   # Should show symlink to /private/tmp/com.apple.launchd.*/Listeners
+   ```
+
+2. **Check tmux is using it**:
+   ```bash
+   tmux show-environment | grep SSH_AUTH_SOCK
+   # Should show: SSH_AUTH_SOCK=/Users/you/.ssh/ssh_auth_sock
+   ```
+
+3. **Check SSH agent is running**:
+   ```bash
+   ssh-add -l
+   # Should list keys, not "Could not open a connection"
+   ```
+
+4. **If still not working, recreate everything**:
+   ```bash
+   # Remove old symlink
+   rm ~/.ssh/ssh_auth_sock
+
+   # Create fresh symlink
+   ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+
+   # Reload tmux
+   tmux source-file ~/.tmux.conf
+
+   # Restart your shell in the session
+   exec $SHELL
+   ```
+
+**Why This Works**:
+
+- SSH agent creates socket at changing path: `/private/tmp/com.apple.launchd.XXXXX/Listeners`
+- Your shell maintains stable symlink: `~/.ssh/ssh_auth_sock` → current socket
+- tmux uses the stable path: `~/.ssh/ssh_auth_sock`
+- Result: SSH works in all sessions, even after restart
+
+For complete details, see [OPERATIONS-GUIDE.md - Section 8: SSH Configuration](./OPERATIONS-GUIDE.md#8-ssh-configuration-for-git-operations).
+
+---
+
 ## Performance Issues
 
 ### Problem: Slow Terminal Rendering
@@ -322,14 +441,35 @@ set -g history-limit 50000
 # Better colors
 set -g default-terminal "screen-256color"
 
+# SSH Agent Configuration (CRITICAL for git operations)
+set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
+
 # Optional: Easier prefix key
 # unbind C-b
 # set -g prefix C-a
 ```
 
+### Recommended ~/.zshrc additions for AI Maestro
+
+```bash
+# SSH Agent for tmux - AI Maestro Configuration
+if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+    mkdir -p ~/.ssh
+    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+```
+
 Apply changes:
 ```bash
+# Reload tmux config
 tmux source-file ~/.tmux.conf
+
+# Reload shell config
+source ~/.zshrc
+
+# Create initial SSH symlink
+mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
 ```
 
 ---

@@ -12,8 +12,8 @@ export default function ImmersivePage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [showSessionDialog, setShowSessionDialog] = useState(false)
-  const terminalInstanceRef = useRef<Terminal | null>(null)
-  const fitAddonRef = useRef<FitAddon | null>(null)
+  const terminalInstanceRef = useRef<any>(null)
+  const fitAddonRef = useRef<any>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   // Read session from URL parameter
@@ -71,8 +71,7 @@ export default function ImmersivePage() {
         theme: {
           background: '#1a1b26',
           foreground: '#a9b1d6',
-          cursor: '#c0caf5',
-          selection: '#33467C'
+          cursor: '#c0caf5'
         },
         scrollback: 10000,
         convertEol: false
@@ -176,7 +175,7 @@ export default function ImmersivePage() {
       }
 
       // Handle terminal input
-      const disposable = term.onData((data) => {
+      const disposable = term.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(data)
         }

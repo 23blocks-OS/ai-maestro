@@ -89,6 +89,34 @@ This enables:
 - ✅ 50,000 line scrollback buffer (up from 2,000)
 - ✅ Better terminal colors
 
+**Configure SSH for tmux sessions** (CRITICAL for git operations):
+```bash
+# Add to ~/.tmux.conf
+echo '
+# SSH Agent Configuration - AI Maestro
+set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+set-environment -g '"'"'SSH_AUTH_SOCK'"'"' ~/.ssh/ssh_auth_sock
+' >> ~/.tmux.conf
+
+# Add to ~/.zshrc (or ~/.bashrc)
+echo '
+# SSH Agent for tmux - AI Maestro
+if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+    mkdir -p ~/.ssh
+    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+' >> ~/.zshrc
+
+# Create initial symlink and reload tmux config
+mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+tmux source-file ~/.tmux.conf 2>/dev/null || true
+```
+
+This ensures:
+- ✅ SSH keys work in all tmux sessions
+- ✅ Git operations work without permission errors
+- ✅ SSH persists across system restarts
+
 **Start the dashboard**:
 ```bash
 yarn dev
@@ -97,6 +125,8 @@ yarn dev
 Dashboard opens at `http://localhost:23000`
 
 **Network Access:** By default, AI Maestro is accessible on your local network at port 23000. See [Security](#security) below for important information.
+
+**⚠️ After System Restart:** tmux and the dashboard won't auto-start by default. To avoid socket errors after restart, see [Auto-start Setup Guide](./docs/OPERATIONS-GUIDE.md#services-not-running-after-restart-most-common) for one-time configuration using macOS LaunchAgents and pm2.
 
 **Optional: Configure settings**
 ```bash
@@ -307,6 +337,7 @@ Built with modern, battle-tested tools:
 
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions for common issues
+  - **🔥 Most Common Issue:** [Services not running after restart](./docs/OPERATIONS-GUIDE.md#services-not-running-after-restart-most-common) - Socket errors? Read this first!
 - **[Technical Specs](./docs/TECHNICAL-SPECIFICATIONS.md)** - Architecture deep-dive
 - **[UX Specs](./docs/UX-SPECIFICATIONS.md)** - Design decisions
 - **[Contributing](./CONTRIBUTING.md)** - How to contribute

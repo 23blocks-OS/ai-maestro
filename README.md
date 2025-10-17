@@ -54,6 +54,24 @@ Works with **any** terminal-based AI:
 - **Notes** for each session (auto-saved to localStorage)
 - **Auto-discovery**: Detects all your tmux sessions automatically
 
+### Agent Communication System
+- **File-Based Messaging**: Persistent, structured messages between agents
+  - Priorities: urgent | high | normal | low
+  - Types: request | response | notification | update
+  - Rich context: Attach metadata, requirements, code snippets
+  - Searchable inbox with read/unread status
+- **Instant tmux Notifications**: Real-time alerts for urgent matters
+  - Popup notifications (non-intrusive)
+  - Terminal injections (visible in history)
+  - Formatted output (for critical alerts)
+- **CLI Tools**: Shell scripts for command-line messaging
+  - `send-aimaestro-message.sh` - Send structured messages
+  - `check-and-show-messages.sh` - Display inbox
+  - `check-new-messages-arrived.sh` - Quick unread count
+  - `send-tmux-message.sh` - Instant notifications
+- **Web UI**: Rich inbox/compose interface in Messages tab
+- See [📬 Communication Docs](./docs/AGENT-COMMUNICATION-QUICKSTART.md) for 5-minute setup
+
 ### Built for Speed
 - WebSocket streaming for real-time terminal I/O
 - No lag, no polling
@@ -335,6 +353,7 @@ Built with modern, battle-tested tools:
 
 ## 📚 Documentation
 
+### General
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions for common issues
   - **🔥 Most Common Issue:** [Services not running after restart](./docs/OPERATIONS-GUIDE.md#services-not-running-after-restart-most-common) - Socket errors? Read this first!
@@ -342,6 +361,12 @@ Built with modern, battle-tested tools:
 - **[UX Specs](./docs/UX-SPECIFICATIONS.md)** - Design decisions
 - **[Contributing](./CONTRIBUTING.md)** - How to contribute
 - **[Security](./SECURITY.md)** - Security model
+
+### Agent Communication
+- **[Quickstart Guide](./docs/AGENT-COMMUNICATION-QUICKSTART.md)** - Send your first message in < 2 minutes
+- **[Guidelines](./docs/AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices and patterns
+- **[Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)** - Comprehensive reference
+- **[Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
 
 ---
 

@@ -120,13 +120,134 @@ cp ~/.aimaestro/messages/inbox/backend-architect/${MESSAGE_ID}.json \
    ~/.aimaestro/messages/sent/frontend-developer/${MESSAGE_ID}.json
 ```
 
+### Method 2.5: Using Shell Scripts (Recommended)
+
+AI Maestro provides convenient shell scripts that wrap the API for easier message sending from the command line.
+
+#### send-aimaestro-message.sh
+
+**Usage:**
+```bash
+send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
+```
+
+**Parameters:**
+- `to_session` (required) - Target session name
+- `subject` (required) - Message subject
+- `message` (required) - Message content
+- `priority` (optional) - low | normal | high | urgent (default: normal)
+- `type` (optional) - request | response | notification | update (default: request)
+
+**Examples:**
+```bash
+# Simple message
+send-aimaestro-message.sh backend-architect "Need API endpoint" "Please implement POST /api/users"
+
+# With priority and type
+send-aimaestro-message.sh backend-architect \
+  "Urgent: Production issue" \
+  "API returning 500 errors on /users endpoint" \
+  urgent \
+  notification
+
+# Response to a request
+send-aimaestro-message.sh frontend-developer \
+  "Re: API endpoint ready" \
+  "Endpoint implemented at routes/users.ts:45" \
+  normal \
+  response
+```
+
+**What it does:**
+1. Validates inputs (session name, priority, type)
+2. Builds JSON payload using `jq` (prevents JSON injection)
+3. Sends POST request to `/api/messages`
+4. Shows success/error message
+
+**Output:**
+```
+✅ Message sent to backend-architect
+   From: frontend-developer
+   Subject: Need API endpoint
+   Priority: high
+```
+
+#### check-and-show-messages.sh
+
+Displays all messages in your inbox with formatted output.
+
+**Usage:**
+```bash
+check-and-show-messages.sh
+```
+
+**What it displays:**
+- Total message count
+- Urgent and high priority message counts
+- Each message with full details (from, subject, timestamp, priority, message content)
+- Context data if present
+
+**Example output:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📬 AI MAESTRO INBOX: 3 unread message(s)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 1 URGENT message(s)
+⚠️  1 HIGH priority message(s)
+
+───────────────────────────────────────
+📧 From: frontend-developer
+📌 Subject: Need API endpoint
+⏰ Time: 2025-01-17T14:30:00Z
+🎯 Priority: HIGH
+📝 Type: request
+
+Message:
+Please implement POST /api/users endpoint with pagination.
+───────────────────────────────────────
+...
+```
+
+**Tip:** Add to your shell startup to auto-check messages:
+```bash
+# In ~/.zshrc
+if [ -n "$TMUX" ]; then
+  check-and-show-messages.sh
+fi
+```
+
+#### check-new-messages-arrived.sh
+
+Quick check for unread message count (minimal output).
+
+**Usage:**
+```bash
+check-new-messages-arrived.sh
+```
+
+**Output (only if unread > 0):**
+```
+💬 New message(s) received! You have 3 unread message(s)
+   Run: cat "$INBOX"/*.json | jq
+```
+
+**Tip:** Call after each Claude Code response to stay notified:
+```bash
+# In .claude/hooks/after-response.sh
+#!/bin/bash
+check-new-messages-arrived.sh
+```
+
+---
+
 ### Method 3: Using the API
 
 The dashboard exposes REST endpoints for messaging:
 
 ```bash
 # Send a message
-curl -X POST http://localhost:3000/api/messages \
+curl -X POST http://localhost:23000/api/messages \
   -H "Content-Type: application/json" \
   -d '{
     "from": "frontend-developer",
@@ -140,14 +261,94 @@ curl -X POST http://localhost:3000/api/messages \
   }'
 
 # List messages for a session
-curl "http://localhost:3000/api/messages?session=backend-architect"
+curl "http://localhost:23000/api/messages?session=backend-architect"
 
 # Get unread count
-curl "http://localhost:3000/api/messages?session=backend-architect&action=unread-count"
+curl "http://localhost:23000/api/messages?session=backend-architect&action=unread-count"
 
 # Mark as read
-curl -X PATCH "http://localhost:3000/api/messages?session=backend-architect&id=msg-123&action=read"
+curl -X PATCH "http://localhost:23000/api/messages?session=backend-architect&id=msg-123&action=read"
 ```
+
+---
+
+### Method 4: Instant tmux Notifications
+
+For urgent, real-time notifications that need immediate attention (different from persistent file-based messages).
+
+#### send-tmux-message.sh
+
+Send instant notifications directly to another session's terminal.
+
+**Usage:**
+```bash
+send-tmux-message.sh <target_session> <message> [method]
+```
+
+**Parameters:**
+- `target_session` (required) - Target session name
+- `message` (required) - Notification text
+- `method` (optional) - display | inject | echo (default: display)
+
+**Methods:**
+
+1. **display** - Popup notification (default, non-intrusive)
+   ```bash
+   send-tmux-message.sh backend-architect "Check your inbox!"
+   ```
+   Shows a temporary popup in the target session's status line (auto-dismisses after ~5 seconds).
+
+2. **inject** - Inject as comment in terminal history
+   ```bash
+   send-tmux-message.sh backend-architect "Urgent: API down!" inject
+   ```
+   Appears in the terminal history as an executed command. More visible than display.
+
+3. **echo** - Echo to terminal output with formatting
+   ```bash
+   send-tmux-message.sh backend-architect "CRITICAL: Check logs!" echo
+   ```
+   Displays formatted message box in terminal output. Most visible but also most intrusive.
+
+**Comparison with File-Based Messages:**
+
+| Feature | send-tmux-message.sh | send-aimaestro-message.sh |
+|---------|----------------------|---------------------------|
+| **Speed** | Instant (< 10ms) | Delayed (~100ms, requires API) |
+| **Persistence** | Temporary | Permanent (stored in file) |
+| **Visibility** | High (appears in terminal) | Medium (requires checking inbox) |
+| **Best for** | Urgent alerts | Detailed communication |
+| **Structured data** | No | Yes (priority, type, context) |
+| **Searchable** | No | Yes (via API or files) |
+
+**When to use instant notifications:**
+- ✅ Urgent issues requiring immediate attention
+- ✅ Quick "FYI" alerts ("build complete", "tests passing")
+- ✅ Making sure file-based message gets seen
+- ✅ Production emergencies
+
+**When to use file-based messages:**
+- ✅ Detailed requests with context
+- ✅ Messages that need to be referenced later
+- ✅ Structured communication (priority, type)
+- ✅ Non-urgent communication
+
+**Combined approach (urgent + detailed):**
+```bash
+# 1. Get their attention immediately
+send-tmux-message.sh backend-architect "🚨 Urgent: Check inbox NOW!"
+
+# 2. Provide full details in file-based message
+send-aimaestro-message.sh backend-architect \
+  "Production: API endpoint failing" \
+  "POST /api/users returning 500 errors. Started at 14:30. Logs show database timeout. ~200 users affected." \
+  urgent \
+  notification
+```
+
+**Security note:** Messages are shell-escaped with `printf '%q'` to prevent command injection.
+
+---
 
 ## Agent Workflow Examples
 
@@ -419,6 +620,8 @@ Potential future features for the messaging system:
 
 ## Related Documentation
 
-- [EXTERNAL-SESSION-SETUP.md](../EXTERNAL-SESSION-SETUP.md) - Creating tmux sessions
-- [OPERATIONS-GUIDE.md](./OPERATIONS-GUIDE.md) - Dashboard operations
-- [CLAUDE.md](../CLAUDE.md) - Project architecture and conventions
+- **[Agent Communication Quickstart](./AGENT-COMMUNICATION-QUICKSTART.md)** - Get started in 5 minutes
+- **[Agent Communication Guidelines](./AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices and patterns
+- **[Agent Communication Architecture](./AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
+- **[Operations Guide](./OPERATIONS-GUIDE.md)** - Dashboard operations
+- **[CLAUDE.md](../CLAUDE.md)** - Project architecture and conventions

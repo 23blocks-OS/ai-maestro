@@ -91,7 +91,8 @@ app.prepare().then(() => {
         clients: new Set(),
         ptyProcess,
         logStream,
-        loggingEnabled: true // Default to enabled (but only works if globalLoggingEnabled is true)
+        loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
+        cleanupTimer: null // Timer for cleaning up when no clients connected
       }
       sessions.set(sessionName, sessionState)
 
@@ -179,6 +180,13 @@ app.prepare().then(() => {
 
     // Add client to session
     sessionState.clients.add(ws)
+
+    // If there was a cleanup timer scheduled, cancel it (client reconnected)
+    if (sessionState.cleanupTimer) {
+      console.log(`Client reconnected to ${sessionName}, canceling cleanup`)
+      clearTimeout(sessionState.cleanupTimer)
+      sessionState.cleanupTimer = null
+    }
 
     // Send full scrollback history to new clients
     // Critical: We need to capture the full history so scrollback works on reconnect
@@ -270,8 +278,38 @@ app.prepare().then(() => {
     ws.on('close', () => {
       sessionState.clients.delete(ws)
 
-      // DON'T kill the PTY - keep it alive for when they return
-      // This preserves the terminal buffer and session state
+      // If this was the last client, schedule cleanup after grace period
+      if (sessionState.clients.size === 0) {
+        console.log(`Last client disconnected from ${sessionName}, scheduling cleanup in 30s`)
+
+        // Clear any existing cleanup timer
+        if (sessionState.cleanupTimer) {
+          clearTimeout(sessionState.cleanupTimer)
+        }
+
+        // Schedule cleanup after 30 second grace period
+        sessionState.cleanupTimer = setTimeout(() => {
+          // Check if still no clients (they might have reconnected)
+          if (sessionState.clients.size === 0) {
+            console.log(`No clients reconnected to ${sessionName}, cleaning up PTY`)
+
+            // Close log stream
+            if (sessionState.logStream) {
+              sessionState.logStream.end()
+            }
+
+            // Kill PTY process
+            try {
+              sessionState.ptyProcess.kill()
+            } catch (error) {
+              console.error(`Error killing PTY for ${sessionName}:`, error)
+            }
+
+            // Remove from sessions map
+            sessions.delete(sessionName)
+          }
+        }, 30000) // 30 second grace period
+      }
     })
 
     ws.on('error', (error) => {

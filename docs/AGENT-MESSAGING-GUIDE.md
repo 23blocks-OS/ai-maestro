@@ -11,6 +11,118 @@ The AI Maestro dashboard includes a file-based message queue that allows agents 
 - **Progress Updates**: Long-running tasks broadcast status to other agents
 - **Context Sharing**: Agents share code, findings, or decisions
 
+---
+
+## 🎯 Two Operational Modes
+
+AI Maestro's messaging system works in **two ways**, depending on your AI agent:
+
+### Mode 1: Skills Mode - Natural Language (Claude Code Only) ✨
+
+**Best for:** Claude Code sessions with the agent-messaging skill installed
+
+**How it works:** Just describe what you want in natural language. Claude automatically uses the appropriate tools.
+
+```
+You: "Send a message to backend-architect asking about the API endpoint status"
+Claude: *Automatically calls send-aimaestro-message.sh with proper parameters*
+        ✅ Message sent to backend-architect
+```
+
+**Visual Example:**
+
+![Claude Code loading the agent-messaging skill](images/skill-loaded.png)
+*Claude Code automatically loads the skill when you mention messaging*
+
+![Sending a message with natural language](images/skill-send-message.png)
+*No commands needed - just describe what you want*
+
+**Advantages:**
+- ✅ Zero command memorization
+- ✅ Context-aware (Claude knows your session name)
+- ✅ Natural conversation flow
+- ✅ Automatically formats messages correctly
+- ✅ Progressive disclosure (skill loads only when relevant)
+
+**Requirements:**
+- Claude Code with skills support
+- Agent-messaging skill installed at `~/.claude/skills/agent-messaging/`
+
+---
+
+### Mode 2: Manual Mode - Command-Line (Universal) 🔧
+
+**Best for:** Any AI agent (Aider, Cursor, custom scripts, shell scripts) or direct usage
+
+**How it works:** Use shell commands directly to send and receive messages.
+
+```bash
+send-aimaestro-message.sh backend-architect \
+  "API endpoint status" \
+  "What's the status of the /api/users endpoint?" \
+  normal \
+  request
+```
+
+**Visual Example:**
+
+![Using command-line directly](images/no-skill-send-message.png)
+*Direct command-line usage - works with any agent*
+
+![Viewing inbox via command line](images/no-skill-review-inbox.png)
+*Command-line tools for checking messages*
+
+**Advantages:**
+- ✅ Works with **ANY** AI agent (not just Claude Code)
+- ✅ Works in shell scripts and automation
+- ✅ Full control over all parameters
+- ✅ No dependencies on Claude Code
+- ✅ Direct filesystem access
+
+**Requirements:**
+- Shell scripts installed in `~/.local/bin/`
+- PATH configured to include `~/.local/bin/`
+
+---
+
+## Which Mode Should You Use?
+
+```
+Are you using Claude Code with skills installed?
+│
+├─ YES → Use Skills Mode ✨
+│        (Natural language, zero commands)
+│
+└─ NO → Use Manual Mode 🔧
+         (Universal, works with any agent)
+```
+
+**The rest of this guide shows BOTH modes** for each operation, so you can use whichever fits your setup.
+
+---
+
+## Visual Communication Flow
+
+Here's what agent-to-agent communication looks like in action:
+
+### Complete Workflow Example
+
+![Agent receives notification](images/agent-I-got-a-message.png)
+*Step 1: Agent receives notification of incoming message*
+
+![Agent reviews inbox](images/agent-inbox.png)
+*Step 2: Agent opens inbox to review message details*
+
+![Agent sends reply](images/agent-replied.png)
+*Step 3: Agent composes and sends reply*
+
+![Complete agent-to-agent exchange](images/inbox-agent-response-to-agent.png)
+*Result: Complete agent-to-agent communication without human intervention*
+
+**Key insight:** Whether using Skills Mode (natural language) or Manual Mode (commands), the underlying communication system is identical. Messages are stored persistently, searchable, and structured.
+
+---
+
 ## Message Storage Location
 
 All messages are stored in: `~/.aimaestro/messages/`
@@ -354,6 +466,10 @@ send-aimaestro-message.sh backend-architect \
 
 ### Example 1: Request-Response Pattern
 
+This example shows how two agents coordinate on a feature. We'll show **both** Skills Mode and Manual Mode.
+
+#### Skills Mode (Claude Code) ✨
+
 **Frontend Agent** (session: `project-frontend-ui`):
 
 ```
@@ -362,13 +478,14 @@ User: "Build a login form"
 Claude (Frontend):
 1. Designs login form component
 2. Realizes it needs an API endpoint
-3. Sends message to backend agent:
-   - To: project-backend-api
-   - Subject: "Need POST /api/auth/login endpoint"
-   - Type: request
-   - Context: { requirements: ["email/password", "JWT token"] }
+3. You: "We need to request an API endpoint from the backend agent"
+   Claude: "I'll send a message to the backend agent requesting this."
+   *Automatically sends structured message*
 4. Continues with UI work while waiting
 ```
+
+![Frontend agent sending request](images/skill-send-message.png)
+*Frontend agent requesting API endpoint using natural language*
 
 **Backend Agent** (session: `project-backend-api`):
 
@@ -376,25 +493,77 @@ Claude (Frontend):
 User: "Check for messages and work on any requests"
 
 Claude (Backend):
-1. Checks inbox: ls ~/.aimaestro/messages/inbox/project-backend-api/
+1. You: "Do I have any messages?"
+   Claude: "Let me check your inbox..."
+   *Automatically calls check-and-show-messages.sh*
 2. Finds message from frontend agent
 3. Reads requirements
 4. Implements /api/auth/login endpoint
-5. Sends response message:
-   - To: project-frontend-ui
-   - Subject: "Re: Login API endpoint ready"
-   - Type: response
-   - Context: { endpoint: "POST /api/auth/login", file: "routes/auth.ts:45" }
+5. You: "Reply to the frontend agent that the endpoint is ready"
+   Claude: *Automatically sends response with details*
 ```
+
+![Backend agent checking inbox](images/skill-review-inbox.png)
+*Backend agent checking for incoming requests*
+
+![Backend agent receiving message](images/agent-I-got-a-message.png)
+*Backend agent sees the incoming request*
+
+![Backend agent viewing inbox](images/agent-inbox.png)
+*Backend agent reviews message details*
 
 **Frontend Agent** (continues):
 
 ```
 Claude (Frontend):
-1. Receives response message
+1. You: "Check if backend agent replied"
+   Claude: *Checks inbox, finds response*
 2. Updates LoginForm to call the new endpoint
 3. Tests integration
 ```
+
+![Frontend agent sees reply](images/agent-replied.png)
+*Frontend agent receives confirmation from backend*
+
+---
+
+#### Manual Mode (Universal) 🔧
+
+**Frontend Agent** (session: `project-frontend-ui`):
+
+```bash
+# Frontend agent sends request
+send-aimaestro-message.sh project-backend-api \
+  "Need POST /api/auth/login endpoint" \
+  "Building login form, need API with email/password → JWT token" \
+  high \
+  request
+```
+
+![Manual mode sending](images/no-skill-send-message.png)
+*Using command-line to send request*
+
+**Backend Agent** (session: `project-backend-api`):
+
+```bash
+# Backend agent checks inbox
+check-and-show-messages.sh
+
+# Implements endpoint, then replies
+send-aimaestro-message.sh project-frontend-ui \
+  "Re: Login API endpoint ready" \
+  "Endpoint at routes/auth.ts:45. POST /api/auth/login - accepts {email, password}, returns JWT" \
+  normal \
+  response
+```
+
+![Manual mode inbox check](images/no-skill-receive-messages.png)
+*Checking inbox via command line*
+
+![Manual mode reviewing inbox](images/no-skill-review-inbox.png)
+*Reviewing full inbox with details*
+
+**Result:** Same outcome, different interaction style. Choose what fits your workflow!
 
 ### Example 2: Broadcast Pattern
 

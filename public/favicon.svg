@@ -1,31 +1,17 @@
-<svg width="32" height="32" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- AI Maestro Favicon -->
-  <defs>
-    <linearGradient id="termGradFav" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
-    </linearGradient>
-  </defs>
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- AI Maestro Favicon - Constellation -->
 
-  <!-- Terminal window (slightly larger for favicon) -->
-  <rect x="25" y="35" width="150" height="130" rx="10" fill="url(#termGradFav)" stroke="#3b82f6" stroke-width="4"/>
+  <!-- Connection lines (showing orchestration) -->
+  <line x1="8" y1="13" x2="16" y2="10" stroke="#3b82f6" stroke-width="1.5" opacity="0.8"/>
+  <line x1="16" y1="10" x2="24" y2="14" stroke="#3b82f6" stroke-width="1.5" opacity="0.8"/>
+  <line x1="8" y1="13" x2="11" y2="21" stroke="#8b5cf6" stroke-width="1.2" opacity="0.7"/>
+  <line x1="24" y1="14" x2="21" y2="22" stroke="#8b5cf6" stroke-width="1.2" opacity="0.7"/>
+  <line x1="11" y1="21" x2="21" y2="22" stroke="#8b5cf6" stroke-width="1.2" opacity="0.7"/>
 
-  <!-- Terminal header dots (larger) -->
-  <circle cx="42" cy="55" r="6" fill="#ef4444"/>
-  <circle cx="62" cy="55" r="6" fill="#f59e0b"/>
-  <circle cx="82" cy="55" r="6" fill="#10b981"/>
-
-  <!-- Constellation (simplified and bold) -->
-  <circle cx="70" cy="95" r="8" fill="#3b82f6"/>
-  <circle cx="100" cy="85" r="8" fill="#3b82f6"/>
-  <circle cx="130" cy="100" r="8" fill="#3b82f6"/>
-  <circle cx="85" cy="125" r="7" fill="#8b5cf6"/>
-  <circle cx="115" cy="130" r="7" fill="#8b5cf6"/>
-
-  <!-- Connection lines (bold) -->
-  <line x1="70" y1="95" x2="100" y2="85" stroke="#3b82f6" stroke-width="4" opacity="0.7"/>
-  <line x1="100" y1="85" x2="130" y2="100" stroke="#3b82f6" stroke-width="4" opacity="0.7"/>
-  <line x1="70" y1="95" x2="85" y2="125" stroke="#8b5cf6" stroke-width="3.5" opacity="0.6"/>
-  <line x1="130" y1="100" x2="115" y2="130" stroke="#8b5cf6" stroke-width="3.5" opacity="0.6"/>
-  <line x1="85" y1="125" x2="115" y2="130" stroke="#8b5cf6" stroke-width="3.5" opacity="0.6"/>
+  <!-- AI agent nodes (connected constellation) -->
+  <circle cx="8" cy="13" r="3" fill="#3b82f6" stroke="#ffffff" stroke-width="0.5"/>
+  <circle cx="16" cy="10" r="3" fill="#3b82f6" stroke="#ffffff" stroke-width="0.5"/>
+  <circle cx="24" cy="14" r="3" fill="#3b82f6" stroke="#ffffff" stroke-width="0.5"/>
+  <circle cx="11" cy="21" r="2.5" fill="#8b5cf6" stroke="#ffffff" stroke-width="0.5"/>
+  <circle cx="21" cy="22" r="2.5" fill="#8b5cf6" stroke="#ffffff" stroke-width="0.5"/>
 </svg>

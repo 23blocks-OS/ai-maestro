@@ -8,8 +8,11 @@ export const metadata: Metadata = {
   title: 'AI Maestro',
   description: 'Orchestrate multiple AI coding agents from one beautiful dashboard',
   icons: {
-    icon: '/favicon.svg',
-    apple: '/logo.svg',
+    icon: [
+      { url: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/logo-constellation.svg',
   },
   viewport: {
     width: 'device-width',

@@ -90,7 +90,26 @@ Works with **any** terminal-based AI:
 
 ## 🚀 Quick Start
 
-### 1. Install & Setup
+### Zero to Hero (Easiest - for new users)
+
+**One command installs everything:**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
+```
+
+This installs:
+- ✅ Homebrew (if needed)
+- ✅ Node.js, Yarn, tmux (if needed)
+- ✅ AI Maestro
+- ✅ Agent messaging system (optional)
+- ✅ All configuration
+
+**Time:** 5-10 minutes (depending on what's already installed)
+
+---
+
+### Manual Install (for developers)
 
 ```bash
 git clone https://github.com/23blocks-OS/ai-maestro.git
@@ -360,7 +379,9 @@ Every agent session can use the messaging system automatically via a **Claude Co
 
 **No manual scripting needed** - agents understand natural language messaging commands.
 
-**Installation:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
+**Installation:**
+- **Easy:** Run [`./install-messaging.sh`](./install-messaging.sh) (installs scripts + skill automatically)
+- **Manual:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
 
 ### Built-In UI
 
@@ -372,7 +393,13 @@ Each session has a **Messages tab** with:
 
 ### Get Started in 2 Minutes
 
-**First, install the scripts:** See [Installation Guide](./messaging_scripts/README.md)
+**Easy Install (Recommended):**
+```bash
+./install-messaging.sh
+# Interactive installer - checks prerequisites, installs scripts & skill
+```
+
+**Manual Install:** See [Installation Guide](./messaging_scripts/README.md)
 
 ```bash
 # 1. Agents check inbox on session start

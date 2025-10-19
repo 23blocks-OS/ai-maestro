@@ -68,7 +68,27 @@ send-aimaestro-message.sh backend-architect "Subject" "Message body" normal requ
 
 ---
 
-## Prerequisites Check
+## 🎯 Quick Install (Easiest)
+
+**Run the automated installer:**
+
+```bash
+cd /path/to/ai-maestro
+./install-messaging.sh
+```
+
+The installer will:
+- ✅ Check all prerequisites (tmux, curl, Claude Code)
+- ✅ Install messaging scripts to `~/.local/bin/`
+- ✅ Install Claude Code skill to `~/.claude/skills/`
+- ✅ Configure PATH if needed
+- ✅ Verify everything works
+
+**Time:** < 1 minute
+
+---
+
+## Prerequisites Check (Manual)
 
 ```bash
 # 1. AI Maestro running?
@@ -84,7 +104,7 @@ tmux list-sessions
 ls -la ~/.claude/skills/agent-messaging/
 ```
 
-If any check fails, see [Prerequisites](#prerequisites) below.
+If any check fails, see [Prerequisites](#prerequisites) below or use the [installer](#-quick-install-easiest).
 
 ---
 

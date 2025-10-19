@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent-to-Agent Communication - AI Maestro</title>
+    <meta name="description" content="Your AI agents can now talk to each other. Stop being the middleman - let your Claude Code agents coordinate autonomously with natural language skills or universal command-line tools.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#6366f1',
+                        'primary-dark': '#4f46e5',
+                        secondary: '#8b5cf6',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Typing cursor animation */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1.2em;
+            background-color: #6366f1;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-800 leading-relaxed antialiased">
+    <!-- Navigation (same as index.html) -->
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <header class="py-12 md:py-24 text-center px-4 md:px-0 bg-gradient-to-br from-primary/10 to-secondary/10">
+        <div class="max-w-[1200px] mx-auto">
+            <p class="text-[2rem] md:text-[3rem] font-semibold text-gray-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
+            <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Your AI agents can now talk to each other.</h1>
+            <p class="text-lg md:text-xl text-gray-600 max-w-[700px] mx-auto mb-8">Let your Claude Code agents coordinate autonomously with natural language or universal command-line tools.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
+                <a href="#how-it-works" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)] text-lg">See How It Works</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-QUICKSTART.md" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg" target="_blank">Read the Docs</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Problem-Solution Section -->
+    <section class="py-16 px-8">
+        <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-red-600 mb-4 text-2xl font-bold">Before: You're the Middleman</h2>
+                <p class="leading-relaxed text-gray-600 mb-4">Your frontend agent needs an API endpoint. Your backend agent can build it. But they can't talk directly.</p>
+                <ul class="list-none p-0 space-y-2">
+                    <li class="text-gray-600">❌ You copy-paste requests between agents</li>
+                    <li class="text-gray-600">❌ You relay responses manually</li>
+                    <li class="text-gray-600">❌ You're the bottleneck in agent coordination</li>
+                    <li class="text-gray-600">❌ Context gets lost in translation</li>
+                </ul>
+            </div>
+            <div class="p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-emerald-600 mb-4 text-2xl font-bold">After: Direct Agent Communication</h2>
+                <p class="leading-relaxed text-gray-600 mb-4">Agents send messages directly to each other. You orchestrate from above, not relay from between.</p>
+                <ul class="list-none p-0 space-y-2">
+                    <li class="text-emerald-600">✅ Agents request work from each other</li>
+                    <li class="text-emerald-600">✅ Structured messages with priorities</li>
+                    <li class="text-emerald-600">✅ Persistent inboxes for each agent</li>
+                    <li class="text-emerald-600">✅ Natural language or command-line</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visual Workflow Section -->
+    <section id="how-it-works" class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">How It Works</h2>
+            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Watch agents communicate without human intervention</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Step 1: Agent Receives Message</h3>
+                    <img src="images/agent-I-got-a-message.png" alt="Agent receives notification" class="w-full rounded-lg shadow-lg mb-4">
+                    <p class="text-gray-600">Agent gets notified immediately when another agent sends a message.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Step 2: Agent Reviews Inbox</h3>
+                    <img src="images/agent-inbox.png" alt="Agent viewing inbox" class="w-full rounded-lg shadow-lg mb-4">
+                    <p class="text-gray-600">Opens inbox to see full message details, context, and priority.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Step 3: Agent Sends Reply</h3>
+                    <img src="images/agent-replied.png" alt="Agent sending reply" class="w-full rounded-lg shadow-lg mb-4">
+                    <p class="text-gray-600">Composes and sends structured response with results.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Complete Exchange</h3>
+                    <img src="images/inbox-agent-response-to-agent.png" alt="Full conversation" class="w-full rounded-lg shadow-lg mb-4">
+                    <p class="text-gray-600">Full agent-to-agent conversation without human relay.</p>
+                </div>
+            </div>
+
+            <div class="bg-primary/10 border-l-4 border-primary p-6 rounded-r-lg">
+                <p class="text-lg font-semibold text-gray-800 mb-2">🎯 Key Insight</p>
+                <p class="text-gray-600">Whether using natural language (Claude Code skills) or command-line tools, the underlying system is identical. Messages are persistent, searchable, and structured.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Two Modes Section -->
+    <section class="py-16 md:py-24 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">Two Ways to Use It</h2>
+            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Choose the mode that fits your AI agent</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Skills Mode -->
+                <div class="bg-gradient-to-br from-primary/10 to-primary/5 p-8 rounded-2xl border-2 border-primary">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="text-4xl">✨</div>
+                        <h3 class="text-2xl font-bold text-gray-800">Skills Mode</h3>
+                    </div>
+                    <p class="text-lg font-semibold text-primary mb-4">Natural Language (Claude Code Only)</p>
+
+                    <div class="bg-white p-4 rounded-lg mb-4">
+                        <p class="text-sm text-gray-600 mb-2">You say:</p>
+                        <p class="font-mono text-sm bg-gray-100 p-3 rounded">"Send a message to backend-architect asking about the API endpoint status"</p>
+                        <p class="text-sm text-gray-600 mt-2">Claude automatically:</p>
+                        <p class="font-mono text-sm bg-gray-100 p-3 rounded mt-1">✅ Formats the message<br>✅ Sends it to the right agent<br>✅ Confirms delivery</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <img src="images/skill-loaded.png" alt="Claude Code skills" class="w-full rounded-lg shadow-lg mb-2">
+                        <p class="text-sm text-gray-600 text-center">Claude loads the messaging skill automatically</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <img src="images/skill-send-message.png" alt="Sending with natural language" class="w-full rounded-lg shadow-lg mb-2">
+                        <p class="text-sm text-gray-600 text-center">No commands needed - just describe what you want</p>
+                    </div>
+
+                    <div class="bg-white/50 p-4 rounded-lg">
+                        <p class="font-semibold text-gray-800 mb-2">Advantages:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-gray-700">✅ Zero command memorization</li>
+                            <li class="text-gray-700">✅ Context-aware</li>
+                            <li class="text-gray-700">✅ Natural conversation flow</li>
+                            <li class="text-gray-700">✅ Progressive disclosure</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Manual Mode -->
+                <div class="bg-gradient-to-br from-gray-100 to-gray-50 p-8 rounded-2xl border-2 border-gray-300">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="text-4xl">🔧</div>
+                        <h3 class="text-2xl font-bold text-gray-800">Manual Mode</h3>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-700 mb-4">Command-Line (Universal)</p>
+
+                    <div class="bg-white p-4 rounded-lg mb-4">
+                        <p class="text-sm text-gray-600 mb-2">Direct command:</p>
+                        <pre class="font-mono text-xs bg-gray-800 text-green-400 p-3 rounded overflow-x-auto">send-aimaestro-message.sh backend-architect \
+  "API endpoint status" \
+  "What's the status?" \
+  normal \
+  request</pre>
+                    </div>
+
+                    <div class="mb-4">
+                        <img src="images/no-skill-send-message.png" alt="Command-line usage" class="w-full rounded-lg shadow-lg mb-2">
+                        <p class="text-sm text-gray-600 text-center">Direct command-line - works with any agent</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <img src="images/no-skill-review-inbox.png" alt="Inbox via CLI" class="w-full rounded-lg shadow-lg mb-2">
+                        <p class="text-sm text-gray-600 text-center">Check inbox with command-line tools</p>
+                    </div>
+
+                    <div class="bg-white/50 p-4 rounded-lg">
+                        <p class="font-semibold text-gray-800 mb-2">Advantages:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-gray-700">✅ Works with ANY AI agent</li>
+                            <li class="text-gray-700">✅ Shell scripts & automation</li>
+                            <li class="text-gray-700">✅ Full parameter control</li>
+                            <li class="text-gray-700">✅ No Claude Code needed</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-blue-50 border-l-4 border-primary p-6 rounded-r-lg">
+                <p class="text-lg font-semibold text-gray-800 mb-2">💡 Which Mode Should You Use?</p>
+                <p class="text-gray-700 mb-3"><strong>Using Claude Code with skills installed?</strong> → Use Skills Mode (natural language, zero commands)</p>
+                <p class="text-gray-700"><strong>Using Aider, Cursor, or other agents?</strong> → Use Manual Mode (universal command-line tools)</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Real-World Example Section -->
+    <section class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">Real-World Example</h2>
+            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Frontend agent needs an API from backend agent</p>
+
+            <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="text-center">
+                        <div class="text-5xl mb-4">📤</div>
+                        <h3 class="font-semibold text-lg mb-2 text-gray-800">Frontend Requests</h3>
+                        <div class="bg-gray-50 p-4 rounded-lg text-left">
+                            <p class="text-sm font-mono text-gray-700">"Send a request to backend-architect: Need POST /api/users endpoint with email and password"</p>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-5xl mb-4">🔨</div>
+                        <h3 class="font-semibold text-lg mb-2 text-gray-800">Backend Builds</h3>
+                        <div class="bg-gray-50 p-4 rounded-lg text-left">
+                            <p class="text-sm text-gray-700">Checks inbox, sees request, implements the endpoint, tests it</p>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-5xl mb-4">✅</div>
+                        <h3 class="font-semibold text-lg mb-2 text-gray-800">Backend Replies</h3>
+                        <div class="bg-gray-50 p-4 rounded-lg text-left">
+                            <p class="text-sm font-mono text-gray-700">"Endpoint ready at routes/users.ts:45"</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 text-center">
+                    <p class="text-lg font-semibold text-emerald-600">⏱️ Time saved: 5-10 minutes per request</p>
+                    <p class="text-gray-600 mt-2">No context switching. No copy-pasting. No relay work.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Deep Dive -->
+    <section class="py-16 md:py-24 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Messaging Features</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">📨 Dual-Channel System</h3>
+                    <p class="text-gray-600 mb-3">File-based persistent messages + instant tmux notifications</p>
+                    <ul class="list-none p-0 space-y-2 text-sm">
+                        <li class="text-gray-600">✅ Persistent inbox for each agent</li>
+                        <li class="text-gray-600">✅ Instant popup alerts for urgent messages</li>
+                        <li class="text-gray-600">✅ Searchable message history</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">🎯 Priority Levels</h3>
+                    <p class="text-gray-600 mb-3">Four priority levels for proper urgency management</p>
+                    <ul class="list-none p-0 space-y-2 text-sm">
+                        <li class="text-red-600">🚨 Urgent - Production issues</li>
+                        <li class="text-orange-600">⚠️ High - Blocking work</li>
+                        <li class="text-blue-600">📋 Normal - Regular requests</li>
+                        <li class="text-gray-500">💡 Low - Nice-to-have</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">📝 Message Types</h3>
+                    <p class="text-gray-600 mb-3">Structured message types for clear communication</p>
+                    <ul class="list-none p-0 space-y-2 text-sm">
+                        <li class="text-gray-600">📤 Request - Need work from another agent</li>
+                        <li class="text-gray-600">💬 Response - Answering a request</li>
+                        <li class="text-gray-600">📢 Notification - FYI updates</li>
+                        <li class="text-gray-600">📊 Update - Progress reports</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">🔧 Claude Code Skills</h3>
+                    <p class="text-gray-600 mb-3">Natural language integration for Claude Code agents</p>
+                    <ul class="list-none p-0 space-y-2 text-sm">
+                        <li class="text-gray-600">✅ Progressive disclosure (loads when needed)</li>
+                        <li class="text-gray-600">✅ Automatic session detection</li>
+                        <li class="text-gray-600">✅ Structured message formatting</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Quick Start</h2>
+
+            <div class="bg-white p-8 rounded-2xl border border-gray-200 mb-8">
+                <h3 class="text-2xl font-bold mb-4 text-gray-800">Skills Mode (Claude Code)</h3>
+                <ol class="ml-6 list-decimal space-y-3">
+                    <li class="text-gray-700"><strong>Install the skill:</strong> The <code class="bg-gray-100 px-2 py-1 rounded text-sm">agent-messaging</code> skill is included in AI Maestro</li>
+                    <li class="text-gray-700"><strong>Ask Claude naturally:</strong> "Send a message to backend-architect asking about the API"</li>
+                    <li class="text-gray-700"><strong>Claude handles everything:</strong> Formats, sends, and confirms delivery</li>
+                    <li class="text-gray-700"><strong>Check inbox:</strong> "Do I have any messages?" or "Check my inbox"</li>
+                </ol>
+                <div class="mt-6 bg-blue-50 p-4 rounded-lg">
+                    <p class="text-sm font-semibold text-gray-800 mb-2">💡 Time to first message: &lt; 1 minute</p>
+                    <p class="text-sm text-gray-600">Just ask Claude - no commands to remember!</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                <h3 class="text-2xl font-bold mb-4 text-gray-800">Manual Mode (Universal)</h3>
+                <ol class="ml-6 list-decimal space-y-3">
+                    <li class="text-gray-700"><strong>Install scripts:</strong> Included in AI Maestro at <code class="bg-gray-100 px-2 py-1 rounded text-sm">~/.local/bin/</code></li>
+                    <li class="text-gray-700"><strong>Send a message:</strong>
+                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm overflow-x-auto">send-aimaestro-message.sh backend-architect \
+  "Need API endpoint" \
+  "Please implement POST /api/users" \
+  high \
+  request</pre>
+                    </li>
+                    <li class="text-gray-700"><strong>Check inbox:</strong>
+                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm">check-and-show-messages.sh</pre>
+                    </li>
+                </ol>
+                <div class="mt-6 bg-blue-50 p-4 rounded-lg">
+                    <p class="text-sm font-semibold text-gray-800 mb-2">💡 Time to first message: &lt; 2 minutes</p>
+                    <p class="text-sm text-gray-600">One command - works with any AI agent!</p>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-QUICKSTART.md" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)] text-lg" target="_blank">
+                    Read Full Documentation
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Links -->
+    <section class="py-16 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Documentation</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-QUICKSTART.md" target="_blank" class="p-6 bg-white rounded-xl border border-gray-200 hover:border-primary transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg no-underline text-inherit">
+                    <div class="text-3xl mb-3">🚀</div>
+                    <h3 class="text-lg font-semibold mb-2 text-gray-800">Quickstart Guide</h3>
+                    <p class="text-sm text-gray-600">Get started in under 5 minutes</p>
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-MESSAGING-GUIDE.md" target="_blank" class="p-6 bg-white rounded-xl border border-gray-200 hover:border-primary transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg no-underline text-inherit">
+                    <div class="text-3xl mb-3">📚</div>
+                    <h3 class="text-lg font-semibold mb-2 text-gray-800">Messaging Guide</h3>
+                    <p class="text-sm text-gray-600">Comprehensive reference</p>
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-GUIDELINES.md" target="_blank" class="p-6 bg-white rounded-xl border border-gray-200 hover:border-primary transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg no-underline text-inherit">
+                    <div class="text-3xl mb-3">📋</div>
+                    <h3 class="text-lg font-semibold mb-2 text-gray-800">Best Practices</h3>
+                    <p class="text-sm text-gray-600">Communication guidelines</p>
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-ARCHITECTURE.md" target="_blank" class="p-6 bg-white rounded-xl border border-gray-200 hover:border-primary transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg no-underline text-inherit">
+                    <div class="text-3xl mb-3">🏗️</div>
+                    <h3 class="text-lg font-semibold mb-2 text-gray-800">Architecture</h3>
+                    <p class="text-sm text-gray-600">Technical deep-dive</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 text-center bg-gradient-to-br from-primary to-secondary text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl mb-4 font-bold">Ready to let your agents collaborate?</h2>
+            <p class="text-xl mb-8 opacity-90">Free, open source, and works with any AI agent.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary hover:bg-gray-50 hover:-translate-y-0.5 text-lg" target="_blank">
+                    Get Started on GitHub
+                </a>
+                <a href="index.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-white hover:text-primary text-lg">
+                    Back to AI Maestro
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer (same as index.html) -->
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- GSAP Animations -->
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Typing animation for announcement
+        const announcement = document.getElementById('announcement');
+        const text = "Stop being the middleman.";
+        const cursor = announcement.querySelector('.typing-cursor');
+        let charIndex = 0;
+
+        function typeCharacter() {
+            if (charIndex < text.length) {
+                const char = text[charIndex];
+                const textNode = document.createTextNode(char);
+                announcement.insertBefore(textNode, cursor);
+                charIndex++;
+                setTimeout(typeCharacter, 50); // 50ms per character for slower typing
+            }
+        }
+
+        // Start typing after 1.5 second delay
+        setTimeout(typeCharacter, 1500);
+
+        // Fade in sections on scroll
+        gsap.utils.toArray("section").forEach((section) => {
+            gsap.from(section, {
+                opacity: 0,
+                y: 50,
+                duration: 0.8,
+                ease: "power2.out",
+                scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                    end: "top 50%",
+                    toggleActions: "play none none none"
+                }
+            });
+        });
+    </script>
+</body>
+</html>

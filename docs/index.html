@@ -168,7 +168,7 @@
                     <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
-                    <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
+                    <img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version">
                     <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
                 </div>
@@ -227,11 +227,26 @@
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Full Session Management</h3>
                     <p class="leading-relaxed text-gray-600">Create, rename, and delete sessions from the UI. Auto-discovery of existing tmux sessions.</p>
                 </div>
-                <a href="#mobile-section" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-secondary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.2)] no-underline text-inherit block cursor-pointer">
+                <a href="messaging.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)] no-underline text-inherit block cursor-pointer">
+                    <div class="text-5xl mb-4">📬</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Agent-to-Agent Communication</h3>
+                    <p class="leading-relaxed text-gray-600">Your AI agents can now talk to each other. Natural language with Claude Code skills or universal command-line tools.</p>
+                </a>
+                <a href="mobile.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-secondary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.2)] no-underline text-inherit block cursor-pointer">
                     <div class="text-5xl mb-4">📱</div>
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Access from Anywhere</h3>
                     <p class="leading-relaxed text-gray-600">Monitor your AI agents from your phone or tablet. Touch-optimized interface with secure Tailscale connectivity.</p>
                 </a>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">🎯</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Zero Configuration</h3>
+                    <p class="leading-relaxed text-gray-600">Auto-discovers all tmux sessions instantly. No config files, no manual setup. Just run and start coding.</p>
+                </div>
+                <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
+                    <div class="text-5xl mb-4">💎</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Open Source & Free</h3>
+                    <p class="leading-relaxed text-gray-600">MIT licensed. No subscriptions, no hidden costs. Built by developers, for developers. Community-driven and transparent.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -273,81 +288,6 @@ yarn dev</code></pre>
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">3</div>
                     <h3 class="text-2xl mb-4 font-semibold">Start Coding</h3>
                     <p class="leading-relaxed">Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Mobile Section -->
-    <section id="mobile-section" class="py-16 md:py-24 bg-gray-50 px-8">
-        <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">📱 Access from Anywhere</h2>
-            <p class="text-center text-lg text-gray-500 max-w-[700px] mx-auto mb-12">Monitor and control your AI agents from your phone or tablet - perfect for checking progress while away from your desk.</p>
-
-            <div class="flex justify-center gap-8 md:gap-8 mb-12 flex-wrap">
-                <img src="images/aimaestro-mobile.png" alt="AI Maestro on Mobile" class="w-[45%] md:w-[280px] min-w-[200px] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
-                <img src="images/aimaestro-sidebar.png" alt="Mobile Sidebar" class="w-[45%] md:w-[280px] min-w-[200px] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
-            </div>
-
-            <div class="bg-white p-8 rounded-2xl border border-gray-200 mb-8">
-                <h3 class="mb-4 text-gray-800 text-2xl font-semibold">Mobile Features</h3>
-                <ul class="list-none p-0">
-                    <li class="py-2 text-gray-500">✨ Touch-optimized interface with swipe gestures</li>
-                    <li class="py-2 text-gray-500">📱 Auto-collapsing sidebar for maximum terminal space</li>
-                    <li class="py-2 text-gray-500">🎯 Compact header showing only essential information</li>
-                    <li class="py-2 text-gray-500">📝 Notes panel collapsed by default on mobile</li>
-                    <li class="py-2 text-gray-500">⚡ Full terminal access for viewing output and monitoring</li>
-                    <li class="py-2 text-gray-500">🎨 Responsive layout adapting to any screen size</li>
-                </ul>
-            </div>
-
-            <div class="bg-white p-8 rounded-2xl border border-gray-200">
-                <h3 class="mb-4 text-gray-800 text-2xl font-semibold">🔒 Secure Remote Access with Tailscale</h3>
-                <p class="mb-8 text-gray-500">Connect to your AI agents from anywhere using Tailscale - a zero-config VPN that creates a secure, encrypted network between your devices.</p>
-                <p class="bg-amber-50 border-l-[3px] border-amber-500 px-4 py-3 mb-8 rounded text-sm text-amber-900"><strong>Note:</strong> AI Maestro is not endorsed by or affiliated with Tailscale in any way. We simply use it and recommend it based on our positive experience.</p>
-
-                <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-8">
-                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
-                        <div class="text-4xl mb-2">🛡️</div>
-                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Zero Port Forwarding</h4>
-                        <p class="text-sm text-gray-500 m-0">No need to expose ports to the internet</p>
-                    </div>
-                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
-                        <div class="text-4xl mb-2">🔐</div>
-                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Encrypted Connections</h4>
-                        <p class="text-sm text-gray-500 m-0">All traffic is automatically encrypted</p>
-                    </div>
-                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
-                        <div class="text-4xl mb-2">🌍</div>
-                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Works Anywhere</h4>
-                        <p class="text-sm text-gray-500 m-0">Behind NAT, firewalls, and routers</p>
-                    </div>
-                    <div class="text-center p-6 bg-gray-50 rounded-xl transition-transform duration-200 hover:-translate-y-0.5">
-                        <div class="text-4xl mb-2">💰</div>
-                        <h4 class="text-base mb-2 text-gray-800 font-semibold">Free for Personal Use</h4>
-                        <p class="text-sm text-gray-500 m-0">Up to 100 devices</p>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 p-6 rounded-xl mb-8">
-                    <h4 class="mb-4 text-gray-800 font-semibold">Quick Setup</h4>
-                    <ol class="ml-6 list-decimal">
-                        <li class="mb-3 text-gray-500"><strong>Install Tailscale</strong> on your development machine (<code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">brew install tailscale</code>)</li>
-                        <li class="mb-3 text-gray-500"><strong>Install on mobile</strong> from <a href="https://apps.apple.com/app/tailscale/id1470499037" target="_blank" class="text-primary no-underline hover:underline">App Store</a> or <a href="https://play.google.com/store/apps/details?id=com.tailscale.ipn" target="_blank" class="text-primary no-underline hover:underline">Google Play</a></li>
-                        <li class="mb-3 text-gray-500"><strong>Sign in</strong> with the same account on both devices</li>
-                        <li class="mb-3 text-gray-500"><strong>Start AI Maestro</strong> with <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">yarn dev</code></li>
-                        <li class="mb-3 text-gray-500"><strong>Access from mobile</strong> at <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">http://YOUR-MACHINE-NAME:23000</code></li>
-                    </ol>
-                </div>
-
-                <div>
-                    <h4 class="mb-4 text-gray-800 font-semibold">Use Cases</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
-                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">📊 Monitor long-running builds from your phone</div>
-                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">🐛 Check agent progress while away from desk</div>
-                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">📝 Read session notes on your tablet</div>
-                        <div class="p-4 bg-gray-50 rounded-lg text-gray-500 text-center text-sm">✅ Verify completions without being at your computer</div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -514,18 +454,6 @@ yarn dev</code></pre>
                 trigger: "#quick-start",
                 start: "top 70%",
                 toggleActions: "play none none none"
-            }
-        });
-
-        // Mobile screenshots parallax effect
-        gsap.to("#mobile-section img", {
-            y: -20,
-            ease: "none",
-            scrollTrigger: {
-                trigger: "#mobile-section",
-                start: "top bottom",
-                end: "bottom top",
-                scrub: 1
             }
         });
     </script>

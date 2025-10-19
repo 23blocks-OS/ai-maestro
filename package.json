@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -52,7 +52,9 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
     "postcss": "^8.4.0",
+    "sharp": "^0.34.4",
     "tailwindcss": "^3.4.0",
+    "to-ico": "^1.1.5",
     "typescript": "^5.4.0"
   }
 }

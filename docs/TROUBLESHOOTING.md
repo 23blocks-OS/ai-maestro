@@ -285,6 +285,239 @@ For complete details, see [OPERATIONS-GUIDE.md - Section 8: SSH Configuration](.
 
 ---
 
+## PATH Issues in tmux Sessions
+
+### Problem: "command not found" for Scripts in ~/.local/bin
+
+**Symptom**: Scripts installed in `~/.local/bin/` (like `send-aimaestro-message.sh`, `check-and-show-messages.sh`) are not found in tmux sessions, even though they work in regular terminal windows.
+
+```bash
+# In tmux session:
+send-aimaestro-message.sh
+# Returns: command not found: send-aimaestro-message.sh
+
+# But this works:
+which send-aimaestro-message.sh
+# Returns nothing or "not found"
+
+# Must use full path:
+/Users/username/.local/bin/send-aimaestro-message.sh
+# Works!
+```
+
+**Why This Happens**:
+
+tmux captures its environment when the **tmux server starts**, not when you create sessions. The tmux server uses a **non-interactive shell** to capture environment variables, and non-interactive shells have different initialization behavior:
+
+**Shell Initialization Order:**
+1. `.zshenv` - Runs for **ALL** shells (interactive, non-interactive, login, etc.)
+2. `.zprofile` - Login shells only
+3. `.zshrc` - **Interactive shells only** ← tmux server doesn't run this!
+4. `.zlogin` - Login shells only
+
+**The Problem:**
+- Your PATH is set in `.zshrc` (line ~173)
+- tmux server spawns **non-interactive** shell to capture environment
+- Non-interactive shells **skip** `.zshrc` completely
+- tmux server captures PATH **without** `~/.local/bin`
+- All new tmux sessions inherit this incomplete PATH
+
+**Permanent Solution: Use `.zshenv` for PATH**
+
+This is the **correct** solution for tmux-compatible PATH configuration.
+
+**Step 1: Create `~/.zshenv`**
+
+```bash
+# Create or edit ~/.zshenv
+cat > ~/.zshenv << 'EOF'
+# ============================================
+# PATH Configuration - AI Maestro
+# ============================================
+# This file is read by ALL zsh shells (including tmux's environment capture)
+# Put PATH exports here so tmux sessions have correct PATH
+
+# Add custom bin directory for AI Maestro scripts
+export PATH="$HOME/.local/bin:$PATH"
+EOF
+```
+
+**Step 2: Verify `.zshenv` is created**
+
+```bash
+cat ~/.zshenv
+# Should show the PATH export
+```
+
+**Step 3: Create new tmux sessions to test**
+
+```bash
+# Create a test session
+tmux new-session -d -s path-test
+
+# Check if script is found
+tmux send-keys -t path-test 'which send-aimaestro-message.sh' Enter
+sleep 0.5
+tmux capture-pane -t path-test -p
+
+# Should show: /Users/username/.local/bin/send-aimaestro-message.sh
+```
+
+**Step 4: Clean up test session**
+
+```bash
+tmux kill-session -t path-test
+```
+
+**For Existing Sessions**:
+
+Existing tmux sessions already have the old PATH frozen. You need to either:
+
+**Option 1: Restart the shell in each session**
+```bash
+# Inside the tmux session:
+exec $SHELL
+```
+
+**Option 2: Export PATH manually (temporary)**
+```bash
+# Inside the tmux session:
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Option 3: Recreate the sessions**
+- Exit and kill the old sessions
+- Create new sessions (they'll have the correct PATH)
+
+**Why .zshenv Works**:
+
+- `.zshenv` is the **only** shell initialization file that runs for ALL shell invocations
+- tmux server's non-interactive shell **does** read `.zshenv`
+- PATH set in `.zshenv` is captured by tmux and inherited by all sessions
+- Works across system restarts and tmux server restarts
+
+**Verification**:
+
+After creating `.zshenv`, verify it works in new tmux sessions:
+
+```bash
+# Create new tmux session
+tmux new-session -s test
+
+# Inside the session:
+echo $PATH
+# Should contain: /Users/username/.local/bin
+
+which send-aimaestro-message.sh
+# Should output: /Users/username/.local/bin/send-aimaestro-message.sh
+
+# Test the script
+send-aimaestro-message.sh
+# Should show usage/help, not "command not found"
+```
+
+---
+
+### Related Problem: "Device not configured" or "forkpty" Errors
+
+**Symptom**: When trying to create new tmux sessions or terminal windows, you get:
+
+```
+[forkpty: Device not configured]
+[Could not create a new process and open a pseudo-tty.]
+```
+
+Or:
+
+```
+create window failed: fork failed: Device not configured
+```
+
+**Why This Happens**:
+
+You've exhausted the system's **pseudo-terminal (PTY) limit**. Every terminal window, tmux pane, SSH connection, and interactive shell needs a PTY. macOS has a default limit of **511 PTYs**.
+
+**Check Current PTY Usage**:
+
+```bash
+# Check the limit
+sysctl kern.tty.ptmx_max
+# Default: 511
+
+# Count allocated PTYs
+ls /dev/ttys* 2>/dev/null | wc -l
+# If this is >= the limit, you're out of PTYs
+```
+
+**Check What's Using PTYs**:
+
+```bash
+# See which applications are using PTYs
+lsof /dev/ttys* 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn
+
+# Common culprits:
+# - zsh (orphaned shell processes)
+# - Terminal.app (many windows/tabs open)
+# - tmux (many sessions/panes)
+# - VS Code / IDEs with integrated terminals
+# - SSH connections
+```
+
+**Solution 1: Increase PTY Limit** (Recommended)
+
+```bash
+# Increase to 640 (safe value that macOS accepts)
+sudo sysctl -w kern.tty.ptmx_max=640
+
+# Or try higher (may fail on some macOS versions):
+sudo sysctl -w kern.tty.ptmx_max=1024
+```
+
+**Note**: If you get "Invalid argument" error, the value is too high. Try smaller increments (640, 768, 896, etc.).
+
+**Make Limit Permanent**:
+
+```bash
+# Create or edit /etc/sysctl.conf (requires sudo)
+echo "kern.tty.ptmx_max=640" | sudo tee -a /etc/sysctl.conf
+```
+
+**Solution 2: Clean Up Orphaned Processes**
+
+If you can't or don't want to increase the limit, close unused terminals:
+
+```bash
+# Find orphaned zsh shells
+ps -eo pid,ppid,comm | awk '$3 == "zsh" {print $1, $2}' | wc -l
+
+# Close Terminal windows/tabs you're not using
+# Close IDE integrated terminals you're not using
+# Kill old tmux sessions:
+tmux list-sessions
+tmux kill-session -t <unused-session>
+```
+
+**Solution 3: Force Quit and Restart** (Last Resort)
+
+If terminal is completely broken:
+
+1. **Force Quit Terminal**: Cmd + Option + Esc → Select Terminal → Force Quit
+2. **Try Alternative Terminal**:
+   - Use VS Code's integrated terminal (Ctrl + `)
+   - Install and use iTerm2
+   - Use Script Editor to run: `do shell script "pkill -9 tmux" with administrator privileges`
+3. **Restart Mac** - Guaranteed to fix PTY exhaustion
+
+**Prevention**:
+
+- Don't leave hundreds of terminal tabs open
+- Close old tmux sessions you're not using
+- Use `tmux attach` instead of creating new sessions
+- Set a higher PTY limit proactively (640-1024)
+- Monitor PTY usage: `ls /dev/ttys* | wc -l`
+
+---
+
 ## Performance Issues
 
 ### Problem: Slow Terminal Rendering
@@ -450,6 +683,21 @@ set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
 # set -g prefix C-a
 ```
 
+### Recommended ~/.zshenv for AI Maestro (CRITICAL for tmux)
+
+**This file is required for scripts to work in tmux sessions:**
+
+```bash
+# ============================================
+# PATH Configuration - AI Maestro
+# ============================================
+# This file is read by ALL zsh shells (including tmux's environment capture)
+# Put PATH exports here so tmux sessions have correct PATH
+
+# Add custom bin directory for AI Maestro scripts
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ### Recommended ~/.zshrc additions for AI Maestro
 
 ```bash
@@ -462,6 +710,12 @@ fi
 
 Apply changes:
 ```bash
+# Create .zshenv if it doesn't exist (CRITICAL for tmux PATH)
+cat > ~/.zshenv << 'EOF'
+# PATH Configuration - AI Maestro
+export PATH="$HOME/.local/bin:$PATH"
+EOF
+
 # Reload tmux config
 tmux source-file ~/.tmux.conf
 

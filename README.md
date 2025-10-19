@@ -64,11 +64,12 @@ Works with **any** terminal-based AI:
   - Popup notifications (non-intrusive)
   - Terminal injections (visible in history)
   - Formatted output (for critical alerts)
-- **CLI Tools**: Shell scripts for command-line messaging
-  - `send-aimaestro-message.sh` - Send structured messages
-  - `check-and-show-messages.sh` - Display inbox
-  - `check-new-messages-arrived.sh` - Quick unread count
-  - `send-tmux-message.sh` - Instant notifications
+- **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./messaging_scripts))
+  - [`send-aimaestro-message.sh`](./messaging_scripts/send-aimaestro-message.sh) - Send structured messages
+  - [`check-and-show-messages.sh`](./messaging_scripts/check-and-show-messages.sh) - Display inbox
+  - [`check-new-messages-arrived.sh`](./messaging_scripts/check-new-messages-arrived.sh) - Quick unread count
+  - [`send-tmux-message.sh`](./messaging_scripts/send-tmux-message.sh) - Instant notifications
+  - [📖 Installation Guide](./messaging_scripts/README.md)
 - **Web UI**: Rich inbox/compose interface in Messages tab
 - See [📬 Communication Docs](./docs/AGENT-COMMUNICATION-QUICKSTART.md) for 5-minute setup
 
@@ -344,7 +345,7 @@ send-aimaestro-message.sh backend-architect \
 
 ### Claude Code Integration
 
-Every agent session can use the messaging system automatically via a **Claude Code skill**:
+Every agent session can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./skills/agent-messaging)):
 
 ```bash
 # In any agent session, just say:
@@ -359,6 +360,8 @@ Every agent session can use the messaging system automatically via a **Claude Co
 
 **No manual scripting needed** - agents understand natural language messaging commands.
 
+**Installation:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
+
 ### Built-In UI
 
 Each session has a **Messages tab** with:
@@ -368,6 +371,8 @@ Each session has a **Messages tab** with:
 - 🔔 **Unread count** - Never miss important messages
 
 ### Get Started in 2 Minutes
+
+**First, install the scripts:** See [Installation Guide](./messaging_scripts/README.md)
 
 ```bash
 # 1. Agents check inbox on session start
@@ -383,6 +388,8 @@ send-aimaestro-message.sh backend-api \
 # 3. Check for new messages
 check-new-messages-arrived.sh
 ```
+
+**For Claude Code:** Install the skill to use natural language - [Skills Guide](./skills/README.md)
 
 ### Documentation
 

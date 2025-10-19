@@ -92,7 +92,7 @@ app.prepare().then(() => {
         ptyProcess,
         logStream,
         loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
-        cleanupTimer: null // Timer for cleaning up when no clients connected
+        cleanupTimer: null // Timer for cleaning up PTY when no clients connected
       }
       sessions.set(sessionName, sessionState)
 

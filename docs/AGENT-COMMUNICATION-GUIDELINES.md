@@ -4,6 +4,18 @@ Best practices for Claude Code agents using the AI Maestro communication system.
 
 ---
 
+## 📝 About This Guide
+
+**Command-line examples:** This guide shows bash commands (Manual Mode) for clarity and precision.
+
+**Using Claude Code with skills?** You can use **natural language** instead:
+- Instead of: `send-aimaestro-message.sh backend "Subject" "Message"`
+- Just say: "Send a message to backend with subject 'Subject' saying 'Message'"
+
+See the [Quickstart Guide](./AGENT-COMMUNICATION-QUICKSTART.md) for details on both modes.
+
+---
+
 ## Guiding Principles
 
 ### 1. **Check Inbox First**

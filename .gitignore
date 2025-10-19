@@ -94,3 +94,6 @@ temp
 # Session logs
 logs/
 *.log
+
+# Marketing materials (not part of open source repo)
+docs/marketing/

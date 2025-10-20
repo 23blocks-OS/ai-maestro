@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
+import ForwardDialog from './ForwardDialog'
 
 interface MessageCenterProps {
   sessionName: string
@@ -15,6 +16,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [view, setView] = useState<'inbox' | 'compose'>('inbox')
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [showForwardDialog, setShowForwardDialog] = useState(false)
 
   // Compose form state
   const [composeTo, setComposeTo] = useState('')
@@ -136,6 +138,37 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
       fetchUnreadCount()
     } catch (error) {
       console.error('Error archiving message:', error)
+    }
+  }
+
+  // Forward message
+  const forwardMessage = async (toSession: string, forwardNote: string) => {
+    if (!selectedMessage) return
+
+    try {
+      const response = await fetch('/api/messages/forward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: selectedMessage.id,
+          fromSession: sessionName,
+          toSession,
+          forwardNote: forwardNote || undefined,
+        }),
+      })
+
+      if (response.ok) {
+        setShowForwardDialog(false)
+        alert(`Message forwarded to ${toSession}`)
+        fetchMessages()
+        fetchUnreadCount()
+      } else {
+        const error = await response.json()
+        alert(`Failed to forward message: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error forwarding message:', error)
+      alert('Error forwarding message')
     }
   }
 
@@ -270,6 +303,13 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowForwardDialog(true)}
+                      className="p-2 text-blue-400 hover:bg-blue-900/30 rounded-md transition-colors"
+                      title="Forward"
+                    >
+                      <Forward className="w-5 h-5" />
+                    </button>
                     <button
                       onClick={() => archiveMessage(selectedMessage.id)}
                       className="p-2 text-gray-400 hover:bg-gray-800 rounded-md transition-colors"
@@ -442,6 +482,17 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
             </div>
           </div>
         </div>
+      )}
+
+      {/* Forward Dialog */}
+      {showForwardDialog && selectedMessage && (
+        <ForwardDialog
+          messageId={selectedMessage.id}
+          fromSession={sessionName}
+          allSessions={allSessions}
+          onConfirm={forwardMessage}
+          onCancel={() => setShowForwardDialog(false)}
+        />
       )}
     </div>
   )

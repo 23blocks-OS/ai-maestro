@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 interface MessageCenterProps {
@@ -15,6 +15,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [view, setView] = useState<'inbox' | 'compose'>('inbox')
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [isForwarding, setIsForwarding] = useState(false)
+  const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
 
   // Compose form state
   const [composeTo, setComposeTo] = useState('')
@@ -74,32 +76,68 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
 
     setLoading(true)
     try {
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: sessionName,
-          to: composeTo,
-          subject: composeSubject,
-          priority: composePriority,
-          content: {
-            type: composeType,
-            message: composeMessage,
-          },
-        }),
-      })
+      // If forwarding, use the forward API
+      if (isForwarding && forwardingOriginalMessage) {
+        // Extract the note from the message (everything before "--- Forwarded Message ---")
+        const forwardNote = composeMessage.split('--- Forwarded Message ---')[0].trim()
 
-      if (response.ok) {
-        // Reset form
-        setComposeTo('')
-        setComposeSubject('')
-        setComposeMessage('')
-        setComposePriority('normal')
-        setComposeType('request')
-        setView('inbox')
-        alert('Message sent successfully!')
+        const response = await fetch('/api/messages/forward', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messageId: forwardingOriginalMessage.id,
+            fromSession: sessionName,
+            toSession: composeTo,
+            forwardNote: forwardNote || undefined,
+          }),
+        })
+
+        if (response.ok) {
+          // Reset form
+          setComposeTo('')
+          setComposeSubject('')
+          setComposeMessage('')
+          setComposePriority('normal')
+          setComposeType('request')
+          setIsForwarding(false)
+          setForwardingOriginalMessage(null)
+          setView('inbox')
+          alert('Message forwarded successfully!')
+          fetchMessages()
+          fetchUnreadCount()
+        } else {
+          const error = await response.json()
+          alert(`Failed to forward message: ${error.error}`)
+        }
       } else {
-        alert('Failed to send message')
+        // Regular message send
+        const response = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: sessionName,
+            to: composeTo,
+            subject: composeSubject,
+            priority: composePriority,
+            content: {
+              type: composeType,
+              message: composeMessage,
+            },
+          }),
+        })
+
+        if (response.ok) {
+          // Reset form
+          setComposeTo('')
+          setComposeSubject('')
+          setComposeMessage('')
+          setComposePriority('normal')
+          setComposeType('request')
+          setView('inbox')
+          alert('Message sent successfully!')
+        } else {
+          alert('Failed to send message')
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -137,6 +175,28 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error archiving message:', error)
     }
+  }
+
+  // Prepare to forward message
+  const prepareForward = (message: Message) => {
+    // Build forwarded content
+    let forwardedContent = `--- Forwarded Message ---\n`
+    forwardedContent += `From: ${message.from}\n`
+    forwardedContent += `To: ${message.to}\n`
+    forwardedContent += `Sent: ${new Date(message.timestamp).toLocaleString()}\n`
+    forwardedContent += `Subject: ${message.subject}\n\n`
+    forwardedContent += `${message.content.message}\n`
+    forwardedContent += `--- End of Forwarded Message ---`
+
+    // Set compose form for forwarding
+    setComposeTo('')
+    setComposeSubject(`Fwd: ${message.subject}`)
+    setComposeMessage(forwardedContent)
+    setComposePriority(message.priority)
+    setComposeType('notification')
+    setIsForwarding(true)
+    setForwardingOriginalMessage(message)
+    setView('compose')
   }
 
   useEffect(() => {
@@ -271,6 +331,13 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                   </div>
                   <div className="flex gap-2">
                     <button
+                      onClick={() => prepareForward(selectedMessage)}
+                      className="p-2 text-blue-400 hover:bg-blue-900/30 rounded-md transition-colors"
+                      title="Forward"
+                    >
+                      <Forward className="w-5 h-5" />
+                    </button>
+                    <button
                       onClick={() => archiveMessage(selectedMessage.id)}
                       className="p-2 text-gray-400 hover:bg-gray-800 rounded-md transition-colors"
                       title="Archive"
@@ -313,18 +380,27 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                   )}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-800">
+                <div className="mt-6 pt-4 border-t border-gray-800 flex gap-3">
                   <button
                     onClick={() => {
                       setComposeTo(selectedMessage.from)
                       setComposeSubject(`Re: ${selectedMessage.subject}`)
                       setComposeType('response')
+                      setIsForwarding(false)
+                      setForwardingOriginalMessage(null)
                       setView('compose')
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   >
                     <Send className="w-4 h-4 inline-block mr-2" />
                     Reply
+                  </button>
+                  <button
+                    onClick={() => prepareForward(selectedMessage)}
+                    className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+                  >
+                    <Forward className="w-4 h-4 inline-block mr-2" />
+                    Forward
                   </button>
                 </div>
               </div>
@@ -343,7 +419,21 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
       {/* Compose View */}
       {view === 'compose' && (
         <div className="flex-1 bg-gray-900 p-6 overflow-y-auto">
-          <h2 className="text-xl font-bold text-gray-100 mb-6">Compose Message</h2>
+          <h2 className="text-xl font-bold text-gray-100 mb-6">
+            {isForwarding ? 'Forward Message' : 'Compose Message'}
+          </h2>
+
+          {isForwarding && (
+            <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-md">
+              <p className="text-sm text-blue-300">
+                <Forward className="w-4 h-4 inline-block mr-1" />
+                Forwarding message from <strong>{forwardingOriginalMessage?.from}</strong>
+              </p>
+              <p className="text-xs text-blue-400 mt-1">
+                You can add a note at the top of the message before the forwarded content.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-4 max-w-2xl">
             <div>
@@ -431,10 +521,14 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 disabled={loading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Sending...' : 'Send Message'}
+                {loading ? (isForwarding ? 'Forwarding...' : 'Sending...') : (isForwarding ? 'Forward Message' : 'Send Message')}
               </button>
               <button
-                onClick={() => setView('inbox')}
+                onClick={() => {
+                  setView('inbox')
+                  setIsForwarding(false)
+                  setForwardingOriginalMessage(null)
+                }}
                 className="px-6 py-2 bg-gray-700 text-gray-200 rounded-md hover:bg-gray-600 transition-colors"
               >
                 Cancel

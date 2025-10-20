@@ -21,6 +21,15 @@ export interface Message {
     }>
   }
   inReplyTo?: string
+  forwardedFrom?: {
+    originalMessageId: string
+    originalFrom: string
+    originalTo: string
+    originalTimestamp: string
+    forwardedBy: string
+    forwardedAt: string
+    forwardNote?: string
+  }
 }
 
 export interface MessageSummary {
@@ -130,6 +139,73 @@ export async function sendMessage(
   await fs.writeFile(sentPath, JSON.stringify(message, null, 2))
 
   return message
+}
+
+/**
+ * Forward a message to another session
+ */
+export async function forwardMessage(
+  originalMessageId: string,
+  fromSession: string,
+  toSession: string,
+  forwardNote?: string
+): Promise<Message> {
+  // Get the original message
+  const originalMessage = await getMessage(fromSession, originalMessageId)
+  if (!originalMessage) {
+    throw new Error(`Message ${originalMessageId} not found`)
+  }
+
+  await ensureMessageDirectories()
+  await ensureSessionDirectories(fromSession)
+  await ensureSessionDirectories(toSession)
+
+  // Build forwarded content
+  let forwardedContent = ''
+  if (forwardNote) {
+    forwardedContent += `${forwardNote}\n\n`
+  }
+  forwardedContent += `--- Forwarded Message ---\n`
+  forwardedContent += `From: ${originalMessage.from}\n`
+  forwardedContent += `To: ${originalMessage.to}\n`
+  forwardedContent += `Sent: ${new Date(originalMessage.timestamp).toLocaleString()}\n`
+  forwardedContent += `Subject: ${originalMessage.subject}\n\n`
+  forwardedContent += `${originalMessage.content.message}\n`
+  forwardedContent += `--- End of Forwarded Message ---`
+
+  // Create forwarded message
+  const forwardedMessage: Message = {
+    id: generateMessageId(),
+    from: fromSession,
+    to: toSession,
+    timestamp: new Date().toISOString(),
+    subject: `Fwd: ${originalMessage.subject}`,
+    priority: originalMessage.priority,
+    status: 'unread',
+    content: {
+      type: 'notification',
+      message: forwardedContent,
+    },
+    forwardedFrom: {
+      originalMessageId: originalMessage.id,
+      originalFrom: originalMessage.from,
+      originalTo: originalMessage.to,
+      originalTimestamp: originalMessage.timestamp,
+      forwardedBy: fromSession,
+      forwardedAt: new Date().toISOString(),
+      forwardNote,
+    },
+  }
+
+  // Write to recipient's inbox
+  const inboxPath = path.join(getInboxDir(toSession), `${forwardedMessage.id}.json`)
+  await fs.writeFile(inboxPath, JSON.stringify(forwardedMessage, null, 2))
+
+  // Write to sender's sent folder (mark as forwarded)
+  const sentPath = path.join(getSentDir(fromSession), `fwd_${forwardedMessage.id}.json`)
+  await fs.writeFile(sentPath, JSON.stringify(forwardedMessage, null, 2))
+
+  return forwardedMessage
 }
 
 /**

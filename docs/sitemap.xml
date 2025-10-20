@@ -2,23 +2,23 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
-    <loc>https://aimaestro.app/</loc>
+    <loc>https://ai-maestro.23blocks.com/</loc>
     <lastmod>2025-01-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://aimaestro.app/images/aiteam-web.png</image:loc>
+      <image:loc>https://ai-maestro.23blocks.com/images/aiteam-web.png</image:loc>
       <image:caption>AI Maestro dashboard orchestrating multiple AI coding agents</image:caption>
     </image:image>
   </url>
   <url>
-    <loc>https://aimaestro.app/messaging.html</loc>
+    <loc>https://ai-maestro.23blocks.com/messaging.html</loc>
     <lastmod>2025-01-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://aimaestro.app/mobile.html</loc>
+    <loc>https://ai-maestro.23blocks.com/mobile.html</loc>
     <lastmod>2025-01-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

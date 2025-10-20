@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile & Remote Access - AI Maestro</title>
-    <meta name="description" content="Access your AI coding agents from anywhere. Monitor and control Claude Code, Aider, and Cursor from your phone or tablet with secure Tailscale connectivity.">
+    <title>Mobile AI Agent Dashboard: Monitor Claude Code Remotely</title>
+    <meta name="description" content="Mobile AI agent dashboard for Claude Code, Aider, Cursor. Secure remote access to autonomous agents from phone or tablet. Future of work: code from anywhere.">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -22,6 +22,96 @@
     <meta name="twitter:description" content="Access your AI coding agents from anywhere.">
     <meta name="twitter:image" content="https://aimaestro.app/og-image.png">
     <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="mobile AI agent dashboard, remote AI coding, Claude Code mobile, AI agents remote access, future of work remote, monitor AI agents phone, autonomous agents mobile, AI coding from anywhere, Tailscale AI dashboard, mobile developer tools">
+    <link rel="canonical" href="https://aimaestro.app/mobile.html">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "MobileApplication",
+      "name": "AI Maestro Mobile",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "iOS 12.0+, Android 8.0+, Browser-based",
+      "description": "Mobile dashboard for monitoring and controlling AI coding agents like Claude Code, Aider, and Cursor from phones and tablets with secure remote access",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Touch-optimized interface for AI agent monitoring",
+        "Secure Tailscale VPN connectivity",
+        "Real-time terminal output streaming",
+        "Session notes editing on mobile",
+        "Auto-collapsing sidebar for small screens",
+        "Read-only terminal for safety",
+        "Works on iOS Safari, Chrome, Firefox"
+      ],
+      "screenshot": [
+        "https://aimaestro.app/images/aimaestro-mobile.png",
+        "https://aimaestro.app/images/aimaestro-sidebar.png"
+      ],
+      "url": "https://aimaestro.app/mobile.html",
+      "isPartOf": {
+        "@type": "SoftwareApplication",
+        "name": "AI Maestro",
+        "url": "https://aimaestro.app"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Access AI Agents from Mobile Device",
+      "description": "Set up secure remote access to AI Maestro dashboard from phone or tablet",
+      "totalTime": "PT5M",
+      "tool": [{
+        "@type": "HowToTool",
+        "name": "Tailscale VPN"
+      },{
+        "@type": "HowToTool",
+        "name": "Mobile Browser (Safari, Chrome, Firefox)"
+      }],
+      "supply": [{
+        "@type": "HowToSupply",
+        "name": "Development machine with AI Maestro installed"
+      },{
+        "@type": "HowToSupply",
+        "name": "Mobile device (iOS or Android)"
+      }],
+      "step": [{
+        "@type": "HowToStep",
+        "position": 1,
+        "name": "Install Tailscale on Development Machine",
+        "text": "Run: brew install tailscale (macOS) or curl -fsSL https://tailscale.com/install.sh | sh (Linux)"
+      },{
+        "@type": "HowToStep",
+        "position": 2,
+        "name": "Install Tailscale Mobile App",
+        "text": "Download from App Store (iOS) or Google Play (Android)"
+      },{
+        "@type": "HowToStep",
+        "position": 3,
+        "name": "Sign In to Same Tailscale Account",
+        "text": "Use same account (Google, Microsoft, or GitHub) on both devices"
+      },{
+        "@type": "HowToStep",
+        "position": 4,
+        "name": "Start AI Maestro Server",
+        "text": "Run: cd ai-maestro && yarn dev (starts on port 23000)"
+      },{
+        "@type": "HowToStep",
+        "position": 5,
+        "name": "Access from Mobile Browser",
+        "text": "Navigate to http://YOUR-MACHINE-NAME:23000 from mobile browser"
+      }]
+    }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

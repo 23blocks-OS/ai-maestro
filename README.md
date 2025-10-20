@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.4.2-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -66,6 +66,7 @@ Works with **any** terminal-based AI:
   - Formatted output (for critical alerts)
 - **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./messaging_scripts))
   - [`send-aimaestro-message.sh`](./messaging_scripts/send-aimaestro-message.sh) - Send structured messages
+  - [`forward-aimaestro-message.sh`](./messaging_scripts/forward-aimaestro-message.sh) - Forward messages between sessions
   - [`check-and-show-messages.sh`](./messaging_scripts/check-and-show-messages.sh) - Display inbox
   - [`check-new-messages-arrived.sh`](./messaging_scripts/check-new-messages-arrived.sh) - Quick unread count
   - [`send-tmux-message.sh`](./messaging_scripts/send-tmux-message.sh) - Instant notifications
@@ -310,11 +311,16 @@ send-aimaestro-message.sh frontend-dev \
   "Endpoint implemented at routes/users.ts:45. Returns paginated user list. Supports ?page=1&limit=20" \
   normal \
   response
+
+# Forward messages between agents with context
+forward-aimaestro-message.sh latest frontend-dev qa-tester \
+  "QA: Please verify this API endpoint"
 ```
 
 **Features:**
 - **Priorities**: `urgent` | `high` | `normal` | `low`
 - **Types**: `request` | `response` | `notification` | `update`
+- **Forwarding**: Pass messages between agents with notes and metadata preservation
 - **Inbox**: Each agent has their own inbox (Messages tab in UI)
 - **Persistent**: Messages saved to `~/.aimaestro/messages/inbox/`
 - **Searchable**: Filter by priority, type, sender, or content
@@ -369,12 +375,13 @@ Every agent session can use the messaging system automatically via a **Claude Co
 ```bash
 # In any agent session, just say:
 > "Send a message to backend-architect asking them to implement POST /api/users"
+> "Forward the last message to qa-tester with a note to verify the implementation"
 
 # Claude automatically:
-# 1. Recognizes the messaging intent
+# 1. Recognizes the messaging/forwarding intent
 # 2. Chooses appropriate method (file-based)
-# 3. Sends message to backend-architect's inbox
-# 4. Confirms delivery
+# 3. Sends or forwards message to the target agent's inbox
+# 4. Confirms delivery with metadata
 ```
 
 **No manual scripting needed** - agents understand natural language messaging commands.
@@ -389,6 +396,7 @@ Each session has a **Messages tab** with:
 - 📥 **Inbox** - See all messages sent to this agent
 - 📤 **Sent** - Track what you've sent to other agents
 - ✍️ **Compose** - Send new messages with priority/type selection
+- ↗️ **Forward** - Forward received messages to other agents with notes
 - 🔔 **Unread count** - Never miss important messages
 
 ### Get Started in 2 Minutes

@@ -1,0 +1,37 @@
+{
+  "name": "AI Maestro",
+  "short_name": "AI Maestro",
+  "description": "Orchestrate your AI coding agents in a unified dashboard. Manage multiple Claude Code sessions with real-time terminal streaming and agent-to-agent communication.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "development",
+    "productivity",
+    "utilities"
+  ],
+  "screenshots": [
+    {
+      "src": "images/aiteam-web.png",
+      "sizes": "2880x1800",
+      "type": "image/png",
+      "label": "AI Maestro dashboard orchestrating multiple AI coding agents"
+    }
+  ]
+}

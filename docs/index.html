@@ -12,13 +12,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Maestro - Orchestrate Your AI Coding Agents</title>
-    <meta name="description" content="Autonomous AI agent orchestration dashboard. Manage Claude Code, Aider, Cursor with agent-to-agent communication. Future of work with multi-agent systems.">
+    <meta name="description" content="Autonomous AI agent orchestration dashboard for macOS, Windows (WSL2), and Linux. Manage Claude Code, Aider, Cursor with agent-to-agent communication. Future of work with multi-agent systems.">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://ai-maestro.23blocks.com/">
     <meta property="og:title" content="AI Maestro - Orchestrate Your AI Coding Agents">
-    <meta property="og:description" content="Stop juggling terminal windows. Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, Copilot) from one beautiful dashboard.">
+    <meta property="og:description" content="Stop juggling terminal windows. Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, Copilot) from one beautiful dashboard. Works on macOS, Windows (WSL2), and Linux.">
     <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -30,13 +30,13 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://ai-maestro.23blocks.com/">
     <meta name="twitter:title" content="AI Maestro - Orchestrate Your AI Coding Agents">
-    <meta name="twitter:description" content="Stop juggling terminal windows. Orchestrate multiple AI coding agents from one beautiful dashboard.">
+    <meta name="twitter:description" content="Stop juggling terminal windows. Orchestrate multiple AI coding agents from one beautiful dashboard. Works on macOS, Windows (WSL2), and Linux.">
     <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
     <meta name="twitter:creator" content="@jkpelaez">
 
     <!-- Additional SEO -->
     <meta name="author" content="Juan Peláez">
-    <meta name="keywords" content="AI agent orchestration, Claude Code dashboard, autonomous agents, AI agents communication, multi-agent systems, AI pair programming, terminal dashboard AI, Claude skills, agent-to-agent messaging, future of work AI, tmux AI dashboard, AI coding assistant, AI development tools, Claude Code skills, AI agent collaboration, intelligent coding agents">
+    <meta name="keywords" content="AI agent orchestration, Claude Code dashboard, autonomous agents, AI agents communication, multi-agent systems, AI pair programming, terminal dashboard AI, Claude skills, agent-to-agent messaging, future of work AI, tmux AI dashboard, AI coding assistant, AI development tools, Claude Code skills, AI agent collaboration, intelligent coding agents, Windows WSL2 AI, Linux AI tools, cross-platform AI">
     <link rel="canonical" href="https://ai-maestro.23blocks.com/">
 
     <!-- Favicon & Icons -->
@@ -70,7 +70,7 @@
       "name": "AI Maestro",
       "alternateName": "Claude Code Dashboard",
       "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "macOS 12.0+",
+      "operatingSystem": "macOS 12.0+, Windows 10/11 (WSL2), Linux",
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -342,8 +342,8 @@
                     <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
-                    <img src="https://img.shields.io/badge/version-0.4.2-blue" alt="Version">
-                    <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform">
+                    <img src="https://img.shields.io/badge/version-0.4.3-blue" alt="Version">
+                    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)%20%7C%20Linux-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
                 </div>
             </div>
@@ -433,11 +433,26 @@
                 <div class="bg-white p-8 rounded-2xl border border-gray-200">
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">1</div>
                     <h3 class="text-2xl mb-4 font-semibold">Install</h3>
+                    <p class="leading-relaxed mb-4"><strong>macOS / Linux:</strong></p>
                     <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code class="font-mono text-sm">git clone https://github.com/23blocks-OS/ai-maestro.git
 cd ai-maestro
 yarn install
 yarn dev</code></pre>
-                    <p class="leading-relaxed">Dashboard opens at <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">http://localhost:3000</code></p>
+                    <p class="leading-relaxed mb-4"><strong>Windows (WSL2):</strong></p>
+                    <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code class="font-mono text-sm"># 1. Install WSL2 (PowerShell as Administrator)
+wsl --install
+
+# 2. Restart Windows, then in Ubuntu terminal:
+git clone https://github.com/23blocks-OS/ai-maestro.git
+cd ai-maestro
+yarn install
+yarn dev
+
+# 3. Access from Windows browser:</code></pre>
+                    <p class="leading-relaxed">Dashboard opens at <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">http://localhost:23000</code></p>
+                    <div class="bg-blue-50 border-l-4 border-primary p-4 mt-4 rounded">
+                        🪟 <strong>Windows Users:</strong> See our <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md" class="text-primary hover:underline font-semibold" target="_blank">complete Windows installation guide</a> for detailed setup instructions.
+                    </div>
                 </div>
                 <div class="bg-white p-8 rounded-2xl border border-gray-200">
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">2</div>

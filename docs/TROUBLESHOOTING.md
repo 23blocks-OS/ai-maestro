@@ -728,12 +728,415 @@ mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
 
 ---
 
+## Windows (WSL2) Specific Issues
+
+### Issue: Can't Access http://localhost:23000 from Windows Browser
+
+**Symptoms**:
+- AI Maestro is running in WSL2
+- Terminal shows "Ready on http://0.0.0.0:23000"
+- Windows browser can't connect to localhost:23000
+
+**Causes & Solutions**:
+
+**1. Windows Firewall Blocking WSL2**
+
+```powershell
+# In PowerShell as Administrator
+New-NetFirewallRule -DisplayName "WSL2 AI Maestro" -Direction Inbound -LocalPort 23000 -Protocol TCP -Action Allow
+```
+
+**2. Try Using WSL2 IP Directly**
+
+```bash
+# In WSL2 terminal, get your IP
+ip addr show eth0 | grep inet | awk '{print $2}' | cut -d/ -f1
+# Example output: 172.20.10.5
+
+# Then in Windows browser, use:
+http://172.20.10.5:23000
+```
+
+**3. Ensure AI Maestro Binds to 0.0.0.0**
+
+Check `server.mjs` line 11:
+```javascript
+const hostname = process.env.HOSTNAME || '0.0.0.0'
+```
+
+If you've set `HOSTNAME=localhost` in `.env.local`, change it to `0.0.0.0` for Windows access.
+
+---
+
+### Issue: WSL2 IP Address Changes After Restart
+
+**Symptoms**:
+- After restarting Windows, the WSL2 IP changes
+- Saved bookmarks/URLs stop working
+
+**Solution**:
+
+**Option 1: Always Use localhost (Recommended)**
+```
+http://localhost:23000
+```
+This works automatically with WSL2's port forwarding.
+
+**Option 2: Use Tailscale for Stable IPs**
+
+See the main README's [Mobile Access section](../README.md#-access-from-mobile-devices) for Tailscale setup.
+
+**Option 3: Create a Helper Script**
+
+```bash
+# In WSL2: ~/get-maestro-url.sh
+#!/bin/bash
+IP=$(ip addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+echo "AI Maestro: http://$IP:23000"
+```
+
+---
+
+### Issue: tmux Sessions Lost After Restarting Windows
+
+**Symptoms**:
+- All tmux sessions disappear after Windows restart
+- AI Maestro shows "No sessions found"
+
+**Cause**: WSL2 VM completely shuts down when Windows restarts. tmux sessions don't persist across VM restarts.
+
+**This is expected behavior** - tmux sessions are in-memory only.
+
+**Solutions**:
+
+**1. Keep WSL2 Running** (Prevents shutdown)
+```powershell
+# In PowerShell, keep WSL2 alive
+wsl --exec tail -f /dev/null
+```
+
+**2. Use pm2 to Auto-Restart AI Maestro**
+```bash
+# In WSL2
+npm install -g pm2
+cd ~/ai-maestro
+pm2 start yarn --name "ai-maestro" -- dev
+pm2 save
+pm2 startup
+```
+
+**3. Accept the Workflow**: Create sessions as needed after restart. Use meaningful session names with hyphens for organization.
+
+---
+
+### Issue: Git SSH Keys Don't Work in tmux Sessions
+
+**Symptoms**:
+```
+Permission denied (publickey)
+git@github.com: Permission denied (publickey)
+```
+
+**Solution**: Configure SSH agent for tmux (already in Windows Installation Guide)
+
+```bash
+# Add to ~/.tmux.conf
+cat << 'EOF' >> ~/.tmux.conf
+
+# SSH Agent Configuration - AI Maestro
+set-option -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock
+EOF
+
+# Add to ~/.bashrc (or ~/.zshrc)
+cat << 'EOF' >> ~/.bashrc
+
+# SSH Agent for tmux - AI Maestro
+if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+    mkdir -p ~/.ssh
+    ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+fi
+EOF
+
+# Apply
+source ~/.bashrc
+mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock
+tmux source-file ~/.tmux.conf
+
+# Test
+ssh -T git@github.com
+```
+
+---
+
+### Issue: Slow File System Performance
+
+**Symptoms**:
+- `yarn install` takes forever
+- AI Maestro is sluggish
+- tmux sessions lag
+
+**Cause**: Working on Windows drives (`/mnt/c/`) instead of WSL2's native file system.
+
+**Solution**: Always work in WSL2's home directory
+
+```bash
+# ❌ SLOW - Cross-boundary access
+cd /mnt/c/Users/YourName/projects/ai-maestro
+
+# ✅ FAST - Native WSL2 file system
+cd ~/ai-maestro
+```
+
+**Move your project:**
+```bash
+# Copy from Windows to WSL2
+cp -r /mnt/c/Users/YourName/projects/ai-maestro ~/ai-maestro
+
+# Or clone fresh in WSL2
+cd ~
+git clone https://github.com/23blocks-OS/ai-maestro.git
+```
+
+**Performance difference**: 5-10x faster on native WSL2 file system!
+
+---
+
+### Issue: High Memory Usage from WSL2
+
+**Symptoms**:
+- WSL2 consuming 4-8GB of RAM
+- Windows slows down
+
+**Solution**: Limit WSL2 memory usage
+
+Create `C:\Users\YourUsername\.wslconfig`:
+
+```ini
+[wsl2]
+memory=4GB           # Limit to 4GB (adjust based on your RAM)
+processors=2         # Limit CPU cores
+swap=2GB
+localhostForwarding=true
+```
+
+Restart WSL2:
+```powershell
+wsl --shutdown
+wsl
+```
+
+---
+
+### Issue: "wsl --install" Command Not Found
+
+**Symptoms**:
+```
+'wsl' is not recognized as an internal or external command
+```
+
+**Cause**: Running an older version of Windows 10.
+
+**Solution**:
+
+**1. Update Windows**
+- Settings > Update & Security > Windows Update
+- Install all available updates
+- Requires Windows 10 version 2004 (Build 19041) or later
+
+**2. Manual Installation**
+
+Follow Microsoft's guide:
+[https://docs.microsoft.com/en-us/windows/wsl/install-manual](https://docs.microsoft.com/en-us/windows/wsl/install-manual)
+
+---
+
+### Issue: WSL2 Running as WSL1
+
+**Symptoms**:
+```bash
+wsl --list --verbose
+# Shows VERSION 1 instead of 2
+```
+
+**Solution**:
+
+```powershell
+# In PowerShell as Administrator
+wsl --set-default-version 2
+wsl --set-version Ubuntu 2
+
+# Verify
+wsl --list --verbose
+# Should show VERSION 2
+```
+
+---
+
+### Issue: Port 23000 Already in Use in WSL2
+
+**Symptoms**:
+```
+Error: listen EADDRINUSE: address already in use :::23000
+```
+
+**Solution**:
+
+```bash
+# Find what's using port 23000
+lsof -i :23000
+
+# Kill the process
+kill -9 <PID>
+
+# Or use a different port
+PORT=3000 yarn dev
+```
+
+---
+
+### Issue: Can't Copy/Paste Between Windows and WSL2
+
+**Symptoms**:
+- Can't paste into WSL2 terminal
+- Can't copy from WSL2 terminal
+
+**Solution**:
+
+**Use Windows Terminal** (not cmd.exe or PowerShell):
+
+```powershell
+# Install Windows Terminal
+winget install Microsoft.WindowsTerminal
+```
+
+Windows Terminal has native WSL2 clipboard integration:
+- **Copy**: Select text (auto-copies)
+- **Paste**: Right-click or Ctrl+Shift+V
+
+**Command-line clipboard access**:
+
+```bash
+# Copy from WSL2 to Windows clipboard
+echo "Hello" | clip.exe
+
+# Paste from Windows clipboard to WSL2
+powershell.exe Get-Clipboard
+```
+
+---
+
+### Issue: VS Code Can't Connect to WSL2
+
+**Symptoms**:
+- "Could not establish connection to WSL"
+- "WSL connection timed out"
+
+**Solution**:
+
+**1. Install WSL Extension**
+- Open VS Code on Windows
+- Install "Remote - WSL" extension by Microsoft
+
+**2. Connect from VS Code**
+```
+Ctrl+Shift+P > "WSL: Connect to WSL"
+```
+
+**3. Or Open from WSL2 Terminal**
+```bash
+cd ~/ai-maestro
+code .
+```
+
+---
+
+### Issue: Windows Defender Scanning Slows WSL2
+
+**Symptoms**:
+- File operations are slow
+- CPU spikes during `yarn install`
+- High disk usage from "Antimalware Service Executable"
+
+**Solution**: Exclude WSL2 from Windows Defender scanning
+
+**⚠️ Warning**: Only do this if you trust all code in your WSL2 environment.
+
+**Steps**:
+
+1. Open Windows Security
+2. Virus & threat protection > Manage settings
+3. Exclusions > Add an exclusion
+4. Add folder: `%USERPROFILE%\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu_*\LocalState\ext4.vhdx`
+
+**Alternate approach** (exclude specific directory):
+```bash
+# In WSL2
+pwd
+# Copy the path
+
+# In Windows, add exclusion for:
+\\wsl$\Ubuntu\home\your-username\ai-maestro
+```
+
+---
+
+### Issue: WSL2 Network Issues After VPN Connect
+
+**Symptoms**:
+- Can't access internet from WSL2 after connecting to VPN
+- DNS resolution fails
+
+**Solution**:
+
+**1. Restart WSL2 Networking**
+```powershell
+# In PowerShell as Administrator
+wsl --shutdown
+wsl
+```
+
+**2. Fix DNS Resolution**
+```bash
+# In WSL2, create /etc/wsl.conf
+sudo tee /etc/wsl.conf > /dev/null <<EOF
+[network]
+generateResolvConf = false
+EOF
+
+# Set custom DNS
+sudo rm /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf > /dev/null
+
+# Restart WSL2
+wsl --shutdown
+wsl
+```
+
+---
+
+## More Help for Windows Users
+
+See the comprehensive [Windows Installation Guide](./WINDOWS-INSTALLATION.md) for:
+- Complete WSL2 setup instructions
+- Performance optimization tips
+- File system best practices
+- SSH configuration
+- Auto-start configuration
+- And much more
+
+---
+
 ## Still Having Issues?
 
 Open an issue with:
 - Description of the problem
 - Steps to reproduce
 - Error messages (server and browser console)
-- Your environment: macOS version, Node.js version, tmux version
+- Your environment:
+  - **macOS**: macOS version, Node.js version, tmux version
+  - **Windows**: Windows version, WSL version (`wsl --list --verbose`), Node.js version, tmux version
+  - **Linux**: Distribution, Node.js version, tmux version
 
 [Report Issue on GitHub](https://github.com/23blocks-OS/ai-maestro/issues)

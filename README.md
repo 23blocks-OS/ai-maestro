@@ -7,7 +7,7 @@
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
 [![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
 
@@ -91,13 +91,29 @@ Works with **any** terminal-based AI:
 
 ## 🚀 Quick Start
 
+> **Windows Users:** See [Windows Installation Guide](./docs/WINDOWS-INSTALLATION.md) for WSL2 setup (5-10 minutes)
+
 ### Zero to Hero (Easiest - for new users)
 
-**One command installs everything:**
+**macOS/Linux - One command installs everything:**
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
 ```
+
+**Windows - Install via WSL2:**
+
+```powershell
+# 1. Install WSL2 (PowerShell as Administrator)
+wsl --install
+
+# 2. Restart Windows, then in Ubuntu terminal:
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
+
+# 3. Access from Windows browser: http://localhost:23000
+```
+
+**Full Windows guide:** [docs/WINDOWS-INSTALLATION.md](./docs/WINDOWS-INSTALLATION.md)
 
 This installs:
 - ✅ Homebrew (if needed)
@@ -509,7 +525,21 @@ Think of it as tmux + organization + notes + visual hierarchy. You still have fu
 
 ## 📋 Requirements
 
+### macOS
 - **macOS 12.0+** (Monterey or later)
+- **Node.js 18.17+**
+- **tmux 3.0+**
+- **Your favorite AI agent** (Claude, Aider, Cursor, Copilot, etc.)
+
+### Windows
+- **Windows 10 version 2004+** or **Windows 11**
+- **WSL2 (Windows Subsystem for Linux)** - [Installation Guide](./docs/WINDOWS-INSTALLATION.md)
+- **Node.js 18.17+** (installed in WSL2)
+- **tmux 3.0+** (installed in WSL2)
+- **Your favorite AI agent** (Claude, Aider, Cursor, Copilot, etc.)
+
+### Linux
+- **Ubuntu 20.04+** / **Debian 11+** / **Fedora 35+** or equivalent
 - **Node.js 18.17+**
 - **tmux 3.0+**
 - **Your favorite AI agent** (Claude, Aider, Cursor, Copilot, etc.)
@@ -531,6 +561,7 @@ Built with modern, battle-tested tools:
 ## 📚 Documentation
 
 ### General
+- **[Windows Installation](./docs/WINDOWS-INSTALLATION.md)** - Complete WSL2 setup guide for Windows users
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions for common issues
   - **🔥 Most Common Issue:** [Services not running after restart](./docs/OPERATIONS-GUIDE.md#services-not-running-after-restart-most-common) - Socket errors? Read this first!

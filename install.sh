@@ -61,17 +61,59 @@ print_header() {
     echo ""
 }
 
-# Detect OS
+# Detect OS and WSL
 detect_os() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Check if running in WSL
+    if grep -qi microsoft /proc/version 2>/dev/null || grep -qi wsl /proc/version 2>/dev/null; then
+        OS="wsl"
+        WSL_VERSION=$(grep -oP 'WSL\K[0-9]+' /proc/version 2>/dev/null || echo "2")
+        print_success "Detected: WSL${WSL_VERSION} (Windows Subsystem for Linux)"
+
+        # Check if WSL2
+        if [ "$WSL_VERSION" = "1" ]; then
+            print_warning "You're running WSL1. WSL2 is recommended for better performance."
+            echo ""
+            echo "  To upgrade to WSL2:"
+            echo "    1. Open PowerShell as Administrator on Windows"
+            echo "    2. Run: wsl --set-version Ubuntu 2"
+            echo ""
+            read -p "Continue with WSL1? (y/n): " CONTINUE_WSL1
+            if [[ ! "$CONTINUE_WSL1" =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+
+        # Detect Linux distribution in WSL
+        if [ -f /etc/os-release ]; then
+            DISTRO=$(grep ^ID= /etc/os-release | cut -d'=' -f2 | tr -d '"')
+            print_info "WSL Distribution: $DISTRO"
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
         OS="macos"
         print_success "Detected: macOS"
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         OS="linux"
-        print_warning "Detected: Linux (partial support - macOS recommended)"
+        print_success "Detected: Linux"
+
+        # Detect distribution
+        if [ -f /etc/os-release ]; then
+            DISTRO=$(grep ^ID= /etc/os-release | cut -d'=' -f2 | tr -d '"')
+            DISTRO_NAME=$(grep ^NAME= /etc/os-release | cut -d'=' -f2 | tr -d '"')
+            print_info "Distribution: $DISTRO_NAME"
+        fi
     else
         print_error "Unsupported OS: $OSTYPE"
-        echo "AI Maestro currently supports macOS. Linux support is experimental."
+        echo ""
+        echo "AI Maestro supports:"
+        echo "  • macOS 12.0+ (Monterey or later)"
+        echo "  • Linux (Ubuntu, Debian, Fedora, etc.)"
+        echo "  • Windows via WSL2 (Windows Subsystem for Linux)"
+        echo ""
+        echo "For Windows users:"
+        echo "  1. Install WSL2: wsl --install (in PowerShell as Admin)"
+        echo "  2. Restart Windows"
+        echo "  3. Run this installer in Ubuntu"
+        echo "  See: https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md"
         exit 1
     fi
 }
@@ -269,6 +311,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_step "Installing Git..."
         if [ "$OS" = "macos" ]; then
             brew install git
+        elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            sudo apt-get update
+            sudo apt-get install -y git
         fi
         print_success "Git installed"
     fi
@@ -280,6 +325,21 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install node@20
             brew link node@20
+        elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            print_info "Installing Node.js via nvm (Node Version Manager)..."
+            # Check if nvm is already installed
+            if [ ! -d "$HOME/.nvm" ]; then
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+                # Load nvm for current session
+                export NVM_DIR="$HOME/.nvm"
+                [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            else
+                export NVM_DIR="$HOME/.nvm"
+                [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            fi
+            nvm install 20
+            nvm use 20
+            nvm alias default 20
         fi
         print_success "Node.js installed"
     fi
@@ -298,6 +358,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_step "Installing tmux..."
         if [ "$OS" = "macos" ]; then
             brew install tmux
+        elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
         fi
         print_success "tmux installed"
     fi
@@ -308,6 +371,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_step "Installing jq..."
         if [ "$OS" = "macos" ]; then
             brew install jq
+        elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            sudo apt-get update
+            sudo apt-get install -y jq
         fi
         print_success "jq installed"
     fi
@@ -492,7 +558,18 @@ if [ -n "$INSTALL_DIR" ]; then
     echo "   cd $INSTALL_DIR"
     echo "   yarn dev"
     echo ""
-    echo "   Dashboard opens at: http://localhost:23000"
+
+    if [ "$OS" = "wsl" ]; then
+        echo "   Dashboard opens at: http://localhost:23000"
+        echo ""
+        print_info "Access from Windows browser:"
+        echo "   • Open any browser on Windows"
+        echo "   • Navigate to: http://localhost:23000"
+        echo "   • Or use your machine name: http://$(hostname):23000"
+    else
+        echo "   Dashboard opens at: http://localhost:23000"
+    fi
+
     echo ""
     echo "2️⃣  Create your first agent session:"
     echo ""
@@ -504,11 +581,23 @@ if [ -n "$INSTALL_DIR" ]; then
     echo "3️⃣  Read the docs:"
     echo ""
     echo "   • README: $INSTALL_DIR/README.md"
+    if [ "$OS" = "wsl" ]; then
+        echo "   • Windows Guide: $INSTALL_DIR/docs/WINDOWS-INSTALLATION.md"
+    fi
     echo "   • Online: https://github.com/23blocks-OS/ai-maestro"
     echo ""
 
     if [ "$NEED_HOMEBREW" = true ] || [ "$NEED_NODE" = true ]; then
         print_warning "Restart your terminal to complete the installation"
+    fi
+
+    if [ "$OS" = "wsl" ]; then
+        echo ""
+        print_info "WSL2 Tips:"
+        echo "  • Access Windows files: /mnt/c/Users/YourUsername"
+        echo "  • Keep projects in WSL for better performance: ~/projects"
+        echo "  • tmux sessions persist until WSL2 shuts down"
+        echo "  • Full guide: $INSTALL_DIR/docs/WINDOWS-INSTALLATION.md"
     fi
 else
     echo "Prerequisites installed!"

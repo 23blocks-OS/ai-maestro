@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   sendMessage,
   listInboxMessages,
+  listSentMessages,
+  getSentCount,
   getMessage,
   markMessageAsRead,
   archiveMessage,
@@ -12,7 +14,7 @@ import {
 } from '@/lib/messageQueue'
 
 /**
- * GET /api/messages?session=<sessionName>&status=<status>&from=<from>
+ * GET /api/messages?session=<sessionName>&status=<status>&from=<from>&box=<inbox|sent>
  * List messages for a session
  */
 export async function GET(request: NextRequest) {
@@ -20,19 +22,26 @@ export async function GET(request: NextRequest) {
   const sessionName = searchParams.get('session')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
+  const box = searchParams.get('box') || 'inbox' // 'inbox' or 'sent'
 
   // Get specific message
   if (sessionName && messageId) {
-    const message = await getMessage(sessionName, messageId)
+    const message = await getMessage(sessionName, messageId, box as 'inbox' | 'sent')
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
     }
     return NextResponse.json(message)
   }
 
-  // Get unread count
+  // Get unread count (inbox only)
   if (action === 'unread-count' && sessionName) {
     const count = await getUnreadCount(sessionName)
+    return NextResponse.json({ count })
+  }
+
+  // Get sent count
+  if (action === 'sent-count' && sessionName) {
+    const count = await getSentCount(sessionName)
     return NextResponse.json({ count })
   }
 
@@ -53,6 +62,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Session name required' }, { status: 400 })
   }
 
+  // List sent messages
+  if (box === 'sent') {
+    const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
+    const to = searchParams.get('to') || undefined
+
+    const messages = await listSentMessages(sessionName, { priority, to })
+    return NextResponse.json({ messages })
+  }
+
+  // List inbox messages (default)
   const status = searchParams.get('status') as 'unread' | 'read' | 'archived' | undefined
   const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
   const from = searchParams.get('from') || undefined

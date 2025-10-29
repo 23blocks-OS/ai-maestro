@@ -267,6 +267,70 @@ export async function listInboxMessages(
 }
 
 /**
+ * List messages in a session's sent folder (outbox)
+ */
+export async function listSentMessages(
+  sessionName: string,
+  filter?: {
+    priority?: Message['priority']
+    to?: string
+  }
+): Promise<MessageSummary[]> {
+  await ensureSessionDirectories(sessionName)
+  const sentDir = getSentDir(sessionName)
+
+  let files: string[]
+  try {
+    files = await fs.readdir(sentDir)
+  } catch (error) {
+    return []
+  }
+
+  const messages: MessageSummary[] = []
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue
+
+    const filePath = path.join(sentDir, file)
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const message: Message = JSON.parse(content)
+
+      // Apply filters
+      if (filter?.priority && message.priority !== filter.priority) continue
+      if (filter?.to && message.to !== filter.to) continue
+
+      messages.push({
+        id: message.id,
+        from: message.from,
+        to: message.to,
+        timestamp: message.timestamp,
+        subject: message.subject,
+        priority: message.priority,
+        status: message.status,
+        type: message.content.type,
+        preview: message.content.message.substring(0, 100),
+      })
+    } catch (error) {
+      console.error(`Error reading sent message file ${file}:`, error)
+    }
+  }
+
+  // Sort by timestamp (newest first)
+  messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  return messages
+}
+
+/**
+ * Get sent message count for a session
+ */
+export async function getSentCount(sessionName: string): Promise<number> {
+  const messages = await listSentMessages(sessionName)
+  return messages.length
+}
+
+/**
  * Get a specific message by ID
  */
 export async function getMessage(sessionName: string, messageId: string): Promise<Message | null> {

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   // Get specific message
   if (sessionName && messageId) {
-    const message = await getMessage(sessionName, messageId)
+    const message = await getMessage(sessionName, messageId, box as 'inbox' | 'sent')
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
     }

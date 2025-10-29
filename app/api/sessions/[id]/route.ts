@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { unpersistSession } from '@/lib/session-persistence'
 
 const execAsync = promisify(exec)
 
@@ -22,6 +23,9 @@ export async function DELETE(
 
     // Kill the tmux session
     await execAsync(`tmux kill-session -t "${sessionName}"`)
+
+    // Remove from persistence
+    unpersistSession(sessionName)
 
     return NextResponse.json({ success: true, name: sessionName })
   } catch (error) {

@@ -20,6 +20,7 @@ import {
   Zap,
   Code2,
   Mail,
+  RotateCcw,
 } from 'lucide-react'
 
 interface SessionListProps {
@@ -143,10 +144,34 @@ export default function SessionList({
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [restorableCount, setRestorableCount] = useState(0)
+  const [showRestoreModal, setShowRestoreModal] = useState(false)
 
-  // State for accordion panels
-  const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(new Set())
-  const [expandedLevel2, setExpandedLevel2] = useState<Set<string>>(new Set())
+  // State for accordion panels - load from localStorage
+  const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    const saved = localStorage.getItem('sidebar-expanded-level1')
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved))
+      } catch (e) {
+        return new Set()
+      }
+    }
+    return new Set()
+  })
+  const [expandedLevel2, setExpandedLevel2] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    const saved = localStorage.getItem('sidebar-expanded-level2')
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved))
+      } catch (e) {
+        return new Set()
+      }
+    }
+    return new Set()
+  })
 
   // Group sessions by level1-level2-level3 naming convention
   const groupedSessions = useMemo(() => {
@@ -196,20 +221,47 @@ export default function SessionList({
     return groups
   }, [sessions])
 
-  // Initialize all panels as open on first render
+  // Initialize NEW panels as open (but preserve user's collapsed state)
   useEffect(() => {
-    const level1Keys = new Set(Object.keys(groupedSessions))
-    const level2Keys = new Set<string>()
-
-    Object.entries(groupedSessions).forEach(([level1, level2Groups]) => {
-      Object.keys(level2Groups).forEach((level2) => {
-        level2Keys.add(`${level1}-${level2}`)
+    setExpandedLevel1((prev) => {
+      const newExpanded = new Set(prev)
+      // Only add NEW level1 categories that don't exist yet
+      Object.keys(groupedSessions).forEach((level1) => {
+        if (!prev.has(level1)) {
+          newExpanded.add(level1)
+        }
       })
+      return newExpanded
     })
 
-    setExpandedLevel1(level1Keys)
-    setExpandedLevel2(level2Keys)
+    setExpandedLevel2((prev) => {
+      const newExpanded = new Set(prev)
+      // Only add NEW level2 categories that don't exist yet
+      Object.entries(groupedSessions).forEach(([level1, level2Groups]) => {
+        Object.keys(level2Groups).forEach((level2) => {
+          const key = `${level1}-${level2}`
+          if (!prev.has(key)) {
+            newExpanded.add(key)
+          }
+        })
+      })
+      return newExpanded
+    })
   }, [groupedSessions])
+
+  // Save expandedLevel1 to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-expanded-level1', JSON.stringify(Array.from(expandedLevel1)))
+    }
+  }, [expandedLevel1])
+
+  // Save expandedLevel2 to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-expanded-level2', JSON.stringify(Array.from(expandedLevel2)))
+    }
+  }, [expandedLevel2])
 
   // Fetch unread message counts for all sessions
   useEffect(() => {
@@ -235,6 +287,25 @@ export default function SessionList({
 
     // Refresh every 10 seconds
     const interval = setInterval(fetchUnreadCounts, 10000)
+    return () => clearInterval(interval)
+  }, [sessions])
+
+  // Fetch restorable sessions count
+  useEffect(() => {
+    const fetchRestorableCount = async () => {
+      try {
+        const response = await fetch('/api/sessions/restore')
+        const data = await response.json()
+        setRestorableCount(data.count || 0)
+      } catch (error) {
+        // Silently fail - restorable count is not critical
+      }
+    }
+
+    fetchRestorableCount()
+
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchRestorableCount, 30000)
     return () => clearInterval(interval)
   }, [sessions])
 
@@ -383,6 +454,19 @@ export default function SessionList({
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-100">AI Agents</h2>
           <div className="flex items-center gap-2">
+            {restorableCount > 0 && (
+              <button
+                onClick={() => setShowRestoreModal(true)}
+                className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-orange-400 hover:text-orange-300 hover:scale-110 relative"
+                aria-label="Restore sessions"
+                title={`Restore ${restorableCount} saved ${restorableCount === 1 ? 'session' : 'sessions'}`}
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {restorableCount}
+                </span>
+              </button>
+            )}
             <button
               onClick={() => setShowCreateModal(true)}
               className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110"
@@ -684,6 +768,20 @@ export default function SessionList({
           loading={actionLoading}
         />
       )}
+
+      {/* Restore Sessions Modal */}
+      {showRestoreModal && (
+        <RestoreSessionsModal
+          onClose={() => setShowRestoreModal(false)}
+          onRestore={(restored) => {
+            setShowRestoreModal(false)
+            setRestorableCount(0)
+            onRefresh?.()
+          }}
+          loading={actionLoading}
+          setLoading={setActionLoading}
+        />
+      )}
     </div>
   )
 }
@@ -898,6 +996,201 @@ function DeleteConfirmModal({
             {loading ? 'Deleting...' : 'Delete Session'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+interface PersistedSession {
+  id: string
+  name: string
+  workingDirectory: string
+  createdAt: string
+  lastSavedAt: string
+}
+
+function RestoreSessionsModal({
+  onClose,
+  onRestore,
+  loading,
+  setLoading,
+}: {
+  onClose: () => void
+  onRestore: (restored: number) => void
+  loading: boolean
+  setLoading: (loading: boolean) => void
+}) {
+  const [sessions, setSessions] = useState<PersistedSession[]>([])
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set())
+  const [fetchLoading, setFetchLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const response = await fetch('/api/sessions/restore')
+        const data = await response.json()
+        setSessions(data.sessions || [])
+        // Select all sessions by default
+        setSelectedSessions(new Set(data.sessions?.map((s: PersistedSession) => s.id) || []))
+      } catch (error) {
+        console.error('Failed to fetch restorable sessions:', error)
+      } finally {
+        setFetchLoading(false)
+      }
+    }
+
+    fetchSessions()
+  }, [])
+
+  const toggleSession = (sessionId: string) => {
+    setSelectedSessions((prev) => {
+      const next = new Set(prev)
+      if (next.has(sessionId)) {
+        next.delete(sessionId)
+      } else {
+        next.add(sessionId)
+      }
+      return next
+    })
+  }
+
+  const handleRestoreSelected = async () => {
+    if (selectedSessions.size === 0) return
+
+    setLoading(true)
+    try {
+      const restorePromises = Array.from(selectedSessions).map((sessionId) =>
+        fetch('/api/sessions/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+      )
+
+      await Promise.all(restorePromises)
+      onRestore(selectedSessions.size)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to restore sessions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRestoreAll = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/sessions/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to restore all sessions')
+      }
+
+      onRestore(sessions.length)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to restore sessions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-2xl shadow-2xl border border-gray-700 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-orange-400 mb-4 flex items-center gap-2">
+          <RotateCcw className="w-5 h-5" />
+          Restore Saved Sessions
+        </h3>
+
+        {fetchLoading ? (
+          <div className="py-12 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-400 mx-auto mb-2"></div>
+            <p className="text-sm text-gray-400">Loading saved sessions...</p>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-gray-400">No saved sessions to restore</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-400 mb-4">
+              Select sessions to restore. These sessions were previously created but are not currently active.
+            </p>
+
+            {/* Session List */}
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 max-h-96">
+              {sessions.map((session) => (
+                <label
+                  key={session.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSessions.has(session.id)}
+                    onChange={() => toggleSession(session.id)}
+                    className="mt-1 w-4 h-4 rounded border-gray-600 text-orange-500 focus:ring-orange-500 focus:ring-offset-gray-800"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Terminal className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                      <span className="font-mono font-semibold text-gray-100 truncate">{session.id}</span>
+                    </div>
+                    <div className="text-xs text-gray-400 space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <Folder className="w-3 h-3" />
+                        <span className="truncate">{session.workingDirectory}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span>Created: {formatDistanceToNow(session.createdAt)}</span>
+                        <span>Last saved: {formatDistanceToNow(session.lastSavedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-between items-center gap-3 pt-4 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedSessions.size === sessions.length) {
+                    setSelectedSessions(new Set())
+                  } else {
+                    setSelectedSessions(new Set(sessions.map((s) => s.id)))
+                  }
+                }}
+                className="text-sm text-orange-400 hover:text-orange-300 underline"
+              >
+                {selectedSessions.size === sessions.length ? 'Deselect All' : 'Select All'}
+              </button>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRestoreSelected}
+                  disabled={loading || selectedSessions.size === 0}
+                  className="px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-orange-500/25"
+                >
+                  {loading
+                    ? 'Restoring...'
+                    : `Restore ${selectedSessions.size} ${selectedSessions.size === 1 ? 'Session' : 'Sessions'}`}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

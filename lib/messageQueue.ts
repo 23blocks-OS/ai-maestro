@@ -267,16 +267,94 @@ export async function listInboxMessages(
 }
 
 /**
- * Get a specific message by ID
+ * List messages in a session's sent folder (outbox)
  */
-export async function getMessage(sessionName: string, messageId: string): Promise<Message | null> {
-  const inboxPath = path.join(getInboxDir(sessionName), `${messageId}.json`)
+export async function listSentMessages(
+  sessionName: string,
+  filter?: {
+    priority?: Message['priority']
+    to?: string
+  }
+): Promise<MessageSummary[]> {
+  await ensureSessionDirectories(sessionName)
+  const sentDir = getSentDir(sessionName)
+
+  let files: string[]
+  try {
+    files = await fs.readdir(sentDir)
+  } catch (error) {
+    return []
+  }
+
+  const messages: MessageSummary[] = []
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue
+
+    const filePath = path.join(sentDir, file)
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const message: Message = JSON.parse(content)
+
+      // Apply filters
+      if (filter?.priority && message.priority !== filter.priority) continue
+      if (filter?.to && message.to !== filter.to) continue
+
+      messages.push({
+        id: message.id,
+        from: message.from,
+        to: message.to,
+        timestamp: message.timestamp,
+        subject: message.subject,
+        priority: message.priority,
+        status: message.status,
+        type: message.content.type,
+        preview: message.content.message.substring(0, 100),
+      })
+    } catch (error) {
+      console.error(`Error reading sent message file ${file}:`, error)
+    }
+  }
+
+  // Sort by timestamp (newest first)
+  messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  return messages
+}
+
+/**
+ * Get sent message count for a session
+ */
+export async function getSentCount(sessionName: string): Promise<number> {
+  const messages = await listSentMessages(sessionName)
+  return messages.length
+}
+
+/**
+ * Get a specific message by ID from inbox or sent folder
+ */
+export async function getMessage(
+  sessionName: string,
+  messageId: string,
+  box: 'inbox' | 'sent' = 'inbox'
+): Promise<Message | null> {
+  const dir = box === 'sent' ? getSentDir(sessionName) : getInboxDir(sessionName)
+  const messagePath = path.join(dir, `${messageId}.json`)
 
   try {
-    const content = await fs.readFile(inboxPath, 'utf-8')
+    const content = await fs.readFile(messagePath, 'utf-8')
     return JSON.parse(content)
   } catch (error) {
-    return null
+    // If not found in specified box, try the other box as fallback
+    const fallbackDir = box === 'sent' ? getInboxDir(sessionName) : getSentDir(sessionName)
+    const fallbackPath = path.join(fallbackDir, `${messageId}.json`)
+
+    try {
+      const content = await fs.readFile(fallbackPath, 'utf-8')
+      return JSON.parse(content)
+    } catch (fallbackError) {
+      return null
+    }
   }
 }
 

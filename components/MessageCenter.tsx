@@ -11,9 +11,11 @@ interface MessageCenterProps {
 
 export default function MessageCenter({ sessionName, allSessions }: MessageCenterProps) {
   const [messages, setMessages] = useState<MessageSummary[]>([])
+  const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
-  const [view, setView] = useState<'inbox' | 'compose'>('inbox')
+  const [view, setView] = useState<'inbox' | 'sent' | 'compose'>('inbox')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [sentCount, setSentCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [isForwarding, setIsForwarding] = useState(false)
   const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
@@ -25,14 +27,25 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [composePriority, setComposePriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
   const [composeType, setComposeType] = useState<'request' | 'response' | 'notification' | 'update'>('request')
 
-  // Fetch messages
+  // Fetch inbox messages
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}`)
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
+    }
+  }
+
+  // Fetch sent messages
+  const fetchSentMessages = async () => {
+    try {
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
+      const data = await response.json()
+      setSentMessages(data.messages || [])
+    } catch (error) {
+      console.error('Error fetching sent messages:', error)
     }
   }
 
@@ -47,15 +60,26 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     }
   }
 
-  // Load message details
-  const loadMessage = async (messageId: string) => {
+  // Fetch sent count
+  const fetchSentCount = async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`)
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=sent-count`)
+      const data = await response.json()
+      setSentCount(data.count || 0)
+    } catch (error) {
+      console.error('Error fetching sent count:', error)
+    }
+  }
+
+  // Load message details
+  const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
+    try {
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
-      // Mark as read if unread
-      if (message.status === 'unread') {
+      // Mark as read if unread (inbox only)
+      if (box === 'inbox' && message.status === 'unread') {
         await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
@@ -201,10 +225,14 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
 
   useEffect(() => {
     fetchMessages()
+    fetchSentMessages()
     fetchUnreadCount()
+    fetchSentCount()
     const interval = setInterval(() => {
       fetchMessages()
+      fetchSentMessages()
       fetchUnreadCount()
+      fetchSentCount()
     }, 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
   }, [sessionName])
@@ -253,6 +281,22 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
             Inbox
           </button>
           <button
+            onClick={() => setView('sent')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors relative ${
+              view === 'sent'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Send className="w-4 h-4 inline-block mr-1" />
+            Sent
+            {sentCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold text-white bg-green-500 rounded-full">
+                {sentCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setView('compose')}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               view === 'compose'
@@ -273,8 +317,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
           <div className="w-1/3 border-r border-gray-700 bg-gray-800 overflow-y-auto">
             {messages.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                <Mail className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>No messages</p>
+                <Inbox className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>No inbox messages</p>
               </div>
             ) : (
               messages.map((msg) => (
@@ -409,6 +453,112 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 <div className="text-center">
                   <Mail className="w-16 h-16 mx-auto mb-2 text-gray-600" />
                   <p>Select a message to read</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sent Messages View */}
+      {view === 'sent' && (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Message List */}
+          <div className="w-1/3 border-r border-gray-700 bg-gray-800 overflow-y-auto">
+            {sentMessages.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Send className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>No sent messages</p>
+              </div>
+            ) : (
+              sentMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  onClick={() => loadMessage(msg.id, 'sent')}
+                  className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
+                    selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-green-400 font-medium">To:</span>
+                      <span className="text-sm font-semibold text-gray-300">
+                        {msg.to}
+                      </span>
+                      {getPriorityIcon(msg.priority)}
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded ${getPriorityColor(msg.priority)}`}>
+                      {msg.priority}
+                    </span>
+                  </div>
+                  <h3 className="text-sm mb-1 font-medium text-gray-300">
+                    {msg.subject}
+                  </h3>
+                  <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-500">
+                      {new Date(msg.timestamp).toLocaleString()}
+                    </span>
+                    <CheckCircle className="w-3 h-3 text-green-500" title="Sent" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Message Detail */}
+          <div className="flex-1 bg-gray-900 overflow-y-auto">
+            {selectedMessage ? (
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="text-sm text-green-400 font-medium">Sent Message</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-100 mb-2">
+                      {selectedMessage.subject}
+                    </h2>
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <span className="font-medium">To:</span>
+                      <span>{selectedMessage.to}</span>
+                      <span className="mx-2">•</span>
+                      <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                  <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(selectedMessage.priority)}`}>
+                    {selectedMessage.priority}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-600">
+                    {selectedMessage.content.type}
+                  </span>
+                </div>
+
+                <div className="prose max-w-none">
+                  <div className="p-4 bg-gray-800 rounded-lg mb-4">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-200 font-sans">
+                      {selectedMessage.content.message}
+                    </pre>
+                  </div>
+
+                  {selectedMessage.content.context && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-semibold text-gray-300 mb-2">Context:</h3>
+                      <pre className="p-3 bg-gray-800 rounded text-xs overflow-x-auto text-gray-300">
+                        {JSON.stringify(selectedMessage.content.context, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <Send className="w-16 h-16 mx-auto mb-2 text-gray-600" />
+                  <p>Select a sent message to view</p>
                 </div>
               </div>
             )}

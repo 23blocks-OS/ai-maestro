@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { persistSession } from '@/lib/session-persistence'
 
 const execAsync = promisify(exec)
 
@@ -32,6 +33,14 @@ export async function POST(request: Request) {
     // Create new tmux session
     const cwd = workingDirectory || process.env.HOME || process.cwd()
     await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
+
+    // Persist session metadata
+    persistSession({
+      id: name,
+      name: name,
+      workingDirectory: cwd,
+      createdAt: new Date().toISOString()
+    })
 
     return NextResponse.json({ success: true, name })
   } catch (error) {

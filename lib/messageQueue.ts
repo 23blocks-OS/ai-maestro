@@ -331,16 +331,30 @@ export async function getSentCount(sessionName: string): Promise<number> {
 }
 
 /**
- * Get a specific message by ID
+ * Get a specific message by ID from inbox or sent folder
  */
-export async function getMessage(sessionName: string, messageId: string): Promise<Message | null> {
-  const inboxPath = path.join(getInboxDir(sessionName), `${messageId}.json`)
+export async function getMessage(
+  sessionName: string,
+  messageId: string,
+  box: 'inbox' | 'sent' = 'inbox'
+): Promise<Message | null> {
+  const dir = box === 'sent' ? getSentDir(sessionName) : getInboxDir(sessionName)
+  const messagePath = path.join(dir, `${messageId}.json`)
 
   try {
-    const content = await fs.readFile(inboxPath, 'utf-8')
+    const content = await fs.readFile(messagePath, 'utf-8')
     return JSON.parse(content)
   } catch (error) {
-    return null
+    // If not found in specified box, try the other box as fallback
+    const fallbackDir = box === 'sent' ? getInboxDir(sessionName) : getSentDir(sessionName)
+    const fallbackPath = path.join(fallbackDir, `${messageId}.json`)
+
+    try {
+      const content = await fs.readFile(fallbackPath, 'utf-8')
+      return JSON.parse(content)
+    } catch (fallbackError) {
+      return null
+    }
   }
 }
 

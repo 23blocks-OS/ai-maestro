@@ -72,14 +72,14 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   }
 
   // Load message details
-  const loadMessage = async (messageId: string) => {
+  const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`)
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
-      // Mark as read if unread
-      if (message.status === 'unread') {
+      // Mark as read if unread (inbox only)
+      if (box === 'inbox' && message.status === 'unread') {
         await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
@@ -474,7 +474,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
               sentMessages.map((msg) => (
                 <div
                   key={msg.id}
-                  onClick={() => loadMessage(msg.id)}
+                  onClick={() => loadMessage(msg.id, 'sent')}
                   className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
                     selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
                   }`}

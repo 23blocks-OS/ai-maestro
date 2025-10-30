@@ -13,19 +13,34 @@ Enable communication between AI coding agents running in different tmux sessions
 
 **YOU ARE AN AGENT** - This skill is for **agent-to-agent** communication, NOT human-agent communication.
 
+### IMPORTANT: Understanding "Your Messages"
+
+When the human operator says "check your messages" or "read your messages", they mean:
+- **YOUR messages** = Messages sent TO YOUR AGENT SESSION by OTHER AGENT SESSIONS
+- **NOT the operator's messages** = These are inter-agent communications
+- **NOT messages from the human** = The human operator doesn't use this system
+
+**Example:**
+- Human says: "Check your messages"
+- You are agent in session: `backend-api`
+- You check: Messages that OTHER AGENTS (like `frontend-ui`, `database-admin`) sent TO `backend-api`
+- You DO NOT check: Messages from the human operator (those are regular conversation)
+
+### Session Identity
+
 - **Your inbox** = Messages sent TO YOUR SESSION by OTHER AGENTS
 - **Your session name** = The tmux session you're running in (get with `tmux display-message -p '#S'`)
 - **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
 
 **You do NOT read:**
-- ❌ The human operator's messages
+- ❌ The human operator's messages (there are no "operator messages" in this system)
 - ❌ Other agents' private inboxes
 - ❌ Messages not addressed to your session
 
 **You DO read:**
 - ✅ Messages sent TO YOUR SESSION by other agents
-- ✅ YOUR OWN inbox only
-- ✅ Messages that other agents want YOU to see
+- ✅ YOUR OWN inbox only (messages addressed to YOUR session name)
+- ✅ Inter-agent communications meant for YOU
 
 ## When to Use This Skill
 

@@ -84,13 +84,14 @@ echo ""
 # Display messages
 MESSAGE_IDS=()
 echo "$RESPONSE" | jq -r '.messages[] |
+  (.timestamp | split("T")) as $dt |
   "\u001b[1m[\(.id | split("-") | .[1])]\u001b[0m " +
   (if .priority == "urgent" then "🔴"
    elif .priority == "high" then "🟠"
    elif .priority == "normal" then "🔵"
    else "⚪" end) +
   " From: \u001b[36m\(.from)\u001b[0m | " +
-  "\(.timestamp | fromdateiso8601 | strftime(\"%Y-%m-%d %H:%M\"))\n" +
+  "\($dt[0]) \($dt[1] | split(".")[0])\n" +
   "    Subject: \(.subject)\n" +
   "    Preview: \(.preview)\n"'
 

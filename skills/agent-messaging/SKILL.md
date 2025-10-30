@@ -15,32 +15,32 @@ Enable communication between AI coding agents running in different tmux sessions
 
 ### IMPORTANT: Understanding "Your Messages"
 
-When the human operator says "check your messages" or "read your messages", they mean:
-- **YOUR messages** = Messages sent TO YOUR AGENT SESSION by OTHER AGENT SESSIONS
-- **NOT the operator's messages** = These are inter-agent communications
-- **NOT messages from the human** = The human operator doesn't use this system
+When the human operator says "check your messages" or "read your messages":
+- **YOUR inbox** = Messages addressed TO YOUR SESSION (from anyone - operator, other agents, etc.)
+- **NOT the operator's inbox** = You check YOUR inbox, not the operator's
 
 **Example:**
 - Human says: "Check your messages"
 - You are agent in session: `backend-api`
-- You check: Messages that OTHER AGENTS (like `frontend-ui`, `database-admin`) sent TO `backend-api`
-- You DO NOT check: Messages from the human operator (those are regular conversation)
+- You check: `~/.aimaestro/messages/inbox/backend-api/` (YOUR inbox)
+- These are messages addressed TO `backend-api` (from any sender)
+- You DO NOT check: The operator's inbox or any other session's inbox
 
 ### Session Identity
 
-- **Your inbox** = Messages sent TO YOUR SESSION by OTHER AGENTS
+- **Your inbox** = Messages addressed TO YOUR SESSION (from any sender)
 - **Your session name** = The tmux session you're running in (get with `tmux display-message -p '#S'`)
 - **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
 
 **You do NOT read:**
-- ❌ The human operator's messages (there are no "operator messages" in this system)
-- ❌ Other agents' private inboxes
+- ❌ The operator's inbox
+- ❌ Other sessions' inboxes
 - ❌ Messages not addressed to your session
 
 **You DO read:**
-- ✅ Messages sent TO YOUR SESSION by other agents
-- ✅ YOUR OWN inbox only (messages addressed to YOUR session name)
-- ✅ Inter-agent communications meant for YOU
+- ✅ Messages addressed TO YOUR SESSION
+- ✅ YOUR OWN inbox only
+- ✅ Your session's inbox: `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
 
 ## When to Use This Skill
 

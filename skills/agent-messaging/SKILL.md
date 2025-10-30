@@ -36,15 +36,38 @@ Enable communication between AI coding agents running in different tmux sessions
 - You need to send urgent alerts or requests to OTHER AGENTS
 
 **Receiving (Check YOUR OWN Inbox):**
-- User says "check my inbox" = Check messages sent TO YOUR SESSION
-- User says "read my messages" = Read messages sent TO YOU (this agent)
-- User asks "any new messages?" = Check YOUR inbox for new messages
+- User says "check my inbox" or "check my messages" = Use `check-aimaestro-messages.sh`
+- User says "read my messages" or "read message X" = Use `read-aimaestro-message.sh <id>`
+- User asks "any new messages?" = Use `check-aimaestro-messages.sh`
 - Session just started (best practice: check YOUR inbox first)
 - You want to see what OTHER AGENTS have sent TO YOU
+
+**RECOMMENDED WORKFLOW:**
+1. First check for unread messages: `check-aimaestro-messages.sh`
+2. Then read specific message: `read-aimaestro-message.sh <message-id>`
+3. Message is automatically marked as read after reading
 
 ## Available Tools
 
 ## PART 1: RECEIVING MESSAGES (YOUR OWN INBOX)
+
+**📖 QUICK START - Check and Read Messages:**
+```bash
+# Step 1: Check what unread messages you have
+check-aimaestro-messages.sh
+
+# Output shows:
+# [msg-1234...] 🔴 From: backend-api | 2025-10-29 14:30
+#     Subject: Authentication endpoint ready
+#     Preview: The /api/auth/login endpoint is now...
+
+# Step 2: Read the specific message (automatically marks as read)
+read-aimaestro-message.sh msg-1234...
+
+# Step 3: Check again - that message is now gone from unread
+check-aimaestro-messages.sh
+# Output: "📭 No unread messages"
+```
 
 **⚠️ CRITICAL: What "YOUR inbox" means:**
 - YOU = The AI agent running in this tmux session
@@ -58,18 +81,105 @@ Enable communication between AI coding agents running in different tmux sessions
 3. Show messages that OTHER AGENTS sent TO YOU
 4. Do NOT access anyone else's inbox
 
-### 1. Check YOUR Inbox (Display All Messages Sent TO YOU)
+### 1. Check YOUR Inbox for UNREAD Messages (Recommended)
+**Command:**
+```bash
+check-aimaestro-messages.sh [--mark-read]
+```
+
+**What it does:**
+- Shows ONLY UNREAD messages in YOUR inbox (messages sent TO YOUR SESSION)
+- Automatically detects YOUR session name
+- Displays: priority indicator, sender, subject, preview, timestamp
+- Optional `--mark-read` flag to mark all messages as read after viewing
+- **This is the recommended way to check messages** - avoids re-reading old messages
+
+**Example:**
+```bash
+# Check unread messages without marking as read
+check-aimaestro-messages.sh
+
+# Check and mark all as read
+check-aimaestro-messages.sh --mark-read
+```
+
+**Output format:**
+```
+📬 You have 3 unread message(s)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[msg-167...] 🔴 From: backend-architect | 2025-10-29 13:45
+    Subject: API endpoint ready
+    Preview: The POST /api/auth/login endpoint is now...
+
+[msg-168...] 🔵 From: frontend-dev | 2025-10-29 14:20
+    Subject: Need help with styling
+    Preview: Can you review the CSS for the navigation...
+```
+
+### 2. Read Specific Message and Mark as Read
+**Command:**
+```bash
+read-aimaestro-message.sh <message-id> [--no-mark-read]
+```
+
+**What it does:**
+- Retrieves and displays the full message content
+- **Automatically marks the message as read** (unless `--no-mark-read` flag)
+- Shows all message details: content, context, forwarding info
+- Perfect for reading a specific message after checking the list
+
+**Example:**
+```bash
+# Read message (automatically marks as read)
+read-aimaestro-message.sh msg-1234567890-abc
+
+# Peek at message without marking as read
+read-aimaestro-message.sh msg-1234567890-abc --no-mark-read
+```
+
+**Output format:**
+```
+═══════════════════════════════════════════════════════════════
+📧 Message: API endpoint ready
+═══════════════════════════════════════════════════════════════
+
+From:     backend-architect
+To:       frontend-dev
+Date:     2025-10-29 13:45:00
+Priority: 🔴 urgent
+Type:     response
+
+───────────────────────────────────────────────────────────────
+
+The POST /api/auth/login endpoint is now deployed and ready...
+
+───────────────────────────────────────────────────────────────
+📎 Context:
+{
+  "endpoint": "/api/auth/login"
+}
+
+✅ Message marked as read
+═══════════════════════════════════════════════════════════════
+```
+
+### 3. Auto-Display on Session Attach (Legacy - DO NOT USE MANUALLY)
 **Command:**
 ```bash
 check-and-show-messages.sh
 ```
 
 **What it does:**
-- Shows all messages in YOUR inbox (messages sent TO YOUR SESSION)
-- Automatically detects YOUR session name
-- Displays: message ID, from (which agent), subject, priority, type, timestamp, content
-- Marks urgent messages with 🚨
-- No parameters needed - reads YOUR inbox automatically
+- Automatically runs when you attach to a tmux session
+- Shows a summary of unread messages
+- **DO NOT run this command manually** - it's for auto-display only
+- **For manual checking, use `check-aimaestro-messages.sh` instead**
+
+**Why not use this manually?**
+- It's designed for auto-display (runs on tmux attach)
+- Output format is optimized for quick glance, not interactive reading
+- Use the new commands (#1 and #2 above) for better experience
 
 **Output format:**
 ```
@@ -84,7 +194,7 @@ Timestamp: 2025-01-17 14:23:45
 Content: Please implement POST /api/users with pagination...
 ```
 
-### 2. Check for New Messages in YOUR Inbox (Quick Count)
+### 4. Check for New Messages Count (Quick)
 **Command:**
 ```bash
 check-new-messages-arrived.sh
@@ -102,7 +212,7 @@ check-new-messages-arrived.sh
 # Output: "You have 3 new message(s)"  ← Messages sent TO YOU
 ```
 
-### 3. Read Specific Message FROM YOUR Inbox (Direct File Access)
+### 5. Read Specific Message FROM YOUR Inbox (Direct File Access - Advanced)
 **Command:**
 ```bash
 cat ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/<message-id>.json | jq
@@ -233,88 +343,6 @@ send-aimaestro-message.sh backend-architect \
   notification
 ```
 
-## PART 3: FORWARDING MESSAGES (ROUTING TO OTHER AGENTS)
-
-**⚠️ CRITICAL: What "forwarding a message" means:**
-- Operator tells YOU to forward a message FROM YOUR INBOX to ANOTHER AGENT
-- Takes a message YOU received and sends it TO ANOTHER AGENT
-- Preserves original message context (who sent it, when, original content)
-- Useful for routing messages to the right expert or delegating work
-
-### 8. Forward Message (Route to Another Agent)
-Use when a message YOU received should be handled by ANOTHER AGENT instead.
-
-**Command:**
-```bash
-forward-aimaestro-message.sh <message-id|latest> <recipient-session> "[optional note]"
-```
-
-**Parameters:**
-- `message-id` (required) - ID of message in YOUR inbox OR use "latest" for most recent
-- `recipient-session` (required) - Target agent's session name (ANOTHER AGENT)
-- `note` (optional) - Additional context YOU want to add for the recipient
-
-**Examples:**
-```bash
-# Forward latest message to backend architect
-forward-aimaestro-message.sh latest backend-architect
-
-# Forward specific message with note
-forward-aimaestro-message.sh msg-1234567890-abc backend-architect "FYI - this is backend related"
-
-# Forward to frontend specialist with context
-forward-aimaestro-message.sh msg-9876543210-xyz frontend-dev "Please handle the UI parts of this request"
-
-# Quick delegation with explanation
-forward-aimaestro-message.sh latest devops-engineer "You're better equipped to handle this deployment issue"
-```
-
-**What happens:**
-1. Reads original message from YOUR inbox
-2. Creates new message TO recipient agent with:
-   - Subject: "Fwd: [original subject]"
-   - Your note (if provided) at the top
-   - Full original message content below
-   - Metadata about original sender, recipient, timestamp
-3. Sends to recipient's inbox
-4. Saves copy in YOUR sent folder
-5. Sends tmux notification to recipient
-
-**Natural language examples:**
-```
-User: "Forward the last message to backend-architect"
-→ forward-aimaestro-message.sh latest backend-architect
-
-User: "Send that API question to frontend-dev"
-→ forward-aimaestro-message.sh latest frontend-dev
-
-User: "Forward this to devops with a note saying it's urgent"
-→ forward-aimaestro-message.sh latest devops-engineer "Urgent - needs immediate attention"
-
-User: "This isn't for me, send it to the backend team"
-→ forward-aimaestro-message.sh latest backend-architect "Please handle - backend related"
-```
-
-**Use forwarding when:**
-- Message sent to YOU but should be handled by ANOTHER AGENT
-- Question is outside YOUR expertise (route to specialist)
-- Need to delegate work to ANOTHER AGENT
-- Want to loop in ANOTHER AGENT on existing conversation
-
-**Forwarded message format:**
-```
-[Your forwarding note if provided]
-
---- Forwarded Message ---
-From: original-sender
-To: you (original recipient)
-Sent: 2025-01-19 10:30:00
-Subject: Original subject here
-
-Original message content...
---- End of Forwarded Message ---
-```
-
 ## Decision Guide
 
 **Use file-based (`send-aimaestro-message.sh`) when:**
@@ -427,52 +455,6 @@ send-aimaestro-message.sh backend-architect \
   "Issue identified: connection pool exhausted. Increased max_connections. System stable." \
   urgent \
   response
-```
-
-### FORWARDING Examples
-
-#### Scenario F1: Forward Message to Right Expert
-```bash
-# YOU are agent "general-support"
-# Check YOUR inbox
-check-and-show-messages.sh
-
-# Output shows message sent TO YOU:
-# From: user-coordinator
-# To: general-support        ← YOU
-# Subject: Database optimization needed
-# Content: How do I optimize slow queries in PostgreSQL?
-
-# This is a backend/database question, not for YOU
-# Forward TO the backend specialist
-forward-aimaestro-message.sh latest backend-architect "Database question - please advise"
-```
-
-#### Scenario F2: Delegate Work with Context
-```bash
-# YOU are agent "senior-dev"
-# Received a UI task but frontend specialist should handle it
-
-check-and-show-messages.sh
-# Shows: "Need to redesign login page"
-
-# Forward with delegation note
-forward-aimaestro-message.sh latest frontend-dev "Please take this - you're the UI expert. Let me know if you need design specs."
-```
-
-#### Scenario F3: Forward Urgent Issue
-```bash
-# YOU are agent "api-developer"
-# Received production alert but devops should handle it
-
-check-and-show-messages.sh
-# Shows: Priority: urgent, Subject: "Server memory issue"
-
-# Quick forward with urgency note
-forward-aimaestro-message.sh latest devops-engineer "URGENT - production issue, needs immediate attention"
-
-# Also send instant alert
-send-tmux-message.sh devops-engineer "🚨 Forwarded urgent production alert to your inbox!" inject
 ```
 
 ### SENDING Examples

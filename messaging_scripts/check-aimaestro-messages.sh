@@ -84,7 +84,7 @@ echo ""
 # Display messages
 MESSAGE_IDS=()
 echo "$RESPONSE" | jq -r '.messages[] |
-  "\u001b[1m[\(.id | split("-") | .[1])]\u001b[0m " +
+  "\u001b[1m[\(.id)]\u001b[0m " +
   (if .priority == "urgent" then "🔴"
    elif .priority == "high" then "🟠"
    elif .priority == "normal" then "🔵"

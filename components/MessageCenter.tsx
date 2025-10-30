@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 interface MessageCenterProps {
@@ -26,6 +26,10 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [composeMessage, setComposeMessage] = useState('')
   const [composePriority, setComposePriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
   const [composeType, setComposeType] = useState<'request' | 'response' | 'notification' | 'update'>('request')
+
+  // Copy dropdown state
+  const [showCopyDropdown, setShowCopyDropdown] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   // Fetch inbox messages
   const fetchMessages = async () => {
@@ -201,6 +205,72 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     }
   }
 
+  // Copy message to clipboard (regular format)
+  const copyMessageRegular = async () => {
+    if (!selectedMessage) return
+
+    try {
+      await navigator.clipboard.writeText(selectedMessage.content.message)
+      setCopySuccess(true)
+      setShowCopyDropdown(false)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying message:', error)
+    }
+  }
+
+  // Copy message to clipboard (LLM-friendly markdown format)
+  const copyMessageForLLM = async () => {
+    if (!selectedMessage) return
+
+    // Format message in markdown for LLM consumption
+    const isInboxMessage = view === 'inbox'
+    let markdown = `# Message: ${selectedMessage.subject}\n\n`
+
+    if (isInboxMessage) {
+      markdown += `**From:** ${selectedMessage.from}\n`
+      markdown += `**To:** ${sessionName}\n`
+    } else {
+      markdown += `**From:** ${sessionName}\n`
+      markdown += `**To:** ${selectedMessage.to}\n`
+    }
+
+    markdown += `**Date:** ${new Date(selectedMessage.timestamp).toLocaleString()}\n`
+    markdown += `**Priority:** ${selectedMessage.priority}\n`
+    markdown += `**Type:** ${selectedMessage.content.type}\n\n`
+
+    markdown += `## Message Content\n\n`
+    markdown += `${selectedMessage.content.message}\n`
+
+    if (selectedMessage.content.context) {
+      markdown += `\n## Context\n\n`
+      markdown += '```json\n'
+      markdown += JSON.stringify(selectedMessage.content.context, null, 2)
+      markdown += '\n```\n'
+    }
+
+    if (selectedMessage.forwardedFrom) {
+      markdown += `\n## Forwarding Information\n\n`
+      markdown += `**Originally From:** ${selectedMessage.forwardedFrom.originalFrom}\n`
+      markdown += `**Originally To:** ${selectedMessage.forwardedFrom.originalTo}\n`
+      markdown += `**Original Date:** ${new Date(selectedMessage.forwardedFrom.originalTimestamp).toLocaleString()}\n`
+      markdown += `**Forwarded By:** ${selectedMessage.forwardedFrom.forwardedBy}\n`
+      markdown += `**Forwarded At:** ${new Date(selectedMessage.forwardedFrom.forwardedAt).toLocaleString()}\n`
+      if (selectedMessage.forwardedFrom.forwardNote) {
+        markdown += `**Forward Note:** ${selectedMessage.forwardedFrom.forwardNote}\n`
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(markdown)
+      setCopySuccess(true)
+      setShowCopyDropdown(false)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying message:', error)
+    }
+  }
+
   // Prepare to forward message
   const prepareForward = (message: Message) => {
     // Build forwarded content
@@ -236,6 +306,21 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     }, 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
   }, [sessionName])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.relative')) {
+        setShowCopyDropdown(false)
+      }
+    }
+
+    if (showCopyDropdown) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showCopyDropdown])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -374,6 +459,41 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {/* Copy Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                        className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
+                          copySuccess
+                            ? 'text-green-400 bg-green-900/30'
+                            : 'text-gray-400 hover:bg-gray-800'
+                        }`}
+                        title="Copy Message"
+                      >
+                        <Copy className="w-5 h-5" />
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {showCopyDropdown && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                          <button
+                            onClick={copyMessageRegular}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy Message
+                          </button>
+                          <button
+                            onClick={copyMessageForLLM}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy for LLM
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => prepareForward(selectedMessage)}
                       className="p-2 text-blue-400 hover:bg-blue-900/30 rounded-md transition-colors"
@@ -524,6 +644,42 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                       <span>{selectedMessage.to}</span>
                       <span className="mx-2">•</span>
                       <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {/* Copy Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                        className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
+                          copySuccess
+                            ? 'text-green-400 bg-green-900/30'
+                            : 'text-gray-400 hover:bg-gray-800'
+                        }`}
+                        title="Copy Message"
+                      >
+                        <Copy className="w-5 h-5" />
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {showCopyDropdown && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                          <button
+                            onClick={copyMessageRegular}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy Message
+                          </button>
+                          <button
+                            onClick={copyMessageForLLM}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy for LLM
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

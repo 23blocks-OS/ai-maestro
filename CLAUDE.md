@@ -334,9 +334,141 @@ docs/
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
+messaging_scripts/      - CLI scripts for agent messaging system
+  check-aimaestro-messages.sh     - Check unread messages (recommended)
+  read-aimaestro-message.sh       - Read message and mark as read
+  check-and-show-messages.sh      - Auto-display on tmux attach (legacy)
+  send-aimaestro-message.sh       - Send message to another session
+  reply-aimaestro-message.sh      - Reply to a message
+  list-aimaestro-sent.sh          - List sent messages
+  delete-aimaestro-message.sh     - Delete a message
+
+skills/
+  agent-messaging/
+    SKILL.md            - Claude Code skill for natural language messaging interface
+
+scripts/
+  generate-social-logos.js        - Generate social media logos from SVG
+
+install-messaging.sh    - Installer for messaging system to user's environment
+
 server.mjs              - Custom Next.js server (HTTP + WebSocket)
 CLAUDE.md               - This file - guidance for Claude Code
 ```
+
+## AI Maestro Messaging System
+
+**Overview:** AI Maestro includes an inter-agent messaging system that allows Claude Code sessions to send and receive messages asynchronously. Messages are stored as JSON files and accessed via HTTP API and CLI scripts.
+
+### Installation
+
+Users install the messaging system with:
+```bash
+./install-messaging.sh
+```
+
+This installer copies:
+- CLI scripts from `messaging_scripts/` → `~/.local/bin/`
+- Skill file from `skills/agent-messaging/SKILL.md` → `~/.claude/skills/agent-messaging/SKILL.md`
+- Creates message directories: `~/.aimaestro/messages/inbox/` and `~/.aimaestro/messages/sent/`
+
+### Architecture
+
+**Message Storage:**
+- File-based: Messages stored as JSON in `~/.aimaestro/messages/inbox/<session>/` and `~/.aimaestro/messages/sent/<session>/`
+- Each message is a separate `.json` file with unique ID
+- Messages have status: `unread`, `read`, or `archived`
+
+**API Endpoints:**
+- `GET /api/messages?session=X&box=inbox&status=unread` - List messages with filtering
+- `GET /api/messages?session=X&id=Y&box=inbox` - Get specific message
+- `PATCH /api/messages?session=X&id=Y&action=read` - Mark message as read
+- `POST /api/messages` - Send new message
+
+**Message Format:**
+```typescript
+{
+  id: string              // msg-<timestamp>-<random>
+  from: string            // sender session name
+  to: string              // recipient session name
+  subject: string
+  timestamp: string       // ISO 8601
+  priority: 'urgent' | 'high' | 'normal' | 'low'
+  status: 'unread' | 'read' | 'archived'
+  content: {
+    type: string          // 'request', 'response', 'notification', etc.
+    message: string       // main message body
+    context?: any         // optional structured context
+  }
+  inReplyTo?: string      // message ID if this is a reply
+}
+```
+
+### CLI Scripts (messaging_scripts/)
+
+**Recommended Workflow:**
+1. `check-aimaestro-messages.sh` - List unread messages
+2. `read-aimaestro-message.sh <msg-id>` - Read specific message (auto-marks as read)
+
+**All Scripts:**
+- `check-aimaestro-messages.sh [--mark-read]` - Check unread messages, optionally mark all as read
+- `read-aimaestro-message.sh <msg-id> [--no-mark-read]` - Read message and mark as read (unless --no-mark-read)
+- `send-aimaestro-message.sh <to-session> <subject> <message> [--priority urgent|high|normal|low]` - Send message
+- `reply-aimaestro-message.sh <msg-id> <message>` - Reply to a message
+- `list-aimaestro-sent.sh` - List sent messages
+- `delete-aimaestro-message.sh <msg-id>` - Delete a message
+- `check-and-show-messages.sh` - Auto-display on tmux attach (DO NOT USE MANUALLY)
+
+**Key Implementation Details:**
+
+1. **Unread-Only Filtering** - Scripts use API filtering (`status=unread`) instead of listing all files
+2. **Auto-Mark-as-Read** - `read-aimaestro-message.sh` automatically marks messages as read after displaying
+3. **Error Handling** - All scripts validate JSON responses and provide troubleshooting hints
+4. **Session Detection** - Scripts auto-detect current tmux session with `tmux display-message -p '#S'`
+
+**Example Usage:**
+```bash
+# Check for unread messages
+check-aimaestro-messages.sh
+# Output:
+# 📬 You have 2 unread message(s)
+# [msg-1234...] 🔴 From: backend-api | 2025-10-29 14:30
+#     Subject: Authentication endpoint ready
+
+# Read specific message (auto-marks as read)
+read-aimaestro-message.sh msg-1234...
+# Displays full message content
+# ✅ Message marked as read
+
+# Check again - message is now gone
+check-aimaestro-messages.sh
+# Output: 📭 No unread messages
+```
+
+### Claude Code Skill Integration
+
+The `skills/agent-messaging/SKILL.md` file provides a natural language interface for agents. When an agent says "check my messages" or "send a message to backend-api", Claude Code automatically translates this into the appropriate CLI script calls.
+
+**Skill provides:**
+- Natural language commands → CLI script mapping
+- Message formatting guidelines
+- Workflow examples and best practices
+- Priority and context usage patterns
+
+**After installation**, agents can use messaging naturally:
+```
+Agent: "Check my inbox for any urgent messages"
+→ Executes: check-aimaestro-messages.sh
+→ Filters for urgent priority messages
+```
+
+### Development Notes
+
+- Messages are ephemeral - not backed up or persisted beyond the JSON files
+- No authentication - relies on tmux session isolation and OS-level user security
+- Session names must match tmux session names exactly (alphanumeric + hyphens/underscores)
+- API is localhost-only (binds to 127.0.0.1)
+- Message IDs are globally unique but should be verified before marking as read
 
 ## Critical Implementation Details
 

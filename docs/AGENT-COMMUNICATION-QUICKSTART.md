@@ -70,7 +70,7 @@ send-aimaestro-message.sh backend-architect "Subject" "Message body" normal requ
 
 ## 🎯 Quick Install (Easiest)
 
-**Run the automated installer:**
+**First-time installation:**
 
 ```bash
 cd /path/to/ai-maestro
@@ -85,6 +85,24 @@ The installer will:
 - ✅ Verify everything works
 
 **Time:** < 1 minute
+
+**Update existing installation:**
+
+```bash
+cd /path/to/ai-maestro
+git pull origin main  # Get latest changes
+./update-messaging.sh
+```
+
+The updater will:
+- ✅ Update all messaging scripts in `~/.local/bin/`
+- ✅ Backup old skill version (timestamped)
+- ✅ Update Claude Code skill to `~/.claude/skills/`
+- ✅ Verify installation
+
+⚠️ **Important:** After updating, restart your Claude Code sessions to reload the updated skill.
+
+**Time:** < 30 seconds
 
 ---
 

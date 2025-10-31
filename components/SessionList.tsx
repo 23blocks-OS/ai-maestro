@@ -1054,6 +1054,32 @@ function RestoreSessionsModal({
     })
   }
 
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm(`Are you sure you want to permanently delete the saved session "${sessionId}"? This cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/sessions/restore?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete session')
+      }
+
+      // Remove from local state
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+      setSelectedSessions((prev) => {
+        const next = new Set(prev)
+        next.delete(sessionId)
+        return next
+      })
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete session')
+    }
+  }
+
   const handleRestoreSelected = async () => {
     if (selectedSessions.size === 0) return
 
@@ -1123,17 +1149,17 @@ function RestoreSessionsModal({
             {/* Session List */}
             <div className="flex-1 overflow-y-auto space-y-2 mb-4 max-h-96">
               {sessions.map((session) => (
-                <label
+                <div
                   key={session.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all cursor-pointer"
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all group"
                 >
                   <input
                     type="checkbox"
                     checked={selectedSessions.has(session.id)}
                     onChange={() => toggleSession(session.id)}
-                    className="mt-1 w-4 h-4 rounded border-gray-600 text-orange-500 focus:ring-orange-500 focus:ring-offset-gray-800"
+                    className="mt-1 w-4 h-4 rounded border-gray-600 text-orange-500 focus:ring-orange-500 focus:ring-offset-gray-800 cursor-pointer"
                   />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleSession(session.id)}>
                     <div className="flex items-center gap-2 mb-1">
                       <Terminal className="w-4 h-4 text-orange-400 flex-shrink-0" />
                       <span className="font-mono font-semibold text-gray-100 truncate">{session.id}</span>
@@ -1149,7 +1175,17 @@ function RestoreSessionsModal({
                       </div>
                     </div>
                   </div>
-                </label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteSession(session.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-2 rounded hover:bg-gray-600 text-gray-400 hover:text-red-400 transition-all duration-200 flex-shrink-0"
+                    title="Delete saved session"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
 

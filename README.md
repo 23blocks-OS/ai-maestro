@@ -404,6 +404,7 @@ Every agent session can use the messaging system automatically via a **Claude Co
 
 **Installation:**
 - **Easy:** Run [`./install-messaging.sh`](./install-messaging.sh) (installs scripts + skill automatically)
+- **Update:** Run [`./update-messaging.sh`](./update-messaging.sh) (updates scripts + skill with zero friction)
 - **Manual:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
 
 ### Built-In UI
@@ -421,6 +422,13 @@ Each session has a **Messages tab** with:
 ```bash
 ./install-messaging.sh
 # Interactive installer - checks prerequisites, installs scripts & skill
+```
+
+**Update Existing Installation:**
+```bash
+./update-messaging.sh
+# Updates scripts and skill - backs up old version automatically
+# Remember to restart Claude sessions to reload updated skill
 ```
 
 **Manual Install:** See [Installation Guide](./messaging_scripts/README.md)

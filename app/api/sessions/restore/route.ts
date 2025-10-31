@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { loadPersistedSessions } from '@/lib/session-persistence'
+import { loadPersistedSessions, unpersistSession } from '@/lib/session-persistence'
 
 const execAsync = promisify(exec)
 
@@ -90,5 +90,31 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Failed to restore sessions:', error)
     return NextResponse.json({ error: 'Failed to restore sessions' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/sessions/restore?sessionId=<id>
+ * Permanently deletes a persisted session from storage
+ */
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const sessionId = searchParams.get('sessionId')
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 })
+    }
+
+    const success = unpersistSession(sessionId)
+
+    if (!success) {
+      return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to delete persisted session:', error)
+    return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })
   }
 }

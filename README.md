@@ -59,7 +59,9 @@ Works with **any** terminal-based AI:
   - Priorities: urgent | high | normal | low
   - Types: request | response | notification | update
   - Rich context: Attach metadata, requirements, code snippets
-  - Searchable inbox with read/unread status
+  - **Unread-only filtering**: Agents see only new messages
+  - **Auto-mark-as-read**: Messages marked read after retrieval
+  - **Inbox & Outbox**: Full send/receive tracking per agent
 - **Instant tmux Notifications**: Real-time alerts for urgent matters
   - Popup notifications (non-intrusive)
   - Terminal injections (visible in history)

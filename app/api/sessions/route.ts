@@ -61,10 +61,22 @@ export async function GET() {
           status = 'disconnected'
         }
 
+        // Get working directory from tmux (pane_current_path of first pane)
+        let workingDirectory = ''
+        try {
+          const { stdout: cwdOutput } = await execAsync(
+            `tmux display-message -t "${name}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+          )
+          workingDirectory = cwdOutput.trim()
+        } catch {
+          // If we can't get it, leave empty
+          workingDirectory = ''
+        }
+
         return {
           id: name,
           name,
-          workingDirectory: '', // Not available from tmux ls
+          workingDirectory,
           status,
           createdAt,
           lastActivity,

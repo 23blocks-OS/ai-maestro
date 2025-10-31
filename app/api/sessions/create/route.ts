@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     }
 
     // Create new tmux session
-    const cwd = workingDirectory || process.env.HOME || process.cwd()
+    // Default to current working directory if not specified
+    const cwd = workingDirectory || process.cwd()
     await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
 
     // Persist session metadata

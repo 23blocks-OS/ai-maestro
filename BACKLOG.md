@@ -1,0 +1,1 @@
+- [ ] Create configuration system for app options (e.g., default working directory for new sessions)

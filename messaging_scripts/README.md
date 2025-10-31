@@ -4,23 +4,39 @@ Command-line tools for agent-to-agent communication. These scripts work with **a
 
 ## Installation
 
-### Option 1: Copy to PATH (Recommended)
+### Recommended: Automated Installer
+
+```bash
+cd /path/to/ai-maestro
+./install-messaging.sh
+# Installs scripts + Claude Code skill automatically
+```
+
+### Update Existing Installation
+
+```bash
+cd /path/to/ai-maestro
+git pull origin main        # Get latest changes
+./update-messaging.sh       # Update scripts and skill
+# Remember to restart Claude sessions after updating
+```
+
+### Manual Installation
+
+#### Option 1: Copy to PATH
 
 ```bash
 # Copy all scripts to your local bin directory
 cp *.sh ~/.local/bin/
 
 # Make them executable
-chmod +x ~/.local/bin/send-aimaestro-message.sh
-chmod +x ~/.local/bin/check-and-show-messages.sh
-chmod +x ~/.local/bin/check-new-messages-arrived.sh
-chmod +x ~/.local/bin/send-tmux-message.sh
+chmod +x ~/.local/bin/*.sh
 
 # Verify installation
 which send-aimaestro-message.sh
 ```
 
-### Option 2: Add to PATH
+#### Option 2: Add to PATH
 
 ```bash
 # Add this repo's messaging_scripts folder to your PATH

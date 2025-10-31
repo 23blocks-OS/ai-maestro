@@ -269,7 +269,7 @@ export default function MobileDashboard({
       <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-4 py-2">
         <div className="text-center">
           <p className="text-xs text-gray-400">
-            AI Maestro v0.4.3
+            AI Maestro v0.5.0
           </p>
         </div>
       </footer>

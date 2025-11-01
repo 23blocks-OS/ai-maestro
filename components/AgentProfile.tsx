@@ -543,6 +543,7 @@ interface EditableFieldProps {
 function EditableField({ label, value, onChange, icon, placeholder, multiline }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [localValue, setLocalValue] = useState(value)
+  const fieldId = `editable-${label.toLowerCase().replace(/\s+/g, '-')}`
 
   useEffect(() => {
     setLocalValue(value)
@@ -557,13 +558,15 @@ function EditableField({ label, value, onChange, icon, placeholder, multiline }:
 
   return (
     <div>
-      <label className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
+      <label htmlFor={fieldId} className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
         {icon}
         {label}
       </label>
       {isEditing ? (
         multiline ? (
           <textarea
+            id={fieldId}
+            name={fieldId}
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
             onBlur={handleBlur}
@@ -574,6 +577,8 @@ function EditableField({ label, value, onChange, icon, placeholder, multiline }:
           />
         ) : (
           <input
+            id={fieldId}
+            name={fieldId}
             type="text"
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}

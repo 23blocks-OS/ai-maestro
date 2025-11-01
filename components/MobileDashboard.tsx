@@ -204,6 +204,8 @@ export default function MobileDashboard({
               </div>
               {/* Search Input */}
               <input
+                id="mobile-search"
+                name="search"
                 type="text"
                 placeholder="Search sessions..."
                 value={searchQuery}

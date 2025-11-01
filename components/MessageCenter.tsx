@@ -747,6 +747,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 To (Session Name):
               </label>
               <input
+                id="compose-to"
+                name="to"
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
@@ -766,6 +768,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 Subject:
               </label>
               <input
+                id="compose-subject"
+                name="subject"
                 type="text"
                 value={composeSubject}
                 onChange={(e) => setComposeSubject(e.target.value)}

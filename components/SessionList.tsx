@@ -820,6 +820,7 @@ function CreateSessionModal({
 }) {
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [deploymentType, setDeploymentType] = useState<'local' | 'cloud'>('local')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -834,6 +835,66 @@ function CreateSessionModal({
         <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Deployment Type Selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">
+                Deployment Type *
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('local')}
+                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    deploymentType === 'local'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  <Terminal className={`w-6 h-6 mb-2 ${
+                    deploymentType === 'local' ? 'text-blue-400' : 'text-gray-400'
+                  }`} />
+                  <span className={`text-sm font-medium ${
+                    deploymentType === 'local' ? 'text-blue-300' : 'text-gray-300'
+                  }`}>
+                    Local
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">tmux session</span>
+                  {deploymentType === 'local' && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('cloud')}
+                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    deploymentType === 'cloud'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  <Zap className={`w-6 h-6 mb-2 ${
+                    deploymentType === 'cloud' ? 'text-blue-400' : 'text-gray-400'
+                  }`} />
+                  <span className={`text-sm font-medium ${
+                    deploymentType === 'cloud' ? 'text-blue-300' : 'text-gray-300'
+                  }`}>
+                    Cloud
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">AWS instance</span>
+                  {deploymentType === 'cloud' && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </button>
+              </div>
+              {deploymentType === 'cloud' && (
+                <p className="text-xs text-amber-400 mt-2 flex items-start gap-1">
+                  <span className="mt-0.5">⚠️</span>
+                  <span>Cloud deployment coming soon - use Local for now</span>
+                </p>
+              )}
+            </div>
+
             <div>
               <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">
                 Agent Name *
@@ -878,7 +939,7 @@ function CreateSessionModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !name.trim()}
+              disabled={loading || !name.trim() || deploymentType === 'cloud'}
               className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
             >
               {loading ? 'Creating...' : 'Create Agent'}

@@ -4,12 +4,14 @@ import * as sessionMessaging from './messageQueue'
 /**
  * Agent-based messaging layer
  *
- * This wraps the existing session-based messaging system with agent resolution.
- * Messages are still stored by session name for backward compatibility, but
- * the API accepts agent IDs or aliases.
+ * Messages are stored by agent ID in the new architecture.
+ * For backward compatibility, symlinks are created from session names to agent IDs.
+ * This allows the system to work with both old session-based paths and new agent-based paths.
  *
- * When a session is recreated with the same name, messages are automatically
- * recovered because they're stored by session name.
+ * Migration process:
+ * 1. Messages are moved from ~/.aimaestro/messages/<box>/<session-name>/ to /<agent-id>/
+ * 2. Symlinks are created from old session paths to new agent paths
+ * 3. New messages are always stored by agent ID
  */
 
 /**
@@ -41,20 +43,9 @@ export async function sendAgentMessage(
     throw new Error(`Recipient agent not found: ${to}`)
   }
 
-  // Get session names for agents
-  const fromSession = fromAgent.tools.session?.tmuxSessionName
-  const toSession = toAgent.tools.session?.tmuxSessionName
-
-  if (!fromSession) {
-    throw new Error(`Sender agent ${fromAgent.alias} has no active session`)
-  }
-
-  if (!toSession) {
-    throw new Error(`Recipient agent ${toAgent.alias} has no active session`)
-  }
-
-  // Use existing session-based messaging
-  return sessionMessaging.sendMessage(fromSession, toSession, subject, content, options)
+  // Use agent IDs for message storage (not session names)
+  // This stores messages in ~/.aimaestro/messages/<box>/<agent-id>/
+  return sessionMessaging.sendMessage(fromAgentId, toAgentId, subject, content, options)
 }
 
 /**
@@ -80,18 +71,8 @@ export async function forwardAgentMessage(
     throw new Error(`Recipient agent not found: ${toAgent}`)
   }
 
-  const fromSession = from.tools.session?.tmuxSessionName
-  const toSession = to.tools.session?.tmuxSessionName
-
-  if (!fromSession) {
-    throw new Error(`Sender agent ${from.alias} has no active session`)
-  }
-
-  if (!toSession) {
-    throw new Error(`Recipient agent ${to.alias} has no active session`)
-  }
-
-  return sessionMessaging.forwardMessage(originalMessageId, fromSession, toSession, forwardNote)
+  // Use agent IDs for message storage
+  return sessionMessaging.forwardMessage(originalMessageId, fromAgentId, toAgentId, forwardNote)
 }
 
 /**
@@ -112,27 +93,18 @@ export async function listAgentInboxMessages(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  // If filter.from is provided, try to resolve it to a session name
+  // If filter.from is provided, resolve it to agent ID
   let resolvedFilter = filter
   if (filter?.from) {
     const fromAgentId = resolveAlias(filter.from) || filter.from
-    const fromAgent = getAgent(fromAgentId)
-
-    if (fromAgent && fromAgent.tools.session) {
-      resolvedFilter = {
-        ...filter,
-        from: fromAgent.tools.session.tmuxSessionName
-      }
+    resolvedFilter = {
+      ...filter,
+      from: fromAgentId
     }
   }
 
-  return sessionMessaging.listInboxMessages(sessionName, resolvedFilter)
+  // Use agent ID for message storage lookup
+  return sessionMessaging.listInboxMessages(agentId, resolvedFilter)
 }
 
 /**
@@ -152,27 +124,17 @@ export async function listAgentSentMessages(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  // If filter.to is provided, try to resolve it to a session name
+  // If filter.to is provided, resolve it to agent ID
   let resolvedFilter = filter
   if (filter?.to) {
     const toAgentId = resolveAlias(filter.to) || filter.to
-    const toAgent = getAgent(toAgentId)
-
-    if (toAgent && toAgent.tools.session) {
-      resolvedFilter = {
-        ...filter,
-        to: toAgent.tools.session.tmuxSessionName
-      }
+    resolvedFilter = {
+      ...filter,
+      to: toAgentId
     }
   }
 
-  return sessionMessaging.listSentMessages(sessionName, resolvedFilter)
+  return sessionMessaging.listSentMessages(agentId, resolvedFilter)
 }
 
 /**
@@ -190,13 +152,7 @@ export async function getAgentMessage(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  return sessionMessaging.getMessage(sessionName, messageId, box)
+  return sessionMessaging.getMessage(agentId, messageId, box)
 }
 
 /**
@@ -213,13 +169,7 @@ export async function markAgentMessageAsRead(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  return sessionMessaging.markMessageAsRead(sessionName, messageId)
+  return sessionMessaging.markMessageAsRead(agentId, messageId)
 }
 
 /**
@@ -236,13 +186,7 @@ export async function archiveAgentMessage(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  return sessionMessaging.archiveMessage(sessionName, messageId)
+  return sessionMessaging.archiveMessage(agentId, messageId)
 }
 
 /**
@@ -259,13 +203,7 @@ export async function deleteAgentMessage(
     throw new Error(`Agent not found: ${agent}`)
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    throw new Error(`Agent ${agentObj.alias} has no active session`)
-  }
-
-  return sessionMessaging.deleteMessage(sessionName, messageId)
+  return sessionMessaging.deleteMessage(agentId, messageId)
 }
 
 /**
@@ -279,13 +217,7 @@ export async function getAgentUnreadCount(agent: string): Promise<number> {
     return 0  // Don't throw for count queries
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    return 0
-  }
-
-  return sessionMessaging.getUnreadCount(sessionName)
+  return sessionMessaging.getUnreadCount(agentId)
 }
 
 /**
@@ -299,13 +231,7 @@ export async function getAgentSentCount(agent: string): Promise<number> {
     return 0
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    return 0
-  }
-
-  return sessionMessaging.getSentCount(sessionName)
+  return sessionMessaging.getSentCount(agentId)
 }
 
 /**
@@ -327,17 +253,7 @@ export async function getAgentMessageStats(agent: string): Promise<{
     }
   }
 
-  const sessionName = agentObj.tools.session?.tmuxSessionName
-
-  if (!sessionName) {
-    return {
-      unread: 0,
-      total: 0,
-      byPriority: { low: 0, normal: 0, high: 0, urgent: 0 }
-    }
-  }
-
-  return sessionMessaging.getMessageStats(sessionName)
+  return sessionMessaging.getMessageStats(agentId)
 }
 
 /**

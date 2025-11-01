@@ -5,7 +5,8 @@ import {
   X, User, Users, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
-  ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown
+  ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
+  Cloud, Monitor, Server
 } from 'lucide-react'
 import type { Agent, AgentDocumentation } from '@/types/agent'
 
@@ -26,6 +27,7 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
     work: true,
+    deployment: true,
     metrics: true,
     documentation: false,
     customMetadata: false
@@ -315,6 +317,98 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
                         </button>
                       </div>
                     </div>
+                  </div>
+                )}
+              </section>
+
+              {/* Deployment Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('deployment')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.deployment ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  Deployment
+                </button>
+
+                {expandedSections.deployment && agent.deployment && (
+                  <div className="space-y-4">
+                    {/* Deployment Type Badge */}
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center gap-3">
+                        {agent.deployment.type === 'cloud' ? (
+                          <>
+                            <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                              <Cloud className="w-6 h-6 text-blue-400" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-100">Cloud Deployment</div>
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {agent.deployment.cloud?.provider ? `${agent.deployment.cloud.provider.toUpperCase()} • ${agent.deployment.cloud.region || 'N/A'}` : 'AWS deployment'}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-12 h-12 rounded-lg bg-gray-500/10 flex items-center justify-center">
+                              <Monitor className="w-6 h-6 text-gray-400" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-100">Local Deployment</div>
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {agent.deployment.local?.hostname || 'localhost'} • {agent.deployment.local?.platform || 'unknown'}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cloud deployment details (if applicable) */}
+                    {agent.deployment.type === 'cloud' && agent.deployment.cloud && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                            <div className="text-xs text-gray-400 mb-1">Instance Type</div>
+                            <div className="text-sm font-mono text-gray-200">{agent.deployment.cloud.instanceType || 'N/A'}</div>
+                          </div>
+                          <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                            <div className="text-xs text-gray-400 mb-1">Status</div>
+                            <div className="text-sm font-mono text-gray-200 capitalize">{agent.deployment.cloud.status || 'running'}</div>
+                          </div>
+                        </div>
+                        {agent.deployment.cloud.publicIp && (
+                          <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                            <div className="text-xs text-gray-400 mb-1">Public IP</div>
+                            <div className="text-sm font-mono text-gray-200">{agent.deployment.cloud.publicIp}</div>
+                          </div>
+                        )}
+                        {agent.deployment.cloud.apiEndpoint && (
+                          <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                            <div className="text-xs text-gray-400 mb-1">API Endpoint</div>
+                            <div className="text-sm font-mono text-gray-200">{agent.deployment.cloud.apiEndpoint}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Local deployment details */}
+                    {agent.deployment.type === 'local' && agent.deployment.local && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                          <div className="text-xs text-gray-400 mb-1">Hostname</div>
+                          <div className="text-sm font-mono text-gray-200">{agent.deployment.local.hostname}</div>
+                        </div>
+                        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                          <div className="text-xs text-gray-400 mb-1">Platform</div>
+                          <div className="text-sm font-mono text-gray-200">{agent.deployment.local.platform}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

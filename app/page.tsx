@@ -191,7 +191,7 @@ export default function DashboardPage() {
                       <Mail className="w-4 h-4" />
                       Messages
                       {unreadCount > 0 && (
-                        <span className="ml-1.5 bg-red-500/90 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
+                        <span className="ml-1.5 bg-blue-500/90 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                       )}
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                         title="View Agent Profile"
                       >
                         <User className="w-4 h-4" />
-                        Profile
+                        Agent Profile
                       </button>
                     )}
                   </div>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.6.0 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.7.0 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}

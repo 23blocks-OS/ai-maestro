@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest } from '@/types/agent'
+import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -91,6 +91,9 @@ export function createAgent(request: CreateAgentRequest): Agent {
     throw new Error(`Agent with alias "${request.alias}" already exists`)
   }
 
+  // Determine deployment type
+  const deploymentType: DeploymentType = request.deploymentType || 'local'
+
   // Create agent
   const agent: Agent = {
     id: uuidv4(),
@@ -106,6 +109,15 @@ export function createAgent(request: CreateAgentRequest): Agent {
     team: request.team,
     documentation: request.documentation,
     metadata: request.metadata,
+    deployment: {
+      type: deploymentType,
+      ...(deploymentType === 'local' && {
+        local: {
+          hostname: os.hostname(),
+          platform: os.platform(),
+        }
+      })
+    },
     metrics: {
       // Initialize metrics with zeros
       totalSessions: 0,

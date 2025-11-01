@@ -32,6 +32,9 @@ export interface Agent {
   // Custom flexible metadata
   metadata?: Record<string, any>  // User-defined key-value pairs
 
+  // Deployment configuration
+  deployment: AgentDeployment
+
   // Tools (what the agent uses to work)
   tools: AgentTools
 
@@ -42,6 +45,29 @@ export interface Agent {
 
   // Preferences
   preferences?: AgentPreferences
+}
+
+export type DeploymentType = 'local' | 'cloud'
+
+export interface AgentDeployment {
+  type: DeploymentType              // Where the agent is running
+
+  // Local deployment details
+  local?: {
+    hostname: string                // Machine hostname
+    platform: string                // OS platform (darwin, linux, win32)
+  }
+
+  // Cloud deployment details (future)
+  cloud?: {
+    provider: 'aws' | 'gcp' | 'digitalocean' | 'azure'
+    region?: string
+    instanceType?: string
+    instanceId?: string
+    publicIp?: string
+    apiEndpoint?: string
+    status?: 'provisioning' | 'running' | 'stopped' | 'error'
+  }
 }
 
 export interface AgentTools {
@@ -145,6 +171,7 @@ export interface CreateAgentRequest {
   tags?: string[]
   workingDirectory?: string
   createSession?: boolean       // Auto-create tmux session
+  deploymentType?: DeploymentType // Where to deploy (local or cloud)
   owner?: string
   team?: string
   documentation?: AgentDocumentation

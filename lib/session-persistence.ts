@@ -8,6 +8,7 @@ export interface PersistedSession {
   workingDirectory: string
   createdAt: string
   lastSavedAt: string
+  agentId?: string  // Link to agent (optional for backward compatibility)
 }
 
 const PERSISTENCE_DIR = path.join(os.homedir(), '.ai-maestro')

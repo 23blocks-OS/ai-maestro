@@ -6,6 +6,7 @@ export interface Session {
   createdAt: string
   lastActivity: string
   windows: number
+  agentId?: string  // Link to agent (optional for backward compatibility)
 }
 
 export type SessionStatus = Session['status']

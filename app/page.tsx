@@ -182,7 +182,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('messages')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 relative ${
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'messages'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -191,7 +191,7 @@ export default function DashboardPage() {
                       <Mail className="w-4 h-4" />
                       Messages
                       {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-lg">
+                        <span className="ml-1.5 bg-red-500/90 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                       )}

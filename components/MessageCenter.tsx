@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
@@ -32,7 +32,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [copySuccess, setCopySuccess] = useState(false)
 
   // Fetch inbox messages
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
       const data = await response.json()
@@ -40,10 +40,10 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }
+  }, [sessionName])
 
   // Fetch sent messages
-  const fetchSentMessages = async () => {
+  const fetchSentMessages = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
       const data = await response.json()
@@ -51,10 +51,10 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }
+  }, [sessionName])
 
   // Fetch unread count
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=unread-count`)
       const data = await response.json()
@@ -62,10 +62,10 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error fetching unread count:', error)
     }
-  }
+  }, [sessionName])
 
   // Fetch sent count
-  const fetchSentCount = async () => {
+  const fetchSentCount = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=sent-count`)
       const data = await response.json()
@@ -73,7 +73,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error fetching sent count:', error)
     }
-  }
+  }, [sessionName])
 
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
@@ -305,7 +305,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
       fetchSentCount()
     }, 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
-  }, [sessionName])
+  }, [sessionName, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
 
   // Close dropdown when clicking outside
   useEffect(() => {

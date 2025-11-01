@@ -7,6 +7,7 @@ import MessageCenter from '@/components/MessageCenter'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import AgentProfile from '@/components/AgentProfile'
+import MigrationBanner from '@/components/MigrationBanner'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User } from 'lucide-react'
@@ -107,6 +108,9 @@ export default function DashboardPage() {
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
+
+        {/* Migration Banner */}
+        <MigrationBanner />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">

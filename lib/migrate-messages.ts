@@ -135,45 +135,70 @@ export function needsMigration(): boolean {
  */
 export function getMigrationStatus(): {
   needsMigration: boolean
-  sessionBasedDirs: string[]
-  agentBasedDirs: string[]
-  symlinks: string[]
+  sessionCount: number
+  agentCount: number
+  migratedCount: number
+  sessionBasedDirs?: string[]
+  agentBasedDirs?: string[]
+  symlinks?: string[]
 } {
-  const status = {
-    needsMigration: false,
-    sessionBasedDirs: [] as string[],
-    agentBasedDirs: [] as string[],
-    symlinks: [] as string[]
-  }
-
-  const agents = loadAgents()
-
-  for (const agent of agents) {
-    if (!agent.tools.session) {
-      continue
+  try {
+    const agents = loadAgents()
+    const sessionsWithMessages = new Set<string>()
+    const status = {
+      needsMigration: false,
+      sessionCount: 0,
+      agentCount: agents.length,
+      migratedCount: 0,
+      sessionBasedDirs: [] as string[],
+      agentBasedDirs: [] as string[],
+      symlinks: [] as string[]
     }
 
-    const sessionName = agent.tools.session.tmuxSessionName
-    const agentId = agent.id
+    for (const agent of agents) {
+      if (!agent.tools.session) {
+        continue
+      }
 
-    for (const boxType of ['inbox', 'sent', 'archived']) {
-      const oldPath = path.join(MESSAGE_DIR, boxType, sessionName)
-      const newPath = path.join(MESSAGE_DIR, boxType, agentId)
+      const sessionName = agent.tools.session.tmuxSessionName
+      const agentId = agent.id
+      let hasMessages = false
 
-      if (fs.existsSync(oldPath)) {
-        if (fs.lstatSync(oldPath).isSymbolicLink()) {
-          status.symlinks.push(oldPath)
-        } else {
-          status.sessionBasedDirs.push(oldPath)
-          status.needsMigration = true
+      for (const boxType of ['inbox', 'sent', 'archived']) {
+        const oldPath = path.join(MESSAGE_DIR, boxType, sessionName)
+        const newPath = path.join(MESSAGE_DIR, boxType, agentId)
+
+        if (fs.existsSync(oldPath)) {
+          hasMessages = true
+          if (fs.lstatSync(oldPath).isSymbolicLink()) {
+            status.symlinks.push(oldPath)
+            status.migratedCount++
+          } else {
+            status.sessionBasedDirs.push(oldPath)
+            status.needsMigration = true
+          }
+        }
+
+        if (fs.existsSync(newPath)) {
+          status.agentBasedDirs.push(newPath)
         }
       }
 
-      if (fs.existsSync(newPath)) {
-        status.agentBasedDirs.push(newPath)
+      if (hasMessages) {
+        sessionsWithMessages.add(sessionName)
       }
     }
-  }
 
-  return status
+    status.sessionCount = sessionsWithMessages.size
+
+    return status
+  } catch (error) {
+    console.error('Error getting migration status:', error)
+    return {
+      needsMigration: false,
+      sessionCount: 0,
+      agentCount: 0,
+      migratedCount: 0
+    }
+  }
 }

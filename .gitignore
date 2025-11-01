@@ -98,5 +98,8 @@ logs/
 # Marketing materials (not part of open source repo)
 docs/marketing/
 
+# Benchmark and competitive analysis (internal use only)
+docs/benchmark/
+
 # Generated social media logos (large binary files)
 public/logos/social/*.png

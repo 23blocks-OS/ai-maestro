@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest } from '@/types/agent'
+import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest } from '@/types/agent'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -96,11 +96,27 @@ export function createAgent(request: CreateAgentRequest): Agent {
     id: uuidv4(),
     alias: request.alias,
     displayName: request.displayName,
+    avatar: request.avatar,
     program: request.program,
     model: request.model,
     taskDescription: request.taskDescription,
     tags: request.tags || [],
     capabilities: [],
+    owner: request.owner,
+    team: request.team,
+    documentation: request.documentation,
+    metadata: request.metadata,
+    metrics: {
+      // Initialize metrics with zeros
+      totalSessions: 0,
+      totalMessages: 0,
+      totalTasksCompleted: 0,
+      uptimeHours: 0,
+      totalApiCalls: 0,
+      totalTokensUsed: 0,
+      estimatedCost: 0,
+      lastCostUpdate: new Date().toISOString(),
+    },
     tools: {
       // Session tool (if requested)
       ...(request.createSession && {
@@ -149,6 +165,14 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   agents[index] = {
     ...agents[index],
     ...updates,
+    documentation: {
+      ...agents[index].documentation,
+      ...updates.documentation
+    },
+    metadata: {
+      ...agents[index].metadata,
+      ...updates.metadata
+    },
     preferences: {
       ...agents[index].preferences,
       ...updates.preferences
@@ -158,6 +182,56 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
 
   saveAgents(agents)
   return agents[index]
+}
+
+/**
+ * Update agent metrics
+ */
+export function updateAgentMetrics(id: string, metrics: UpdateAgentMetricsRequest): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === id)
+
+  if (index === -1) {
+    return null
+  }
+
+  agents[index].metrics = {
+    ...agents[index].metrics,
+    ...metrics,
+    lastCostUpdate: new Date().toISOString()
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+
+  saveAgents(agents)
+  return agents[index]
+}
+
+/**
+ * Increment agent metric by a specific amount
+ */
+export function incrementAgentMetric(
+  id: string,
+  metric: keyof UpdateAgentMetricsRequest,
+  amount: number = 1
+): boolean {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === id)
+
+  if (index === -1) {
+    return false
+  }
+
+  if (!agents[index].metrics) {
+    agents[index].metrics = {}
+  }
+
+  const currentValue = (agents[index].metrics[metric] as number) || 0
+  agents[index].metrics[metric] = currentValue + amount
+  agents[index].metrics.lastCostUpdate = new Date().toISOString()
+  agents[index].lastActive = new Date().toISOString()
+
+  return saveAgents(agents)
 }
 
 /**

@@ -619,7 +619,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                     <span className="text-xs text-gray-500">
                       {new Date(msg.timestamp).toLocaleString()}
                     </span>
-                    <CheckCircle className="w-3 h-3 text-green-500" title="Sent" />
+                    <CheckCircle className="w-3 h-3 text-green-500" />
                   </div>
                 </div>
               ))

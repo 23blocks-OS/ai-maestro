@@ -212,7 +212,7 @@ export function updateAgentMetrics(id: string, metrics: UpdateAgentMetricsReques
  */
 export function incrementAgentMetric(
   id: string,
-  metric: keyof UpdateAgentMetricsRequest,
+  metric: keyof Omit<UpdateAgentMetricsRequest, 'customMetrics'>,
   amount: number = 1
 ): boolean {
   const agents = loadAgents()
@@ -226,9 +226,10 @@ export function incrementAgentMetric(
     agents[index].metrics = {}
   }
 
-  const currentValue = (agents[index].metrics[metric] as number) || 0
-  agents[index].metrics[metric] = currentValue + amount
-  agents[index].metrics.lastCostUpdate = new Date().toISOString()
+  // Type-safe assignment for numeric metrics only
+  const currentValue = (agents[index].metrics![metric] as number) || 0
+  ;(agents[index].metrics! as any)[metric] = currentValue + amount
+  agents[index].metrics!.lastCostUpdate = new Date().toISOString()
   agents[index].lastActive = new Date().toISOString()
 
   return saveAgents(agents)

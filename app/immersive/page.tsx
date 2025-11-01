@@ -20,10 +20,8 @@ export default function ImmersivePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const sessionParam = params.get('session')
-    console.log('URL session parameter:', sessionParam)
     if (sessionParam) {
       const decodedSession = decodeURIComponent(sessionParam)
-      console.log('Setting active session to:', decodedSession)
       setActiveSessionId(decodedSession)
     }
   }, [])
@@ -116,7 +114,6 @@ export default function ImmersivePage() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('WebSocket connected')
         // Send initial resize
         ws.send(JSON.stringify({
           type: 'resize',
@@ -171,7 +168,6 @@ export default function ImmersivePage() {
       }
 
       ws.onclose = () => {
-        console.log('WebSocket closed')
       }
 
       // Handle terminal input

@@ -27,7 +27,6 @@ export default function DashboardPage() {
     const sessionParam = params.get('session')
     if (sessionParam) {
       setActiveSessionId(decodeURIComponent(sessionParam))
-      console.log('Dashboard: Setting session from URL:', decodeURIComponent(sessionParam))
     }
   }, [])
 

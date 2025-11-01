@@ -88,7 +88,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       reportActivity(session.id)
     },
     onMessage: (data) => {
-      console.log(`📨 [WS-MESSAGE] Received ${data.length} bytes for session ${session.id}`)
 
       // Check if this is a control message (JSON)
       try {
@@ -101,11 +100,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-            console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
             // CRITICAL: Wait for xterm.js to finish processing history
             setTimeout(() => {
-              console.log(`📊 [HISTORY-WAIT] After 100ms wait - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
               // 1. Scroll to bottom first
               term.scrollToBottom()
@@ -120,7 +117,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
               // 4. Refresh all layers (canvas, selection, scrollbar)
               term.refresh(0, term.rows - 1)
 
-              console.log(`🎯 [HISTORY-COMPLETE] Terminal focused and selection cleared for session ${session.id}`)
 
               // 5. Final refresh after a small delay to ensure selection layer is ready
               setTimeout(() => {
@@ -137,17 +133,14 @@ export default function TerminalView({ session }: TerminalViewProps) {
                 }
 
                 term.refresh(0, term.rows - 1)
-                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh and click for session ${session.id}`)
               }, 50)
 
-              console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
             }, 100)
           }
           return
         }
       } catch {
         // Not JSON - it's terminal data, continue processing
-        console.log(`📝 [WS-DATA] Not JSON, treating as terminal data (${data.length} bytes)`)
       }
 
       // Only report activity for substantial content (not cursor blinks or control sequences)
@@ -155,10 +148,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       // Always write data to terminal first
       if (terminalInstanceRef.current) {
-        console.log(`✍️ [TERMINAL-WRITE] Writing ${data.length} bytes to terminal for session ${session.id}`)
-        console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
-        console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
 
         // CRITICAL: Refresh selection layer after content updates
         // Debounced to avoid performance issues during rapid updates
@@ -169,11 +159,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
           if (terminalInstanceRef.current) {
             // Refresh only the visible portion to maintain performance
             terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
-            console.log(`🎨 [AUTO-REFRESH] Refreshed selection layer for session ${session.id}`)
           }
         }, 200) // Wait 200ms after last write
       } else {
-        console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)
       }
 
@@ -195,23 +183,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
   useEffect(() => {
     // Wait for the DOM ref to be ready
     if (!terminalRef.current) {
-      console.log(`⚠️ [INIT-SKIP] DOM ref not ready for session ${session.id}`)
       return
     }
 
     // Check if container is actually visible and has dimensions
     const rect = terminalRef.current.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) {
-      console.log(`⚠️ [INIT-SKIP] Container not visible yet for session ${session.id} (${rect.width}x${rect.height}), waiting...`)
       return
     }
 
-    console.log(`📐 [INIT] Container dimensions for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
 
     let cleanup: (() => void) | undefined
 
     const init = async () => {
-      console.log(`🚀 [INIT] Initializing terminal for session ${session.id}`)
 
       const containerElement = terminalRef.current
       if (!containerElement) {
@@ -221,7 +205,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       cleanup = await initializeTerminal(containerElement)
 
-      console.log(`✅ [INIT-COMPLETE] Terminal ready for session ${session.id}`)
       setIsReady(true)
     }
 
@@ -231,7 +214,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
     // Cleanup only on unmount (when tab is removed from DOM)
     return () => {
-      console.log(`🧹 [CLEANUP] Cleaning up terminal for session ${session.id}`)
       if (cleanup) {
         cleanup()
       }
@@ -255,10 +237,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
   // Mobile-specific: trigger fit when notes collapse/expand (changes terminal height on mobile)
   useEffect(() => {
     if (isMobile && isReady && terminal) {
-      console.log(`📝 [NOTES-TOGGLE] Notes ${notesCollapsed ? 'collapsed' : 'expanded'} on session ${session.id}, scheduling 150ms fit`)
       // Notes state changed on mobile, terminal height changed dramatically
       const timeout = setTimeout(() => {
-        console.log(`⏰ [NOTES-TOGGLE-TIMEOUT] Firing fit for session ${session.id}`)
         fitTerminal()
       }, 150)
       return () => clearTimeout(timeout)
@@ -315,7 +295,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       ) {
         isTouchingTerminal = true
         touchStartY = touch.clientY
-        console.log('📱 [TOUCH] Started on terminal')
       }
     }
 
@@ -327,7 +306,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
 
       if (Math.abs(linesToScroll) > 0) {
-        console.log(`📱 [TOUCH] Scrolling ${linesToScroll} lines`)
         terminal.scrollLines(linesToScroll)
         touchStartY = touchY
       }
@@ -339,7 +317,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
     const handleTouchEnd = () => {
       if (isTouchingTerminal) {
-        console.log('📱 [TOUCH] Ended')
       }
       isTouchingTerminal = false
     }
@@ -361,7 +338,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
   // Load notes from localStorage ONCE on mount
   // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
-    console.log(`📂 [LOAD-NOTES] Loading notes for session ${session.id}`)
     const storageKey = `session-notes-${session.id}`
     const savedNotes = localStorage.getItem(storageKey)
     if (savedNotes !== null) {

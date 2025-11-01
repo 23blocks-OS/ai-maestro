@@ -6,9 +6,10 @@ import TerminalView from '@/components/TerminalView'
 import MessageCenter from '@/components/MessageCenter'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
+import AgentProfile from '@/components/AgentProfile'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail } from 'lucide-react'
+import { Terminal, Mail, User } from 'lucide-react'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
@@ -16,6 +17,8 @@ export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
   // Read session from URL parameter on mount
   useEffect(() => {
@@ -48,6 +51,29 @@ export default function DashboardPage() {
       setActiveSessionId(sessions[0].id)
     }
   }, [sessions, activeSessionId])
+
+  // Fetch unread message count for active session
+  useEffect(() => {
+    if (!activeSessionId) return
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch(`/api/messages?session=${encodeURIComponent(activeSessionId)}&action=unread-count`)
+        if (response.ok) {
+          const data = await response.json()
+          setUnreadCount(data.count || 0)
+        }
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchUnreadCount, 10000)
+    return () => clearInterval(interval)
+  }, [activeSessionId])
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
@@ -156,7 +182,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('messages')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 relative ${
                         activeTab === 'messages'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -164,7 +190,23 @@ export default function DashboardPage() {
                     >
                       <Mail className="w-4 h-4" />
                       Messages
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-lg">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </button>
+                    <div className="flex-1" />
+                    {session.agentId && (
+                      <button
+                        onClick={() => setIsProfileOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                        title="View Agent Profile"
+                      >
+                        <User className="w-4 h-4" />
+                        Profile
+                      </button>
+                    )}
                   </div>
 
                   {/* Tab Content */}
@@ -213,6 +255,15 @@ export default function DashboardPage() {
           </p>
         </div>
       </footer>
+
+      {/* Agent Profile Panel */}
+      {activeSession?.agentId && (
+        <AgentProfile
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          agentId={activeSession.agentId}
+        />
+      )}
     </div>
     </TerminalProvider>
   )

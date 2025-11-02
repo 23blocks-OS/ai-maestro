@@ -177,7 +177,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
-
     // CRITICAL: Verify that xterm.js respected our pre-calculated dimensions
     if (terminal.cols !== cols || terminal.rows !== rows) {
       console.warn(`⚠️ [INIT] Terminal dimensions mismatch! Expected ${cols}x${rows}, got ${terminal.cols}x${terminal.rows}`)

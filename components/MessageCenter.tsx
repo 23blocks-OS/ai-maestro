@@ -817,6 +817,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 Message:
               </label>
               <textarea
+                id="compose-message"
+                name="message"
                 value={composeMessage}
                 onChange={(e) => setComposeMessage(e.target.value)}
                 rows={10}

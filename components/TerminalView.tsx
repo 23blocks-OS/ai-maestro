@@ -532,6 +532,8 @@ export default function TerminalView({ session }: TerminalViewProps) {
             </svg>
           </div>
           <textarea
+            id={`session-notes-${session.id}`}
+            name={`sessionNotes-${session.id}`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Take notes while working with your agent..."

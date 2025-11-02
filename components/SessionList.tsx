@@ -1248,6 +1248,8 @@ function RestoreSessionsModal({
                   className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all group"
                 >
                   <input
+                    id={`restore-checkbox-${session.id}`}
+                    name={`restore-checkbox-${session.id}`}
                     type="checkbox"
                     checked={selectedSessions.has(session.id)}
                     onChange={() => toggleSession(session.id)}

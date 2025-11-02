@@ -177,6 +177,14 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
+    // Fix xterm.js helper textarea missing id/name (causes browser console warnings)
+    // xterm.js creates a hidden textarea for input handling but doesn't add id/name
+    const helperTextarea = container.querySelector('.xterm-helper-textarea')
+    if (helperTextarea && optionsRef.current.sessionId) {
+      helperTextarea.setAttribute('id', `xterm-helper-${optionsRef.current.sessionId}`)
+      helperTextarea.setAttribute('name', `xterm-helper-${optionsRef.current.sessionId}`)
+    }
+
     // CRITICAL: Verify that xterm.js respected our pre-calculated dimensions
     if (terminal.cols !== cols || terminal.rows !== rows) {
       console.warn(`⚠️ [INIT] Terminal dimensions mismatch! Expected ${cols}x${rows}, got ${terminal.cols}x${terminal.rows}`)

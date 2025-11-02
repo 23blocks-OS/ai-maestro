@@ -28,13 +28,16 @@ echo "[3/9] Installing Nginx..."
 dnf install -y nginx
 systemctl enable nginx
 
-# Install Certbot for Let's Encrypt
-echo "[4/9] Installing Certbot..."
-dnf install -y python3 python3-pip augeas-libs
+# Install Certbot and Cron for Let's Encrypt
+echo "[4/9] Installing Certbot and Cron..."
+dnf install -y python3 python3-pip augeas-libs cronie
 # Skip pip upgrade on Amazon Linux (rpm-managed pip causes conflicts)
 python3 -m pip install --user certbot certbot-nginx
 # Add local bin to PATH for certbot
 export PATH="/root/.local/bin:$PATH"
+# Enable and start cron daemon
+systemctl enable crond
+systemctl start crond
 
 # Install AWS CLI v2 (if not already installed)
 echo "[5/9] Installing AWS CLI..."
@@ -95,15 +98,36 @@ mkdir -p /var/www/html/.well-known/acme-challenge
 # Start nginx
 systemctl start nginx
 
-# Obtain SSL certificate from Let's Encrypt (fully automated, non-interactive)
+# Obtain SSL certificate from Let's Encrypt (with retry for DNS propagation)
 echo "[9/9] Obtaining SSL certificate from Let's Encrypt..."
-certbot certonly \
-  --nginx \
-  --non-interactive \
-  --agree-tos \
-  --email ${ssl_email} \
-  --domains ${domain_name} \
-  --keep-until-expiring
+MAX_RETRIES=5
+RETRY_DELAY=30
+for i in $(seq 1 $MAX_RETRIES); do
+  echo "Attempt $i of $MAX_RETRIES..."
+
+  if certbot certonly \
+    --nginx \
+    --non-interactive \
+    --agree-tos \
+    --email ${ssl_email} \
+    --domains ${domain_name} \
+    --keep-until-expiring; then
+    echo "✓ SSL certificate obtained successfully!"
+    break
+  else
+    if [ $i -lt $MAX_RETRIES ]; then
+      echo "Certificate acquisition failed. Waiting $RETRY_DELAY seconds for DNS propagation..."
+      sleep $RETRY_DELAY
+    else
+      echo "ERROR: Failed to obtain SSL certificate after $MAX_RETRIES attempts."
+      echo "Please check:"
+      echo "  1. DNS A record points to this instance IP"
+      echo "  2. Port 80 is accessible from the internet"
+      echo "  3. Domain name is correct: ${domain_name}"
+      exit 1
+    fi
+  fi
+done
 
 # Remove temporary nginx config
 rm -f /etc/nginx/conf.d/aimaestro-temp.conf

@@ -43,6 +43,43 @@ wscat -c ws://localhost:23000/term
 # Type commands and see output from tmux/Claude
 ```
 
+## GitHub Authentication Setup
+
+### 1. Create GitHub Personal Access Token
+
+1. Go to: https://github.com/settings/tokens/new
+2. Token name: "AI Maestro Agents"
+3. Expiration: No expiration (or as needed)
+4. Scopes:
+   - ✅ `repo` (Full control of private repositories)
+   - ✅ `workflow` (Update GitHub Action workflows)
+5. Generate and copy the token (starts with `ghp_`)
+
+### 2. Create .env file
+
+```bash
+cd agent-container
+cp .env.example .env
+# Edit .env and add your GITHUB_TOKEN
+```
+
+**IMPORTANT:** Never commit `.env` file! It's already in `.gitignore`.
+
+### 3. Run container with token
+
+```bash
+docker run -d \
+  --name my-agent \
+  -p 23000:23000 \
+  --env-file .env \
+  aimaestro-agent
+```
+
+Agent can now:
+- Clone repos: `git clone https://github.com/your-org/repo.git`
+- Commit changes: `git commit -m "message"`
+- Push to GitHub: `git push` (automatically authenticated!)
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -52,6 +89,9 @@ wscat -c ws://localhost:23000/term
 | `WORKSPACE` | `/workspace` | Working directory for agent |
 | `AGENT_PORT` | `23000` | WebSocket server port |
 | `ANTHROPIC_API_KEY` | - | Claude API key (required) |
+| `GITHUB_TOKEN` | - | GitHub Personal Access Token for git push (recommended) |
+| `GIT_USER_NAME` | `AI Maestro Agent` | Git commit author name |
+| `GIT_USER_EMAIL` | `agent@23blocks.com` | Git commit author email |
 
 ## Deploy to AWS
 

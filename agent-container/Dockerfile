@@ -12,6 +12,7 @@ FROM debian:bookworm-slim
 # Install base dependencies and build tools for node-pty
 RUN apt-get update && apt-get install -y \
     curl \
+    wget \
     git \
     tmux \
     zsh \
@@ -27,6 +28,9 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Yarn globally
+RUN npm install -g yarn
 
 # Create non-root user
 ARG USER_ID=1000
@@ -74,6 +78,11 @@ ENV AGENT_ID=agent-local
 ENV TMUX_SESSION_NAME=agent-session
 ENV WORKSPACE=/workspace
 ENV AGENT_PORT=23000
+
+# Git configuration (will use token at runtime)
+# Note: GITHUB_TOKEN should be passed as environment variable at runtime, not baked into image
+ENV GIT_USER_NAME="AI Maestro Agent"
+ENV GIT_USER_EMAIL="agent@23blocks.com"
 
 # Expose WebSocket port
 EXPOSE 23000

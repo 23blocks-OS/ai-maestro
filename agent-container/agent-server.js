@@ -67,6 +67,37 @@ const wss = new WebSocketServer({
 // Active PTY sessions (shared across multiple WebSocket clients)
 const sessions = new Map()
 
+// Configure git with credentials
+async function configureGit() {
+  try {
+    const gitUserName = process.env.GIT_USER_NAME || 'AI Maestro Agent'
+    const gitUserEmail = process.env.GIT_USER_EMAIL || 'agent@23blocks.com'
+    const githubToken = process.env.GITHUB_TOKEN
+
+    console.log(`\n[Git Configuration]`)
+
+    // Set git user name and email
+    await exec(`git config --global user.name "${gitUserName}"`)
+    await exec(`git config --global user.email "${gitUserEmail}"`)
+    console.log(`✓ Configured git user: ${gitUserName} <${gitUserEmail}>`)
+
+    // Configure git credential helper to use token
+    if (githubToken) {
+      // Store credentials in memory (not on disk for security)
+      await exec(`git config --global credential.helper 'cache --timeout=86400'`)
+
+      // Configure git to use HTTPS with token
+      await exec(`git config --global url."https://${githubToken}@github.com/".insteadOf "https://github.com/"`)
+      console.log(`✓ Configured GitHub authentication with token`)
+    } else {
+      console.log(`⚠ No GITHUB_TOKEN provided - git push will not work`)
+      console.log(`  Set GITHUB_TOKEN environment variable to enable git push`)
+    }
+  } catch (err) {
+    console.error(`✗ Failed to configure git:`, err.message)
+  }
+}
+
 // Initialize tmux session on startup
 async function initializeTmuxSession() {
   try {
@@ -105,6 +136,19 @@ wss.on('connection', (ws, req) => {
     ptyProcess = sessionData.pty
     sessionData.clients.add(ws)
     console.log(`  → Total clients connected: ${sessionData.clients.size}`)
+
+    // Send current screen content to new client
+    exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
+      .then(({ stdout }) => {
+        if (stdout && ws.readyState === 1) {
+          // Send captured content
+          ws.send(stdout)
+          console.log(`  ✓ Sent ${stdout.length} bytes of history to new client`)
+        }
+      })
+      .catch((err) => {
+        console.error(`  ✗ Failed to capture pane:`, err.message)
+      })
   } else {
     console.log(`  → Creating new PTY for session: ${sessionKey}`)
 
@@ -121,6 +165,20 @@ wss.on('connection', (ws, req) => {
       pty: ptyProcess,
       clients: new Set([ws])
     })
+
+    // Capture and send initial screen content to first client
+    setTimeout(() => {
+      exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
+        .then(({ stdout }) => {
+          if (stdout && ws.readyState === 1) {
+            ws.send(stdout)
+            console.log(`  ✓ Sent ${stdout.length} bytes of initial content to first client`)
+          }
+        })
+        .catch((err) => {
+          console.error(`  ✗ Failed to capture initial pane:`, err.message)
+        })
+    }, 150) // Wait for tmux attach to complete
 
     // Broadcast PTY output to all connected clients
     ptyProcess.onData((data) => {
@@ -236,6 +294,9 @@ WebSocket:     ws://0.0.0.0:${PORT}/term
 
 Waiting for browser connections...
 `)
+
+  // Configure git with credentials
+  await configureGit()
 
   // Initialize tmux session
   await initializeTmuxSession()

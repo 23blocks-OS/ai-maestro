@@ -107,3 +107,12 @@ public/logos/social/*.png
 # Distributed agents architecture planning (internal strategy documents)
 docs/DISTRIBUTED-AGENTS-ARCHITECTURE.md
 docs/BACKLOG-DISTRIBUTED-AGENTS.md
+
+# Container secrets and environment variables
+agent-container/.env
+agent-container/.env.local
+agent-container/.env.*.local
+*.token
+secrets/
+# But allow .env.example files
+!agent-container/.env.example

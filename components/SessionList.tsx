@@ -682,17 +682,17 @@ export default function SessionList({
 
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="flex-1 min-w-0 flex items-center gap-2">
-                                            {/* Terminal icon */}
+                                            {/* Terminal icon - always show */}
                                             <Terminal
                                               className="w-3.5 h-3.5 flex-shrink-0"
                                               style={{ color: isActive ? colors.activeText : colors.icon }}
                                             />
 
-                                            {/* Deployment type icon */}
+                                            {/* Deployment type indicator */}
                                             {session.agentId && agentsMap[session.agentId] && (
                                               <div className="flex-shrink-0" title={agentsMap[session.agentId].deployment?.type === 'cloud' ? 'Cloud deployment' : 'Local deployment'}>
-                                                {agentsMap[session.agentId].deployment?.type === 'cloud' ? (
-                                                  <Cloud className="w-3 h-3 text-blue-400" />
+                                                {agentsMap[session.agentId].deployment?.type === 'cloud' && agentsMap[session.agentId]?.avatar ? (
+                                                  <span className="text-sm">{agentsMap[session.agentId].avatar}</span>
                                                 ) : (
                                                   <Layers className="w-3 h-3 text-gray-400" />
                                                 )}

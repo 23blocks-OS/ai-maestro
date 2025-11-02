@@ -88,7 +88,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       reportActivity(session.id)
     },
     onMessage: (data) => {
-
       // Check if this is a control message (JSON)
       try {
         const parsed = JSON.parse(data)
@@ -139,6 +138,16 @@ export default function TerminalView({ session }: TerminalViewProps) {
           }
           return
         }
+
+        // Handle container connection message
+        if (parsed.type === 'connected') {
+          console.log(`[CONTAINER] Connected to agent: ${parsed.agentId}`)
+          return
+        }
+
+        // If we got here, it's a JSON message but not a known control type
+        // This might be terminal data that happens to be valid JSON (rare)
+        // Fall through to write it to terminal
       } catch {
         // Not JSON - it's terminal data, continue processing
       }

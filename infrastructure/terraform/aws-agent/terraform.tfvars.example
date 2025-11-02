@@ -1,0 +1,23 @@
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars to git!
+
+# AWS Configuration
+aws_region  = "us-east-1"
+aws_profile = "default"  # Your AWS CLI profile name
+
+# Agent Configuration
+agent_name    = "cloud-agent-1"
+ecr_image_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/aimaestro-agent:latest"
+
+# GitHub Token (get from https://github.com/settings/tokens/new)
+github_token = "ghp_your_github_token_here"
+
+# EC2 Configuration
+instance_type = "t3.small"  # or t3.medium for better performance
+key_name      = "your-ssh-key-name"  # Must exist in AWS
+
+# Security
+allowed_ssh_cidr = "YOUR.IP.ADDRESS/32"  # Your IP address for SSH access
+
+# Optional: Claude API Key
+# anthropic_api_key = "sk-ant-your-key-here"

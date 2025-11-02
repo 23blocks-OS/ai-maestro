@@ -153,9 +153,11 @@ export interface AgentSummary {
   id: string
   alias: string
   displayName?: string
+  avatar?: string               // Avatar URL or emoji
   status: AgentStatus
   lastActive: string
   currentSession?: string       // Current tmux session name if running
+  deployment?: AgentDeployment  // Deployment configuration (needed for icon display)
 }
 
 /**

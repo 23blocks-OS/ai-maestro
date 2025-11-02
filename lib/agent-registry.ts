@@ -279,9 +279,11 @@ export function listAgents(): AgentSummary[] {
     id: a.id,
     alias: a.alias,
     displayName: a.displayName,
+    avatar: a.avatar,
     status: a.status,
     lastActive: a.lastActive,
-    currentSession: a.tools.session?.tmuxSessionName
+    currentSession: a.tools.session?.tmuxSessionName,
+    deployment: a.deployment
   }))
 }
 

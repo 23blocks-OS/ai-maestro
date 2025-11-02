@@ -7,7 +7,7 @@ const execAsync = promisify(exec)
 
 export async function POST(request: Request) {
   try {
-    const { name, workingDirectory } = await request.json()
+    const { name, workingDirectory, agentId } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Session name is required' }, { status: 400 })
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
       id: name,
       name: name,
       workingDirectory: cwd,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ...(agentId && { agentId })
     })
 
     return NextResponse.json({ success: true, name })

@@ -62,7 +62,7 @@ export default function MobileDashboard({
           >
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
             <span className="text-sm font-medium text-white truncate">
-              {activeSession ? getDisplayName(activeSession.id) : 'Select Session'}
+              {activeSession ? getDisplayName(activeSession.id) : 'Select Agent'}
             </span>
             <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" />
           </button>
@@ -92,9 +92,9 @@ export default function MobileDashboard({
         {sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
             <Terminal className="w-16 h-16 text-gray-600 mb-4" />
-            <p className="text-lg font-medium text-gray-300 mb-2">No Sessions Found</p>
+            <p className="text-lg font-medium text-gray-300 mb-2">No Agents Found</p>
             <p className="text-sm text-gray-500">
-              Create a tmux session with Claude Code to get started
+              Create a new agent to get started
             </p>
           </div>
         )}
@@ -158,7 +158,7 @@ export default function MobileDashboard({
             className="flex flex-col items-center justify-center py-3 px-6 flex-1 text-gray-400 hover:text-gray-300 transition-colors"
           >
             <Menu className="w-6 h-6 mb-1" />
-            <span className="text-xs font-medium">Sessions</span>
+            <span className="text-xs font-medium">Agents</span>
           </button>
         </div>
       </nav>
@@ -191,7 +191,7 @@ export default function MobileDashboard({
               style={{ flexShrink: 0 }}
             >
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-white">Sessions</h2>
+                <h2 className="text-lg font-semibold text-white">Agents</h2>
                 <button
                   onClick={() => {
                     setShowSessionSwitcher(false)
@@ -204,8 +204,10 @@ export default function MobileDashboard({
               </div>
               {/* Search Input */}
               <input
+                id="mobile-search"
+                name="search"
                 type="text"
-                placeholder="Search sessions..."
+                placeholder="Search agents..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
@@ -225,7 +227,7 @@ export default function MobileDashboard({
             >
               {filteredSessions.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-gray-400">
-                  <p>No sessions found</p>
+                  <p>No agents found</p>
                 </div>
               ) : (
                 filteredSessions.map((session) => {

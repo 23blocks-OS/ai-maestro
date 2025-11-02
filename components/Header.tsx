@@ -10,7 +10,6 @@ interface HeaderProps {
 
 export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessionId }: HeaderProps) {
   const immersiveUrl = activeSessionId ? `/immersive?session=${encodeURIComponent(activeSessionId)}` : '/immersive'
-  console.log('Header activeSessionId:', activeSessionId, 'immersiveUrl:', immersiveUrl)
 
   return (
     <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">

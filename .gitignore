@@ -103,3 +103,7 @@ docs/benchmark/
 
 # Generated social media logos (large binary files)
 public/logos/social/*.png
+
+# Distributed agents architecture planning (internal strategy documents)
+docs/DISTRIBUTED-AGENTS-ARCHITECTURE.md
+docs/BACKLOG-DISTRIBUTED-AGENTS.md

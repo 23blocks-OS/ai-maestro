@@ -181,6 +181,10 @@ app.prepare().then(() => {
     // Add client to session
     sessionState.clients.add(ws)
 
+    // Track connection as activity (so newly opened sessions show as active)
+    sessionActivity.set(sessionName, Date.now())
+    console.log(`[ACTIVITY-TRACK] Set activity for ${sessionName}, map size: ${sessionActivity.size}`)
+
     // If there was a cleanup timer scheduled, cancel it (client reconnected)
     if (sessionState.cleanupTimer) {
       console.log(`Client reconnected to ${sessionName}, canceling cleanup`)

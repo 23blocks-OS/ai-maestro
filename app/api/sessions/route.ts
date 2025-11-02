@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import type { Session } from '@/types/session'
+import { getAgentBySession } from '@/lib/agent-registry'
 
 const execAsync = promisify(exec)
+
+// Force this route to be dynamic (not statically generated at build time)
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
@@ -73,6 +77,9 @@ export async function GET() {
           workingDirectory = ''
         }
 
+        // Check if this session is linked to an agent
+        const agent = getAgentBySession(name)
+
         return {
           id: name,
           name,
@@ -81,6 +88,7 @@ export async function GET() {
           createdAt,
           lastActivity,
           windows: parseInt(windows, 10),
+          ...(agent && { agentId: agent.id })
         }
       })
 

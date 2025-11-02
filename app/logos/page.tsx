@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 export default function LogoPreview() {
   const logos = [
     {
@@ -33,11 +35,12 @@ export default function LogoPreview() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {logos.map((logo) => (
             <div key={logo.file} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="bg-gray-950 rounded-lg p-8 mb-4 flex items-center justify-center h-64">
-                <img
+              <div className="bg-gray-950 rounded-lg p-8 mb-4 flex items-center justify-center h-64 relative">
+                <Image
                   src={`/logos/${logo.file}`}
                   alt={logo.name}
-                  className="max-w-full max-h-full"
+                  fill
+                  className="object-contain"
                 />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">{logo.name}</h3>

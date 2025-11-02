@@ -8,21 +8,6 @@ const execAsync = promisify(exec)
 
 export async function GET() {
   try {
-    // Fetch activity data from server.mjs (which has the real sessionActivity Map)
-    // In production mode, global.sessionActivity is empty in Next.js worker processes
-    let activityMap = new Map<string, number>()
-    try {
-      const activityRes = await fetch('http://localhost:23000/api/sessions/activity')
-      if (activityRes.ok) {
-        const activityData = await activityRes.json()
-        Object.entries(activityData.activity || {}).forEach(([name, data]: [string, any]) => {
-          activityMap.set(name, new Date(data.lastActivity).getTime())
-        })
-      }
-    } catch (err) {
-      console.error('Failed to fetch activity from server.mjs:', err)
-    }
-
     // Execute tmux list-sessions command
     const { stdout } = await execAsync('tmux list-sessions 2>/dev/null || echo ""')
 
@@ -59,11 +44,11 @@ export async function GET() {
           createdAt = new Date().toISOString()
         }
 
-        // Get last activity from activityMap (fetched from server.mjs)
+        // Get last activity from global sessionActivity Map (populated by server.mjs)
         let lastActivity: string
         let status: 'active' | 'idle' | 'disconnected'
 
-        const activityTimestamp = activityMap.get(name)
+        const activityTimestamp = (global as any).sessionActivity?.get(name)
 
         if (activityTimestamp) {
           lastActivity = new Date(activityTimestamp).toISOString()

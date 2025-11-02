@@ -35,27 +35,6 @@ app.prepare().then(() => {
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true)
-
-      // Intercept /api/sessions/activity to serve from server.mjs sessionActivity Map
-      // This is necessary because in production mode, Next.js API routes run in worker
-      // processes that don't share the global object with server.mjs
-      if (parsedUrl.pathname === '/api/sessions/activity') {
-        const activity = {}
-        const now = Date.now()
-        sessionActivity.forEach((timestamp, sessionName) => {
-          const secondsSinceActivity = (now - timestamp) / 1000
-          activity[sessionName] = {
-            lastActivity: new Date(timestamp).toISOString(),
-            status: secondsSinceActivity > 3 ? 'idle' : 'active'
-          }
-        })
-
-        res.setHeader('Content-Type', 'application/json')
-        res.statusCode = 200
-        res.end(JSON.stringify({ activity }))
-        return
-      }
-
       await handle(req, res, parsedUrl)
     } catch (err) {
       console.error('Error handling request:', err)

@@ -4,13 +4,15 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { newName } = await request.json()
-    const oldName = params.id
+    const { id: oldName } = await params
 
     if (!newName || typeof newName !== 'string') {
       return NextResponse.json({ error: 'New session name is required' }, { status: 400 })

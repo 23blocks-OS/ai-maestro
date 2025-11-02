@@ -5,12 +5,14 @@ import { unpersistSession } from '@/lib/session-persistence'
 
 const execAsync = promisify(exec)
 
+export const dynamic = 'force-dynamic'
+
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionName = params.id
+    const { id: sessionName } = await params
 
     // Check if session exists
     const { stdout: existingCheck } = await execAsync(

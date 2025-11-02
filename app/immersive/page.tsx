@@ -254,13 +254,13 @@ export default function ImmersivePage() {
             className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-semibold text-white mb-4">Select Session</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">Select Agent</h2>
 
             {sessions.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-400 mb-4">No sessions found</p>
+                <p className="text-gray-400 mb-4">No agents found</p>
                 <p className="text-sm text-gray-500">
-                  Create a tmux session with Claude Code to get started
+                  Create a new agent to get started
                 </p>
               </div>
             ) : (

@@ -515,7 +515,7 @@ export default function SessionList({
       {/* Error State */}
       {error && (
         <div className="px-4 py-3 bg-red-900/20 border-b border-red-800">
-          <p className="text-sm text-red-400">Failed to load sessions</p>
+          <p className="text-sm text-red-400">Failed to load agents</p>
         </div>
       )}
 
@@ -524,7 +524,7 @@ export default function SessionList({
         {loading && sessions.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2"></div>
-            <p className="text-sm">Loading sessions...</p>
+            <p className="text-sm">Loading agents...</p>
           </div>
         ) : sessions.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">

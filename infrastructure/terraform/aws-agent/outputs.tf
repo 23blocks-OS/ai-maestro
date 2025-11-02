@@ -9,13 +9,18 @@ output "public_ip" {
 }
 
 output "websocket_url" {
-  description = "WebSocket URL for AI Maestro dashboard"
-  value       = "ws://${aws_instance.agent.public_ip}:${var.websocket_port}/term"
+  description = "Secure WebSocket URL for AI Maestro dashboard (wss://)"
+  value       = "wss://${var.domain_name}/term"
 }
 
 output "health_check_url" {
-  description = "Health check URL"
-  value       = "http://${aws_instance.agent.public_ip}:${var.websocket_port}/health"
+  description = "HTTPS health check URL"
+  value       = "https://${var.domain_name}/health"
+}
+
+output "http_url" {
+  description = "HTTP URL (redirects to HTTPS)"
+  value       = "http://${var.domain_name}"
 }
 
 output "ssh_command" {
@@ -40,8 +45,10 @@ output "agent_registry_json" {
         instanceType   = var.instance_type
         instanceId     = aws_instance.agent.id
         publicIp       = aws_instance.agent.public_ip
-        websocketUrl   = "ws://${aws_instance.agent.public_ip}:${var.websocket_port}/term"
-        healthCheckUrl = "http://${aws_instance.agent.public_ip}:${var.websocket_port}/health"
+        domain         = var.domain_name
+        websocketUrl   = "wss://${var.domain_name}/term"
+        healthCheckUrl = "https://${var.domain_name}/health"
+        ssl            = "letsencrypt"
         status         = "running"
       }
     }
@@ -56,4 +63,27 @@ output "agent_registry_json" {
     status    = "active"
     createdAt = timestamp()
   })
+}
+
+output "dns_instructions" {
+  description = "DNS setup instructions"
+  value       = <<-EOT
+
+  ╔════════════════════════════════════════════════════════════╗
+  ║  DNS SETUP REQUIRED - Add this A record to your DNS:      ║
+  ╠════════════════════════════════════════════════════════════╣
+  ║                                                            ║
+  ║  Domain: ${var.domain_name}                                ║
+  ║  Type:   A                                                 ║
+  ║  Value:  ${aws_instance.agent.public_ip}                   ║
+  ║  TTL:    300 (5 minutes)                                   ║
+  ║                                                            ║
+  ║  After adding the DNS record, wait 5-10 minutes for:      ║
+  ║  1. DNS propagation                                        ║
+  ║  2. Let's Encrypt to issue SSL certificate               ║
+  ║                                                            ║
+  ║  Then test: https://${var.domain_name}/health              ║
+  ╚════════════════════════════════════════════════════════════╝
+
+  EOT
 }

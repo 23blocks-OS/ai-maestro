@@ -10,6 +10,7 @@ Terraform configuration to deploy AI Maestro agents to AWS EC2.
 4. **SSH Key Pair** created in AWS
 5. **ECR Repository** with aimaestro-agent image
 6. **GitHub Token** for git push
+7. **Domain Name** with DNS access (required for SSL)
 
 ## Quick Start
 
@@ -52,17 +53,37 @@ terraform plan
 terraform apply
 ```
 
-### 4. Get Agent URL
+### 4. Configure DNS
+
+After deployment, Terraform will show DNS instructions. Add an A record to your DNS:
+
+```
+Domain: agent1.yourdomain.com
+Type:   A
+Value:  [EC2 PUBLIC IP from terraform output]
+TTL:    300
+```
+
+**Wait 5-10 minutes for:**
+1. DNS propagation
+2. Let's Encrypt SSL certificate issuance (fully automated)
+
+Verify SSL is working:
+```bash
+curl https://agent1.yourdomain.com/health
+```
+
+### 5. Get Agent URL
 
 ```bash
-# Get WebSocket URL
+# Get secure WebSocket URL (wss://)
 terraform output websocket_url
 
 # Get full agent config JSON
 terraform output -json agent_registry_json
 ```
 
-### 5. Add to AI Maestro
+### 6. Add to AI Maestro
 
 Copy the agent JSON from output and add to `~/.aimaestro/agents/registry.json`:
 
@@ -84,6 +105,8 @@ terraform output -json agent_registry_json | jq '.' > ~/aimaestro-agent.json
 | `ecr_image_url` | Full ECR image URL | `123456789012.dkr.ecr.us-east-1.amazonaws.com/aimaestro-agent:latest` |
 | `github_token` | GitHub Personal Access Token | `ghp_xxxxx` |
 | `key_name` | SSH key pair name in AWS | `my-key` |
+| `domain_name` | Domain for SSL certificate | `agent1.yourdomain.com` |
+| `ssl_email` | Email for Let's Encrypt | `you@example.com` |
 
 ### Optional Variables
 
@@ -93,15 +116,16 @@ terraform output -json agent_registry_json | jq '.' > ~/aimaestro-agent.json
 | `aws_profile` | `default` | AWS CLI profile |
 | `instance_type` | `t3.small` | EC2 instance type |
 | `allowed_ssh_cidr` | `0.0.0.0/0` | SSH access CIDR |
-| `websocket_port` | `46000` | WebSocket port |
 | `anthropic_api_key` | - | Claude API key |
 
 ## What Gets Created
 
 - **EC2 Instance** (Amazon Linux 2023)
-- **Security Group** (ports 22, 46000)
+- **Security Group** (ports 22, 80, 443)
 - **IAM Role** (ECR read access)
-- **Docker container** running aimaestro-agent
+- **Nginx** reverse proxy with SSL termination
+- **Let's Encrypt SSL certificate** (automatically obtained and renewed)
+- **Docker container** running aimaestro-agent (localhost only)
 
 ## Costs
 
@@ -156,9 +180,10 @@ docker logs aimaestro-agent
 
 ### Can't connect via WebSocket
 
-1. Check security group allows port 46000
-2. Check instance is running: `terraform output instance_id`
-3. Check container health: `curl http://INSTANCE_IP:46000/health`
+1. Verify DNS is pointing to correct IP: `dig agent1.yourdomain.com`
+2. Check SSL certificate is valid: `curl -v https://agent1.yourdomain.com/health`
+3. View Nginx logs: `ssh ... "sudo tail -f /var/log/nginx/error.log"`
+4. Check container health: `ssh ... "docker exec aimaestro-agent curl http://localhost:23000/health"`
 
 ### ECR pull fails
 
@@ -166,7 +191,22 @@ docker logs aimaestro-agent
 2. Check image exists: `aws ecr describe-images --repository-name aimaestro-agent`
 3. Verify region matches
 
-## Security Best Practices
+## Security Features
+
+### SSL/TLS (Automatic)
+- **Let's Encrypt** certificates (free, trusted by all browsers)
+- **Automatic issuance** during deployment (no manual steps)
+- **Automatic renewal** via cron (every 12 hours check)
+- **Strong ciphers** (Mozilla Intermediate configuration)
+- **HSTS** and security headers enabled
+
+### Network Security
+- Container binds to **localhost only** (127.0.0.1:23000)
+- Nginx reverse proxy handles all external traffic
+- HTTPS/WSS encryption for all connections
+- HTTP automatically redirects to HTTPS
+
+### Best Practices
 
 1. **Restrict SSH access**: Set `allowed_ssh_cidr` to your IP only
 2. **Use Secrets Manager**: Store GitHub token in AWS Secrets Manager (not implemented yet)

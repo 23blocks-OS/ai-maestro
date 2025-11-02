@@ -60,3 +60,14 @@ variable "anthropic_api_key" {
   sensitive   = true
   default     = ""
 }
+
+# SSL Configuration
+variable "domain_name" {
+  description = "Domain name for the agent (e.g., agent1.aimaestro.com) - REQUIRED for SSL"
+  type        = string
+}
+
+variable "ssl_email" {
+  description = "Email for Let's Encrypt SSL certificate notifications"
+  type        = string
+}

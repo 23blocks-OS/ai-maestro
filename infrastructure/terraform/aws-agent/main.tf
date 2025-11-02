@@ -14,14 +14,14 @@ provider "aws" {
   profile = var.aws_profile
 }
 
-# Get latest Amazon Linux 2023 AMI
+# Get latest Amazon Linux 2023 AMI (ARM64 for Graviton instances)
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = ["al2023-ami-*-arm64"]
   }
 
   filter {
@@ -44,13 +44,22 @@ resource "aws_security_group" "agent" {
     description = "SSH access"
   }
 
-  # WebSocket access
+  # HTTP (for LetsEncrypt ACME challenge)
   ingress {
-    from_port   = var.websocket_port
-    to_port     = var.websocket_port
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "WebSocket access for AI Maestro dashboard"
+    description = "HTTP for LetsEncrypt"
+  }
+
+  # HTTPS (secure WebSocket - wss://)
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS/WSS for secure WebSocket connections"
   }
 
   # Allow all outbound traffic
@@ -113,7 +122,7 @@ resource "aws_instance" "agent" {
   vpc_security_group_ids = [aws_security_group.agent.id]
   iam_instance_profile   = aws_iam_instance_profile.agent.name
 
-  # User data script to install Docker and run agent
+  # User data script to install Docker, Nginx, and run agent with SSL
   user_data = templatefile("${path.module}/user_data.sh", {
     ecr_image_url      = var.ecr_image_url
     agent_name         = var.agent_name
@@ -121,6 +130,12 @@ resource "aws_instance" "agent" {
     websocket_port     = var.websocket_port
     anthropic_api_key  = var.anthropic_api_key
     aws_region         = var.aws_region
+    domain_name        = var.domain_name
+    ssl_email          = var.ssl_email
+    nginx_config       = templatefile("${path.module}/nginx.conf.tpl", {
+      domain_name = var.domain_name
+      agent_name  = var.agent_name
+    })
   })
 
   root_block_device {

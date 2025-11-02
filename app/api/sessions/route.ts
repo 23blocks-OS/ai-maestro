@@ -6,6 +6,9 @@ import { getAgentBySession } from '@/lib/agent-registry'
 
 const execAsync = promisify(exec)
 
+// Force this route to be dynamic (not statically generated at build time)
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     // Execute tmux list-sessions command

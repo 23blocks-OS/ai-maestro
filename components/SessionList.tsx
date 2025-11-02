@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import type { Session } from '@/types/session'
 import { formatDistanceToNow } from '@/lib/utils'
 import {
@@ -223,8 +223,13 @@ export default function SessionList({
     return groups
   }, [sessions])
 
-  // Initialize NEW panels as open (but preserve user's collapsed state)
+  // Initialize NEW panels as open on first mount only (preserve user's collapsed state after that)
+  const initializedRef = useRef(false)
   useEffect(() => {
+    // Only run once on initial mount, not on every sessions update
+    if (initializedRef.current) return
+    initializedRef.current = true
+
     setExpandedLevel1((prev) => {
       const newExpanded = new Set(prev)
       // Only add NEW level1 categories that don't exist yet

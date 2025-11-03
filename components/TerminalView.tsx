@@ -7,6 +7,9 @@ import { createResizeMessage } from '@/lib/websocket'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import type { Session } from '@/types/session'
 
+const BRACKETED_PASTE_START = '\u001b[200~'
+const BRACKETED_PASTE_END = '\u001b[201~'
+
 interface TerminalViewProps {
   session: Session
 }
@@ -402,7 +405,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
       } catch {}
     })
     return () => cancelAnimationFrame(timer)
-  }, [footerTab, notesCollapsed, promptDraft])
+  }, [footerTab, notesCollapsed])
 
   // Save collapsed state to localStorage
   useEffect(() => {
@@ -444,18 +447,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
       }
 
       const normalized = promptDraft.replace(/\r\n?/g, '\n')
-      const lines = normalized.split('\n')
-      const payload = lines.join('\r')
+      const withoutEscape = normalized.replace(/\u001b/g, '')
+      const carriageAdjusted = withoutEscape.replace(/\n/g, '\r')
+      const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
 
-      const staged = sendMessage(payload)
+      const staged = sendMessage(bracketedPayload)
       if (!staged) {
         console.warn('[PromptBuilder] Failed to send staged text via WebSocket')
         return
       }
 
       if (mode === 'send') {
-        const submitted = sendMessage('\r')
-        if (!submitted) {
+        const executed = sendMessage('\r')
+        if (!executed) {
           console.warn('[PromptBuilder] Failed to send Enter via WebSocket')
           return
         }

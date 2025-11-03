@@ -7,6 +7,8 @@ import os from 'os'
 
 const execAsync = promisify(exec)
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

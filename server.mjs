@@ -414,8 +414,16 @@ app.prepare().then(() => {
     })
   })
 
-  server.listen(port, hostname, () => {
+  server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
+
+    // Sync agent databases on startup
+    try {
+      const { syncAgentDatabases } = await import('./lib/agent-db-sync.mjs')
+      await syncAgentDatabases()
+    } catch (error) {
+      console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
+    }
   })
 
   // Graceful shutdown

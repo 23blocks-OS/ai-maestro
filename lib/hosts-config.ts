@@ -172,3 +172,170 @@ export function createExampleConfig(): HostsConfig {
     ],
   }
 }
+
+/**
+ * Save hosts configuration to file
+ * Returns success status and error message if applicable
+ */
+export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
+  try {
+    // Ensure .aimaestro directory exists
+    const configDir = path.dirname(HOSTS_CONFIG_PATH)
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
+    }
+
+    // Write configuration to file
+    const config: HostsConfig = { hosts }
+    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+
+    // Clear cache to force reload on next access
+    clearHostsCache()
+
+    return { success: true }
+  } catch (error) {
+    console.error('[Hosts] Failed to save hosts configuration:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save configuration',
+    }
+  }
+}
+
+/**
+ * Add a new host to the configuration
+ * Returns success status, the added host, or an error message
+ */
+export function addHost(host: Host): { success: boolean; host?: Host; error?: string } {
+  try {
+    const currentHosts = getHosts()
+
+    // Check if host ID already exists
+    const existingHost = currentHosts.find(h => h.id === host.id)
+    if (existingHost) {
+      return {
+        success: false,
+        error: `Host with ID '${host.id}' already exists`,
+      }
+    }
+
+    // Add new host
+    const updatedHosts = [...currentHosts, host]
+
+    // Save to file
+    const result = saveHosts(updatedHosts)
+    if (!result.success) {
+      return result
+    }
+
+    return { success: true, host }
+  } catch (error) {
+    console.error('[Hosts] Failed to add host:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to add host',
+    }
+  }
+}
+
+/**
+ * Update an existing host in the configuration
+ * Returns success status, the updated host, or an error message
+ */
+export function updateHost(
+  hostId: string,
+  updates: Partial<Host>
+): { success: boolean; host?: Host; error?: string } {
+  try {
+    const currentHosts = getHosts()
+
+    // Find the host to update
+    const hostIndex = currentHosts.findIndex(h => h.id === hostId)
+    if (hostIndex === -1) {
+      return {
+        success: false,
+        error: `Host with ID '${hostId}' not found`,
+      }
+    }
+
+    // Prevent changing host ID
+    if (updates.id && updates.id !== hostId) {
+      return {
+        success: false,
+        error: 'Cannot change host ID',
+      }
+    }
+
+    // Prevent disabling or deleting local host
+    const existingHost = currentHosts[hostIndex]
+    if (existingHost.type === 'local' && updates.enabled === false) {
+      return {
+        success: false,
+        error: 'Cannot disable local host',
+      }
+    }
+
+    // Update the host
+    const updatedHost = { ...existingHost, ...updates, id: hostId }
+    const updatedHosts = [...currentHosts]
+    updatedHosts[hostIndex] = updatedHost
+
+    // Save to file
+    const result = saveHosts(updatedHosts)
+    if (!result.success) {
+      return result
+    }
+
+    return { success: true, host: updatedHost }
+  } catch (error) {
+    console.error('[Hosts] Failed to update host:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update host',
+    }
+  }
+}
+
+/**
+ * Delete a host from the configuration
+ * Returns success status or an error message
+ */
+export function deleteHost(hostId: string): { success: boolean; error?: string } {
+  try {
+    const currentHosts = getHosts()
+
+    // Find the host to delete
+    const host = currentHosts.find(h => h.id === hostId)
+    if (!host) {
+      return {
+        success: false,
+        error: `Host with ID '${hostId}' not found`,
+      }
+    }
+
+    // Prevent deleting local host
+    if (host.type === 'local') {
+      return {
+        success: false,
+        error: 'Cannot delete local host',
+      }
+    }
+
+    // Remove the host
+    const updatedHosts = currentHosts.filter(h => h.id !== hostId)
+
+    // Save to file
+    const result = saveHosts(updatedHosts)
+    if (!result.success) {
+      return result
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[Hosts] Failed to delete host:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete host',
+    }
+  }
+}

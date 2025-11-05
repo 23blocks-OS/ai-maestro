@@ -23,7 +23,9 @@ import {
   RotateCcw,
   Cloud,
   Server,
+  Settings,
 } from 'lucide-react'
+import Link from 'next/link'
 import { useHosts } from '@/hooks/useHosts'
 
 interface SessionListProps {
@@ -816,6 +818,21 @@ export default function SessionList({
             })}
           </div>
         )}
+      </div>
+
+      {/* Settings Link */}
+      <div className="border-t border-sidebar-border px-3 py-3 mt-auto">
+        <Link
+          href="/settings"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 group"
+        >
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-gray-800 border border-gray-700 group-hover:bg-gray-700 group-hover:border-gray-600 transition-all duration-200">
+            <Settings className="w-4 h-4 text-gray-400 group-hover:text-gray-300" />
+          </div>
+          <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">
+            Settings
+          </span>
+        </Link>
       </div>
 
       {/* Create Session Modal */}

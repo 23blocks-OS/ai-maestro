@@ -6,6 +6,8 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import { createRemoteProxy } from './lib/websocket-proxy.mjs'
+import { getLocalHost } from './lib/hosts-config-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
@@ -60,11 +62,26 @@ app.prepare().then(() => {
 
   wss.on('connection', (ws, request, query) => {
     const sessionName = query.name
+    const hostId = query.host
 
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
       return
     }
+
+    // Check if this is a remote session request
+    const localHost = getLocalHost()
+    const isRemoteSession = hostId && hostId !== localHost.id
+
+    if (isRemoteSession) {
+      // Proxy to remote host
+      console.log(`[WebSocket] Proxying session ${sessionName} to host ${hostId}`)
+      createRemoteProxy(ws, sessionName, hostId)
+      return
+    }
+
+    // Handle local session
+    console.log(`[WebSocket] Handling local session ${sessionName}`)
 
     // Get or create session state
     let sessionState = sessions.get(sessionName)

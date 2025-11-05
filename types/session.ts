@@ -7,6 +7,11 @@ export interface Session {
   lastActivity: string
   windows: number
   agentId?: string  // Link to agent (optional for backward compatibility)
+
+  // Remote host metadata (Manager/Worker pattern)
+  hostId?: string      // Host identifier (e.g., "mac-mini", "local")
+  hostName?: string    // Human-readable host name (e.g., "Mac Mini")
+  remote?: boolean     // true if session is on a remote host
 }
 
 export type SessionStatus = Session['status']

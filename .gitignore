@@ -95,6 +95,9 @@ temp
 logs/
 *.log
 
+# Configuration
+.aimaestro/hosts.json
+
 # Marketing materials (not part of open source repo)
 docs/marketing/
 

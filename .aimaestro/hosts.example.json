@@ -1,0 +1,32 @@
+{
+  "hosts": [
+    {
+      "id": "local",
+      "name": "Local Machine",
+      "url": "http://localhost:23000",
+      "type": "local",
+      "enabled": true,
+      "description": "This machine (local tmux sessions)"
+    },
+    {
+      "id": "mac-mini",
+      "name": "Mac Mini",
+      "url": "http://100.80.12.6:23000",
+      "type": "remote",
+      "enabled": true,
+      "tailscale": true,
+      "tags": ["homelab", "development"],
+      "description": "Mac Mini via Tailscale VPN"
+    },
+    {
+      "id": "cloud-server-1",
+      "name": "Cloud Server 1",
+      "url": "http://100.123.45.67:23000",
+      "type": "remote",
+      "enabled": false,
+      "tailscale": true,
+      "tags": ["cloud", "production"],
+      "description": "Cloud server for production workloads (disabled by default)"
+    }
+  ]
+}

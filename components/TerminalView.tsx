@@ -104,6 +104,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
   const { isConnected, sendMessage, connectionError, errorHint } = useWebSocket({
     sessionId: session.id,
+    hostId: session.hostId,  // Pass host ID for remote session routing
     onOpen: () => {
       // Report activity when WebSocket connects
       reportActivity(session.id)

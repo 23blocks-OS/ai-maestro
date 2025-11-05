@@ -8,6 +8,7 @@ const WS_MAX_RECONNECT_ATTEMPTS = 5
 
 interface UseWebSocketOptions {
   sessionId: string
+  hostId?: string  // Host ID for remote sessions (Manager/Worker pattern)
   onMessage?: (data: string) => void
   onOpen?: () => void
   onClose?: () => void
@@ -17,6 +18,7 @@ interface UseWebSocketOptions {
 
 export function useWebSocket({
   sessionId,
+  hostId,
   onMessage,
   onOpen,
   onClose,
@@ -35,8 +37,15 @@ export function useWebSocket({
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    return `${protocol}//${host}/term?name=${encodeURIComponent(sessionId)}`
-  }, [sessionId])
+    let url = `${protocol}//${host}/term?name=${encodeURIComponent(sessionId)}`
+
+    // Add host parameter for remote sessions (Manager/Worker pattern)
+    if (hostId) {
+      url += `&host=${encodeURIComponent(hostId)}`
+    }
+
+    return url
+  }, [sessionId, hostId])
 
   const sendMessage = useCallback((data: string | WebSocketMessage) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {

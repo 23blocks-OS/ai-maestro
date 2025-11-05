@@ -22,7 +22,9 @@ import {
   Mail,
   RotateCcw,
   Cloud,
+  Server,
 } from 'lucide-react'
+import { useHosts } from '@/hooks/useHosts'
 
 interface SessionListProps {
   sessions: Session[]
@@ -149,6 +151,10 @@ export default function SessionList({
   const [showRestoreModal, setShowRestoreModal] = useState(false)
   const [agentsMap, setAgentsMap] = useState<Record<string, any>>({})
 
+  // Host management (Manager/Worker pattern)
+  const { hosts } = useHosts()
+  const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
+
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
@@ -179,7 +185,13 @@ export default function SessionList({
   const groupedSessions = useMemo(() => {
     const groups: Record<string, Record<string, Session[]>> = {}
 
-    sessions.forEach((session) => {
+    // Filter sessions by selected host
+    const filteredSessions =
+      selectedHostFilter === 'all'
+        ? sessions
+        : sessions.filter((s) => s.hostId === selectedHostFilter)
+
+    filteredSessions.forEach((session) => {
       const parts = session.id.split('-')
 
       if (parts.length >= 3) {
@@ -221,7 +233,7 @@ export default function SessionList({
     })
 
     return groups
-  }, [sessions])
+  }, [sessions, selectedHostFilter])
 
   // Initialize NEW panels as open on first mount only (preserve user's collapsed state after that)
   const initializedRef = useRef(false)
@@ -395,13 +407,13 @@ export default function SessionList({
     return Object.values(level2Groups).reduce((sum, sessions) => sum + sessions.length, 0)
   }
 
-  const handleCreateSession = async (name: string, workingDirectory?: string) => {
+  const handleCreateSession = async (name: string, workingDirectory?: string, hostId?: string) => {
     setActionLoading(true)
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory }),
+        body: JSON.stringify({ name, workingDirectory, hostId }),
       })
 
       if (!response.ok) {
@@ -515,6 +527,27 @@ export default function SessionList({
         <p className="text-xs text-gray-400 mt-1">
           {sessions.length} {sessions.length === 1 ? 'agent' : 'agents'}
         </p>
+
+        {/* Host Filter */}
+        {hosts.length > 1 && (
+          <div className="mt-2">
+            <select
+              value={selectedHostFilter}
+              onChange={(e) => setSelectedHostFilter(e.target.value)}
+              className="w-full px-2 py-1.5 text-xs bg-gray-800 border border-gray-700 rounded text-gray-300 hover:border-gray-600 focus:border-blue-500 focus:outline-none transition-colors"
+            >
+              <option value="all">All Hosts ({sessions.length})</option>
+              {hosts.map((host) => {
+                const count = sessions.filter((s) => s.hostId === host.id).length
+                return (
+                  <option key={host.id} value={host.id}>
+                    {host.name} ({count})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Error State */}
@@ -711,6 +744,19 @@ export default function SessionList({
                                               {session.name || session.id}
                                             </span>
 
+                                            {/* Host indicator badge (for remote sessions) */}
+                                            {session.remote && session.hostName && (
+                                              <div
+                                                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 flex-shrink-0"
+                                                title={`Remote session on ${session.hostName}`}
+                                              >
+                                                <Server className="w-2.5 h-2.5 text-blue-400" />
+                                                <span className="text-[10px] text-blue-400 font-medium">
+                                                  {session.hostName}
+                                                </span>
+                                              </div>
+                                            )}
+
                                             {/* Unread message indicator */}
                                             {unreadCounts[session.id] && unreadCounts[session.id] > 0 && (
                                               <div className="flex items-center gap-1 flex-shrink-0">
@@ -778,6 +824,7 @@ export default function SessionList({
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateSession}
           loading={actionLoading}
+          hosts={hosts}
         />
       )}
 
@@ -851,19 +898,24 @@ function CreateSessionModal({
   onClose,
   onCreate,
   loading,
+  hosts,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string) => void
+  onCreate: (name: string, workingDirectory?: string, hostId?: string) => void
   loading: boolean
+  hosts: Array<{ id: string; name: string; type: string }>
 }) {
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [deploymentType, setDeploymentType] = useState<'local' | 'cloud'>('local')
+  const [selectedHostId, setSelectedHostId] = useState<string>(
+    hosts.find((h) => h.type === 'local')?.id || 'local'
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onCreate(name.trim(), workingDirectory.trim() || undefined)
+      onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId)
     }
   }
 
@@ -932,6 +984,30 @@ function CreateSessionModal({
                 </p>
               )}
             </div>
+
+            {/* Host Selector (only show if multiple hosts) */}
+            {hosts.length > 1 && (
+              <div>
+                <label htmlFor="host-select" className="block text-sm font-medium text-gray-300 mb-1">
+                  Host *
+                </label>
+                <select
+                  id="host-select"
+                  value={selectedHostId}
+                  onChange={(e) => setSelectedHostId(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                >
+                  {hosts.map((host) => (
+                    <option key={host.id} value={host.id}>
+                      {host.name} {host.type === 'remote' ? '(Remote)' : '(Local)'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Select which machine to create the session on
+                </p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">

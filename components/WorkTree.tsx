@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle } from 'lucide-react'
+import ConversationDetailPanel from './ConversationDetailPanel'
 
 interface WorkTreeProps {
   sessionName: string
@@ -55,6 +56,10 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
+  const [selectedConversation, setSelectedConversation] = useState<{
+    file: string
+    projectPath: string
+  } | null>(null)
 
   const fetchWorkTree = async () => {
     if (!agentId) {
@@ -334,7 +339,11 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
                           return (
                             <div
                               key={claudeSession.claude_session_id}
-                              className="bg-gray-800/30 border border-gray-700/50 rounded p-3 hover:bg-gray-800/50 transition-colors"
+                              className="bg-gray-800/30 border border-gray-700/50 rounded p-3 hover:bg-gray-800/50 transition-colors cursor-pointer"
+                              onClick={() => setSelectedConversation({
+                                file: claudeSession.jsonl_file,
+                                projectPath: project.project_path
+                              })}
                             >
                               {/* Date and Models */}
                               <div className="flex items-start justify-between mb-2">
@@ -410,6 +419,15 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           </div>
         )}
       </div>
+
+      {/* Conversation Detail Panel */}
+      {selectedConversation && (
+        <ConversationDetailPanel
+          conversationFile={selectedConversation.file}
+          projectPath={selectedConversation.projectPath}
+          onClose={() => setSelectedConversation(null)}
+        />
+      )}
     </div>
   )
 }

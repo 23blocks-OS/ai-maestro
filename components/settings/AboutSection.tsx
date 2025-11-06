@@ -50,7 +50,7 @@ export default function AboutSection() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">AI Maestro</h1>
-        <p className="text-lg text-blue-400 font-medium mb-1">Version 0.8.0</p>
+        <p className="text-lg text-blue-400 font-medium mb-1">Version 0.9.2</p>
         <p className="text-sm text-gray-400">
           A browser-based terminal dashboard for managing Claude Code sessions
         </p>

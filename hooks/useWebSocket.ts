@@ -148,17 +148,19 @@ export function useWebSocket({
     setStatus('disconnected')
   }, [])
 
-  // Auto-connect on mount
+  // Auto-connect on mount or when autoConnect changes
   useEffect(() => {
     if (autoConnect) {
       connect()
+    } else {
+      disconnect()
     }
 
     return () => {
       disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]) // Reconnect when session changes
+  }, [sessionId, autoConnect]) // Reconnect when session changes or visibility changes
 
   return {
     isConnected,

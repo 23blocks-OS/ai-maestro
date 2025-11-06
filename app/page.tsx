@@ -310,7 +310,7 @@ export default function DashboardPage() {
                   {/* Tab Content */}
                   <div className="flex-1 flex overflow-hidden">
                     {activeTab === 'terminal' ? (
-                      <TerminalView session={session} />
+                      <TerminalView session={session} isVisible={isActive} />
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
                         sessionName={session.id}

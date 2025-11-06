@@ -129,10 +129,35 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return getToolsFromMessage(message).length > 0
   }
 
+  const getToolResultsFromMessage = (message: Message): any[] => {
+    const toolResults: any[] = []
+
+    // Check content array for tool_result blocks
+    if (message.message?.content && Array.isArray(message.message.content)) {
+      for (const block of message.message.content) {
+        if (block.type === 'tool_result') {
+          toolResults.push(block)
+        }
+      }
+    }
+
+    return toolResults
+  }
+
+  const hasToolResults = (message: Message): boolean => {
+    return getToolResultsFromMessage(message).length > 0
+  }
+
   const getMessagePreview = (message: Message): string => {
     // Handle summary type
     if (message.type === 'summary' && message.summary) {
       return message.summary
+    }
+
+    // Handle tool results (nested in user messages)
+    if (hasToolResults(message)) {
+      const results = getToolResultsFromMessage(message)
+      return `Tool result${results.length > 1 ? 's' : ''} returned`
     }
 
     // Handle tool use
@@ -198,6 +223,19 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                     <div className="text-gray-400 mb-1">Tool: {block.name || 'unknown'}</div>
                     <pre className="text-gray-300 overflow-x-auto">
                       {JSON.stringify(block.input || block, null, 2)}
+                    </pre>
+                  </div>
+                )
+              }
+              if (block.type === 'tool_result') {
+                return (
+                  <div key={idx} className="text-xs bg-yellow-900/30 p-3 rounded border border-yellow-800/50">
+                    <div className="text-yellow-400 mb-1 flex items-center gap-1">
+                      <FileCode className="w-3 h-3" />
+                      Tool Result {block.tool_use_id ? `(${block.tool_use_id.slice(0, 20)}...)` : ''}
+                    </div>
+                    <pre className="text-gray-200 overflow-x-auto whitespace-pre-wrap max-h-64">
+                      {typeof block.content === 'string' ? block.content : JSON.stringify(block.content, null, 2)}
                     </pre>
                   </div>
                 )
@@ -312,7 +350,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
               <div
                 key={index}
                 className={`rounded-lg border ${
-                  message.type === 'user'
+                  hasToolResults(message)
+                    ? 'bg-yellow-900/20 border-yellow-800/50'
+                    : message.type === 'user'
                     ? 'bg-blue-900/20 border-blue-800/50'
                     : message.type === 'assistant' && hasTools(message)
                     ? 'bg-orange-900/20 border-orange-800/50'
@@ -329,7 +369,14 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {message.type === 'user' ? (
+                      {hasToolResults(message) ? (
+                        <>
+                          <FileCode className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white">
+                            Tool Result{getToolResultsFromMessage(message).length > 1 ? 's' : ''}
+                          </span>
+                        </>
+                      ) : message.type === 'user' ? (
                         <>
                           <User className="w-4 h-4 text-blue-400 flex-shrink-0" />
                           <span className="text-sm font-medium text-white">User</span>

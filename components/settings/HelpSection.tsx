@@ -54,17 +54,17 @@ export default function HelpSection() {
   const links = [
     {
       label: 'GitHub Repository',
-      url: 'https://github.com/23blocks/ai-maestro',
+      url: 'https://github.com/23blocks-OS/ai-maestro',
       description: 'View source code and contribute',
     },
     {
       label: 'Report an Issue',
-      url: 'https://github.com/23blocks/ai-maestro/issues',
+      url: 'https://github.com/23blocks-OS/ai-maestro/issues',
       description: 'Found a bug? Let us know',
     },
     {
       label: 'Documentation',
-      url: 'https://github.com/23blocks/ai-maestro/blob/main/README.md',
+      url: 'https://github.com/23blocks-OS/ai-maestro/blob/main/README.md',
       description: 'Full project documentation',
     },
   ]

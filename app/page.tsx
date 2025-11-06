@@ -8,6 +8,7 @@ import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import AgentProfile from '@/components/AgentProfile'
 import MigrationBanner from '@/components/MigrationBanner'
+import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User } from 'lucide-react'
@@ -20,6 +21,15 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  // Check for onboarding completion on mount
+  useEffect(() => {
+    const completed = localStorage.getItem('aimaestro-onboarding-completed')
+    if (!completed) {
+      setShowOnboarding(true)
+    }
+  }, [])
 
   // Read session from URL parameter on mount
   useEffect(() => {
@@ -83,7 +93,23 @@ export default function DashboardPage() {
     setSidebarCollapsed(!sidebarCollapsed)
   }
 
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false)
+    // Refresh sessions to show any newly created session
+    refreshSessions()
+  }
+
+  const handleOnboardingSkip = () => {
+    localStorage.setItem('aimaestro-onboarding-completed', 'true')
+    setShowOnboarding(false)
+  }
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
+
+  // Show onboarding flow if not completed
+  if (showOnboarding) {
+    return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
+  }
 
   // Render mobile-specific dashboard for small screens
   // CRITICAL: Use key prop to force complete unmount/remount when switching layouts

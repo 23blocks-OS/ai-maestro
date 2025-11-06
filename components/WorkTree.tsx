@@ -97,16 +97,29 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
         total_messages: 0
       }))
 
-      const projects: ProjectWork[] = (data.projects || []).map((row: any) => ({
-        project_id: row[0],
-        project_name: row[1],
-        project_path: row[0],
-        claude_config_dir: row[2] || '',
-        total_sessions: 0,
-        total_claude_sessions: 0,
-        last_seen: row[4],
-        claude_sessions: []
-      }))
+      const projects: ProjectWork[] = (data.projects || []).map((item: any) => {
+        const row = item.project
+        const conversations = item.conversations || []
+
+        return {
+          project_id: row[0],
+          project_name: row[1],
+          project_path: row[0],
+          claude_config_dir: row[2] || '',
+          total_sessions: 0,
+          total_claude_sessions: conversations.length,
+          last_seen: row[4],
+          claude_sessions: conversations.map((conv: any) => ({
+            claude_session_id: conv[0],
+            session_type: 'main',
+            status: 'completed',
+            message_count: conv[4],
+            first_message_at: conv[2],
+            last_message_at: conv[3],
+            jsonl_file: conv[0]
+          }))
+        }
+      })
 
       setWorkData({
         agent_id: agentId,

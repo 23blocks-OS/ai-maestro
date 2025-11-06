@@ -10,17 +10,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS, lucide-react
 **Platform:** macOS 12.0+, Node.js 18.17+/20.x, tmux 3.0+
 **Branding:** Space Grotesk font, titled "AI Maestro"
+**Port:** Application runs on port 23000 (http://localhost:23000)
 
 ## Development Commands
 
 ```bash
 # Development
 yarn install             # Install all dependencies
-yarn dev                 # Start dev server with hot reload (http://localhost:3000)
+yarn dev                 # Start dev server with hot reload (http://localhost:23000)
 
 # Production
 yarn build               # Build optimized production bundle
-yarn start               # Start production server
+yarn start               # Start production server (http://localhost:23000)
+pm2 restart ai-maestro   # Restart production server via PM2
 
 # Testing tmux sessions (for development)
 tmux new-session -s test-session     # Create test session
@@ -28,7 +30,7 @@ tmux list-sessions                   # List all sessions (what the app discovers
 tmux kill-session -t test-session    # Clean up test session
 ```
 
-**Port Configuration:** Use `PORT=3001 yarn dev` if port 3000 is occupied.
+**Port Configuration:** The application is configured to run on port 23000. This is set in the PM2 configuration.
 
 ## Release & Marketing Workflow
 

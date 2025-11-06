@@ -2,12 +2,11 @@ import { createServer } from 'http'
 import { parse } from 'url'
 import next from 'next'
 import { WebSocketServer } from 'ws'
+import WebSocket from 'ws'
 import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { createRemoteProxy } from './lib/websocket-proxy.mjs'
-import { getLocalHost } from './lib/hosts-config-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
@@ -48,6 +47,79 @@ app.prepare().then(() => {
   // WebSocket server for terminal connections
   const wss = new WebSocketServer({ noServer: true })
 
+  // Handle container agent connections (proxy WebSocket to container)
+  function handleContainerAgent(clientWs, sessionName, containerUrl) {
+    console.log(`🐳 [CONTAINER] Connecting to container: ${containerUrl}`)
+
+    // Connect to container's WebSocket
+    const containerWs = new WebSocket(containerUrl)
+
+    containerWs.on('open', () => {
+      console.log(`🐳 [CONTAINER] Connected to ${sessionName} at ${containerUrl}`)
+
+      // Track activity for container agents too
+      sessionActivity.set(sessionName, Date.now())
+
+      // Proxy messages: browser → container
+      clientWs.on('message', (data) => {
+        if (containerWs.readyState === WebSocket.OPEN) {
+          containerWs.send(data)
+        }
+      })
+
+      // Proxy messages: container → browser
+      containerWs.on('message', (data) => {
+        // Convert Buffer to string if needed
+        const dataStr = typeof data === 'string' ? data : data.toString('utf8')
+
+        if (clientWs.readyState === 1) { // WebSocket.OPEN
+          // CRITICAL: Send as string, not Buffer (browser expects string)
+          clientWs.send(dataStr)
+
+          // Track activity when container sends data
+          if (dataStr.length >= 3) {
+            sessionActivity.set(sessionName, Date.now())
+          }
+        }
+      })
+
+      // Handle container disconnection
+      containerWs.on('close', (code, reason) => {
+        console.log(`🐳 [CONTAINER] Container disconnected: ${sessionName} (${code}: ${reason})`)
+        if (clientWs.readyState === 1) {
+          clientWs.close(1000, 'Container disconnected')
+        }
+      })
+
+      containerWs.on('error', (error) => {
+        console.error(`🐳 [CONTAINER] Error from ${sessionName}:`, error.message)
+        if (clientWs.readyState === 1) {
+          clientWs.close(1011, 'Container error')
+        }
+      })
+
+      // Handle client disconnection
+      clientWs.on('close', () => {
+        console.log(`🐳 [CONTAINER] Client disconnected from ${sessionName}`)
+        if (containerWs.readyState === WebSocket.OPEN) {
+          containerWs.close()
+        }
+      })
+
+      clientWs.on('error', (error) => {
+        console.error(`🐳 [CONTAINER] Client error for ${sessionName}:`, error.message)
+        if (containerWs.readyState === WebSocket.OPEN) {
+          containerWs.close()
+        }
+      })
+    })
+
+    containerWs.on('error', (error) => {
+      console.error(`🐳 [CONTAINER] Failed to connect to ${containerUrl}:`, error.message)
+      clientWs.close(1011, `Cannot connect to container: ${error.message}`)
+    })
+  }
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
@@ -60,30 +132,34 @@ app.prepare().then(() => {
     }
   })
 
-  wss.on('connection', (ws, request, query) => {
+  wss.on('connection', async (ws, request, query) => {
     const sessionName = query.name
-    const hostId = query.host
 
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
       return
     }
 
-    // Check if this is a remote session request
-    const localHost = getLocalHost()
-    const isRemoteSession = hostId && hostId !== localHost.id
+    // Check agent registry to see if this is a cloud (container) agent
+    try {
+      const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
 
-    if (isRemoteSession) {
-      // Proxy to remote host
-      console.log(`[WebSocket] Proxying session ${sessionName} to host ${hostId}`)
-      createRemoteProxy(ws, sessionName, hostId)
-      return
+      if (fs.existsSync(agentFilePath)) {
+        const agentData = JSON.parse(fs.readFileSync(agentFilePath, 'utf8'))
+
+        if (agentData.deployment?.type === 'cloud' && agentData.deployment.cloud?.websocketUrl) {
+          const containerUrl = agentData.deployment.cloud.websocketUrl
+          console.log(`🐳 [CONTAINER] Proxying ${sessionName} to ${containerUrl}`)
+          handleContainerAgent(ws, sessionName, containerUrl)
+          return
+        }
+      }
+    } catch (error) {
+      console.error(`Error checking agent registry for ${sessionName}:`, error)
+      // Continue with local tmux fallback
     }
 
-    // Handle local session
-    console.log(`[WebSocket] Handling local session ${sessionName}`)
-
-    // Get or create session state
+    // Get or create session state (for traditional local tmux agents)
     let sessionState = sessions.get(sessionName)
 
     if (!sessionState) {
@@ -338,8 +414,16 @@ app.prepare().then(() => {
     })
   })
 
-  server.listen(port, hostname, () => {
+  server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
+
+    // Sync agent databases on startup
+    try {
+      const { syncAgentDatabases } = await import('./lib/agent-db-sync.mjs')
+      await syncAgentDatabases()
+    } catch (error) {
+      console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
+    }
   })
 
   // Graceful shutdown

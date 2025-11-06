@@ -58,14 +58,17 @@ export interface AgentDeployment {
     platform: string                // OS platform (darwin, linux, win32)
   }
 
-  // Cloud deployment details (future)
+  // Cloud deployment details (container-based agents)
   cloud?: {
-    provider: 'aws' | 'gcp' | 'digitalocean' | 'azure'
+    provider: 'aws' | 'gcp' | 'digitalocean' | 'azure' | 'local-container'
     region?: string
     instanceType?: string
     instanceId?: string
     publicIp?: string
     apiEndpoint?: string
+    websocketUrl: string              // WebSocket URL to container (e.g., ws://localhost:46000/term or wss://agent.aws.com/term)
+    healthCheckUrl?: string           // Health check endpoint (e.g., http://localhost:46000/health)
+    containerName?: string            // Docker container name
     status?: 'provisioning' | 'running' | 'stopped' | 'error'
   }
 }

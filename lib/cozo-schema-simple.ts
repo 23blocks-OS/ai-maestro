@@ -67,7 +67,11 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
         session_id: String?,
         first_message_at: Int?,
         last_message_at: Int?,
-        message_count: Int
+        message_count: Int,
+        first_user_message: String?,
+        model_names: String?,
+        git_branch: String?,
+        claude_version: String?
       }
     `)
     console.log('[SCHEMA] ✓ Created conversations table')
@@ -137,15 +141,31 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
   project_path: string
   session_id?: string
   message_count?: number
+  first_message_at?: number
+  last_message_at?: number
+  first_user_message?: string
+  model_names?: string
+  git_branch?: string
+  claude_version?: string
 }): Promise<void> {
+  // Escape single quotes in strings for CozoDB
+  const escapeString = (str: string | undefined) => {
+    if (!str) return 'null'
+    return `'${str.replace(/'/g, "''")}'`
+  }
+
   await agentDb.run(`
-    ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count] <- [[
+    ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] <- [[
       '${conversation.jsonl_file}',
       '${conversation.project_path}',
       ${conversation.session_id ? `'${conversation.session_id}'` : 'null'},
-      null,
-      null,
-      ${conversation.message_count || 0}
+      ${conversation.first_message_at || 'null'},
+      ${conversation.last_message_at || 'null'},
+      ${conversation.message_count || 0},
+      ${escapeString(conversation.first_user_message)},
+      ${escapeString(conversation.model_names)},
+      ${escapeString(conversation.git_branch)},
+      ${escapeString(conversation.claude_version)}
     ]]
     :put conversations
   `)
@@ -184,10 +204,11 @@ export async function getProjects(agentDb: AgentDatabase) {
  */
 export async function getConversations(agentDb: AgentDatabase, projectPath: string) {
   return await agentDb.run(`
-    ?[jsonl_file, session_id, first_message_at, last_message_at, message_count] :=
+    ?[jsonl_file, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] :=
       *conversations{
         jsonl_file, project_path, session_id,
-        first_message_at, last_message_at, message_count
+        first_message_at, last_message_at, message_count,
+        first_user_message, model_names, git_branch, claude_version
       },
       project_path = '${projectPath}'
 

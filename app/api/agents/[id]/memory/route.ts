@@ -147,23 +147,68 @@ export async function POST(
         // Process each conversation file
         for (const jsonlPath of allJsonlFiles) {
           try {
-            // Read first 20 lines to extract metadata (sessionId, cwd)
+            // Read file content
             const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-            const lines = fileContent.split('\n').slice(0, 20)
+            const allLines = fileContent.split('\n').filter(line => line.trim())
 
-            // Parse first few messages to extract metadata
+            // Parse ALL messages to extract comprehensive metadata
             let sessionId: string | null = null
             let cwd: string | null = null
+            let firstUserMessage: string | null = null
+            let gitBranch: string | null = null
+            let claudeVersion: string | null = null
+            let firstMessageAt: number | null = null
+            let lastMessageAt: number | null = null
+            const modelSet = new Set<string>()
 
-            for (const line of lines) {
-              if (!line.trim()) continue
+            // Process first 50 lines for metadata (more thorough)
+            const metadataLines = allLines.slice(0, 50)
+            for (const line of metadataLines) {
               try {
                 const message = JSON.parse(line)
-                if (message.sessionId) sessionId = message.sessionId
-                if (message.cwd) cwd = message.cwd
-                if (sessionId && cwd) break
+
+                // Extract basic metadata
+                if (message.sessionId && !sessionId) sessionId = message.sessionId
+                if (message.cwd && !cwd) cwd = message.cwd
+                if (message.gitBranch && !gitBranch) gitBranch = message.gitBranch
+                if (message.version && !claudeVersion) claudeVersion = message.version
+
+                // Extract timestamps
+                if (message.timestamp) {
+                  const ts = new Date(message.timestamp).getTime()
+                  if (!firstMessageAt || ts < firstMessageAt) firstMessageAt = ts
+                }
+
+                // Extract first user message content
+                if (message.type === 'user' && message.message?.content && !firstUserMessage) {
+                  const content = message.message.content
+                  // Truncate to first 100 chars
+                  firstUserMessage = content.substring(0, 100)
+                }
+
+                // Extract model names from assistant messages
+                if (message.type === 'assistant' && message.message?.model) {
+                  // Simplify model name (e.g., "claude-sonnet-4-5-20250929" -> "Sonnet 4.5")
+                  const model = message.message.model
+                  if (model.includes('sonnet')) modelSet.add('Sonnet 4.5')
+                  else if (model.includes('haiku')) modelSet.add('Haiku 4.5')
+                  else if (model.includes('opus')) modelSet.add('Opus 4.5')
+                }
               } catch (parseErr) {
                 // Skip malformed lines
+              }
+            }
+
+            // Extract last message timestamp from end of file
+            for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
+              try {
+                const message = JSON.parse(allLines[i])
+                if (message.timestamp) {
+                  lastMessageAt = new Date(message.timestamp).getTime()
+                  break
+                }
+              } catch (parseErr) {
+                // Skip
               }
             }
 
@@ -173,18 +218,11 @@ export async function POST(
               (cwd && projectPaths.has(cwd))
 
             if (belongsToAgent && cwd) {
-              // Count total messages in the file
-              let messageCount = 0
-              try {
-                const content = fs.readFileSync(jsonlPath, 'utf-8')
-                messageCount = content.split('\n').filter(line => line.trim()).length
-              } catch (err) {
-                console.error(`[Memory API] Error counting messages in ${jsonlPath}:`, err)
-              }
+              const messageCount = allLines.length
+              const modelNames = Array.from(modelSet).join(', ')
 
               // Extract project info
               const projectName = cwd.split('/').pop() || 'unknown'
-              const encodedPath = cwd.replace(/\//g, '-')
               const conversationsDir = path.dirname(jsonlPath)
 
               // Record project
@@ -194,15 +232,21 @@ export async function POST(
                 claude_dir: conversationsDir
               })
 
-              // Record conversation
+              // Record conversation with rich metadata
               await recordConversation(agentDb, {
                 jsonl_file: jsonlPath,
                 project_path: cwd,
                 session_id: sessionId || 'unknown',
-                message_count: messageCount
+                message_count: messageCount,
+                first_message_at: firstMessageAt || undefined,
+                last_message_at: lastMessageAt || undefined,
+                first_user_message: firstUserMessage || undefined,
+                model_names: modelNames || undefined,
+                git_branch: gitBranch || undefined,
+                claude_version: claudeVersion || undefined
               })
 
-              console.log(`[Memory API] ✓ Recorded conversation: ${path.basename(jsonlPath)} (${messageCount} messages, project: ${projectName})`)
+              console.log(`[Memory API] ✓ Recorded conversation: ${path.basename(jsonlPath)} (${messageCount} messages, ${modelNames || 'unknown models'}, project: ${projectName})`)
             }
           } catch (err) {
             console.error(`[Memory API] Error processing ${jsonlPath}:`, err)

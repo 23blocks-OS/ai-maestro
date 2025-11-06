@@ -363,6 +363,9 @@ function AddHostWizard({
         testUrl = 'http://' + testUrl
       }
 
+      // Remove trailing slash to prevent double slashes in API calls
+      testUrl = testUrl.replace(/\/$/, '')
+
       const parsedUrl = new URL(testUrl)
 
       // Test connection

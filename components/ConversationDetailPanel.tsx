@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot } from 'lucide-react'
+import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal } from 'lucide-react'
 
 interface ConversationDetailPanelProps {
   conversationFile: string
@@ -148,6 +148,28 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return getToolResultsFromMessage(message).length > 0
   }
 
+  const isSystemMessage = (message: Message): boolean => {
+    // Check if message contains system tags like <command-message>, <system-reminder>, etc.
+    if (message.message?.content) {
+      const content = message.message.content
+      if (typeof content === 'string') {
+        return content.includes('<command-message>') ||
+               content.includes('<system-reminder>') ||
+               content.includes('<command-name>')
+      }
+      if (Array.isArray(content)) {
+        return content.some(block =>
+          block.type === 'text' &&
+          block.text &&
+          (block.text.includes('<command-message>') ||
+           block.text.includes('<system-reminder>') ||
+           block.text.includes('<command-name>'))
+        )
+      }
+    }
+    return false
+  }
+
   const getMessagePreview = (message: Message): string => {
     // Handle summary type
     if (message.type === 'summary' && message.summary) {
@@ -158,6 +180,19 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     if (hasToolResults(message)) {
       const results = getToolResultsFromMessage(message)
       return `Tool result${results.length > 1 ? 's' : ''} returned`
+    }
+
+    // Handle system messages
+    if (isSystemMessage(message)) {
+      const content = message.message?.content
+      if (typeof content === 'string') {
+        // Extract command-message or system-reminder content
+        const commandMatch = content.match(/<command-message>(.*?)<\/command-message>/)
+        if (commandMatch) return commandMatch[1]
+        const reminderMatch = content.match(/<system-reminder>(.*?)<\/system-reminder>/)
+        if (reminderMatch) return reminderMatch[1].substring(0, 150)
+      }
+      return 'System notification'
     }
 
     // Handle tool use
@@ -190,6 +225,51 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     // Handle summary
     if (message.type === 'summary' && message.summary) {
       return <div className="text-sm text-gray-200">{message.summary}</div>
+    }
+
+    // Handle system messages
+    if (isSystemMessage(message)) {
+      const content = message.message?.content
+      if (typeof content === 'string') {
+        return (
+          <div className="text-sm text-gray-300 space-y-2">
+            {content.split('\n').map((line, idx) => {
+              // Extract and format command-message
+              const commandMatch = line.match(/<command-message>(.*?)<\/command-message>/)
+              if (commandMatch) {
+                return (
+                  <div key={idx} className="bg-gray-900/50 p-2 rounded border-l-2 border-gray-600">
+                    {commandMatch[1]}
+                  </div>
+                )
+              }
+              // Extract and format command-name
+              const nameMatch = line.match(/<command-name>(.*?)<\/command-name>/)
+              if (nameMatch) {
+                return (
+                  <div key={idx} className="text-xs text-gray-500">
+                    Command: {nameMatch[1]}
+                  </div>
+                )
+              }
+              // Extract and format system-reminder (show first 200 chars)
+              const reminderMatch = line.match(/<system-reminder>(.*?)<\/system-reminder>/)
+              if (reminderMatch) {
+                const text = reminderMatch[1].substring(0, 200)
+                return (
+                  <div key={idx} className="bg-gray-900/30 p-2 rounded text-xs text-gray-400 italic">
+                    {text}{reminderMatch[1].length > 200 ? '...' : ''}
+                  </div>
+                )
+              }
+              // Regular line
+              return line.trim() ? (
+                <div key={idx} className="text-gray-300">{line}</div>
+              ) : null
+            })}
+          </div>
+        )
+      }
     }
 
     // Handle message content
@@ -352,6 +432,8 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 className={`rounded-lg border ${
                   hasToolResults(message)
                     ? 'bg-yellow-900/20 border-yellow-800/50'
+                    : isSystemMessage(message)
+                    ? 'bg-gray-800/50 border-gray-700/50'
                     : message.type === 'user'
                     ? 'bg-blue-900/20 border-blue-800/50'
                     : message.type === 'assistant' && hasTools(message)
@@ -375,6 +457,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           <span className="text-sm font-medium text-white">
                             Tool Result{getToolResultsFromMessage(message).length > 1 ? 's' : ''}
                           </span>
+                        </>
+                      ) : isSystemMessage(message) ? (
+                        <>
+                          <Terminal className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-gray-300">System</span>
                         </>
                       ) : message.type === 'user' ? (
                         <>

@@ -817,5 +817,5 @@ The Manager/Worker pattern is the **recommended approach** for remote sessions b
 ---
 
 **Last Updated:** 2025-11-05
-**AI Maestro Version:** 0.7.1
+**AI Maestro Version:** 0.8.0
 **Status:** Design Document - Implementation Pending

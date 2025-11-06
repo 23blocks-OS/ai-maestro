@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import type { Session } from '@/types/session'
+
+const BRACKETED_PASTE_START = '\u001b[200~'
+const BRACKETED_PASTE_END = '\u001b[201~'
 
 interface TerminalViewProps {
   session: Session
@@ -16,8 +19,10 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
+  const [promptDraft, setPromptDraft] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
   // This ensures the terminal container has the correct height BEFORE xterm.js initializes
@@ -30,6 +35,14 @@ export default function TerminalView({ session }: TerminalViewProps) {
       return savedCollapsed === 'true'
     }
     return mobile // Default to collapsed on mobile, expanded on desktop
+  })
+
+  const FOOTER_TAB_STORAGE_KEY = 'terminal-footer-tab'
+
+  const [footerTab, setFooterTab] = useState<'notes' | 'prompt'>(() => {
+    if (typeof window === 'undefined') return 'prompt'
+    const stored = localStorage.getItem(FOOTER_TAB_STORAGE_KEY)
+    return stored === 'notes' ? 'notes' : 'prompt'
   })
 
   const [loggingEnabled, setLoggingEnabled] = useState(() => {
@@ -81,15 +94,22 @@ export default function TerminalView({ session }: TerminalViewProps) {
     terminalInstanceRef.current = terminal
   }, [terminal])
 
+  const focusTerminal = useCallback(() => {
+    const term = terminalInstanceRef.current
+    if (!term) return
+    try {
+      term.focus()
+    } catch {}
+  }, [])
+
   const { isConnected, sendMessage, connectionError, errorHint } = useWebSocket({
     sessionId: session.id,
+    hostId: session.hostId,  // Pass host ID for remote session routing
     onOpen: () => {
       // Report activity when WebSocket connects
       reportActivity(session.id)
     },
     onMessage: (data) => {
-      console.log(`📨 [WS-MESSAGE] Received ${data.length} bytes for session ${session.id}`)
-
       // Check if this is a control message (JSON)
       try {
         const parsed = JSON.parse(data)
@@ -101,11 +121,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-            console.log(`📊 [HISTORY-COMPLETE] Buffer info BEFORE - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
             // CRITICAL: Wait for xterm.js to finish processing history
             setTimeout(() => {
-              console.log(`📊 [HISTORY-WAIT] After 100ms wait - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
 
               // 1. Scroll to bottom first
               term.scrollToBottom()
@@ -120,7 +138,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
               // 4. Refresh all layers (canvas, selection, scrollbar)
               term.refresh(0, term.rows - 1)
 
-              console.log(`🎯 [HISTORY-COMPLETE] Terminal focused and selection cleared for session ${session.id}`)
 
               // 5. Final refresh after a small delay to ensure selection layer is ready
               setTimeout(() => {
@@ -137,17 +154,24 @@ export default function TerminalView({ session }: TerminalViewProps) {
                 }
 
                 term.refresh(0, term.rows - 1)
-                console.log(`🎨 [HISTORY-COMPLETE-FINAL] Final refresh and click for session ${session.id}`)
               }, 50)
 
-              console.log(`📊 [HISTORY-COMPLETE] Buffer info AFTER scroll - baseY: ${term.buffer.active.baseY}, viewportY: ${term.buffer.active.viewportY}, length: ${term.buffer.active.length}`)
             }, 100)
           }
           return
         }
+
+        // Handle container connection message
+        if (parsed.type === 'connected') {
+          console.log(`[CONTAINER] Connected to agent: ${parsed.agentId}`)
+          return
+        }
+
+        // If we got here, it's a JSON message but not a known control type
+        // This might be terminal data that happens to be valid JSON (rare)
+        // Fall through to write it to terminal
       } catch {
         // Not JSON - it's terminal data, continue processing
-        console.log(`📝 [WS-DATA] Not JSON, treating as terminal data (${data.length} bytes)`)
       }
 
       // Only report activity for substantial content (not cursor blinks or control sequences)
@@ -155,10 +179,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       // Always write data to terminal first
       if (terminalInstanceRef.current) {
-        console.log(`✍️ [TERMINAL-WRITE] Writing ${data.length} bytes to terminal for session ${session.id}`)
-        console.log(`📊 [BEFORE-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
         terminalInstanceRef.current.write(data)
-        console.log(`📊 [AFTER-WRITE] Buffer length: ${terminalInstanceRef.current.buffer.active.length}`)
 
         // CRITICAL: Refresh selection layer after content updates
         // Debounced to avoid performance issues during rapid updates
@@ -169,11 +190,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
           if (terminalInstanceRef.current) {
             // Refresh only the visible portion to maintain performance
             terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
-            console.log(`🎨 [AUTO-REFRESH] Refreshed selection layer for session ${session.id}`)
           }
         }, 200) // Wait 200ms after last write
       } else {
-        console.log(`📦 [BUFFERING] Terminal not ready, buffering ${data.length} bytes`)
         messageBufferRef.current.push(data)
       }
 
@@ -195,23 +214,19 @@ export default function TerminalView({ session }: TerminalViewProps) {
   useEffect(() => {
     // Wait for the DOM ref to be ready
     if (!terminalRef.current) {
-      console.log(`⚠️ [INIT-SKIP] DOM ref not ready for session ${session.id}`)
       return
     }
 
     // Check if container is actually visible and has dimensions
     const rect = terminalRef.current.getBoundingClientRect()
     if (rect.width === 0 || rect.height === 0) {
-      console.log(`⚠️ [INIT-SKIP] Container not visible yet for session ${session.id} (${rect.width}x${rect.height}), waiting...`)
       return
     }
 
-    console.log(`📐 [INIT] Container dimensions for session ${session.id}: ${Math.floor(rect.width)}x${Math.floor(rect.height)}`)
 
     let cleanup: (() => void) | undefined
 
     const init = async () => {
-      console.log(`🚀 [INIT] Initializing terminal for session ${session.id}`)
 
       const containerElement = terminalRef.current
       if (!containerElement) {
@@ -221,7 +236,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
       cleanup = await initializeTerminal(containerElement)
 
-      console.log(`✅ [INIT-COMPLETE] Terminal ready for session ${session.id}`)
       setIsReady(true)
     }
 
@@ -231,7 +245,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
     // Cleanup only on unmount (when tab is removed from DOM)
     return () => {
-      console.log(`🧹 [CLEANUP] Cleaning up terminal for session ${session.id}`)
       if (cleanup) {
         cleanup()
       }
@@ -255,15 +268,13 @@ export default function TerminalView({ session }: TerminalViewProps) {
   // Mobile-specific: trigger fit when notes collapse/expand (changes terminal height on mobile)
   useEffect(() => {
     if (isMobile && isReady && terminal) {
-      console.log(`📝 [NOTES-TOGGLE] Notes ${notesCollapsed ? 'collapsed' : 'expanded'} on session ${session.id}, scheduling 150ms fit`)
       // Notes state changed on mobile, terminal height changed dramatically
       const timeout = setTimeout(() => {
-        console.log(`⏰ [NOTES-TOGGLE-TIMEOUT] Firing fit for session ${session.id}`)
         fitTerminal()
       }, 150)
       return () => clearTimeout(timeout)
     }
-  }, [notesCollapsed, isMobile, isReady, terminal, fitTerminal, session.id])
+  }, [notesCollapsed, footerTab, isMobile, isReady, terminal, fitTerminal, session.id])
 
   // Handle terminal input
   useEffect(() => {
@@ -315,7 +326,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       ) {
         isTouchingTerminal = true
         touchStartY = touch.clientY
-        console.log('📱 [TOUCH] Started on terminal')
       }
     }
 
@@ -327,7 +337,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
       const linesToScroll = Math.round(deltaY / 30) // 30px per line (slower scroll)
 
       if (Math.abs(linesToScroll) > 0) {
-        console.log(`📱 [TOUCH] Scrolling ${linesToScroll} lines`)
         terminal.scrollLines(linesToScroll)
         touchStartY = touchY
       }
@@ -339,7 +348,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
 
     const handleTouchEnd = () => {
       if (isTouchingTerminal) {
-        console.log('📱 [TOUCH] Ended')
       }
       isTouchingTerminal = false
     }
@@ -361,7 +369,6 @@ export default function TerminalView({ session }: TerminalViewProps) {
   // Load notes from localStorage ONCE on mount
   // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
-    console.log(`📂 [LOAD-NOTES] Loading notes for session ${session.id}`)
     const storageKey = `session-notes-${session.id}`
     const savedNotes = localStorage.getItem(storageKey)
     if (savedNotes !== null) {
@@ -373,11 +380,42 @@ export default function TerminalView({ session }: TerminalViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    const storageKey = `session-prompt-${session.id}`
+    const savedPrompt = localStorage.getItem(storageKey)
+    if (savedPrompt !== null) {
+      setPromptDraft(savedPrompt)
+    } else {
+      setPromptDraft('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Save notes to localStorage when they change
   useEffect(() => {
     const storageKey = `session-notes-${session.id}`
     localStorage.setItem(storageKey, notes)
   }, [notes, session.id])
+
+  useEffect(() => {
+    const storageKey = `session-prompt-${session.id}`
+    localStorage.setItem(storageKey, promptDraft)
+  }, [promptDraft, session.id])
+
+  useEffect(() => {
+    if (notesCollapsed) return
+    if (footerTab !== 'prompt') return
+    const textarea = promptTextareaRef.current
+    if (!textarea) return
+    const timer = requestAnimationFrame(() => {
+      try {
+        textarea.focus()
+        const end = textarea.value.length
+        textarea.setSelectionRange(end, end)
+      } catch {}
+    })
+    return () => cancelAnimationFrame(timer)
+  }, [footerTab, notesCollapsed])
 
   // Save collapsed state to localStorage
   useEffect(() => {
@@ -390,6 +428,10 @@ export default function TerminalView({ session }: TerminalViewProps) {
     const loggingKey = `session-logging-${session.id}`
     localStorage.setItem(loggingKey, String(loggingEnabled))
   }, [loggingEnabled, session.id])
+
+  useEffect(() => {
+    localStorage.setItem(FOOTER_TAB_STORAGE_KEY, footerTab)
+  }, [footerTab])
 
   // Send logging state to server when it changes
   useEffect(() => {
@@ -408,6 +450,52 @@ export default function TerminalView({ session }: TerminalViewProps) {
     setLoggingEnabled(!loggingEnabled)
   }
 
+  const handlePromptSubmit = useCallback(
+    (mode: 'insert' | 'send') => {
+      if (!promptDraft || promptDraft.trim().length === 0) {
+        return
+      }
+
+      const normalized = promptDraft.replace(/\r\n?/g, '\n')
+      const withoutEscape = normalized.replace(/\u001b/g, '')
+      const carriageAdjusted = withoutEscape.replace(/\n/g, '\r')
+      const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
+
+      const staged = sendMessage(bracketedPayload)
+      if (!staged) {
+        console.warn('[PromptBuilder] Failed to send staged text via WebSocket')
+        return
+      }
+
+      if (mode === 'send') {
+        const executed = sendMessage('\r')
+        if (!executed) {
+          console.warn('[PromptBuilder] Failed to send Enter via WebSocket')
+          return
+        }
+        setPromptDraft('')
+        focusTerminal()
+      }
+    },
+    [focusTerminal, promptDraft, sendMessage]
+  )
+
+  const handlePromptKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault()
+        handlePromptSubmit('insert')
+        return
+      }
+
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        handlePromptSubmit('send')
+      }
+    },
+    [handlePromptSubmit]
+  )
+
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Terminal Header */}
@@ -425,7 +513,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
               <button
                 onClick={() => setNotesCollapsed(!notesCollapsed)}
                 className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                title={notesCollapsed ? "Show notes" : "Hide notes"}
+                title={notesCollapsed ? "Show footer" : "Hide footer"}
               >
                 📝
               </button>
@@ -524,58 +612,128 @@ export default function TerminalView({ session }: TerminalViewProps) {
         )}
       </div>
 
-      {/* Notes Section */}
+      {/* Notes / Prompt Builder Footer */}
       {!notesCollapsed && (
         <div
           className="border-t border-gray-700 bg-gray-900 flex flex-col"
           style={{
-            height: isMobile ? '40vh' : '200px',
-            minHeight: isMobile ? '40vh' : '200px',
-            maxHeight: isMobile ? '40vh' : '200px',
+            height: isMobile ? '40vh' : '220px',
+            minHeight: isMobile ? '40vh' : '220px',
+            maxHeight: isMobile ? '40vh' : '220px',
             flexShrink: 0
           }}
         >
-          <div
-            onClick={() => setNotesCollapsed(true)}
-            className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0 cursor-pointer hover:bg-gray-750 transition-colors"
-            title="Click to collapse notes"
-          >
-            <h4 className="text-sm font-medium text-gray-300">Session Notes</h4>
-            <svg
-              className="w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFooterTab('notes')}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                  footerTab === 'notes'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                Notes
+              </button>
+              <button
+                onClick={() => setFooterTab('prompt')}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                  footerTab === 'prompt'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                Prompt Builder
+              </button>
+            </div>
+            <button
+              onClick={() => setNotesCollapsed(true)}
+              className="text-gray-400 hover:text-gray-200 transition-colors"
+              title="Collapse footer"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
           </div>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Take notes while working with your agent..."
-            className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono overflow-y-auto"
-            style={{
-              minHeight: 0,
-              maxHeight: '100%',
-              height: '100%',
-              WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
-            }}
-          />
+          {footerTab === 'notes' ? (
+            <textarea
+              id={`session-notes-${session.id}`}
+              name={`sessionNotes-${session.id}`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Take notes while working with your agent..."
+              className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono overflow-y-auto"
+              style={{
+                minHeight: 0,
+                maxHeight: '100%',
+                height: '100%',
+                WebkitOverflowScrolling: 'touch'
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col">
+              <textarea
+                ref={promptTextareaRef}
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                placeholder="Compose your prompt here. Enter = send • Ctrl/Cmd+Enter = insert only • Shift+Enter = new line"
+                className="flex-1 px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono overflow-y-auto"
+                style={{
+                  minHeight: 0,
+                  maxHeight: '100%',
+                  height: '100%',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              />
+              <div className="px-4 py-2 border-t border-gray-800 bg-gray-800 flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  {promptDraft.length} character{promptDraft.length === 1 ? '' : 's'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPromptDraft('')}
+                    className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:border-gray-600"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => handlePromptSubmit('insert')}
+                    className="rounded-md border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-500/10 disabled:opacity-50"
+                    disabled={promptDraft.trim().length === 0}
+                  >
+                    Insert Only
+                  </button>
+                  <button
+                    onClick={() => handlePromptSubmit('send')}
+                    className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                    disabled={promptDraft.trim().length === 0}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Collapsed Notes Bar */}
       {notesCollapsed && (
         <div
           onClick={() => setNotesCollapsed(false)}
           className="border-t border-gray-700 bg-gray-800 px-4 py-2 cursor-pointer hover:bg-gray-750 transition-colors flex items-center gap-2"
-          title="Click to expand notes"
+          title="Click to expand footer"
         >
           <svg
             className="w-4 h-4 text-gray-400"
@@ -590,7 +748,9 @@ export default function TerminalView({ session }: TerminalViewProps) {
               d="M5 15l7-7 7 7"
             />
           </svg>
-          <span className="text-sm text-gray-400">Show Session Notes</span>
+          <span className="text-sm text-gray-400">
+            {footerTab === 'prompt' ? 'Show Prompt Builder' : 'Show Session Notes'}
+          </span>
         </div>
       )}
     </div>

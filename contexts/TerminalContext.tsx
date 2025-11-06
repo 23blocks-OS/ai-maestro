@@ -30,8 +30,6 @@ export function TerminalProvider({ children }: { children: React.ReactNode }) {
   const [terminalStatuses, setTerminalStatuses] = useState<Map<string, TerminalStatus>>(new Map())
 
   const registerTerminal = useCallback((sessionId: string, fitAddon: FitAddon) => {
-    console.log(`📝 [REGISTER] Registering terminal for session: ${sessionId}`)
-    console.log(`📝 [REGISTER] Total terminals in registry: ${terminalsRef.current.size} → ${terminalsRef.current.size + 1}`)
     const instance: TerminalInstance = {
       sessionId,
       fitAddon,
@@ -43,8 +41,6 @@ export function TerminalProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const unregisterTerminal = useCallback((sessionId: string) => {
-    console.log(`🗑️ [UNREGISTER] Unregistering terminal for session: ${sessionId}`)
-    console.log(`🗑️ [UNREGISTER] Total terminals in registry: ${terminalsRef.current.size} → ${terminalsRef.current.size - 1}`)
     terminalsRef.current.delete(sessionId)
     setTerminalStatuses(prev => {
       const next = new Map(prev)
@@ -77,13 +73,11 @@ export function TerminalProvider({ children }: { children: React.ReactNode }) {
     let resizeTimeout: NodeJS.Timeout
 
     const handleResize = () => {
-      console.log(`🪟 [GLOBAL-RESIZE] Window resized, scheduling fit for ${terminalsRef.current.size} registered terminal(s)`)
       clearTimeout(resizeTimeout)
       resizeTimeout = setTimeout(() => {
         // Resize all registered terminals
         terminalsRef.current.forEach((instance) => {
           try {
-            console.log(`🔧 [GLOBAL-RESIZE-FIT] Fitting terminal for session: ${instance.sessionId}`)
             instance.fitAddon.fit()
           } catch (e) {
             console.warn(`⚠️ [GLOBAL-RESIZE-FIT] Failed to fit terminal for session ${instance.sessionId}:`, e)

@@ -77,7 +77,7 @@
         "priceCurrency": "USD"
       },
       "description": "Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. Zero-configuration terminal multiplexer for autonomous AI agents.",
-      "softwareVersion": "0.4.3",
+      "softwareVersion": "0.8.0",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
@@ -96,7 +96,8 @@
         "Claude Code integration",
         "Terminal session management",
         "Real-time WebSocket streaming",
-        "Agent-to-agent communication",
+        "Agent-to-agent communication with inbox/outbox",
+        "Unread message tracking and auto-mark-as-read",
         "Mobile remote access",
         "Hierarchical session organization"
       ],
@@ -124,7 +125,7 @@
         "name": "How do AI agents communicate with each other in AI Maestro?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "AI Maestro supports agent-to-agent communication through natural language skills (Claude Code) or universal command-line tools. Agents can send structured messages with priorities, request work from each other, and maintain persistent inboxes without human relay."
+          "text": "AI Maestro includes a built-in messaging system with inbox/outbox for each agent. Agents can send structured messages with priorities, see only unread messages, and messages are automatically marked as read. The system supports natural language with Claude Code skills or universal command-line tools - no human relay needed."
         }
       },{
         "@type": "Question",
@@ -342,7 +343,7 @@
                     <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
-                    <img src="https://img.shields.io/badge/version-0.4.3-blue" alt="Version">
+                    <img src="https://img.shields.io/badge/version-0.8.0-blue" alt="Version">
                     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)%20%7C%20Linux-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
                 </div>
@@ -404,7 +405,7 @@
                 <a href="messaging.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)] no-underline text-inherit block cursor-pointer">
                     <div class="text-5xl mb-4">📬</div>
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Agent-to-Agent Communication</h3>
-                    <p class="leading-relaxed text-gray-600">Your AI agents can now talk to each other. Natural language with Claude Code skills or universal command-line tools.</p>
+                    <p class="leading-relaxed text-gray-600">Your AI agents can now talk to each other. Built-in inbox/outbox with unread message tracking. See only new messages, mark as read automatically, and never miss important updates.</p>
                 </a>
                 <a href="mobile.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-secondary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.2)] no-underline text-inherit block cursor-pointer">
                     <div class="text-5xl mb-4">📱</div>

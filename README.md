@@ -6,12 +6,12 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
 
-[Quick Start](#-quick-start) • [Features](#-features) • [Documentation](./docs) • [Contributing](./CONTRIBUTING.md)
+[Quick Start](./docs/QUICKSTART.md) • [Features](#-features) • [Documentation](#-documentation) • [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -19,17 +19,57 @@
 
 ## The Problem
 
-You're using Claude Code for backend, Aider for frontend, and Cursor for docs. Each in its own terminal window. Each in a different tmux pane. You're constantly switching contexts, losing track of which agent is where, and your terminal tabs look like chaos.
+You're managing multiple AI coding agents across different machines. Your MacBook handles frontend work, but your Mac Mini has 32GB RAM perfect for backend builds. Your cloud server runs Docker containers. Each machine has its own terminal sessions, but you're constantly SSH-ing between them, losing track of which agent is where, and wishing you could see everything in one place.
 
 ## The Solution
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
 
-AI Maestro gives you one beautiful web dashboard for all your AI coding agents. Click between sessions instantly. Organize them hierarchically. Take notes. Never lose track again.
+**AI Maestro** gives you one beautiful web dashboard for all your AI coding agents - whether they're running on your laptop, desktop, or cloud servers. The **Manager/Worker pattern** lets you control sessions across multiple machines as if they were all local.
+
+### One Dashboard, Unlimited Machines
+
+```
+Your Browser (localhost:23000)
+  ├─ MacBook Pro (Manager)
+  │   ├─ project-manager
+  │   └─ code-reviewer
+  │
+  ├─ Mac Mini (Worker - Tailscale)
+  │   ├─ ios-build-agent
+  │   └─ backend-heavy-lifting
+  │
+  └─ AWS Server (Worker - Tailscale)
+      ├─ docker-deployments
+      └─ integration-tests
+```
+
+**Benefits:**
+- ✅ Distribute workload across multiple machines
+- ✅ Leverage machine-specific capabilities (Mac for iOS, Linux for Docker)
+- ✅ Scale horizontally - add more machines as needed
+- ✅ Work from anywhere (Tailscale VPN)
+- ✅ One click to switch between any session on any machine
 
 ---
 
 ## ✨ Features
+
+### 🌐 Manager/Worker Architecture (New in v0.8.0!)
+Distribute your AI agents across **unlimited machines** - all managed from one browser dashboard.
+
+- **Smart Discovery Wizard**: Just enter a URL, AI Maestro auto-discovers and tests the connection
+- **Real-time Health Monitoring**: Green/red/yellow indicators show worker status at a glance
+- **Seamless Experience**: Remote sessions work exactly like local ones (transparent WebSocket proxying)
+- **Secure by Default**: Tailscale VPN integration for encrypted remote access
+- **Zero Configuration**: Works out-of-the-box with local network or Tailscale IPs
+
+**Example Setup:**
+- **Laptop (8GB RAM):** Lightweight tasks, project management
+- **Desktop (32GB RAM):** Heavy builds, large codebase analysis
+- **Cloud Server:** Docker builds, CI/CD, platform-specific testing
+
+→ [See Setup Tutorial](./docs/SETUP-TUTORIAL.md) | [Use Cases](./docs/USE-CASES.md) | [Concepts Guide](./docs/CONCEPTS.md)
 
 ### Universal Agent Support
 Works with **any** terminal-based AI:
@@ -59,7 +99,9 @@ Works with **any** terminal-based AI:
   - Priorities: urgent | high | normal | low
   - Types: request | response | notification | update
   - Rich context: Attach metadata, requirements, code snippets
-  - Searchable inbox with read/unread status
+  - **Unread-only filtering**: Agents see only new messages
+  - **Auto-mark-as-read**: Messages marked read after retrieval
+  - **Inbox & Outbox**: Full send/receive tracking per agent
 - **Instant tmux Notifications**: Real-time alerts for urgent matters
   - Popup notifications (non-intrusive)
   - Terminal injections (visible in history)
@@ -404,6 +446,7 @@ Every agent session can use the messaging system automatically via a **Claude Co
 
 **Installation:**
 - **Easy:** Run [`./install-messaging.sh`](./install-messaging.sh) (installs scripts + skill automatically)
+- **Update:** Run [`./update-messaging.sh`](./update-messaging.sh) (updates scripts + skill with zero friction)
 - **Manual:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
 
 ### Built-In UI
@@ -421,6 +464,13 @@ Each session has a **Messages tab** with:
 ```bash
 ./install-messaging.sh
 # Interactive installer - checks prerequisites, installs scripts & skill
+```
+
+**Update Existing Installation:**
+```bash
+./update-messaging.sh
+# Updates scripts and skill - backs up old version automatically
+# Remember to restart Claude sessions to reload updated skill
 ```
 
 **Manual Install:** See [Installation Guide](./messaging_scripts/README.md)
@@ -560,6 +610,22 @@ Built with modern, battle-tested tools:
 
 ## 📚 Documentation
 
+### Getting Started
+- **[Quick Start Guide](./docs/QUICKSTART.md)** - Get AI Maestro running in 5 minutes ⚡
+- **[Core Concepts](./docs/CONCEPTS.md)** - Understand localhost, hosts, and Manager/Worker pattern
+- **[Use Cases](./docs/USE-CASES.md)** - Real-world scenarios and benefits
+
+### Manager/Worker (Distributed Setup)
+- **[Setup Tutorial](./docs/SETUP-TUTORIAL.md)** - Configure your first remote worker (step-by-step)
+- **[Network Access Guide](./docs/NETWORK-ACCESS.md)** - Tailscale, local network, and security
+- **[Remote Sessions Architecture](./docs/REMOTE-SESSIONS-ARCHITECTURE.md)** - Technical deep-dive
+
+### Agent Communication
+- **[Quickstart Guide](./docs/AGENT-COMMUNICATION-QUICKSTART.md)** - Send your first message in < 2 minutes
+- **[Guidelines](./docs/AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices and patterns
+- **[Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)** - Comprehensive reference
+- **[Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
+
 ### General
 - **[Windows Installation](./docs/WINDOWS-INSTALLATION.md)** - Complete WSL2 setup guide for Windows users
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
@@ -570,31 +636,40 @@ Built with modern, battle-tested tools:
 - **[Contributing](./CONTRIBUTING.md)** - How to contribute
 - **[Security](./SECURITY.md)** - Security model
 
-### Agent Communication
-- **[Quickstart Guide](./docs/AGENT-COMMUNICATION-QUICKSTART.md)** - Send your first message in < 2 minutes
-- **[Guidelines](./docs/AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices and patterns
-- **[Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)** - Comprehensive reference
-- **[Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
-
 ---
 
 ## 🗺️ Roadmap
 
-### Phase 1 (Current) ✅
-- Local tmux session management
-- Hierarchical organization
-- Dynamic color coding
-- Session notes
-- Full CRUD from UI
+### Phase 1 ✅ Complete
+- ✅ Local tmux session management
+- ✅ Hierarchical organization
+- ✅ Dynamic color coding
+- ✅ Session notes
+- ✅ Full CRUD from UI
 
-### Phase 2 (Q4 2025)
-- [ ] Search & filter
+### Phase 2 ✅ Complete
+- ✅ Agent communication system (file-based messaging)
+- ✅ Web UI for inbox/compose
+- ✅ CLI tools for messaging
+- ✅ Mobile-optimized interface
+
+### Phase 3 ✅ Complete (v0.8.0)
+- ✅ Manager/Worker distributed architecture
+- ✅ Remote host management via Settings UI
+- ✅ Smart host discovery wizard
+- ✅ WebSocket proxy for remote sessions
+- ✅ Tailscale VPN integration
+
+### Phase 4 (Q1 2026)
+- [ ] Search & filter across all sessions
 - [ ] Export session transcripts
+- [ ] Session playback (time-travel debugging)
 
-### Phase 3 (Future)
-- [ ] Remote SSH sessions
-- [ ] Session sharing
-- [ ] AI-generated summaries
+### Phase 5 (Future)
+- [ ] Session sharing & collaboration
+- [ ] AI-generated session summaries
+- [ ] Performance metrics dashboard
+- [ ] Cloud deployment templates
 
 ---
 

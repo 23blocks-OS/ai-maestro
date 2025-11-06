@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 import type { Session } from '@/types/session'
+import { getAgentBySession } from '@/lib/agent-registry'
 
 const execAsync = promisify(exec)
+
+// Force this route to be dynamic (not statically generated at build time)
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
@@ -73,6 +80,9 @@ export async function GET() {
           workingDirectory = ''
         }
 
+        // Check if this session is linked to an agent
+        const agent = getAgentBySession(name)
+
         return {
           id: name,
           name,
@@ -81,11 +91,57 @@ export async function GET() {
           createdAt,
           lastActivity,
           windows: parseInt(windows, 10),
+          ...(agent && { agentId: agent.id })
         }
       })
 
     const sessions = (await Promise.all(sessionPromises))
       .filter(session => session !== null) as Session[]
+
+    // Also discover cloud agents from registry
+    try {
+      const agentsDir = path.join(os.homedir(), '.aimaestro', 'agents')
+
+      if (fs.existsSync(agentsDir)) {
+        const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.json'))
+
+        for (const file of agentFiles) {
+          const agentData = JSON.parse(fs.readFileSync(path.join(agentsDir, file), 'utf8'))
+
+          // Only add cloud agents that aren't already in the tmux session list
+          if (agentData.deployment?.type === 'cloud' && agentData.tools?.session?.tmuxSessionName) {
+            const sessionName = agentData.tools.session.tmuxSessionName
+
+            // Check if already in list from tmux
+            if (!sessions.find(s => s.name === sessionName)) {
+              const activityTimestamp = (global as any).sessionActivity?.get(sessionName)
+              let status: 'active' | 'idle' | 'disconnected' = 'disconnected'
+              let lastActivity = agentData.lastActive || agentData.createdAt
+
+              if (activityTimestamp) {
+                lastActivity = new Date(activityTimestamp).toISOString()
+                const secondsSinceActivity = (Date.now() - activityTimestamp) / 1000
+                status = secondsSinceActivity > 3 ? 'idle' : 'active'
+              }
+
+              sessions.push({
+                id: sessionName,
+                name: sessionName,
+                workingDirectory: agentData.tools.session.workingDirectory || '/workspace',
+                status,
+                createdAt: agentData.createdAt,
+                lastActivity,
+                windows: 1,
+                agentId: agentData.id
+              })
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error discovering cloud agents:', error)
+      // Continue without cloud agents
+    }
 
     return NextResponse.json({ sessions })
   } catch (error) {

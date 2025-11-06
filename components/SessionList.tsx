@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import type { Session } from '@/types/session'
 import { formatDistanceToNow } from '@/lib/utils'
 import {
@@ -21,6 +21,7 @@ import {
   Code2,
   Mail,
   RotateCcw,
+  Cloud,
 } from 'lucide-react'
 
 interface SessionListProps {
@@ -146,6 +147,7 @@ export default function SessionList({
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [restorableCount, setRestorableCount] = useState(0)
   const [showRestoreModal, setShowRestoreModal] = useState(false)
+  const [agentsMap, setAgentsMap] = useState<Record<string, any>>({})
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -221,8 +223,13 @@ export default function SessionList({
     return groups
   }, [sessions])
 
-  // Initialize NEW panels as open (but preserve user's collapsed state)
+  // Initialize NEW panels as open on first mount only (preserve user's collapsed state after that)
+  const initializedRef = useRef(false)
   useEffect(() => {
+    // Only run once on initial mount, not on every sessions update
+    if (initializedRef.current) return
+    initializedRef.current = true
+
     setExpandedLevel1((prev) => {
       const newExpanded = new Set(prev)
       // Only add NEW level1 categories that don't exist yet
@@ -262,6 +269,26 @@ export default function SessionList({
       localStorage.setItem('sidebar-expanded-level2', JSON.stringify(Array.from(expandedLevel2)))
     }
   }, [expandedLevel2])
+
+  // Fetch agents data for deployment icons
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          const map: Record<string, any> = {}
+          data.agents?.forEach((agent: any) => {
+            map[agent.id] = agent
+          })
+          setAgentsMap(map)
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      }
+    }
+    fetchAgents()
+  }, [sessions])
 
   // Fetch unread message counts for all sessions
   useEffect(() => {
@@ -493,7 +520,7 @@ export default function SessionList({
       {/* Error State */}
       {error && (
         <div className="px-4 py-3 bg-red-900/20 border-b border-red-800">
-          <p className="text-sm text-red-400">Failed to load sessions</p>
+          <p className="text-sm text-red-400">Failed to load agents</p>
         </div>
       )}
 
@@ -502,7 +529,7 @@ export default function SessionList({
         {loading && sessions.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2"></div>
-            <p className="text-sm">Loading sessions...</p>
+            <p className="text-sm">Loading agents...</p>
           </div>
         ) : sessions.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">
@@ -655,11 +682,22 @@ export default function SessionList({
 
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="flex-1 min-w-0 flex items-center gap-2">
-                                            {/* Terminal icon */}
+                                            {/* Terminal icon - always show */}
                                             <Terminal
                                               className="w-3.5 h-3.5 flex-shrink-0"
                                               style={{ color: isActive ? colors.activeText : colors.icon }}
                                             />
+
+                                            {/* Deployment type indicator */}
+                                            {session.agentId && agentsMap[session.agentId] && (
+                                              <div className="flex-shrink-0" title={agentsMap[session.agentId].deployment?.type === 'cloud' ? 'Cloud deployment' : 'Local deployment'}>
+                                                {agentsMap[session.agentId].deployment?.type === 'cloud' && agentsMap[session.agentId]?.avatar ? (
+                                                  <span className="text-sm">{agentsMap[session.agentId].avatar}</span>
+                                                ) : (
+                                                  <Layers className="w-3 h-3 text-gray-400" />
+                                                )}
+                                              </div>
+                                            )}
 
                                             {/* Session name */}
                                             <span
@@ -820,11 +858,131 @@ function CreateSessionModal({
 }) {
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [deploymentType, setDeploymentType] = useState<'local' | 'cloud'>('local')
+  const [cloudUrl, setCloudUrl] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (name.trim()) {
+
+    if (deploymentType === 'cloud' && cloudUrl.trim()) {
+      // Register cloud agent
+      await handleCloudAgentRegistration()
+    } else if (deploymentType === 'local' && name.trim()) {
+      // Create local tmux session
       onCreate(name.trim(), workingDirectory.trim() || undefined)
+    }
+  }
+
+  const handleCloudAgentRegistration = async () => {
+    try {
+      const url = cloudUrl.trim()
+
+      // Extract domain from URL (support various formats)
+      let domain = url
+        .replace(/^https?:\/\//, '') // Remove protocol
+        .replace(/^wss?:\/\//, '')    // Remove WebSocket protocol
+        .replace(/\/.*$/, '')          // Remove path
+        .trim()
+
+      // Generate agent name from domain if not provided
+      const agentName = name.trim() || domain.replace(/\./g, '-')
+
+      // Construct WebSocket and health check URLs
+      const websocketUrl = domain.startsWith('localhost') || domain.match(/^\d/)
+        ? `ws://${domain}/term`
+        : `wss://${domain}/term`
+
+      const healthCheckUrl = domain.startsWith('localhost') || domain.match(/^\d/)
+        ? `http://${domain}/health`
+        : `https://${domain}/health`
+
+      // Verify agent is reachable via server-side proxy (avoids CORS issues)
+      let healthData: any
+      try {
+        const healthResponse = await fetch('/api/agents/health', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url: healthCheckUrl })
+        })
+
+        if (!healthResponse.ok) {
+          const errorData = await healthResponse.json()
+          throw new Error(errorData.error || `HTTP ${healthResponse.status}`)
+        }
+
+        healthData = await healthResponse.json()
+      } catch (fetchError) {
+        throw new Error(`Cannot connect to ${domain}: ${fetchError instanceof Error ? fetchError.message : 'Network error'}. Please verify the agent is running and accessible.`)
+      }
+
+      const sessionName = healthData.agentId || agentName
+
+      // Create agent configuration file
+      const agentConfig = {
+        id: sessionName,
+        alias: agentName,
+        displayName: `Cloud Agent: ${domain}`,
+        avatar: '☁️',
+        program: 'Claude Code',
+        model: 'Sonnet 4.5',
+        taskDescription: 'Cloud-deployed agent',
+        tags: ['cloud', 'remote'],
+        capabilities: ['typescript', 'docker', 'websocket'],
+        owner: '23blocks',
+        team: '23blocks',
+        documentation: {
+          description: `Remote agent running at ${domain}`,
+          notes: `Registered via dashboard on ${new Date().toISOString()}`
+        },
+        deployment: {
+          type: 'cloud',
+          cloud: {
+            provider: 'remote',
+            domain: domain,
+            websocketUrl: websocketUrl,
+            healthCheckUrl: healthCheckUrl,
+            status: 'running'
+          }
+        },
+        tools: {
+          session: {
+            tmuxSessionName: sessionName,
+            workingDirectory: healthData.workspace || '/workspace',
+            status: 'running',
+            createdAt: new Date().toISOString()
+          }
+        },
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        preferences: {
+          defaultWorkingDirectory: healthData.workspace || '/workspace',
+          autoStart: false,
+          notificationLevel: 'normal'
+        },
+        metadata: {
+          registeredVia: 'dashboard'
+        }
+      }
+
+      // Save agent configuration
+      const response = await fetch('/api/agents/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(agentConfig)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to register agent')
+      }
+
+      onClose()
+      onCreate(sessionName, undefined) // Trigger refresh
+    } catch (error) {
+      alert(`Failed to register cloud agent: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -834,38 +992,140 @@ function CreateSessionModal({
         <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Deployment Type Selector */}
             <div>
-              <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">
-                Agent Name *
+              <label className="block text-sm font-medium text-gray-300 mb-3">
+                Deployment Type *
               </label>
-              <input
-                id="session-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="apps-notify-session1"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                autoFocus
-                pattern="[a-zA-Z0-9_\-]+"
-                title="Only letters, numbers, dashes, and underscores allowed"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Format: level1-level2-sessionName (e.g., apps-notify-batman)
-              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('local')}
+                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    deploymentType === 'local'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  <Terminal className={`w-6 h-6 mb-2 ${
+                    deploymentType === 'local' ? 'text-blue-400' : 'text-gray-400'
+                  }`} />
+                  <span className={`text-sm font-medium ${
+                    deploymentType === 'local' ? 'text-blue-300' : 'text-gray-300'
+                  }`}>
+                    Local
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">tmux session</span>
+                  {deploymentType === 'local' && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('cloud')}
+                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    deploymentType === 'cloud'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  <Zap className={`w-6 h-6 mb-2 ${
+                    deploymentType === 'cloud' ? 'text-blue-400' : 'text-gray-400'
+                  }`} />
+                  <span className={`text-sm font-medium ${
+                    deploymentType === 'cloud' ? 'text-blue-300' : 'text-gray-300'
+                  }`}>
+                    Cloud
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">AWS instance</span>
+                  {deploymentType === 'cloud' && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </button>
+              </div>
             </div>
-            <div>
-              <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
-                Working Directory (optional)
-              </label>
-              <input
-                id="working-dir"
-                type="text"
-                value={workingDirectory}
-                onChange={(e) => setWorkingDirectory(e.target.value)}
-                placeholder={process.env.HOME || '/home/user'}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              />
-            </div>
+
+            {/* Cloud Agent URL Input */}
+            {deploymentType === 'cloud' && (
+              <div>
+                <label htmlFor="cloud-url" className="block text-sm font-medium text-gray-300 mb-1">
+                  Agent URL *
+                </label>
+                <input
+                  id="cloud-url"
+                  type="text"
+                  value={cloudUrl}
+                  onChange={(e) => setCloudUrl(e.target.value)}
+                  placeholder="agent1.23blocks.net"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Just paste the domain (e.g., agent1.23blocks.net or localhost:23000)
+                </p>
+              </div>
+            )}
+
+            {/* Local Agent Fields */}
+            {deploymentType === 'local' && (
+              <>
+                <div>
+                  <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">
+                    Agent Name *
+                  </label>
+                  <input
+                    id="session-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="apps-notify-session1"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    autoFocus
+                    pattern="[a-zA-Z0-9_\-]+"
+                    title="Only letters, numbers, dashes, and underscores allowed"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Format: level1-level2-sessionName (e.g., apps-notify-batman)
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
+                    Working Directory (optional)
+                  </label>
+                  <input
+                    id="working-dir"
+                    type="text"
+                    value={workingDirectory}
+                    onChange={(e) => setWorkingDirectory(e.target.value)}
+                    placeholder={process.env.HOME || '/home/user'}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Optional Name Override for Cloud Agents */}
+            {deploymentType === 'cloud' && (
+              <div>
+                <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
+                  Agent Name (optional)
+                </label>
+                <input
+                  id="agent-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Leave empty to auto-generate from URL"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  pattern="[a-zA-Z0-9_\-]+"
+                  title="Only letters, numbers, dashes, and underscores allowed"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Optional custom name (defaults to agent ID from health check)
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <button
@@ -878,10 +1138,10 @@ function CreateSessionModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !name.trim()}
+              disabled={loading || (deploymentType === 'local' && !name.trim()) || (deploymentType === 'cloud' && !cloudUrl.trim())}
               className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
             >
-              {loading ? 'Creating...' : 'Create Agent'}
+              {loading ? (deploymentType === 'cloud' ? 'Registering...' : 'Creating...') : (deploymentType === 'cloud' ? 'Register Agent' : 'Create Agent')}
             </button>
           </div>
         </form>
@@ -1154,6 +1414,8 @@ function RestoreSessionsModal({
                   className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all group"
                 >
                   <input
+                    id={`restore-checkbox-${session.id}`}
+                    name={`restore-checkbox-${session.id}`}
                     type="checkbox"
                     checked={selectedSessions.has(session.id)}
                     onChange={() => toggleSession(session.id)}

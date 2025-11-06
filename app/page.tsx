@@ -4,18 +4,33 @@ import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
 import MessageCenter from '@/components/MessageCenter'
+import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
+import AgentProfile from '@/components/AgentProfile'
+import MigrationBanner from '@/components/MigrationBanner'
+import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch } from 'lucide-react'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'worktree'>('terminal')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  // Check for onboarding completion on mount
+  useEffect(() => {
+    const completed = localStorage.getItem('aimaestro-onboarding-completed')
+    if (!completed) {
+      setShowOnboarding(true)
+    }
+  }, [])
 
   // Read session from URL parameter on mount
   useEffect(() => {
@@ -23,7 +38,6 @@ export default function DashboardPage() {
     const sessionParam = params.get('session')
     if (sessionParam) {
       setActiveSessionId(decodeURIComponent(sessionParam))
-      console.log('Dashboard: Setting session from URL:', decodeURIComponent(sessionParam))
     }
   }, [])
 
@@ -49,6 +63,29 @@ export default function DashboardPage() {
     }
   }, [sessions, activeSessionId])
 
+  // Fetch unread message count for active session
+  useEffect(() => {
+    if (!activeSessionId) return
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch(`/api/messages?session=${encodeURIComponent(activeSessionId)}&action=unread-count`)
+        if (response.ok) {
+          const data = await response.json()
+          setUnreadCount(data.count || 0)
+        }
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchUnreadCount, 10000)
+    return () => clearInterval(interval)
+  }, [activeSessionId])
+
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
   }
@@ -57,7 +94,23 @@ export default function DashboardPage() {
     setSidebarCollapsed(!sidebarCollapsed)
   }
 
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false)
+    // Refresh sessions to show any newly created session
+    refreshSessions()
+  }
+
+  const handleOnboardingSkip = () => {
+    localStorage.setItem('aimaestro-onboarding-completed', 'true')
+    setShowOnboarding(false)
+  }
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
+
+  // Show onboarding flow if not completed
+  if (showOnboarding) {
+    return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
+  }
 
   // Render mobile-specific dashboard for small screens
   // CRITICAL: Use key prop to force complete unmount/remount when switching layouts
@@ -81,6 +134,9 @@ export default function DashboardPage() {
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
+
+        {/* Migration Banner */}
+        <MigrationBanner />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
@@ -164,17 +220,49 @@ export default function DashboardPage() {
                     >
                       <Mail className="w-4 h-4" />
                       Messages
+                      {unreadCount > 0 && (
+                        <span className="ml-1.5 bg-blue-500/90 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </button>
+                    <button
+                      onClick={() => setActiveTab('worktree')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'worktree'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <GitBranch className="w-4 h-4" />
+                      WorkTree
+                    </button>
+                    <div className="flex-1" />
+                    {session.agentId && (
+                      <button
+                        onClick={() => setIsProfileOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                        title="View Agent Profile"
+                      >
+                        <User className="w-4 h-4" />
+                        Agent Profile
+                      </button>
+                    )}
                   </div>
 
                   {/* Tab Content */}
                   <div className="flex-1 flex overflow-hidden">
                     {activeTab === 'terminal' ? (
                       <TerminalView session={session} />
-                    ) : (
+                    ) : activeTab === 'messages' ? (
                       <MessageCenter
                         sessionName={session.id}
                         allSessions={sessions.map(s => s.id)}
+                      />
+                    ) : (
+                      <WorkTree
+                        sessionName={session.id}
+                        agentId={session.agentId}
                       />
                     )}
                   </div>
@@ -188,7 +276,7 @@ export default function DashboardPage() {
       <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
           <p className="text-xs md:text-sm text-white leading-none">
-            Version 0.4.3 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            Version 0.8.0 • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
           </p>
           <p className="text-xs md:text-sm text-white leading-none">
             Concept by{' '}
@@ -213,6 +301,15 @@ export default function DashboardPage() {
           </p>
         </div>
       </footer>
+
+      {/* Agent Profile Panel */}
+      {activeSession?.agentId && (
+        <AgentProfile
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          agentId={activeSession.agentId}
+        />
+      )}
     </div>
     </TerminalProvider>
   )

@@ -95,5 +95,42 @@ temp
 logs/
 *.log
 
+# Configuration
+.aimaestro/hosts.json
+
 # Marketing materials (not part of open source repo)
 docs/marketing/
+
+# Benchmark and competitive analysis (internal use only)
+docs/benchmark/
+
+# Generated social media logos (large binary files)
+public/logos/social/*.png
+
+# Distributed agents architecture planning (internal strategy documents)
+docs/DISTRIBUTED-AGENTS-ARCHITECTURE.md
+docs/BACKLOG-DISTRIBUTED-AGENTS.md
+
+# Container secrets and environment variables
+agent-container/.env
+agent-container/.env.local
+agent-container/.env.*.local
+*.token
+secrets/
+# But allow .env.example files
+!agent-container/.env.example
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+terraform.rc
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

@@ -52,9 +52,6 @@ function calculateTerminalDimensions(
   const cols = Math.max(2, Math.floor(usableWidth / cellWidth))
   const rows = Math.max(1, Math.floor(usableHeight / cellHeight))
 
-  console.log(`📐 [PRE-CALC] Container: ${containerWidth}x${containerHeight}`)
-  console.log(`📐 [PRE-CALC] Cell dimensions: ${cellWidth.toFixed(2)}x${cellHeight.toFixed(2)}`)
-  console.log(`📐 [PRE-CALC] Calculated terminal: ${cols}x${rows}`)
 
   return { cols, rows, cellWidth, cellHeight }
 }
@@ -87,7 +84,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const containerWidth = Math.floor(containerRect.width)
     const containerHeight = Math.floor(containerRect.height)
 
-    console.log(`📏 [INIT] Container dimensions for session ${optionsRef.current.sessionId}: ${containerWidth}x${containerHeight}`)
 
     // CRITICAL: Pre-calculate terminal dimensions BEFORE creating terminal
     const fontSize = optionsRef.current.fontSize || 16
@@ -181,7 +177,13 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
-    console.log(`✅ [INIT] Terminal opened with pre-calculated dimensions: ${terminal.cols}x${terminal.rows}`)
+    // Fix xterm.js helper textarea missing id/name (causes browser console warnings)
+    // xterm.js creates a hidden textarea for input handling but doesn't add id/name
+    const helperTextarea = container.querySelector('.xterm-helper-textarea')
+    if (helperTextarea && optionsRef.current.sessionId) {
+      helperTextarea.setAttribute('id', `xterm-helper-${optionsRef.current.sessionId}`)
+      helperTextarea.setAttribute('name', `xterm-helper-${optionsRef.current.sessionId}`)
+    }
 
     // CRITICAL: Verify that xterm.js respected our pre-calculated dimensions
     if (terminal.cols !== cols || terminal.rows !== rows) {
@@ -221,7 +223,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         return
       }
 
-      console.log(`👁️ [RESIZE-OBSERVER] Significant resize: ${prevWidth}x${prevHeight} → ${newWidth}x${newHeight} for session ${optionsRef.current.sessionId}`)
 
       prevWidth = newWidth
       prevHeight = newHeight
@@ -230,7 +231,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       resizeTimeout = setTimeout(() => {
         if (fitAddonRef.current && terminalRef.current) {
           try {
-            console.log(`⏰ [RESIZE-OBSERVER-TIMEOUT] Firing fit after 50ms debounce for session ${optionsRef.current.sessionId}`)
 
             // Store current scroll position
             const scrollPos = terminal.buffer.active.viewportY
@@ -251,7 +251,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
               terminal.scrollToBottom()
             }
 
-            console.log(`✅ [RESIZE-OBSERVER] Terminal resized to: ${newCols}x${newRows}`)
           } catch (e) {
             console.error('Failed to resize terminal:', e)
           }
@@ -325,8 +324,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       const oldCols = terminalRef.current.cols
       const oldRows = terminalRef.current.rows
 
-      console.log(`🔧 [FIT] Manual fit requested for session: ${sessionId}`)
-      console.log(`🔧 [FIT] Current terminal dimensions: ${oldCols}x${oldRows}`)
 
       // Get current container dimensions
       const container = terminalRef.current.element?.parentElement
@@ -350,9 +347,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       // Only resize if dimensions actually changed
       if (newCols !== oldCols || newRows !== oldRows) {
         terminalRef.current.resize(newCols, newRows)
-        console.log(`🔧 [FIT] Resized to: ${newCols}x${newRows} ✅ CHANGED`)
       } else {
-        console.log(`🔧 [FIT] Dimensions unchanged: ${newCols}x${newRows} ⏭️ NO CHANGE`)
       }
     }
   }, [])

@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { persistSession } from '@/lib/session-persistence'
+import { getHostById, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
 export async function POST(request: Request) {
   try {
-    const { name, workingDirectory } = await request.json()
+    const { name, workingDirectory, agentId, hostId } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Session name is required' }, { status: 400 })
@@ -21,6 +22,40 @@ export async function POST(request: Request) {
       )
     }
 
+    // Determine target host
+    const localHost = getLocalHost()
+    const targetHost = hostId ? getHostById(hostId) : localHost
+    const isRemote = targetHost && targetHost.type === 'remote'
+
+    // If remote host, forward request to worker
+    if (isRemote && targetHost) {
+      try {
+        const response = await fetch(`${targetHost.url}/api/sessions/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, workingDirectory, agentId }),
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          return NextResponse.json(
+            { error: data.error || 'Failed to create session on remote host' },
+            { status: response.status }
+          )
+        }
+
+        const data = await response.json()
+        return NextResponse.json(data)
+      } catch (error) {
+        console.error(`Failed to create session on remote host ${targetHost.name}:`, error)
+        return NextResponse.json(
+          { error: `Failed to connect to ${targetHost.name}` },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Local session creation
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(
       `tmux has-session -t "${name}" 2>&1 || echo "not_found"`
@@ -40,7 +75,8 @@ export async function POST(request: Request) {
       id: name,
       name: name,
       workingDirectory: cwd,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ...(agentId && { agentId })
     })
 
     return NextResponse.json({ success: true, name })

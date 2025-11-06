@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 interface MessageCenterProps {
@@ -11,9 +11,11 @@ interface MessageCenterProps {
 
 export default function MessageCenter({ sessionName, allSessions }: MessageCenterProps) {
   const [messages, setMessages] = useState<MessageSummary[]>([])
+  const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
-  const [view, setView] = useState<'inbox' | 'compose'>('inbox')
+  const [view, setView] = useState<'inbox' | 'sent' | 'compose'>('inbox')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [sentCount, setSentCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [isForwarding, setIsForwarding] = useState(false)
   const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
@@ -25,19 +27,34 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [composePriority, setComposePriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
   const [composeType, setComposeType] = useState<'request' | 'response' | 'notification' | 'update'>('request')
 
-  // Fetch messages
-  const fetchMessages = async () => {
+  // Copy dropdown state
+  const [showCopyDropdown, setShowCopyDropdown] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+
+  // Fetch inbox messages
+  const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}`)
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }
+  }, [sessionName])
+
+  // Fetch sent messages
+  const fetchSentMessages = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
+      const data = await response.json()
+      setSentMessages(data.messages || [])
+    } catch (error) {
+      console.error('Error fetching sent messages:', error)
+    }
+  }, [sessionName])
 
   // Fetch unread count
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=unread-count`)
       const data = await response.json()
@@ -45,17 +62,28 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     } catch (error) {
       console.error('Error fetching unread count:', error)
     }
-  }
+  }, [sessionName])
+
+  // Fetch sent count
+  const fetchSentCount = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=sent-count`)
+      const data = await response.json()
+      setSentCount(data.count || 0)
+    } catch (error) {
+      console.error('Error fetching sent count:', error)
+    }
+  }, [sessionName])
 
   // Load message details
-  const loadMessage = async (messageId: string) => {
+  const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`)
+      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
-      // Mark as read if unread
-      if (message.status === 'unread') {
+      // Mark as read if unread (inbox only)
+      if (box === 'inbox' && message.status === 'unread') {
         await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
@@ -177,6 +205,72 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     }
   }
 
+  // Copy message to clipboard (regular format)
+  const copyMessageRegular = async () => {
+    if (!selectedMessage) return
+
+    try {
+      await navigator.clipboard.writeText(selectedMessage.content.message)
+      setCopySuccess(true)
+      setShowCopyDropdown(false)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying message:', error)
+    }
+  }
+
+  // Copy message to clipboard (LLM-friendly markdown format)
+  const copyMessageForLLM = async () => {
+    if (!selectedMessage) return
+
+    // Format message in markdown for LLM consumption
+    const isInboxMessage = view === 'inbox'
+    let markdown = `# Message: ${selectedMessage.subject}\n\n`
+
+    if (isInboxMessage) {
+      markdown += `**From:** ${selectedMessage.from}\n`
+      markdown += `**To:** ${sessionName}\n`
+    } else {
+      markdown += `**From:** ${sessionName}\n`
+      markdown += `**To:** ${selectedMessage.to}\n`
+    }
+
+    markdown += `**Date:** ${new Date(selectedMessage.timestamp).toLocaleString()}\n`
+    markdown += `**Priority:** ${selectedMessage.priority}\n`
+    markdown += `**Type:** ${selectedMessage.content.type}\n\n`
+
+    markdown += `## Message Content\n\n`
+    markdown += `${selectedMessage.content.message}\n`
+
+    if (selectedMessage.content.context) {
+      markdown += `\n## Context\n\n`
+      markdown += '```json\n'
+      markdown += JSON.stringify(selectedMessage.content.context, null, 2)
+      markdown += '\n```\n'
+    }
+
+    if (selectedMessage.forwardedFrom) {
+      markdown += `\n## Forwarding Information\n\n`
+      markdown += `**Originally From:** ${selectedMessage.forwardedFrom.originalFrom}\n`
+      markdown += `**Originally To:** ${selectedMessage.forwardedFrom.originalTo}\n`
+      markdown += `**Original Date:** ${new Date(selectedMessage.forwardedFrom.originalTimestamp).toLocaleString()}\n`
+      markdown += `**Forwarded By:** ${selectedMessage.forwardedFrom.forwardedBy}\n`
+      markdown += `**Forwarded At:** ${new Date(selectedMessage.forwardedFrom.forwardedAt).toLocaleString()}\n`
+      if (selectedMessage.forwardedFrom.forwardNote) {
+        markdown += `**Forward Note:** ${selectedMessage.forwardedFrom.forwardNote}\n`
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(markdown)
+      setCopySuccess(true)
+      setShowCopyDropdown(false)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying message:', error)
+    }
+  }
+
   // Prepare to forward message
   const prepareForward = (message: Message) => {
     // Build forwarded content
@@ -201,13 +295,32 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
 
   useEffect(() => {
     fetchMessages()
+    fetchSentMessages()
     fetchUnreadCount()
+    fetchSentCount()
     const interval = setInterval(() => {
       fetchMessages()
+      fetchSentMessages()
       fetchUnreadCount()
+      fetchSentCount()
     }, 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
-  }, [sessionName])
+  }, [sessionName, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.relative')) {
+        setShowCopyDropdown(false)
+      }
+    }
+
+    if (showCopyDropdown) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showCopyDropdown])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -253,6 +366,22 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
             Inbox
           </button>
           <button
+            onClick={() => setView('sent')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors relative ${
+              view === 'sent'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Send className="w-4 h-4 inline-block mr-1" />
+            Sent
+            {sentCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold text-white bg-green-500 rounded-full">
+                {sentCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setView('compose')}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               view === 'compose'
@@ -273,8 +402,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
           <div className="w-1/3 border-r border-gray-700 bg-gray-800 overflow-y-auto">
             {messages.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                <Mail className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>No messages</p>
+                <Inbox className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>No inbox messages</p>
               </div>
             ) : (
               messages.map((msg) => (
@@ -330,6 +459,41 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {/* Copy Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                        className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
+                          copySuccess
+                            ? 'text-green-400 bg-green-900/30'
+                            : 'text-gray-400 hover:bg-gray-800'
+                        }`}
+                        title="Copy Message"
+                      >
+                        <Copy className="w-5 h-5" />
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {showCopyDropdown && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                          <button
+                            onClick={copyMessageRegular}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy Message
+                          </button>
+                          <button
+                            onClick={copyMessageForLLM}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy for LLM
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => prepareForward(selectedMessage)}
                       className="p-2 text-blue-400 hover:bg-blue-900/30 rounded-md transition-colors"
@@ -416,6 +580,148 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
         </div>
       )}
 
+      {/* Sent Messages View */}
+      {view === 'sent' && (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Message List */}
+          <div className="w-1/3 border-r border-gray-700 bg-gray-800 overflow-y-auto">
+            {sentMessages.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Send className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>No sent messages</p>
+              </div>
+            ) : (
+              sentMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  onClick={() => loadMessage(msg.id, 'sent')}
+                  className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
+                    selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-green-400 font-medium">To:</span>
+                      <span className="text-sm font-semibold text-gray-300">
+                        {msg.to}
+                      </span>
+                      {getPriorityIcon(msg.priority)}
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded ${getPriorityColor(msg.priority)}`}>
+                      {msg.priority}
+                    </span>
+                  </div>
+                  <h3 className="text-sm mb-1 font-medium text-gray-300">
+                    {msg.subject}
+                  </h3>
+                  <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-500">
+                      {new Date(msg.timestamp).toLocaleString()}
+                    </span>
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Message Detail */}
+          <div className="flex-1 bg-gray-900 overflow-y-auto">
+            {selectedMessage ? (
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="text-sm text-green-400 font-medium">Sent Message</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-100 mb-2">
+                      {selectedMessage.subject}
+                    </h2>
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <span className="font-medium">To:</span>
+                      <span>{selectedMessage.to}</span>
+                      <span className="mx-2">•</span>
+                      <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {/* Copy Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                        className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
+                          copySuccess
+                            ? 'text-green-400 bg-green-900/30'
+                            : 'text-gray-400 hover:bg-gray-800'
+                        }`}
+                        title="Copy Message"
+                      >
+                        <Copy className="w-5 h-5" />
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+
+                      {showCopyDropdown && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                          <button
+                            onClick={copyMessageRegular}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy Message
+                          </button>
+                          <button
+                            onClick={copyMessageForLLM}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy for LLM
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                  <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(selectedMessage.priority)}`}>
+                    {selectedMessage.priority}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-600">
+                    {selectedMessage.content.type}
+                  </span>
+                </div>
+
+                <div className="prose max-w-none">
+                  <div className="p-4 bg-gray-800 rounded-lg mb-4">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-200 font-sans">
+                      {selectedMessage.content.message}
+                    </pre>
+                  </div>
+
+                  {selectedMessage.content.context && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-semibold text-gray-300 mb-2">Context:</h3>
+                      <pre className="p-3 bg-gray-800 rounded text-xs overflow-x-auto text-gray-300">
+                        {JSON.stringify(selectedMessage.content.context, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <Send className="w-16 h-16 mx-auto mb-2 text-gray-600" />
+                  <p>Select a sent message to view</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Compose View */}
       {view === 'compose' && (
         <div className="flex-1 bg-gray-900 p-6 overflow-y-auto">
@@ -441,6 +747,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 To (Session Name):
               </label>
               <input
+                id="compose-to"
+                name="to"
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
@@ -460,6 +768,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 Subject:
               </label>
               <input
+                id="compose-subject"
+                name="subject"
                 type="text"
                 value={composeSubject}
                 onChange={(e) => setComposeSubject(e.target.value)}
@@ -507,6 +817,8 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
                 Message:
               </label>
               <textarea
+                id="compose-message"
+                name="message"
                 value={composeMessage}
                 onChange={(e) => setComposeMessage(e.target.value)}
                 rows={10}

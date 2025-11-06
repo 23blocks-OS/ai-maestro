@@ -8,12 +8,17 @@
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
 }
 
+html {
+  /* Prevent ALL scroll navigation gestures at root level */
+  overscroll-behavior: none;
+}
+
 body {
   @apply bg-gray-900 text-gray-100;
-  /* Prevent pull-to-refresh on mobile */
+  /* Prevent ALL overscroll behaviors - no pull-to-refresh, no swipe navigation */
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: none;
-  /* Better touch scrolling on iOS */
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Mobile-specific improvements */

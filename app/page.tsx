@@ -63,6 +63,63 @@ export default function DashboardPage() {
     }
   }, [sessions, activeSessionId])
 
+  // Initialize agent memories for all sessions on load (once per browser session)
+  useEffect(() => {
+    if (sessions.length === 0) return
+
+    // Check if we've already initialized in this browser session
+    const initKey = 'aimaestro-agents-initialized'
+    const lastInit = sessionStorage.getItem(initKey)
+    const now = Date.now()
+
+    // Only initialize once per browser session, or if it's been more than 1 hour
+    if (lastInit && (now - parseInt(lastInit)) < 3600000) {
+      console.log('[Dashboard] Agent memories already initialized in this session')
+      return
+    }
+
+    const initializeAgentMemories = async () => {
+      // Get unique agent IDs
+      const agentIds = new Set(
+        sessions
+          .map(s => s.agentId)
+          .filter((id): id is string => id !== null && id !== undefined)
+      )
+
+      console.log(`[Dashboard] Initializing memory for ${agentIds.size} agents...`)
+
+      // Initialize each agent's memory in parallel
+      const initPromises = Array.from(agentIds).map(async (agentId) => {
+        try {
+          // Check if memory exists
+          const checkResponse = await fetch(`/api/agents/${agentId}/memory`)
+          const checkData = await checkResponse.json()
+
+          // If no memory, initialize it
+          if (!checkData.success || (!checkData.sessions?.length && !checkData.projects?.length)) {
+            console.log(`[Dashboard] Initializing memory for agent ${agentId}`)
+            await fetch(`/api/agents/${agentId}/memory`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ populateFromSessions: true })
+            })
+          }
+        } catch (error) {
+          console.error(`[Dashboard] Failed to initialize agent ${agentId}:`, error)
+        }
+      })
+
+      await Promise.all(initPromises)
+
+      // Mark as initialized for this browser session
+      sessionStorage.setItem(initKey, now.toString())
+      console.log('[Dashboard] Agent memory initialization complete')
+    }
+
+    initializeAgentMemories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions.length]) // Only depend on length, not full sessions array
+
   // Fetch unread message count for active session
   useEffect(() => {
     if (!activeSessionId) return

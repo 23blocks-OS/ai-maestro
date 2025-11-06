@@ -22,7 +22,11 @@ import {
   Mail,
   RotateCcw,
   Cloud,
+  Server,
+  Settings,
 } from 'lucide-react'
+import Link from 'next/link'
+import { useHosts } from '@/hooks/useHosts'
 
 interface SessionListProps {
   sessions: Session[]
@@ -149,6 +153,10 @@ export default function SessionList({
   const [showRestoreModal, setShowRestoreModal] = useState(false)
   const [agentsMap, setAgentsMap] = useState<Record<string, any>>({})
 
+  // Host management (Manager/Worker pattern)
+  const { hosts } = useHosts()
+  const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
+
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
@@ -179,7 +187,13 @@ export default function SessionList({
   const groupedSessions = useMemo(() => {
     const groups: Record<string, Record<string, Session[]>> = {}
 
-    sessions.forEach((session) => {
+    // Filter sessions by selected host
+    const filteredSessions =
+      selectedHostFilter === 'all'
+        ? sessions
+        : sessions.filter((s) => s.hostId === selectedHostFilter)
+
+    filteredSessions.forEach((session) => {
       const parts = session.id.split('-')
 
       if (parts.length >= 3) {
@@ -221,7 +235,7 @@ export default function SessionList({
     })
 
     return groups
-  }, [sessions])
+  }, [sessions, selectedHostFilter])
 
   // Initialize NEW panels as open on first mount only (preserve user's collapsed state after that)
   const initializedRef = useRef(false)
@@ -395,13 +409,13 @@ export default function SessionList({
     return Object.values(level2Groups).reduce((sum, sessions) => sum + sessions.length, 0)
   }
 
-  const handleCreateSession = async (name: string, workingDirectory?: string) => {
+  const handleCreateSession = async (name: string, workingDirectory?: string, hostId?: string) => {
     setActionLoading(true)
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory }),
+        body: JSON.stringify({ name, workingDirectory, hostId }),
       })
 
       if (!response.ok) {
@@ -515,6 +529,27 @@ export default function SessionList({
         <p className="text-xs text-gray-400 mt-1">
           {sessions.length} {sessions.length === 1 ? 'agent' : 'agents'}
         </p>
+
+        {/* Host Filter */}
+        {hosts.length > 1 && (
+          <div className="mt-2">
+            <select
+              value={selectedHostFilter}
+              onChange={(e) => setSelectedHostFilter(e.target.value)}
+              className="w-full px-2 py-1.5 text-xs bg-gray-800 border border-gray-700 rounded text-gray-300 hover:border-gray-600 focus:border-blue-500 focus:outline-none transition-colors"
+            >
+              <option value="all">All Hosts ({sessions.length})</option>
+              {hosts.map((host) => {
+                const count = sessions.filter((s) => s.hostId === host.id).length
+                return (
+                  <option key={host.id} value={host.id}>
+                    {host.name} ({count})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Error State */}
@@ -770,6 +805,21 @@ export default function SessionList({
             })}
           </div>
         )}
+      </div>
+
+      {/* Settings Link */}
+      <div className="border-t border-sidebar-border px-3 py-3 mt-auto">
+        <Link
+          href="/settings"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 group"
+        >
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-gray-800 border border-gray-700 group-hover:bg-gray-700 group-hover:border-gray-600 transition-all duration-200">
+            <Settings className="w-4 h-4 text-gray-400 group-hover:text-gray-300" />
+          </div>
+          <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">
+            Settings
+          </span>
+        </Link>
       </div>
 
       {/* Create Session Modal */}

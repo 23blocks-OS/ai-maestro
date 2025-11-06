@@ -110,6 +110,25 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return conversationFile.split('/').pop() || conversationFile
   }
 
+  const getToolsFromMessage = (message: Message): string[] => {
+    const tools: string[] = []
+
+    // Check content array for tool_use blocks
+    if (message.message?.content && Array.isArray(message.message.content)) {
+      for (const block of message.message.content) {
+        if (block.type === 'tool_use' && block.name) {
+          tools.push(block.name)
+        }
+      }
+    }
+
+    return tools
+  }
+
+  const hasTools = (message: Message): boolean => {
+    return getToolsFromMessage(message).length > 0
+  }
+
   const getMessagePreview = (message: Message): string => {
     // Handle summary type
     if (message.type === 'summary' && message.summary) {
@@ -295,8 +314,12 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 className={`rounded-lg border ${
                   message.type === 'user'
                     ? 'bg-blue-900/20 border-blue-800/50'
+                    : message.type === 'assistant' && hasTools(message)
+                    ? 'bg-orange-900/20 border-orange-800/50'
                     : message.type === 'assistant'
                     ? 'bg-purple-900/20 border-purple-800/50'
+                    : message.type === 'tool_result'
+                    ? 'bg-yellow-900/20 border-yellow-800/50'
                     : 'bg-gray-800/50 border-gray-700/50'
                 }`}
               >
@@ -305,17 +328,37 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                   onClick={() => toggleMessage(index)}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       {message.type === 'user' ? (
-                        <User className="w-4 h-4 text-blue-400" />
+                        <>
+                          <User className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white">User</span>
+                        </>
+                      ) : message.type === 'assistant' && hasTools(message) ? (
+                        <>
+                          <Wrench className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white truncate">
+                            Tools: {getToolsFromMessage(message).join(', ')}
+                          </span>
+                        </>
                       ) : message.type === 'assistant' ? (
-                        <Bot className="w-4 h-4 text-purple-400" />
+                        <>
+                          <Bot className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white">Assistant</span>
+                        </>
+                      ) : message.type === 'tool_result' ? (
+                        <>
+                          <FileCode className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white">
+                            Tool Result: {message.toolName || 'Unknown'}
+                          </span>
+                        </>
                       ) : (
-                        <Wrench className="w-4 h-4 text-orange-400" />
+                        <>
+                          <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-white capitalize">{message.type}</span>
+                        </>
                       )}
-                      <span className="text-sm font-medium text-white capitalize">
-                        {message.type === 'tool_use' ? 'Tool Use' : message.type === 'tool_result' ? 'Tool Result' : message.type}
-                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {message.timestamp && (

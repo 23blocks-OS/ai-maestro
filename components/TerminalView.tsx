@@ -12,9 +12,10 @@ const BRACKETED_PASTE_END = '\u001b[201~'
 
 interface TerminalViewProps {
   session: Session
+  isVisible?: boolean
 }
 
-export default function TerminalView({ session }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible = true }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
@@ -105,6 +106,7 @@ export default function TerminalView({ session }: TerminalViewProps) {
   const { isConnected, sendMessage, connectionError, errorHint } = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,  // Pass host ID for remote session routing
+    autoConnect: isVisible,  // Only auto-connect when visible
     onOpen: () => {
       // Report activity when WebSocket connects
       reportActivity(session.id)

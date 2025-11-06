@@ -351,6 +351,9 @@ skills/
 
 scripts/
   generate-social-logos.js        - Generate social media logos from SVG
+  init-all-agents.mjs             - Initialize memory for all agents
+  register-agent-from-session.mjs - Register agent(s) from tmux session(s)
+  setup-tmux.sh                   - Setup tmux configuration
 
 install-messaging.sh    - Installer for messaging system to user's environment
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle } from 'lucide-react'
+import ConversationDetailPanel from './ConversationDetailPanel'
 
 interface WorkTreeProps {
   sessionName: string
@@ -44,6 +45,10 @@ interface ClaudeSessionWork {
   first_message_at?: number
   last_message_at?: number
   jsonl_file: string
+  first_user_message?: string
+  model_names?: string
+  git_branch?: string
+  claude_version?: string
 }
 
 export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
@@ -51,6 +56,10 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
+  const [selectedConversation, setSelectedConversation] = useState<{
+    file: string
+    projectPath: string
+  } | null>(null)
 
   const fetchWorkTree = async () => {
     if (!agentId) {
@@ -97,16 +106,33 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
         total_messages: 0
       }))
 
-      const projects: ProjectWork[] = (data.projects || []).map((row: any) => ({
-        project_id: row[0],
-        project_name: row[1],
-        project_path: row[0],
-        claude_config_dir: row[2] || '',
-        total_sessions: 0,
-        total_claude_sessions: 0,
-        last_seen: row[4],
-        claude_sessions: []
-      }))
+      const projects: ProjectWork[] = (data.projects || []).map((item: any) => {
+        const row = item.project
+        const conversations = item.conversations || []
+
+        return {
+          project_id: row[0],
+          project_name: row[1],
+          project_path: row[0],
+          claude_config_dir: row[2] || '',
+          total_sessions: 0,
+          total_claude_sessions: conversations.length,
+          last_seen: row[4],
+          claude_sessions: conversations.map((conv: any) => ({
+            claude_session_id: conv[0],
+            session_type: 'main',
+            status: 'completed',
+            message_count: conv[4],
+            first_message_at: conv[2],
+            last_message_at: conv[3],
+            jsonl_file: conv[0],
+            first_user_message: conv[5],
+            model_names: conv[6],
+            git_branch: conv[7],
+            claude_version: conv[8]
+          }))
+        }
+      })
 
       setWorkData({
         agent_id: agentId,
@@ -300,40 +326,79 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
                         Claude Sessions ({project.claude_sessions.length})
                       </h5>
                       <div className="space-y-2">
-                        {project.claude_sessions.map((claudeSession) => (
-                          <div
-                            key={claudeSession.claude_session_id}
-                            className="bg-gray-800/30 border border-gray-700/50 rounded p-3"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <FileCode className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                                <span className="text-sm text-white font-mono truncate">
-                                  {claudeSession.claude_session_id}
-                                </span>
+                        {project.claude_sessions.map((claudeSession) => {
+                          const duration = claudeSession.first_message_at && claudeSession.last_message_at
+                            ? claudeSession.last_message_at - claudeSession.first_message_at
+                            : 0
+                          const durationHours = Math.floor(duration / 3600000)
+                          const durationMinutes = Math.floor((duration % 3600000) / 60000)
+                          const durationStr = durationHours > 0
+                            ? `${durationHours}h ${durationMinutes}m`
+                            : `${durationMinutes}m`
+
+                          return (
+                            <div
+                              key={claudeSession.claude_session_id}
+                              className="bg-gray-800/30 border border-gray-700/50 rounded p-3 hover:bg-gray-800/50 transition-colors cursor-pointer"
+                              onClick={() => setSelectedConversation({
+                                file: claudeSession.jsonl_file,
+                                projectPath: project.project_path
+                              })}
+                            >
+                              {/* Date and Models */}
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                                  {claudeSession.first_message_at && (
+                                    <span className="text-sm text-gray-300">
+                                      {new Date(claudeSession.first_message_at).toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: '2-digit'
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                                {claudeSession.model_names && (
+                                  <span className="text-xs text-blue-400 font-medium">
+                                    {claudeSession.model_names}
+                                  </span>
+                                )}
                               </div>
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ml-2 flex-shrink-0 ${
-                                claudeSession.status === 'active'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-gray-500/20 text-gray-400'
-                              }`}>
-                                {claudeSession.status}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
-                              <span className="px-1.5 py-0.5 bg-gray-700/50 rounded">
-                                {claudeSession.session_type}
-                              </span>
-                              <span>{claudeSession.message_count} messages</span>
-                              {claudeSession.last_message_at && (
-                                <span>{formatRelativeTime(claudeSession.last_message_at)}</span>
+
+                              {/* Task Description */}
+                              {claudeSession.first_user_message && (
+                                <p className="text-sm text-gray-200 mb-2 line-clamp-2">
+                                  &quot;{claudeSession.first_user_message}&quot;
+                                </p>
                               )}
+
+                              {/* Stats */}
+                              <div className="flex items-center gap-3 text-xs text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <FileCode className="w-3 h-3" />
+                                  {claudeSession.message_count.toLocaleString()} msgs
+                                </span>
+                                {duration > 0 && (
+                                  <span>⏱️ {durationStr}</span>
+                                )}
+                                {claudeSession.last_message_at && (
+                                  <span>{formatRelativeTime(claudeSession.last_message_at)}</span>
+                                )}
+                              </div>
+
+                              {/* File path - collapsed by default */}
+                              <details className="mt-2">
+                                <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-500">
+                                  Show file path
+                                </summary>
+                                <p className="text-xs text-gray-600 mt-1 font-mono break-all">
+                                  {claudeSession.jsonl_file}
+                                </p>
+                              </details>
                             </div>
-                            <p className="text-xs text-gray-600 mt-2 font-mono truncate">
-                              {claudeSession.jsonl_file}
-                            </p>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -354,6 +419,15 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           </div>
         )}
       </div>
+
+      {/* Conversation Detail Panel */}
+      {selectedConversation && (
+        <ConversationDetailPanel
+          conversationFile={selectedConversation.file}
+          projectPath={selectedConversation.projectPath}
+          onClose={() => setSelectedConversation(null)}
+        />
+      )}
     </div>
   )
 }

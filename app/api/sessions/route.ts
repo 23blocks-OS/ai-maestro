@@ -6,20 +6,60 @@ import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
 import { getAgentBySession } from '@/lib/agent-registry'
+import { getHosts, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+/**
+ * Fetch sessions from a remote host
+ */
+async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Session[]> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+    const response = await fetch(`${hostUrl}/api/sessions`, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      console.error(`[Sessions] Failed to fetch from ${hostUrl}: HTTP ${response.status}`)
+      return []
+    }
+
+    const data = await response.json()
+    const remoteSessions = data.sessions || []
+
+    // Tag each session with its hostId
+    return remoteSessions.map((session: Session) => ({
+      ...session,
+      hostId,
+    }))
+  } catch (error) {
+    console.error(`[Sessions] Error fetching from ${hostUrl}:`, error)
+    return []
+  }
+}
+
+/**
+ * Fetch local tmux sessions
+ */
+async function fetchLocalSessions(hostId: string): Promise<Session[]> {
   try {
     // Execute tmux list-sessions command
     const { stdout } = await execAsync('tmux list-sessions 2>/dev/null || echo ""')
 
     if (!stdout.trim()) {
       // No sessions found
-      return NextResponse.json({ sessions: [] })
+      return []
     }
 
     // Parse tmux output
@@ -91,6 +131,7 @@ export async function GET() {
           createdAt,
           lastActivity,
           windows: parseInt(windows, 10),
+          hostId, // Tag with local host ID
           ...(agent && { agentId: agent.id })
         }
       })
@@ -132,6 +173,7 @@ export async function GET() {
                 createdAt: agentData.createdAt,
                 lastActivity,
                 windows: 1,
+                hostId, // Tag with local host ID
                 agentId: agentData.id
               })
             }
@@ -143,9 +185,44 @@ export async function GET() {
       // Continue without cloud agents
     }
 
-    return NextResponse.json({ sessions })
+    return sessions
   } catch (error) {
-    console.error('Failed to fetch sessions:', error)
+    console.error('[Sessions] Error fetching local sessions:', error)
+    return []
+  }
+}
+
+/**
+ * GET /api/sessions
+ * Fetches sessions from all configured hosts (local + remote workers)
+ */
+export async function GET() {
+  try {
+    // Get all configured hosts
+    const hosts = getHosts()
+    const localHost = getLocalHost()
+
+    console.log(`[Sessions] Fetching from ${hosts.length} host(s)...`)
+
+    // Fetch sessions from all hosts in parallel
+    const sessionPromises = hosts.map(async (host) => {
+      if (host.type === 'local') {
+        return fetchLocalSessions(host.id)
+      } else {
+        return fetchRemoteSessions(host.url, host.id)
+      }
+    })
+
+    const allSessionArrays = await Promise.all(sessionPromises)
+
+    // Flatten arrays and combine
+    const allSessions = allSessionArrays.flat()
+
+    console.log(`[Sessions] Found ${allSessions.length} total session(s) across all hosts`)
+
+    return NextResponse.json({ sessions: allSessions })
+  } catch (error) {
+    console.error('[Sessions] Failed to fetch sessions:', error)
     return NextResponse.json(
       { error: 'Failed to fetch sessions', sessions: [] },
       { status: 500 }

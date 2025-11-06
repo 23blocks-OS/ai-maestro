@@ -7,6 +7,7 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import { getHostById } from './lib/hosts-config-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
@@ -46,6 +47,84 @@ app.prepare().then(() => {
 
   // WebSocket server for terminal connections
   const wss = new WebSocketServer({ noServer: true })
+
+  // Handle remote worker connections (proxy WebSocket to remote host)
+  function handleRemoteWorker(clientWs, sessionName, workerUrl) {
+    console.log(`🌐 [REMOTE] Connecting to remote worker: ${workerUrl}`)
+
+    // Build WebSocket URL for remote worker
+    const workerWsUrl = `${workerUrl}/term?name=${encodeURIComponent(sessionName)}`
+      .replace(/^http:/, 'ws:')
+      .replace(/^https:/, 'wss:')
+
+    // Connect to remote worker's WebSocket
+    const workerWs = new WebSocket(workerWsUrl)
+
+    workerWs.on('open', () => {
+      console.log(`🌐 [REMOTE] Connected to ${sessionName} at ${workerUrl}`)
+
+      // Track activity for remote sessions
+      sessionActivity.set(sessionName, Date.now())
+
+      // Proxy messages: browser → remote worker
+      clientWs.on('message', (data) => {
+        if (workerWs.readyState === WebSocket.OPEN) {
+          workerWs.send(data)
+        }
+      })
+
+      // Proxy messages: remote worker → browser
+      workerWs.on('message', (data) => {
+        // Convert Buffer to string if needed
+        const dataStr = typeof data === 'string' ? data : data.toString('utf8')
+
+        if (clientWs.readyState === 1) { // WebSocket.OPEN
+          // Send as string (browser expects string)
+          clientWs.send(dataStr)
+
+          // Track activity when worker sends data
+          if (dataStr.length >= 3) {
+            sessionActivity.set(sessionName, Date.now())
+          }
+        }
+      })
+
+      // Handle remote worker disconnection
+      workerWs.on('close', (code, reason) => {
+        console.log(`🌐 [REMOTE] Worker disconnected: ${sessionName} (${code}: ${reason})`)
+        if (clientWs.readyState === 1) {
+          clientWs.close(1000, 'Remote worker disconnected')
+        }
+      })
+
+      workerWs.on('error', (error) => {
+        console.error(`🌐 [REMOTE] Error from ${sessionName}:`, error.message)
+        if (clientWs.readyState === 1) {
+          clientWs.close(1011, 'Remote worker error')
+        }
+      })
+
+      // Handle client disconnection
+      clientWs.on('close', () => {
+        console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
+        if (workerWs.readyState === WebSocket.OPEN) {
+          workerWs.close()
+        }
+      })
+
+      clientWs.on('error', (error) => {
+        console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
+        if (workerWs.readyState === WebSocket.OPEN) {
+          workerWs.close()
+        }
+      })
+    })
+
+    workerWs.on('error', (error) => {
+      console.error(`🌐 [REMOTE] Failed to connect to ${workerUrl}:`, error.message)
+      clientWs.close(1011, `Cannot connect to remote worker: ${error.message}`)
+    })
+  }
 
   // Handle container agent connections (proxy WebSocket to container)
   function handleContainerAgent(clientWs, sessionName, containerUrl) {
@@ -138,6 +217,28 @@ app.prepare().then(() => {
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
       return
+    }
+
+    // Check if this is a remote host connection
+    if (query.host && typeof query.host === 'string') {
+      try {
+        const host = getHostById(query.host)
+
+        if (host && host.type !== 'local') {
+          console.log(`🌐 [REMOTE] Routing ${sessionName} to host ${host.id} (${host.url})`)
+          handleRemoteWorker(ws, sessionName, host.url)
+          return
+        } else if (!host) {
+          console.error(`🌐 [REMOTE] Host not found: ${query.host}`)
+          ws.close(1008, `Host not found: ${query.host}`)
+          return
+        }
+        // If host.type === 'local', fall through to local tmux handling
+      } catch (error) {
+        console.error(`🌐 [REMOTE] Error routing to remote host:`, error)
+        ws.close(1011, 'Remote host routing error')
+        return
+      }
     }
 
     // Check agent registry to see if this is a cloud (container) agent

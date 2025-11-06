@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, HelpCircle, Info } from 'lucide-react'
+import { Server, HelpCircle, Info, Compass } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'help' | 'about'
-  onSectionChange: (section: 'hosts' | 'help' | 'about') => void
+  activeSection: 'hosts' | 'help' | 'about' | 'onboarding'
+  onSectionChange: (section: 'hosts' | 'help' | 'about' | 'onboarding') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -14,6 +14,12 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Hosts',
       icon: Server,
       description: 'Manage remote workers',
+    },
+    {
+      id: 'onboarding' as const,
+      label: 'Onboarding',
+      icon: Compass,
+      description: 'Getting started guide',
     },
     {
       id: 'help' as const,

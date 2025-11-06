@@ -166,7 +166,7 @@ export default function AboutSection() {
       {/* Links */}
       <div className="flex items-center justify-center gap-6 pt-4">
         <a
-          href="https://github.com/23blocks/ai-maestro"
+          href="https://github.com/23blocks-OS/ai-maestro"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"

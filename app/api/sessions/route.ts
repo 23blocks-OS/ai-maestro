@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import http from 'http'
+import https from 'https'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -14,63 +16,41 @@ const execAsync = promisify(exec)
 export const dynamic = 'force-dynamic'
 
 /**
- * Retry a fetch request with exponential backoff
+ * HTTP GET using native Node.js http module (fetch/undici is broken for local networks)
  */
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3
-): Promise<Response> {
-  let lastError: Error | null = null
+async function httpGet(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url)
+    const client = urlObj.protocol === 'https:' ? https : http
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[Sessions] Attempt ${attempt}/${maxRetries} to fetch ${url}`)
-      const response = await fetch(url, options)
-      return response // Success!
-    } catch (error) {
-      lastError = error as Error
-      console.error(`[Sessions] Attempt ${attempt} failed:`, error)
+    console.log(`[Sessions] Using http.get for ${url}`)
 
-      if (attempt < maxRetries) {
-        // Exponential backoff: 100ms, 200ms, 400ms
-        const delay = 100 * Math.pow(2, attempt - 1)
-        console.log(`[Sessions] Retrying in ${delay}ms...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
-  }
+    const req = client.get(url, { timeout: 5000 }, (res) => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data))
+        } catch (error) {
+          reject(new Error(`Invalid JSON: ${data.substring(0, 100)}`))
+        }
+      })
+    })
 
-  throw lastError || new Error('Fetch failed after retries')
+    req.on('error', reject)
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error('Request timeout'))
+    })
+  })
 }
 
 /**
- * Fetch sessions from a remote host with retry logic
+ * Fetch sessions from a remote host using native http module
  */
 async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Session[]> {
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout per attempt
-
-    const response = await fetchWithRetry(
-      `${hostUrl}/api/sessions`,
-      {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        },
-      },
-      3 // 3 retries
-    )
-
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      console.error(`[Sessions] Failed to fetch from ${hostUrl}: HTTP ${response.status}`)
-      return []
-    }
-
-    const data = await response.json()
+    const data = await httpGet(`${hostUrl}/api/sessions`)
     const remoteSessions = data.sessions || []
 
     console.log(`[Sessions] Successfully fetched ${remoteSessions.length} session(s) from ${hostUrl}`)
@@ -81,7 +61,7 @@ async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Ses
       hostId,
     }))
   } catch (error) {
-    console.error(`[Sessions] Error fetching from ${hostUrl} after retries:`, error)
+    console.error(`[Sessions] Error fetching from ${hostUrl}:`, error)
     return []
   }
 }

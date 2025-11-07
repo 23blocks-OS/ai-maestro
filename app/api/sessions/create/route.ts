@@ -1,40 +1,66 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import http from 'http'
+import https from 'https'
 import { persistSession } from '@/lib/session-persistence'
 import { getHostById, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
 /**
- * Retry a fetch request with exponential backoff
+ * HTTP POST using native Node.js http module (fetch/undici is broken for local networks)
  */
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3
-): Promise<Response> {
-  let lastError: Error | null = null
+async function httpPost(url: string, body: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url)
+    const client = urlObj.protocol === 'https:' ? https : http
+    const postData = JSON.stringify(body)
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[Sessions] Attempt ${attempt}/${maxRetries} to POST ${url}`)
-      const response = await fetch(url, options)
-      return response // Success!
-    } catch (error) {
-      lastError = error as Error
-      console.error(`[Sessions] Attempt ${attempt} failed:`, error)
+    console.log(`[Sessions] Using http.request POST for ${url}`)
 
-      if (attempt < maxRetries) {
-        // Exponential backoff: 100ms, 200ms, 400ms
-        const delay = 100 * Math.pow(2, attempt - 1)
-        console.log(`[Sessions] Retrying in ${delay}ms...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 10000,
     }
-  }
 
-  throw lastError || new Error('Fetch failed after retries')
+    const req = client.request(options, (res) => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data))
+          } catch (error) {
+            reject(new Error(`Invalid JSON: ${data.substring(0, 100)}`))
+          }
+        } else {
+          try {
+            const errorData = JSON.parse(data)
+            reject(new Error(errorData.error || `HTTP ${res.statusCode}`))
+          } catch {
+            reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 100)}`))
+          }
+        }
+      })
+    })
+
+    req.on('error', reject)
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error('Request timeout'))
+    })
+
+    req.write(postData)
+    req.end()
+  })
 }
 
 export async function POST(request: Request) {
@@ -64,32 +90,8 @@ export async function POST(request: Request) {
         const remoteUrl = `${targetHost.url}/api/sessions/create`
         console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
 
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        const data = await httpPost(remoteUrl, { name, workingDirectory, agentId })
 
-        const response = await fetchWithRetry(
-          remoteUrl,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, workingDirectory, agentId }),
-            signal: controller.signal,
-          },
-          3 // 3 retries
-        )
-
-        clearTimeout(timeoutId)
-
-        if (!response.ok) {
-          const data = await response.json()
-          console.error(`[Sessions] Remote host returned error: ${response.status} - ${data.error}`)
-          return NextResponse.json(
-            { error: data.error || 'Failed to create session on remote host' },
-            { status: response.status }
-          )
-        }
-
-        const data = await response.json()
         console.log(`[Sessions] Successfully created session "${name}" on ${targetHost.name}`)
         return NextResponse.json(data)
       } catch (error) {

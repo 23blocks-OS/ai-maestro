@@ -157,6 +157,7 @@ export default function SessionList({
   // Host management (Manager/Worker pattern)
   const { hosts } = useHosts()
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
+  const [hostsExpanded, setHostsExpanded] = useState(true)
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -494,7 +495,9 @@ export default function SessionList({
       {/* Header */}
       <div className="px-4 py-3 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-100">AI Agents</h2>
+          <h2 className="text-lg font-semibold text-gray-100">
+            AI Agents ({sessions.length})
+          </h2>
           <div className="flex items-center gap-2">
             {restorableCount > 0 && (
               <button
@@ -527,28 +530,85 @@ export default function SessionList({
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-1">
-          {sessions.length} {sessions.length === 1 ? 'agent' : 'agents'}
-        </p>
 
-        {/* Host Filter */}
+        {/* Host List - Collapsible */}
         {hosts.length > 1 && (
-          <div className="mt-2">
-            <select
-              value={selectedHostFilter}
-              onChange={(e) => setSelectedHostFilter(e.target.value)}
-              className="w-full px-2 py-1.5 text-xs bg-gray-800 border border-gray-700 rounded text-gray-300 hover:border-gray-600 focus:border-blue-500 focus:outline-none transition-colors"
+          <div className="mt-3">
+            {/* Hosts Header - Clickable to expand/collapse */}
+            <button
+              onClick={() => setHostsExpanded(!hostsExpanded)}
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-all"
             >
-              <option value="all">All Hosts ({sessions.length})</option>
-              {hosts.map((host) => {
-                const count = sessions.filter((s) => s.hostId === host.id).length
-                return (
-                  <option key={host.id} value={host.id}>
-                    {host.name} ({count})
-                  </option>
-                )
-              })}
-            </select>
+              <span className="flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5" />
+                <span className="font-medium">Hosts</span>
+              </span>
+              <ChevronRight
+                className={`w-4 h-4 transition-transform ${hostsExpanded ? 'rotate-90' : ''}`}
+              />
+            </button>
+
+            {/* Hosts List - Collapsible Content */}
+            {hostsExpanded && (
+              <div className="mt-1 space-y-1 pl-1">
+                {/* All Hosts Option */}
+                <button
+                  onClick={() => setSelectedHostFilter('all')}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-all ${
+                    selectedHostFilter === 'all'
+                      ? 'bg-blue-500/20 text-blue-300'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5" />
+                    All Hosts
+                  </span>
+                  <span className={selectedHostFilter === 'all' ? 'text-blue-400' : 'text-gray-500'}>
+                    {sessions.length}
+                  </span>
+                </button>
+
+                {/* Individual Hosts */}
+                {hosts.map((host) => {
+                  const count = sessions.filter((s) => s.hostId === host.id).length
+                  const isSelected = selectedHostFilter === host.id
+                  const isLocal = host.type === 'local'
+
+                  return (
+                    <button
+                      key={host.id}
+                      onClick={() => setSelectedHostFilter(host.id)}
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-all ${
+                        isSelected
+                          ? 'bg-blue-500/20 text-blue-300'
+                          : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {isLocal ? (
+                          <Terminal className="w-3.5 h-3.5" />
+                        ) : (
+                          <Network className="w-3.5 h-3.5" />
+                        )}
+                        {host.name}
+                      </span>
+                      <span className={isSelected ? 'text-blue-400' : 'text-gray-500'}>
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+
+                {/* Add Host Button */}
+                <Link href="/settings?tab=hosts">
+                  <button className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 border border-dashed border-gray-700 hover:border-gray-600 transition-all">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Host
+                  </button>
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1603,3 +1663,4 @@ function RestoreSessionsModal({
     </div>
   )
 }
+

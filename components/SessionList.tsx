@@ -531,25 +531,24 @@ export default function SessionList({
           </div>
         </div>
 
-        {/* Host List - Collapsible */}
-        {hosts.length > 1 && (
-          <div className="mt-3">
-            {/* Hosts Header - Clickable to expand/collapse */}
-            <button
-              onClick={() => setHostsExpanded(!hostsExpanded)}
-              className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-all"
-            >
-              <span className="flex items-center gap-1.5">
-                <Server className="w-3.5 h-3.5" />
-                <span className="font-medium">Hosts</span>
-              </span>
-              <ChevronRight
-                className={`w-4 h-4 transition-transform ${hostsExpanded ? 'rotate-90' : ''}`}
-              />
-            </button>
+        {/* Host List - Collapsible (Always visible) */}
+        <div className="mt-3">
+          {/* Hosts Header - Clickable to expand/collapse */}
+          <button
+            onClick={() => setHostsExpanded(!hostsExpanded)}
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-all"
+          >
+            <span className="flex items-center gap-1.5">
+              <Server className="w-3.5 h-3.5" />
+              <span className="font-medium">Hosts</span>
+            </span>
+            <ChevronRight
+              className={`w-4 h-4 transition-transform ${hostsExpanded ? 'rotate-90' : ''}`}
+            />
+          </button>
 
-            {/* Hosts List - Collapsible Content */}
-            {hostsExpanded && (
+          {/* Hosts List - Collapsible Content */}
+          {hostsExpanded && (
               <div className="mt-1 space-y-1 pl-1">
                 {/* All Hosts Option */}
                 <button
@@ -619,8 +618,7 @@ export default function SessionList({
                 </Link>
               </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Error State */}

@@ -23,24 +23,58 @@ async function httpGet(url: string): Promise<any> {
     const urlObj = new URL(url)
     const client = urlObj.protocol === 'https:' ? https : http
 
-    console.log(`[Sessions] Using http.get for ${url}`)
+    console.log(`[Sessions] DEBUG: Attempting http.get`)
+    console.log(`[Sessions] DEBUG: URL:`, url)
+    console.log(`[Sessions] DEBUG: Protocol:`, urlObj.protocol)
+    console.log(`[Sessions] DEBUG: Hostname:`, urlObj.hostname)
+    console.log(`[Sessions] DEBUG: Port:`, urlObj.port)
+    console.log(`[Sessions] DEBUG: Process PID:`, process.pid)
+    console.log(`[Sessions] DEBUG: Process ENV NODE_ENV:`, process.env.NODE_ENV)
 
     const req = client.get(url, { timeout: 5000 }, (res) => {
+      console.log(`[Sessions] DEBUG: Got response, status:`, res.statusCode)
       let data = ''
       res.on('data', chunk => data += chunk)
       res.on('end', () => {
+        console.log(`[Sessions] DEBUG: Response complete, length:`, data.length)
         try {
           resolve(JSON.parse(data))
         } catch (error) {
+          console.error(`[Sessions] DEBUG: JSON parse failed:`, error)
           reject(new Error(`Invalid JSON: ${data.substring(0, 100)}`))
         }
       })
     })
 
-    req.on('error', reject)
+    req.on('error', (error) => {
+      console.error(`[Sessions] DEBUG: Request error occurred`)
+      console.error(`[Sessions] DEBUG: Error code:`, (error as NodeJS.ErrnoException).code)
+      console.error(`[Sessions] DEBUG: Error message:`, error.message)
+      console.error(`[Sessions] DEBUG: Error syscall:`, (error as NodeJS.ErrnoException).syscall)
+      console.error(`[Sessions] DEBUG: Full error:`, error)
+      reject(error)
+    })
+
     req.on('timeout', () => {
+      console.error(`[Sessions] DEBUG: Request timeout`)
       req.destroy()
       reject(new Error('Request timeout'))
+    })
+
+    req.on('socket', (socket) => {
+      console.log(`[Sessions] DEBUG: Socket assigned`)
+      console.log(`[Sessions] DEBUG: Socket localAddress:`, socket.localAddress)
+      console.log(`[Sessions] DEBUG: Socket localPort:`, socket.localPort)
+
+      socket.on('connect', () => {
+        console.log(`[Sessions] DEBUG: Socket connected`)
+        console.log(`[Sessions] DEBUG: Socket remoteAddress:`, socket.remoteAddress)
+        console.log(`[Sessions] DEBUG: Socket remotePort:`, socket.remotePort)
+      })
+
+      socket.on('error', (err) => {
+        console.error(`[Sessions] DEBUG: Socket error:`, err)
+      })
     })
   })
 }

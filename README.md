@@ -58,6 +58,8 @@ Your Browser (localhost:23000)
 ### 🌐 Manager/Worker Architecture (New in v0.8.0!)
 Distribute your AI agents across **unlimited machines** - all managed from one browser dashboard.
 
+> **⚠️ macOS 15+ Users:** If setting up distributed workers, you MUST run `./scripts/fix-pm2-daemon.sh` first to fix Local Network Privacy blocking. [See Known Issues](#️-known-issues) for details.
+
 - **Smart Discovery Wizard**: Just enter a URL, AI Maestro auto-discovers and tests the connection
 - **Real-time Health Monitoring**: Green/red/yellow indicators show worker status at a glance
 - **Seamless Experience**: Remote sessions work exactly like local ones (transparent WebSocket proxying)
@@ -830,6 +832,45 @@ ENABLE_LOGGING=false
 - HTTPS/WSS encryption
 - Rate limiting
 - Access logging
+
+### ⚠️ Known Issues
+
+#### macOS Local Network Privacy Blocking Distributed Setup (macOS 15+)
+
+**If you're setting up Manager/Worker architecture on macOS 15+ (Sequoia) or macOS 26+ (Tahoe), you MUST apply this fix.**
+
+**Symptoms:**
+- ✅ Local sessions work fine
+- ❌ Remote worker sessions don't appear
+- ❌ `EHOSTUNREACH` errors in PM2 logs
+- ✅ `curl` to remote workers works from terminal
+
+**Root Cause:** macOS Local Network Privacy restricts PM2 (user-level process) from accessing local network IPs. This is a macOS security feature introduced in macOS 15.
+
+**Quick Fix (5 minutes):**
+
+```bash
+# Step 1: Convert PM2 to system daemon (exempt from restrictions)
+./scripts/fix-pm2-daemon.sh
+
+# Step 2: Complete the transition
+./scripts/transition-to-daemon.sh
+
+# Step 3: Verify remote connections work
+curl http://localhost:23000/api/sessions | jq '.sessions | group_by(.hostId)'
+```
+
+**What this does:**
+- ✅ Keeps all PM2 functionality (`pm2 logs`, `pm2 restart`, etc.)
+- ✅ Fixes network access to remote workers
+- ✅ Auto-starts on boot
+- ✅ No workflow changes
+
+**Alternative:** Use [Tailscale](./docs/NETWORK-ACCESS.md) to connect workers (may bypass restriction).
+
+**Full documentation:** See [GitHub Issue #24](https://github.com/23blocks-OS/ai-maestro/issues/24) for complete technical details and troubleshooting.
+
+---
 
 ### Known Limitations
 

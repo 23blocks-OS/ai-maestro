@@ -12,6 +12,12 @@ import { getHosts, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
+// Read version from package.json
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8')
+)
+const AI_MAESTRO_VERSION = packageJson.version
+
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
 
@@ -183,6 +189,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
           lastActivity,
           windows: parseInt(windows, 10),
           hostId, // Tag with local host ID
+          version: AI_MAESTRO_VERSION,
           ...(agent && { agentId: agent.id })
         }
       })
@@ -225,6 +232,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                 lastActivity,
                 windows: 1,
                 hostId, // Tag with local host ID
+                version: AI_MAESTRO_VERSION,
                 agentId: agentData.id
               })
             }

@@ -575,27 +575,37 @@ export default function SessionList({
                   const isSelected = selectedHostFilter === host.id
                   const isLocal = host.type === 'local'
 
+                  // Get version from one of the sessions from this host
+                  const hostVersion = sessions.find((s) => s.hostId === host.id)?.version
+
                   return (
                     <button
                       key={host.id}
                       onClick={() => setSelectedHostFilter(host.id)}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-all ${
+                      className={`w-full flex flex-col items-start px-2 py-1.5 rounded text-xs transition-all ${
                         isSelected
                           ? 'bg-blue-500/20 text-blue-300'
                           : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                       }`}
                     >
-                      <span className="flex items-center gap-1.5">
-                        {isLocal ? (
-                          <Terminal className="w-3.5 h-3.5" />
-                        ) : (
-                          <Network className="w-3.5 h-3.5" />
-                        )}
-                        {host.name}
-                      </span>
-                      <span className={isSelected ? 'text-blue-400' : 'text-gray-500'}>
-                        {count}
-                      </span>
+                      <div className="w-full flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          {isLocal ? (
+                            <Terminal className="w-3.5 h-3.5" />
+                          ) : (
+                            <Network className="w-3.5 h-3.5" />
+                          )}
+                          {host.name}
+                        </span>
+                        <span className={isSelected ? 'text-blue-400' : 'text-gray-500'}>
+                          {count}
+                        </span>
+                      </div>
+                      {hostVersion && (
+                        <span className="text-[10px] text-gray-600 ml-5 mt-0.5">
+                          v{hostVersion}
+                        </span>
+                      )}
                     </button>
                   )
                 })}

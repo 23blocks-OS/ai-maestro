@@ -12,6 +12,7 @@ export interface Session {
   hostId?: string      // Host identifier (e.g., "mac-mini", "local")
   hostName?: string    // Human-readable host name (e.g., "Mac Mini")
   remote?: boolean     // true if session is on a remote host
+  version?: string     // AI Maestro version (e.g., "0.9.2")
 }
 
 export type SessionStatus = Session['status']

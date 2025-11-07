@@ -903,13 +903,15 @@ function CreateSessionModal({
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string) => void
+  onCreate: (name: string, workingDirectory?: string, hostId?: string) => void
   loading: boolean
 }) {
+  const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [deploymentType, setDeploymentType] = useState<'local' | 'cloud'>('local')
   const [cloudUrl, setCloudUrl] = useState('')
+  const [selectedHostId, setSelectedHostId] = useState<string>('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -918,8 +920,8 @@ function CreateSessionModal({
       // Register cloud agent
       await handleCloudAgentRegistration()
     } else if (deploymentType === 'local' && name.trim()) {
-      // Create local tmux session
-      onCreate(name.trim(), workingDirectory.trim() || undefined)
+      // Create tmux session (local or remote based on selected host)
+      onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined)
     }
   }
 
@@ -1152,6 +1154,33 @@ function CreateSessionModal({
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
+
+                {/* Host Selector - only show if multiple hosts configured */}
+                {hosts.length > 1 && (
+                  <div>
+                    <label htmlFor="host-selector" className="block text-sm font-medium text-gray-300 mb-1">
+                      Target Host (optional)
+                    </label>
+                    <select
+                      id="host-selector"
+                      value={selectedHostId}
+                      onChange={(e) => setSelectedHostId(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="">Local (default)</option>
+                      {hosts
+                        .filter(host => host.type !== 'local')
+                        .map(host => (
+                          <option key={host.id} value={host.id}>
+                            {host.name} ({host.url})
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Create session on local machine or remote worker
+                    </p>
+                  </div>
+                )}
               </>
             )}
 

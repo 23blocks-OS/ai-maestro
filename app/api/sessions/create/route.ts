@@ -59,32 +59,45 @@ export async function POST(request: Request) {
         return NextResponse.json(data)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`[Sessions] Failed to connect to ${targetHost.name} (${targetHost.url}):`, errorMessage)
 
-        // Provide more specific error messages
-        if (errorMessage.includes('aborted')) {
+        // Check error.cause for network errors (Node.js fetch wraps errors)
+        const errorCause = (error as any)?.cause
+        const causeCode = errorCause?.code || ''
+        const causeMessage = errorCause?.message || ''
+
+        console.error(`[Sessions] Failed to connect to ${targetHost.name} (${targetHost.url}):`, {
+          message: errorMessage,
+          causeCode,
+          causeMessage,
+          fullError: error
+        })
+
+        // Provide more specific error messages (check both message and cause)
+        const fullErrorText = `${errorMessage} ${causeCode} ${causeMessage}`
+
+        if (errorMessage.includes('aborted') || causeCode === 'ABORT_ERR') {
           return NextResponse.json(
             { error: `Timeout connecting to ${targetHost.name}. Is the remote AI Maestro running?` },
             { status: 504 }
           )
-        } else if (errorMessage.includes('ECONNREFUSED')) {
+        } else if (fullErrorText.includes('ECONNREFUSED') || causeCode === 'ECONNREFUSED') {
           return NextResponse.json(
             { error: `Connection refused by ${targetHost.name}. Verify the remote AI Maestro is running on ${targetHost.url}` },
             { status: 503 }
           )
-        } else if (errorMessage.includes('EHOSTUNREACH')) {
+        } else if (fullErrorText.includes('EHOSTUNREACH') || causeCode === 'EHOSTUNREACH') {
           return NextResponse.json(
-            { error: `Cannot reach ${targetHost.name} at ${targetHost.url}. Check: 1) Remote host is online, 2) IP address hasn't changed, 3) Both on same network` },
+            { error: `Cannot reach ${targetHost.name} at ${targetHost.url}. This is intermittent - the endpoint works with curl but Node.js fetch is failing. Try again or check if there's a network/firewall issue.` },
             { status: 503 }
           )
-        } else if (errorMessage.includes('ENETUNREACH')) {
+        } else if (fullErrorText.includes('ENETUNREACH') || causeCode === 'ENETUNREACH') {
           return NextResponse.json(
             { error: `Network unreachable to ${targetHost.name}. Are you on the same network/VPN?` },
             { status: 503 }
           )
         } else {
           return NextResponse.json(
-            { error: `Failed to connect to ${targetHost.name}: ${errorMessage}` },
+            { error: `Failed to connect to ${targetHost.name}: ${errorMessage} (${causeCode})` },
             { status: 500 }
           )
         }

@@ -61,7 +61,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
     projectPath: string
   } | null>(null)
 
-  const fetchWorkTree = async () => {
+  const fetchWorkTree = async (forceInitialize = false) => {
     if (!agentId) {
       setError('No agent ID available for this session')
       setLoading(false)
@@ -77,21 +77,30 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
       let data = await response.json()
 
       // If memory doesn't exist yet, initialize it
-      if (!data.success || (!data.sessions?.length && !data.projects?.length)) {
-        console.log('[WorkTree] No memory found, initializing from tmux sessions...')
+      // OR if forceInitialize is true (user clicked retry)
+      if (forceInitialize || !data.success || (!data.sessions?.length && !data.projects?.length)) {
+        console.log('[WorkTree] Initializing agent database and scanning conversations...')
 
-        await fetch(`/api/agents/${agentId}/memory`, {
+        const initResponse = await fetch(`/api/agents/${agentId}/memory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ populateFromSessions: true })
         })
 
-        // Fetch again
+        const initData = await initResponse.json()
+
+        if (!initResponse.ok || !initData.success) {
+          throw new Error(initData.error || `Database initialization failed (${initResponse.status})`)
+        }
+
+        console.log('[WorkTree] ✓ Database initialized successfully')
+
+        // Fetch again after initialization
         response = await fetch(`/api/agents/${agentId}/memory`)
         data = await response.json()
 
         if (!data.success) {
-          throw new Error(data.error || 'Failed to fetch memory')
+          throw new Error(data.error || 'Failed to fetch memory after initialization')
         }
       }
 
@@ -201,11 +210,12 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           <p className="text-gray-300 font-medium mb-2">Failed to load work tree</p>
           <p className="text-gray-500 text-sm mb-4">{error}</p>
           <button
-            onClick={fetchWorkTree}
+            onClick={() => fetchWorkTree(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
-            Retry
+            Initialize & Retry
           </button>
+          <p className="text-gray-600 text-xs mt-2">This will create the agent database and scan for conversations</p>
         </div>
       </div>
     )
@@ -232,7 +242,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           <span className="text-sm text-gray-500">Agent: {agentId}</span>
         </div>
         <button
-          onClick={fetchWorkTree}
+          onClick={() => fetchWorkTree()}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded transition-colors"
         >
           <RefreshCw className="w-4 h-4" />

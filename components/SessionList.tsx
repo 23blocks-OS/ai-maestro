@@ -24,6 +24,7 @@ import {
   Cloud,
   Server,
   Settings,
+  Network,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useHosts } from '@/hooks/useHosts'
@@ -909,9 +910,12 @@ function CreateSessionModal({
   const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
-  const [deploymentType, setDeploymentType] = useState<'local' | 'cloud'>('local')
+  const [deploymentType, setDeploymentType] = useState<'local' | 'remote' | 'cloud'>('local')
   const [cloudUrl, setCloudUrl] = useState('')
   const [selectedHostId, setSelectedHostId] = useState<string>('')
+
+  // Get remote hosts (exclude local)
+  const remoteHosts = hosts.filter(host => host.type !== 'local')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -919,9 +923,12 @@ function CreateSessionModal({
     if (deploymentType === 'cloud' && cloudUrl.trim()) {
       // Register cloud agent
       await handleCloudAgentRegistration()
+    } else if (deploymentType === 'remote' && name.trim() && selectedHostId) {
+      // Create session on remote AI Maestro worker
+      onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId)
     } else if (deploymentType === 'local' && name.trim()) {
-      // Create tmux session (local or remote based on selected host)
-      onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined)
+      // Create session on localhost
+      onCreate(name.trim(), workingDirectory.trim() || undefined, undefined)
     }
   }
 
@@ -1049,25 +1056,25 @@ function CreateSessionModal({
               <label className="block text-sm font-medium text-gray-300 mb-3">
                 Deployment Type *
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setDeploymentType('local')}
-                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                  className={`relative flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
                     deploymentType === 'local'
                       ? 'border-blue-500 bg-blue-500/10'
                       : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
                   }`}
                 >
-                  <Terminal className={`w-6 h-6 mb-2 ${
+                  <Terminal className={`w-5 h-5 mb-1 ${
                     deploymentType === 'local' ? 'text-blue-400' : 'text-gray-400'
                   }`} />
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs font-medium ${
                     deploymentType === 'local' ? 'text-blue-300' : 'text-gray-300'
                   }`}>
                     Local
                   </span>
-                  <span className="text-xs text-gray-400 mt-1">tmux session</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">This machine</span>
                   {deploymentType === 'local' && (
                     <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
                   )}
@@ -1075,22 +1082,45 @@ function CreateSessionModal({
 
                 <button
                   type="button"
+                  onClick={() => setDeploymentType('remote')}
+                  className={`relative flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
+                    deploymentType === 'remote'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  <Network className={`w-5 h-5 mb-1 ${
+                    deploymentType === 'remote' ? 'text-blue-400' : 'text-gray-400'
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    deploymentType === 'remote' ? 'text-blue-300' : 'text-gray-300'
+                  }`}>
+                    Remote
+                  </span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">AI Maestro</span>
+                  {deploymentType === 'remote' && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setDeploymentType('cloud')}
-                  className={`relative flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                  className={`relative flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
                     deploymentType === 'cloud'
                       ? 'border-blue-500 bg-blue-500/10'
                       : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
                   }`}
                 >
-                  <Zap className={`w-6 h-6 mb-2 ${
+                  <Zap className={`w-5 h-5 mb-1 ${
                     deploymentType === 'cloud' ? 'text-blue-400' : 'text-gray-400'
                   }`} />
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs font-medium ${
                     deploymentType === 'cloud' ? 'text-blue-300' : 'text-gray-300'
                   }`}>
                     Cloud
                   </span>
-                  <span className="text-xs text-gray-400 mt-1">AWS instance</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">AWS/GCP</span>
                   {deploymentType === 'cloud' && (
                     <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
                   )}
@@ -1119,8 +1149,8 @@ function CreateSessionModal({
               </div>
             )}
 
-            {/* Local Agent Fields */}
-            {deploymentType === 'local' && (
+            {/* Local & Remote Agent Fields */}
+            {(deploymentType === 'local' || deploymentType === 'remote') && (
               <>
                 <div>
                   <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">
@@ -1155,30 +1185,31 @@ function CreateSessionModal({
                   />
                 </div>
 
-                {/* Host Selector - only show if multiple hosts configured */}
-                {hosts.length > 1 && (
+                {/* Host Selector - only show for Remote deployment type */}
+                {deploymentType === 'remote' && (
                   <div>
                     <label htmlFor="host-selector" className="block text-sm font-medium text-gray-300 mb-1">
-                      Target Host (optional)
+                      Target Worker *
                     </label>
                     <select
                       id="host-selector"
                       value={selectedHostId}
                       onChange={(e) => setSelectedHostId(e.target.value)}
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
                     >
-                      <option value="">Local (default)</option>
-                      {hosts
-                        .filter(host => host.type !== 'local')
-                        .map(host => (
-                          <option key={host.id} value={host.id}>
-                            {host.name} ({host.url})
-                          </option>
-                        ))}
+                      <option value="">-- Select Remote Worker --</option>
+                      {remoteHosts.map(host => (
+                        <option key={host.id} value={host.id}>
+                          {host.name} ({host.url})
+                        </option>
+                      ))}
                     </select>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Create session on local machine or remote worker
-                    </p>
+                    {remoteHosts.length === 0 && (
+                      <p className="text-xs text-amber-400 mt-1">
+                        ⚠️ No remote workers configured. Add one in Settings first.
+                      </p>
+                    )}
                   </div>
                 )}
               </>

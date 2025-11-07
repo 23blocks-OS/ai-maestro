@@ -14,19 +14,54 @@ const execAsync = promisify(exec)
 export const dynamic = 'force-dynamic'
 
 /**
- * Fetch sessions from a remote host
+ * Retry a fetch request with exponential backoff
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Sessions] Attempt ${attempt}/${maxRetries} to fetch ${url}`)
+      const response = await fetch(url, options)
+      return response // Success!
+    } catch (error) {
+      lastError = error as Error
+      console.error(`[Sessions] Attempt ${attempt} failed:`, error)
+
+      if (attempt < maxRetries) {
+        // Exponential backoff: 100ms, 200ms, 400ms
+        const delay = 100 * Math.pow(2, attempt - 1)
+        console.log(`[Sessions] Retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+
+  throw lastError || new Error('Fetch failed after retries')
+}
+
+/**
+ * Fetch sessions from a remote host with retry logic
  */
 async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Session[]> {
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout per attempt
 
-    const response = await fetch(`${hostUrl}/api/sessions`, {
-      signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
+    const response = await fetchWithRetry(
+      `${hostUrl}/api/sessions`,
+      {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
       },
-    })
+      3 // 3 retries
+    )
 
     clearTimeout(timeoutId)
 
@@ -38,13 +73,15 @@ async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Ses
     const data = await response.json()
     const remoteSessions = data.sessions || []
 
+    console.log(`[Sessions] Successfully fetched ${remoteSessions.length} session(s) from ${hostUrl}`)
+
     // Tag each session with its hostId
     return remoteSessions.map((session: Session) => ({
       ...session,
       hostId,
     }))
   } catch (error) {
-    console.error(`[Sessions] Error fetching from ${hostUrl}:`, error)
+    console.error(`[Sessions] Error fetching from ${hostUrl} after retries:`, error)
     return []
   }
 }

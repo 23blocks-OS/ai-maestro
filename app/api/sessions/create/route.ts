@@ -6,6 +6,37 @@ import { getHostById, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
+/**
+ * Retry a fetch request with exponential backoff
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Sessions] Attempt ${attempt}/${maxRetries} to POST ${url}`)
+      const response = await fetch(url, options)
+      return response // Success!
+    } catch (error) {
+      lastError = error as Error
+      console.error(`[Sessions] Attempt ${attempt} failed:`, error)
+
+      if (attempt < maxRetries) {
+        // Exponential backoff: 100ms, 200ms, 400ms
+        const delay = 100 * Math.pow(2, attempt - 1)
+        console.log(`[Sessions] Retrying in ${delay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+
+  throw lastError || new Error('Fetch failed after retries')
+}
+
 export async function POST(request: Request) {
   try {
     const { name, workingDirectory, agentId, hostId } = await request.json()
@@ -36,12 +67,16 @@ export async function POST(request: Request) {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-        const response = await fetch(remoteUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, workingDirectory, agentId }),
-          signal: controller.signal,
-        })
+        const response = await fetchWithRetry(
+          remoteUrl,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, workingDirectory, agentId }),
+            signal: controller.signal,
+          },
+          3 // 3 retries
+        )
 
         clearTimeout(timeoutId)
 

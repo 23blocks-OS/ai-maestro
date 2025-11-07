@@ -4,12 +4,13 @@ import { forwardMessage } from '@/lib/messageQueue'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { messageId, fromSession, toSession, forwardNote } = body
+    const { messageId, originalMessage, fromSession, toSession, forwardNote } = body
 
     // Validate required fields
-    if (!messageId || !fromSession || !toSession) {
+    // Either messageId (local forward) or originalMessage (remote forward) must be provided
+    if ((!messageId && !originalMessage) || !fromSession || !toSession) {
       return NextResponse.json(
-        { error: 'messageId, fromSession, and toSession are required' },
+        { error: 'Either messageId or originalMessage, plus fromSession and toSession are required' },
         { status: 400 }
       )
     }
@@ -23,11 +24,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward the message
+    // If originalMessage is provided (remote forward), use it directly
+    // Otherwise use messageId (local forward)
     const forwardedMessage = await forwardMessage(
       messageId,
       fromSession,
       toSession,
-      forwardNote || undefined
+      forwardNote || undefined,
+      originalMessage || undefined
     )
 
     return NextResponse.json({

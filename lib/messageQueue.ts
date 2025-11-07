@@ -194,18 +194,27 @@ export async function sendMessage(
 }
 
 /**
- * Forward a message to another session
+ * Forward a message to another session (supports cross-host forwarding)
  */
 export async function forwardMessage(
   originalMessageId: string,
   fromSession: string,
   toSession: string,
-  forwardNote?: string
+  forwardNote?: string,
+  providedOriginalMessage?: Message
 ): Promise<Message> {
   // Get the original message
-  const originalMessage = await getMessage(fromSession, originalMessageId)
-  if (!originalMessage) {
-    throw new Error(`Message ${originalMessageId} not found`)
+  // If providedOriginalMessage is given (remote forward), use it
+  // Otherwise fetch from local filesystem (local forward)
+  let originalMessage: Message | null
+
+  if (providedOriginalMessage) {
+    originalMessage = providedOriginalMessage
+  } else {
+    originalMessage = await getMessage(fromSession, originalMessageId)
+    if (!originalMessage) {
+      throw new Error(`Message ${originalMessageId} not found`)
+    }
   }
 
   await ensureMessageDirectories()
@@ -271,6 +280,7 @@ export async function forwardMessage(
 
   if (recipientIsRemote && remoteHostUrl) {
     // Forward message to remote host via HTTP
+    // Must send full message content since remote host doesn't have access to local filesystem
     console.log(`[MessageQueue] Forwarding message to remote session ${toSession} at ${remoteHostUrl}`)
 
     try {
@@ -278,7 +288,8 @@ export async function forwardMessage(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messageId: originalMessageId,
+          // Send full original message instead of just ID
+          originalMessage: originalMessage,
           fromSession,
           toSession,
           forwardNote,

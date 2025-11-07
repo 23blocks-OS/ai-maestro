@@ -48,6 +48,18 @@ export interface MessageSummary {
 const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
 
 /**
+ * Parse a qualified session name (session-name@host-id)
+ * Returns { sessionName, hostId } or { sessionName, hostId: null } if no host specified
+ */
+function parseQualifiedName(qualifiedName: string): { sessionName: string; hostId: string | null } {
+  const parts = qualifiedName.split('@')
+  if (parts.length === 2) {
+    return { sessionName: parts[0], hostId: parts[1] }
+  }
+  return { sessionName: qualifiedName, hostId: null }
+}
+
+/**
  * Ensures the message directory structure exists
  */
 export async function ensureMessageDirectories(): Promise<void> {
@@ -118,10 +130,13 @@ export async function sendMessage(
   await ensureMessageDirectories()
   await ensureSessionDirectories(from)
 
+  // Parse qualified name (session-name@host-id)
+  const { sessionName: recipientSessionName, hostId: targetHostId } = parseQualifiedName(to)
+
   const message: Message = {
     id: generateMessageId(),
     from,
-    to,
+    to: recipientSessionName, // Use unqualified name in message
     timestamp: new Date().toISOString(),
     subject,
     priority: options?.priority || 'normal',
@@ -138,7 +153,19 @@ export async function sendMessage(
     // Fetch sessions to find recipient
     const response = await fetch('http://localhost:23000/api/sessions')
     const data = await response.json()
-    const recipientSession = data.sessions?.find((s: any) => s.name === to || s.id === to)
+
+    // Find recipient session
+    // If hostId specified (qualified name), match both session name and hostId
+    // Otherwise, match session name only (backward compatible)
+    const recipientSession = data.sessions?.find((s: any) => {
+      const nameMatches = s.name === recipientSessionName || s.id === recipientSessionName
+      if (targetHostId) {
+        // Qualified name - must match both name and host
+        return nameMatches && s.hostId === targetHostId
+      }
+      // Unqualified name - match name only (first match)
+      return nameMatches
+    })
 
     if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
       // Recipient is on a remote host
@@ -181,8 +208,8 @@ export async function sendMessage(
     }
   } else {
     // Local recipient - write to filesystem
-    await ensureSessionDirectories(to)
-    const inboxPath = path.join(getInboxDir(to), `${message.id}.json`)
+    await ensureSessionDirectories(recipientSessionName)
+    const inboxPath = path.join(getInboxDir(recipientSessionName), `${message.id}.json`)
     await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
   }
 
@@ -203,6 +230,9 @@ export async function forwardMessage(
   forwardNote?: string,
   providedOriginalMessage?: Message
 ): Promise<Message> {
+  // Parse qualified name (session-name@host-id)
+  const { sessionName: recipientSessionName, hostId: targetHostId } = parseQualifiedName(toSession)
+
   // Get the original message
   // If providedOriginalMessage is given (remote forward), use it
   // Otherwise fetch from local filesystem (local forward)
@@ -219,7 +249,7 @@ export async function forwardMessage(
 
   await ensureMessageDirectories()
   await ensureSessionDirectories(fromSession)
-  await ensureSessionDirectories(toSession)
+  await ensureSessionDirectories(recipientSessionName)
 
   // Build forwarded content
   let forwardedContent = ''
@@ -238,7 +268,7 @@ export async function forwardMessage(
   const forwardedMessage: Message = {
     id: generateMessageId(),
     from: fromSession,
-    to: toSession,
+    to: recipientSessionName, // Use unqualified name in message
     timestamp: new Date().toISOString(),
     subject: `Fwd: ${originalMessage.subject}`,
     priority: originalMessage.priority,
@@ -265,7 +295,19 @@ export async function forwardMessage(
   try {
     const response = await fetch('http://localhost:23000/api/sessions')
     const data = await response.json()
-    const recipientSession = data.sessions?.find((s: any) => s.name === toSession || s.id === toSession)
+
+    // Find recipient session
+    // If hostId specified (qualified name), match both session name and hostId
+    // Otherwise, match session name only (backward compatible)
+    const recipientSession = data.sessions?.find((s: any) => {
+      const nameMatches = s.name === recipientSessionName || s.id === recipientSessionName
+      if (targetHostId) {
+        // Qualified name - must match both name and host
+        return nameMatches && s.hostId === targetHostId
+      }
+      // Unqualified name - match name only (first match)
+      return nameMatches
+    })
 
     if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
       const remoteHost = getHostById(recipientSession.hostId)
@@ -307,7 +349,7 @@ export async function forwardMessage(
     }
   } else {
     // Local recipient - write to filesystem
-    const inboxPath = path.join(getInboxDir(toSession), `${forwardedMessage.id}.json`)
+    const inboxPath = path.join(getInboxDir(recipientSessionName), `${forwardedMessage.id}.json`)
     await fs.writeFile(inboxPath, JSON.stringify(forwardedMessage, null, 2))
   }
 

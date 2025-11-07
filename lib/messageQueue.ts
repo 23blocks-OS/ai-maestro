@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
+import { getHostById } from './hosts-config-server.mjs'
 
 export interface Message {
   id: string
@@ -102,7 +103,7 @@ async function ensureSessionDirectories(sessionName: string): Promise<void> {
 }
 
 /**
- * Send a message from one session to another
+ * Send a message from one session to another (supports cross-host messaging)
  */
 export async function sendMessage(
   from: string,
@@ -116,7 +117,6 @@ export async function sendMessage(
 ): Promise<Message> {
   await ensureMessageDirectories()
   await ensureSessionDirectories(from)
-  await ensureSessionDirectories(to)
 
   const message: Message = {
     id: generateMessageId(),
@@ -130,11 +130,63 @@ export async function sendMessage(
     inReplyTo: options?.inReplyTo,
   }
 
-  // Write to recipient's inbox
-  const inboxPath = path.join(getInboxDir(to), `${message.id}.json`)
-  await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+  // Determine if recipient is on a remote host
+  let recipientIsRemote = false
+  let remoteHostUrl: string | null = null
 
-  // Write to sender's sent folder
+  try {
+    // Fetch sessions to find recipient
+    const response = await fetch('http://localhost:23000/api/sessions')
+    const data = await response.json()
+    const recipientSession = data.sessions?.find((s: any) => s.name === to || s.id === to)
+
+    if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
+      // Recipient is on a remote host
+      const remoteHost = getHostById(recipientSession.hostId)
+      if (remoteHost) {
+        recipientIsRemote = true
+        remoteHostUrl = remoteHost.url
+      }
+    }
+  } catch (error) {
+    console.warn('[MessageQueue] Failed to determine recipient host, assuming local:', error)
+  }
+
+  if (recipientIsRemote && remoteHostUrl) {
+    // Send message to remote host via HTTP
+    console.log(`[MessageQueue] Sending message to remote session ${to} at ${remoteHostUrl}`)
+
+    try {
+      const remoteResponse = await fetch(`${remoteHostUrl}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from,
+          to,
+          subject,
+          content,
+          priority: options?.priority,
+          inReplyTo: options?.inReplyTo,
+        }),
+      })
+
+      if (!remoteResponse.ok) {
+        throw new Error(`Remote host returned ${remoteResponse.status}`)
+      }
+
+      console.log(`[MessageQueue] ✓ Message delivered to remote host ${remoteHostUrl}`)
+    } catch (error) {
+      console.error(`[MessageQueue] Failed to send message to remote host:`, error)
+      throw new Error(`Failed to deliver message to remote session: ${error}`)
+    }
+  } else {
+    // Local recipient - write to filesystem
+    await ensureSessionDirectories(to)
+    const inboxPath = path.join(getInboxDir(to), `${message.id}.json`)
+    await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+  }
+
+  // Always write to sender's sent folder (locally)
   const sentPath = path.join(getSentDir(from), `${message.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(message, null, 2))
 
@@ -197,11 +249,58 @@ export async function forwardMessage(
     },
   }
 
-  // Write to recipient's inbox
-  const inboxPath = path.join(getInboxDir(toSession), `${forwardedMessage.id}.json`)
-  await fs.writeFile(inboxPath, JSON.stringify(forwardedMessage, null, 2))
+  // Determine if recipient is on a remote host
+  let recipientIsRemote = false
+  let remoteHostUrl: string | null = null
 
-  // Write to sender's sent folder (mark as forwarded)
+  try {
+    const response = await fetch('http://localhost:23000/api/sessions')
+    const data = await response.json()
+    const recipientSession = data.sessions?.find((s: any) => s.name === toSession || s.id === toSession)
+
+    if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
+      const remoteHost = getHostById(recipientSession.hostId)
+      if (remoteHost) {
+        recipientIsRemote = true
+        remoteHostUrl = remoteHost.url
+      }
+    }
+  } catch (error) {
+    console.warn('[MessageQueue] Failed to determine recipient host for forward, assuming local:', error)
+  }
+
+  if (recipientIsRemote && remoteHostUrl) {
+    // Forward message to remote host via HTTP
+    console.log(`[MessageQueue] Forwarding message to remote session ${toSession} at ${remoteHostUrl}`)
+
+    try {
+      const remoteResponse = await fetch(`${remoteHostUrl}/api/messages/forward`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: originalMessageId,
+          fromSession,
+          toSession,
+          forwardNote,
+        }),
+      })
+
+      if (!remoteResponse.ok) {
+        throw new Error(`Remote host returned ${remoteResponse.status}`)
+      }
+
+      console.log(`[MessageQueue] ✓ Forwarded message to remote host ${remoteHostUrl}`)
+    } catch (error) {
+      console.error(`[MessageQueue] Failed to forward message to remote host:`, error)
+      throw new Error(`Failed to forward message to remote session: ${error}`)
+    }
+  } else {
+    // Local recipient - write to filesystem
+    const inboxPath = path.join(getInboxDir(toSession), `${forwardedMessage.id}.json`)
+    await fs.writeFile(inboxPath, JSON.stringify(forwardedMessage, null, 2))
+  }
+
+  // Write to sender's sent folder (mark as forwarded) - always local
   const sentPath = path.join(getSentDir(fromSession), `fwd_${forwardedMessage.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(forwardedMessage, null, 2))
 

@@ -497,7 +497,8 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 const isUser = message.type === 'user'
 
                 // For assistant messages, collect content and tools as structured blocks
-                type ContentBlock = { type: 'text', content: string } | { type: 'tools', tools: string[] }
+                type ToolInfo = { name: string; timestamp?: string }
+                type ContentBlock = { type: 'text', content: string } | { type: 'tools', tools: ToolInfo[] }
                 let contentBlocks: ContentBlock[] = []
 
                 if (isUser) {
@@ -518,8 +519,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                     contentBlocks.push({ type: 'text', content: firstContent })
                   }
 
-                  // Collect tools from first message
-                  let allTools: string[] = [...firstTools]
+                  // Collect tools from first message with timestamps
+                  let allTools: ToolInfo[] = firstTools.map(name => ({
+                    name,
+                    timestamp: message.timestamp
+                  }))
 
                   // Look ahead and collect until next USER message OR tool_result (which indicates end of turn)
                   let hasSeenToolResult = false
@@ -557,14 +561,20 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                         hasAnyText = true
                         contentBlocks.push({ type: 'text', content: moreContent })
                       }
-                      // Collect tools from this assistant message
+                      // Collect tools from this assistant message with timestamp
                       const moreTools = getToolsFromMessage(nextMsg)
-                      allTools.push(...moreTools)
+                      allTools.push(...moreTools.map(name => ({
+                        name,
+                        timestamp: nextMsg.timestamp
+                      })))
                     }
 
-                    // Collect tool names from tool_use messages
+                    // Collect tool names from tool_use messages with timestamp
                     if (nextMsg.type === 'tool_use' && nextMsg.toolName) {
-                      allTools.push(nextMsg.toolName)
+                      allTools.push({
+                        name: nextMsg.toolName,
+                        timestamp: nextMsg.timestamp
+                      })
                     }
 
                     // Mark this as the last message to skip
@@ -608,15 +618,21 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           } else {
                             // Tools block
                             return (
-                              <div key={blockIdx} className="flex flex-wrap items-center gap-2 mt-2">
+                              <div key={blockIdx} className="flex flex-wrap items-start gap-2 mt-2">
                                 {block.tools.map((tool, toolIdx) => (
                                   <div
                                     key={toolIdx}
-                                    className="flex items-center gap-1.5 bg-orange-900/30 px-2 py-1 rounded-full border border-orange-800/50"
-                                    title={tool}
+                                    className="flex flex-col items-center gap-0.5 bg-orange-900/30 px-2 py-1.5 rounded-lg border border-orange-800/50"
                                   >
-                                    <Wrench className="w-3.5 h-3.5 text-orange-400" />
-                                    <span className="text-xs text-orange-300 font-medium">{tool}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                                      <span className="text-xs text-orange-300 font-medium">{tool.name}</span>
+                                    </div>
+                                    {tool.timestamp && (
+                                      <span className="text-[10px] text-orange-400/60">
+                                        {formatTimestamp(tool.timestamp)}
+                                      </span>
+                                    )}
                                   </div>
                                 ))}
                               </div>

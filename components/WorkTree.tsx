@@ -88,21 +88,45 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
   }
 
   const fetchWorkTree = async (forceInitialize = false) => {
-    if (!agentId) {
-      setError('No agent ID available for this session')
-      setLoading(false)
-      return
-    }
-
     setLoading(true)
     setError(null)
 
     try {
+      // If no agentId, try to create agent from session
+      let currentAgentId = agentId
+
+      if (!currentAgentId) {
+        console.log('[WorkTree] No agentId found, attempting to register agent for session:', sessionName)
+
+        try {
+          // Register the agent
+          const registerResponse = await fetch('/api/agents/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionName,
+              workingDirectory: process.cwd(), // Default, will be updated
+            })
+          })
+
+          const registerData = await registerResponse.json()
+
+          if (registerData.success && registerData.agent) {
+            currentAgentId = registerData.agent.id
+            console.log('[WorkTree] ✓ Agent registered:', currentAgentId)
+          } else {
+            throw new Error('Failed to register agent: ' + (registerData.error || 'Unknown error'))
+          }
+        } catch (err) {
+          throw new Error(`Cannot create agent for session ${sessionName}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        }
+      }
+
       // Get the appropriate host URL (local or remote)
       const hostUrl = getHostUrl()
 
       // Fetch agent memory from the correct host
-      let response = await fetch(`${hostUrl}/api/agents/${agentId}/memory`)
+      let response = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`)
       let data = await response.json()
 
       // If memory doesn't exist yet, initialize it
@@ -110,7 +134,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
       if (forceInitialize || !data.success || (!data.sessions?.length && !data.projects?.length)) {
         console.log(`[WorkTree] Initializing agent database on ${hostUrl}...`)
 
-        const initResponse = await fetch(`${hostUrl}/api/agents/${agentId}/memory`, {
+        const initResponse = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ populateFromSessions: true })
@@ -125,7 +149,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
         console.log(`[WorkTree] ✓ Database initialized on ${hostUrl}`)
 
         // Fetch again after initialization
-        response = await fetch(`${hostUrl}/api/agents/${agentId}/memory`)
+        response = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`)
         data = await response.json()
 
         if (!data.success) {
@@ -173,7 +197,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
       })
 
       setWorkData({
-        agent_id: agentId,
+        agent_id: currentAgentId || agentId || '',
         sessions,
         projects
       })

@@ -58,6 +58,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
   const [metadata, setMetadata] = useState<ConversationMetadata | null>(null)
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
   const [viewMode, setViewMode] = useState<'list' | 'chat'>('list')
+  const [expandedToolInChat, setExpandedToolInChat] = useState<string | null>(null)
 
   useEffect(() => {
     loadConversation()
@@ -497,9 +498,10 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 const isUser = message.type === 'user'
 
                 // For assistant messages, collect content and tools as structured blocks
-                type ToolInfo = { name: string; timestamp?: string }
+                type ToolInfo = { name: string; timestamp?: string; messageIndex: number; message: Message }
                 type ContentBlock = { type: 'text', content: string } | { type: 'tools', tools: ToolInfo[] }
                 let contentBlocks: ContentBlock[] = []
+                let bubbleTools: ToolInfo[] = [] // Store tools for this bubble
 
                 if (isUser) {
                   // User messages: just get the content
@@ -522,8 +524,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                   // Collect tools from first message with timestamps
                   let allTools: ToolInfo[] = firstTools.map(name => ({
                     name,
-                    timestamp: message.timestamp
+                    timestamp: message.timestamp,
+                    messageIndex: index,
+                    message: message
                   }))
+                  bubbleTools = [...allTools] // Initialize bubbleTools
 
                   // Look ahead and collect until next USER message OR tool_result (which indicates end of turn)
                   let hasSeenToolResult = false
@@ -565,7 +570,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                       const moreTools = getToolsFromMessage(nextMsg)
                       allTools.push(...moreTools.map(name => ({
                         name,
-                        timestamp: nextMsg.timestamp
+                        timestamp: nextMsg.timestamp,
+                        messageIndex: i,
+                        message: nextMsg
                       })))
                     }
 
@@ -573,7 +580,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                     if (nextMsg.type === 'tool_use' && nextMsg.toolName) {
                       allTools.push({
                         name: nextMsg.toolName,
-                        timestamp: nextMsg.timestamp
+                        timestamp: nextMsg.timestamp,
+                        messageIndex: i,
+                        message: nextMsg
                       })
                     }
 
@@ -590,6 +599,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                   // Add all tools at the end, after all text content
                   if (allTools.length > 0) {
                     contentBlocks.push({ type: 'tools', tools: allTools })
+                    bubbleTools = [...allTools] // Update bubbleTools with final collected tools
                   }
                 }
 
@@ -597,7 +607,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 if (contentBlocks.length === 0) return
 
                 chatBubbles.push(
-                  <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                  <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'} flex-col`}>
                     <div className="max-w-[80%]">
                       {/* Message bubble */}
                       <div
@@ -619,22 +629,28 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                             // Tools block
                             return (
                               <div key={blockIdx} className="flex flex-wrap items-start gap-2 mt-2">
-                                {block.tools.map((tool, toolIdx) => (
-                                  <div
-                                    key={toolIdx}
-                                    className="flex flex-col items-center gap-0.5 bg-orange-900/30 px-2 py-1.5 rounded-lg border border-orange-800/50"
-                                  >
-                                    <div className="flex items-center gap-1.5">
-                                      <Wrench className="w-3.5 h-3.5 text-orange-400" />
-                                      <span className="text-xs text-orange-300 font-medium">{tool.name}</span>
+                                {block.tools.map((tool, toolIdx) => {
+                                  const toolKey = `${tool.messageIndex}-${tool.name}`
+                                  const isExpanded = expandedToolInChat === toolKey
+
+                                  return (
+                                    <div
+                                      key={toolIdx}
+                                      onClick={() => setExpandedToolInChat(isExpanded ? null : toolKey)}
+                                      className="flex flex-col items-center gap-0.5 bg-orange-900/30 px-2 py-1.5 rounded-lg border border-orange-800/50 cursor-pointer hover:bg-orange-900/40 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-1.5">
+                                        <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                                        <span className="text-xs text-orange-300 font-medium">{tool.name}</span>
+                                      </div>
+                                      {tool.timestamp && (
+                                        <span className="text-[10px] text-orange-400/60">
+                                          {formatTimestamp(tool.timestamp)}
+                                        </span>
+                                      )}
                                     </div>
-                                    {tool.timestamp && (
-                                      <span className="text-[10px] text-orange-400/60">
-                                        {formatTimestamp(tool.timestamp)}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             )
                           }
@@ -648,6 +664,73 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                         )}
                       </div>
                     </div>
+
+                    {/* Expanded tool details - full width below message */}
+                    {bubbleTools.some(tool => expandedToolInChat === `${tool.messageIndex}-${tool.name}`) && (
+                      <div className="w-full mt-3">
+                        {bubbleTools.map((tool, toolIdx) => {
+                          const toolKey = `${tool.messageIndex}-${tool.name}`
+                          const isExpanded = expandedToolInChat === toolKey
+
+                          if (!isExpanded) return null
+
+                          return (
+                            <div key={toolIdx} className="bg-gray-900/95 rounded-lg p-5 border-2 border-orange-700/60 shadow-lg">
+                              {/* Header */}
+                              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-700/50">
+                                <div className="bg-orange-900/40 p-2 rounded-lg">
+                                  <Wrench className="w-5 h-5 text-orange-400" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="text-base text-orange-300 font-bold">{tool.message.toolName || tool.name}</div>
+                                  {tool.timestamp && (
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      {formatTimestamp(tool.timestamp)}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                {/* Message Content - reuse list view rendering */}
+                                {renderMessageContent(tool.message)}
+
+                                {/* Tool Use Details */}
+                                {tool.message.type === 'tool_use' && tool.message.toolName && (
+                                  <div className="space-y-2">
+                                    <div className="text-xs text-gray-400 font-semibold">Tool: {tool.message.toolName}</div>
+                                    {tool.message.toolInput && (
+                                      <pre className="text-xs bg-gray-900/50 p-3 rounded overflow-x-auto text-gray-300 max-h-64 overflow-y-auto">
+                                        {JSON.stringify(tool.message.toolInput, null, 2)}
+                                      </pre>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Tool Result */}
+                                {tool.message.type === 'tool_result' && tool.message.toolResult && (
+                                  <div className="space-y-2">
+                                    <div className="text-xs text-gray-400 font-semibold">Result:</div>
+                                    <pre className="text-xs bg-gray-900/50 p-3 rounded overflow-x-auto text-gray-300 max-h-64 overflow-y-auto">
+                                      {typeof tool.message.toolResult === 'string'
+                                        ? tool.message.toolResult
+                                        : JSON.stringify(tool.message.toolResult, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+
+                                {/* Model Info */}
+                                {tool.message.message?.model && (
+                                  <div className="text-xs text-gray-500">
+                                    Model: {tool.message.message.model}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })

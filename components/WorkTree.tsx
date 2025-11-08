@@ -92,15 +92,18 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
     setError(null)
 
     try {
-      // If no agentId, try to create agent from session
+      // Get the appropriate host URL (local or remote) FIRST
+      const hostUrl = getHostUrl()
+
+      // If no agentId, try to create agent from session on the correct host
       let currentAgentId = agentId
 
       if (!currentAgentId) {
-        console.log('[WorkTree] No agentId found, attempting to register agent for session:', sessionName)
+        console.log(`[WorkTree] No agentId found, attempting to register agent for session: ${sessionName} on ${hostUrl}`)
 
         try {
-          // Register the agent
-          const registerResponse = await fetch('/api/agents/register', {
+          // Register the agent on the correct host (local or remote)
+          const registerResponse = await fetch(`${hostUrl}/api/agents/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -113,17 +116,14 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
 
           if (registerData.success && registerData.agent) {
             currentAgentId = registerData.agent.id
-            console.log('[WorkTree] ✓ Agent registered:', currentAgentId)
+            console.log(`[WorkTree] ✓ Agent registered on ${hostUrl}:`, currentAgentId)
           } else {
             throw new Error('Failed to register agent: ' + (registerData.error || 'Unknown error'))
           }
         } catch (err) {
-          throw new Error(`Cannot create agent for session ${sessionName}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+          throw new Error(`Cannot create agent for session ${sessionName} on ${hostUrl}: ${err instanceof Error ? err.message : 'Unknown error'}`)
         }
       }
-
-      // Get the appropriate host URL (local or remote)
-      const hostUrl = getHostUrl()
 
       // Fetch agent memory from the correct host
       let response = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`)

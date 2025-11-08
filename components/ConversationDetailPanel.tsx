@@ -487,10 +487,38 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
               messages.forEach((message, index) => {
                 // Skip if we've already processed this message as part of a group
-                if (index <= skipUntilIndex) return
+                // BUT don't skip tool_result or system messages - they render separately
+                if (index <= skipUntilIndex && !hasToolResults(message) && !isSystemMessage(message)) {
+                  return
+                }
 
-                // Skip system messages with tags
-                if (isSystemMessage(message)) return
+                // Handle system messages separately
+                if (isSystemMessage(message)) {
+                  chatBubbles.push(
+                    <div key={index} className="flex justify-center my-3">
+                      <div className="max-w-[90%] bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Terminal className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs font-medium text-gray-300">System Message</span>
+                          {message.timestamp && (
+                            <span className="ml-auto text-xs text-gray-500">
+                              {formatTimestamp(message.timestamp)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-300">
+                          {renderMessageContent(message)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                  return
+                }
+
+                // Skip tool_result messages - they'll be shown in the expanded tool panel
+                if (hasToolResults(message)) {
+                  return
+                }
 
                 // Only process user and assistant messages as bubble starters
                 if (message.type !== 'user' && message.type !== 'assistant') return
@@ -607,8 +635,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 if (contentBlocks.length === 0) return
 
                 chatBubbles.push(
-                  <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'} flex-col`}>
-                    <div className="max-w-[80%]">
+                  <div key={index} className="flex flex-col">
+                    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className="max-w-[80%]">
                       {/* Message bubble */}
                       <div
                         className={`rounded-2xl px-4 py-3 ${
@@ -663,6 +692,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           </div>
                         )}
                       </div>
+                      </div>
                     </div>
 
                     {/* Expanded tool details - full width below message */}
@@ -691,40 +721,76 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                                 </div>
                               </div>
 
-                              <div className="space-y-3">
-                                {/* Message Content - reuse list view rendering */}
-                                {renderMessageContent(tool.message)}
+                              <div className="space-y-4">
+                                {/* Tool Input - find from tool_use block in message content */}
+                                {(() => {
+                                  let toolInput = null
+                                  let toolUseId = null
 
-                                {/* Tool Use Details */}
-                                {tool.message.type === 'tool_use' && tool.message.toolName && (
-                                  <div className="space-y-2">
-                                    <div className="text-xs text-gray-400 font-semibold">Tool: {tool.message.toolName}</div>
-                                    {tool.message.toolInput && (
-                                      <pre className="text-xs bg-gray-900/50 p-3 rounded overflow-x-auto text-gray-300 max-h-64 overflow-y-auto">
-                                        {JSON.stringify(tool.message.toolInput, null, 2)}
+                                  // Check if this message has tool_use blocks
+                                  if (tool.message.message?.content && Array.isArray(tool.message.message.content)) {
+                                    for (const block of tool.message.message.content) {
+                                      if (block.type === 'tool_use' && block.name === tool.name) {
+                                        toolInput = block.input
+                                        toolUseId = block.id
+                                        break
+                                      }
+                                    }
+                                  }
+
+                                  return toolInput ? (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-orange-700/30">
+                                        <Terminal className="w-4 h-4 text-blue-400" />
+                                        <span className="text-sm font-semibold text-blue-300">Input</span>
+                                      </div>
+                                      <pre className="text-xs bg-gray-950/70 p-3 rounded border border-gray-800 overflow-x-auto text-gray-300 max-h-64 overflow-y-auto whitespace-pre-wrap break-words">
+                                        {JSON.stringify(toolInput, null, 2)}
                                       </pre>
-                                    )}
-                                  </div>
-                                )}
+                                    </div>
+                                  ) : null
+                                })()}
 
-                                {/* Tool Result */}
-                                {tool.message.type === 'tool_result' && tool.message.toolResult && (
-                                  <div className="space-y-2">
-                                    <div className="text-xs text-gray-400 font-semibold">Result:</div>
-                                    <pre className="text-xs bg-gray-900/50 p-3 rounded overflow-x-auto text-gray-300 max-h-64 overflow-y-auto">
-                                      {typeof tool.message.toolResult === 'string'
-                                        ? tool.message.toolResult
-                                        : JSON.stringify(tool.message.toolResult, null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
+                                {/* Tool Result - find in subsequent messages */}
+                                {(() => {
+                                  // Find tool_use_id from this tool
+                                  let toolUseId = null
+                                  if (tool.message.message?.content && Array.isArray(tool.message.message.content)) {
+                                    for (const block of tool.message.message.content) {
+                                      if (block.type === 'tool_use' && block.name === tool.name) {
+                                        toolUseId = block.id
+                                        break
+                                      }
+                                    }
+                                  }
 
-                                {/* Model Info */}
-                                {tool.message.message?.model && (
-                                  <div className="text-xs text-gray-500">
-                                    Model: {tool.message.message.model}
-                                  </div>
-                                )}
+                                  // Look for the result in following messages
+                                  if (toolUseId) {
+                                    for (let i = tool.messageIndex + 1; i < messages.length; i++) {
+                                      const resultMsg = messages[i]
+                                      if (resultMsg.message?.content && Array.isArray(resultMsg.message.content)) {
+                                        for (const block of resultMsg.message.content) {
+                                          if (block.type === 'tool_result' && block.tool_use_id === toolUseId) {
+                                            return (
+                                              <div>
+                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-orange-700/30">
+                                                  <FileCode className="w-4 h-4 text-green-400" />
+                                                  <span className="text-sm font-semibold text-green-300">Result</span>
+                                                </div>
+                                                <pre className="text-xs bg-gray-950/70 p-3 rounded border border-gray-800 overflow-x-auto text-gray-300 max-h-96 overflow-y-auto whitespace-pre-wrap break-words">
+                                                  {typeof block.content === 'string'
+                                                    ? block.content
+                                                    : JSON.stringify(block.content, null, 2)}
+                                                </pre>
+                                              </div>
+                                            )
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                  return null
+                                })()}
                               </div>
                             </div>
                           )

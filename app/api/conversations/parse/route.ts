@@ -50,6 +50,25 @@ export async function POST(request: NextRequest) {
       try {
         const message = JSON.parse(line)
 
+        // Detect skill expansion messages
+        // These are user-typed messages that contain skill content
+        if (message.type === 'user' && message.message?.content) {
+          const content = typeof message.message.content === 'string'
+            ? message.message.content
+            : Array.isArray(message.message.content)
+              ? message.message.content.find((b: any) => b.type === 'text')?.text || ''
+              : ''
+
+          // Check if this is a skill expansion message
+          if (content.includes('Base directory for this skill:') ||
+              content.includes('<skill>') ||
+              content.match(/^#\s+\w+/m)) { // Starts with markdown header after skill expansion
+            message.isSkill = true
+            message.originalType = message.type
+            message.type = 'skill'
+          }
+        }
+
         // Extract metadata from early messages
         if (!metadata.sessionId && message.sessionId) {
           metadata.sessionId = message.sessionId

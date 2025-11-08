@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal } from 'lucide-react'
+import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles } from 'lucide-react'
 
 interface ConversationDetailPanelProps {
   conversationFile: string
@@ -16,7 +16,7 @@ interface ContentBlock {
 }
 
 interface Message {
-  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'summary'
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'summary' | 'skill'
   timestamp?: string
   message?: {
     content?: string | ContentBlock[]
@@ -35,6 +35,8 @@ interface Message {
   gitBranch?: string
   version?: string
   summary?: string
+  isSkill?: boolean
+  originalType?: string
 }
 
 interface ConversationMetadata {
@@ -434,6 +436,8 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                     ? 'bg-yellow-900/20 border-yellow-800/50'
                     : isSystemMessage(message)
                     ? 'bg-gray-800/50 border-gray-700/50'
+                    : message.type === 'skill'
+                    ? 'bg-cyan-900/20 border-cyan-800/50'
                     : message.type === 'user'
                     ? 'bg-blue-900/20 border-blue-800/50'
                     : message.type === 'assistant' && hasTools(message)
@@ -462,6 +466,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                         <>
                           <Terminal className="w-4 h-4 text-gray-400 flex-shrink-0" />
                           <span className="text-sm font-medium text-gray-300">System</span>
+                        </>
+                      ) : message.type === 'skill' ? (
+                        <>
+                          <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-cyan-300">Skill Expansion</span>
                         </>
                       ) : message.type === 'user' ? (
                         <>

@@ -16,7 +16,7 @@ interface ContentBlock {
 }
 
 interface Message {
-  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'summary' | 'skill'
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'summary' | 'skill' | 'thinking'
   timestamp?: string
   message?: {
     content?: string | ContentBlock[]
@@ -37,6 +37,7 @@ interface Message {
   summary?: string
   isSkill?: boolean
   originalType?: string
+  thinking?: string
 }
 
 interface ConversationMetadata {
@@ -80,6 +81,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
       }
 
       const data = await response.json()
+      console.log('[ConversationDetail] API returned', data.messages?.length, 'messages')
+      const thinkingInResponse = data.messages?.filter((m: Message) => m.type === 'thinking') || []
+      console.log('[ConversationDetail] Thinking messages in API response:', thinkingInResponse.length, thinkingInResponse)
       setMessages(data.messages || [])
       setMetadata(data.metadata || null)
     } catch (err) {
@@ -180,6 +184,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
       return message.summary
     }
 
+    // Handle thinking messages
+    if (message.type === 'thinking' && message.thinking) {
+      return message.thinking.substring(0, 150)
+    }
+
     // Handle tool results (nested in user messages)
     if (hasToolResults(message)) {
       const results = getToolResultsFromMessage(message)
@@ -251,6 +260,15 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     // Handle summary
     if (message.type === 'summary' && message.summary) {
       return <div className="text-sm text-gray-200">{message.summary}</div>
+    }
+
+    // Handle thinking messages
+    if (message.type === 'thinking' && message.thinking) {
+      return (
+        <div className="text-sm text-gray-200 italic whitespace-pre-wrap break-words">
+          {message.thinking}
+        </div>
+      )
     }
 
     // Handle system messages
@@ -482,13 +500,21 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
         {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
           <div className="p-6 space-y-4 max-w-4xl mx-auto">
             {(() => {
+              console.log('[Chat View] Rendering chat view with', messages.length, 'messages')
+              console.log('[Chat View] Messages array:', messages.map(m => ({ type: m.type, hasThinking: !!m.thinking })))
+              const thinkingMessages = messages.filter(m => m.type === 'thinking')
+              console.log('[Chat View] Found', thinkingMessages.length, 'thinking messages:', thinkingMessages)
               const chatBubbles: JSX.Element[] = []
               let skipUntilIndex = -1
 
               messages.forEach((message, index) => {
+                if (message.type === 'thinking') {
+                  console.log('[Chat View] THINKING MESSAGE FOUND at index', index, message)
+                }
+
                 // Skip if we've already processed this message as part of a group
-                // BUT don't skip tool_result or system messages - they render separately
-                if (index <= skipUntilIndex && !hasToolResults(message) && !isSystemMessage(message)) {
+                // BUT don't skip tool_result, system, or thinking messages - they render separately
+                if (index <= skipUntilIndex && !hasToolResults(message) && !isSystemMessage(message) && message.type !== 'thinking') {
                   return
                 }
 
@@ -517,6 +543,33 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
                 // Skip tool_result messages - they'll be shown in the expanded tool panel
                 if (hasToolResults(message)) {
+                  return
+                }
+
+                // Handle thinking messages separately
+                if (message.type === 'thinking') {
+                  console.log('[Chat View] Found thinking message:', message)
+                  if (!message.thinking) {
+                    console.log('[Chat View] Warning: thinking message has no .thinking property')
+                  }
+                  chatBubbles.push(
+                    <div key={index} className="flex justify-start my-2">
+                      <div className="max-w-[85%] bg-purple-900/20 border border-purple-700/40 rounded-lg px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MessageCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                          <span className="text-xs font-medium text-purple-300">Thinking</span>
+                          {message.timestamp && (
+                            <span className="ml-auto text-xs text-gray-500">
+                              {formatTimestamp(message.timestamp)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-300 italic whitespace-pre-wrap break-words">
+                          {message.thinking}
+                        </div>
+                      </div>
+                    </div>
+                  )
                   return
                 }
 
@@ -818,6 +871,8 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                     ? 'bg-gray-800/50 border-gray-700/50'
                     : message.type === 'skill'
                     ? 'bg-cyan-900/20 border-cyan-800/50'
+                    : message.type === 'thinking'
+                    ? 'bg-purple-900/20 border-purple-700/40'
                     : message.type === 'user'
                     ? 'bg-blue-900/20 border-blue-800/50'
                     : message.type === 'assistant' && hasTools(message)
@@ -875,6 +930,11 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           <span className="text-sm font-medium text-white">
                             Tool Result: {message.toolName || 'Unknown'}
                           </span>
+                        </>
+                      ) : message.type === 'thinking' ? (
+                        <>
+                          <MessageCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                          <span className="text-sm font-medium text-purple-300">Thinking</span>
                         </>
                       ) : (
                         <>

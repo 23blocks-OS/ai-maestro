@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles } from 'lucide-react'
+import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles, List, MessageCircle } from 'lucide-react'
 
 interface ConversationDetailPanelProps {
   conversationFile: string
@@ -57,6 +57,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
   const [messages, setMessages] = useState<Message[]>([])
   const [metadata, setMetadata] = useState<ConversationMetadata | null>(null)
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
+  const [viewMode, setViewMode] = useState<'list' | 'chat'>('list')
 
   useEffect(() => {
     loadConversation()
@@ -358,36 +359,65 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
       {/* Metadata */}
       {metadata && !loading && (
         <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-blue-400" />
-              <span className="text-gray-400">Messages:</span>
-              <span className="text-white font-medium">{metadata.totalMessages}</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="grid grid-cols-2 gap-4 text-sm flex-1">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-blue-400" />
+                <span className="text-gray-400">Messages:</span>
+                <span className="text-white font-medium">{metadata.totalMessages}</span>
+              </div>
+              {metadata.model && (
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  <span className="text-gray-400">Model:</span>
+                  <span className="text-white font-medium">{metadata.model}</span>
+                </div>
+              )}
+              {metadata.gitBranch && (
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-green-400" />
+                  <span className="text-gray-400">Branch:</span>
+                  <span className="text-white font-medium">{metadata.gitBranch}</span>
+                </div>
+              )}
+              {metadata.toolsUsed.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-orange-400" />
+                  <span className="text-gray-400">Tools:</span>
+                  <span className="text-white font-medium">{metadata.toolsUsed.length}</span>
+                </div>
+              )}
             </div>
-            {metadata.model && (
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-purple-400" />
-                <span className="text-gray-400">Model:</span>
-                <span className="text-white font-medium">{metadata.model}</span>
-              </div>
-            )}
-            {metadata.gitBranch && (
-              <div className="flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-green-400" />
-                <span className="text-gray-400">Branch:</span>
-                <span className="text-white font-medium">{metadata.gitBranch}</span>
-              </div>
-            )}
-            {metadata.toolsUsed.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-orange-400" />
-                <span className="text-gray-400">Tools:</span>
-                <span className="text-white font-medium">{metadata.toolsUsed.length}</span>
-              </div>
-            )}
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                <span className="text-sm font-medium">List</span>
+              </button>
+              <button
+                onClick={() => setViewMode('chat')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors ${
+                  viewMode === 'chat'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">Chat</span>
+              </button>
+            </div>
           </div>
+
           {metadata.cwd && (
-            <div className="mt-3 text-xs text-gray-500 font-mono truncate">
+            <div className="text-xs text-gray-500 font-mono truncate">
               {metadata.cwd}
             </div>
           )}
@@ -426,7 +456,78 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
           </div>
         )}
 
-        {!loading && !error && messages.length > 0 && (
+        {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
+          <div className="p-6 space-y-3 max-w-4xl mx-auto">
+            {messages.map((message, index) => {
+              // Skip system messages and tool results in chat view
+              if (isSystemMessage(message) || hasToolResults(message) || message.type === 'tool_result') {
+                return null
+              }
+
+              const isUser = message.type === 'user'
+              const isAssistant = message.type === 'assistant'
+              const isSkill = message.type === 'skill'
+              const tools = getToolsFromMessage(message)
+
+              return (
+                <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] ${isUser ? 'order-2' : 'order-1'}`}>
+                    {/* Message bubble */}
+                    <div
+                      className={`rounded-2xl px-4 py-3 ${
+                        isUser
+                          ? 'bg-blue-600 text-white'
+                          : isSkill
+                          ? 'bg-cyan-900/30 border border-cyan-800/50 text-gray-200'
+                          : 'bg-gray-800 text-gray-200'
+                      }`}
+                    >
+                      {/* Message content */}
+                      <div className="text-sm whitespace-pre-wrap break-words">
+                        {getMessagePreview(message)}
+                      </div>
+
+                      {/* Timestamp */}
+                      {message.timestamp && (
+                        <div className={`text-xs mt-1 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                          {formatTimestamp(message.timestamp)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tools used (only for assistant messages) */}
+                    {isAssistant && tools.length > 0 && (
+                      <div className="flex items-center gap-1 mt-1 ml-2">
+                        {tools.map((tool, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1 text-xs text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded"
+                            title={tool}
+                          >
+                            <Wrench className="w-3 h-3" />
+                            <span className="max-w-[100px] truncate">{tool}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Skill indicator */}
+                    {isSkill && (
+                      <div className="flex items-center gap-1 mt-1 ml-2">
+                        <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-900/20 px-2 py-0.5 rounded">
+                          <Sparkles className="w-3 h-3" />
+                          <span>Skill Expansion</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {!loading && !error && messages.length > 0 && viewMode === 'list' && (
           <div className="p-6 space-y-4">
             {messages.map((message, index) => (
               <div

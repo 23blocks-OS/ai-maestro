@@ -246,6 +246,31 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return ''
   }
 
+  const getFollowingMetadata = (currentIndex: number): { hasSkill: boolean; hasSystem: boolean } => {
+    // Look at next few messages to see if there are skills or system messages
+    // These are typically triggered by the current assistant message
+    let hasSkill = false
+    let hasSystem = false
+
+    for (let i = currentIndex + 1; i < Math.min(currentIndex + 5, messages.length); i++) {
+      const msg = messages[i]
+
+      // Stop if we hit another user or assistant message (new exchange)
+      if (msg.type === 'user' || msg.type === 'assistant') {
+        break
+      }
+
+      if (msg.type === 'skill') {
+        hasSkill = true
+      }
+      if (isSystemMessage(msg)) {
+        hasSystem = true
+      }
+    }
+
+    return { hasSkill, hasSystem }
+  }
+
   const renderMessageContent = (message: Message) => {
     // Handle summary
     if (message.type === 'summary' && message.summary) {
@@ -491,9 +516,12 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
               const isAssistant = message.type === 'assistant'
               const tools = getToolsFromMessage(message)
               const fullContent = getFullMessageContent(message)
+              const { hasSkill, hasSystem } = getFollowingMetadata(index)
 
               // Skip if no content
               if (!fullContent) return null
+
+              const hasAnyMetadata = tools.length > 0 || hasSkill || hasSystem
 
               return (
                 <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -519,19 +547,39 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                       )}
                     </div>
 
-                    {/* Tools used - only for assistant messages, shown as icons below */}
-                    {isAssistant && tools.length > 0 && (
+                    {/* Tools/Skills/System indicators - only for assistant messages, shown as icons below */}
+                    {isAssistant && hasAnyMetadata && (
                       <div className="flex items-center gap-1.5 mt-1.5 px-2">
                         {/* Tool icons */}
                         {tools.map((tool, idx) => (
                           <div
-                            key={idx}
+                            key={`tool-${idx}`}
                             className="flex items-center gap-1"
-                            title={tool}
+                            title={`Tool: ${tool}`}
                           >
                             <Wrench className="w-3.5 h-3.5 text-orange-400" />
                           </div>
                         ))}
+
+                        {/* Skill icon */}
+                        {hasSkill && (
+                          <div
+                            className="flex items-center gap-1"
+                            title="Skill used"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                          </div>
+                        )}
+
+                        {/* System message icon */}
+                        {hasSystem && (
+                          <div
+                            className="flex items-center gap-1"
+                            title="System message"
+                          >
+                            <Terminal className="w-3.5 h-3.5 text-gray-400" />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

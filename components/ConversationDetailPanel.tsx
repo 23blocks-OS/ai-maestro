@@ -481,14 +481,14 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
         {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
           <div className="p-6 space-y-4 max-w-4xl mx-auto">
             {messages.map((message, index) => {
-              // Skip system messages and tool results in chat view
-              if (isSystemMessage(message) || hasToolResults(message) || message.type === 'tool_result') {
+              // Skip system messages, tool results, and skills in chat view
+              // Skills are indicated by icon on assistant messages, not shown as separate bubbles
+              if (isSystemMessage(message) || hasToolResults(message) || message.type === 'tool_result' || message.type === 'skill') {
                 return null
               }
 
               const isUser = message.type === 'user'
               const isAssistant = message.type === 'assistant'
-              const isSkill = message.type === 'skill'
               const tools = getToolsFromMessage(message)
               const fullContent = getFullMessageContent(message)
 
@@ -503,8 +503,6 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                       className={`rounded-2xl px-4 py-3 ${
                         isUser
                           ? 'bg-blue-600 text-white'
-                          : isSkill
-                          ? 'bg-cyan-900/30 border border-cyan-800/50 text-gray-200'
                           : 'bg-gray-800 text-gray-200'
                       }`}
                     >
@@ -521,16 +519,9 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                       )}
                     </div>
 
-                    {/* Tools/Skills used - only for assistant/skill messages, shown as icons below */}
-                    {(isAssistant || isSkill) && (tools.length > 0 || isSkill) && (
+                    {/* Tools used - only for assistant messages, shown as icons below */}
+                    {isAssistant && tools.length > 0 && (
                       <div className="flex items-center gap-1.5 mt-1.5 px-2">
-                        {/* Skill icon */}
-                        {isSkill && (
-                          <div className="flex items-center gap-1" title="Skill Expansion">
-                            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                          </div>
-                        )}
-
                         {/* Tool icons */}
                         {tools.map((tool, idx) => (
                           <div

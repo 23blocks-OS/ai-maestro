@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle } from 'lucide-react'
 import ConversationDetailPanel from './ConversationDetailPanel'
+import { useHosts } from '@/hooks/useHosts'
+import { useSessions } from '@/hooks/useSessions'
 
 interface WorkTreeProps {
   sessionName: string
@@ -52,6 +54,8 @@ interface ClaudeSessionWork {
 }
 
 export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
+  const { hosts } = useHosts()
+  const { sessions } = useSessions()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +64,28 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
     file: string
     projectPath: string
   } | null>(null)
+
+  // Determine which host this agent is on
+  const getHostUrl = (): string => {
+    // Find the session for this agent
+    const agentSession = sessions.find(s => s.agentId === agentId || s.name === sessionName)
+
+    if (!agentSession || !agentSession.hostId || agentSession.hostId === 'local') {
+      // Local agent
+      return 'http://localhost:23000'
+    }
+
+    // Remote agent - find host URL
+    const host = hosts.find(h => h.id === agentSession.hostId)
+    if (host) {
+      console.log(`[WorkTree] Agent ${agentId} is on remote host ${host.id} (${host.url})`)
+      return host.url
+    }
+
+    // Fallback to local
+    console.warn(`[WorkTree] Could not find host for agent ${agentId}, using local`)
+    return 'http://localhost:23000'
+  }
 
   const fetchWorkTree = async (forceInitialize = false) => {
     if (!agentId) {
@@ -72,16 +98,19 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
     setError(null)
 
     try {
-      // Fetch agent memory
-      let response = await fetch(`/api/agents/${agentId}/memory`)
+      // Get the appropriate host URL (local or remote)
+      const hostUrl = getHostUrl()
+
+      // Fetch agent memory from the correct host
+      let response = await fetch(`${hostUrl}/api/agents/${agentId}/memory`)
       let data = await response.json()
 
       // If memory doesn't exist yet, initialize it
       // OR if forceInitialize is true (user clicked retry)
       if (forceInitialize || !data.success || (!data.sessions?.length && !data.projects?.length)) {
-        console.log('[WorkTree] Initializing agent database and scanning conversations...')
+        console.log(`[WorkTree] Initializing agent database on ${hostUrl}...`)
 
-        const initResponse = await fetch(`/api/agents/${agentId}/memory`, {
+        const initResponse = await fetch(`${hostUrl}/api/agents/${agentId}/memory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ populateFromSessions: true })
@@ -93,10 +122,10 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           throw new Error(initData.error || `Database initialization failed (${initResponse.status})`)
         }
 
-        console.log('[WorkTree] ✓ Database initialized successfully')
+        console.log(`[WorkTree] ✓ Database initialized on ${hostUrl}`)
 
         // Fetch again after initialization
-        response = await fetch(`/api/agents/${agentId}/memory`)
+        response = await fetch(`${hostUrl}/api/agents/${agentId}/memory`)
         data = await response.json()
 
         if (!data.success) {

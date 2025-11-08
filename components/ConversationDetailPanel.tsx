@@ -224,6 +224,28 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return 'Click to expand'
   }
 
+  const getFullMessageContent = (message: Message): string => {
+    // Handle message content - return FULL content for chat view
+    if (message.message?.content) {
+      const content = message.message.content
+
+      // String content (simple case)
+      if (typeof content === 'string') {
+        return content
+      }
+
+      // Array content (Claude API format) - extract all text blocks
+      if (Array.isArray(content)) {
+        const textBlocks = content
+          .filter(block => block.type === 'text' && block.text)
+          .map(block => block.text)
+        return textBlocks.join('\n\n')
+      }
+    }
+
+    return ''
+  }
+
   const renderMessageContent = (message: Message) => {
     // Handle summary
     if (message.type === 'summary' && message.summary) {
@@ -457,7 +479,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
         )}
 
         {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
-          <div className="p-6 space-y-3 max-w-4xl mx-auto">
+          <div className="p-6 space-y-4 max-w-4xl mx-auto">
             {messages.map((message, index) => {
               // Skip system messages and tool results in chat view
               if (isSystemMessage(message) || hasToolResults(message) || message.type === 'tool_result') {
@@ -468,10 +490,14 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
               const isAssistant = message.type === 'assistant'
               const isSkill = message.type === 'skill'
               const tools = getToolsFromMessage(message)
+              const fullContent = getFullMessageContent(message)
+
+              // Skip if no content
+              if (!fullContent) return null
 
               return (
                 <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] ${isUser ? 'order-2' : 'order-1'}`}>
+                  <div className={`max-w-[80%]`}>
                     {/* Message bubble */}
                     <div
                       className={`rounded-2xl px-4 py-3 ${
@@ -482,42 +508,39 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           : 'bg-gray-800 text-gray-200'
                       }`}
                     >
-                      {/* Message content */}
+                      {/* Message content - FULL CONTENT */}
                       <div className="text-sm whitespace-pre-wrap break-words">
-                        {getMessagePreview(message)}
+                        {fullContent}
                       </div>
 
                       {/* Timestamp */}
                       {message.timestamp && (
-                        <div className={`text-xs mt-1 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                        <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
                           {formatTimestamp(message.timestamp)}
                         </div>
                       )}
                     </div>
 
-                    {/* Tools used (only for assistant messages) */}
-                    {isAssistant && tools.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1 ml-2">
+                    {/* Tools/Skills used - only for assistant/skill messages, shown as icons below */}
+                    {(isAssistant || isSkill) && (tools.length > 0 || isSkill) && (
+                      <div className="flex items-center gap-1.5 mt-1.5 px-2">
+                        {/* Skill icon */}
+                        {isSkill && (
+                          <div className="flex items-center gap-1" title="Skill Expansion">
+                            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                          </div>
+                        )}
+
+                        {/* Tool icons */}
                         {tools.map((tool, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center gap-1 text-xs text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded"
+                            className="flex items-center gap-1"
                             title={tool}
                           >
-                            <Wrench className="w-3 h-3" />
-                            <span className="max-w-[100px] truncate">{tool}</span>
+                            <Wrench className="w-3.5 h-3.5 text-orange-400" />
                           </div>
                         ))}
-                      </div>
-                    )}
-
-                    {/* Skill indicator */}
-                    {isSkill && (
-                      <div className="flex items-center gap-1 mt-1 ml-2">
-                        <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-900/20 px-2 py-0.5 rounded">
-                          <Sparkles className="w-3 h-3" />
-                          <span>Skill Expansion</span>
-                        </div>
                       </div>
                     )}
                   </div>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles, List, MessageCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles, List, MessageCircle, Search, ChevronUp, ChevronDown } from 'lucide-react'
 
 interface ConversationDetailPanelProps {
   conversationFile: string
@@ -60,6 +60,10 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
   const [viewMode, setViewMode] = useState<'list' | 'chat'>('list')
   const [expandedToolInChat, setExpandedToolInChat] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const messageRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadConversation()
@@ -259,14 +263,18 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
   const renderMessageContent = (message: Message) => {
     // Handle summary
     if (message.type === 'summary' && message.summary) {
-      return <div className="text-sm text-gray-200">{message.summary}</div>
+      return (
+        <div className="text-sm text-gray-200">
+          {highlightText(message.summary, searchQuery)}
+        </div>
+      )
     }
 
     // Handle thinking messages
     if (message.type === 'thinking' && message.thinking) {
       return (
         <div className="text-sm text-gray-200 italic whitespace-pre-wrap break-words">
-          {message.thinking}
+          {highlightText(message.thinking, searchQuery)}
         </div>
       )
     }
@@ -324,7 +332,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
       if (typeof content === 'string') {
         return (
           <div className="text-sm text-gray-200 whitespace-pre-wrap break-words">
-            {content}
+            {highlightText(content, searchQuery)}
           </div>
         )
       }
@@ -337,7 +345,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
               if (block.type === 'text' && block.text) {
                 return (
                   <div key={idx} className="text-sm text-gray-200 whitespace-pre-wrap break-words">
-                    {block.text}
+                    {highlightText(block.text, searchQuery)}
                   </div>
                 )
               }
@@ -381,20 +389,191 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return null
   }
 
+  // Search helper: extract searchable text from a message
+  const getSearchableText = (message: Message): string => {
+    const parts: string[] = []
+
+    // Add thinking content
+    if (message.thinking) {
+      parts.push(message.thinking)
+    }
+
+    // Add summary
+    if (message.summary) {
+      parts.push(message.summary)
+    }
+
+    // Add message content
+    if (message.message?.content) {
+      const content = message.message.content
+      if (typeof content === 'string') {
+        parts.push(content)
+      } else if (Array.isArray(content)) {
+        content.forEach(block => {
+          if (block.type === 'text' && block.text) {
+            parts.push(block.text)
+          }
+        })
+      }
+    }
+
+    // Add tool names
+    if (message.toolName) {
+      parts.push(message.toolName)
+    }
+
+    return parts.join(' ').toLowerCase()
+  }
+
+  // Check if a message matches the search query
+  const messageMatchesSearch = (message: Message): boolean => {
+    if (!searchQuery.trim()) return false
+    const searchText = getSearchableText(message)
+    return searchText.includes(searchQuery.toLowerCase())
+  }
+
+  // Get match indices for navigation (indices in the full messages array)
+  const matchIndices = searchQuery.trim()
+    ? messages.map((message, index) => {
+        return messageMatchesSearch(message) ? index : -1
+      }).filter(index => index !== -1)
+    : []
+
+  const totalMatches = matchIndices.length
+
+  const goToNextMatch = () => {
+    if (totalMatches > 0) {
+      setCurrentMatchIndex((prev) => (prev + 1) % totalMatches)
+    }
+  }
+
+  const goToPrevMatch = () => {
+    if (totalMatches > 0) {
+      setCurrentMatchIndex((prev) => (prev - 1 + totalMatches) % totalMatches)
+    }
+  }
+
+  // Reset match index when search changes
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+  }, [searchQuery])
+
+  // Scroll to current match when it changes and expand it in list view
+  useEffect(() => {
+    if (matchIndices.length > 0 && currentMatchIndex >= 0 && currentMatchIndex < matchIndices.length) {
+      const messageIndex = matchIndices[currentMatchIndex]
+
+      // Expand the message in list view
+      if (viewMode === 'list') {
+        setExpandedMessages((prev) => {
+          const newExpanded = new Set(prev)
+          newExpanded.add(messageIndex)
+          return newExpanded
+        })
+      }
+
+      // Scroll to the message within the scroll container
+      const element = messageRefs.current[messageIndex]
+      const container = scrollContainerRef.current
+
+      if (element && container) {
+        // Add a small delay to ensure expansion happens before scrolling
+        setTimeout(() => {
+          const elementRect = element.getBoundingClientRect()
+          const containerRect = container.getBoundingClientRect()
+
+          // Calculate the position to scroll to (center the element in the container)
+          const scrollTop = element.offsetTop - container.offsetTop - (containerRect.height / 2) + (elementRect.height / 2)
+
+          container.scrollTo({
+            top: scrollTop,
+            behavior: 'smooth'
+          })
+        }, 150)
+      }
+    }
+  }, [currentMatchIndex, matchIndices, viewMode])
+
+  // Highlight search term in text
+  const highlightText = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text
+
+    const parts = text.split(new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'))
+
+    return (
+      <>
+        {parts.map((part, index) =>
+          part.toLowerCase() === searchTerm.toLowerCase() ? (
+            <mark key={index} className="bg-yellow-400/30 text-yellow-200 rounded px-0.5">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    )
+  }
+
   return (
     <div className="fixed right-0 top-0 bottom-0 w-[800px] bg-gray-900 border-l border-gray-700 shadow-2xl z-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold text-white truncate">Conversation Details</h2>
-          <p className="text-sm text-gray-400 truncate font-mono">{getFileName()}</p>
+      <div className="px-6 py-4 border-b border-gray-800 flex-shrink-0 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-white truncate">Conversation Details</h2>
+            <p className="text-sm text-gray-400 truncate font-mono">{getFileName()}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-4 p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="ml-4 p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
-        >
-          <X className="w-5 h-5" />
-        </button>
+
+        {/* Search Bar */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in conversation..."
+              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          {searchQuery && (
+            <>
+              <div className="flex items-center gap-1 text-xs text-gray-400 min-w-[80px] justify-end">
+                {totalMatches > 0 ? (
+                  <span>{currentMatchIndex + 1} of {totalMatches}</span>
+                ) : (
+                  <span>No matches</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={goToPrevMatch}
+                  disabled={totalMatches === 0}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Previous match"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={goToNextMatch}
+                  disabled={totalMatches === 0}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Next match"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Metadata */}
@@ -466,7 +645,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -520,9 +699,18 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
                 // Handle system messages separately
                 if (isSystemMessage(message)) {
+                  const isMatch = messageMatchesSearch(message)
+                  const isCurrentMatch = searchQuery.trim() && matchIndices[currentMatchIndex] === index
+
                   chatBubbles.push(
-                    <div key={index} className="flex justify-center my-3">
-                      <div className="max-w-[90%] bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3">
+                    <div key={index} ref={(el) => { messageRefs.current[index] = el }} className="flex justify-center my-3">
+                      <div className={`max-w-[90%] bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 ${
+                        isCurrentMatch
+                          ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/20'
+                          : isMatch
+                          ? 'ring-1 ring-yellow-500/50'
+                          : ''
+                      }`}>
                         <div className="flex items-center gap-2 mb-2">
                           <Terminal className="w-4 h-4 text-gray-400 flex-shrink-0" />
                           <span className="text-xs font-medium text-gray-300">System Message</span>
@@ -552,9 +740,19 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                   if (!message.thinking) {
                     console.log('[Chat View] Warning: thinking message has no .thinking property')
                   }
+
+                  const isMatch = messageMatchesSearch(message)
+                  const isCurrentMatch = searchQuery.trim() && matchIndices[currentMatchIndex] === index
+
                   chatBubbles.push(
-                    <div key={index} className="flex justify-start my-2">
-                      <div className="max-w-[85%] bg-purple-900/20 border border-purple-700/40 rounded-lg px-4 py-3">
+                    <div key={index} ref={(el) => { messageRefs.current[index] = el }} className="flex justify-start my-2">
+                      <div className={`max-w-[85%] bg-purple-900/20 border border-purple-700/40 rounded-lg px-4 py-3 ${
+                        isCurrentMatch
+                          ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/20'
+                          : isMatch
+                          ? 'ring-1 ring-yellow-500/50'
+                          : ''
+                      }`}>
                         <div className="flex items-center gap-2 mb-2">
                           <MessageCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
                           <span className="text-xs font-medium text-purple-300">Thinking</span>
@@ -565,7 +763,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           )}
                         </div>
                         <div className="text-sm text-gray-300 italic whitespace-pre-wrap break-words">
-                          {message.thinking}
+                          {highlightText(message.thinking || '', searchQuery)}
                         </div>
                       </div>
                     </div>
@@ -687,14 +885,23 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                 // Skip only if there's no content blocks
                 if (contentBlocks.length === 0) return
 
+                const isMatch = messageMatchesSearch(message)
+                const isCurrentMatch = searchQuery.trim() && matchIndices[currentMatchIndex] === index
+
                 chatBubbles.push(
-                  <div key={index} className="flex flex-col">
+                  <div key={index} ref={(el) => { messageRefs.current[index] = el }} className="flex flex-col">
                     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                       <div className="max-w-[80%]">
                       {/* Message bubble */}
                       <div
                         className={`rounded-2xl px-4 py-3 ${
                           isUser ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'
+                        } ${
+                          isCurrentMatch
+                            ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/20'
+                            : isMatch
+                            ? 'ring-1 ring-yellow-500/50'
+                            : ''
                         }`}
                       >
                         {/* Render content blocks in order */}
@@ -703,7 +910,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                             return (
                               <div key={blockIdx} className={blockIdx > 0 ? 'mt-3' : ''}>
                                 <div className="text-sm whitespace-pre-wrap break-words">
-                                  {block.content}
+                                  {highlightText(block.content, searchQuery)}
                                 </div>
                               </div>
                             )
@@ -861,10 +1068,21 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
         {!loading && !error && messages.length > 0 && viewMode === 'list' && (
           <div className="p-6 space-y-4">
-            {messages.map((message, index) => (
+            {messages.map((message, index) => {
+              const isMatch = messageMatchesSearch(message)
+              const isCurrentMatch = searchQuery.trim() && matchIndices[currentMatchIndex] === index
+
+              return (
               <div
                 key={index}
+                ref={(el) => { messageRefs.current[index] = el }}
                 className={`rounded-lg border ${
+                  isCurrentMatch
+                    ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/20'
+                    : isMatch
+                    ? 'ring-1 ring-yellow-500/50'
+                    : ''
+                } ${
                   hasToolResults(message)
                     ? 'bg-yellow-900/20 border-yellow-800/50'
                     : isSystemMessage(message)
@@ -1004,7 +1222,8 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

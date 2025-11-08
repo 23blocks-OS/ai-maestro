@@ -480,81 +480,164 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
         {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
           <div className="p-6 space-y-4 max-w-4xl mx-auto">
-            {messages
-              .filter(msg => {
-                // Filter out skill messages
-                if (msg.type === 'skill') return false
+            {(() => {
+              const chatBubbles: JSX.Element[] = []
+              let skipUntilIndex = -1
 
-                // Filter to only user or assistant messages
-                if (msg.type !== 'user' && msg.type !== 'assistant') return false
+              messages.forEach((message, index) => {
+                // Skip if we've already processed this message as part of a group
+                if (index <= skipUntilIndex) return
 
-                // Filter out system messages (user messages with system tags)
-                if (isSystemMessage(msg)) return false
+                // Skip system messages with tags
+                if (isSystemMessage(message)) return
 
-                // Filter out messages with tool results (they show as separate messages)
-                if (hasToolResults(msg)) return false
+                // Only process user and assistant messages as bubble starters
+                if (message.type !== 'user' && message.type !== 'assistant') return
 
-                return true
-              })
-              .map((message, index) => {
                 const isUser = message.type === 'user'
-                const content = getFullMessageContent(message)
-                const tools = getToolsFromMessage(message)
 
-                // FIXED: Don't filter out messages that have tools but no text content
-                // These are tool-only messages and should still be displayed
-                const hasContent = content.trim().length > 0
-                const hasToolUse = tools.length > 0
+                // For assistant messages, collect content and tools as structured blocks
+                type ContentBlock = { type: 'text', content: string } | { type: 'tools', tools: string[] }
+                let contentBlocks: ContentBlock[] = []
 
-                // Skip only if there's neither content nor tools
-                if (!hasContent && !hasToolUse) return null
+                if (isUser) {
+                  // User messages: just get the content
+                  const userContent = getFullMessageContent(message)
+                  if (userContent.trim()) {
+                    contentBlocks.push({ type: 'text', content: userContent })
+                  }
+                } else {
+                  // Assistant messages: collect ALL text content first, then ALL tools
+                  const firstContent = getFullMessageContent(message)
+                  const firstTools = getToolsFromMessage(message)
 
-                return (
+                  // Track if we have any text content at all
+                  let hasAnyText = firstContent.trim().length > 0
+
+                  if (hasAnyText) {
+                    contentBlocks.push({ type: 'text', content: firstContent })
+                  }
+
+                  // Collect tools from first message
+                  let allTools: string[] = [...firstTools]
+
+                  // Look ahead and collect until next USER message OR tool_result (which indicates end of turn)
+                  let hasSeenToolResult = false
+
+                  for (let i = index + 1; i < messages.length; i++) {
+                    const nextMsg = messages[i]
+
+                    // Stop when we hit a USER message
+                    if (nextMsg.type === 'user') {
+                      skipUntilIndex = i - 1
+                      break
+                    }
+
+                    // Stop when we hit a tool_result (end of this assistant turn)
+                    if (nextMsg.type === 'tool_result') {
+                      hasSeenToolResult = true
+                      skipUntilIndex = i
+                      continue // Skip the tool_result itself but mark it as seen
+                    }
+
+                    // If we've seen tool_result and now hit another assistant WITH TEXT, stop (new turn)
+                    if (hasSeenToolResult && nextMsg.type === 'assistant') {
+                      const nextContent = getFullMessageContent(nextMsg)
+                      if (nextContent.trim()) {
+                        // This is a new turn with text content, stop here
+                        skipUntilIndex = i - 1
+                        break
+                      }
+                    }
+
+                    // Collect content from additional assistant messages
+                    if (nextMsg.type === 'assistant') {
+                      const moreContent = getFullMessageContent(nextMsg)
+                      if (moreContent.trim()) {
+                        hasAnyText = true
+                        contentBlocks.push({ type: 'text', content: moreContent })
+                      }
+                      // Collect tools from this assistant message
+                      const moreTools = getToolsFromMessage(nextMsg)
+                      allTools.push(...moreTools)
+                    }
+
+                    // Collect tool names from tool_use messages
+                    if (nextMsg.type === 'tool_use' && nextMsg.toolName) {
+                      allTools.push(nextMsg.toolName)
+                    }
+
+                    // Mark this as the last message to skip
+                    skipUntilIndex = i
+                  }
+
+                  // Only create a bubble if we have text content (skip tool-only assistant messages)
+                  if (!hasAnyText && allTools.length > 0) {
+                    // Skip this bubble - it's just tools with no text, will be picked up by previous bubble
+                    return
+                  }
+
+                  // Add all tools at the end, after all text content
+                  if (allTools.length > 0) {
+                    contentBlocks.push({ type: 'tools', tools: allTools })
+                  }
+                }
+
+                // Skip only if there's no content blocks
+                if (contentBlocks.length === 0) return
+
+                chatBubbles.push(
                   <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                     <div className="max-w-[80%]">
-                      {/* Message bubble - only show if there's actual text content */}
-                      {hasContent && (
-                        <div
-                          className={`rounded-2xl px-4 py-3 ${
-                            isUser ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'
-                          }`}
-                        >
-                          <div className="text-sm whitespace-pre-wrap break-words">
-                            {content}
+                      {/* Message bubble */}
+                      <div
+                        className={`rounded-2xl px-4 py-3 ${
+                          isUser ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'
+                        }`}
+                      >
+                        {/* Render content blocks in order */}
+                        {contentBlocks.map((block, blockIdx) => {
+                          if (block.type === 'text') {
+                            return (
+                              <div key={blockIdx} className={blockIdx > 0 ? 'mt-3' : ''}>
+                                <div className="text-sm whitespace-pre-wrap break-words">
+                                  {block.content}
+                                </div>
+                              </div>
+                            )
+                          } else {
+                            // Tools block
+                            return (
+                              <div key={blockIdx} className="flex flex-wrap items-center gap-2 mt-2">
+                                {block.tools.map((tool, toolIdx) => (
+                                  <div
+                                    key={toolIdx}
+                                    className="flex items-center gap-1.5 bg-orange-900/30 px-2 py-1 rounded-full border border-orange-800/50"
+                                    title={tool}
+                                  >
+                                    <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                                    <span className="text-xs text-orange-300 font-medium">{tool}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          }
+                        })}
+
+                        {/* Timestamp */}
+                        {message.timestamp && (
+                          <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                            {formatTimestamp(message.timestamp)}
                           </div>
-
-                          {message.timestamp && (
-                            <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
-                              {formatTimestamp(message.timestamp)}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Tool icons - show for assistant messages with tools */}
-                      {!isUser && hasToolUse && (
-                        <div className={`flex flex-wrap items-center gap-2 ${hasContent ? 'mt-2' : ''} px-2`}>
-                          {tools.map((tool, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-1.5 bg-orange-900/30 px-2 py-1 rounded-full border border-orange-800/50"
-                              title={tool}
-                            >
-                              <Wrench className="w-3.5 h-3.5 text-orange-400" />
-                              <span className="text-xs text-orange-300 font-medium">{tool}</span>
-                            </div>
-                          ))}
-                          {message.timestamp && !hasContent && (
-                            <span className="text-xs text-gray-500 ml-auto">
-                              {formatTimestamp(message.timestamp)}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
-              })}
+              })
+
+              return chatBubbles
+            })()}
           </div>
         )}
 

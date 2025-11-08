@@ -50,6 +50,48 @@ export async function POST(request: NextRequest) {
       try {
         const message = JSON.parse(line)
 
+        // Extract thinking blocks from assistant messages
+        // Thinking messages are nested in assistant message content arrays
+        if (message.type === 'assistant' && message.message?.content) {
+          const content = message.message.content
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'thinking' && block.thinking) {
+                // Create a standalone thinking message
+                messages.push({
+                  type: 'thinking',
+                  thinking: block.thinking,
+                  signature: block.signature,
+                  timestamp: message.timestamp,
+                  uuid: message.uuid,
+                  sessionId: message.sessionId
+                })
+                metadata.totalMessages++
+                console.log('[Parse] Extracted thinking message from assistant content')
+              }
+            }
+          }
+        }
+
+        // Detect skill expansion messages
+        // These are user-typed messages that contain skill content
+        if (message.type === 'user' && message.message?.content) {
+          const content = typeof message.message.content === 'string'
+            ? message.message.content
+            : Array.isArray(message.message.content)
+              ? message.message.content.find((b: any) => b.type === 'text')?.text || ''
+              : ''
+
+          // Check if this is a skill expansion message
+          if (content.includes('Base directory for this skill:') ||
+              content.includes('<skill>') ||
+              content.match(/^#\s+\w+/m)) { // Starts with markdown header after skill expansion
+            message.isSkill = true
+            message.originalType = message.type
+            message.type = 'skill'
+          }
+        }
+
         // Extract metadata from early messages
         if (!metadata.sessionId && message.sessionId) {
           metadata.sessionId = message.sessionId
@@ -89,8 +131,13 @@ export async function POST(request: NextRequest) {
       } catch (parseErr) {
         // Skip malformed lines
         console.error('[Parse Conversation] Failed to parse line:', parseErr)
+        console.error('[Parse Conversation] Problematic line:', line.substring(0, 200))
       }
     }
+
+    // Debug: Check thinking messages before returning
+    const thinkingMessages = messages.filter(m => m.type === 'thinking')
+    console.log('[Parse] Returning', messages.length, 'messages,', thinkingMessages.length, 'thinking messages')
 
     return NextResponse.json({
       success: true,

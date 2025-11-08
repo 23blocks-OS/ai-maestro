@@ -246,31 +246,6 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     return ''
   }
 
-  const getFollowingMetadata = (currentIndex: number): { hasSkill: boolean; hasSystem: boolean } => {
-    // Look at next few messages to see if there are skills or system messages
-    // These are typically triggered by the current assistant message
-    let hasSkill = false
-    let hasSystem = false
-
-    for (let i = currentIndex + 1; i < Math.min(currentIndex + 5, messages.length); i++) {
-      const msg = messages[i]
-
-      // Stop if we hit another user or assistant message (new exchange)
-      if (msg.type === 'user' || msg.type === 'assistant') {
-        break
-      }
-
-      if (msg.type === 'skill') {
-        hasSkill = true
-      }
-      if (isSystemMessage(msg)) {
-        hasSystem = true
-      }
-    }
-
-    return { hasSkill, hasSystem }
-  }
-
   const renderMessageContent = (message: Message) => {
     // Handle summary
     if (message.type === 'summary' && message.summary) {
@@ -505,87 +480,81 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
         {!loading && !error && messages.length > 0 && viewMode === 'chat' && (
           <div className="p-6 space-y-4 max-w-4xl mx-auto">
-            {messages.map((message, index) => {
-              // Skip system messages, tool results, and skills in chat view
-              // Skills are indicated by icon on assistant messages, not shown as separate bubbles
-              if (isSystemMessage(message) || hasToolResults(message) || message.type === 'tool_result' || message.type === 'skill') {
-                return null
-              }
+            {messages
+              .filter(msg => {
+                // Filter out skill messages
+                if (msg.type === 'skill') return false
 
-              const isUser = message.type === 'user'
-              const isAssistant = message.type === 'assistant'
-              const tools = getToolsFromMessage(message)
-              const fullContent = getFullMessageContent(message)
-              const { hasSkill, hasSystem } = getFollowingMetadata(index)
+                // Filter to only user or assistant messages
+                if (msg.type !== 'user' && msg.type !== 'assistant') return false
 
-              // Skip if no content
-              if (!fullContent) return null
+                // Filter out system messages (user messages with system tags)
+                if (isSystemMessage(msg)) return false
 
-              const hasAnyMetadata = tools.length > 0 || hasSkill || hasSystem
+                // Filter out messages with tool results (they show as separate messages)
+                if (hasToolResults(msg)) return false
 
-              return (
-                <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%]`}>
-                    {/* Message bubble */}
-                    <div
-                      className={`rounded-2xl px-4 py-3 ${
-                        isUser
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-800 text-gray-200'
-                      }`}
-                    >
-                      {/* Message content - FULL CONTENT */}
-                      <div className="text-sm whitespace-pre-wrap break-words">
-                        {fullContent}
-                      </div>
+                return true
+              })
+              .map((message, index) => {
+                const isUser = message.type === 'user'
+                const content = getFullMessageContent(message)
+                const tools = getToolsFromMessage(message)
 
-                      {/* Timestamp */}
-                      {message.timestamp && (
-                        <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
-                          {formatTimestamp(message.timestamp)}
+                // FIXED: Don't filter out messages that have tools but no text content
+                // These are tool-only messages and should still be displayed
+                const hasContent = content.trim().length > 0
+                const hasToolUse = tools.length > 0
+
+                // Skip only if there's neither content nor tools
+                if (!hasContent && !hasToolUse) return null
+
+                return (
+                  <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    <div className="max-w-[80%]">
+                      {/* Message bubble - only show if there's actual text content */}
+                      {hasContent && (
+                        <div
+                          className={`rounded-2xl px-4 py-3 ${
+                            isUser ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'
+                          }`}
+                        >
+                          <div className="text-sm whitespace-pre-wrap break-words">
+                            {content}
+                          </div>
+
+                          {message.timestamp && (
+                            <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                              {formatTimestamp(message.timestamp)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Tool icons - show for assistant messages with tools */}
+                      {!isUser && hasToolUse && (
+                        <div className={`flex flex-wrap items-center gap-2 ${hasContent ? 'mt-2' : ''} px-2`}>
+                          {tools.map((tool, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1.5 bg-orange-900/30 px-2 py-1 rounded-full border border-orange-800/50"
+                              title={tool}
+                            >
+                              <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                              <span className="text-xs text-orange-300 font-medium">{tool}</span>
+                            </div>
+                          ))}
+                          {message.timestamp && !hasContent && (
+                            <span className="text-xs text-gray-500 ml-auto">
+                              {formatTimestamp(message.timestamp)}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
-
-                    {/* Tools/Skills/System indicators - only for assistant messages, shown as icons below */}
-                    {isAssistant && hasAnyMetadata && (
-                      <div className="flex items-center gap-1.5 mt-1.5 px-2">
-                        {/* Tool icons */}
-                        {tools.map((tool, idx) => (
-                          <div
-                            key={`tool-${idx}`}
-                            className="flex items-center gap-1"
-                            title={`Tool: ${tool}`}
-                          >
-                            <Wrench className="w-3.5 h-3.5 text-orange-400" />
-                          </div>
-                        ))}
-
-                        {/* Skill icon */}
-                        {hasSkill && (
-                          <div
-                            className="flex items-center gap-1"
-                            title="Skill used"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                          </div>
-                        )}
-
-                        {/* System message icon */}
-                        {hasSystem && (
-                          <div
-                            className="flex items-center gap-1"
-                            title="System message"
-                          >
-                            <Terminal className="w-3.5 h-3.5 text-gray-400" />
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </div>
         )}
 

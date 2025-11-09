@@ -150,8 +150,8 @@ export async function sendMessage(
   let remoteHostUrl: string | null = null
 
   try {
-    // Fetch sessions to find recipient
-    const response = await fetch('http://localhost:23000/api/sessions')
+    // Fetch sessions to find recipient (use relative URL for mobile compatibility)
+    const response = await fetch('/api/sessions')
     const data = await response.json()
 
     // Find recipient session
@@ -293,7 +293,7 @@ export async function forwardMessage(
   let remoteHostUrl: string | null = null
 
   try {
-    const response = await fetch('http://localhost:23000/api/sessions')
+    const response = await fetch('/api/sessions')
     const data = await response.json()
 
     // Find recipient session

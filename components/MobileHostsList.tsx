@@ -65,7 +65,13 @@ export default function MobileHostsList({
   }
 
   const getHostUrl = (hostId: string) => {
-    if (hostId === 'local') return 'localhost:23000'
+    if (hostId === 'local') {
+      // Show the actual host being accessed (works on mobile)
+      if (typeof window !== 'undefined') {
+        return window.location.host
+      }
+      return 'localhost:23000'
+    }
     const host = hosts.find((h) => h.id === hostId)
     return host?.url ? new URL(host.url).host : 'Unknown'
   }

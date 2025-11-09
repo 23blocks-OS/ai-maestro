@@ -79,10 +79,11 @@ export default function MobileWorkTree({
 
   // Determine which host this agent is on
   const getHostUrl = (): string => {
-    const agentSession = sessions.find(s => s.agentId === agentId || s.name === sessionName)
+    const agentSession = sessions.find(s => s.agentId === agentId || s.id === sessionName || s.name === sessionName)
 
     if (!agentSession || !agentSession.hostId || agentSession.hostId === 'local') {
-      return 'http://localhost:23000'
+      // Use empty string for relative URLs (works on mobile devices)
+      return ''
     }
 
     const host = hosts.find(h => h.id === agentSession.hostId)
@@ -90,7 +91,8 @@ export default function MobileWorkTree({
       return host.url
     }
 
-    return 'http://localhost:23000'
+    // Use empty string for relative URLs (works on mobile devices)
+    return ''
   }
 
   const fetchWorkTree = async (forceInitialize = false) => {
@@ -98,44 +100,108 @@ export default function MobileWorkTree({
     setError(null)
 
     try {
+      console.log('[MobileWorkTree] Starting fetch with:', { sessionName, agentId, forceInitialize })
+
       const hostUrl = getHostUrl()
+      console.log('[MobileWorkTree] Host URL:', hostUrl)
+
       let currentAgentId = agentId
 
       if (!currentAgentId) {
-        const createResponse = await fetch(`${hostUrl}/api/agent/create-from-session`, {
+        console.log('[MobileWorkTree] No agentId, creating from session:', sessionName)
+        const createResponse = await fetch(`${hostUrl}/api/agents/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionName })
         })
 
         if (!createResponse.ok) {
-          throw new Error('Failed to create agent')
+          const errorText = await createResponse.text()
+          console.error('[MobileWorkTree] Failed to create agent:', createResponse.status, errorText)
+          throw new Error(`Failed to create agent: ${errorText}`)
         }
 
         const createData = await createResponse.json()
         currentAgentId = createData.agentId
+        console.log('[MobileWorkTree] Created agentId:', currentAgentId)
       }
 
       if (forceInitialize) {
-        await fetch(`${hostUrl}/api/agent/initialize`, {
+        console.log('[MobileWorkTree] Forcing initialization for agentId:', currentAgentId)
+        await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId: currentAgentId })
+          body: JSON.stringify({ populateFromSessions: true })
         })
       }
 
-      const response = await fetch(`${hostUrl}/api/agent/work-tree?agentId=${currentAgentId}`)
+      console.log('[MobileWorkTree] Fetching work tree for agentId:', currentAgentId)
+      const response = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`)
 
       if (!response.ok) {
-        throw new Error('Failed to fetch work tree')
+        const errorText = await response.text()
+        console.error('[MobileWorkTree] Failed to fetch work tree:', response.status, errorText)
+        throw new Error(`Failed to fetch work tree: ${errorText}`)
       }
 
       const data = await response.json()
-      setWorkData(data)
+      console.log('[MobileWorkTree] Memory API response:', data)
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch memory')
+      }
+
+      // Transform data to match component interface (same as desktop WorkTree)
+      const sessions: SessionWork[] = (data.sessions || []).map((row: any) => ({
+        session_id: row[0],
+        session_name: row[1],
+        status: row[5],
+        started_at: row[3],
+        ended_at: row[4],
+        total_claude_sessions: 0,
+        total_messages: 0
+      }))
+
+      const projects: ProjectWork[] = (data.projects || []).map((item: any) => {
+        const row = item.project
+        const conversations = item.conversations || []
+
+        return {
+          project_id: row[0],
+          project_name: row[1],
+          project_path: row[0],
+          claude_config_dir: row[2] || '',
+          total_sessions: 0,
+          total_claude_sessions: conversations.length,
+          last_seen: row[4],
+          claude_sessions: conversations.map((conv: any) => ({
+            claude_session_id: conv[0],
+            session_type: 'main',
+            status: 'completed',
+            message_count: conv[4],
+            first_message_at: conv[2],
+            last_message_at: conv[3],
+            jsonl_file: conv[0],
+            first_user_message: conv[5],
+            model_names: conv[6],
+            git_branch: conv[7],
+            claude_version: conv[8]
+          }))
+        }
+      })
+
+      const transformedData: AgentWork = {
+        agent_id: currentAgentId || agentId || '',
+        sessions,
+        projects
+      }
+
+      console.log('[MobileWorkTree] Transformed data:', transformedData)
+      setWorkData(transformedData)
 
       // Auto-expand first project if exists
-      if (data.projects && data.projects.length > 0 && expandedProjects.size === 0) {
-        setExpandedProjects(new Set([data.projects[0].project_id]))
+      if (transformedData.projects && transformedData.projects.length > 0 && expandedProjects.size === 0) {
+        setExpandedProjects(new Set([transformedData.projects[0].project_id]))
       }
     } catch (err) {
       console.error('[MobileWorkTree] Error:', err)

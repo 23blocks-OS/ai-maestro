@@ -110,84 +110,149 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        primary: '#6366f1',
-                        secondary: '#8b5cf6',
-                    }
+                    fontFamily: { sans: ['Space Grotesk', 'system-ui', 'sans-serif'] },
+                    colors: { primary: '#6366f1', secondary: '#8b5cf6' }
                 }
             }
         }
     </script>
 
     <style>
-        body {
-            font-family: 'Space Grotesk', system-ui, sans-serif;
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
         }
+        body { font-family: 'Space Grotesk', system-ui, sans-serif; }
         .gradient-text {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .glass {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
         }
     </style>
 </head>
-<body class="bg-gray-950 text-white">
+<body class="font-sans text-gray-800 leading-relaxed antialiased bg-white">
     <!-- Google Tag Manager (noscript) -->
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
 
     <!-- Navigation -->
-    <nav class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center gap-3">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8" />
-                    <a href="index.html" class="text-xl font-bold gradient-text">AI Maestro</a>
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
                 </div>
-                <div class="flex items-center gap-6">
-                    <a href="index.html" class="text-sm text-gray-400 hover:text-white transition">Home</a>
-                    <a href="messaging.html" class="text-sm text-gray-400 hover:text-white transition">Messaging</a>
-                    <a href="conversations.html" class="text-sm text-white font-semibold">Conversations</a>
-                    <a href="workers.html" class="text-sm text-gray-400 hover:text-white transition">Workers</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-sm bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg transition">GitHub</a>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
                 </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
             </div>
         </div>
     </nav>
 
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
     <!-- Hero Section -->
     <section class="relative py-20 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20 pointer-events-none"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-50 via-transparent to-purple-50 pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div class="text-center max-w-4xl mx-auto">
                 <h1 class="text-5xl md:text-6xl font-bold mb-6">
                     <span class="gradient-text">Conversation History</span><br/>
-                    <span class="text-white">Explore What Your Agents Are Doing</span>
+                    <span class="text-gray-800">Explore What Your Agents Are Doing</span>
                 </h1>
-                <p class="text-xl text-gray-400 mb-8 leading-relaxed">
+                <p class="text-xl text-gray-600 mb-8 leading-relaxed">
                     Browse, search, and analyze every conversation your AI agents have. See their thinking, understand their decisions, and track their work with powerful search and visualization tools.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="#features" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <a href="#features" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
                         Explore Features
                     </a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#quick-start" target="_blank" class="glass hover:bg-white/10 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#quick-start" target="_blank" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-3 rounded-lg font-semibold transition no-underline">
                         Get Started
                     </a>
                 </div>
@@ -196,89 +261,89 @@
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="py-20 bg-gray-900/30">
+    <section id="features" class="py-20 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">Complete Conversation Visibility</h2>
-                <p class="text-xl text-gray-400">Every conversation, every message, every thought—organized and searchable</p>
+                <p class="text-xl text-gray-600">Every conversation, every message, every thought—organized and searchable</p>
             </div>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- WorkTree Browser -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">WorkTree Browser</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">WorkTree Browser</h3>
+                    <p class="text-gray-600">
                         Hierarchical view of all agent conversations organized by project, category, and session. Navigate your entire conversation history at a glance.
                     </p>
                 </div>
 
                 <!-- Chat View -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-secondary/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Chat View</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Chat View</h3>
+                    <p class="text-gray-600">
                         Beautiful chat-style message bubbles that make conversations easy to read. User messages on the right, agent responses on the left, just like messaging apps.
                     </p>
                 </div>
 
                 <!-- Thinking Messages -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-violet-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Thinking Messages</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Thinking Messages</h3>
+                    <p class="text-gray-600">
                         See Claude's extended thinking process. Understand how the agent reasons, plans, and makes decisions before responding.
                     </p>
                 </div>
 
                 <!-- Live Search -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Live Search</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Live Search</h3>
+                    <p class="text-gray-600">
                         Instant search across all messages with text highlighting. Navigate between matches with Previous/Next buttons and auto-scroll to results.
                     </p>
                 </div>
 
                 <!-- Tool Tracking -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Tool Usage Tracking</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Tool Usage Tracking</h3>
+                    <p class="text-gray-600">
                         See every tool the agent uses—file reads, writes, bash commands, web searches. Expandable tool details show inputs and outputs.
                     </p>
                 </div>
 
                 <!-- Metadata -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Conversation Metadata</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Conversation Metadata</h3>
+                    <p class="text-gray-600">
                         Track git branch, Claude model version, working directory, timestamps, and total message count. Know the context of every conversation.
                     </p>
                 </div>
@@ -291,36 +356,36 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">How It Works</h2>
-                <p class="text-xl text-gray-400">Access conversation history in three simple ways</p>
+                <p class="text-xl text-gray-600">Access conversation history in three simple ways</p>
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span class="text-2xl font-bold text-primary">1</span>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Open WorkTree Tab</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Open WorkTree Tab</h3>
+                    <p class="text-gray-600">
                         Click the "WorkTree" tab for any agent session. See all conversations organized by project hierarchy.
                     </p>
                 </div>
 
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span class="text-2xl font-bold text-primary">2</span>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Select a Conversation</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Select a Conversation</h3>
+                    <p class="text-gray-600">
                         Click any conversation to view its full details. Toggle between List and Chat views for different perspectives.
                     </p>
                 </div>
 
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span class="text-2xl font-bold text-primary">3</span>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Search & Explore</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Search & Explore</h3>
+                    <p class="text-gray-600">
                         Use the search bar to find specific content. Navigate matches, view thinking, and expand tool details.
                     </p>
                 </div>
@@ -329,58 +394,58 @@
     </section>
 
     <!-- Use Cases -->
-    <section class="py-20 bg-gray-900/30">
+    <section class="py-20 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">Why Browse Conversation History?</h2>
-                <p class="text-xl text-gray-400">Essential for understanding and improving AI agent work</p>
+                <p class="text-xl text-gray-600">Essential for understanding and improving AI agent work</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-8">
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         Debug Agent Decisions
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         When an agent makes an unexpected decision, review the conversation to see what context led to that choice. Search for specific variables, functions, or files to understand the agent's reasoning.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                         </svg>
                         Learn Agent Patterns
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         Study how successful agents approach problems. See which tools they use, how they break down tasks, and what thinking processes lead to good outcomes.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
                         Track Project Progress
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         See the evolution of a project over time. Find when specific features were implemented, bugs were fixed, or architectural decisions were made.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                         </svg>
                         Onboard Team Members
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         New team members can browse agent conversations to understand project context, coding standards, and decision history without interrupting others.
                     </p>
                 </div>
@@ -390,24 +455,24 @@
 
     <!-- CTA Section -->
     <section class="py-20 relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10 pointer-events-none"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-50 via-transparent to-purple-50 pointer-events-none"></div>
 
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
             <h2 class="text-4xl font-bold mb-6">
                 <span class="gradient-text">Start Exploring</span><br/>
-                <span class="text-white">Your Agent Conversations Today</span>
+                <span class="text-gray-800">Your Agent Conversations Today</span>
             </h2>
-            <p class="text-xl text-gray-400 mb-8">
+            <p class="text-xl text-gray-600 mb-8">
                 Every conversation is automatically saved and ready to browse.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition inline-flex items-center justify-center gap-2">
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition inline-flex items-center justify-center gap-2 no-underline">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
                     </svg>
                     View on GitHub
                 </a>
-                <a href="index.html" class="glass hover:bg-white/10 text-white px-8 py-4 rounded-lg font-semibold text-lg transition">
+                <a href="index.html" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
                     Learn More
                 </a>
             </div>
@@ -415,18 +480,29 @@
     </section>
 
     <!-- Footer -->
-    <footer class="border-t border-gray-800 py-8 bg-gray-900/50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-2">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-6 h-6" />
-                    <span class="text-gray-400">© 2025 AI Maestro by <a href="https://23blocks.com" class="text-white hover:text-primary transition">23blocks</a></span>
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
                 </div>
-                <div class="flex gap-6">
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-400 hover:text-white transition">GitHub</a>
-                    <a href="https://x.com/jkpelaez" target="_blank" class="text-gray-400 hover:text-white transition">Twitter</a>
-                    <a href="index.html#docs" class="text-gray-400 hover:text-white transition">Documentation</a>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
                 </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>

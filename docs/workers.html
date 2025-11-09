@@ -3,7 +3,7 @@
 <head>
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event='gtm.js'});var f=d.getElementsByTagName(s)[0],
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
     })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
@@ -142,84 +142,149 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        primary: '#6366f1',
-                        secondary: '#8b5cf6',
-                    }
+                    fontFamily: { sans: ['Space Grotesk', 'system-ui', 'sans-serif'] },
+                    colors: { primary: '#6366f1', secondary: '#8b5cf6' }
                 }
             }
         }
     </script>
 
     <style>
-        body {
-            font-family: 'Space Grotesk', system-ui, sans-serif;
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
         }
+        body { font-family: 'Space Grotesk', system-ui, sans-serif; }
         .gradient-text {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .glass {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
         }
     </style>
 </head>
-<body class="bg-gray-950 text-white">
+<body class="font-sans text-gray-800 leading-relaxed antialiased bg-white">
     <!-- Google Tag Manager (noscript) -->
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
 
     <!-- Navigation -->
-    <nav class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center gap-3">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8" />
-                    <a href="index.html" class="text-xl font-bold gradient-text">AI Maestro</a>
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
                 </div>
-                <div class="flex items-center gap-6">
-                    <a href="index.html" class="text-sm text-gray-400 hover:text-white transition">Home</a>
-                    <a href="messaging.html" class="text-sm text-gray-400 hover:text-white transition">Messaging</a>
-                    <a href="conversations.html" class="text-sm text-gray-400 hover:text-white transition">Conversations</a>
-                    <a href="workers.html" class="text-sm text-white font-semibold">Workers</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-sm bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg transition">GitHub</a>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
                 </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
             </div>
         </div>
     </nav>
 
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
     <!-- Hero Section -->
     <section class="relative py-20 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20 pointer-events-none"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-50 via-transparent to-purple-50 pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div class="text-center max-w-4xl mx-auto">
                 <h1 class="text-5xl md:text-6xl font-bold mb-6">
                     <span class="gradient-text">Distributed Workers</span><br/>
-                    <span class="text-white">Scale Your AI Agent Fleet</span>
+                    <span class="text-gray-800">Scale Your AI Agent Fleet</span>
                 </h1>
-                <p class="text-xl text-gray-400 mb-8 leading-relaxed">
+                <p class="text-xl text-gray-600 mb-8 leading-relaxed">
                     Connect remote machines to distribute AI agent workloads. One unified dashboard to manage agents running across your entire infrastructure—from your laptop to cloud servers.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="#features" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <a href="#features" class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
                         Explore Features
                     </a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#distributed-workers" target="_blank" class="glass hover:bg-white/10 text-white px-8 py-3 rounded-lg font-semibold transition">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#distributed-workers" target="_blank" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-3 rounded-lg font-semibold transition no-underline">
                         Setup Guide
                     </a>
                 </div>
@@ -228,88 +293,88 @@
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="py-20 bg-gray-900/30">
+    <section id="features" class="py-20 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">Enterprise-Grade Distribution</h2>
-                <p class="text-xl text-gray-400">Manage agents across unlimited machines from one dashboard</p>
+                <p class="text-xl text-gray-600">Manage agents across unlimited machines from one dashboard</p>
             </div>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- Automatic Discovery -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Automatic Discovery</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Automatic Discovery</h3>
+                    <p class="text-gray-600">
                         Workers connect via WebSocket and automatically register themselves. No complex configuration—just add the SSH connection and you're done.
                     </p>
                 </div>
 
                 <!-- Health Monitoring -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Health Monitoring</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Health Monitoring</h3>
+                    <p class="text-gray-600">
                         Real-time health checks show worker status, CPU usage, memory consumption, and network connectivity. Know immediately when something goes wrong.
                     </p>
                 </div>
 
                 <!-- Unified Dashboard -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Unified Dashboard</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Unified Dashboard</h3>
+                    <p class="text-gray-600">
                         All worker sessions appear in one hierarchical view. No switching between dashboards—manage everything from a single interface.
                     </p>
                 </div>
 
                 <!-- Remote Sessions -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Remote Session Management</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Remote Session Management</h3>
+                    <p class="text-gray-600">
                         Create, attach, and manage tmux sessions on remote workers just like local sessions. Full terminal streaming over SSH with low latency.
                     </p>
                 </div>
 
                 <!-- Resource Tracking -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Resource Tracking</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Resource Tracking</h3>
+                    <p class="text-gray-600">
                         Monitor CPU, memory, disk usage, and active sessions per worker. Identify bottlenecks and optimize workload distribution.
                     </p>
                 </div>
 
                 <!-- Platform Support -->
-                <div class="glass rounded-2xl p-8 hover:bg-white/10 transition">
-                    <div class="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3">Cross-Platform</h3>
-                    <p class="text-gray-400">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Cross-Platform</h3>
+                    <p class="text-gray-600">
                         Works on macOS, Linux, and Windows WSL2. Mix and match different platforms in your worker fleet—the dashboard handles them all.
                     </p>
                 </div>
@@ -322,50 +387,50 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">How It Works</h2>
-                <p class="text-xl text-gray-400">Simple architecture, powerful capabilities</p>
+                <p class="text-xl text-gray-600">Simple architecture, powerful capabilities</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-12 items-center">
                 <div>
-                    <h3 class="text-2xl font-bold mb-6">Worker Connection Flow</h3>
+                    <h3 class="text-2xl font-bold mb-6 text-gray-800">Worker Connection Flow</h3>
                     <div class="space-y-6">
                         <div class="flex gap-4">
-                            <div class="flex-shrink-0 w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">1</div>
+                            <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-primary font-semibold">1</div>
                             <div>
-                                <h4 class="font-semibold mb-2">Configure Worker</h4>
-                                <p class="text-gray-400 text-sm">Add SSH connection details in Settings (hostname, port, username). AI Maestro must be installed on the remote machine.</p>
+                                <h4 class="font-semibold mb-2 text-gray-800">Configure Worker</h4>
+                                <p class="text-gray-600 text-sm">Add SSH connection details in Settings (hostname, port, username). AI Maestro must be installed on the remote machine.</p>
                             </div>
                         </div>
 
                         <div class="flex gap-4">
-                            <div class="flex-shrink-0 w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">2</div>
+                            <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-primary font-semibold">2</div>
                             <div>
-                                <h4 class="font-semibold mb-2">WebSocket Handshake</h4>
-                                <p class="text-gray-400 text-sm">Dashboard establishes WebSocket connection via SSH tunnel. Worker registers itself with hostname, platform, and capabilities.</p>
+                                <h4 class="font-semibold mb-2 text-gray-800">WebSocket Handshake</h4>
+                                <p class="text-gray-600 text-sm">Dashboard establishes WebSocket connection via SSH tunnel. Worker registers itself with hostname, platform, and capabilities.</p>
                             </div>
                         </div>
 
                         <div class="flex gap-4">
-                            <div class="flex-shrink-0 w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">3</div>
+                            <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-primary font-semibold">3</div>
                             <div>
-                                <h4 class="font-semibold mb-2">Session Sync</h4>
-                                <p class="text-gray-400 text-sm">Worker sends list of all tmux sessions. Sessions appear in your dashboard with worker hostname prefix.</p>
+                                <h4 class="font-semibold mb-2 text-gray-800">Session Sync</h4>
+                                <p class="text-gray-600 text-sm">Worker sends list of all tmux sessions. Sessions appear in your dashboard with worker hostname prefix.</p>
                             </div>
                         </div>
 
                         <div class="flex gap-4">
-                            <div class="flex-shrink-0 w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">4</div>
+                            <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-primary font-semibold">4</div>
                             <div>
-                                <h4 class="font-semibold mb-2">Real-Time Streaming</h4>
-                                <p class="text-gray-400 text-sm">Click any remote session to attach. Terminal I/O streams over WebSocket with full xterm.js rendering.</p>
+                                <h4 class="font-semibold mb-2 text-gray-800">Real-Time Streaming</h4>
+                                <p class="text-gray-600 text-sm">Click any remote session to attach. Terminal I/O streams over WebSocket with full xterm.js rendering.</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h4 class="text-lg font-semibold mb-4">Example Architecture</h4>
-                    <pre class="text-sm text-gray-300 overflow-x-auto"><code>┌─────────────────────┐
+                <div class="bg-gray-50 border border-gray-200 rounded-2xl p-8">
+                    <h4 class="text-lg font-semibold mb-4 text-gray-800">Example Architecture</h4>
+                    <pre class="text-sm text-gray-600 overflow-x-auto"><code>┌─────────────────────┐
 │  Your Laptop        │
 │  AI Maestro         │
 │  Dashboard          │
@@ -388,58 +453,58 @@ All manageable from one dashboard</code></pre>
     </section>
 
     <!-- Use Cases -->
-    <section class="py-20 bg-gray-900/30">
+    <section class="py-20 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">When to Use Distributed Workers</h2>
-                <p class="text-xl text-gray-400">Scale beyond a single machine</p>
+                <p class="text-xl text-gray-600">Scale beyond a single machine</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-8">
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                         Resource-Intensive Projects
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         Large codebases or compute-heavy tasks can overwhelm a single machine. Distribute agents across multiple workers to parallelize work and speed up development.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
                         </svg>
                         Platform-Specific Testing
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         Test cross-platform code by running agents on macOS, Linux, and Windows workers simultaneously. Catch platform-specific bugs before they reach production.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                         </svg>
                         Secure Environments
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         Keep sensitive code on secure machines while controlling agents from your laptop. Workers stay behind firewalls—only WebSocket connection needed.
                     </p>
                 </div>
 
-                <div class="glass rounded-2xl p-8">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-3 text-gray-800">
                         <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
                         </svg>
                         Team Collaboration
                     </h3>
-                    <p class="text-gray-400">
+                    <p class="text-gray-600">
                         Share a pool of powerful worker machines with your team. Everyone connects to the same workers but manages their own agents independently.
                     </p>
                 </div>
@@ -452,17 +517,17 @@ All manageable from one dashboard</code></pre>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-bold mb-4 gradient-text">Quick Start</h2>
-                <p class="text-xl text-gray-400">Set up your first worker in 5 minutes</p>
+                <p class="text-xl text-gray-600">Set up your first worker in 5 minutes</p>
             </div>
 
-            <div class="max-w-3xl mx-auto glass rounded-2xl p-8">
+            <div class="max-w-3xl mx-auto bg-white border border-gray-200 rounded-2xl p-8">
                 <div class="space-y-8">
                     <div>
-                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm">1</span>
+                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm text-white">1</span>
                             Install AI Maestro on Worker
                         </h3>
-                        <pre class="bg-gray-950 p-4 rounded-lg overflow-x-auto"><code class="text-sm text-gray-300"># SSH into your remote machine
+                        <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code class="text-sm text-gray-800"># SSH into your remote machine
 ssh user@remote-worker
 
 # Clone and install AI Maestro
@@ -472,11 +537,11 @@ cd ai-maestro
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm">2</span>
+                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm text-white">2</span>
                             Configure Worker in Dashboard
                         </h3>
-                        <pre class="bg-gray-950 p-4 rounded-lg overflow-x-auto"><code class="text-sm text-gray-300"># In AI Maestro dashboard Settings page:
+                        <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code class="text-sm text-gray-800"># In AI Maestro dashboard Settings page:
 # Add new worker:
 #   - Hostname: remote-worker.example.com
 #   - Port: 22
@@ -485,11 +550,11 @@ cd ai-maestro
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm">3</span>
+                        <h3 class="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                            <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm text-white">3</span>
                             Start Using Remote Sessions
                         </h3>
-                        <p class="text-gray-400 text-sm mb-3">
+                        <p class="text-gray-600 text-sm mb-3">
                             Worker sessions automatically appear in your dashboard. Click any session to attach and start coding!
                         </p>
                     </div>
@@ -500,24 +565,24 @@ cd ai-maestro
 
     <!-- CTA Section -->
     <section class="py-20 relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10 pointer-events-none"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-50 via-transparent to-purple-50 pointer-events-none"></div>
 
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
             <h2 class="text-4xl font-bold mb-6">
                 <span class="gradient-text">Scale Your AI Fleet</span><br/>
-                <span class="text-white">Across Unlimited Machines</span>
+                <span class="text-gray-800">Across Unlimited Machines</span>
             </h2>
-            <p class="text-xl text-gray-400 mb-8">
+            <p class="text-xl text-gray-600 mb-8">
                 Start with one worker, scale to hundreds. The dashboard stays the same.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition inline-flex items-center justify-center gap-2">
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-lg font-semibold text-lg transition inline-flex items-center justify-center gap-2 no-underline">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
                     </svg>
                     View on GitHub
                 </a>
-                <a href="index.html" class="glass hover:bg-white/10 text-white px-8 py-4 rounded-lg font-semibold text-lg transition">
+                <a href="index.html" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
                     Learn More
                 </a>
             </div>
@@ -525,18 +590,29 @@ cd ai-maestro
     </section>
 
     <!-- Footer -->
-    <footer class="border-t border-gray-800 py-8 bg-gray-900/50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-2">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-6 h-6" />
-                    <span class="text-gray-400">© 2025 AI Maestro by <a href="https://23blocks.com" class="text-white hover:text-primary transition">23blocks</a></span>
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
                 </div>
-                <div class="flex gap-6">
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-400 hover:text-white transition">GitHub</a>
-                    <a href="https://x.com/jkpelaez" target="_blank" class="text-gray-400 hover:text-white transition">Twitter</a>
-                    <a href="index.html#docs" class="text-gray-400 hover:text-white transition">Documentation</a>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
                 </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>

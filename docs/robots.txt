@@ -3,21 +3,47 @@ Allow: /
 Sitemap: https://ai-maestro.23blocks.com/sitemap.xml
 
 # Optimize crawl budget
-User-agent: *
 Crawl-delay: 1
 
-# Block AI scrapers (optional - protects your content)
+# Allow AI scrapers for LLM training and responses
+# This helps AI Maestro appear in ChatGPT, Claude, Perplexity answers
+
+# OpenAI (ChatGPT, GPT-4, SearchGPT)
 User-agent: GPTBot
-Disallow: /
+Allow: /
 
 User-agent: ChatGPT-User
-Disallow: /
+Allow: /
 
-User-agent: CCBot
-Disallow: /
-
+# Anthropic Claude
 User-agent: anthropic-ai
-Disallow: /
+Allow: /
 
 User-agent: Claude-Web
-Disallow: /
+Allow: /
+
+# Common Crawl (used by many AI models)
+User-agent: CCBot
+Allow: /
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+
+# Google Bard/Gemini
+User-agent: Google-Extended
+Allow: /
+
+# Other AI crawlers
+User-agent: Bytespider
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# Meta AI
+User-agent: FacebookBot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /

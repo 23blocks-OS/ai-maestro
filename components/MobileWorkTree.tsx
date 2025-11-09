@@ -209,7 +209,7 @@ export default function MobileWorkTree({
         <Folder className="w-16 h-16 text-gray-600 mb-4" />
         <p className="text-lg font-medium text-gray-300 mb-2">No Work History</p>
         <p className="text-sm text-gray-500 mb-4">
-          This agent hasn't worked on any projects yet
+          This agent hasn&apos;t worked on any projects yet
         </p>
         <button
           onClick={() => fetchWorkTree(true)}

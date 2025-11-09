@@ -61,8 +61,6 @@ export default function MobileHostsList({
 
   const getHostIcon = (hostId: string) => {
     if (hostId === 'local') return Server
-    const host = hosts.find((h) => h.id === hostId)
-    if (host?.type === 'cloud') return Cloud
     return Server
   }
 

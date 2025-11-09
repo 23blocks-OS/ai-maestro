@@ -451,7 +451,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
             <div className="relative">
               <button
                 onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2 text-gray-400 hover:bg-gray-700 rounded-md transition-colors"
+                className="p-2 text-gray-400 hover:bg-gray-700 rounded-md transition-colors flex items-center justify-center"
               >
                 <MoreVertical className="w-5 h-5" />
               </button>

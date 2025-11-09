@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import TerminalView from './TerminalView'
-import MessageCenter from './MessageCenter'
+import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
@@ -177,7 +177,7 @@ export default function MobileDashboard({
                   onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(session.id, isConnected)}
                 />
               ) : (
-                <MessageCenter
+                <MobileMessageCenter
                   sessionName={session.id}
                   allSessions={sessions.map(s => s.id)}
                 />

@@ -320,10 +320,35 @@ export default function MobileDashboard({
       )}
 
       {/* Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-4 py-2">
+      <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-2 py-1.5">
         <div className="text-center">
-          <p className="text-xs text-gray-400">
-            AI Maestro v0.10.0
+          <p className="text-xs text-gray-400 leading-tight">
+            <a
+              href="https://x.com/aimaestro23"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              AI Maestro
+            </a>
+            {' '}v0.10.0 •{' '}
+            <a
+              href="https://x.com/jkpelaez"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              Juan Peláez
+            </a>
+            {' '}•{' '}
+            <a
+              href="https://23blocks.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-red-500 hover:text-red-400 transition-colors"
+            >
+              23blocks
+            </a>
           </p>
         </div>
       </footer>

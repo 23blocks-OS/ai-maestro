@@ -134,7 +134,7 @@ export default function MobileDashboard({
               }}
             >
               {activeTab === 'terminal' ? (
-                <TerminalView session={session} />
+                <TerminalView session={session} hideFooter={true} />
               ) : (
                 <MessageCenter
                   sessionName={session.id}

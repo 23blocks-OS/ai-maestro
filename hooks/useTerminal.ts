@@ -101,6 +101,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { ClipboardAddon } = await import('@xterm/addon-clipboard')
+    const { WebglAddon } = await import('@xterm/addon-webgl')
 
     // Create terminal instance with PRE-CALCULATED dimensions
     const terminal = new Terminal({
@@ -157,6 +158,13 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       macOptionIsMeta: true,
       // Enable right-click for context menu (paste, copy)
       rightClickSelectsWord: true,
+      // CRITICAL FIX: Smooth rendering settings to reduce xterm/tmux conflicts
+      smoothScrollDuration: 0, // Disable smooth scrolling - let tmux control scroll
+      drawBoldTextInBrightColors: true, // Standard terminal behavior
+      // Disable cursor blink to reduce redraws
+      cursorBlink: false,
+      // Set cursor style to block for better visibility
+      cursorStyle: 'block',
     })
 
     // Initialize addons
@@ -166,10 +174,52 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
 
+    // CRITICAL FIX: Load WebGL renderer for much better performance
+    // This dramatically reduces rendering overhead and prevents xterm from fighting with tmux
+    try {
+      const webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => {
+        // WebGL context lost - dispose and recreate
+        webglAddon.dispose()
+      })
+      terminal.loadAddon(webglAddon)
+      console.log(`✅ WebGL renderer enabled for session ${optionsRef.current.sessionId}`)
+    } catch (e) {
+      // WebGL not supported - fall back to canvas renderer
+      console.warn(`⚠️ WebGL not available for session ${optionsRef.current.sessionId}, using canvas renderer:`, e)
+    }
+
     // Load clipboard addon for copy/paste support
+    // CRITICAL FIX: Enhanced clipboard support for remote hosts
     try {
       const clipboardAddon = new ClipboardAddon()
       terminal.loadAddon(clipboardAddon)
+
+      // Request clipboard permissions proactively (helps with remote hosts)
+      // This ensures copy/paste works even when accessing from different origins
+      if (navigator.clipboard && navigator.permissions) {
+        navigator.permissions.query({ name: 'clipboard-write' as PermissionName }).then((result) => {
+          if (result.state === 'granted' || result.state === 'prompt') {
+            console.log(`✅ Clipboard access granted for session ${optionsRef.current.sessionId}`)
+          }
+        }).catch(() => {
+          // Permissions API not available or denied - clipboard might still work
+          console.log(`⚠️ Clipboard permissions check failed for session ${optionsRef.current.sessionId}, but copy/paste may still work`)
+        })
+      }
+
+      // Add explicit copy handler for better reliability
+      terminal.onSelectionChange(() => {
+        const selection = terminal.getSelection()
+        if (selection && selection.length > 0) {
+          // Auto-copy on selection (common terminal behavior)
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(selection).catch(() => {
+              // Fallback: clipboard write failed, but user can still manually copy
+            })
+          }
+        }
+      })
     } catch (e) {
       console.error(`❌ Failed to load clipboard addon for session ${optionsRef.current.sessionId}:`, e)
     }

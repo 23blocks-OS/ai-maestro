@@ -495,28 +495,75 @@ try {
 
 ### Critical Terminal Configuration for PTY/tmux
 
-**IMPORTANT:** The following terminal settings are critical for proper Claude Code CLI behavior:
+**IMPORTANT:** The following terminal settings are critical for proper Claude Code CLI behavior and preventing xterm/tmux screen conflicts:
 
 1. **`convertEol: false`** - PTY and tmux handle line endings correctly. Setting this to `true` causes character duplication and incorrect line breaks because xterm.js will convert `\n` to `\r\n`, but the PTY has already handled this.
 
-2. **Alternate Screen Buffer Support** - Claude Code (like vim, less, etc.) uses tmux's alternate screen buffer. This means:
+2. **`cursorBlink: false`** - Disable cursor blinking to reduce unnecessary redraws that can conflict with tmux's screen updates.
+
+3. **`smoothScrollDuration: 0`** - Disable smooth scrolling animations. Let tmux control scrolling behavior to prevent competition between xterm.js and tmux for screen control.
+
+4. **Alternate Screen Buffer Support** - Claude Code (like vim, less, etc.) uses tmux's alternate screen buffer. This means:
    - When Claude is active, it uses a separate screen that doesn't mix with your shell history
-   - Scrollback must be captured from tmux's buffer, not just xterm.js's buffer
+   - Scrollback must be captured from tmux's buffer WITH escape sequences preserved
    - The `windowOptions: { setWinLines: true }` setting enables proper alternate buffer support
 
-3. **Scrollback Capture Strategy** - On initial connection, capture both normal and alternate screen content:
+5. **CRITICAL - History Capture with Escape Sequences** - On initial connection, capture history WITH escape sequences preserved:
    ```bash
-   # Try to capture full history (50000 lines)
-   tmux capture-pane -t <session> -p -S -50000 -e -1
-   # Fallback to visible content only
-   tmux capture-pane -t <session> -p
+   # CORRECT - Preserves escape sequences (colors, cursor positioning, formatting)
+   tmux capture-pane -t <session> -p -e -S -2000
+
+   # WRONG - Plain text causes line ending conflicts
+   tmux capture-pane -t <session> -p -S -2000 | sed 's/$/\r\n/'
    ```
+
+   **Why `-e` flag is critical:**
+   - tmux with `-e` produces byte-perfect representation of screen state
+   - Includes ANSI escape codes for colors, cursor positioning, and formatting
+   - xterm.js can render it exactly as tmux intended
+   - WITHOUT `-e`, formatting history manually causes xterm and tmux to fight over screen control
+
+6. **NO Backpressure on PTY Stream** - Do NOT pause/resume the PTY stream:
+   ```javascript
+   // ❌ WRONG - Causes screen corruption
+   ptyProcess.onData((data) => {
+     ptyProcess.pause()
+     // ... send to clients ...
+     ptyProcess.resume()
+   })
+
+   // ✅ CORRECT - Stream directly
+   ptyProcess.onData((data) => {
+     clients.forEach(client => client.send(data))
+   })
+   ```
+
+   **Why backpressure breaks:**
+   - Pausing interrupts tmux's screen updates mid-stream
+   - Causes content overdraw and screen corruption
+   - tmux manages its own buffering - no need for application-level backpressure
+
+7. **NO Manual Refresh Calls** - Do NOT manually refresh xterm.js after writes:
+   ```typescript
+   // ❌ WRONG - Fights with tmux
+   terminal.write(data)
+   terminal.refresh(0, terminal.rows - 1)
+
+   // ✅ CORRECT - Let xterm handle it
+   terminal.write(data)
+   ```
+
+   **Why manual refresh breaks:**
+   - xterm.js already auto-refreshes on write
+   - Manual refresh calls compete with tmux's screen updates
+   - Causes flickering, overdraw, and selection issues
 
 **Common Issues and Fixes:**
 
 - **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
+- **Content writes over previous content / need to resize to redraw**: History was sent without escape sequences, or backpressure is pausing the PTY stream - use `-e` flag and remove pause/resume
 - **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
-- **Lost history after switching sessions**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
+- **Copy/paste doesn't work from remote hosts**: Clipboard permissions not requested - use ClipboardAddon with explicit permission checks and auto-copy-on-select
 
 ### WebSocket Reconnection Strategy
 

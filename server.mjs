@@ -290,12 +290,12 @@ app.prepare().then(() => {
       }
       sessions.set(sessionName, sessionState)
 
-      // Stream PTY output to all clients with flow control (backpressure)
-      // This prevents overwhelming xterm.js with too much data at once
+      // Stream PTY output to all clients
+      // CRITICAL FIX: Removed backpressure pause/resume logic
+      // The pause/resume was interrupting tmux's screen updates mid-stream,
+      // causing screen corruption and content overdraw issues.
+      // tmux manages its own output buffering, so we should just stream it.
       ptyProcess.onData((data) => {
-        // Pause PTY to implement backpressure
-        ptyProcess.pause()
-
         // Check if this is a redraw/status update we should filter from logs
         const cleanedData = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '') // Remove all ANSI codes
 
@@ -326,32 +326,16 @@ app.prepare().then(() => {
           sessionActivity.set(sessionName, Date.now())
         }
 
-        // Send data to all clients and wait for write completion
-        const writePromises = []
+        // Send data to all clients immediately
+        // WebSocket.send() is synchronous and buffered by the OS, so no need for backpressure
         sessionState.clients.forEach((client) => {
           if (client.readyState === 1) { // WebSocket.OPEN
-            writePromises.push(
-              new Promise((resolve) => {
-                try {
-                  // WebSocket.send() is synchronous, but we wrap it to handle errors
-                  client.send(data, (error) => {
-                    if (error) {
-                      console.error('Error sending data to client:', error)
-                    }
-                    resolve()
-                  })
-                } catch (error) {
-                  console.error('Error sending data to client:', error)
-                  resolve()
-                }
-              })
-            )
+            try {
+              client.send(data)
+            } catch (error) {
+              console.error('Error sending data to client:', error)
+            }
           }
-        })
-
-        // Resume PTY after all clients have received the data
-        Promise.all(writePromises).finally(() => {
-          ptyProcess.resume()
         })
       })
 
@@ -392,46 +376,53 @@ app.prepare().then(() => {
       try {
         const { execSync } = await import('child_process')
 
-        // Try to capture scrollback history (last 1000 lines for reasonable performance)
+        // Try to capture scrollback history with ESCAPE SEQUENCES PRESERVED
+        // This is CRITICAL: tmux capture with -e (escape sequences) produces a byte-perfect
+        // representation of what's on screen, including colors, cursor positions, etc.
+        // xterm.js can then render it exactly as tmux intended
         let historyContent = ''
         try {
-          // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
-          // -S -1000: Start from 1000 lines back (enough for context, not overwhelming)
+          // CRITICAL FIX: Use -e flag to preserve escape sequences
+          // -S -2000: Start from 2000 lines back (more context for scrollback)
           // -p: Print to stdout
-          // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
-          // NO -e flag: Without escape sequences, tmux sends plain text with newlines
-          // This allows xterm.js to add lines to scrollback instead of repositioning cursor
+          // -e: Include escape sequences (colors, formatting, cursor positioning)
+          // This lets tmux and xterm.js speak the same language instead of fighting
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -1000 -J`,
-            { encoding: 'utf8', timeout: 3000 }
+            `tmux capture-pane -t ${sessionName} -p -e -S -2000`,
+            { encoding: 'utf8', timeout: 5000, maxBuffer: 10 * 1024 * 1024 } // 10MB buffer for large history
           ).toString()
         } catch (historyError) {
-          // Fallback: if full history fails, at least get visible content
+          // Fallback 1: Try with less history
           try {
             historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p -J`,
-              { encoding: 'utf8', timeout: 2000 }
+              `tmux capture-pane -t ${sessionName} -p -e -S -500`,
+              { encoding: 'utf8', timeout: 3000, maxBuffer: 5 * 1024 * 1024 }
             ).toString()
           } catch (fallbackError) {
-            // Last resort: no -J flag
-            historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p`,
-              { encoding: 'utf8', timeout: 2000 }
-            ).toString()
+            // Fallback 2: Just visible content with escape sequences
+            try {
+              historyContent = execSync(
+                `tmux capture-pane -t ${sessionName} -p -e`,
+                { encoding: 'utf8', timeout: 2000 }
+              ).toString()
+            } catch (lastResort) {
+              // Last resort: visible content, no escape sequences
+              historyContent = execSync(
+                `tmux capture-pane -t ${sessionName} -p`,
+                { encoding: 'utf8', timeout: 2000 }
+              ).toString()
+            }
           }
         }
 
         if (ws.readyState === 1 && historyContent) {
-          // CRITICAL: Convert plain text to terminal-friendly format
-          // Each line must end with \r\n for xterm.js to add it to scrollback
-          // Plain newlines (\n) would just move cursor down without creating history
-          const lines = historyContent.split('\n')
-          const formattedHistory = lines.map(line => line + '\r\n').join('')
+          // CRITICAL FIX: Send RAW history without modification
+          // tmux's escape sequences already contain the correct line endings and cursor positioning
+          // Adding extra formatting causes xterm.js and tmux to fight over screen control
+          console.log(`📜 [HISTORY-SEND] Sending ${historyContent.length} bytes of history for session ${sessionName}`)
 
-          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
-
-          // Send history content as formatted data
-          ws.send(formattedHistory)
+          // Send history AS-IS - let tmux control the terminal
+          ws.send(historyContent)
 
           // Send a special message to signal that initial history load is complete
           // This allows the client to trigger scrollToBottom() and fit()

@@ -22,7 +22,6 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [isMobile, setIsMobile] = useState(false)
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
@@ -118,47 +117,18 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          // After initial history loads, force a complete refresh of all xterm layers
-          // This fixes: yellow selection, scrollbar not updating, and layer misalignment
+          // CRITICAL FIX: Simplified history-complete handling
+          // Removed aggressive refresh/focus/click logic that was fighting with tmux
+          // xterm.js handles rendering automatically when data is written
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-
-            // CRITICAL: Wait for xterm.js to finish processing history
+            // Simple: just scroll to bottom after history loads
+            // Let xterm.js handle everything else naturally
             setTimeout(() => {
-
-              // 1. Scroll to bottom first
               term.scrollToBottom()
-
-              // 2. Focus terminal to activate selection layer
               term.focus()
-
-              // 3. CRITICAL: Force selection service to re-initialize
-              // This ensures xterm.js's selection layer is active, not browser default
-              term.clearSelection()
-
-              // 4. Refresh all layers (canvas, selection, scrollbar)
-              term.refresh(0, term.rows - 1)
-
-
-              // 5. Final refresh after a small delay to ensure selection layer is ready
-              setTimeout(() => {
-                // Click on terminal to ensure it's truly active
-                const terminalElement = term.element
-                if (terminalElement) {
-                  // Dispatch a synthetic click to fully activate the terminal
-                  const clickEvent = new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                  })
-                  terminalElement.dispatchEvent(clickEvent)
-                }
-
-                term.refresh(0, term.rows - 1)
-              }, 50)
-
-            }, 100)
+            }, 50)
           }
           return
         }
@@ -179,21 +149,11 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
       // Only report activity for substantial content (not cursor blinks or control sequences)
       // Filter out idle terminal noise to properly detect active vs idle state
 
-      // Always write data to terminal first
+      // CRITICAL FIX: Removed aggressive refresh debouncing
+      // The constant refresh() calls were fighting with tmux's screen updates
+      // xterm.js already handles rendering automatically - we don't need to force it
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
-
-        // CRITICAL: Refresh selection layer after content updates
-        // Debounced to avoid performance issues during rapid updates
-        if (refreshTimeoutRef.current) {
-          clearTimeout(refreshTimeoutRef.current)
-        }
-        refreshTimeoutRef.current = setTimeout(() => {
-          if (terminalInstanceRef.current) {
-            // Refresh only the visible portion to maintain performance
-            terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
-          }
-        }, 200) // Wait 200ms after last write
       } else {
         messageBufferRef.current.push(data)
       }

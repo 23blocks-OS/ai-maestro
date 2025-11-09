@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import TerminalView from './TerminalView'
-import MessageCenter from './MessageCenter'
-import { Terminal, Mail, ChevronDown, RefreshCw, Menu } from 'lucide-react'
+import MobileMessageCenter from './MobileMessageCenter'
+import MobileWorkTree from './MobileWorkTree'
+import MobileHostsList from './MobileHostsList'
+import MobileConversationDetail from './MobileConversationDetail'
+import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
 import type { Session } from '@/types/session'
+import { useHosts } from '@/hooks/useHosts'
 
 interface MobileDashboardProps {
   sessions: Session[]
@@ -19,10 +23,15 @@ export default function MobileDashboard({
   error,
   onRefresh
 }: MobileDashboardProps) {
+  const { hosts } = useHosts()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'messages'>('terminal')
-  const [showSessionSwitcher, setShowSessionSwitcher] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
+  const [selectedConversation, setSelectedConversation] = useState<{
+    file: string
+    projectPath: string
+  } | null>(null)
+  const [notes, setNotes] = useState('')
+  const [connectionStatus, setConnectionStatus] = useState<{ [sessionId: string]: boolean }>({})
 
   // Auto-select first session when sessions load
   useEffect(() => {
@@ -33,16 +42,36 @@ export default function MobileDashboard({
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
+  // Load notes from localStorage when active session changes
+  useEffect(() => {
+    if (activeSessionId) {
+      const notesKey = `session-notes-${activeSessionId}`
+      const savedNotes = localStorage.getItem(notesKey)
+      setNotes(savedNotes || '')
+    }
+  }, [activeSessionId])
+
+  // Save notes to localStorage when they change
+  useEffect(() => {
+    if (activeSessionId && notes !== undefined) {
+      const notesKey = `session-notes-${activeSessionId}`
+      localStorage.setItem(notesKey, notes)
+    }
+  }, [notes, activeSessionId])
+
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
-    setShowSessionSwitcher(false)
-    setSearchQuery('') // Clear search when closing
+    // Switch to terminal tab when selecting a session from hosts tab
+    setActiveTab('terminal')
   }
 
-  // Filter sessions based on search query
-  const filteredSessions = sessions.filter((session) =>
-    session.id.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const handleConversationSelect = (file: string, projectPath: string) => {
+    setSelectedConversation({ file, projectPath })
+  }
+
+  const handleConversationClose = () => {
+    setSelectedConversation(null)
+  }
 
   // Parse session name for display (show last part if hierarchical)
   const getDisplayName = (sessionId: string) => {
@@ -50,28 +79,55 @@ export default function MobileDashboard({
     return parts[parts.length - 1]
   }
 
+  // Format display as agent@host
+  const getAgentHostDisplay = () => {
+    if (!activeSession) return 'No Agent Selected'
+    const agentName = getDisplayName(activeSession.id)
+    const hostName = activeSession.hostId === 'local' ? 'local' : (hosts.find(h => h.id === activeSession.hostId)?.name || activeSession.hostId)
+    return `${agentName}@${hostName}`
+  }
+
+  // Handle connection status updates from TerminalView
+  const handleConnectionStatusChange = (sessionId: string, isConnected: boolean) => {
+    setConnectionStatus(prev => ({ ...prev, [sessionId]: isConnected }))
+  }
+
+  // Get connection status for active session
+  const isActiveSessionConnected = activeSessionId ? connectionStatus[activeSessionId] ?? false : false
+
   return (
-    <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
+    <div
+      className="flex flex-col bg-gray-900"
+      style={{
+        overflow: 'hidden',
+        position: 'fixed',
+        inset: 0,
+        height: '100dvh', // Use dynamic viewport height on supported browsers
+        maxHeight: '-webkit-fill-available' // Safari mobile fix
+      }}
+    >
       {/* Top Bar */}
       <header className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Session Selector */}
-          <button
-            onClick={() => setShowSessionSwitcher(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors min-w-0 flex-1 mr-2"
-          >
+        <div className="flex items-center px-4 py-3">
+          {/* Current Session Display with Connection Status */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {/* Connection indicator - green/red dot */}
+            <div
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                isActiveSessionConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            />
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
             <span className="text-sm font-medium text-white truncate">
-              {activeSession ? getDisplayName(activeSession.id) : 'Select Agent'}
+              {getAgentHostDisplay()}
             </span>
-            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" />
-          </button>
+          </div>
 
-          {/* Refresh Button */}
+          {/* Refresh Button - Centered */}
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0 flex items-center justify-center"
             aria-label="Refresh sessions"
           >
             <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
@@ -87,7 +143,7 @@ export default function MobileDashboard({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
         {/* Empty State */}
         {sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
@@ -99,8 +155,8 @@ export default function MobileDashboard({
           </div>
         )}
 
-        {/* All Sessions Mounted as Tabs */}
-        {sessions.map(session => {
+        {/* Terminal & Messages Tabs - Session-Specific */}
+        {(activeTab === 'terminal' || activeTab === 'messages') && sessions.map(session => {
           const isActive = session.id === activeSessionId
 
           return (
@@ -114,9 +170,14 @@ export default function MobileDashboard({
               }}
             >
               {activeTab === 'terminal' ? (
-                <TerminalView session={session} />
+                <TerminalView
+                  session={session}
+                  hideFooter={true}
+                  hideHeader={true}
+                  onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(session.id, isConnected)}
+                />
               ) : (
-                <MessageCenter
+                <MobileMessageCenter
                   sessionName={session.id}
                   allSessions={sessions.map(s => s.id)}
                 />
@@ -124,6 +185,64 @@ export default function MobileDashboard({
             </div>
           )
         })}
+
+        {/* Work Tab - Shows work history for active session */}
+        {activeTab === 'work' && activeSession && (
+          <div className="absolute inset-0">
+            <MobileWorkTree
+              sessionName={activeSession.id}
+              agentId={activeSession.agentId}
+              onConversationSelect={handleConversationSelect}
+            />
+          </div>
+        )}
+
+        {/* Hosts Tab - Shows all sessions grouped by host */}
+        {activeTab === 'hosts' && (
+          <div className="absolute inset-0">
+            <MobileHostsList
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSessionSelect={handleSessionSelect}
+            />
+          </div>
+        )}
+
+        {/* Notes Tab - Shows notes for active session */}
+        {activeTab === 'notes' && activeSession && (
+          <div className="absolute inset-0 flex flex-col bg-gray-900">
+            {/* Notes Header */}
+            <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-950">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <h2 className="text-sm font-semibold text-white">Session Notes</h2>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {getDisplayName(activeSession.id)}
+              </p>
+            </div>
+
+            {/* Notes Content */}
+            <div className="flex-1 overflow-hidden">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Take notes while working with your agent...&#10;&#10;• Your notes are saved automatically&#10;• Each agent has separate notes&#10;• Full markdown support"
+                className="w-full h-full px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
+                style={{
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              />
+            </div>
+
+            {/* Notes Footer Info */}
+            <div className="flex-shrink-0 px-4 py-2 border-t border-gray-800 bg-gray-950">
+              <p className="text-xs text-gray-400">
+                {notes.length} character{notes.length === 1 ? '' : 's'} • Auto-saved to browser
+              </p>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -131,147 +250,105 @@ export default function MobileDashboard({
         <div className="flex items-center justify-around">
           <button
             onClick={() => setActiveTab('terminal')}
-            className={`flex flex-col items-center justify-center py-3 px-6 flex-1 transition-colors ${
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
               activeTab === 'terminal'
                 ? 'text-blue-400 bg-gray-800/50'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            <Terminal className="w-6 h-6 mb-1" />
+            <Terminal className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Terminal</span>
           </button>
 
           <button
             onClick={() => setActiveTab('messages')}
-            className={`flex flex-col items-center justify-center py-3 px-6 flex-1 transition-colors ${
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
               activeTab === 'messages'
                 ? 'text-blue-400 bg-gray-800/50'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            <Mail className="w-6 h-6 mb-1" />
+            <Mail className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Messages</span>
           </button>
 
           <button
-            onClick={() => setShowSessionSwitcher(true)}
-            className="flex flex-col items-center justify-center py-3 px-6 flex-1 text-gray-400 hover:text-gray-300 transition-colors"
+            onClick={() => setActiveTab('work')}
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
+              activeTab === 'work'
+                ? 'text-blue-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
           >
-            <Menu className="w-6 h-6 mb-1" />
-            <span className="text-xs font-medium">Agents</span>
+            <Activity className="w-5 h-5 mb-0.5" />
+            <span className="text-xs font-medium">Work</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('hosts')}
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
+              activeTab === 'hosts'
+                ? 'text-blue-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <Server className="w-5 h-5 mb-0.5" />
+            <span className="text-xs font-medium">Hosts</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
+              activeTab === 'notes'
+                ? 'text-blue-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <FileText className="w-5 h-5 mb-0.5" />
+            <span className="text-xs font-medium">Notes</span>
           </button>
         </div>
       </nav>
 
-      {/* Session Switcher Modal */}
-      {showSessionSwitcher && (
-        <div
-          className="fixed inset-0 z-50"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center'
-          }}
-          onClick={() => setShowSessionSwitcher(false)}
-        >
-          <div
-            className="w-full bg-gray-900 rounded-t-2xl"
-            style={{
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              className="px-4 py-4 border-b border-gray-800"
-              style={{ flexShrink: 0 }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-white">Agents</h2>
-                <button
-                  onClick={() => {
-                    setShowSessionSwitcher(false)
-                    setSearchQuery('')
-                  }}
-                  className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <span className="text-gray-400 text-2xl leading-none">&times;</span>
-                </button>
-              </div>
-              {/* Search Input */}
-              <input
-                id="mobile-search"
-                name="search"
-                type="text"
-                placeholder="Search agents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
-                autoFocus
-              />
-            </div>
-
-            {/* Session List */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                WebkitOverflowScrolling: 'touch',
-                position: 'relative'
-              }}
-            >
-              {filteredSessions.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-gray-400">
-                  <p>No agents found</p>
-                </div>
-              ) : (
-                filteredSessions.map((session) => {
-                const isActive = session.id === activeSessionId
-                const parts = session.id.split('/')
-                const displayName = parts[parts.length - 1]
-                const breadcrumb = parts.length > 1 ? parts.slice(0, -1).join(' / ') : null
-
-                return (
-                  <button
-                    key={session.id}
-                    onClick={() => handleSessionSelect(session.id)}
-                    className={`w-full px-4 py-4 flex items-center gap-3 transition-colors ${
-                      isActive
-                        ? 'bg-blue-900/30 border-l-4 border-blue-400'
-                        : 'hover:bg-gray-800 border-l-4 border-transparent'
-                    }`}
-                  >
-                    <Terminal className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-400' : 'text-white'}`}>
-                        {displayName}
-                      </p>
-                      {breadcrumb && (
-                        <p className="text-xs text-gray-500 truncate">{breadcrumb}</p>
-                      )}
-                    </div>
-                    {isActive && (
-                      <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                    )}
-                  </button>
-                )
-              })
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Conversation Detail Modal */}
+      {selectedConversation && (
+        <MobileConversationDetail
+          conversationFile={selectedConversation.file}
+          projectPath={selectedConversation.projectPath}
+          onClose={handleConversationClose}
+        />
       )}
 
       {/* Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-4 py-2">
+      <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-2 py-1.5">
         <div className="text-center">
-          <p className="text-xs text-gray-400">
-            AI Maestro v0.5.0
+          <p className="text-xs text-gray-400 leading-tight">
+            <a
+              href="https://x.com/aimaestro23"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              AI Maestro
+            </a>
+            {' '}v0.10.0 •{' '}
+            <a
+              href="https://x.com/jkpelaez"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              Juan Peláez
+            </a>
+            {' '}•{' '}
+            <a
+              href="https://23blocks.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-red-500 hover:text-red-400 transition-colors"
+            >
+              23blocks
+            </a>
           </p>
         </div>
       </footer>

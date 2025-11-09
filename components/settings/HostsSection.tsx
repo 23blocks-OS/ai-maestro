@@ -285,23 +285,22 @@ export default function HostsSection() {
                   </button>
                 )}
 
+                <button
+                  onClick={() => startEditing(host)}
+                  className="p-2 hover:bg-gray-700 rounded transition-colors"
+                  title="Edit host"
+                >
+                  <Edit2 className="w-4 h-4 text-gray-400" />
+                </button>
+
                 {host.type !== 'local' && (
-                  <>
-                    <button
-                      onClick={() => startEditing(host)}
-                      className="p-2 hover:bg-gray-700 rounded transition-colors"
-                      title="Edit host"
-                    >
-                      <Edit2 className="w-4 h-4 text-gray-400" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(host.id)}
-                      className="p-2 hover:bg-gray-700 rounded transition-colors"
-                      title="Delete host"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
-                  </>
+                  <button
+                    onClick={() => handleDelete(host.id)}
+                    className="p-2 hover:bg-gray-700 rounded transition-colors"
+                    title="Delete host"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                  </button>
                 )}
               </div>
             </div>
@@ -618,9 +617,19 @@ function EditHostForm({
   onSave: () => void
   onCancel: () => void
 }) {
+  const isLocal = formData.type === 'local'
+
   return (
     <div className="p-6 bg-gray-800/50 border border-gray-700 rounded-lg space-y-4">
       <h2 className="text-lg font-medium text-white">Edit Host</h2>
+
+      {isLocal && (
+        <div className="p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+          <p className="text-sm text-blue-300">
+            This is your local host. You can customize the display name to make it easier to identify when accessing from other devices.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -637,27 +646,30 @@ function EditHostForm({
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Name <span className="text-red-400">*</span>
+            Display Name <span className="text-red-400">*</span>
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder={isLocal ? "e.g., Juan's MacBook Pro" : ""}
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
           />
         </div>
 
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            URL <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={formData.url}
-            onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
+        {!isLocal && (
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.url}
+              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        )}
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -666,36 +678,41 @@ function EditHostForm({
           <textarea
             value={formData.description || ''}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder={isLocal ? "e.g., Main development machine" : ""}
             rows={2}
             className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="tailscale-edit"
-            checked={formData.tailscale || false}
-            onChange={(e) => setFormData({ ...formData, tailscale: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600"
-          />
-          <label htmlFor="tailscale-edit" className="text-sm text-gray-300">
-            Tailscale VPN
-          </label>
-        </div>
+        {!isLocal && (
+          <>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="tailscale-edit"
+                checked={formData.tailscale || false}
+                onChange={(e) => setFormData({ ...formData, tailscale: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600"
+              />
+              <label htmlFor="tailscale-edit" className="text-sm text-gray-300">
+                Tailscale VPN
+              </label>
+            </div>
 
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="enabled-edit"
-            checked={formData.enabled}
-            onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600"
-          />
-          <label htmlFor="enabled-edit" className="text-sm text-gray-300">
-            Enabled
-          </label>
-        </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="enabled-edit"
+                checked={formData.enabled}
+                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600"
+              />
+              <label htmlFor="enabled-edit" className="text-sm text-gray-300">
+                Enabled
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-3 pt-4">

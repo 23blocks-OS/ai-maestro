@@ -5,9 +5,23 @@
  * Supports configuration via environment variables or JSON file.
  */
 
-import { Host, HostsConfig, LOCAL_HOST } from '@/types/host'
+import { Host, HostsConfig } from '@/types/host'
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
+
+/** Get the local host configuration with actual hostname */
+function getDefaultLocalHost(): Host {
+  const hostname = os.hostname()
+  return {
+    id: 'local',
+    name: hostname || 'Local Host',
+    url: 'http://localhost:23000',
+    type: 'local',
+    enabled: true,
+    description: 'This machine (local tmux sessions)',
+  }
+}
 
 /** Environment variable name for hosts configuration */
 const HOSTS_ENV_VAR = 'AIMAESTRO_HOSTS'
@@ -55,7 +69,7 @@ export function loadHostsConfig(): Host[] {
 
   // Default to local host only if no configuration found
   if (hosts.length === 0) {
-    hosts = [LOCAL_HOST]
+    hosts = [getDefaultLocalHost()]
     console.log('[Hosts] No configuration found, using local host only')
   }
 
@@ -87,7 +101,7 @@ function validateHosts(hosts: Host[]): Host[] {
   // Ensure we have at least one local host
   const hasLocalHost = validHosts.some(host => host.type === 'local')
   if (!hasLocalHost) {
-    validHosts.unshift(LOCAL_HOST)
+    validHosts.unshift(getDefaultLocalHost())
     console.log('[Hosts] Added default local host')
   }
 
@@ -115,7 +129,7 @@ export function getHostById(hostId: string): Host | undefined {
 export function getLocalHost(): Host {
   const hosts = getHosts()
   const localHost = hosts.find(host => host.type === 'local')
-  return localHost || LOCAL_HOST
+  return localHost || getDefaultLocalHost()
 }
 
 /**

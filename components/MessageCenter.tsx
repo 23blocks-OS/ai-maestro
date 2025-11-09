@@ -346,12 +346,6 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
       <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-2">
           <Mail className="w-5 h-5 text-gray-300" />
-          <h2 className="text-lg font-semibold text-gray-100">Messages</h2>
-          {unreadCount > 0 && (
-            <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full">
-              {unreadCount}
-            </span>
-          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -364,10 +358,15 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
           >
             <Inbox className="w-4 h-4 inline-block mr-1" />
             Inbox
+            {unreadCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
+                {unreadCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setView('sent')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors relative ${
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               view === 'sent'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -375,11 +374,6 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
           >
             <Send className="w-4 h-4 inline-block mr-1" />
             Sent
-            {sentCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold text-white bg-green-500 rounded-full">
-                {sentCount}
-              </span>
-            )}
           </button>
           <button
             onClick={() => setView('compose')}

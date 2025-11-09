@@ -13,9 +13,12 @@ const BRACKETED_PASTE_END = '\u001b[201~'
 interface TerminalViewProps {
   session: Session
   isVisible?: boolean
+  hideFooter?: boolean  // Hide notes/prompt footer (used in MobileDashboard)
+  hideHeader?: boolean  // Hide terminal header (used in MobileDashboard)
+  onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
 }
 
-export default function TerminalView({ session, isVisible = true }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
@@ -110,6 +113,12 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
     onOpen: () => {
       // Report activity when WebSocket connects
       reportActivity(session.id)
+      // Notify parent of connection status change
+      onConnectionStatusChange?.(true)
+    },
+    onClose: () => {
+      // Notify parent of connection status change
+      onConnectionStatusChange?.(false)
     },
     onMessage: (data) => {
       // Check if this is a control message (JSON)
@@ -501,25 +510,42 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Terminal Header */}
+      {!hideHeader && (
       <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
-              {session.name || session.id}
-            </h3>
-            <ConnectionIndicator isConnected={isConnected} />
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Connection indicator - just the green/red dot */}
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              />
+              {/* Host name and session name */}
+              <h3 className="font-medium text-gray-400 text-xs md:text-sm truncate">
+                {session.hostId !== 'local' ? session.hostId : 'local'}
+              </h3>
+              <span className="text-gray-600">/</span>
+              <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
+                {session.name || session.id}
+              </h3>
+            </div>
           </div>
           {terminal && (
             <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
               {/* Mobile: Notes toggle button */}
-              <button
-                onClick={() => setNotesCollapsed(!notesCollapsed)}
-                className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
-                title={notesCollapsed ? "Show footer" : "Hide footer"}
-              >
-                📝
-              </button>
-              <span className="text-gray-500 md:hidden">|</span>
+              {!hideFooter && (
+                <>
+                  <button
+                    onClick={() => setNotesCollapsed(!notesCollapsed)}
+                    className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                    title={notesCollapsed ? "Show footer" : "Hide footer"}
+                  >
+                    📝
+                  </button>
+                  <span className="text-gray-500 md:hidden">|</span>
+                </>
+              )}
 
               {/* Hide on mobile except Clear and Notes buttons */}
               <span className="hidden md:inline">
@@ -566,6 +592,7 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
           )}
         </div>
       </div>
+      )}
 
       {/* Connection Error */}
       {connectionError && (
@@ -615,7 +642,7 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
       </div>
 
       {/* Notes / Prompt Builder Footer */}
-      {!notesCollapsed && (
+      {!hideFooter && !notesCollapsed && (
         <div
           className="border-t border-gray-700 bg-gray-900 flex flex-col"
           style={{
@@ -731,7 +758,7 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
         </div>
       )}
 
-      {notesCollapsed && (
+      {!hideFooter && notesCollapsed && (
         <div
           onClick={() => setNotesCollapsed(false)}
           className="border-t border-gray-700 bg-gray-800 px-4 py-2 cursor-pointer hover:bg-gray-750 transition-colors flex items-center gap-2"
@@ -755,21 +782,6 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
           </span>
         </div>
       )}
-    </div>
-  )
-}
-
-function ConnectionIndicator({ isConnected }: { isConnected: boolean }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      <div
-        className={`w-2 h-2 rounded-full ${
-          isConnected ? 'bg-green-500' : 'bg-red-500'
-        }`}
-      />
-      <span className="text-gray-400">
-        {isConnected ? 'Connected' : 'Disconnected'}
-      </span>
     </div>
   )
 }

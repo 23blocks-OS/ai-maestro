@@ -68,11 +68,11 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
   // Determine which host this agent is on
   const getHostUrl = (): string => {
     // Find the session for this agent
-    const agentSession = sessions.find(s => s.agentId === agentId || s.name === sessionName)
+    const agentSession = sessions.find(s => s.agentId === agentId || s.id === sessionName || s.name === sessionName)
 
     if (!agentSession || !agentSession.hostId || agentSession.hostId === 'local') {
-      // Local agent
-      return 'http://localhost:23000'
+      // Local agent - use relative URL (works on mobile devices)
+      return ''
     }
 
     // Remote agent - find host URL
@@ -82,9 +82,9 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
       return host.url
     }
 
-    // Fallback to local
+    // Fallback to local - use relative URL (works on mobile devices)
     console.warn(`[WorkTree] Could not find host for agent ${agentId}, using local`)
-    return 'http://localhost:23000'
+    return ''
   }
 
   const fetchWorkTree = async (forceInitialize = false) => {

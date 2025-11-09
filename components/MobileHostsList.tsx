@@ -54,7 +54,6 @@ export default function MobileHostsList({
   }
 
   const getHostName = (hostId: string) => {
-    if (hostId === 'local') return 'Local Host'
     const host = hosts.find((h) => h.id === hostId)
     return host?.name || hostId
   }

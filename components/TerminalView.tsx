@@ -25,6 +25,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [isMobile, setIsMobile] = useState(false)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -68,6 +69,33 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Detect virtual keyboard on mobile (when keyboard appears, viewport shrinks)
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return
+
+    const handleViewportResize = () => {
+      // visualViewport shows the actual visible area (excluding keyboard)
+      // window.innerHeight is the full viewport height
+      if (window.visualViewport) {
+        const keyboardHeight = window.innerHeight - window.visualViewport.height
+        setKeyboardHeight(keyboardHeight > 0 ? keyboardHeight : 0)
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize)
+      window.visualViewport.addEventListener('scroll', handleViewportResize)
+      handleViewportResize() // Initial check
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize)
+        window.visualViewport.removeEventListener('scroll', handleViewportResize)
+      }
+    }
+  }, [isMobile])
 
   // Fetch global logging configuration on mount
   useEffect(() => {
@@ -508,7 +536,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   )
 
   return (
-    <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
+    <div
+      className="flex-1 flex flex-col bg-terminal-bg overflow-hidden"
+      style={{
+        paddingBottom: isMobile && keyboardHeight > 0 ? `${keyboardHeight}px` : 0,
+        transition: 'padding-bottom 0.2s ease-out'
+      }}
+    >
       {/* Terminal Header */}
       {!hideHeader && (
       <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">

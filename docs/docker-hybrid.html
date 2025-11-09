@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Hybrid: Local + Cloud AI Agents | AI Maestro</title>
+    <meta name="description" content="Best of both worlds: run lightweight AI agents locally for quick tasks, scale heavy workloads to cloud containers. Cost-optimized hybrid architecture.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/docker-hybrid.html">
+    <meta property="og:title" content="Docker Hybrid - AI Maestro">
+    <meta property="og:description" content="Local + cloud containers. Instant feedback locally, unlimited cloud power.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Docker Hybrid - AI Maestro">
+    <meta name="twitter:description" content="Hybrid local and cloud Docker containers for AI agents.">
+    <meta property="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="hybrid Docker AI, local cloud containers, Docker hybrid setup, cost-optimized AI agents, cloud scaling AI, hybrid architecture">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/docker-hybrid.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Space Grotesk', 'system-ui', 'sans-serif'] },
+                    colors: { primary: '#6366f1', secondary: '#8b5cf6' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+        body { font-family: 'Space Grotesk', system-ui, sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #ec4899 0%, #f97316 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-800 leading-relaxed antialiased bg-white">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="relative py-20 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-pink-50 via-transparent to-orange-50 pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div class="flex items-center justify-center mb-6">
+                <div class="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center">
+                    <svg class="w-8 h-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="text-center max-w-4xl mx-auto">
+                <div class="inline-block px-4 py-2 bg-pink-100 border border-pink-300 rounded-full text-pink-700 text-sm font-semibold mb-4">
+                    Advanced • 20 Minute Setup
+                </div>
+                <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                    <span class="gradient-text">Docker Hybrid</span><br/>
+                    <span class="text-gray-800">Local Speed + Cloud Power</span>
+                </h1>
+                <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+                    Run lightweight AI agents in local containers for instant feedback. Scale heavy workloads to cloud containers for unlimited resources. Best of both worlds.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#docker-hybrid-setup" target="_blank" class="bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        Get Started with Hybrid
+                    </a>
+                    <a href="#how-it-works" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        See How It Works
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">Why Go Hybrid?</h2>
+                <p class="text-xl text-gray-600">Optimize for cost, speed, and scale</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Cost Optimization</h3>
+                    <p class="text-gray-600">
+                        Run quick tasks locally (free). Scale intensive workloads to cloud only when needed. Pay for cloud resources only during active use.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Instant Local Feedback</h3>
+                    <p class="text-gray-600">
+                        Keep development agents local for zero-latency editing and testing. See changes immediately without network delays.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Unlimited Cloud Power</h3>
+                    <p class="text-gray-600">
+                        Offload memory-intensive builds, parallel tests, and data processing to cloud containers with 64+ GB RAM and GPU access.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Data Locality</h3>
+                    <p class="text-gray-600">
+                        Process large datasets in the cloud where they live. Avoid slow downloads—run agents directly near AWS S3, GCS, or database servers.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Auto-Scaling</h3>
+                    <p class="text-gray-600">
+                        Cloud containers scale based on workload. Spin up 50 test containers for parallel execution, then scale back to zero when done.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Unified Management</h3>
+                    <p class="text-gray-600">
+                        One dashboard for all agents—local and cloud. See resource usage, logs, and status for every container regardless of location.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">How It Works</h2>
+                <p class="text-xl text-gray-600">Four steps to hybrid architecture</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div>
+                    <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-bold text-pink-600">1</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Set Up Local Docker</h3>
+                    <p class="text-gray-600 mb-3">
+                        Install Docker Desktop and AI Maestro on your local machine:
+                    </p>
+                    <pre class="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto"><code>git clone https://github.com/\
+23blocks-OS/ai-maestro.git
+cd ai-maestro
+./install.sh</code></pre>
+                </div>
+
+                <div>
+                    <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-bold text-pink-600">2</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Configure Cloud Workers</h3>
+                    <p class="text-gray-600 mb-3">
+                        Add your cloud VMs or container services via Settings. Configure SSH keys for secure connections.
+                    </p>
+                    <pre class="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto"><code># In AI Maestro Dashboard
+# Settings → Workers
+# Add: cloud-vm.example.com:23000
+# Upload SSH key</code></pre>
+                </div>
+
+                <div>
+                    <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-bold text-pink-600">3</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Deploy Strategically</h3>
+                    <p class="text-gray-600 mb-3">
+                        Launch lightweight containers locally. Deploy resource-intensive containers to cloud workers:
+                    </p>
+                    <pre class="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto"><code># Local: Quick edits
+docker run -d my-agent:latest
+
+# Cloud: Heavy builds
+ssh cloud docker run -d \
+  --memory=32g my-build-agent</code></pre>
+                </div>
+
+                <div>
+                    <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl font-bold text-pink-600">4</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Unified Dashboard</h3>
+                    <p class="text-gray-600">
+                        AI Maestro shows all containers (local + cloud) in one interface. Monitor resources, view logs, switch seamlessly.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 text-gray-800">Perfect For</h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span class="text-2xl">💻</span>
+                        Resource-Constrained Laptops
+                    </h4>
+                    <p class="text-gray-600">
+                        Working on a MacBook Air with 8GB RAM? Run quick edits locally, offload builds and tests to a cloud VM with 64GB RAM.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span class="text-2xl">🧪</span>
+                        Large-Scale Testing
+                    </h4>
+                    <p class="text-gray-600">
+                        Test suite takes 2 hours locally? Spin up 20 cloud containers, run tests in parallel, complete in 10 minutes. Pay only for those 10 minutes.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span class="text-2xl">📊</span>
+                        Data Science Workflows
+                    </h4>
+                    <p class="text-gray-600">
+                        Experiment with code locally. Train models on cloud GPUs. Process datasets where they live (AWS S3, BigQuery) without downloading terabytes.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span class="text-2xl">💰</span>
+                        Cost-Conscious Teams
+                    </h4>
+                    <p class="text-gray-600">
+                        Maximize cloud ROI by running only compute-intensive tasks in the cloud. Use spot instances for 70% cost savings on non-critical workloads.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-20 relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-pink-50 via-transparent to-orange-50 pointer-events-none"></div>
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+            <h2 class="text-4xl font-bold mb-6">
+                <span class="gradient-text">Get Hybrid Power</span><br/>
+                <span class="text-gray-800">Local Speed + Cloud Scale</span>
+            </h2>
+            <p class="text-xl text-gray-600 mb-8">
+                Set up hybrid architecture in 20 minutes. Works on macOS, Linux, and Windows (WSL2).
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro#docker-hybrid-setup" target="_blank" class="bg-pink-600 hover:bg-pink-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                    View Hybrid Setup Guide
+                </a>
+                <a href="index.html#work-modes" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                    Compare Work Modes
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

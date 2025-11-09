@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple Computers Setup: Distributed AI Agent Architecture | AI Maestro</title>
+    <meta name="description" content="Scale your AI agents across multiple computers with manager/worker architecture. Distribute workload, access cloud resources, and collaborate with teams.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/multi-computer.html">
+    <meta property="og:title" content="Multiple Computers Setup - AI Maestro">
+    <meta property="og:description" content="Distributed AI agent architecture for power users. Scale across machines with SSH and auto-discovery.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Multiple Computers Setup - AI Maestro">
+    <meta name="twitter:description" content="Distributed AI agent orchestration across machines.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="distributed AI agents, multi-computer AI, SSH AI setup, remote AI workers, cloud AI resources, team collaboration AI, AI agent scaling">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/multi-computer.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Space Grotesk', 'system-ui', 'sans-serif'] },
+                    colors: { primary: '#6366f1', secondary: '#8b5cf6' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+        body { font-family: 'Space Grotesk', system-ui, sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #eab308 0%, #f97316 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-800 leading-relaxed antialiased bg-white">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="relative py-20 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-yellow-50 via-transparent to-orange-50 pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div class="flex items-center justify-center mb-6">
+                <div class="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center">
+                    <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="text-center max-w-4xl mx-auto">
+                <div class="inline-block px-4 py-2 bg-yellow-100 border border-yellow-300 rounded-full text-yellow-700 text-sm font-semibold mb-4">
+                    Intermediate • 15 Minute Setup
+                </div>
+                <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                    <span class="gradient-text">Multiple Computers</span><br/>
+                    <span class="text-gray-800">Distributed AI Agent Architecture</span>
+                </h1>
+                <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+                    Scale beyond one machine. Run AI agents across your laptop, desktop, cloud servers, and team members' computers with SSH-powered auto-discovery and seamless orchestration.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#multi-computer-setup" target="_blank" class="bg-yellow-600 hover:bg-yellow-700 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        Setup Multi-Computer Mode
+                    </a>
+                    <a href="#how-it-works" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-3 rounded-lg font-semibold transition no-underline">
+                        See Architecture
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">Why Distributed Architecture?</h2>
+                <p class="text-xl text-gray-600">Unlock the power of multiple machines working together</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Workload Distribution</h3>
+                    <p class="text-gray-600">
+                        Split heavy tasks across machines. Run frontend agents on your laptop while backend services run on a powerful desktop or cloud instance.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Cloud Resource Access</h3>
+                    <p class="text-gray-600">
+                        Connect to AWS, GCP, or Azure instances for GPU-accelerated tasks, large-scale testing, or data-intensive operations without leaving your dashboard.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Team Collaboration</h3>
+                    <p class="text-gray-600">
+                        Share worker machines with team members. Everyone sees the same dashboard, same agents, same real-time terminals. Perfect for remote teams.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Resource Monitoring</h3>
+                    <p class="text-gray-600">
+                        See CPU, memory, and network usage across all worker machines from one dashboard. Optimize agent placement based on real-time metrics.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Secure SSH Connections</h3>
+                    <p class="text-gray-600">
+                        All communication uses SSH with key-based authentication. No exposed ports, no security risks. Works with existing SSH configs and jump hosts.
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Auto-Discovery</h3>
+                    <p class="text-gray-600">
+                        Configure SSH hosts once. AI Maestro automatically discovers tmux sessions on all worker machines and displays them in your dashboard.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">How It Works</h2>
+                <p class="text-xl text-gray-600">Manager/Worker architecture powered by SSH</p>
+            </div>
+
+            <!-- Architecture Diagram -->
+            <div class="mb-16 bg-gray-100 rounded-xl p-8">
+                <pre class="text-sm overflow-x-auto"><code>┌─────────────────────────────────────────────────────────────────┐
+│                     MANAGER MACHINE (Your Laptop)               │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              AI Maestro Dashboard                       │  │
+│  │          http://localhost:23000                         │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                           │                                    │
+│                           │ SSH Auto-Discovery                 │
+│                           ▼                                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │ Local Agents │  │ Worker 1     │  │ Worker 2     │        │
+│  │ (localhost)  │  │ (desktop)    │  │ (cloud)      │        │
+│  └──────────────┘  └──────────────┘  └──────────────┘        │
+└─────────────────────────────────────────────────────────────────┘
+                           │                 │
+                           │                 │
+          ┌────────────────┴─────┬───────────┴─────────────┐
+          │                      │                         │
+          ▼                      ▼                         ▼
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+│ WORKER 1         │   │ WORKER 2         │   │ WORKER 3         │
+│ Desktop (Linux)  │   │ Cloud (AWS EC2)  │   │ Team Machine     │
+│                  │   │                  │   │                  │
+│ tmux sessions:   │   │ tmux sessions:   │   │ tmux sessions:   │
+│ • backend-api    │   │ • ml-training    │   │ • integration    │
+│ • database       │   │ • data-proc      │   │ • e2e-tests      │
+│ • redis          │   │ • gpu-tasks      │   │ • perf-tests     │
+└──────────────────┘   └──────────────────┘   └──────────────────┘</code></pre>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-2xl font-bold text-yellow-600">1</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Install on Manager</h3>
+                    <pre class="text-left bg-gray-100 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code>git clone https://github.com/\
+23blocks-OS/ai-maestro.git
+cd ai-maestro
+./install.sh</code></pre>
+                    <p class="text-gray-600 text-sm">
+                        Install AI Maestro on your main machine (laptop/desktop). This becomes your manager.
+                    </p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-2xl font-bold text-yellow-600">2</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Install on Workers</h3>
+                    <pre class="text-left bg-gray-100 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code># On each worker machine
+git clone https://github.com/\
+23blocks-OS/ai-maestro.git
+cd ai-maestro
+./install-worker.sh</code></pre>
+                    <p class="text-gray-600 text-sm">
+                        Minimal installation on worker machines - just tmux and SSH.
+                    </p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-2xl font-bold text-yellow-600">3</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Configure SSH</h3>
+                    <pre class="text-left bg-gray-100 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code># ~/.aimaestro/workers.yml
+workers:
+  - name: desktop
+    host: desktop.local
+  - name: cloud
+    host: ec2-user@aws-instance
+  - name: team-server
+    host: team@company.com</code></pre>
+                    <p class="text-gray-600 text-sm">
+                        Define workers once. Auto-discovery handles the rest.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <h3 class="text-2xl font-semibold mb-6 text-gray-800">That's It!</h3>
+                <p class="text-lg text-gray-600 mb-4">
+                    All tmux sessions from all workers appear in your dashboard automatically.
+                </p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 max-w-2xl mx-auto">
+                    <p class="text-gray-700">
+                        <strong>Pro Tip:</strong> Workers can be anywhere - local network, cloud, behind VPN, or even team members' machines. As long as SSH works, AI Maestro works.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">Perfect For</h2>
+                <p class="text-xl text-gray-600">Common scenarios where distributed architecture shines</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-white rounded-2xl p-8 border border-gray-200">
+                    <h3 class="text-2xl font-semibold mb-4 text-gray-800">Power Users</h3>
+                    <p class="text-gray-600 mb-4">
+                        You have a laptop for mobility and a desktop for heavy workloads. Run lightweight agents on your laptop, but offload database migrations, large builds, or ML training to your desktop.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono">
+                            Laptop: UI agents, API testing<br/>
+                            Desktop: Database, Redis, ML training<br/>
+                            Control: All from laptop dashboard
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200">
+                    <h3 class="text-2xl font-semibold mb-4 text-gray-800">Remote Work</h3>
+                    <p class="text-gray-600 mb-4">
+                        Working from coffee shop with limited bandwidth? Keep heavy tasks running on your home office machine. Access them securely via SSH from anywhere.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono">
+                            Coffee Shop: Active development<br/>
+                            Home Office: Background jobs, builds<br/>
+                            Same workflow: Seamless switching
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200">
+                    <h3 class="text-2xl font-semibold mb-4 text-gray-800">Team Collaboration</h3>
+                    <p class="text-gray-600 mb-4">
+                        Share access to worker machines across your team. Everyone can monitor integration tests, access shared development databases, or collaborate on pair programming sessions.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono">
+                            Shared Workers: CI/CD, staging env<br/>
+                            Personal Workers: Individual dev<br/>
+                            One Dashboard: Unified team view
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-gray-200">
+                    <h3 class="text-2xl font-semibold mb-4 text-gray-800">Cloud + Local Hybrid</h3>
+                    <p class="text-gray-600 mb-4">
+                        Keep fast feedback loops local, but leverage cloud GPUs or large instances for specialized tasks. Spin up/down cloud workers as needed while maintaining local control.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono">
+                            Local: Fast iteration cycles<br/>
+                            AWS/GCP: GPU training, big data<br/>
+                            Cost: Only pay when cloud is used
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advanced Features -->
+    <section class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4 gradient-text">Advanced Features</h2>
+                <p class="text-xl text-gray-600">Power user capabilities</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-8 border border-yellow-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Jump Hosts & Bastion Servers</h3>
+                    <p class="text-gray-600 mb-4">
+                        Access workers behind corporate firewalls or VPNs using SSH ProxyJump configuration.
+                    </p>
+                    <pre class="bg-white/50 p-3 rounded text-sm overflow-x-auto"><code># ~/.ssh/config
+Host production-worker
+  HostName 10.0.1.50
+  ProxyJump bastion.company.com
+  User deployer</code></pre>
+                </div>
+
+                <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-8 border border-yellow-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Custom SSH Ports & Keys</h3>
+                    <p class="text-gray-600 mb-4">
+                        Full SSH config support - custom ports, specific identity files, connection options.
+                    </p>
+                    <pre class="bg-white/50 p-3 rounded text-sm overflow-x-auto"><code># ~/.ssh/config
+Host cloud-gpu
+  HostName gpu.example.com
+  Port 2222
+  IdentityFile ~/.ssh/gpu_key
+  StrictHostKeyChecking no</code></pre>
+                </div>
+
+                <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-8 border border-yellow-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Resource Limits</h3>
+                    <p class="text-gray-600 mb-4">
+                        Set CPU/memory limits per worker to prevent any single agent from consuming all resources.
+                    </p>
+                    <pre class="bg-white/50 p-3 rounded text-sm overflow-x-auto"><code># workers.yml
+workers:
+  - name: desktop
+    host: desktop.local
+    limits:
+      cpu: 50%
+      memory: 8GB</code></pre>
+                </div>
+
+                <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-8 border border-yellow-200">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Auto-Reconnection</h3>
+                    <p class="text-gray-600 mb-4">
+                        Workers go offline? No problem. AI Maestro automatically reconnects when they're back online.
+                    </p>
+                    <pre class="bg-white/50 p-3 rounded text-sm overflow-x-auto"><code># Automatic behavior:
+# - Retry every 30 seconds
+# - Exponential backoff
+# - Mark offline in dashboard
+# - Reconnect when available</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- When to Upgrade -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">When to Consider Docker?</h2>
+            <p class="text-lg text-gray-600 mb-8">
+                Multi-computer mode is excellent for distributed workloads. Consider Docker when you need:
+            </p>
+            <div class="grid md:grid-cols-2 gap-6 text-left">
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-2 text-gray-800">→ Environment Isolation</h4>
+                    <p class="text-sm text-gray-600">
+                        Complete dependency isolation without affecting host system
+                    </p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-gray-200">
+                    <h4 class="font-semibold mb-2 text-gray-800">→ Reproducible Builds</h4>
+                    <p class="text-sm text-gray-600">
+                        Identical environments across development, staging, and production
+                    </p>
+                </div>
+            </div>
+            <div class="mt-8">
+                <a href="index.html#work-modes" class="text-yellow-600 hover:text-yellow-700 font-semibold no-underline">
+                    Explore Docker Modes →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-20 relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-yellow-50 via-transparent to-orange-50 pointer-events-none"></div>
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+            <h2 class="text-4xl font-bold mb-6">
+                <span class="gradient-text">Scale Your AI Agents</span><br/>
+                <span class="text-gray-800">Across All Your Machines</span>
+            </h2>
+            <p class="text-xl text-gray-600 mb-8">
+                Install in 15 minutes. Works with existing SSH setup. Unlimited workers.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro#multi-computer-setup" target="_blank" class="bg-yellow-600 hover:bg-yellow-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                    Setup Multi-Computer Mode
+                </a>
+                <a href="index.html" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                    Back to Overview
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

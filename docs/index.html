@@ -274,6 +274,7 @@
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
                     <a href="#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
                     <a href="#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
@@ -293,6 +294,7 @@
             <!-- Mobile Menu -->
             <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
                 <a href="#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
                 <a href="#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
                 <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
             </div>
@@ -412,6 +414,16 @@
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Access from Anywhere</h3>
                     <p class="leading-relaxed text-gray-600">Monitor your AI agents from your phone or tablet. Touch-optimized interface with secure Tailscale connectivity.</p>
                 </a>
+                <a href="workers.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)] no-underline text-inherit block cursor-pointer">
+                    <div class="text-5xl mb-4">🌐</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Distributed AI Agents</h3>
+                    <p class="leading-relaxed text-gray-600">Control AI agents across multiple computers and cloud servers from one dashboard. Scale from local to cloud seamlessly.</p>
+                </a>
+                <a href="conversations.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)] no-underline text-inherit block cursor-pointer">
+                    <div class="text-5xl mb-4">💬</div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Conversation History</h3>
+                    <p class="leading-relaxed text-gray-600">Browse, search, and analyze every conversation your agents have had. Full thinking messages and tool usage tracking.</p>
+                </a>
                 <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
                     <div class="text-5xl mb-4">🎯</div>
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Zero Configuration</h3>
@@ -426,8 +438,129 @@
         </div>
     </section>
 
+    <!-- Work Modes Section -->
+    <section id="work-modes" class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-6 font-bold">Choose Your Work Mode</h2>
+            <p class="text-xl text-gray-600 text-center mb-12 max-w-[700px] mx-auto">
+                From simple local setups to enterprise distributed architectures. Start where you are, scale when you need to.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Single Computer -->
+                <a href="single-computer.html" class="group bg-white p-8 border-2 border-gray-200 rounded-2xl transition-all duration-200 hover:border-green-500 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(34,197,94,0.2)] no-underline text-inherit block">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-500 transition-colors duration-200">
+                            <svg class="w-6 h-6 text-green-600 group-hover:text-white transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-green-600 transition-colors duration-200">Single Computer</h3>
+                            <p class="text-sm text-green-600 font-medium">Beginner • 5 min setup</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 leading-relaxed mb-4">
+                        Run multiple AI agents on one machine. Perfect for getting started and solo development.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">Zero config</span>
+                        <span class="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">100% local</span>
+                    </div>
+                </a>
+
+                <!-- Multiple Computers -->
+                <a href="multi-computer.html" class="group bg-white p-8 border-2 border-gray-200 rounded-2xl transition-all duration-200 hover:border-yellow-500 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(234,179,8,0.2)] no-underline text-inherit block">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center group-hover:bg-yellow-500 transition-colors duration-200">
+                            <svg class="w-6 h-6 text-yellow-600 group-hover:text-white transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-yellow-600 transition-colors duration-200">Multiple Computers</h3>
+                            <p class="text-sm text-yellow-600 font-medium">Intermediate • 15 min setup</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 leading-relaxed mb-4">
+                        Control agents across laptop, desktop, and servers. Distribute workload intelligently.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-sm font-medium">SSH secure</span>
+                        <span class="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-sm font-medium">Scalable</span>
+                    </div>
+                </a>
+
+                <!-- Docker Local -->
+                <a href="docker-local.html" class="group bg-white p-8 border-2 border-gray-200 rounded-2xl transition-all duration-200 hover:border-purple-500 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(139,92,246,0.2)] no-underline text-inherit block">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-500 transition-colors duration-200">
+                            <svg class="w-6 h-6 text-purple-600 group-hover:text-white transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-purple-600 transition-colors duration-200">Docker Agents (Local)</h3>
+                            <p class="text-sm text-purple-600 font-medium">Intermediate • 10 min setup</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 leading-relaxed mb-4">
+                        Containerized agents with perfect isolation. Zero dependency conflicts.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-medium">Isolated</span>
+                        <span class="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-medium">Clean</span>
+                    </div>
+                </a>
+
+                <!-- Docker Hybrid -->
+                <a href="docker-hybrid.html" class="group bg-white p-8 border-2 border-gray-200 rounded-2xl transition-all duration-200 hover:border-pink-500 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(236,72,153,0.2)] no-underline text-inherit block">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center group-hover:bg-pink-500 transition-colors duration-200">
+                            <svg class="w-6 h-6 text-pink-600 group-hover:text-white transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-pink-600 transition-colors duration-200">Docker Hybrid</h3>
+                            <p class="text-sm text-pink-600 font-medium">Advanced • 20 min setup</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 leading-relaxed mb-4">
+                        Local + cloud containers. Best of both worlds with unlimited scale.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-pink-50 text-pink-700 rounded-full text-sm font-medium">Cost-optimized</span>
+                        <span class="px-3 py-1 bg-pink-50 text-pink-700 rounded-full text-sm font-medium">Flexible</span>
+                    </div>
+                </a>
+
+                <!-- Advanced Setup -->
+                <a href="advanced-setup.html" class="group bg-white p-8 border-2 border-gray-200 rounded-2xl transition-all duration-200 hover:border-orange-500 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(249,115,22,0.2)] no-underline text-inherit block md:col-span-2 lg:col-span-1">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-500 transition-colors duration-200">
+                            <svg class="w-6 h-6 text-orange-600 group-hover:text-white transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-orange-600 transition-colors duration-200">Advanced Setup</h3>
+                            <p class="text-sm text-orange-600 font-medium">Expert • 30 min setup</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 leading-relaxed mb-4">
+                        Everything combined. Enterprise-grade orchestration at maximum power.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm font-medium">Full control</span>
+                        <span class="px-3 py-1 bg-orange-50 text-orange-700 rounded-full text-sm font-medium">Unlimited</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
     <!-- Quick Start Section -->
-    <section id="quick-start" class="py-16 md:py-24 bg-gray-50 px-8">
+    <section id="quick-start" class="py-16 md:py-24 px-8">
         <div class="max-w-[1200px] mx-auto">
             <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Quick Start</h2>
             <div class="flex flex-col gap-12">

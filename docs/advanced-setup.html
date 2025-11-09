@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Setup - Enterprise-Grade AI Agent Orchestration | AI Maestro</title>
+    <meta name="description" content="Enterprise-grade AI agent orchestration with unlimited scalability. Combine local, distributed, and cloud resources in one unified platform.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://aimaestro.dev/advanced-setup">
+    <meta property="og:title" content="Advanced Setup - Enterprise AI Agent Orchestration | AI Maestro">
+    <meta property="og:description" content="Enterprise-grade AI agent orchestration with unlimited scalability. Combine local, distributed, and cloud resources in one unified platform.">
+    <meta property="og:image" content="https://aimaestro.dev/og-advanced-setup.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://aimaestro.dev/advanced-setup">
+    <meta property="twitter:title" content="Advanced Setup - Enterprise AI Agent Orchestration | AI Maestro">
+    <meta property="twitter:description" content="Enterprise-grade AI agent orchestration with unlimited scalability. Combine local, distributed, and cloud resources in one unified platform.">
+    <meta property="twitter:image" content="https://aimaestro.dev/og-advanced-setup.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        'primary-dark': '#4f46e5',
+                    },
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', system-ui, sans-serif;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+        }
+
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #1f2937;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+
+        .mobile-menu.active {
+            display: block !important;
+        }
+    </style>
+</head>
+<body class="bg-white text-gray-800">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
+                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
+                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        // Hamburger menu toggle
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        // Close menu when clicking a link
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="py-16 md:py-24 gradient-bg px-8">
+        <div class="max-w-[1200px] mx-auto text-center">
+            <div class="inline-block px-4 py-2 bg-orange-100 border border-orange-300 rounded-full text-orange-700 text-sm font-semibold mb-4">
+                Expert • 30 Minute Setup
+            </div>
+            <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                <span class="gradient-text">Advanced Setup</span><br/>
+                <span class="text-gray-800">Enterprise-Grade Orchestration</span>
+            </h1>
+            <p class="text-xl text-gray-600 mb-8 max-w-[700px] mx-auto">
+                Combine local, distributed, and cloud resources in one unified platform. Infinite scalability, geographic distribution, and team collaboration at enterprise scale.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#how-it-works" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-gradient-to-r from-orange-500 to-amber-400 text-white hover:shadow-[0_8px_16px_rgba(249,115,22,0.3)] hover:-translate-y-1">
+                    See How It Works
+                </a>
+                <a href="index.html#work-modes" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-gray-800 border-2 border-orange-500 hover:bg-orange-50 hover:-translate-y-1">
+                    Compare Work Modes
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="py-16 md:py-24 bg-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-6 font-bold">Why Advanced Setup?</h2>
+            <p class="text-xl text-gray-600 text-center mb-12 max-w-[700px] mx-auto">
+                The ultimate orchestration platform for teams and enterprises demanding maximum flexibility, scale, and control.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">∞</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Infinite Scalability</h3>
+                    <p class="text-gray-600">Scale from 1 agent to 1,000+ across unlimited machines, containers, and cloud instances. Add capacity in seconds.</p>
+                </div>
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">🌍</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Geographic Distribution</h3>
+                    <p class="text-gray-600">Deploy agents worldwide for low-latency access. Process data where it lives. Comply with regional data sovereignty requirements.</p>
+                </div>
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">🔄</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Hybrid Everything</h3>
+                    <p class="text-gray-600">Mix and match: bare metal + VMs + Docker + cloud. Run where it makes sense. Migrate workloads seamlessly.</p>
+                </div>
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">👥</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Team Collaboration</h3>
+                    <p class="text-gray-600">Multiple developers share agent pools. Centralized management. Role-based access control. Real-time collaboration.</p>
+                </div>
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">🛡️</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Fault Tolerance</h3>
+                    <p class="text-gray-600">Automatic failover. Health monitoring. Self-healing infrastructure. Never lose work to infrastructure failures.</p>
+                </div>
+                <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg mb-4 flex items-center justify-center text-white text-2xl font-bold">📊</div>
+                    <h3 class="text-xl font-semibold mb-2 text-gray-800">Enterprise Observability</h3>
+                    <p class="text-gray-600">Unified dashboard for all resources. Real-time metrics. Usage analytics. Cost tracking. Audit logs.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-16 md:py-24 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-6 font-bold">How It Works</h2>
+            <p class="text-xl text-gray-600 text-center mb-12 max-w-[700px] mx-auto">
+                Four steps to enterprise-grade AI agent orchestration.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xl">1</div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-gray-800">Configure Manager Node</h3>
+                        <p class="text-gray-600 mb-3">Install AI Maestro on your primary machine. This becomes your control plane - the unified dashboard for all agents across all infrastructure.</p>
+                        <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
+                            <div># Install AI Maestro</div>
+                            <div>git clone https://github.com/23blocks-OS/ai-maestro</div>
+                            <div>cd ai-maestro && yarn install</div>
+                            <div>yarn build && pm2 start ecosystem.config.js</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xl">2</div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-gray-800">Add Worker Machines</h3>
+                        <p class="text-gray-600 mb-3">Configure SSH access to any number of remote machines. They'll auto-discover and join your agent pool. Mix bare metal, VMs, and cloud instances.</p>
+                        <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
+                            <div># Add worker configuration</div>
+                            <div>vi ~/.aimaestro/hosts.json</div>
+                            <div class="text-gray-500">// Add SSH hosts with credentials</div>
+                            <div class="text-gray-500">// Auto-discovery starts immediately</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xl">3</div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-gray-800">Deploy Docker Agents</h3>
+                        <p class="text-gray-600 mb-3">Spin up containerized agents locally or on cloud providers. Perfect environment isolation, zero dependency conflicts. Scale containers up/down on demand.</p>
+                        <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
+                            <div># Deploy Docker agents anywhere</div>
+                            <div>docker pull 23blocks/claude-code-agent</div>
+                            <div>docker-compose up -d --scale agent=10</div>
+                            <div class="text-gray-500">// Auto-registers with manager</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-400 rounded-full flex items-center justify-center text-white font-bold text-xl">4</div>
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-gray-800">Orchestrate & Monitor</h3>
+                        <p class="text-gray-600 mb-3">Manage everything from one dashboard. See all agents (local, remote, Docker, cloud). Monitor health, metrics, costs. Scale intelligently.</p>
+                        <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
+                            <div># Access unified dashboard</div>
+                            <div>open http://localhost:23000</div>
+                            <div class="text-gray-500">// View: 127 agents across 23 hosts</div>
+                            <div class="text-gray-500">// Real-time metrics & control</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="py-16 md:py-24 bg-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-6 font-bold">Perfect For</h2>
+            <p class="text-xl text-gray-600 text-center mb-12 max-w-[700px] mx-auto">
+                Enterprise teams and organizations with demanding scale, compliance, or collaboration requirements.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="p-8 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-4xl mb-4">🏢</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">Enterprise Development Teams</h3>
+                    <p class="text-gray-600 mb-4">
+                        Large organizations need centralized management, role-based access, audit logs, and cost tracking. Advanced Setup provides enterprise-grade orchestration for teams of 10-1000+ developers.
+                    </p>
+                    <ul class="space-y-2 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Centralized agent pool for entire organization</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Role-based access control and permissions</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Usage tracking and cost allocation by team</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="p-8 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-4xl mb-4">🌐</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">Global Distributed Teams</h3>
+                    <p class="text-gray-600 mb-4">
+                        Teams across time zones and continents need low-latency access everywhere. Deploy agents in multiple regions, process data where it lives, comply with regional regulations.
+                    </p>
+                    <ul class="space-y-2 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Agents in US, EU, APAC for low latency</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Data sovereignty compliance (GDPR, etc.)</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>24/7 agent availability across time zones</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="p-8 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-4xl mb-4">🚀</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">High-Performance Computing</h3>
+                    <p class="text-gray-600 mb-4">
+                        Workloads requiring massive parallel processing, GPU acceleration, or specialized hardware. Run thousands of agents simultaneously across heterogeneous infrastructure.
+                    </p>
+                    <ul class="space-y-2 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Parallel code analysis across 1000+ repos</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>GPU-accelerated ML model training agents</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Specialized hardware (TPUs, FPGAs) integration</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="p-8 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-4xl mb-4">🔒</div>
+                    <h3 class="text-2xl font-semibold mb-3 text-gray-800">Regulated Industries</h3>
+                    <p class="text-gray-600 mb-4">
+                        Financial services, healthcare, government need air-gapped environments, audit trails, compliance controls. Deploy agents in private clouds or on-premises with full control.
+                    </p>
+                    <ul class="space-y-2 text-gray-600">
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Air-gapped deployment (no external internet)</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>Complete audit logs for compliance</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-orange-500 font-bold">•</span>
+                            <span>On-premises deployment with full data control</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 gradient-bg px-8">
+        <div class="max-w-[800px] mx-auto text-center">
+            <h2 class="text-4xl md:text-5xl font-bold mb-6">
+                <span class="gradient-text">Ready for Enterprise Scale?</span>
+            </h2>
+            <p class="text-xl text-gray-600 mb-8">
+                Start with the basics and scale up, or deploy the full advanced setup from day one. You're in control.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro#readme" target="_blank" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-gradient-to-r from-orange-500 to-amber-400 text-white hover:shadow-[0_8px_16px_rgba(249,115,22,0.3)] hover:-translate-y-1">
+                    Get Started
+                </a>
+                <a href="index.html#work-modes" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-gray-800 border-2 border-orange-500 hover:bg-orange-50 hover:-translate-y-1">
+                    Compare All Work Modes
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
+                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                </div>
+                <div>
+                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
+                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
+                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
+                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="text-center pt-8 border-t border-white/10 opacity-70">
+                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

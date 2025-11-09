@@ -71,7 +71,17 @@ export default function MobileDashboard({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
+    <div
+      className="flex flex-col bg-gray-900"
+      style={{
+        overflow: 'hidden',
+        position: 'fixed',
+        inset: 0,
+        height: '100vh',
+        height: '100dvh', // Use dynamic viewport height on supported browsers
+        maxHeight: '-webkit-fill-available' // Safari mobile fix
+      }}
+    >
       {/* Top Bar */}
       <header className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
         <div className="flex items-center justify-between px-4 py-3">
@@ -107,7 +117,7 @@ export default function MobileDashboard({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
         {/* Empty State */}
         {sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">

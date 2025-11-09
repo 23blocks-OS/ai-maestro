@@ -116,9 +116,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         background: '#1e1e1e',
         foreground: '#d4d4d4',
         cursor: '#aeafad',
-        selectionBackground: '#3a3d41',    // Visible selection background
-        selectionForeground: '#ffffff',     // White text when selected
-        selectionInactiveBackground: '#3a3d41', // Selection when terminal not focused
+        selectionBackground: 'rgba(255, 255, 255, 0.3)',    // Semi-transparent white for selection
+        selectionForeground: undefined,     // Keep original text color when selected
+        selectionInactiveBackground: 'rgba(255, 255, 255, 0.15)', // Dimmer selection when not focused
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',
@@ -193,19 +193,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
           console.log(`⚠️ Clipboard permissions check failed for session ${optionsRef.current.sessionId}, but copy/paste may still work`)
         })
       }
-
-      // Add explicit copy handler for better reliability
-      terminal.onSelectionChange(() => {
-        const selection = terminal.getSelection()
-        if (selection && selection.length > 0) {
-          // Auto-copy on selection (common terminal behavior)
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(selection).catch(() => {
-              // Fallback: clipboard write failed, but user can still manually copy
-            })
-          }
-        }
-      })
     } catch (e) {
       console.error(`❌ Failed to load clipboard addon for session ${optionsRef.current.sessionId}:`, e)
     }

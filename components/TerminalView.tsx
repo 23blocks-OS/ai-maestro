@@ -117,14 +117,28 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          // After history loads, scroll to bottom and focus
+          // After history loads, initialize selection layer properly
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-            // Wait a bit for xterm.js to finish rendering history
+            // Wait for xterm.js to finish rendering history
             setTimeout(() => {
+              // Scroll to bottom
               term.scrollToBottom()
+
+              // CRITICAL: Initialize selection layer
+              // The selection layer needs to be activated for proper text selection
+              // This ensures xterm.js selection works instead of browser default selection
               term.focus()
+
+              // Clear any existing selection to reset the selection layer
+              term.clearSelection()
+
+              // Blur and refocus to fully initialize selection system
+              term.blur()
+              setTimeout(() => {
+                term.focus()
+              }, 50)
             }, 100)
           }
           return
@@ -562,7 +576,10 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
             // CRITICAL: Prevent touch events from bubbling to parent on mobile
             touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto',
             // Match terminal background color
-            backgroundColor: '#1e1e1e'
+            backgroundColor: '#1e1e1e',
+            // Ensure user can select text
+            userSelect: 'text',
+            WebkitUserSelect: 'text'
           }}
         />
         {!isReady && (

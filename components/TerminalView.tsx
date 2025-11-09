@@ -14,9 +14,11 @@ interface TerminalViewProps {
   session: Session
   isVisible?: boolean
   hideFooter?: boolean  // Hide notes/prompt footer (used in MobileDashboard)
+  hideHeader?: boolean  // Hide terminal header (used in MobileDashboard)
+  onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
 }
 
-export default function TerminalView({ session, isVisible = true, hideFooter = false }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const messageBufferRef = useRef<string[]>([])
@@ -111,6 +113,12 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     onOpen: () => {
       // Report activity when WebSocket connects
       reportActivity(session.id)
+      // Notify parent of connection status change
+      onConnectionStatusChange?.(true)
+    },
+    onClose: () => {
+      // Notify parent of connection status change
+      onConnectionStatusChange?.(false)
     },
     onMessage: (data) => {
       // Check if this is a control message (JSON)
@@ -502,13 +510,26 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Terminal Header */}
+      {!hideHeader && (
       <div className="px-3 md:px-4 py-2 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
-              {session.name || session.id}
-            </h3>
-            <ConnectionIndicator isConnected={isConnected} />
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Connection indicator - just the green/red dot */}
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              />
+              {/* Host name and session name */}
+              <h3 className="font-medium text-gray-400 text-xs md:text-sm truncate">
+                {session.hostId !== 'local' ? session.hostId : 'local'}
+              </h3>
+              <span className="text-gray-600">/</span>
+              <h3 className="font-medium text-gray-100 text-sm md:text-base truncate">
+                {session.name || session.id}
+              </h3>
+            </div>
           </div>
           {terminal && (
             <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-400 flex-shrink-0">
@@ -571,6 +592,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           )}
         </div>
       </div>
+      )}
 
       {/* Connection Error */}
       {connectionError && (
@@ -760,21 +782,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           </span>
         </div>
       )}
-    </div>
-  )
-}
-
-function ConnectionIndicator({ isConnected }: { isConnected: boolean }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      <div
-        className={`w-2 h-2 rounded-full ${
-          isConnected ? 'bg-green-500' : 'bg-red-500'
-        }`}
-      />
-      <span className="text-gray-400">
-        {isConnected ? 'Connected' : 'Disconnected'}
-      </span>
     </div>
   )
 }

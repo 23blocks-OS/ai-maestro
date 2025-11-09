@@ -6,7 +6,7 @@ import MessageCenter from './MessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
-import { Terminal, Mail, ChevronDown, RefreshCw, Activity, Server, X, FileText } from 'lucide-react'
+import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
 import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
 
@@ -26,14 +26,12 @@ export default function MobileDashboard({
   const { hosts } = useHosts()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
-  const [showSessionSwitcher, setShowSessionSwitcher] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
   } | null>(null)
   const [notes, setNotes] = useState('')
+  const [connectionStatus, setConnectionStatus] = useState<{ [sessionId: string]: boolean }>({})
 
   // Auto-select first session when sessions load
   useEffect(() => {
@@ -63,8 +61,8 @@ export default function MobileDashboard({
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
-    setShowSessionSwitcher(false)
-    setSearchQuery('') // Clear search when closing
+    // Switch to terminal tab when selecting a session from hosts tab
+    setActiveTab('terminal')
   }
 
   const handleConversationSelect = (file: string, projectPath: string) => {
@@ -75,18 +73,27 @@ export default function MobileDashboard({
     setSelectedConversation(null)
   }
 
-  // Filter sessions based on search query and host filter
-  const filteredSessions = sessions.filter((session) => {
-    const matchesSearch = session.id.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesHost = selectedHostFilter === 'all' || session.hostId === selectedHostFilter
-    return matchesSearch && matchesHost
-  })
-
   // Parse session name for display (show last part if hierarchical)
   const getDisplayName = (sessionId: string) => {
     const parts = sessionId.split('/')
     return parts[parts.length - 1]
   }
+
+  // Format display as agent@host
+  const getAgentHostDisplay = () => {
+    if (!activeSession) return 'No Agent Selected'
+    const agentName = getDisplayName(activeSession.id)
+    const hostName = activeSession.hostId === 'local' ? 'local' : (hosts.find(h => h.id === activeSession.hostId)?.name || activeSession.hostId)
+    return `${agentName}@${hostName}`
+  }
+
+  // Handle connection status updates from TerminalView
+  const handleConnectionStatusChange = (sessionId: string, isConnected: boolean) => {
+    setConnectionStatus(prev => ({ ...prev, [sessionId]: isConnected }))
+  }
+
+  // Get connection status for active session
+  const isActiveSessionConnected = activeSessionId ? connectionStatus[activeSessionId] ?? false : false
 
   return (
     <div
@@ -95,31 +102,32 @@ export default function MobileDashboard({
         overflow: 'hidden',
         position: 'fixed',
         inset: 0,
-        height: '100vh',
         height: '100dvh', // Use dynamic viewport height on supported browsers
         maxHeight: '-webkit-fill-available' // Safari mobile fix
       }}
     >
       {/* Top Bar */}
       <header className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Session Selector */}
-          <button
-            onClick={() => setShowSessionSwitcher(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors min-w-0 flex-1 mr-2"
-          >
+        <div className="flex items-center px-4 py-3">
+          {/* Current Session Display with Connection Status */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {/* Connection indicator - green/red dot */}
+            <div
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                isActiveSessionConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            />
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
             <span className="text-sm font-medium text-white truncate">
-              {activeSession ? getDisplayName(activeSession.id) : 'Select Agent'}
+              {getAgentHostDisplay()}
             </span>
-            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" />
-          </button>
+          </div>
 
-          {/* Refresh Button */}
+          {/* Refresh Button - Centered */}
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0 flex items-center justify-center"
             aria-label="Refresh sessions"
           >
             <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
@@ -162,7 +170,12 @@ export default function MobileDashboard({
               }}
             >
               {activeTab === 'terminal' ? (
-                <TerminalView session={session} hideFooter={true} />
+                <TerminalView
+                  session={session}
+                  hideFooter={true}
+                  hideHeader={true}
+                  onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(session.id, isConnected)}
+                />
               ) : (
                 <MessageCenter
                   sessionName={session.id}
@@ -297,130 +310,6 @@ export default function MobileDashboard({
         </div>
       </nav>
 
-      {/* Session Switcher Modal */}
-      {showSessionSwitcher && (
-        <div
-          className="fixed inset-0 z-50"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center'
-          }}
-          onClick={() => setShowSessionSwitcher(false)}
-        >
-          <div
-            className="w-full bg-gray-900 rounded-t-2xl"
-            style={{
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              className="px-4 py-4 border-b border-gray-800"
-              style={{ flexShrink: 0 }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-white">Agents</h2>
-                <button
-                  onClick={() => {
-                    setShowSessionSwitcher(false)
-                    setSearchQuery('')
-                  }}
-                  className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Host Filter */}
-              <div className="mb-3">
-                <select
-                  value={selectedHostFilter}
-                  onChange={(e) => setSelectedHostFilter(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500 text-sm"
-                >
-                  <option value="all">All Hosts ({sessions.length})</option>
-                  {hosts.map((host) => {
-                    const count = sessions.filter((s) => s.hostId === host.id).length
-                    return (
-                      <option key={host.id} value={host.id}>
-                        {host.name} ({count})
-                      </option>
-                    )
-                  })}
-                </select>
-              </div>
-
-              {/* Search Input */}
-              <input
-                id="mobile-search"
-                name="search"
-                type="text"
-                placeholder="Search agents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-blue-500"
-                autoFocus
-              />
-            </div>
-
-            {/* Session List */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                WebkitOverflowScrolling: 'touch',
-                position: 'relative'
-              }}
-            >
-              {filteredSessions.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-gray-400">
-                  <p>No agents found</p>
-                </div>
-              ) : (
-                filteredSessions.map((session) => {
-                const isActive = session.id === activeSessionId
-                const parts = session.id.split('/')
-                const displayName = parts[parts.length - 1]
-                const breadcrumb = parts.length > 1 ? parts.slice(0, -1).join(' / ') : null
-
-                return (
-                  <button
-                    key={session.id}
-                    onClick={() => handleSessionSelect(session.id)}
-                    className={`w-full px-4 py-4 flex items-center gap-3 transition-colors ${
-                      isActive
-                        ? 'bg-blue-900/30 border-l-4 border-blue-400'
-                        : 'hover:bg-gray-800 border-l-4 border-transparent'
-                    }`}
-                  >
-                    <Terminal className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-400' : 'text-white'}`}>
-                        {displayName}
-                      </p>
-                      {breadcrumb && (
-                        <p className="text-xs text-gray-500 truncate">{breadcrumb}</p>
-                      )}
-                    </div>
-                    {isActive && (
-                      <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                    )}
-                  </button>
-                )
-              })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Conversation Detail Modal */}
       {selectedConversation && (
         <MobileConversationDetail
@@ -434,7 +323,7 @@ export default function MobileDashboard({
       <footer className="flex-shrink-0 border-t border-gray-800 bg-gray-950 px-4 py-2">
         <div className="text-center">
           <p className="text-xs text-gray-400">
-            AI Maestro v0.5.0
+            AI Maestro v0.10.0
           </p>
         </div>
       </footer>

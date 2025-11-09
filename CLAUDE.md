@@ -479,17 +479,9 @@ Agent: "Check my inbox for any urgent messages"
 
 ### Terminal Rendering Performance
 
-xterm.js uses **Canvas or WebGL** for rendering. The WebGL addon significantly improves performance for high-output scenarios (e.g., large file dumps).
+xterm.js uses **Canvas** rendering by default, which is stable and performant for terminal output.
 
-```typescript
-// In useTerminal hook
-try {
-  const webglAddon = new WebglAddon()
-  terminal.loadAddon(webglAddon)
-} catch (e) {
-  // Fallback to canvas if WebGL unavailable
-}
-```
+**Note:** WebGL renderer was tested but disabled due to context loss issues in production. Canvas renderer is more stable and works well for our use case.
 
 **Never** read terminal content via React state. Always use xterm.js APIs (`terminal.write()`, `terminal.onData()`).
 
@@ -505,23 +497,24 @@ try {
 
 4. **Alternate Screen Buffer Support** - Claude Code (like vim, less, etc.) uses tmux's alternate screen buffer. This means:
    - When Claude is active, it uses a separate screen that doesn't mix with your shell history
-   - Scrollback must be captured from tmux's buffer WITH escape sequences preserved
+   - Scrollback must be captured from tmux's buffer as plain text to avoid dimension conflicts
    - The `windowOptions: { setWinLines: true }` setting enables proper alternate buffer support
 
-5. **CRITICAL - History Capture with Escape Sequences** - On initial connection, capture history WITH escape sequences preserved:
+5. **CRITICAL - History Capture as Plain Text** - On initial connection, capture history as plain text WITHOUT escape sequences:
    ```bash
-   # CORRECT - Preserves escape sequences (colors, cursor positioning, formatting)
-   tmux capture-pane -t <session> -p -e -S -2000
+   # CORRECT - Plain text with line unwrapping
+   tmux capture-pane -t <session> -p -S -1000 -J
 
-   # WRONG - Plain text causes line ending conflicts
-   tmux capture-pane -t <session> -p -S -2000 | sed 's/$/\r\n/'
+   # WRONG - Escape sequences with cursor positioning designed for different dimensions
+   tmux capture-pane -t <session> -p -e -S -2000
    ```
 
-   **Why `-e` flag is critical:**
-   - tmux with `-e` produces byte-perfect representation of screen state
-   - Includes ANSI escape codes for colors, cursor positioning, and formatting
-   - xterm.js can render it exactly as tmux intended
-   - WITHOUT `-e`, formatting history manually causes xterm and tmux to fight over screen control
+   **Why plain text is better:**
+   - tmux's escape sequences include cursor positioning for tmux's window dimensions
+   - xterm.js might have different dimensions → cursor positioning conflicts
+   - Plain text with `-J` (join wrapped lines) gives clean content
+   - We add proper `\r\n` line endings for xterm.js scrollback
+   - Avoids "content all over the place" issues when dimensions don't match
 
 6. **NO Backpressure on PTY Stream** - Do NOT pause/resume the PTY stream:
    ```javascript
@@ -561,7 +554,10 @@ try {
 **Common Issues and Fixes:**
 
 - **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
-- **Content writes over previous content / need to resize to redraw**: History was sent without escape sequences, or backpressure is pausing the PTY stream - use `-e` flag and remove pause/resume
+- **Content all over the place on initial load**: History was sent WITH escape sequences that include cursor positioning for different dimensions - use plain text with `-J` flag
+- **White area before terminal loads**: Container background not set - add `backgroundColor: '#1e1e1e'` to container style
+- **WebGL context loss errors**: WebGL addon has stability issues - use Canvas renderer (default) instead
+- **Content writes over previous content / need to resize to redraw**: Backpressure is pausing the PTY stream - remove pause/resume logic and stream directly
 - **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
 - **Copy/paste doesn't work from remote hosts**: Clipboard permissions not requested - use ClipboardAddon with explicit permission checks and auto-copy-on-select
 

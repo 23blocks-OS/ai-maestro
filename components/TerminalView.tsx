@@ -117,18 +117,15 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          // CRITICAL FIX: Simplified history-complete handling
-          // Removed aggressive refresh/focus/click logic that was fighting with tmux
-          // xterm.js handles rendering automatically when data is written
+          // After history loads, scroll to bottom and focus
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-            // Simple: just scroll to bottom after history loads
-            // Let xterm.js handle everything else naturally
+            // Wait a bit for xterm.js to finish rendering history
             setTimeout(() => {
               term.scrollToBottom()
               term.focus()
-            }, 50)
+            }, 100)
           }
           return
         }
@@ -553,7 +550,9 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
           // Without minHeight: 0, flex-1 won't shrink when notes expand
           minHeight: 0,
           // Ensure this container respects flex layout and doesn't overflow
-          maxHeight: '100%'
+          maxHeight: '100%',
+          // Set background immediately to prevent white flash
+          backgroundColor: '#1e1e1e'
         }}
       >
         <div
@@ -561,7 +560,9 @@ export default function TerminalView({ session, isVisible = true }: TerminalView
           className="absolute inset-0"
           style={{
             // CRITICAL: Prevent touch events from bubbling to parent on mobile
-            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto'
+            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto',
+            // Match terminal background color
+            backgroundColor: '#1e1e1e'
           }}
         />
         {!isReady && (

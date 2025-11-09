@@ -101,14 +101,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { ClipboardAddon } = await import('@xterm/addon-clipboard')
-    const { WebglAddon } = await import('@xterm/addon-webgl')
 
     // Create terminal instance with PRE-CALCULATED dimensions
     const terminal = new Terminal({
       // CRITICAL: Set exact dimensions upfront - no guessing
       cols,
       rows,
-      cursorBlink: true,
       fontSize,
       fontFamily,
       fontWeight: '400',
@@ -174,20 +172,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
 
-    // CRITICAL FIX: Load WebGL renderer for much better performance
-    // This dramatically reduces rendering overhead and prevents xterm from fighting with tmux
-    try {
-      const webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => {
-        // WebGL context lost - dispose and recreate
-        webglAddon.dispose()
-      })
-      terminal.loadAddon(webglAddon)
-      console.log(`✅ WebGL renderer enabled for session ${optionsRef.current.sessionId}`)
-    } catch (e) {
-      // WebGL not supported - fall back to canvas renderer
-      console.warn(`⚠️ WebGL not available for session ${optionsRef.current.sessionId}, using canvas renderer:`, e)
-    }
+    // NOTE: WebGL renderer disabled due to context loss issues
+    // Canvas renderer is more stable and works well for our use case
 
     // Load clipboard addon for copy/paste support
     // CRITICAL FIX: Enhanced clipboard support for remote hosts

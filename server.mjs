@@ -376,60 +376,67 @@ app.prepare().then(() => {
       try {
         const { execSync } = await import('child_process')
 
-        // Try to capture scrollback history with ESCAPE SEQUENCES PRESERVED
-        // This is CRITICAL: tmux capture with -e (escape sequences) produces a byte-perfect
-        // representation of what's on screen, including colors, cursor positions, etc.
-        // xterm.js can then render it exactly as tmux intended
+        // Capture scrollback history as PLAIN TEXT
+        // Plain text avoids cursor positioning issues when tmux and xterm have different dimensions
         let historyContent = ''
         try {
-          // CRITICAL FIX: Use -e flag to preserve escape sequences
-          // -S -2000: Start from 2000 lines back (more context for scrollback)
+          // Capture last 1000 lines of history
           // -p: Print to stdout
-          // -e: Include escape sequences (colors, formatting, cursor positioning)
-          // This lets tmux and xterm.js speak the same language instead of fighting
+          // -S -1000: Start from 1000 lines back
+          // -J: Join wrapped lines (unwrap tmux's internal wrapping)
+          // NO -e: Plain text without escape sequences to avoid dimension mismatch
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -e -S -2000`,
-            { encoding: 'utf8', timeout: 5000, maxBuffer: 10 * 1024 * 1024 } // 10MB buffer for large history
+            `tmux capture-pane -t ${sessionName} -p -S -1000 -J`,
+            { encoding: 'utf8', timeout: 3000, maxBuffer: 5 * 1024 * 1024 }
           ).toString()
         } catch (historyError) {
-          // Fallback 1: Try with less history
+          // Fallback: Try with less history
           try {
             historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p -e -S -500`,
-              { encoding: 'utf8', timeout: 3000, maxBuffer: 5 * 1024 * 1024 }
+              `tmux capture-pane -t ${sessionName} -p -S -500 -J`,
+              { encoding: 'utf8', timeout: 2000 }
             ).toString()
           } catch (fallbackError) {
-            // Fallback 2: Just visible content with escape sequences
+            // Last resort: just visible content
             try {
-              historyContent = execSync(
-                `tmux capture-pane -t ${sessionName} -p -e`,
-                { encoding: 'utf8', timeout: 2000 }
-              ).toString()
-            } catch (lastResort) {
-              // Last resort: visible content, no escape sequences
               historyContent = execSync(
                 `tmux capture-pane -t ${sessionName} -p`,
                 { encoding: 'utf8', timeout: 2000 }
               ).toString()
+            } catch (lastResort) {
+              console.warn(`Failed to capture history for ${sessionName}`)
             }
           }
         }
 
         if (ws.readyState === 1 && historyContent) {
-          // CRITICAL FIX: Send RAW history without modification
-          // tmux's escape sequences already contain the correct line endings and cursor positioning
-          // Adding extra formatting causes xterm.js and tmux to fight over screen control
-          console.log(`📜 [HISTORY-SEND] Sending ${historyContent.length} bytes of history for session ${sessionName}`)
+          // Send history line by line with proper terminal formatting
+          // Split on newlines and send each line with \r\n (terminal line ending)
+          const lines = historyContent.split('\n')
 
-          // Send history AS-IS - let tmux control the terminal
-          ws.send(historyContent)
+          // Build formatted history: each line needs \r\n for xterm.js scrollback
+          let formattedHistory = ''
+          for (const line of lines) {
+            if (line.length > 0 || formattedHistory.length > 0) {
+              // Only add non-empty lines or lines after we've started adding content
+              formattedHistory += line + '\r\n'
+            }
+          }
+
+          if (formattedHistory.length > 0) {
+            console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
+            ws.send(formattedHistory)
+          }
 
           // Send a special message to signal that initial history load is complete
-          // This allows the client to trigger scrollToBottom() and fit()
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
         console.error('Error capturing terminal history:', error)
+        // Still send history-complete even if history capture failed
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'history-complete' }))
+        }
       }
     }, 150)
 

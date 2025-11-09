@@ -225,6 +225,19 @@
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
 
+    <!-- Copy for AI Button - Fixed Position -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+        title="Copy this page in AI-friendly format to paste into ChatGPT, Claude, or any LLM"
+        style="font-family: 'Space Grotesk', system-ui, sans-serif;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Copy for AI
+    </button>
+
     <!-- Navigation (same as index.html) -->
     <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
         <div class="max-w-[1200px] mx-auto px-4 md:px-8">
@@ -711,5 +724,8 @@
             });
         });
     </script>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
 </body>
 </html>

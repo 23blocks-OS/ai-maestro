@@ -28,6 +28,12 @@ pm2 restart ai-maestro   # Restart production server via PM2
 tmux new-session -s test-session     # Create test session
 tmux list-sessions                   # List all sessions (what the app discovers)
 tmux kill-session -t test-session    # Clean up test session
+
+# Agent packing (export/import/distribution)
+./scripts/pack-agent.mjs <alias>                    # Pack agent for export
+./scripts/pack-agent.mjs <alias> --all              # Pack with workspace & messages
+./scripts/unpack-agent.mjs <pack-file>              # Restore agent from pack
+./scripts/unpack-agent.mjs <pack-file> --inspect    # Inspect pack without restoring
 ```
 
 **Port Configuration:** The application is configured to run on port 23000. This is set in the PM2 configuration.
@@ -335,6 +341,7 @@ docs/
   images/               - Screenshots for README documentation
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
+  AGENT-PACKING.md      - Agent export/import/distribution guide
 
 messaging_scripts/      - CLI scripts for agent messaging system
   check-aimaestro-messages.sh     - Check unread messages (recommended)
@@ -353,6 +360,8 @@ scripts/
   generate-social-logos.js        - Generate social media logos from SVG
   init-all-agents.mjs             - Initialize memory for all agents
   register-agent-from-session.mjs - Register agent(s) from tmux session(s)
+  pack-agent.mjs                  - Pack agent for export/distribution
+  unpack-agent.mjs                - Unpack and restore agent from pack file
   setup-tmux.sh                   - Setup tmux configuration
 
 install-messaging.sh    - Installer for messaging system to user's environment
@@ -669,6 +678,7 @@ Set via `.env.local` (gitignored). Never commit `.env.local`.
 - **[README.md](./README.md)** - Project overview, quick start, architecture
 - **[docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Installation prerequisites
 - **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Session management, troubleshooting
+- **[docs/AGENT-PACKING.md](./docs/AGENT-PACKING.md)** - Agent export, import, and distribution guide
 
 Refer to these when users ask about setup or usage.
 

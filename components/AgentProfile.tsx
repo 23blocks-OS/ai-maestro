@@ -6,9 +6,10 @@ import {
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
-  Cloud, Monitor, Server
+  Cloud, Monitor, Server, Package
 } from 'lucide-react'
 import type { Agent, AgentDocumentation } from '@/types/agent'
+import AgentPackModal from './AgentPackModal'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -22,6 +23,7 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
   const [saving, setSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [showPackModal, setShowPackModal] = useState(false)
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -152,6 +154,14 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
               <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => setShowPackModal(true)}
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-all bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center gap-2"
+                  title="Pack agent for export, cloning, or distribution"
+                >
+                  <Package className="w-4 h-4" />
+                  <span className="hidden sm:inline">Pack</span>
+                </button>
+                <button
                   onClick={handleSave}
                   disabled={!hasChanges || saving}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
@@ -185,6 +195,16 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
                 </button>
               </div>
             </div>
+
+            {/* Pack Modal */}
+            {agent && (
+              <AgentPackModal
+                isOpen={showPackModal}
+                onClose={() => setShowPackModal(false)}
+                agentId={agent.id}
+                agentAlias={agent.alias}
+              />
+            )}
 
             {/* Content */}
             <div className="p-6 space-y-8">

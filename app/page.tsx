@@ -8,6 +8,7 @@ import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import AgentProfile from '@/components/AgentProfile'
+import AgentUnpackModal from '@/components/AgentUnpackModal'
 import MigrationBanner from '@/components/MigrationBanner'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { useSessions } from '@/hooks/useSessions'
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Check for onboarding completion on mount
   useEffect(() => {
@@ -190,7 +192,12 @@ export default function DashboardPage() {
     <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
-        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
+        <Header
+          onToggleSidebar={toggleSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          activeSessionId={activeSessionId}
+          onImportAgent={() => setShowImportModal(true)}
+        />
 
         {/* Migration Banner */}
         <MigrationBanner />
@@ -367,6 +374,16 @@ export default function DashboardPage() {
           agentId={activeSession.agentId}
         />
       )}
+
+      {/* Import Agent Modal */}
+      <AgentUnpackModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          refreshSessions()
+          setShowImportModal(false)
+        }}
+      />
     </div>
     </TerminalProvider>
   )

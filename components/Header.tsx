@@ -1,14 +1,15 @@
 'use client'
 
-import { Menu } from 'lucide-react'
+import { Menu, PackageOpen } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
   sidebarCollapsed?: boolean
   activeSessionId?: string | null
+  onImportAgent?: () => void
 }
 
-export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessionId }: HeaderProps) {
+export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessionId, onImportAgent }: HeaderProps) {
   const immersiveUrl = activeSessionId ? `/immersive?session=${encodeURIComponent(activeSessionId)}` : '/immersive'
 
   return (
@@ -27,12 +28,24 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessio
           )}
           <h1 className="text-sm text-white">AI Maestro</h1>
         </div>
-        <a
-          href={immersiveUrl}
-          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-        >
-          Immersive Experience
-        </a>
+        <div className="flex items-center gap-2">
+          {onImportAgent && (
+            <button
+              onClick={onImportAgent}
+              className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1.5"
+              title="Import agent pack"
+            >
+              <PackageOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Import</span>
+            </button>
+          )}
+          <a
+            href={immersiveUrl}
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            Immersive Experience
+          </a>
+        </div>
       </div>
     </header>
   )

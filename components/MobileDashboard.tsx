@@ -6,7 +6,7 @@ import MessageCenter from './MessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
-import { Terminal, Mail, ChevronDown, RefreshCw, Activity, Server, X } from 'lucide-react'
+import { Terminal, Mail, ChevronDown, RefreshCw, Activity, Server, X, FileText } from 'lucide-react'
 import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
 
@@ -25,7 +25,7 @@ export default function MobileDashboard({
 }: MobileDashboardProps) {
   const { hosts } = useHosts()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
   const [showSessionSwitcher, setShowSessionSwitcher] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
@@ -33,6 +33,7 @@ export default function MobileDashboard({
     file: string
     projectPath: string
   } | null>(null)
+  const [notes, setNotes] = useState('')
 
   // Auto-select first session when sessions load
   useEffect(() => {
@@ -42,6 +43,23 @@ export default function MobileDashboard({
   }, [sessions, activeSessionId])
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
+
+  // Load notes from localStorage when active session changes
+  useEffect(() => {
+    if (activeSessionId) {
+      const notesKey = `session-notes-${activeSessionId}`
+      const savedNotes = localStorage.getItem(notesKey)
+      setNotes(savedNotes || '')
+    }
+  }, [activeSessionId])
+
+  // Save notes to localStorage when they change
+  useEffect(() => {
+    if (activeSessionId && notes !== undefined) {
+      const notesKey = `session-notes-${activeSessionId}`
+      localStorage.setItem(notesKey, notes)
+    }
+  }, [notes, activeSessionId])
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
@@ -176,6 +194,42 @@ export default function MobileDashboard({
             />
           </div>
         )}
+
+        {/* Notes Tab - Shows notes for active session */}
+        {activeTab === 'notes' && activeSession && (
+          <div className="absolute inset-0 flex flex-col bg-gray-900">
+            {/* Notes Header */}
+            <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-950">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <h2 className="text-sm font-semibold text-white">Session Notes</h2>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {getDisplayName(activeSession.id)}
+              </p>
+            </div>
+
+            {/* Notes Content */}
+            <div className="flex-1 overflow-hidden">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Take notes while working with your agent...&#10;&#10;• Your notes are saved automatically&#10;• Each agent has separate notes&#10;• Full markdown support"
+                className="w-full h-full px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
+                style={{
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              />
+            </div>
+
+            {/* Notes Footer Info */}
+            <div className="flex-shrink-0 px-4 py-2 border-t border-gray-800 bg-gray-950">
+              <p className="text-xs text-gray-400">
+                {notes.length} character{notes.length === 1 ? '' : 's'} • Auto-saved to browser
+              </p>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -227,6 +281,18 @@ export default function MobileDashboard({
           >
             <Server className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Hosts</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
+              activeTab === 'notes'
+                ? 'text-blue-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <FileText className="w-5 h-5 mb-0.5" />
+            <span className="text-xs font-medium">Notes</span>
           </button>
         </div>
       </nav>

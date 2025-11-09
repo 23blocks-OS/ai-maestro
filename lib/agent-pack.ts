@@ -20,6 +20,7 @@ export interface PackOptions {
   agentId: string
   includeWorkspace?: boolean
   includeMessages?: boolean
+  includeSkills?: boolean
   outputPath?: string
 }
 
@@ -42,12 +43,14 @@ export interface PackManifest {
     database: boolean
     messages: boolean
     workspace: boolean
+    skills: boolean
     notes: boolean
   }
   workspace?: {
     path: string
     size: number
   }
+  skills?: string[]  // List of skill names included
 }
 
 export interface PackResult {
@@ -60,7 +63,7 @@ export interface PackResult {
  * Pack an agent into a distributable tarball
  */
 export async function packAgent(options: PackOptions): Promise<PackResult> {
-  const { agentId, includeWorkspace = false, includeMessages = true, outputPath } = options
+  const { agentId, includeWorkspace = false, includeMessages = true, includeSkills = true, outputPath } = options
 
   // Get agent
   const agent = getAgent(agentId)
@@ -150,7 +153,41 @@ export async function packAgent(options: PackOptions): Promise<PackResult> {
     }
   }
 
-  // 5. Export session notes (from localStorage - would need to be handled client-side)
+  // 5. Copy Claude Code skills if requested
+  let hasSkills = false
+  const skillNames: string[] = []
+  if (includeSkills) {
+    const claudeSkillsPath = path.join(os.homedir(), '.claude', 'skills')
+
+    if (fs.existsSync(claudeSkillsPath)) {
+      const skillsDir = path.join(tempDir, 'skills')
+      fs.mkdirSync(skillsDir, { recursive: true })
+
+      console.log(`[Pack] Copying Claude Code skills...`)
+
+      const skillDirs = fs.readdirSync(claudeSkillsPath, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+
+      for (const dirent of skillDirs) {
+        const skillName = dirent.name
+        const sourcePath = path.join(claudeSkillsPath, skillName)
+        const targetPath = path.join(skillsDir, skillName)
+
+        copyDirectory(sourcePath, targetPath)
+        skillNames.push(skillName)
+        console.log(`[Pack] ✓ Copied skill: ${skillName}`)
+      }
+
+      hasSkills = skillNames.length > 0
+      if (hasSkills) {
+        console.log(`[Pack] ✓ Copied ${skillNames.length} skill(s)`)
+      }
+    } else {
+      console.log(`[Pack] ⊘ No Claude Code skills directory found`)
+    }
+  }
+
+  // 6. Export session notes (from localStorage - would need to be handled client-side)
   // For now, we'll create a placeholder
   const notesFile = path.join(tempDir, 'notes.json')
   fs.writeFileSync(notesFile, JSON.stringify({
@@ -158,7 +195,7 @@ export async function packAgent(options: PackOptions): Promise<PackResult> {
     sessionId: agent.tools.session?.tmuxSessionName || null
   }, null, 2))
 
-  // 6. Create manifest
+  // 7. Create manifest
   const manifest: PackManifest = {
     version: '1.0.0',
     packDate: new Date().toISOString(),
@@ -171,6 +208,7 @@ export async function packAgent(options: PackOptions): Promise<PackResult> {
       database: hasDatabase,
       messages: hasMessages,
       workspace: includeWorkspace && workspaceSize > 0,
+      skills: hasSkills,
       notes: false, // Client-side only for now
     },
     ...(includeWorkspace && workspaceSize > 0 && {
@@ -178,6 +216,9 @@ export async function packAgent(options: PackOptions): Promise<PackResult> {
         path: workspacePath,
         size: workspaceSize,
       }
+    }),
+    ...(hasSkills && skillNames.length > 0 && {
+      skills: skillNames
     })
   }
 
@@ -185,7 +226,7 @@ export async function packAgent(options: PackOptions): Promise<PackResult> {
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2))
   console.log(`[Pack] ✓ Created manifest`)
 
-  // 7. Create tarball
+  // 8. Create tarball
   const outputFile = outputPath || path.join(os.tmpdir(), `${packDirName}.tar.gz`)
   console.log(`[Pack] Creating tarball...`)
 
@@ -343,6 +384,35 @@ export async function unpackAgent(options: UnpackOptions): Promise<Agent> {
 
       saveAgents(agents)
       console.log(`[Unpack] ✓ Restored workspace to: ${targetWorkspace}`)
+    }
+  }
+
+  // Restore Claude Code skills
+  if (manifest.includes.skills) {
+    const sourceSkills = path.join(packDir, 'skills')
+    if (fs.existsSync(sourceSkills)) {
+      const targetSkills = path.join(os.homedir(), '.claude', 'skills')
+      fs.mkdirSync(targetSkills, { recursive: true })
+
+      const skillDirs = fs.readdirSync(sourceSkills, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+
+      for (const dirent of skillDirs) {
+        const skillName = dirent.name
+        const sourcePath = path.join(sourceSkills, skillName)
+        const targetPath = path.join(targetSkills, skillName)
+
+        // Check if skill already exists
+        if (fs.existsSync(targetPath)) {
+          console.log(`[Unpack] ⚠ Skill "${skillName}" already exists - skipping`)
+          continue
+        }
+
+        copyDirectory(sourcePath, targetPath)
+        console.log(`[Unpack] ✓ Restored skill: ${skillName}`)
+      }
+
+      console.log(`[Unpack] ✓ Restored ${manifest.skills?.length || 0} Claude Code skill(s)`)
     }
   }
 

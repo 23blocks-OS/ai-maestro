@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { id } = params
     const body = await request.json()
-    const { includeWorkspace = false, includeMessages = true, outputPath } = body
+    const { includeWorkspace = false, includeMessages = true, includeSkills = true, outputPath } = body
 
     // Get agent
     const agent = getAgent(id)
@@ -27,6 +27,7 @@ export async function POST(
       agentId: id,
       includeWorkspace,
       includeMessages,
+      includeSkills,
       outputPath,
     })
 

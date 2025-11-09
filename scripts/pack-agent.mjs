@@ -7,6 +7,7 @@
  *   ./scripts/pack-agent.mjs <alias>                              # Pack agent with default options
  *   ./scripts/pack-agent.mjs <alias> --include-workspace          # Include workspace files
  *   ./scripts/pack-agent.mjs <alias> --no-messages                # Exclude messages
+ *   ./scripts/pack-agent.mjs <alias> --no-skills                  # Exclude Claude Code skills
  *   ./scripts/pack-agent.mjs <alias> --output /path/to/pack.tar.gz # Custom output path
  *   ./scripts/pack-agent.mjs <alias> --all                        # Include everything
  */
@@ -30,13 +31,15 @@ Arguments:
 Options:
   --include-workspace    Include workspace files (may be large)
   --no-messages          Exclude messages
+  --no-skills            Exclude Claude Code skills
   --output <path>        Custom output path (default: /tmp/agent-pack-{alias}-{timestamp}.tar.gz)
-  --all                  Include everything (workspace + messages)
+  --all                  Include everything (workspace + messages + skills)
   -h, --help             Show this help message
 
 Examples:
   pack-agent.mjs backend-api
   pack-agent.mjs backend-api --include-workspace
+  pack-agent.mjs backend-api --no-skills
   pack-agent.mjs backend-api --output ~/backups/backend-api.tar.gz
   pack-agent.mjs backend-api --all
 `)
@@ -46,10 +49,11 @@ Examples:
   const alias = args[0]
   const includeWorkspace = args.includes('--include-workspace') || args.includes('--all')
   const includeMessages = !args.includes('--no-messages')
+  const includeSkills = !args.includes('--no-skills')
   const outputIndex = args.indexOf('--output')
   const outputPath = outputIndex !== -1 ? args[outputIndex + 1] : undefined
 
-  return { alias, includeWorkspace, includeMessages, outputPath }
+  return { alias, includeWorkspace, includeMessages, includeSkills, outputPath }
 }
 
 async function getAgentByAlias(alias) {
@@ -90,12 +94,13 @@ async function packAgent(agentId, options) {
 }
 
 async function main() {
-  const { alias, includeWorkspace, includeMessages, outputPath } = parseArgs()
+  const { alias, includeWorkspace, includeMessages, includeSkills, outputPath } = parseArgs()
 
   console.log('🎒 AI Maestro Agent Pack Tool\n')
   console.log(`Agent: ${alias}`)
   console.log(`Include workspace: ${includeWorkspace ? 'Yes' : 'No'}`)
   console.log(`Include messages: ${includeMessages ? 'Yes' : 'No'}`)
+  console.log(`Include skills: ${includeSkills ? 'Yes' : 'No'}`)
   if (outputPath) {
     console.log(`Output path: ${outputPath}`)
   }
@@ -121,6 +126,7 @@ async function main() {
   const result = await packAgent(agent.id, {
     includeWorkspace,
     includeMessages,
+    includeSkills,
     outputPath
   })
 
@@ -136,6 +142,7 @@ async function main() {
   console.log(`  • Agent metadata: ✓`)
   console.log(`  • Database: ${result.manifest.includes.database ? '✓' : '✗'}`)
   console.log(`  • Messages: ${result.manifest.includes.messages ? '✓' : '✗'}`)
+  console.log(`  • Claude Code skills: ${result.manifest.includes.skills ? `✓ (${result.manifest.skills?.length || 0})` : '✗'}`)
   console.log(`  • Workspace: ${result.manifest.includes.workspace ? '✓' : '✗'}`)
   console.log()
   console.log('💡 Next steps:')

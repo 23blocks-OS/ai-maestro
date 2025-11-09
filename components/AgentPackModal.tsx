@@ -13,6 +13,7 @@ interface AgentPackModalProps {
 export default function AgentPackModal({ isOpen, onClose, agentId, agentAlias }: AgentPackModalProps) {
   const [includeWorkspace, setIncludeWorkspace] = useState(false)
   const [includeMessages, setIncludeMessages] = useState(true)
+  const [includeSkills, setIncludeSkills] = useState(true)
   const [packing, setPacking] = useState(false)
   const [packResult, setPackResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +29,7 @@ export default function AgentPackModal({ isOpen, onClose, agentId, agentAlias }:
         body: JSON.stringify({
           includeWorkspace,
           includeMessages,
+          includeSkills,
         })
       })
 
@@ -74,6 +76,7 @@ export default function AgentPackModal({ isOpen, onClose, agentId, agentAlias }:
     setError(null)
     setIncludeWorkspace(false)
     setIncludeMessages(true)
+    setIncludeSkills(true)
     onClose()
   }
 
@@ -132,6 +135,19 @@ export default function AgentPackModal({ isOpen, onClose, agentId, agentAlias }:
                   <div className="flex-1">
                     <div className="text-sm font-medium text-gray-200">Include Messages</div>
                     <div className="text-xs text-gray-500">Inbox and sent messages</div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800/50 transition-all cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeSkills}
+                    onChange={(e) => setIncludeSkills(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-200">Include Claude Code Skills</div>
+                    <div className="text-xs text-gray-500">Custom skills from ~/.claude/skills</div>
                   </div>
                 </label>
 
@@ -211,6 +227,12 @@ export default function AgentPackModal({ isOpen, onClose, agentId, agentAlias }:
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600">•</span>
                       <span>Messages (inbox & sent)</span>
+                    </div>
+                  )}
+                  {packResult.manifest.includes.skills && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">•</span>
+                      <span>Claude Code skills ({packResult.manifest.skills?.length || 0})</span>
                     </div>
                   )}
                   {packResult.manifest.includes.workspace && (

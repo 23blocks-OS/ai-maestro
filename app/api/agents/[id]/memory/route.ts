@@ -9,6 +9,7 @@ import {
   getProjects,
   getConversations
 } from '@/lib/cozo-schema-simple'
+import { initializeRagSchema } from '@/lib/cozo-schema-rag'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -74,8 +75,9 @@ export async function POST(
 
     const agentDb = await createAgentDatabase({ agentId })
 
-    // Initialize schema
+    // Initialize schema (simple + RAG extensions)
     await initializeSimpleSchema(agentDb)
+    await initializeRagSchema(agentDb)
 
     // If requested, populate from current tmux sessions AND historical conversations
     if (body.populateFromSessions) {

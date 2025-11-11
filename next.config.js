@@ -28,6 +28,11 @@ const nextConfig = {
       config.externals.push({
         'node-pty': 'commonjs node-pty',
         'cozo-node': 'commonjs cozo-node',
+        '@xenova/transformers': 'commonjs @xenova/transformers',
+        'onnxruntime-node': 'commonjs onnxruntime-node',
+        'sharp': 'commonjs sharp',
+        'pg': 'commonjs pg',
+        'pg-native': 'commonjs pg-native',
       })
     }
 

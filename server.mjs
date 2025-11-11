@@ -527,8 +527,16 @@ app.prepare().then(() => {
     }
   })
 
+  // NOTE: Agent subconscious is now per-agent, started automatically when agents are created
+  // Each agent maintains its own memory and awareness independently
+
   // Graceful shutdown
   process.on('SIGTERM', () => {
+    console.log('[Server] Shutting down gracefully...')
+
+    // NOTE: Agents are managed by Next.js API routes
+    // They will be garbage collected when the process exits
+
     sessions.forEach((state) => {
       // Close log stream
       if (state.logStream) {
@@ -540,6 +548,7 @@ app.prepare().then(() => {
       }
     })
     server.close(() => {
+      console.log('[Server] Shutdown complete')
       process.exit(0)
     })
   })

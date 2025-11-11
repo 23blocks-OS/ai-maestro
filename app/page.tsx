@@ -315,11 +315,13 @@ export default function DashboardPage() {
                       <MessageCenter
                         sessionName={session.id}
                         allSessions={sessions.map(s => s.id)}
+                        isVisible={isActive && activeTab === 'messages'}
                       />
                     ) : (
                       <WorkTree
                         sessionName={session.id}
                         agentId={session.agentId}
+                        isVisible={isActive && activeTab === 'worktree'}
                       />
                     )}
                   </div>

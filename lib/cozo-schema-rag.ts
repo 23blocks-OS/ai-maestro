@@ -512,8 +512,11 @@ export async function upsertMessage(
   terms?: string[],
   symbols?: string[]
 ): Promise<void> {
-  // Escape single quotes
+  // Escape single quotes for file paths
   const escapeString = (str: string) => str.replace(/'/g, "''")
+
+  // Convert text to Base64 to avoid escaping issues
+  const base64Text = Buffer.from(message.text, 'utf-8').toString('base64')
 
   // Insert message
   await agentDb.run(`
@@ -522,17 +525,19 @@ export async function upsertMessage(
       '${escapeString(message.conversation_file)}',
       '${message.role}',
       ${message.ts},
-      '${escapeString(message.text)}'
+      to_string(decode_base64('${base64Text}'))
     ]]
     :put messages
   `)
 
   // Insert embedding if provided
   if (embedding) {
+    // Convert buffer to Base64 for safe insertion
+    const base64Vec = embedding.toString('base64')
     await agentDb.run(`
       ?[msg_id, vec] <- [[
         '${message.msg_id}',
-        ${embedding}
+        decode_base64('${base64Vec}')
       ]]
       :put msg_vec
     `)

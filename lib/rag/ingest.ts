@@ -94,26 +94,48 @@ export async function ingestConversation(
   for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
     const batch = batches[batchIdx]
 
-    // Extract text content from messages
-    const texts = batch
-      .map((msg) => msg.message?.content || '')
-      .filter((text) => text.length > 0)
+    // Extract text content from messages with their indices (ensure strings)
+    const textsWithIndices: Array<{ text: string; index: number }> = []
+    batch.forEach((msg, idx) => {
+      const content = msg.message?.content || ''
+      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      if (text.trim().length > 0) {
+        textsWithIndices.push({ text, index: idx })
+      }
+    })
 
-    if (texts.length === 0) {
+    if (textsWithIndices.length === 0) {
       stats.skippedMessages += batch.length
       continue
     }
 
     // Generate embeddings for batch (parallel processing)
-    const embeddings = await embedTexts(texts)
+    const embeddings = await embedTexts(textsWithIndices.map(t => t.text))
     stats.embeddingsGenerated += embeddings.length
+
+    // Create a map of batch index -> embedding
+    const embeddingMap = new Map<number, Float32Array>()
+    textsWithIndices.forEach((item, embIdx) => {
+      embeddingMap.set(item.index, embeddings[embIdx])
+    })
 
     // Process each message in batch
     for (let i = 0; i < batch.length; i++) {
       const msg = batch[i]
-      const text = msg.message?.content || ''
+      let content = msg.message?.content || ''
 
-      if (text.length === 0) {
+      // Ensure content is a string (Claude Code JSONL can have arrays/objects)
+      const text = typeof content === 'string' ? content : JSON.stringify(content)
+
+      if (text.trim().length === 0) {
+        stats.skippedMessages++
+        continue
+      }
+
+      // Get embedding for this message
+      const embedding = embeddingMap.get(i)
+      if (!embedding) {
+        console.error(`[Ingest] No embedding found for message ${i}`)
         stats.skippedMessages++
         continue
       }
@@ -129,7 +151,6 @@ export async function ingestConversation(
       stats.symbolsExtracted += symbols.length
 
       // Convert embedding to buffer
-      const embedding = embeddings[i]
       const embeddingBuffer = vectorToBuffer(embedding)
 
       // Store in CozoDB
@@ -297,4 +318,172 @@ export function findConversationFiles(agentId: string, workingDirectories: strin
   console.log(`[Ingest] Found ${conversationFiles.length} conversations for agent ${agentId}`)
 
   return conversationFiles
+}
+
+/**
+ * Index only new messages (delta) from a conversation file
+ * Compares current message count with last indexed count
+ */
+export async function indexConversationDelta(
+  agentDb: AgentDatabase,
+  conversationFile: string,
+  lastIndexedMessageCount: number,
+  options: {
+    batchSize?: number
+  } = {}
+): Promise<IngestionStats> {
+  const batchSize = options.batchSize || 10
+  const startTime = Date.now()
+
+  console.log(`[Delta Index] Processing ${conversationFile}`)
+  console.log(`[Delta Index] Last indexed: ${lastIndexedMessageCount} messages`)
+
+  // Parse JSONL file
+  const fileContent = fs.readFileSync(conversationFile, 'utf-8')
+  const allLines = fileContent.split('\n').filter(line => line.trim())
+
+  const currentMessageCount = allLines.length
+  const delta = currentMessageCount - lastIndexedMessageCount
+
+  console.log(`[Delta Index] Current messages: ${currentMessageCount}`)
+  console.log(`[Delta Index] Delta to index: ${delta}`)
+
+  if (delta <= 0) {
+    console.log(`[Delta Index] No new messages to index`)
+    return {
+      totalMessages: currentMessageCount,
+      processedMessages: 0,
+      skippedMessages: 0,
+      embeddingsGenerated: 0,
+      termsExtracted: 0,
+      symbolsExtracted: 0,
+      durationMs: Date.now() - startTime,
+    }
+  }
+
+  // Parse only the new messages (starting from lastIndexedMessageCount)
+  const messages: ConversationMessage[] = []
+  for (let i = lastIndexedMessageCount; i < allLines.length; i++) {
+    try {
+      const message = JSON.parse(allLines[i]) as ConversationMessage
+      messages.push(message)
+    } catch (err) {
+      console.error(`[Delta Index] Failed to parse line ${i}:`, err)
+    }
+  }
+
+  console.log(`[Delta Index] Parsed ${messages.length} new messages`)
+
+  const stats: IngestionStats = {
+    totalMessages: currentMessageCount,
+    processedMessages: 0,
+    skippedMessages: 0,
+    embeddingsGenerated: 0,
+    termsExtracted: 0,
+    symbolsExtracted: 0,
+    durationMs: 0,
+  }
+
+  // Batch process new messages
+  const batches: ConversationMessage[][] = []
+  for (let i = 0; i < messages.length; i += batchSize) {
+    batches.push(messages.slice(i, i + batchSize))
+  }
+
+  console.log(`[Delta Index] Processing ${batches.length} batches of ${batchSize} messages`)
+
+  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+    const batch = batches[batchIdx]
+    console.log(`[Delta Index] Batch ${batchIdx + 1}/${batches.length}`)
+
+    // Extract texts for embedding with their indices (ensure strings)
+    const textsWithIndices: Array<{ text: string; index: number }> = []
+    batch.forEach((msg, idx) => {
+      const content = msg.message?.content || ''
+      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      if (text.trim().length > 0) {
+        textsWithIndices.push({ text, index: idx })
+      }
+    })
+
+    // Generate embeddings in batch
+    const embeddings = await embedTexts(textsWithIndices.map(t => t.text))
+    stats.embeddingsGenerated += embeddings.length
+
+    // Create a map of batch index -> embedding
+    const embeddingMap = new Map<number, Float32Array>()
+    textsWithIndices.forEach((item, embIdx) => {
+      embeddingMap.set(item.index, embeddings[embIdx])
+    })
+
+    // Process each message
+    for (let i = 0; i < batch.length; i++) {
+      const msg = batch[i]
+      let content = msg.message?.content || ''
+
+      // Ensure content is a string (Claude Code JSONL can have arrays/objects)
+      const text = typeof content === 'string' ? content : JSON.stringify(content)
+
+      if (!text || text.trim().length === 0) {
+        stats.skippedMessages++
+        continue
+      }
+
+      // Get embedding for this message
+      const embedding = embeddingMap.get(i)
+      if (!embedding) {
+        console.error(`[Delta Index] No embedding found for message ${i}`)
+        stats.skippedMessages++
+        continue
+      }
+
+      // Generate message ID
+      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
+      const random = Math.random().toString(36).substring(7)
+      const id = msgId.message(ts, random)
+
+      // Extract terms and symbols
+      const terms = extractTerms(text)
+      const symbols = extractCodeSymbols(text)
+      stats.termsExtracted += terms.length
+      stats.symbolsExtracted += symbols.length
+
+      // Convert embedding to buffer
+      const embeddingBuffer = vectorToBuffer(embedding)
+
+      // Upsert message to CozoDB
+      await upsertMessage(
+        agentDb,
+        {
+          msg_id: id,
+          conversation_file: conversationFile,
+          role: msg.type,
+          ts,
+          text,
+        },
+        embeddingBuffer,
+        terms,
+        symbols
+      )
+
+      // Add to BM25 index
+      const bm25Doc: Bm25Document = {
+        id,
+        text,
+        symbols,
+        thread_id: conversationFile,
+        role: msg.type,
+        ts,
+      }
+      bm25Add([bm25Doc])
+
+      stats.processedMessages++
+    }
+  }
+
+  stats.durationMs = Date.now() - startTime
+
+  console.log(`[Delta Index] ✅ Indexed ${stats.processedMessages} new messages in ${stats.durationMs}ms`)
+
+  return stats
 }

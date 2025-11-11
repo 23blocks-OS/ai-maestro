@@ -7,9 +7,10 @@ import type { Message, MessageSummary } from '@/lib/messageQueue'
 interface MessageCenterProps {
   sessionName: string
   allSessions: string[]
+  isVisible?: boolean
 }
 
-export default function MessageCenter({ sessionName, allSessions }: MessageCenterProps) {
+export default function MessageCenter({ sessionName, allSessions, isVisible = true }: MessageCenterProps) {
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -17,6 +18,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
   const [unreadCount, setUnreadCount] = useState(0)
   const [sentCount, setSentCount] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [hasInitialized, setHasInitialized] = useState(false)
   const [isForwarding, setIsForwarding] = useState(false)
   const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
 
@@ -293,11 +295,21 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
     setView('compose')
   }
 
+  // Only fetch messages when visible for the first time, then set up polling
   useEffect(() => {
+    if (!isVisible || hasInitialized) return
+
+    setHasInitialized(true)
     fetchMessages()
     fetchSentMessages()
     fetchUnreadCount()
     fetchSentCount()
+  }, [isVisible, hasInitialized, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+
+  // Set up polling interval only when visible
+  useEffect(() => {
+    if (!isVisible || !hasInitialized) return
+
     const interval = setInterval(() => {
       fetchMessages()
       fetchSentMessages()
@@ -305,7 +317,7 @@ export default function MessageCenter({ sessionName, allSessions }: MessageCente
       fetchSentCount()
     }, 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
-  }, [sessionName, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+  }, [isVisible, hasInitialized, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
 
   // Close dropdown when clicking outside
   useEffect(() => {

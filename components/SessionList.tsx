@@ -471,7 +471,18 @@ export default function SessionList({
 
     setActionLoading(true)
     try {
-      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+      // Determine the correct host URL for the session
+      let targetUrl = `/api/sessions/${selectedSession.id}`
+
+      if (selectedSession.hostId && selectedSession.hostId !== 'local' && selectedSession.remote) {
+        // Remote session - need to proxy to the correct host
+        const host = hosts.find(h => h.id === selectedSession.hostId)
+        if (host) {
+          targetUrl = `${host.url}/api/sessions/${selectedSession.id}`
+        }
+      }
+
+      const response = await fetch(targetUrl, {
         method: 'DELETE',
       })
 

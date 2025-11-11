@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAgentDatabase } from '@/lib/cozo-db'
+import { agentRegistry } from '@/lib/agent'
 import { hybridSearch, semanticSearch, searchByTerm, searchBySymbol } from '@/lib/rag/search'
 
 /**
@@ -12,6 +12,7 @@ import { hybridSearch, semanticSearch, searchByTerm, searchBySymbol } from '@/li
  * - limit: Max results (default: 10)
  * - minScore: Minimum score threshold (default: 0.0)
  * - role: Filter by role (user | assistant | system)
+ * - conversation_file: Filter by specific conversation file path
  * - startTs: Filter by start timestamp (unix ms)
  * - endTs: Filter by end timestamp (unix ms)
  * - useRrf: Use Reciprocal Rank Fusion (true | false) (default: true)
@@ -54,6 +55,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '10')
     const minScore = parseFloat(searchParams.get('minScore') || '0.0')
     const roleFilter = searchParams.get('role') as 'user' | 'assistant' | 'system' | null
+    const conversationFile = searchParams.get('conversation_file') || undefined
     const startTs = searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!) : undefined
     const endTs = searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!) : undefined
     const useRrf = searchParams.get('useRrf') !== 'false'
@@ -62,8 +64,14 @@ export async function GET(
 
     console.log(`[Search API] Agent: ${agentId}, Query: "${query}", Mode: ${mode}`)
 
-    // Initialize agent database
-    const agentDb = await createAgentDatabase({ agentId })
+    // Trigger delta indexing before search (ensures fresh results)
+    triggerBackgroundDeltaIndexing(agentId).catch((err) => {
+      console.error('[Search API] Background delta indexing failed:', err)
+    })
+
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Perform search based on mode
     let results: Awaited<ReturnType<typeof hybridSearch>> = []
@@ -76,17 +84,18 @@ export async function GET(
         bm25Weight,
         semanticWeight,
         roleFilter: roleFilter || undefined,
+        conversationFile: conversationFile || undefined,
         timeRange: startTs && endTs ? { start: startTs, end: endTs } : undefined
       })
     } else if (mode === 'semantic') {
-      results = await semanticSearch(agentDb, query, limit)
+      results = await semanticSearch(agentDb, query, limit, conversationFile)
     } else if (mode === 'term') {
-      results = await searchByTerm(agentDb, query, limit)
+      results = await searchByTerm(agentDb, query, limit, conversationFile)
     } else if (mode === 'symbol') {
-      results = await searchBySymbol(agentDb, query, limit)
+      results = await searchBySymbol(agentDb, query, limit, conversationFile)
     }
 
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,
@@ -138,7 +147,9 @@ export async function POST(
 
     console.log(`[Search API] Ingesting ${conversationFiles.length} conversations for agent ${agentId}`)
 
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Import ingestion functions
     const { ingestAllConversations } = await import('@/lib/rag/ingest')
@@ -151,7 +162,7 @@ export async function POST(
       }
     })
 
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,
@@ -167,5 +178,33 @@ export async function POST(
       },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * Trigger delta indexing in the background (non-blocking)
+ */
+async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
+  console.log(`[Search API] Triggering background delta indexing for agent ${agentId}`)
+
+  try {
+    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/index-delta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      console.error(`[Search API] Delta indexing returned status ${response.status}`)
+      return
+    }
+
+    const result = await response.json()
+    if (result.success && result.total_messages_processed > 0) {
+      console.log(`[Search API] ✅ Delta indexed ${result.total_messages_processed} messages`)
+    }
+  } catch (error) {
+    console.error('[Search API] Failed to trigger delta indexing:', error)
   }
 }

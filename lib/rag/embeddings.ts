@@ -51,18 +51,58 @@ function l2Normalize(vec: Float32Array): Float32Array {
  * @returns Array of L2-normalized Float32Array vectors (384-d each)
  */
 export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
+  // Filter out empty or invalid texts
+  const validTexts = texts.filter(t => t && typeof t === 'string' && t.trim().length > 0);
+
+  if (validTexts.length === 0) {
+    throw new Error('[Embeddings] No valid texts to embed');
+  }
+
   const ex = await getExtractor();
 
   // Get embeddings with mean pooling and normalization
-  const output = await ex(texts, {
+  const output = await ex(validTexts, {
     pooling: 'mean',
     normalize: true, // Built-in L2 normalization
   });
 
+  if (!output) {
+    throw new Error('[Embeddings] Model returned undefined output');
+  }
+
   // Convert to Float32Array and ensure normalization
   const arrays = Array.isArray(output) ? output : [output];
-  return arrays.map((arr: any) => {
-    const vec = arr instanceof Float32Array ? arr : Float32Array.from(arr);
+  return arrays.map((arr: any, idx: number) => {
+    if (!arr) {
+      throw new Error(`[Embeddings] Embedding ${idx} is undefined`);
+    }
+
+    // Transformers.js returns Tensor objects with a .data property
+    let vec: Float32Array;
+
+    if (arr.data && Array.isArray(arr.data)) {
+      // Tensor with data array
+      vec = Float32Array.from(arr.data);
+    } else if (arr.data instanceof Float32Array) {
+      // Tensor with Float32Array data
+      vec = arr.data;
+    } else if (arr instanceof Float32Array) {
+      // Already a Float32Array
+      vec = arr;
+    } else if (Array.isArray(arr)) {
+      // Plain array
+      vec = Float32Array.from(arr);
+    } else {
+      console.error('[Embeddings] Unexpected structure:', {
+        type: typeof arr,
+        constructor: arr.constructor?.name,
+        keys: Object.keys(arr),
+        hasData: 'data' in arr,
+        dataType: arr.data ? typeof arr.data : 'no data'
+      });
+      throw new Error(`[Embeddings] Cannot extract vector from embedding ${idx}`);
+    }
+
     return l2Normalize(vec);
   });
 }

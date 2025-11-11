@@ -33,6 +33,7 @@ export interface SearchOptions {
   bm25Weight?: number // Weight for BM25 results (default: 0.4)
   semanticWeight?: number // Weight for semantic results (default: 0.6)
   roleFilter?: 'user' | 'assistant' | 'system' // Filter by message role
+  conversationFile?: string // Filter by specific conversation file path
   timeRange?: { start: number; end: number } // Filter by timestamp range
 }
 
@@ -44,6 +45,7 @@ const DEFAULT_OPTIONS: Required<SearchOptions> = {
   bm25Weight: 0.4,
   semanticWeight: 0.6,
   roleFilter: undefined as any,
+  conversationFile: undefined as any,
   timeRange: undefined as any,
 }
 
@@ -203,6 +205,12 @@ export async function hybridSearch(
     console.log(`[Search] After role filter (${opts.roleFilter}): ${finalResults.length} results`)
   }
 
+  // Conversation file filter
+  if (opts.conversationFile) {
+    finalResults = finalResults.filter((r) => r.conversation_file === opts.conversationFile)
+    console.log(`[Search] After conversation file filter: ${finalResults.length} results`)
+  }
+
   // Time range filter
   if (opts.timeRange) {
     finalResults = finalResults.filter(
@@ -228,12 +236,23 @@ export async function hybridSearch(
 export async function searchByTerm(
   agentDb: AgentDatabase,
   term: string,
-  limit = 10
+  limit = 10,
+  conversationFile?: string
 ): Promise<SearchResult[]> {
-  console.log(`[Search] Term search: "${term}"`)
+  console.log(`[Search] Term search: "${term}"${conversationFile ? ` in ${conversationFile}` : ''}`)
 
   const results = await searchMessagesByTerm(agentDb, term.toLowerCase())
-  const msgIds = results.map((r) => r.msg_id).slice(0, limit)
+  let msgIds = results.map((r) => r.msg_id)
+
+  // Filter by conversation file if specified
+  if (conversationFile) {
+    const messages = await getMessagesByIds(agentDb, msgIds)
+    msgIds = messages
+      .filter((msg) => msg.conversation_file === conversationFile)
+      .map((msg) => msg.msg_id)
+  }
+
+  msgIds = msgIds.slice(0, limit)
   const messages = await getMessagesByIds(agentDb, msgIds)
 
   return messages.map((msg, idx) => ({
@@ -253,12 +272,23 @@ export async function searchByTerm(
 export async function searchBySymbol(
   agentDb: AgentDatabase,
   symbol: string,
-  limit = 10
+  limit = 10,
+  conversationFile?: string
 ): Promise<SearchResult[]> {
-  console.log(`[Search] Symbol search: "${symbol}"`)
+  console.log(`[Search] Symbol search: "${symbol}"${conversationFile ? ` in ${conversationFile}` : ''}`)
 
   const results = await searchMessagesBySymbol(agentDb, symbol)
-  const msgIds = results.map((r) => r.msg_id).slice(0, limit)
+  let msgIds = results.map((r) => r.msg_id)
+
+  // Filter by conversation file if specified
+  if (conversationFile) {
+    const messages = await getMessagesByIds(agentDb, msgIds)
+    msgIds = messages
+      .filter((msg) => msg.conversation_file === conversationFile)
+      .map((msg) => msg.msg_id)
+  }
+
+  msgIds = msgIds.slice(0, limit)
   const messages = await getMessagesByIds(agentDb, msgIds)
 
   return messages.map((msg, idx) => ({
@@ -278,9 +308,10 @@ export async function searchBySymbol(
 export async function semanticSearch(
   agentDb: AgentDatabase,
   query: string,
-  limit = 10
+  limit = 10,
+  conversationFile?: string
 ): Promise<SearchResult[]> {
-  console.log(`[Search] Semantic-only search: "${query}"`)
+  console.log(`[Search] Semantic-only search: "${query}"${conversationFile ? ` in ${conversationFile}` : ''}`)
 
   const startTime = Date.now()
 
@@ -298,11 +329,26 @@ export async function semanticSearch(
     scores.push({ id: msg_id, score: similarity })
   }
 
-  // Sort and take top-K
+  // Sort by score
   scores.sort((a, b) => b.score - a.score)
-  const topIds = scores.slice(0, limit).map((r) => r.id)
 
-  // Fetch messages
+  // Fetch all messages first if we need to filter
+  let topIds: string[]
+  if (conversationFile) {
+    // Fetch more messages to account for filtering
+    const candidateIds = scores.slice(0, limit * 5).map((r) => r.id)
+    const candidateMessages = await getMessagesByIds(agentDb, candidateIds)
+
+    // Filter by conversation file and take top-K
+    topIds = candidateMessages
+      .filter((msg) => msg.conversation_file === conversationFile)
+      .map((msg) => msg.msg_id)
+      .slice(0, limit)
+  } else {
+    topIds = scores.slice(0, limit).map((r) => r.id)
+  }
+
+  // Fetch final messages
   const messages = await getMessagesByIds(agentDb, topIds)
   const scoreMap = new Map(scores.map((r) => [r.id, r.score]))
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle } from 'lucide-react'
+import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle, Database } from 'lucide-react'
 import ConversationDetailPanel from './ConversationDetailPanel'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessions } from '@/hooks/useSessions'
@@ -9,6 +9,7 @@ import { useSessions } from '@/hooks/useSessions'
 interface WorkTreeProps {
   sessionName: string
   agentId?: string
+  isVisible?: boolean
 }
 
 interface AgentWork {
@@ -53,17 +54,20 @@ interface ClaudeSessionWork {
   claude_version?: string
 }
 
-export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
+export default function WorkTree({ sessionName, agentId, isVisible = true }: WorkTreeProps) {
   const { hosts } = useHosts()
   const { sessions } = useSessions()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start as false, will load when visible
   const [error, setError] = useState<string | null>(null)
+  const [hasInitialized, setHasInitialized] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
   } | null>(null)
+  const [rebuilding, setRebuilding] = useState(false)
+  const [rebuildStatus, setRebuildStatus] = useState<string | null>(null)
 
   // Determine which host this agent is on
   const getHostUrl = (): string => {
@@ -210,10 +214,86 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
     }
   }
 
+  // Only fetch when visible for the first time
   useEffect(() => {
-    fetchWorkTree()
+    if (isVisible && !hasInitialized) {
+      setHasInitialized(true)
+      fetchWorkTree()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId])
+  }, [isVisible, hasInitialized])
+
+  const rebuildMemory = async () => {
+    if (!agentId) {
+      setRebuildStatus('No agent ID available')
+      return
+    }
+
+    setRebuilding(true)
+    setRebuildStatus('Rebuilding memory from conversation files...')
+
+    try {
+      const hostUrl = getHostUrl()
+
+      // Force re-populate memory from conversation files
+      const memoryResponse = await fetch(`${hostUrl}/api/agents/${agentId}/memory`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          populateFromSessions: true,
+          force: true
+        }),
+      })
+
+      if (!memoryResponse.ok) {
+        throw new Error(`Failed to rebuild memory: ${memoryResponse.status}`)
+      }
+
+      const memoryResult = await memoryResponse.json()
+
+      if (!memoryResult.success) {
+        throw new Error(memoryResult.error || 'Failed to rebuild memory')
+      }
+
+      setRebuildStatus('Memory rebuilt! Indexing messages...')
+
+      // Trigger delta indexing to index all messages
+      const indexResponse = await fetch(`${hostUrl}/api/agents/${agentId}/index-delta`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!indexResponse.ok) {
+        console.warn('Delta indexing failed, but memory was rebuilt')
+      }
+
+      const indexResult = await indexResponse.json()
+
+      if (indexResult.success && indexResult.total_messages_processed > 0) {
+        setRebuildStatus(`✓ Rebuilt and indexed ${indexResult.total_messages_processed} messages!`)
+      } else {
+        setRebuildStatus('✓ Memory rebuilt successfully!')
+      }
+
+      // Refresh the work tree after a short delay
+      setTimeout(() => {
+        fetchWorkTree()
+        setRebuildStatus(null)
+      }, 2000)
+
+    } catch (err) {
+      console.error('[WorkTree] Rebuild error:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setRebuildStatus(`Error: ${errorMessage}`)
+      setTimeout(() => setRebuildStatus(null), 5000)
+    } finally {
+      setRebuilding(false)
+    }
+  }
 
   const toggleProject = (projectId: string) => {
     const newExpanded = new Set(expandedProjects)
@@ -294,13 +374,35 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
           <h2 className="text-lg font-semibold text-white">Work Tree</h2>
           <span className="text-sm text-gray-500">Agent: {agentId}</span>
         </div>
-        <button
-          onClick={() => fetchWorkTree()}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {rebuildStatus && (
+            <span className={`text-sm ${
+              rebuildStatus.startsWith('Error:')
+                ? 'text-red-400'
+                : rebuildStatus.startsWith('✓')
+                  ? 'text-green-400'
+                  : 'text-blue-400'
+            }`}>
+              {rebuildStatus}
+            </span>
+          )}
+          <button
+            onClick={rebuildMemory}
+            disabled={rebuilding}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Rebuild memory from conversation files"
+          >
+            <Database className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} />
+            {rebuilding ? 'Rebuilding...' : 'Rebuild Memory'}
+          </button>
+          <button
+            onClick={() => fetchWorkTree()}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -488,6 +590,7 @@ export default function WorkTree({ sessionName, agentId }: WorkTreeProps) {
         <ConversationDetailPanel
           conversationFile={selectedConversation.file}
           projectPath={selectedConversation.projectPath}
+          agentId={agentId}
           onClose={() => setSelectedConversation(null)}
         />
       )}

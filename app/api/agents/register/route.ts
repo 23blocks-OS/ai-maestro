@@ -7,14 +7,48 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const agentConfig = await request.json()
+    const body = await request.json()
 
-    // Validate required fields
-    if (!agentConfig.id || !agentConfig.deployment?.cloud?.websocketUrl) {
-      return NextResponse.json(
-        { error: 'Missing required fields: id and websocketUrl' },
-        { status: 400 }
-      )
+    // Handle two registration formats:
+    // 1. Full agent config with id and websocketUrl (from external sources)
+    // 2. Simple sessionName + workingDirectory (from WorkTree)
+
+    let agentId: string
+    let agentConfig: any
+
+    if (body.sessionName && !body.id) {
+      // WorkTree format - create agent from session name
+      const { sessionName, workingDirectory } = body
+
+      if (!sessionName) {
+        return NextResponse.json(
+          { error: 'Missing required field: sessionName' },
+          { status: 400 }
+        )
+      }
+
+      // Use sessionName as agentId (normalize to valid format)
+      agentId = sessionName.replace(/[^a-zA-Z0-9_-]/g, '-')
+
+      // Create minimal agent config
+      agentConfig = {
+        id: agentId,
+        sessionName,
+        workingDirectory: workingDirectory || process.cwd(),
+        createdAt: Date.now(),
+        type: 'local'
+      }
+    } else {
+      // Full agent config format
+      if (!body.id || !body.deployment?.cloud?.websocketUrl) {
+        return NextResponse.json(
+          { error: 'Missing required fields: id and websocketUrl' },
+          { status: 400 }
+        )
+      }
+
+      agentId = body.id
+      agentConfig = body
     }
 
     // Ensure agents directory exists
@@ -24,13 +58,14 @@ export async function POST(request: Request) {
     }
 
     // Save agent configuration
-    const agentFilePath = path.join(agentsDir, `${agentConfig.id}.json`)
+    const agentFilePath = path.join(agentsDir, `${agentId}.json`)
     fs.writeFileSync(agentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
 
     return NextResponse.json({
       success: true,
-      message: `Agent ${agentConfig.id} registered successfully`,
-      agentId: agentConfig.id
+      message: `Agent ${agentId} registered successfully`,
+      agentId,
+      agent: agentConfig
     })
   } catch (error) {
     console.error('Failed to register agent:', error)

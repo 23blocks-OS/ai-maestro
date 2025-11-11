@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles, List, MessageCircle, Search, ChevronUp, ChevronDown } from 'lucide-react'
+import { X, Clock, FileCode, GitBranch, MessageSquare, Wrench, ChevronRight, User, Bot, Terminal, Sparkles, List, MessageCircle, Search, ChevronUp, ChevronDown, Copy, Check } from 'lucide-react'
 
 interface ConversationDetailPanelProps {
   conversationFile: string
@@ -62,6 +62,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
   const [expandedToolInChat, setExpandedToolInChat] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
   const messageRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -494,6 +495,42 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
     }
   }, [currentMatchIndex, matchIndices, viewMode])
 
+  // Copy message content to clipboard
+  const copyMessageToClipboard = async (message: Message, index: number) => {
+    let textToCopy = ''
+
+    // Extract text based on message type
+    if (message.type === 'summary' && message.summary) {
+      textToCopy = message.summary
+    } else if (message.type === 'thinking' && message.thinking) {
+      textToCopy = message.thinking
+    } else if (message.message?.content) {
+      const content = message.message.content
+      if (typeof content === 'string') {
+        textToCopy = content
+      } else if (Array.isArray(content)) {
+        // Extract all text blocks
+        const textBlocks = content
+          .filter(block => block.type === 'text' && block.text)
+          .map(block => block.text)
+        textToCopy = textBlocks.join('\n\n')
+      }
+    }
+
+    if (!textToCopy.trim()) {
+      textToCopy = getMessagePreview(message)
+    }
+
+    try {
+      await navigator.clipboard.writeText(textToCopy)
+      setCopiedMessageIndex(index)
+      // Clear the copied state after 2 seconds
+      setTimeout(() => setCopiedMessageIndex(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy message:', err)
+    }
+  }
+
   // Highlight search term in text
   const highlightText = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text
@@ -719,6 +756,20 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                               {formatTimestamp(message.timestamp)}
                             </span>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyMessageToClipboard(message, index)
+                            }}
+                            className="p-1 rounded transition-colors hover:bg-gray-700 text-gray-400"
+                            title="Copy message to clipboard"
+                          >
+                            {copiedMessageIndex === index ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
                         <div className="text-sm text-gray-300">
                           {renderMessageContent(message)}
@@ -761,6 +812,20 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                               {formatTimestamp(message.timestamp)}
                             </span>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyMessageToClipboard(message, index)
+                            }}
+                            className="p-1 rounded transition-colors hover:bg-purple-800/50 text-purple-300"
+                            title="Copy thinking to clipboard"
+                          >
+                            {copiedMessageIndex === index ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
                         <div className="text-sm text-gray-300 italic whitespace-pre-wrap break-words">
                           {highlightText(message.thinking || '', searchQuery)}
@@ -945,12 +1010,32 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           }
                         })}
 
-                        {/* Timestamp */}
-                        {message.timestamp && (
-                          <div className={`text-xs mt-2 ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
-                            {formatTimestamp(message.timestamp)}
-                          </div>
-                        )}
+                        {/* Timestamp and Copy Button */}
+                        <div className="flex items-center justify-between mt-2">
+                          {message.timestamp && (
+                            <div className={`text-xs ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                              {formatTimestamp(message.timestamp)}
+                            </div>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyMessageToClipboard(message, index)
+                            }}
+                            className={`p-1 rounded transition-colors ${
+                              isUser
+                                ? 'hover:bg-blue-700/50 text-blue-200'
+                                : 'hover:bg-gray-700 text-gray-400'
+                            }`}
+                            title="Copy message to clipboard"
+                          >
+                            {copiedMessageIndex === index ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       </div>
                     </div>
@@ -1167,6 +1252,20 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
                           {formatTimestamp(message.timestamp)}
                         </span>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          copyMessageToClipboard(message, index)
+                        }}
+                        className="p-1 rounded transition-colors hover:bg-gray-700 text-gray-400"
+                        title="Copy message to clipboard"
+                      >
+                        {copiedMessageIndex === index ? (
+                          <Check className="w-3.5 h-3.5" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                       <ChevronRight
                         className={`w-4 h-4 text-gray-500 transition-transform ${
                           expandedMessages.has(index) ? 'rotate-90' : ''

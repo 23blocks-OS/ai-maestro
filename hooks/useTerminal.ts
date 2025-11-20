@@ -13,48 +13,6 @@ export interface UseTerminalOptions {
   onUnregister?: () => void
 }
 
-/**
- * Calculate exact terminal dimensions BEFORE xterm.js initializes
- * This eliminates race conditions where xterm calculates character cells
- * during CSS layout oscillations (795→694→686→771→795)
- */
-function calculateTerminalDimensions(
-  containerWidth: number,
-  containerHeight: number,
-  fontSize: number,
-  fontFamily: string
-): { cols: number; rows: number; cellWidth: number; cellHeight: number } {
-  // Create a temporary off-screen element to measure character dimensions
-  const measureElement = document.createElement('div')
-  measureElement.style.position = 'absolute'
-  measureElement.style.visibility = 'hidden'
-  measureElement.style.whiteSpace = 'pre'
-  measureElement.style.fontFamily = fontFamily
-  measureElement.style.fontSize = `${fontSize}px`
-  measureElement.style.lineHeight = '1.2'
-  measureElement.style.fontWeight = '400'
-  measureElement.textContent = 'X'.repeat(100) // Measure 100 characters for accuracy
-
-  document.body.appendChild(measureElement)
-
-  const rect = measureElement.getBoundingClientRect()
-  const cellWidth = rect.width / 100 // Average character width
-  const cellHeight = rect.height // Line height
-
-  document.body.removeChild(measureElement)
-
-  // Calculate how many columns/rows fit in the container
-  // Account for xterm.js internal padding (2px on each side = 4px total)
-  const XTERM_PADDING = 4
-  const usableWidth = containerWidth - XTERM_PADDING
-  const usableHeight = containerHeight - XTERM_PADDING
-
-  const cols = Math.max(2, Math.floor(usableWidth / cellWidth))
-  const rows = Math.max(1, Math.floor(usableHeight / cellHeight))
-
-
-  return { cols, rows, cellWidth, cellHeight }
-}
 
 export function useTerminal(options: UseTerminalOptions = {}) {
   const terminalRef = useRef<Terminal | null>(null)
@@ -79,34 +37,17 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       container.removeChild(container.firstChild)
     }
 
-    // Get container dimensions - THIS IS THE STABLE SIZE WE TRUST
-    const containerRect = container.getBoundingClientRect()
-    const containerWidth = Math.floor(containerRect.width)
-    const containerHeight = Math.floor(containerRect.height)
-
-
-    // CRITICAL: Pre-calculate terminal dimensions BEFORE creating terminal
-    const fontSize = optionsRef.current.fontSize || 16
-    const fontFamily = optionsRef.current.fontFamily || '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Courier New", monospace'
-
-    const { cols, rows, cellWidth, cellHeight } = calculateTerminalDimensions(
-      containerWidth,
-      containerHeight,
-      fontSize,
-      fontFamily
-    )
-
     // Dynamic imports for browser-only code
     const { Terminal } = await import('@xterm/xterm')
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
     const { ClipboardAddon } = await import('@xterm/addon-clipboard')
 
-    // Create terminal instance with PRE-CALCULATED dimensions
+    const fontSize = optionsRef.current.fontSize || 16
+    const fontFamily = optionsRef.current.fontFamily || '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Courier New", monospace'
+
+    // Create terminal instance - let FitAddon handle sizing
     const terminal = new Terminal({
-      // CRITICAL: Set exact dimensions upfront - no guessing
-      cols,
-      rows,
       cursorBlink: true,
       fontSize,
       fontFamily,
@@ -177,23 +118,15 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
+    // Calculate proper size using FitAddon
+    fitAddon.fit()
+
     // Fix xterm.js helper textarea missing id/name (causes browser console warnings)
-    // xterm.js creates a hidden textarea for input handling but doesn't add id/name
     const helperTextarea = container.querySelector('.xterm-helper-textarea')
     if (helperTextarea && optionsRef.current.sessionId) {
       helperTextarea.setAttribute('id', `xterm-helper-${optionsRef.current.sessionId}`)
       helperTextarea.setAttribute('name', `xterm-helper-${optionsRef.current.sessionId}`)
     }
-
-    // CRITICAL: Verify that xterm.js respected our pre-calculated dimensions
-    if (terminal.cols !== cols || terminal.rows !== rows) {
-      console.warn(`⚠️ [INIT] Terminal dimensions mismatch! Expected ${cols}x${rows}, got ${terminal.cols}x${terminal.rows}`)
-      // Force dimensions to match our calculation
-      terminal.resize(cols, rows)
-    }
-
-    // NOTE: We don't scroll to bottom here because history hasn't loaded yet
-    // Scrolling happens in TerminalView after 'history-complete' message
 
     // Store references
     terminalRef.current = terminal
@@ -204,58 +137,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       optionsRef.current.onRegister(fitAddon)
     }
 
-    // Handle window resize - for actual window resizes
-    let resizeTimeout: NodeJS.Timeout
-    let prevWidth = containerWidth
-    let prevHeight = containerHeight
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      const newWidth = Math.floor(entry.contentRect.width)
-      const newHeight = Math.floor(entry.contentRect.height)
-
-      // Ignore micro-oscillations (< 5px)
-      const widthDiff = Math.abs(newWidth - prevWidth)
-      const heightDiff = Math.abs(newHeight - prevHeight)
-
-      if (widthDiff < 5 && heightDiff < 5) {
-        // Skip insignificant changes
-        return
+    // Simple ResizeObserver - just call fit() when container resizes
+    const resizeObserver = new ResizeObserver(() => {
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit()
       }
-
-
-      prevWidth = newWidth
-      prevHeight = newHeight
-
-      clearTimeout(resizeTimeout)
-      resizeTimeout = setTimeout(() => {
-        if (fitAddonRef.current && terminalRef.current) {
-          try {
-
-            // Store current scroll position
-            const scrollPos = terminal.buffer.active.viewportY
-
-            // Recalculate dimensions using the same method as initialization
-            const { cols: newCols, rows: newRows } = calculateTerminalDimensions(
-              newWidth,
-              newHeight,
-              terminal.options.fontSize as number,
-              terminal.options.fontFamily as string
-            )
-
-            // Resize terminal to exact calculated dimensions
-            terminal.resize(newCols, newRows)
-
-            // Restore scroll position if we were at the bottom
-            if (scrollPos === terminal.buffer.active.baseY) {
-              terminal.scrollToBottom()
-            }
-
-          } catch (e) {
-            console.error('Failed to resize terminal:', e)
-          }
-        }
-      }, 50) // Debounce to avoid thrashing during resize
     })
 
     resizeObserver.observe(container)
@@ -319,36 +205,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   }, [])
 
   const fitTerminal = useCallback(() => {
-    if (fitAddonRef.current && terminalRef.current) {
-      const sessionId = optionsRef.current.sessionId
-      const oldCols = terminalRef.current.cols
-      const oldRows = terminalRef.current.rows
-
-
-      // Get current container dimensions
-      const container = terminalRef.current.element?.parentElement
-      if (!container) {
-        console.warn(`⚠️ [FIT] No container found, skipping fit`)
-        return
-      }
-
-      const rect = container.getBoundingClientRect()
-      const containerWidth = Math.floor(rect.width)
-      const containerHeight = Math.floor(rect.height)
-
-      // Recalculate dimensions
-      const { cols: newCols, rows: newRows } = calculateTerminalDimensions(
-        containerWidth,
-        containerHeight,
-        terminalRef.current.options.fontSize as number,
-        terminalRef.current.options.fontFamily as string
-      )
-
-      // Only resize if dimensions actually changed
-      if (newCols !== oldCols || newRows !== oldRows) {
-        terminalRef.current.resize(newCols, newRows)
-      } else {
-      }
+    if (fitAddonRef.current) {
+      fitAddonRef.current.fit()
     }
   }, [])
 

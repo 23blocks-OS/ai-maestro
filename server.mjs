@@ -386,59 +386,18 @@ app.prepare().then(() => {
       sessionState.cleanupTimer = null
     }
 
+    // TEMPORARILY DISABLED: Testing if history loading causes slowness
     // Send full scrollback history to new clients
     // Critical: We need to capture the full history so scrollback works on reconnect
     setTimeout(async () => {
       try {
-        const { execSync } = await import('child_process')
-
-        // Try to capture scrollback history (last 1000 lines for reasonable performance)
-        let historyContent = ''
-        try {
-          // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
-          // -S -1000: Start from 1000 lines back (enough for context, not overwhelming)
-          // -p: Print to stdout
-          // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
-          // NO -e flag: Without escape sequences, tmux sends plain text with newlines
-          // This allows xterm.js to add lines to scrollback instead of repositioning cursor
-          historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -1000 -J`,
-            { encoding: 'utf8', timeout: 3000 }
-          ).toString()
-        } catch (historyError) {
-          // Fallback: if full history fails, at least get visible content
-          try {
-            historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p -J`,
-              { encoding: 'utf8', timeout: 2000 }
-            ).toString()
-          } catch (fallbackError) {
-            // Last resort: no -J flag
-            historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p`,
-              { encoding: 'utf8', timeout: 2000 }
-            ).toString()
-          }
-        }
-
-        if (ws.readyState === 1 && historyContent) {
-          // CRITICAL: Convert plain text to terminal-friendly format
-          // Each line must end with \r\n for xterm.js to add it to scrollback
-          // Plain newlines (\n) would just move cursor down without creating history
-          const lines = historyContent.split('\n')
-          const formattedHistory = lines.map(line => line + '\r\n').join('')
-
-          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
-
-          // Send history content as formatted data
-          ws.send(formattedHistory)
-
-          // Send a special message to signal that initial history load is complete
-          // This allows the client to trigger scrollToBottom() and fit()
+        console.log(`⚡ [HISTORY-SKIP] Skipping history load for faster connection (session ${sessionName})`)
+        // Send history-complete immediately without loading history
+        if (ws.readyState === 1) {
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
-        console.error('Error capturing terminal history:', error)
+        console.error('Error in history handler:', error)
       }
     }, 150)
 

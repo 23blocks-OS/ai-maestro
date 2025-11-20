@@ -386,18 +386,42 @@ app.prepare().then(() => {
       sessionState.cleanupTimer = null
     }
 
-    // TEMPORARILY DISABLED: Testing if history loading causes slowness
-    // Send full scrollback history to new clients
-    // Critical: We need to capture the full history so scrollback works on reconnect
+    // Send scrollback history to new clients
+    // Reduced to 500 lines for faster loading with oh-my-zsh
     setTimeout(async () => {
       try {
-        console.log(`⚡ [HISTORY-SKIP] Skipping history load for faster connection (session ${sessionName})`)
-        // Send history-complete immediately without loading history
-        if (ws.readyState === 1) {
+        const { execSync } = await import('child_process')
+
+        let historyContent = ''
+        try {
+          // Reduced from 1000 to 500 lines for faster loading
+          historyContent = execSync(
+            `tmux capture-pane -t ${sessionName} -p -S -500 -J`,
+            { encoding: 'utf8', timeout: 2000 }
+          ).toString()
+        } catch (historyError) {
+          // Fallback: just get visible content
+          try {
+            historyContent = execSync(
+              `tmux capture-pane -t ${sessionName} -p -J`,
+              { encoding: 'utf8', timeout: 1000 }
+            ).toString()
+          } catch (fallbackError) {
+            console.error('Failed to capture history:', fallbackError)
+          }
+        }
+
+        if (ws.readyState === 1 && historyContent) {
+          const lines = historyContent.split('\n')
+          const formattedHistory = lines.map(line => line + '\r\n').join('')
+
+          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
+
+          ws.send(formattedHistory)
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
-        console.error('Error in history handler:', error)
+        console.error('Error capturing terminal history:', error)
       }
     }, 150)
 

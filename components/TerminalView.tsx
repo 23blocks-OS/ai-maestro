@@ -102,6 +102,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (!term) return
     try {
       term.focus()
+      // CRITICAL: Also clear selection to re-activate selection layer
+      // This ensures xterm's selection service is active, not browser default
+      term.clearSelection()
     } catch {}
   }, [])
 
@@ -163,21 +166,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
       // Write data to terminal
       if (terminalInstanceRef.current) {
-        const term = terminalInstanceRef.current
-        term.write(data)
-
-        // CRITICAL: After writing new content, ensure selection layer stays active
-        // Only do this if there's NO active selection (don't interrupt user)
-        if (!term.hasSelection()) {
-          // Use requestAnimationFrame to avoid blocking the write
-          requestAnimationFrame(() => {
-            if (term) {
-              // Single focus call to keep selection layer active
-              // This prevents the yellow browser selection from taking over
-              term.focus()
-            }
-          })
-        }
+        terminalInstanceRef.current.write(data)
       } else {
         messageBufferRef.current.push(data)
       }
@@ -276,6 +265,22 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       disposable.dispose()
     }
   }, [terminal, isConnected, sendMessage])
+
+  // CRITICAL: Periodically ensure selection layer stays active
+  // This prevents the yellow browser selection from taking over
+  useEffect(() => {
+    if (!terminal || !isVisible) return
+
+    // Every 2 seconds, check and re-activate selection layer if needed
+    const interval = setInterval(() => {
+      if (terminal && !terminal.hasSelection()) {
+        // Only re-activate if user isn't actively selecting
+        terminal.focus()
+      }
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [terminal, isVisible])
 
   // Handle terminal resize
   useEffect(() => {
@@ -601,6 +606,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         <div
           ref={terminalRef}
           className="flex-1"
+          onClick={() => {
+            // CRITICAL: On every click, forcefully re-activate selection layer
+            // This fixes the yellow highlight issue by ensuring xterm's selection
+            // service is always active when user interacts with terminal
+            if (terminalInstanceRef.current) {
+              const term = terminalInstanceRef.current
+              term.focus()
+              // Clear and re-activate selection service
+              term.clearSelection()
+            }
+          }}
           style={{
             // Terminal takes full available space within container
             width: '100%',

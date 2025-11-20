@@ -10,63 +10,33 @@ interface ChatViewProps {
 }
 
 export default function ChatView({ session, isVisible = true }: ChatViewProps) {
-  const [lines, setLines] = useState<string[]>([])
+  const [output, setOutput] = useState('')
   const [input, setInput] = useState('')
   const outputRef = useRef<HTMLPreElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const bufferRef = useRef<string>('')
 
   const { isConnected, sendMessage} = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
-      // Strip ANSI codes and accumulate
-      const cleaned = stripAnsi(data)
-      bufferRef.current += cleaned
+      // Strip ANSI codes
+      let cleaned = stripAnsi(data)
 
-      // Process buffer into lines
-      setLines(prev => {
-        const buffer = bufferRef.current
-        const result = [...prev]
-        let currentLine = result.length > 0 ? result[result.length - 1] : ''
-
-        // Process each character
-        for (let i = 0; i < buffer.length; i++) {
-          const char = buffer[i]
-
-          if (char === '\n') {
-            // Newline - add current line and start a new one
-            if (result.length === 0 || result[result.length - 1] !== currentLine) {
-              result.push(currentLine)
-            }
-            currentLine = ''
-          } else if (char === '\r') {
-            // Carriage return - reset current line (will be overwritten)
-            currentLine = ''
-          } else {
-            // Regular character - add to current line
-            currentLine += char
-          }
+      // Skip JSON control messages
+      if (cleaned.trim().startsWith('{') && cleaned.trim().endsWith('}')) {
+        try {
+          JSON.parse(cleaned.trim())
+          return // Skip JSON messages
+        } catch {
+          // Not JSON, continue
         }
+      }
 
-        // Update or add the current line
-        if (result.length > 0 && buffer.includes('\r')) {
-          // If we had carriage returns, replace the last line
-          result[result.length - 1] = currentLine
-        } else if (currentLine) {
-          // Otherwise add/update the last line
-          if (result.length > 0) {
-            result[result.length - 1] = currentLine
-          } else {
-            result.push(currentLine)
-          }
-        }
+      // Normalize line endings: \r\n → \n, standalone \r → nothing
+      cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '')
 
-        // Clear buffer after processing
-        bufferRef.current = ''
-        return result
-      })
+      setOutput(prev => prev + cleaned)
     },
   })
 
@@ -75,7 +45,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [lines])
+  }, [output])
 
   // Focus input when tab becomes visible
   useEffect(() => {
@@ -90,8 +60,8 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   const handleSend = () => {
     if (!input.trim() || !isConnected) return
 
-    // Add user input to lines display
-    setLines(prev => [...prev, '', '> ' + input])
+    // Add user input to output display
+    setOutput(prev => prev + '\n> ' + input + '\n')
 
     // Send to terminal (with carriage return to execute)
     sendMessage(input + '\r')
@@ -111,8 +81,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   }
 
   const handleClearOutput = () => {
-    setLines([])
-    bufferRef.current = ''
+    setOutput('')
   }
 
   return (
@@ -140,7 +109,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
         className="flex-1 overflow-auto px-4 py-3 m-0 text-xs text-gray-200 font-mono bg-black/30"
         style={{ minHeight: 0 }}
       >
-        {lines.length > 0 ? lines.join('\n') : '(No output yet - send a message to start)'}
+        {output || '(No output yet - send a message to start)'}
       </pre>
 
       {/* Input Area */}

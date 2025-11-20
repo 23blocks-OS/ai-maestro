@@ -29,21 +29,31 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
           // Split by carriage return
           const parts = cleaned.split('\r')
 
-          // For each part with \r, replace the last line
-          let result = prev
-          for (let i = 0; i < parts.length - 1; i++) {
-            // Find the last newline in current result
-            const lastNewlineIndex = result.lastIndexOf('\n')
-            // Remove everything after the last newline (current line)
-            result = result.substring(0, lastNewlineIndex + 1)
-            // Add the new content (if any)
-            if (parts[i]) {
-              result += parts[i]
+          // Each \r means "go back and overwrite the current line"
+          // So we only keep the LAST part before the final part
+          // Example: "A\rB\rC" means show "C" (B and A were overwritten)
+
+          // Find the last newline in previous output
+          const lastNewlineIndex = prev.lastIndexOf('\n')
+          // Keep everything up to and including the last newline
+          const prevLines = prev.substring(0, lastNewlineIndex + 1)
+
+          // Take the last part with content (the final state after all overwrites)
+          // Work backwards to find the last non-empty part
+          let finalContent = ''
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (parts[i].trim()) {
+              finalContent = parts[i]
+              break
             }
           }
-          // Add the final part (no \r after it)
-          result += parts[parts.length - 1]
-          return result
+
+          // If no content found, just use the last part
+          if (!finalContent && parts.length > 0) {
+            finalContent = parts[parts.length - 1]
+          }
+
+          return prevLines + finalContent
         }
 
         // Normal append

@@ -619,8 +619,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           }}
           style={{
             // Terminal takes full available space within container
+            // CRITICAL: Don't set height: 100% - it conflicts with flex-1 and prevents proper resizing
             width: '100%',
-            height: '100%',
             position: 'relative'
           }}
         />

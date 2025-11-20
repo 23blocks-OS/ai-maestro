@@ -13,6 +13,7 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
+  const shouldAutoFitRef = useRef(true)
 
   const { isConnected, sendMessage } = useWebSocket({
     sessionId: session.id,
@@ -31,6 +32,7 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
 
     let terminal: any
     let fitAddon: any
+    let resizeObserver: ResizeObserver | null = null
 
     const init = async () => {
       const { Terminal } = await import('@xterm/xterm')
@@ -56,16 +58,6 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
 
       terminal.open(containerRef.current!)
 
-      // Wait for layout to complete before fitting
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const rect = containerRef.current!.getBoundingClientRect()
-          console.log('[TerminalNew] Container size:', rect.width, 'x', rect.height)
-          fitAddon.fit()
-          console.log('[TerminalNew] Terminal size after fit:', terminal.cols, 'x', terminal.rows)
-        })
-      })
-
       // Handle input
       terminal.onData((data: string) => {
         sendMessage(data)
@@ -74,18 +66,37 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       terminalRef.current = terminal
       fitAddonRef.current = fitAddon
 
-      // Handle resize
-      const resizeObserver = new ResizeObserver((entries) => {
+      // Initial fit after a delay to ensure container has stable size
+      setTimeout(() => {
+        if (fitAddonRef.current && containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect()
+          console.log('[TerminalNew] Initial fit - Container size:', rect.width, 'x', rect.height)
+          shouldAutoFitRef.current = false  // Disable autofit before manual fit
+          fitAddon.fit()
+          console.log('[TerminalNew] Terminal size after fit:', terminal.cols, 'x', terminal.rows)
+          shouldAutoFitRef.current = true   // Re-enable autofit
+        }
+      }, 100)
+
+      // Handle resize with conditional fitting (prevents infinite loops)
+      resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0]
-        console.log('[TerminalNew] Container resized:', entry.contentRect.width, 'x', entry.contentRect.height)
-        if (fitAddonRef.current) {
+        console.log('[TerminalNew] Container resized:', entry.contentRect.width, 'x', entry.contentRect.height, 'autoFit:', shouldAutoFitRef.current)
+
+        if (shouldAutoFitRef.current && fitAddonRef.current) {
+          shouldAutoFitRef.current = false  // Disable autofit before calling fit
           fitAddonRef.current.fit()
+          setTimeout(() => {
+            shouldAutoFitRef.current = true  // Re-enable after a brief delay
+          }, 100)
         }
       })
       resizeObserver.observe(containerRef.current!)
 
       return () => {
-        resizeObserver.disconnect()
+        if (resizeObserver) {
+          resizeObserver.disconnect()
+        }
       }
     }
 
@@ -102,9 +113,15 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   }, [sendMessage])
 
   return (
-    <div className="flex-1 flex flex-col bg-black">
+    <div
+      className="flex flex-col bg-black"
+      style={{
+        position: 'absolute',
+        inset: 0,
+      }}
+    >
       {/* Header */}
-      <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
+      <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           <h3 className="text-sm font-medium text-gray-200">
@@ -123,9 +140,8 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       <div
         ref={containerRef}
         style={{
-          flex: '1 1 0%',
+          flex: 1,
           minHeight: 0,
-          width: '100%',
         }}
       />
     </div>

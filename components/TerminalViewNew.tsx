@@ -55,7 +55,16 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       terminal.loadAddon(webLinksAddon)
 
       terminal.open(containerRef.current!)
-      fitAddon.fit()
+
+      // Wait for layout to complete before fitting
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const rect = containerRef.current!.getBoundingClientRect()
+          console.log('[TerminalNew] Container size:', rect.width, 'x', rect.height)
+          fitAddon.fit()
+          console.log('[TerminalNew] Terminal size after fit:', terminal.cols, 'x', terminal.rows)
+        })
+      })
 
       // Handle input
       terminal.onData((data: string) => {
@@ -66,7 +75,9 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       fitAddonRef.current = fitAddon
 
       // Handle resize
-      const resizeObserver = new ResizeObserver(() => {
+      const resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        console.log('[TerminalNew] Container resized:', entry.contentRect.width, 'x', entry.contentRect.height)
         if (fitAddonRef.current) {
           fitAddonRef.current.fit()
         }
@@ -112,8 +123,9 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       <div
         ref={containerRef}
         style={{
-          flex: 1,
+          flex: '1 1 0%',
           minHeight: 0,
+          width: '100%',
         }}
       />
     </div>

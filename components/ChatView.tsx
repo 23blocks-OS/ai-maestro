@@ -29,32 +29,75 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
-      // Strip ANSI codes and accumulate output
+      // Strip ANSI codes
       const stripped = stripAnsi(data)
 
-      // Accumulate data
-      accumulatorRef.current += stripped
+      // Handle carriage returns - split by \r and take the last part
+      // This simulates terminal behavior where \r overwrites the current line
+      if (stripped.includes('\r')) {
+        const parts = stripped.split('\r')
+        // Take only the last part (the final state after all overwrites)
+        accumulatorRef.current = parts[parts.length - 1]
+      } else {
+        // Normal accumulation
+        accumulatorRef.current += stripped
+      }
 
       // Clear existing timeout
       if (flushTimeoutRef.current) {
         clearTimeout(flushTimeoutRef.current)
       }
 
-      // Flush after 150ms of no new data (debounced)
+      // Flush after 300ms of no new data (longer debounce for stability)
       flushTimeoutRef.current = setTimeout(() => {
-        if (accumulatorRef.current.trim()) {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: `${Date.now()}-${Math.random()}`,
-              content: accumulatorRef.current,
-              timestamp: new Date(),
-              type: 'output'
-            }
-          ])
+        const content = accumulatorRef.current.trim()
+
+        // Filter out pure whitespace, empty lines, and UI noise
+        if (!content || content.length < 2) {
           accumulatorRef.current = ''
+          return
         }
-      }, 150)
+
+        // Filter out common Claude Code UI elements that don't work in chat
+        const isUIElement =
+          content.includes('▼') ||
+          content.includes('▶') ||
+          content.includes('┌') ||
+          content.includes('└') ||
+          content.includes('├') ||
+          content.includes('│') ||
+          content.includes('━') ||
+          content.includes('█') ||
+          content.match(/^\s*[-=]{3,}\s*$/) || // horizontal lines
+          content.match(/^\s*[▁▂▃▄▅▆▇█]+\s*$/) || // progress bars
+          content.match(/^[┌┐└┘├┤┬┴┼─│]+$/) || // box drawing only
+          content.trim().match(/^[•·◦▪▫○●]+$/) // bullets only
+
+        if (isUIElement) {
+          accumulatorRef.current = ''
+          return
+        }
+
+        // Filter out very short repeated content (status updates)
+        if (content.length < 10 && messages.length > 0) {
+          const lastMessage = messages[messages.length - 1]
+          if (lastMessage.type === 'output' && lastMessage.content === content) {
+            accumulatorRef.current = ''
+            return
+          }
+        }
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random()}`,
+            content: content,
+            timestamp: new Date(),
+            type: 'output'
+          }
+        ])
+        accumulatorRef.current = ''
+      }, 300)
     },
   })
 
@@ -114,20 +157,25 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
-        <div>
-          <h3 className="text-sm font-medium text-gray-200">Simple Chat Interface</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {isConnected ? 'Connected' : 'Disconnected'} • {messages.length} message{messages.length !== 1 ? 's' : ''}
-          </p>
+      <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-sm font-medium text-gray-200">Simple Chat Interface</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {isConnected ? 'Connected' : 'Disconnected'} • {messages.length} message{messages.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            onClick={handleClearMessages}
+            className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
+            title="Clear all messages"
+          >
+            Clear
+          </button>
         </div>
-        <button
-          onClick={handleClearMessages}
-          className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
-          title="Clear all messages"
-        >
-          Clear
-        </button>
+        <div className="px-3 py-2 bg-blue-900/20 border border-blue-800 rounded text-xs text-blue-300">
+          💡 <strong>Tip:</strong> Chat mode filters out interactive UI elements. For full Claude Code features (expandable cards, status updates), use the <strong>Terminal</strong> tab.
+        </div>
       </div>
 
       {/* Output Area */}
@@ -205,11 +253,15 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   )
 }
 
-// Simple ANSI code stripper
+// Comprehensive ANSI and terminal control code stripper
 function stripAnsi(text: string): string {
-  // Remove ANSI escape codes
-  return text.replace(
-    /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
-    ''
-  )
+  return text
+    // Remove ANSI escape codes
+    .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+    // Remove other escape sequences
+    .replace(/\x1B[@-_][0-?]*[ -/]*[@-~]/g, '')
+    // Remove OSC (Operating System Command) sequences
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    // Remove control characters except newlines and tabs
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
 }

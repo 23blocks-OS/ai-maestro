@@ -127,9 +127,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
           if (terminalInstanceRef.current) {
-            // Simply scroll to bottom and focus terminal
-            terminalInstanceRef.current.scrollToBottom()
-            terminalInstanceRef.current.focus()
+            const term = terminalInstanceRef.current
+
+            // Wait for xterm.js to finish processing history
+            setTimeout(() => {
+              // 1. Scroll to bottom
+              term.scrollToBottom()
+
+              // 2. Focus terminal to activate selection layer
+              term.focus()
+
+              // 3. Clear selection to ensure selection layer is initialized
+              // This activates xterm.js's selection service
+              term.clearSelection()
+            }, 100)
           }
           return
         }
@@ -152,7 +163,21 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
       // Write data to terminal
       if (terminalInstanceRef.current) {
-        terminalInstanceRef.current.write(data)
+        const term = terminalInstanceRef.current
+        term.write(data)
+
+        // CRITICAL: After writing new content, ensure selection layer stays active
+        // Only do this if there's NO active selection (don't interrupt user)
+        if (!term.hasSelection()) {
+          // Use requestAnimationFrame to avoid blocking the write
+          requestAnimationFrame(() => {
+            if (term) {
+              // Single focus call to keep selection layer active
+              // This prevents the yellow browser selection from taking over
+              term.focus()
+            }
+          })
+        }
       } else {
         messageBufferRef.current.push(data)
       }

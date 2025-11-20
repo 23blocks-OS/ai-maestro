@@ -25,7 +25,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [isMobile, setIsMobile] = useState(false)
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
@@ -127,47 +126,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          // After initial history loads, force a complete refresh of all xterm layers
-          // This fixes: yellow selection, scrollbar not updating, and layer misalignment
           if (terminalInstanceRef.current) {
-            const term = terminalInstanceRef.current
-
-
-            // CRITICAL: Wait for xterm.js to finish processing history
-            setTimeout(() => {
-
-              // 1. Scroll to bottom first
-              term.scrollToBottom()
-
-              // 2. Focus terminal to activate selection layer
-              term.focus()
-
-              // 3. CRITICAL: Force selection service to re-initialize
-              // This ensures xterm.js's selection layer is active, not browser default
-              term.clearSelection()
-
-              // 4. Refresh all layers (canvas, selection, scrollbar)
-              term.refresh(0, term.rows - 1)
-
-
-              // 5. Final refresh after a small delay to ensure selection layer is ready
-              setTimeout(() => {
-                // Click on terminal to ensure it's truly active
-                const terminalElement = term.element
-                if (terminalElement) {
-                  // Dispatch a synthetic click to fully activate the terminal
-                  const clickEvent = new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                  })
-                  terminalElement.dispatchEvent(clickEvent)
-                }
-
-                term.refresh(0, term.rows - 1)
-              }, 50)
-
-            }, 100)
+            // Simply scroll to bottom and focus terminal
+            terminalInstanceRef.current.scrollToBottom()
+            terminalInstanceRef.current.focus()
           }
           return
         }
@@ -188,21 +150,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // Only report activity for substantial content (not cursor blinks or control sequences)
       // Filter out idle terminal noise to properly detect active vs idle state
 
-      // Always write data to terminal first
+      // Write data to terminal
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
-
-        // CRITICAL: Refresh selection layer after content updates
-        // Debounced to avoid performance issues during rapid updates
-        if (refreshTimeoutRef.current) {
-          clearTimeout(refreshTimeoutRef.current)
-        }
-        refreshTimeoutRef.current = setTimeout(() => {
-          if (terminalInstanceRef.current) {
-            // Refresh only the visible portion to maintain performance
-            terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
-          }
-        }, 200) // Wait 200ms after last write
       } else {
         messageBufferRef.current.push(data)
       }
@@ -612,23 +562,25 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
       {/* Terminal Container */}
       <div
-        className="flex-1 relative overflow-hidden"
+        className="flex-1 min-h-0 relative overflow-hidden"
         style={{
-          // Prevent mobile rubber-band scrolling
-          overscrollBehavior: 'contain',
-          // CRITICAL: Ensure terminal stays within flex boundaries
-          // Without minHeight: 0, flex-1 won't shrink when notes expand
+          // CRITICAL: flex-1 takes remaining space after footer
+          // min-h-0 allows flex item to shrink below content size
+          // overflow-hidden prevents terminal from escaping container bounds
+          flex: '1 1 0%',
           minHeight: 0,
-          // Ensure this container respects flex layout and doesn't overflow
-          maxHeight: '100%'
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         <div
           ref={terminalRef}
-          className="absolute inset-0"
+          className="flex-1"
           style={{
-            // CRITICAL: Prevent touch events from bubbling to parent on mobile
-            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto'
+            // Terminal takes full available space within container
+            width: '100%',
+            height: '100%',
+            position: 'relative'
           }}
         />
         {!isReady && (

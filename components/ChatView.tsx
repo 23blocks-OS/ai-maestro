@@ -10,54 +10,62 @@ interface ChatViewProps {
 }
 
 export default function ChatView({ session, isVisible = true }: ChatViewProps) {
-  const [output, setOutput] = useState('')
+  const [lines, setLines] = useState<string[]>([])
   const [input, setInput] = useState('')
   const outputRef = useRef<HTMLPreElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const bufferRef = useRef<string>('')
 
-  const { isConnected, sendMessage } = useWebSocket({
+  const { isConnected, sendMessage} = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
-      // Strip ANSI codes
+      // Strip ANSI codes and accumulate
       const cleaned = stripAnsi(data)
+      bufferRef.current += cleaned
 
-      setOutput(prev => {
-        // Handle carriage returns - they overwrite the current line
-        if (cleaned.includes('\r')) {
-          // Split by carriage return
-          const parts = cleaned.split('\r')
+      // Process buffer into lines
+      setLines(prev => {
+        const buffer = bufferRef.current
+        const result = [...prev]
+        let currentLine = result.length > 0 ? result[result.length - 1] : ''
 
-          // Each \r means "go back and overwrite the current line"
-          // So we only keep the LAST part before the final part
-          // Example: "A\rB\rC" means show "C" (B and A were overwritten)
+        // Process each character
+        for (let i = 0; i < buffer.length; i++) {
+          const char = buffer[i]
 
-          // Find the last newline in previous output
-          const lastNewlineIndex = prev.lastIndexOf('\n')
-          // Keep everything up to and including the last newline
-          const prevLines = prev.substring(0, lastNewlineIndex + 1)
-
-          // Take the last part with content (the final state after all overwrites)
-          // Work backwards to find the last non-empty part
-          let finalContent = ''
-          for (let i = parts.length - 1; i >= 0; i--) {
-            if (parts[i].trim()) {
-              finalContent = parts[i]
-              break
+          if (char === '\n') {
+            // Newline - add current line and start a new one
+            if (result.length === 0 || result[result.length - 1] !== currentLine) {
+              result.push(currentLine)
             }
+            currentLine = ''
+          } else if (char === '\r') {
+            // Carriage return - reset current line (will be overwritten)
+            currentLine = ''
+          } else {
+            // Regular character - add to current line
+            currentLine += char
           }
-
-          // If no content found, just use the last part
-          if (!finalContent && parts.length > 0) {
-            finalContent = parts[parts.length - 1]
-          }
-
-          return prevLines + finalContent
         }
 
-        // Normal append
-        return prev + cleaned
+        // Update or add the current line
+        if (result.length > 0 && buffer.includes('\r')) {
+          // If we had carriage returns, replace the last line
+          result[result.length - 1] = currentLine
+        } else if (currentLine) {
+          // Otherwise add/update the last line
+          if (result.length > 0) {
+            result[result.length - 1] = currentLine
+          } else {
+            result.push(currentLine)
+          }
+        }
+
+        // Clear buffer after processing
+        bufferRef.current = ''
+        return result
       })
     },
   })
@@ -67,7 +75,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [output])
+  }, [lines])
 
   // Focus input when tab becomes visible
   useEffect(() => {
@@ -82,8 +90,8 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   const handleSend = () => {
     if (!input.trim() || !isConnected) return
 
-    // Add user input to output display
-    setOutput(prev => prev + '\n> ' + input + '\n')
+    // Add user input to lines display
+    setLines(prev => [...prev, '', '> ' + input])
 
     // Send to terminal (with carriage return to execute)
     sendMessage(input + '\r')
@@ -103,7 +111,8 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
   }
 
   const handleClearOutput = () => {
-    setOutput('')
+    setLines([])
+    bufferRef.current = ''
   }
 
   return (
@@ -131,7 +140,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
         className="flex-1 overflow-auto px-4 py-3 m-0 text-xs text-gray-200 font-mono bg-black/30"
         style={{ minHeight: 0 }}
       >
-        {output || '(No output yet - send a message to start)'}
+        {lines.length > 0 ? lines.join('\n') : '(No output yet - send a message to start)'}
       </pre>
 
       {/* Input Area */}

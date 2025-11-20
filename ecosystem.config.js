@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'ai-maestro',
-      script: './server.mjs',
+      script: './scripts/start-with-ssh.sh',
+      interpreter: '/bin/bash',
       instances: 1,
       exec_mode: 'fork',
       watch: false,

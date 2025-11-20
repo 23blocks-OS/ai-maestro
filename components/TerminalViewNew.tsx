@@ -113,13 +113,7 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   }, [sendMessage])
 
   return (
-    <div
-      className="flex flex-col bg-black"
-      style={{
-        position: 'absolute',
-        inset: 0,
-      }}
-    >
+    <div className="flex-1 flex flex-col min-h-0 bg-black">
       {/* Header */}
       <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -139,8 +133,8 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       {/* Terminal */}
       <div
         ref={containerRef}
+        className="flex-1"
         style={{
-          flex: 1,
           minHeight: 0,
         }}
       />

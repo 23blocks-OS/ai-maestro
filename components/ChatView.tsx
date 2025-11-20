@@ -20,9 +20,35 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
-      // Just strip ANSI codes and append to output
+      // Strip ANSI codes
       const cleaned = stripAnsi(data)
-      setOutput(prev => prev + cleaned)
+
+      setOutput(prev => {
+        // Handle carriage returns - they overwrite the current line
+        if (cleaned.includes('\r')) {
+          // Split by carriage return
+          const parts = cleaned.split('\r')
+
+          // For each part with \r, replace the last line
+          let result = prev
+          for (let i = 0; i < parts.length - 1; i++) {
+            // Find the last newline in current result
+            const lastNewlineIndex = result.lastIndexOf('\n')
+            // Remove everything after the last newline (current line)
+            result = result.substring(0, lastNewlineIndex + 1)
+            // Add the new content (if any)
+            if (parts[i]) {
+              result += parts[i]
+            }
+          }
+          // Add the final part (no \r after it)
+          result += parts[parts.length - 1]
+          return result
+        }
+
+        // Normal append
+        return prev + cleaned
+      })
     },
   })
 

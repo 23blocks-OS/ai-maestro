@@ -605,7 +605,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       >
         <div
           ref={terminalRef}
-          className="flex-1"
           onClick={() => {
             // CRITICAL: On every click, forcefully re-activate selection layer
             // This fixes the yellow highlight issue by ensuring xterm's selection
@@ -619,7 +618,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           }}
           style={{
             // Terminal takes full available space within container
-            // CRITICAL: Don't set height: 100% - it conflicts with flex-1 and prevents proper resizing
+            flex: '1 1 0%',
+            minHeight: 0,
             width: '100%',
             position: 'relative'
           }}

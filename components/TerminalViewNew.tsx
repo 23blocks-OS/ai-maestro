@@ -14,6 +14,7 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   const terminalRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
   const shouldAutoFitRef = useRef(true)
+  const hasInitialFitRef = useRef(false)
 
   const { isConnected, sendMessage } = useWebSocket({
     sessionId: session.id,
@@ -66,17 +67,8 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       terminalRef.current = terminal
       fitAddonRef.current = fitAddon
 
-      // Initial fit after a delay to ensure container has stable size
-      setTimeout(() => {
-        if (fitAddonRef.current && containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect()
-          console.log('[TerminalNew] Initial fit - Container size:', rect.width, 'x', rect.height)
-          shouldAutoFitRef.current = false  // Disable autofit before manual fit
-          fitAddon.fit()
-          console.log('[TerminalNew] Terminal size after fit:', terminal.cols, 'x', terminal.rows)
-          shouldAutoFitRef.current = true   // Re-enable autofit
-        }
-      }, 100)
+      // Don't do initial fit here - wait for tab to become visible
+      // This prevents fitting with wrong dimensions before layout is complete
 
       // Handle resize with conditional fitting (prevents infinite loops)
       resizeObserver = new ResizeObserver((entries) => {
@@ -111,6 +103,26 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       fitAddonRef.current = null
     }
   }, [sendMessage])
+
+  // Fit terminal when tab becomes visible for the first time or changes visibility
+  useEffect(() => {
+    if (isVisible && fitAddonRef.current && containerRef.current) {
+      // Use requestAnimationFrame to ensure layout is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (fitAddonRef.current && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect()
+            console.log('[TerminalNew] Visible fit - Container size:', rect.width, 'x', rect.height)
+            shouldAutoFitRef.current = false
+            fitAddonRef.current.fit()
+            console.log('[TerminalNew] Terminal size after fit:', terminalRef.current?.cols, 'x', terminalRef.current?.rows)
+            shouldAutoFitRef.current = true
+            hasInitialFitRef.current = true
+          }
+        })
+      })
+    }
+  }, [isVisible])
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-black">

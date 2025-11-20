@@ -240,26 +240,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
-  // CRITICAL: Force terminal fit after initialization to ensure correct sizing
-  // The terminal may initialize before CSS layout is fully computed, resulting in
-  // incorrect dimensions that don't account for the notes panel
-  useEffect(() => {
-    if (isReady && terminal) {
-      // Use requestAnimationFrame to wait for layout to settle
-      // Then add a small delay to ensure notes panel height is factored in
-      let timeoutId: NodeJS.Timeout
-      const rafId = requestAnimationFrame(() => {
-        timeoutId = setTimeout(() => {
-          fitTerminal()
-        }, 100)
-      })
-      return () => {
-        cancelAnimationFrame(rafId)
-        if (timeoutId) clearTimeout(timeoutId)
-      }
-    }
-  }, [isReady, terminal, fitTerminal])
-
   // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {
     if (isReady && terminal) {

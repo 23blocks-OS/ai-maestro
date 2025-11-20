@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
 import TerminalView from '@/components/TerminalView'
+import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
 import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
@@ -12,14 +13,14 @@ import MigrationBanner from '@/components/MigrationBanner'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { useSessions } from '@/hooks/useSessions'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare } from 'lucide-react'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'worktree'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -268,6 +269,17 @@ export default function DashboardPage() {
                       Terminal
                     </button>
                     <button
+                      onClick={() => setActiveTab('chat')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'chat'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Chat
+                    </button>
+                    <button
                       onClick={() => setActiveTab('messages')}
                       className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'messages'
@@ -311,6 +323,8 @@ export default function DashboardPage() {
                   <div className="flex-1 flex overflow-hidden">
                     {activeTab === 'terminal' ? (
                       <TerminalView session={session} isVisible={isActive} />
+                    ) : activeTab === 'chat' ? (
+                      <ChatView session={session} isVisible={isActive && activeTab === 'chat'} />
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
                         sessionName={session.id}

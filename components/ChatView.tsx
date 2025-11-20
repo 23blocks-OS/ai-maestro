@@ -33,10 +33,19 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
         }
       }
 
-      // Skip anything with \r - these are progress updates that would duplicate
-      // Only show content that ends with \n (final output)
+      // Handle carriage returns properly:
+      // When there's a \r, it means "return to start of line and overwrite"
+      // So we keep only the last part after the final \r
       if (cleaned.includes('\r')) {
-        return
+        // Split by \r and only keep the final state
+        const parts = cleaned.split('\r')
+        cleaned = parts[parts.length - 1]
+
+        // If it's just a progress update with no newline, skip it
+        // (these are intermediate states that will be overwritten)
+        if (!cleaned.includes('\n')) {
+          return
+        }
       }
 
       setOutput(prev => prev + cleaned)

@@ -240,16 +240,16 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
-  // Mobile-specific: trigger fit when notes collapse/expand (changes terminal height on mobile)
+  // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {
-    if (isMobile && isReady && terminal) {
-      // Notes state changed on mobile, terminal height changed dramatically
+    if (isReady && terminal) {
+      // Notes state or footer tab changed, terminal height changed
       const timeout = setTimeout(() => {
         fitTerminal()
       }, 150)
       return () => clearTimeout(timeout)
     }
-  }, [notesCollapsed, footerTab, isMobile, isReady, terminal, fitTerminal, session.id])
+  }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal, session.id])
 
   // Handle terminal input
   useEffect(() => {

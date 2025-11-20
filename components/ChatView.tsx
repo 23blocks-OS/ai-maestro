@@ -33,8 +33,11 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
         }
       }
 
-      // Normalize line endings: \r\n → \n, standalone \r → nothing
-      cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '')
+      // Skip anything with \r - these are progress updates that would duplicate
+      // Only show content that ends with \n (final output)
+      if (cleaned.includes('\r')) {
+        return
+      }
 
       setOutput(prev => prev + cleaned)
     },

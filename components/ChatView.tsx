@@ -32,59 +32,68 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
       // Strip ANSI codes
       const stripped = stripAnsi(data)
 
-      // Handle carriage returns - split by \r and take the last part
-      // This simulates terminal behavior where \r overwrites the current line
+      // Handle carriage returns - these indicate status updates that overwrite
       if (stripped.includes('\r')) {
         const parts = stripped.split('\r')
-        // Take only the last part (the final state after all overwrites)
-        accumulatorRef.current = parts[parts.length - 1]
-      } else {
-        // Normal accumulation
-        accumulatorRef.current += stripped
+        // Take the last part (final state)
+        const finalContent = parts[parts.length - 1].trim()
+
+        if (finalContent) {
+          // Update or replace the last message if it was a status update
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1]
+            // If last message was within 1 second and is output, update it (status update)
+            if (lastMsg &&
+                lastMsg.type === 'output' &&
+                Date.now() - lastMsg.timestamp.getTime() < 1000) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastMsg,
+                  content: finalContent,
+                  timestamp: new Date()
+                }
+              ]
+            }
+            // Otherwise, add as new message
+            return [
+              ...prev,
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                content: finalContent,
+                timestamp: new Date(),
+                type: 'output'
+              }
+            ]
+          })
+        }
+        accumulatorRef.current = ''
+        return
       }
+
+      // Normal accumulation
+      accumulatorRef.current += stripped
 
       // Clear existing timeout
       if (flushTimeoutRef.current) {
         clearTimeout(flushTimeoutRef.current)
       }
 
-      // Flush after 300ms of no new data (longer debounce for stability)
+      // Flush after 200ms of no new data
       flushTimeoutRef.current = setTimeout(() => {
         const content = accumulatorRef.current.trim()
 
-        // Filter out pure whitespace, empty lines, and UI noise
-        if (!content || content.length < 2) {
+        // Filter out pure whitespace or very short empty content
+        if (!content || content.length < 1) {
           accumulatorRef.current = ''
           return
         }
 
-        // Filter out common Claude Code UI elements that don't work in chat
-        const isUIElement =
-          content.includes('▼') ||
-          content.includes('▶') ||
-          content.includes('┌') ||
-          content.includes('└') ||
-          content.includes('├') ||
-          content.includes('│') ||
-          content.includes('━') ||
-          content.includes('█') ||
-          content.match(/^\s*[-=]{3,}\s*$/) || // horizontal lines
-          content.match(/^\s*[▁▂▃▄▅▆▇█]+\s*$/) || // progress bars
-          content.match(/^[┌┐└┘├┤┬┴┼─│]+$/) || // box drawing only
-          content.trim().match(/^[•·◦▪▫○●]+$/) // bullets only
-
-        if (isUIElement) {
+        // Only filter out PURE box-drawing characters (no text mixed in)
+        const isPureBoxDrawing = content.match(/^[┌┐└┘├┤┬┴┼─│━]+$/)
+        if (isPureBoxDrawing) {
           accumulatorRef.current = ''
           return
-        }
-
-        // Filter out very short repeated content (status updates)
-        if (content.length < 10 && messages.length > 0) {
-          const lastMessage = messages[messages.length - 1]
-          if (lastMessage.type === 'output' && lastMessage.content === content) {
-            accumulatorRef.current = ''
-            return
-          }
         }
 
         setMessages(prev => [
@@ -97,7 +106,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
           }
         ])
         accumulatorRef.current = ''
-      }, 300)
+      }, 200)
     },
   })
 
@@ -174,7 +183,7 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
           </button>
         </div>
         <div className="px-3 py-2 bg-blue-900/20 border border-blue-800 rounded text-xs text-blue-300">
-          💡 <strong>Tip:</strong> Chat mode filters out interactive UI elements. For full Claude Code features (expandable cards, status updates), use the <strong>Terminal</strong> tab.
+          💡 <strong>Tip:</strong> Chat mode shows text output with status updates. For full interactive features (expandable cards, cursor positioning), use the <strong>Terminal</strong> tab.
         </div>
       </div>
 

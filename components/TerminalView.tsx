@@ -137,8 +137,16 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
               // 1. Scroll to bottom
               term.scrollToBottom()
 
-              // 2. Focus terminal to activate selection layer
-              term.focus()
+              // 2. Focus terminal to activate selection layer (but not if user is typing in an input)
+              const activeElement = document.activeElement
+              const isInputFocused = activeElement?.tagName === 'INPUT' ||
+                                     activeElement?.tagName === 'TEXTAREA' ||
+                                     activeElement?.tagName === 'SELECT' ||
+                                     activeElement?.getAttribute('contenteditable') === 'true'
+
+              if (!isInputFocused) {
+                term.focus()
+              }
 
               // 3. Clear selection to ensure selection layer is initialized
               // This activates xterm.js's selection service
@@ -274,8 +282,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     // Every 2 seconds, check and re-activate selection layer if needed
     const interval = setInterval(() => {
       if (terminal && !terminal.hasSelection()) {
-        // Only re-activate if user isn't actively selecting
-        terminal.focus()
+        // Don't steal focus from input elements (modals, forms, etc.)
+        const activeElement = document.activeElement
+        const isInputFocused = activeElement?.tagName === 'INPUT' ||
+                               activeElement?.tagName === 'TEXTAREA' ||
+                               activeElement?.tagName === 'SELECT' ||
+                               activeElement?.getAttribute('contenteditable') === 'true'
+
+        if (!isInputFocused) {
+          // Only re-activate if user isn't actively selecting or typing
+          terminal.focus()
+        }
       }
     }, 2000)
 

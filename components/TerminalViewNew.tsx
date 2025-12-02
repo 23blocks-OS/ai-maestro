@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { createResizeMessage } from '@/lib/websocket'
 import type { Session } from '@/types/session'
 
 interface TerminalViewNewProps {
@@ -13,8 +14,8 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
-  const shouldAutoFitRef = useRef(true)
-  const hasInitialFitRef = useRef(false)
+  const initializedRef = useRef(false)
+  const [isReady, setIsReady] = useState(false)
 
   const { isConnected, sendMessage } = useWebSocket({
     sessionId: session.id,
@@ -27,15 +28,44 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
     },
   })
 
-  // Initialize terminal
+  // Fit terminal function
+  const fitTerminal = useCallback(() => {
+    if (fitAddonRef.current && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        fitAddonRef.current.fit()
+        // Send resize to server
+        if (terminalRef.current) {
+          const { cols, rows } = terminalRef.current
+          if (cols && rows) {
+            sendMessage(createResizeMessage(cols, rows))
+          }
+        }
+      }
+    }
+  }, [sendMessage])
+
+  // Initialize terminal when container is ready and visible
   useEffect(() => {
-    if (!containerRef.current) return
+    // Only initialize when visible - prevents initializing all hidden tabs
+    if (!isVisible || !containerRef.current || initializedRef.current) return
+
+    // Check if container has dimensions
+    const rect = containerRef.current.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) {
+      return
+    }
+
+    initializedRef.current = true
 
     let terminal: any
     let fitAddon: any
     let resizeObserver: ResizeObserver | null = null
 
     const init = async () => {
+      const container = containerRef.current
+      if (!container) return
+
       const { Terminal } = await import('@xterm/xterm')
       const { FitAddon } = await import('@xterm/addon-fit')
       const { WebLinksAddon } = await import('@xterm/addon-web-links')
@@ -45,10 +75,11 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
         fontSize: 14,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {
-          background: '#000000',
-          foreground: '#ffffff',
+          background: '#1e1e1e',
+          foreground: '#d4d4d4',
         },
         scrollback: 10000,
+        convertEol: false,
       })
 
       fitAddon = new FitAddon()
@@ -57,81 +88,77 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       terminal.loadAddon(fitAddon)
       terminal.loadAddon(webLinksAddon)
 
-      terminal.open(containerRef.current!)
+      terminal.open(container)
 
       // Handle input
       terminal.onData((data: string) => {
         sendMessage(data)
       })
 
+      // Handle terminal resize
+      terminal.onResize(({ cols, rows }: { cols: number; rows: number }) => {
+        sendMessage(createResizeMessage(cols, rows))
+      })
+
       terminalRef.current = terminal
       fitAddonRef.current = fitAddon
 
-      // Don't do initial fit here - wait for tab to become visible
-      // This prevents fitting with wrong dimensions before layout is complete
+      // Initial fit with delay to ensure layout is complete
+      setTimeout(() => {
+        if (fitAddon && container) {
+          fitAddon.fit()
+        }
+      }, 100)
 
-      // Handle resize with conditional fitting (prevents infinite loops)
-      resizeObserver = new ResizeObserver((entries) => {
-        const entry = entries[0]
-        console.log('[TerminalNew] Container resized:', entry.contentRect.width, 'x', entry.contentRect.height, 'autoFit:', shouldAutoFitRef.current)
-
-        if (shouldAutoFitRef.current && fitAddonRef.current) {
-          shouldAutoFitRef.current = false  // Disable autofit before calling fit
+      // ResizeObserver for container size changes
+      resizeObserver = new ResizeObserver(() => {
+        if (fitAddonRef.current) {
           fitAddonRef.current.fit()
-          setTimeout(() => {
-            shouldAutoFitRef.current = true  // Re-enable after a brief delay
-          }, 100)
         }
       })
-      resizeObserver.observe(containerRef.current!)
+      resizeObserver.observe(container)
 
-      return () => {
-        if (resizeObserver) {
-          resizeObserver.disconnect()
-        }
-      }
+      setIsReady(true)
     }
 
-    const cleanup = init()
+    init()
 
     return () => {
-      cleanup.then(fn => fn?.())
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      }
       if (terminal) {
         terminal.dispose()
       }
       terminalRef.current = null
       fitAddonRef.current = null
+      initializedRef.current = false
+      setIsReady(false)
     }
-  }, [sendMessage])
+  }, [isVisible, sendMessage])
 
-  // Fit terminal when tab becomes visible for the first time or changes visibility
+  // Re-fit when visibility changes
   useEffect(() => {
-    if (isVisible && fitAddonRef.current && containerRef.current) {
-      // Use requestAnimationFrame to ensure layout is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (fitAddonRef.current && containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect()
-            console.log('[TerminalNew] Visible fit - Container size:', rect.width, 'x', rect.height)
-            shouldAutoFitRef.current = false
-            fitAddonRef.current.fit()
-            console.log('[TerminalNew] Terminal size after fit:', terminalRef.current?.cols, 'x', terminalRef.current?.rows)
-            shouldAutoFitRef.current = true
-            hasInitialFitRef.current = true
-          }
-        })
-      })
+    if (isVisible && isReady) {
+      // Delay to allow CSS transition to complete
+      const timeout = setTimeout(() => {
+        fitTerminal()
+      }, 150)
+      return () => clearTimeout(timeout)
     }
-  }, [isVisible])
+  }, [isVisible, isReady, fitTerminal])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-black">
+    <div
+      className="flex-1 flex flex-col min-h-0 bg-terminal-bg"
+      style={{ width: '100%', overflow: 'hidden' }}
+    >
       {/* Header */}
       <div className="px-4 py-2 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           <h3 className="text-sm font-medium text-gray-200">
-            Terminal New (Minimal xterm.js)
+            Terminal New - {session.name || session.id}
           </h3>
         </div>
         <button
@@ -142,14 +169,34 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
         </button>
       </div>
 
-      {/* Terminal */}
+      {/* Terminal Container */}
       <div
-        ref={containerRef}
-        className="flex-1"
+        className="flex-1 min-h-0 relative overflow-hidden"
         style={{
+          flex: '1 1 0%',
           minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
         }}
-      />
+      >
+        <div
+          ref={containerRef}
+          style={{
+            flex: '1 1 0%',
+            minHeight: 0,
+            width: '100%',
+            position: 'relative'
+          }}
+        />
+        {!isReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-400">Initializing terminal...</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

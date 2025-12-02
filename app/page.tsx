@@ -332,7 +332,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Tab Content */}
-                  <div className="flex-1 flex overflow-hidden">
+                  <div className="flex-1 flex overflow-hidden min-h-0">
                     {activeTab === 'terminal' ? (
                       <TerminalView session={session} isVisible={isActive} />
                     ) : activeTab === 'terminal-new' ? (

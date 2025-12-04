@@ -1,19 +1,30 @@
 /**
  * Code Graph Indexer
  * Stores parsed code graph data into CozoDB
+ * Supports TypeScript, JavaScript, Ruby, and Python projects
  */
 
 import { AgentDatabase } from '@/lib/cozo-db'
-import { ParsedFile, parseProject, parseFiles } from './code-parser'
+import { ParsedFile as TSParsedFile, parseFiles } from './code-parser'
+import { parseProject as parseProjectUnified, detectProjectType, getProjectInfo, ProjectInfo, AnyParsedFile, ProjectType } from './parsers'
 import { codeId } from './id'
+
+// Re-export project detection for API use
+export { detectProjectType, getProjectInfo, type ProjectInfo, type ProjectType }
+
+// Use the unified type for both parser outputs
+type ParsedFile = AnyParsedFile
 
 export interface IndexStats {
   filesIndexed: number
   functionsIndexed: number
   componentsIndexed: number
+  classesIndexed: number
   importsIndexed: number
   callsIndexed: number
   durationMs: number
+  projectType?: string
+  framework?: string
 }
 
 /**
@@ -22,20 +33,54 @@ export interface IndexStats {
 export async function indexParsedFiles(
   agentDb: AgentDatabase,
   parsedFiles: ParsedFile[],
-  projectPath: string
+  projectPath: string,
+  projectInfo?: ProjectInfo
 ): Promise<IndexStats> {
   const startTime = Date.now()
   const stats: IndexStats = {
     filesIndexed: 0,
     functionsIndexed: 0,
     componentsIndexed: 0,
+    classesIndexed: 0,
     importsIndexed: 0,
     callsIndexed: 0,
     durationMs: 0,
+    projectType: projectInfo?.type,
+    framework: projectInfo?.framework,
   }
 
   console.log(`[CodeIndexer] Indexing ${parsedFiles.length} files...`)
 
+  // Build global maps for resolution
+  const methodNameToIds: Map<string, string[]> = new Map()  // method_name -> [fn_id, ...]
+  const classNameToId: Map<string, string> = new Map()       // class_name -> class_id
+
+  // First pass: collect all functions and classes for global resolution
+  for (const file of parsedFiles) {
+    for (const fn of file.functions) {
+      const name = fn.name
+      if (!methodNameToIds.has(name)) {
+        methodNameToIds.set(name, [])
+      }
+      methodNameToIds.get(name)!.push(fn.fn_id)
+    }
+
+    if ('classes' in file && file.classes) {
+      for (const cls of file.classes) {
+        classNameToId.set(cls.name, cls.class_id)
+      }
+    }
+
+    if ('components' in file && file.components) {
+      for (const comp of file.components) {
+        classNameToId.set(comp.name, comp.component_id)
+      }
+    }
+  }
+
+  console.log(`[CodeIndexer] Built maps: ${methodNameToIds.size} methods, ${classNameToId.size} classes`)
+
+  // Second pass: insert all data with proper resolution
   for (const file of parsedFiles) {
     // Insert file node
     await agentDb.run(`
@@ -51,13 +96,16 @@ export async function indexParsedFiles(
 
     // Insert functions
     for (const fn of file.functions) {
+      // Handle both 'lang' (TS parser) and 'language' (unified parser) fields
+      const lang = 'lang' in fn ? fn.lang : ('language' in fn ? fn.language : 'unknown')
+
       await agentDb.run(`
         ?[fn_id, name, file_id, is_export, lang] <- [[
           '${fn.fn_id}',
           '${escapeString(fn.name)}',
           '${fn.file_id}',
           ${fn.is_export},
-          '${fn.lang}'
+          '${lang}'
         ]]
         :put functions
       `)
@@ -69,41 +117,118 @@ export async function indexParsedFiles(
         :put declares {file_id, fn_id}
       `)
 
-      // Insert function calls
+      // Insert function calls with global resolution
       for (const calledFnName of fn.calls) {
-        // Try to resolve called function to a fn_id
-        // For now, we'll just store the call relationship by name
-        // TODO: Improve resolution logic
-        const callee_fn_id = codeId.fn(file.path, calledFnName)
+        // Try to resolve to existing functions in the project
+        const targetIds = methodNameToIds.get(calledFnName) || []
 
-        await agentDb.run(`
-          ?[caller_fn, callee_fn] <- [['${fn.fn_id}', '${callee_fn_id}']]
-          :put calls {caller_fn, callee_fn}
-        `)
-        stats.callsIndexed++
+        if (targetIds.length > 0) {
+          // Create edges to all matching functions (can't know which one without type info)
+          for (const targetId of targetIds) {
+            // Skip self-calls
+            if (targetId === fn.fn_id) continue
+
+            await agentDb.run(`
+              ?[caller_fn, callee_fn] <- [['${fn.fn_id}', '${targetId}']]
+              :put calls {caller_fn, callee_fn}
+            `)
+            stats.callsIndexed++
+          }
+        }
+        // Don't create edges to non-existent functions
       }
     }
 
-    // Insert components
-    for (const comp of file.components) {
-      await agentDb.run(`
-        ?[component_id, name, file_id] <- [[
-          '${comp.component_id}',
-          '${escapeString(comp.name)}',
-          '${comp.file_id}'
-        ]]
-        :put components
-      `)
-      stats.componentsIndexed++
-
-      // Insert component_calls edges
-      for (const calledFnName of comp.calls) {
-        const fn_id = codeId.fn(file.path, calledFnName)
-
+    // Insert components (TypeScript React components)
+    if ('components' in file && file.components) {
+      for (const comp of file.components) {
         await agentDb.run(`
-          ?[component_id, fn_id] <- [['${comp.component_id}', '${fn_id}']]
-          :put component_calls {component_id, fn_id}
+          ?[component_id, name, file_id] <- [[
+            '${comp.component_id}',
+            '${escapeString(comp.name)}',
+            '${comp.file_id}'
+          ]]
+          :put components
         `)
+        stats.componentsIndexed++
+
+        // Insert component_calls edges with global resolution
+        for (const calledFnName of comp.calls) {
+          const targetIds = methodNameToIds.get(calledFnName) || []
+          for (const targetId of targetIds) {
+            await agentDb.run(`
+              ?[component_id, fn_id] <- [['${comp.component_id}', '${targetId}']]
+              :put component_calls {component_id, fn_id}
+            `)
+          }
+        }
+      }
+    }
+
+    // Insert classes (Ruby/Python classes)
+    if ('classes' in file && file.classes) {
+      for (const cls of file.classes) {
+        const classType = cls.class_type || 'class'
+        await agentDb.run(`
+          ?[component_id, name, file_id, class_type] <- [[
+            '${cls.class_id}',
+            '${escapeString(cls.name)}',
+            '${cls.file_id}',
+            '${classType}'
+          ]]
+          :put components
+        `)
+        stats.classesIndexed++
+
+        // Insert inheritance edge if parent class exists
+        if (cls.parent_class) {
+          const parentId = classNameToId.get(cls.parent_class)
+          if (parentId) {
+            await agentDb.run(`
+              ?[child_class, parent_class] <- [['${cls.class_id}', '${parentId}']]
+              :put extends {child_class, parent_class}
+            `)
+          } else {
+            // Parent class not in project - store as external reference
+            await agentDb.run(`
+              ?[child_class, parent_class] <- [['${cls.class_id}', 'external:${escapeString(cls.parent_class)}']]
+              :put extends {child_class, parent_class}
+            `)
+          }
+        }
+
+        // Insert include edges for mixins
+        if (cls.includes && cls.includes.length > 0) {
+          for (const includedModule of cls.includes) {
+            const moduleId = classNameToId.get(includedModule)
+            await agentDb.run(`
+              ?[class_id, module_name] <- [['${cls.class_id}', '${moduleId || 'external:' + escapeString(includedModule)}']]
+              :put includes {class_id, module_name}
+            `)
+          }
+        }
+
+        // Insert association edges (belongs_to, has_many, etc.)
+        if (cls.associations && cls.associations.length > 0) {
+          for (const assoc of cls.associations) {
+            const targetId = classNameToId.get(assoc.target)
+            await agentDb.run(`
+              ?[from_class, to_class, assoc_type] <- [['${cls.class_id}', '${targetId || 'external:' + escapeString(assoc.target)}', '${assoc.type}']]
+              :put associations {from_class, to_class, assoc_type}
+            `)
+          }
+        }
+
+        // Insert serializer relationship
+        if (cls.serializes) {
+          const modelId = classNameToId.get(cls.serializes)
+          if (modelId) {
+            await agentDb.run(`
+              ?[serializer_id, model_id] <- [['${cls.class_id}', '${modelId}']]
+              :put serializes {serializer_id, model_id}
+            `)
+          }
+        }
       }
     }
 
@@ -138,6 +263,7 @@ export async function indexParsedFiles(
 
 /**
  * Index entire project
+ * Auto-detects project type and uses appropriate parser
  */
 export async function indexProject(
   agentDb: AgentDatabase,
@@ -150,22 +276,20 @@ export async function indexProject(
 ): Promise<IndexStats> {
   console.log(`[CodeIndexer] Starting full project index: ${projectPath}`)
 
-  // Default exclude patterns
-  const excludePatterns = options.excludePatterns || [
-    'node_modules/**',
-    '.next/**',
-    'dist/**',
-    'build/**',
-    '.git/**',
-    'coverage/**',
-  ]
+  // Detect project type
+  const projectInfo = getProjectInfo(projectPath)
+  console.log(`[CodeIndexer] Detected project type: ${projectInfo.type}${projectInfo.framework ? ` (${projectInfo.framework})` : ''}`)
 
-  // Parse project
+  if (options.onProgress) {
+    options.onProgress(`Detected ${projectInfo.type}${projectInfo.framework ? ` (${projectInfo.framework})` : ''} project`)
+  }
+
+  // Parse project using unified parser
   if (options.onProgress) options.onProgress('Parsing project files...')
 
-  const parsedFiles = await parseProject(projectPath, {
+  const { files: parsedFiles } = await parseProjectUnified(projectPath, {
     includePatterns: options.includePatterns,
-    excludePatterns,
+    excludePatterns: options.excludePatterns,
     onProgress: (filePath, index, total) => {
       if (options.onProgress && index % 10 === 0) {
         options.onProgress(`Parsing: ${index}/${total} files (${filePath})`)
@@ -176,7 +300,7 @@ export async function indexProject(
   // Index into CozoDB
   if (options.onProgress) options.onProgress('Indexing into database...')
 
-  const stats = await indexParsedFiles(agentDb, parsedFiles, projectPath)
+  const stats = await indexParsedFiles(agentDb, parsedFiles, projectPath, projectInfo)
 
   if (options.onProgress) options.onProgress('✅ Indexing complete')
 

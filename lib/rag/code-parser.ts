@@ -318,3 +318,8 @@ export async function parseFiles(
 
   return parsedFiles
 }
+
+/**
+ * Alias for unified parser interface
+ */
+export const parseTypeScriptProject = parseProject

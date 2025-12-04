@@ -139,14 +139,15 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     }
   }
 
-  // Components
+  // Components (classes, models, serializers, controllers, React components, etc.)
   try {
     await agentDb.run(`
       :create components {
         component_id: String
         =>
         name: String,
-        file_id: String
+        file_id: String,
+        class_type: String default 'class'
       }
     `)
     console.log('[SCHEMA-RAG] ✓ Created components table')
@@ -247,6 +248,23 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
       console.log('[SCHEMA-RAG] ℹ calls table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Component calls function (React components calling functions/hooks)
+  try {
+    await agentDb.run(`
+      :create component_calls {
+        component_id: String,
+        fn_id: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created component_calls table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ component_calls table already exists')
     } else {
       throw error
     }
@@ -488,6 +506,75 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
       console.log('[SCHEMA-RAG] ℹ index_on table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Class inheritance (child_class extends parent_class)
+  try {
+    await agentDb.run(`
+      :create extends {
+        child_class: String,
+        parent_class: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created extends table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ extends table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Module includes (class includes module)
+  try {
+    await agentDb.run(`
+      :create includes {
+        class_id: String,
+        module_name: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created includes table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ includes table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Model associations (belongs_to, has_many, etc.)
+  try {
+    await agentDb.run(`
+      :create associations {
+        from_class: String,
+        to_class: String,
+        assoc_type: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created associations table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ associations table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Serializer relationships (serializer -> model)
+  try {
+    await agentDb.run(`
+      :create serializes {
+        serializer_id: String,
+        model_id: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created serializes table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ serializes table already exists')
     } else {
       throw error
     }

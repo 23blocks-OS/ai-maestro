@@ -8,12 +8,14 @@ import * as path from 'path'
 import { ParsedFile, ProjectType, ParserOptions } from './types'
 import { parseRubyProject } from './ruby-parser'
 import { parsePythonProject } from './python-parser'
+import { parseTypeScriptProjectRegex } from './typescript-regex-parser'
 import { ParsedFile as TSParsedFile } from '../code-parser'
 
 // Re-export types
 export * from './types'
 export { parseRubyFile, parseRubyProject } from './ruby-parser'
 export { parsePythonFile, parsePythonProject } from './python-parser'
+export { parseTypeScriptFile, parseTypeScriptProjectRegex } from './typescript-regex-parser'
 
 // Union type for both parser outputs
 export type AnyParsedFile = ParsedFile | TSParsedFile
@@ -31,8 +33,8 @@ export function detectProjectType(projectPath: string): ProjectType {
 
   // Check for TypeScript first (more specific)
   if (markers.typescript.some(f => fileExists(projectPath, f))) {
-    // Verify it's TypeScript by checking for tsconfig.json or .ts files
-    if (fileExists(projectPath, 'tsconfig.json')) {
+    // Verify it's TypeScript by checking for tsconfig.json, tsconfig.base.json (Nx), or .ts files
+    if (fileExists(projectPath, 'tsconfig.json') || fileExists(projectPath, 'tsconfig.base.json')) {
       return 'typescript'
     }
     // Check package.json for TypeScript dependency
@@ -102,12 +104,21 @@ export function getProjectInfo(projectPath: string): ProjectInfo {
 
           // Detect framework
           const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-          if (deps.next) info.framework = 'nextjs'
+
+          // Check for Angular (angular.json is definitive)
+          if (fileExists(projectPath, 'angular.json') || deps['@angular/core']) {
+            info.framework = 'angular'
+          }
+          // Check for React Native / Expo
+          else if (deps['react-native'] || deps['expo']) {
+            info.framework = 'react-native'
+          }
+          // Other frameworks
+          else if (deps.next) info.framework = 'nextjs'
           else if (deps.react) info.framework = 'react'
           else if (deps.vue) info.framework = 'vue'
-          else if (deps.angular) info.framework = 'angular'
           else if (deps.express) info.framework = 'express'
-          else if (deps.nx) info.framework = 'nx'
+          else if (deps.nx || fileExists(projectPath, 'nx.json')) info.framework = 'nx'
         } catch {
           // Ignore
         }
@@ -177,18 +188,17 @@ export async function parseProject(
 
     case 'typescript':
     case 'javascript': {
-      // Use existing TypeScript parser from code-parser.ts
-      // We'll import it dynamically to avoid circular dependencies
-      const { parseTypeScriptProject } = await import('../code-parser')
-      files = await parseTypeScriptProject(projectPath, options)
+      // Use regex-based parser for all TypeScript/JavaScript projects
+      // Regex parser is more stable than ts-morph for large/complex projects
+      console.log(`[Parser] Using regex parser for ${projectInfo.type} project`)
+      files = await parseTypeScriptProjectRegex(projectPath, options)
       break
     }
 
     case 'unknown': {
-      console.warn(`[Parser] Unknown project type for ${projectPath}, attempting TypeScript parser`)
+      console.warn(`[Parser] Unknown project type for ${projectPath}, attempting regex parser`)
       try {
-        const { parseTypeScriptProject } = await import('../code-parser')
-        files = await parseTypeScriptProject(projectPath, options)
+        files = await parseTypeScriptProjectRegex(projectPath, options)
       } catch (err) {
         console.error(`[Parser] Failed to parse unknown project type:`, err)
       }

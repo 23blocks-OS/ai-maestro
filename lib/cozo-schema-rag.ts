@@ -153,7 +153,47 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     console.log('[SCHEMA-RAG] ✓ Created components table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
-      console.log('[SCHEMA-RAG] ℹ components table already exists')
+      // Check if the table has class_type column (migration for older schemas)
+      try {
+        await agentDb.run(`?[class_type] := *components{class_type} :limit 1`)
+        console.log('[SCHEMA-RAG] ℹ components table already exists (with class_type)')
+      } catch (colError: any) {
+        if (colError.message?.includes('class_type')) {
+          console.log('[SCHEMA-RAG] ⚠ components table missing class_type column, migrating...')
+          // Migrate: backup data, drop table, recreate with new schema, restore data
+          try {
+            // Get existing data
+            const existingData = await agentDb.run(`?[component_id, name, file_id] := *components{component_id, name, file_id}`)
+            // Drop old table
+            await agentDb.run(`::remove components`)
+            // Create new table with class_type
+            await agentDb.run(`
+              :create components {
+                component_id: String
+                =>
+                name: String,
+                file_id: String,
+                class_type: String default 'class'
+              }
+            `)
+            // Restore data with default class_type
+            if (existingData.rows.length > 0) {
+              for (const row of existingData.rows) {
+                await agentDb.run(`
+                  ?[component_id, name, file_id, class_type] <- [['${row[0]}', '${row[1]}', '${row[2]}', 'class']]
+                  :put components
+                `)
+              }
+            }
+            console.log('[SCHEMA-RAG] ✓ Migrated components table with class_type column')
+          } catch (migrateError) {
+            console.error('[SCHEMA-RAG] Failed to migrate components table:', migrateError)
+            throw migrateError
+          }
+        } else {
+          console.log('[SCHEMA-RAG] ℹ components table already exists')
+        }
+      }
     } else {
       throw error
     }

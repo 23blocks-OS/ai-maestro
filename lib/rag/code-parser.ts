@@ -5,6 +5,7 @@
 
 import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph'
 import * as path from 'path'
+import * as fs from 'fs'
 import { codeId } from './id'
 
 export interface ParsedFile {
@@ -39,11 +40,31 @@ export interface ParsedImport {
 }
 
 /**
+ * Find the tsconfig file path (supports tsconfig.json and tsconfig.base.json for Nx)
+ */
+function findTsConfigPath(projectPath: string): string | undefined {
+  const candidates = ['tsconfig.json', 'tsconfig.base.json']
+  for (const candidate of candidates) {
+    const fullPath = path.join(projectPath, candidate)
+    if (fs.existsSync(fullPath)) {
+      return fullPath
+    }
+  }
+  return undefined
+}
+
+/**
  * Initialize ts-morph project
  */
 export function createTsMorphProject(projectPath: string): Project {
+  const tsConfigPath = findTsConfigPath(projectPath)
+
+  if (!tsConfigPath) {
+    throw new Error(`No tsconfig.json or tsconfig.base.json found in ${projectPath}`)
+  }
+
   return new Project({
-    tsConfigFilePath: path.join(projectPath, 'tsconfig.json'),
+    tsConfigFilePath: tsConfigPath,
     skipAddingFilesFromTsConfig: false,
   })
 }

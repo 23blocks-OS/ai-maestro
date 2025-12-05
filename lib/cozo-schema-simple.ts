@@ -284,25 +284,10 @@ export async function getConversations(agentDb: AgentDatabase, projectPath: stri
       :order -last_message_at
     `)
   } catch (error: any) {
-    // Fallback to old schema if new fields don't exist
-    if (error.code === 'eval::named_field_not_found') {
-      const result = await agentDb.run(`
-        ?[jsonl_file, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] :=
-          *conversations{
-            jsonl_file, project_path, session_id,
-            first_message_at, last_message_at, message_count,
-            first_user_message, model_names, git_branch, claude_version
-          },
-          project_path = '${projectPath}'
-
-        :order -last_message_at
-      `)
-      // Add null values for missing fields to match expected column count
-      return {
-        ...result,
-        rows: result.rows.map((row: any[]) => [...row, null, 0])
-      }
-    }
+    // If the conversations table doesn't exist or is missing columns, this is a critical error
+    // All databases should be migrated - run scripts/migrate-agent-databases.mjs if needed
+    console.error(`[SCHEMA] ERROR: Failed to query conversations for ${projectPath}:`, error.message)
+    console.error(`[SCHEMA] Run 'node scripts/migrate-agent-databases.mjs' to fix schema issues`)
     throw error
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { getAgentBySession, createAgent, linkSession } from '@/lib/agent-registry'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
 
     let agentId: string
     let agentConfig: any
+    let registryAgent = null
 
     if (body.sessionName && !body.id) {
       // WorkTree format - create agent from session name
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       // Use sessionName as agentId (normalize to valid format)
       agentId = sessionName.replace(/[^a-zA-Z0-9_-]/g, '-')
 
-      // Create minimal agent config
+      // Create minimal agent config for individual file
       agentConfig = {
         id: agentId,
         sessionName,
@@ -38,8 +40,54 @@ export async function POST(request: Request) {
         createdAt: Date.now(),
         type: 'local'
       }
+
+      // Also create/update registry entry
+      // Check if agent already exists in registry by session name
+      const existingAgent = getAgentBySession(sessionName)
+      if (existingAgent) {
+        // Already in registry, just update session link
+        linkSession(existingAgent.id, sessionName, workingDirectory || process.cwd())
+        registryAgent = existingAgent
+      } else {
+        // Create new registry entry with minimal info
+        // Extract alias from session name (last part after dashes)
+        const parts = sessionName.split('-')
+        const alias = parts[parts.length - 1] || sessionName
+        const tags = parts.slice(0, -1)
+
+        try {
+          registryAgent = createAgent({
+            alias,
+            displayName: sessionName,
+            program: 'claude-code',
+            model: 'claude-sonnet-4-5',
+            taskDescription: `Agent for ${sessionName}`,
+            tags,
+            owner: os.userInfo().username,
+            createSession: true,
+            workingDirectory: workingDirectory || process.cwd()
+          })
+        } catch (createError) {
+          // If alias already exists, try with full session name as alias
+          try {
+            registryAgent = createAgent({
+              alias: sessionName,
+              displayName: sessionName,
+              program: 'claude-code',
+              model: 'claude-sonnet-4-5',
+              taskDescription: `Agent for ${sessionName}`,
+              tags: [],
+              owner: os.userInfo().username,
+              createSession: true,
+              workingDirectory: workingDirectory || process.cwd()
+            })
+          } catch (retryError) {
+            console.warn(`[Register] Could not create registry entry for ${sessionName}:`, retryError)
+          }
+        }
+      }
     } else {
-      // Full agent config format
+      // Full agent config format (cloud agents)
       if (!body.id || !body.deployment?.cloud?.websocketUrl) {
         return NextResponse.json(
           { error: 'Missing required fields: id and websocketUrl' },
@@ -57,7 +105,7 @@ export async function POST(request: Request) {
       fs.mkdirSync(agentsDir, { recursive: true })
     }
 
-    // Save agent configuration
+    // Save agent configuration to individual file
     const agentFilePath = path.join(agentsDir, `${agentId}.json`)
     fs.writeFileSync(agentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
 
@@ -65,7 +113,8 @@ export async function POST(request: Request) {
       success: true,
       message: `Agent ${agentId} registered successfully`,
       agentId,
-      agent: agentConfig
+      agent: agentConfig,
+      registryAgent: registryAgent ? { id: registryAgent.id, alias: registryAgent.alias } : null
     })
   } catch (error) {
     console.error('Failed to register agent:', error)

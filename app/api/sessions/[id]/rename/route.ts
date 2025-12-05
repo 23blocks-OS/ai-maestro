@@ -4,6 +4,7 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { renameAgentSession } from '@/lib/agent-registry'
 
 const execAsync = promisify(exec)
 
@@ -53,6 +54,9 @@ export async function PATCH(
       fs.writeFileSync(newAgentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
       fs.unlinkSync(oldAgentFilePath)
 
+      // Also update the registry (if agent exists there)
+      renameAgentSession(oldName, newName)
+
       return NextResponse.json({ success: true, oldName, newName, type: 'cloud' })
     }
 
@@ -77,6 +81,9 @@ export async function PATCH(
 
     // Rename the session
     await execAsync(`tmux rename-session -t "${oldName}" "${newName}"`)
+
+    // Also update the registry (if agent exists there)
+    renameAgentSession(oldName, newName)
 
     return NextResponse.json({ success: true, oldName, newName, type: 'local' })
   } catch (error) {

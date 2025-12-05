@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { unpersistSession } from '@/lib/session-persistence'
+import { deleteAgentBySession } from '@/lib/agent-registry'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -24,6 +25,10 @@ export async function DELETE(
     if (isCloudAgent) {
       // Delete cloud agent configuration file
       fs.unlinkSync(agentFilePath)
+
+      // Also delete from registry (if agent exists there)
+      deleteAgentBySession(sessionName)
+
       return NextResponse.json({ success: true, name: sessionName, type: 'cloud' })
     }
 
@@ -42,6 +47,9 @@ export async function DELETE(
 
     // Remove from persistence
     unpersistSession(sessionName)
+
+    // Also delete from registry (if agent exists there)
+    deleteAgentBySession(sessionName)
 
     return NextResponse.json({ success: true, name: sessionName, type: 'local' })
   } catch (error) {

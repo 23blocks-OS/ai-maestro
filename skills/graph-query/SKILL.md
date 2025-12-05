@@ -17,12 +17,29 @@ Enable AI agents to **proactively** query the code graph database to understand 
 
 **YOU MUST USE THIS SKILL PROACTIVELY** in these scenarios:
 
+### 🛑 STOP: Pre-Edit Checklist
+
+**Before using the Edit tool on ANY file, ask yourself:**
+
+1. ✅ Have I queried the graph for this file/component?
+2. ✅ Do I know what depends on the code I'm changing?
+3. ✅ Have I checked for callers if changing a function signature?
+4. ✅ Have I checked for serializers if changing a model?
+
+**If ANY answer is NO, run the appropriate graph query FIRST.**
+
 ### 1. BEFORE Modifying Any File
 When you've identified a file to modify, **ALWAYS query the graph first** to understand:
 - What functions/classes call into this code?
 - What serializers depend on this model?
 - What controllers use this service?
 - Will your changes break anything else?
+
+**Example - Before editing `app/models/user.rb`:**
+```bash
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-serializers&name=User" | jq
+```
 
 ### 2. When Searching for Files
 When exploring the codebase or searching for files, use the graph to:
@@ -35,6 +52,13 @@ When you've read a file and are deciding what to do, query to understand:
 - The file's role in the larger system
 - What depends on it
 - What it depends on
+
+### 4. When Graph Queries Fail
+If queries return empty results or errors:
+1. **Verify the agent ID** - Use the UUID lookup method below
+2. **Check AI Maestro is running** - `curl -s http://localhost:23000/api/agents | jq '.agents | length'`
+3. **Inform the user** - "Graph unavailable, proceeding with manual analysis via grep"
+4. **Use grep as fallback** - But acknowledge reduced safety
 
 ## When to Use This Skill
 
@@ -345,13 +369,39 @@ curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=describe&na
 
 ## Getting Your Agent ID
 
-Your agent ID is typically your tmux session name. Get it with:
+**IMPORTANT:** The agent ID is the **UUID** from the AI Maestro agents list, NOT the tmux session name.
+
+### Step 1: Find your agent UUID
 
 ```bash
-# Get current session name (your agent ID)
-AGENT_ID=$(tmux display-message -p '#S')
-echo "Your agent ID: $AGENT_ID"
+# List all agents and find yours by matching the currentSession to your tmux session
+TMUX_SESSION=$(tmux display-message -p '#S')
+AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
+echo "Your agent UUID: $AGENT_ID"
 ```
+
+### Step 2: Verify the agent ID works
+
+```bash
+# Quick test - should return components, not empty results
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq '.result.count'
+```
+
+### Alternative: Use alias (if supported)
+
+```bash
+# Some setups support using the agent alias instead of UUID
+AGENT_ALIAS=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .alias")
+echo "Your agent alias: $AGENT_ALIAS"
+```
+
+### Troubleshooting Agent ID Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Empty results (`"count": 0`) | Wrong agent ID or graph not indexed | Verify UUID with agents list |
+| Connection refused | AI Maestro not running | Start the AI Maestro service |
+| `"found": false` | Component name mismatch | Check exact class/function name |
 
 ## IMPACT ANALYSIS WORKFLOWS (Use Before Making Changes)
 
@@ -360,7 +410,9 @@ echo "Your agent ID: $AGENT_ID"
 **Scenario:** You're about to add a field to the User model or change a method.
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Get agent UUID (run once per session)
+TMUX_SESSION=$(tmux display-message -p '#S')
+AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
 
 # Step 1: Understand the model's full context
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
@@ -386,7 +438,7 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-related&
 **Scenario:** You're about to change a function's signature or behavior.
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Assumes AGENT_ID is set from UUID lookup above
 
 # Step 1: Find ALL callers of this function (they may break!)
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&name=process_payment" | jq
@@ -408,7 +460,7 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name
 **Scenario:** You're changing an API endpoint.
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Assumes AGENT_ID is set from UUID lookup above
 
 # Step 1: Describe the controller
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=UsersController" | jq
@@ -425,7 +477,7 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&
 **Scenario:** You used grep/glob and found `app/services/payment_service.rb`
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Assumes AGENT_ID is set from UUID lookup above
 
 # Immediately query its relationships before deciding what to do
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=PaymentService" | jq
@@ -440,7 +492,7 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&
 **Scenario:** You're new to a codebase or feature area.
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Assumes AGENT_ID is set from UUID lookup above
 
 # Step 1: Get inventory of all key components
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq
@@ -457,7 +509,7 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associat
 **Scenario:** You need to understand how data flows through the system.
 
 ```bash
-AGENT_ID=$(tmux display-message -p '#S')
+# Assumes AGENT_ID is set from UUID lookup above
 
 # Find the path from an entry point to a specific function
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-path&from=create&to=send_notification" | jq
@@ -469,6 +521,17 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&
 ```
 
 ## QUICK REFERENCE WORKFLOWS
+
+### Session Setup (Run First)
+```bash
+# Run this ONCE at the start of your session to set AGENT_ID
+TMUX_SESSION=$(tmux display-message -p '#S')
+export AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
+echo "Agent ID: $AGENT_ID"
+
+# Verify it works
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq '.result.count'
+```
 
 ### Understanding a Model
 ```bash

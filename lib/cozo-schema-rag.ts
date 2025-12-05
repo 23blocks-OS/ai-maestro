@@ -620,6 +620,133 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     }
   }
 
+  // ============================================================================
+  // DOCUMENTATION GRAPH TABLES
+  // ============================================================================
+
+  // Documents table - metadata about each document
+  try {
+    await agentDb.run(`
+      :create documents {
+        doc_id: String
+        =>
+        file_path: String,
+        title: String,
+        doc_type: String,
+        project_path: String,
+        checksum: String,
+        created_at: Int,
+        updated_at: Int
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created documents table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ documents table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Document chunks - text chunks for semantic search with embeddings
+  try {
+    await agentDb.run(`
+      :create doc_chunks {
+        chunk_id: String
+        =>
+        doc_id: String,
+        chunk_index: Int,
+        heading: String?,
+        content: String,
+        char_start: Int,
+        char_end: Int
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_chunks table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_chunks table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Document chunk embeddings - 384-d vectors for semantic search
+  try {
+    await agentDb.run(`
+      :create doc_chunk_vec {
+        chunk_id: String
+        =>
+        vec: Bytes
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_chunk_vec table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_chunk_vec table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Document sections - hierarchical structure of documents
+  try {
+    await agentDb.run(`
+      :create doc_sections {
+        section_id: String
+        =>
+        doc_id: String,
+        heading: String,
+        level: Int,
+        parent_section_id: String?,
+        content: String,
+        char_start: Int,
+        char_end: Int
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_sections table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_sections table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Document tags - for categorization
+  try {
+    await agentDb.run(`
+      :create doc_tags {
+        doc_id: String,
+        tag: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_tags table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_tags table already exists')
+    } else {
+      throw error
+    }
+  }
+
+  // Document terms - keywords for BM25 search
+  try {
+    await agentDb.run(`
+      :create doc_terms {
+        chunk_id: String,
+        term: String
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_terms table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_terms table already exists')
+    } else {
+      throw error
+    }
+  }
+
   console.log('[SCHEMA-RAG] ✅ RAG extensions initialized')
 }
 

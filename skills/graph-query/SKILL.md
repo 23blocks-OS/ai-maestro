@@ -618,7 +618,97 @@ The graph query helps you avoid:
 - Breaking inheritance chains
 - Missing dependent components
 
+## DOCUMENTATION SEARCH
+
+In addition to code graph queries, you can search project documentation (README files, ADRs, design docs, etc.) for context, decisions, and business logic.
+
+### Documentation API Endpoint
+
+**Base URL:** `http://localhost:23000/api/agents/{agent_id}/graph/docs`
+
+### Documentation Query Types
+
+#### 1. stats - Get Documentation Statistics
+
+```bash
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=stats" | jq
+```
+
+Returns counts of documents, sections, chunks, embeddings, and breakdown by document type.
+
+#### 2. search - Semantic Search
+
+Search documentation using natural language queries. Uses embeddings for semantic similarity.
+
+```bash
+# Semantic search
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=search&q=authentication%20flow" | jq
+
+# Keyword search (lexical)
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=search&keyword=OAuth" | jq
+```
+
+#### 3. find-by-type - Find Documents by Type
+
+Available types: `adr`, `readme`, `design`, `api`, `setup`, `guide`, `spec`, `changelog`, `contributing`, `roadmap`, `doc`
+
+```bash
+# Find all ADRs (Architecture Decision Records)
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=find-by-type&type=adr" | jq
+
+# Find all design documents
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=find-by-type&type=design" | jq
+```
+
+#### 4. list - List All Documents
+
+```bash
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=list&limit=20" | jq
+```
+
+#### 5. get-doc - Get Document with Sections
+
+```bash
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=get-doc&docId=abc123" | jq
+```
+
+### When to Search Documentation
+
+**Use documentation search when:**
+- Understanding "why" a decision was made → Search ADRs
+- Looking for business context or requirements → Search design docs
+- Finding setup or configuration details → Search README and setup guides
+- Understanding API contracts → Search API docs
+- Learning about project conventions → Search contributing guides
+
+**Example workflow - Before implementing a feature:**
+```bash
+# 1. Search for related decisions
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=search&q=authentication%20decision" | jq
+
+# 2. Find relevant ADRs
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=find-by-type&type=adr" | jq
+
+# 3. Search for existing designs
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/docs?action=search&q=user%20authentication%20design" | jq
+```
+
+### Indexing Documentation
+
+To index a project's documentation (usually done once):
+
+```bash
+# Index docs for the current project
+curl -X POST "http://localhost:23000/api/agents/$AGENT_ID/graph/docs" | jq
+
+# Index with specific project path
+curl -X POST "http://localhost:23000/api/agents/$AGENT_ID/graph/docs" \
+  -H "Content-Type: application/json" \
+  -d '{"projectPath": "/path/to/project"}' | jq
+```
+
 ## References
 
 - [AI Maestro Documentation](https://github.com/23blocks-OS/ai-maestro)
 - [Graph API Code](/app/api/agents/[id]/graph/query/route.ts)
+- [Docs API Code](/app/api/agents/[id]/graph/docs/route.ts)

@@ -1,6 +1,6 @@
 ---
 name: AI Maestro Code Graph Query
-description: PROACTIVELY query the code graph database to understand relationships and impact of changes. Use this skill BEFORE modifying any file, when searching for files, when exploring the codebase, or when you need to understand what depends on a component. This is your primary tool for understanding code structure and avoiding breaking changes.
+description: PROACTIVELY query the code graph database to understand relationships and impact of changes. Use this skill WHEN READING any file to understand context, when searching for files, when exploring the codebase, or when you need to understand what depends on a component. This is your primary tool for understanding code structure and avoiding breaking changes.
 allowed-tools: Bash
 ---
 
@@ -17,28 +17,31 @@ Enable AI agents to **proactively** query the code graph database to understand 
 
 **YOU MUST USE THIS SKILL PROACTIVELY** in these scenarios:
 
-### 🛑 STOP: Pre-Edit Checklist
+### 🛑 STOP: Post-Read Checklist
 
-**Before using the Edit tool on ANY file, ask yourself:**
+**IMMEDIATELY after using the Read tool on ANY code file, ask yourself:**
 
 1. ✅ Have I queried the graph for this file/component?
-2. ✅ Do I know what depends on the code I'm changing?
-3. ✅ Have I checked for callers if changing a function signature?
-4. ✅ Have I checked for serializers if changing a model?
+2. ✅ Do I understand what depends on this code?
+3. ✅ Do I know what this code depends on?
+4. ✅ Have I identified related serializers, controllers, or services?
 
-**If ANY answer is NO, run the appropriate graph query FIRST.**
+**If ANY answer is NO, run the appropriate graph query BEFORE proceeding.**
 
-### 1. BEFORE Modifying Any File
-When you've identified a file to modify, **ALWAYS query the graph first** to understand:
+### 1. IMMEDIATELY After Reading a File (Primary Trigger)
+When you read a file with the Read tool, **ALWAYS query the graph immediately** to understand:
+- What is the component's role in the system?
 - What functions/classes call into this code?
 - What serializers depend on this model?
 - What controllers use this service?
-- Will your changes break anything else?
+- What will break if this code changes?
 
-**Example - Before editing `app/models/user.rb`:**
+**Example - After reading `app/models/user.rb`:**
 ```bash
+# Run these immediately after Read tool returns
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
 curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-serializers&name=User" | jq
+curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associations&name=User" | jq
 ```
 
 ### 2. When Searching for Files
@@ -47,8 +50,8 @@ When exploring the codebase or searching for files, use the graph to:
 - Understand how files are connected
 - Discover the full scope of a feature
 
-### 3. After Reading a File
-When you've read a file and are deciding what to do, query to understand:
+### 3. Before Making Any Edit (Safety Net)
+If you somehow missed querying on read, **STOP before editing** and query:
 - The file's role in the larger system
 - What depends on it
 - What it depends on
@@ -62,13 +65,13 @@ If queries return empty results or errors:
 
 ## When to Use This Skill
 
-**PROACTIVE (Use Automatically):**
-- You've identified a file that needs changes → Query its relationships FIRST
-- You're about to modify a function → Find all callers FIRST
-- You're changing a model → Find all serializers and associations FIRST
-- You're exploring unfamiliar code → Describe the component FIRST
-- You found a file via grep/glob → Query its connections
+**PROACTIVE (Use Automatically - Primary Trigger is File Read):**
+- You just read a file with the Read tool → Query its relationships IMMEDIATELY
+- You found a file via grep/glob → Query its connections before reading
+- You're exploring unfamiliar code → Describe the component as you read
 - You're debugging → Trace the call path
+- You're about to modify a function → Find all callers (safety net if missed on read)
+- You're changing a model → Find all serializers and associations (safety net)
 
 **REACTIVE (When Asked):**
 - User asks "who calls this function?"
@@ -586,12 +589,12 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&
 
 ## Tips for Proactive Usage
 
-### The Golden Rule: Query BEFORE You Modify
+### The Golden Rule: Query IMMEDIATELY After You Read
 
-**ALWAYS run at least one query before modifying any file:**
+**ALWAYS run at least one query immediately after reading any code file:**
 
-| What You're Changing | Query First |
-|---------------------|-------------|
+| What You Just Read | Query Immediately |
+|-------------------|-------------------|
 | Model | `describe`, `find-serializers`, `find-associations` |
 | Function/Method | `find-callers`, `find-callees` |
 | Controller | `describe`, `find-callees` |
@@ -600,8 +603,8 @@ curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&
 
 ### Best Practices
 
-1. **Query on every file search** - When you find a file via grep/glob, immediately query its relationships
-2. **Query before every edit** - Before modifying code, understand what depends on it
+1. **Query immediately after every file read** - When you read a file, immediately query its relationships
+2. **Query on every file search** - When you find a file via grep/glob, query before reading
 3. **Use `describe` first** - Get the full picture before diving into specifics
 4. **Check callers for signature changes** - If you change a function signature, find all callers
 5. **Check serializers for model changes** - Model changes often require serializer updates

@@ -599,20 +599,35 @@ export async function upsertMessage(
   terms?: string[],
   symbols?: string[]
 ): Promise<void> {
-  // Escape single quotes in strings
-  const escapeString = (str: string) => str.replace(/'/g, "''")
+  // CozoDB string escaping: Use single quotes with backslash escaping
+  // Based on CozoDB syntax reference: \' for quotes, \n for newlines, \\ for backslash
+  const escapeForCozo = (s: string) => {
+    return "'" + s
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
+      .replace(/'/g, "\\'")    // Then escape single quotes
+      .replace(/\n/g, '\\n')   // Then escape newlines
+      .replace(/\r/g, '\\r')   // Then escape carriage returns
+      .replace(/\t/g, '\\t')   // Then escape tabs
+      + "'"
+  }
 
-  // Insert message - escape the text directly
-  await agentDb.run(`
-    ?[msg_id, conversation_file, role, ts, text] <- [[
-      '${message.msg_id}',
-      '${escapeString(message.conversation_file)}',
-      '${message.role}',
-      ${message.ts},
-      '${escapeString(message.text)}'
-    ]]
-    :put messages
-  `)
+  const query = `?[msg_id, conversation_file, role, ts, text] <- [[${escapeForCozo(message.msg_id)}, ${escapeForCozo(message.conversation_file)}, ${escapeForCozo(message.role)}, ${message.ts}, ${escapeForCozo(message.text)}]] :put messages`
+
+  try {
+    await agentDb.run(query)
+  } catch (error: any) {
+    // Log the exact query and error position for debugging
+    console.error('[upsertMessage] CozoDB query failed')
+    console.error('[upsertMessage] Query length:', query.length)
+    console.error('[upsertMessage] First 100 chars:', query.substring(0, 100))
+    console.error('[upsertMessage] Text field length:', message.text.length)
+    console.error('[upsertMessage] Text field first 50 chars:', message.text.substring(0, 50))
+    if (error.labels?.[0]?.span) {
+      const { start, end } = error.labels[0].span
+      console.error(`[upsertMessage] Error at chars ${start}-${end}:`, JSON.stringify(query.substring(Math.max(0, start - 20), end + 20)))
+    }
+    throw error
+  }
 
   // Insert embedding if provided
   if (embedding) {
@@ -629,24 +644,14 @@ export async function upsertMessage(
 
   // Insert terms if provided
   if (terms && terms.length > 0) {
-    const termRows = terms.map((term) => `['${message.msg_id}', '${escapeString(term)}']`).join(',\n      ')
-    await agentDb.run(`
-      ?[msg_id, term] <- [
-        ${termRows}
-      ]
-      :put msg_terms {msg_id, term}
-    `)
+    const termRows = terms.map((term) => `[${escapeForCozo(message.msg_id)}, ${escapeForCozo(term)}]`).join(', ')
+    await agentDb.run(`?[msg_id, term] <- [${termRows}] :put msg_terms {msg_id, term}`)
   }
 
   // Insert symbols if provided
   if (symbols && symbols.length > 0) {
-    const symbolRows = symbols.map((symbol) => `['${message.msg_id}', '${escapeString(symbol)}']`).join(',\n      ')
-    await agentDb.run(`
-      ?[msg_id, symbol] <- [
-        ${symbolRows}
-      ]
-      :put code_symbols {msg_id, symbol}
-    `)
+    const symbolRows = symbols.map((symbol) => `[${escapeForCozo(message.msg_id)}, ${escapeForCozo(symbol)}]`).join(', ')
+    await agentDb.run(`?[msg_id, symbol] <- [${symbolRows}] :put code_symbols {msg_id, symbol}`)
   }
 }
 

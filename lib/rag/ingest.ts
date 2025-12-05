@@ -19,6 +19,52 @@ import { extractTerms, extractCodeSymbols } from './keywords'
 import { bm25Add, bm25Count, Bm25Document } from './bm25'
 import { msgId } from './id'
 
+/**
+ * Extract text from Claude's message content format
+ * Content can be:
+ * - A plain string
+ * - An array of content blocks:
+ *   - {type:"text", text:"..."} - regular text
+ *   - {type:"thinking", thinking:"..."} - extended thinking/reasoning
+ *   - {type:"tool_use", input:{description:"...", prompt:"..."}} - tool calls
+ * Returns the extracted text for indexing
+ */
+function extractTextFromContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+  if (Array.isArray(content)) {
+    // Extract text from all content block types
+    const texts: string[] = []
+
+    for (const block of content) {
+      if (typeof block !== 'object' || block === null) continue
+
+      // Text blocks
+      if ('text' in block && typeof (block as any).text === 'string') {
+        texts.push((block as any).text)
+      }
+      // Thinking blocks - valuable reasoning context
+      else if ('thinking' in block && typeof (block as any).thinking === 'string') {
+        texts.push((block as any).thinking)
+      }
+      // Tool use blocks - extract description and prompt for context
+      else if ('input' in block && typeof (block as any).input === 'object') {
+        const input = (block as any).input
+        if (input.description) texts.push(input.description)
+        if (input.prompt) texts.push(input.prompt)
+      }
+    }
+
+    return texts.join('\n')
+  }
+  if (typeof content === 'object' && content !== null && 'text' in content) {
+    return (content as { text: string }).text
+  }
+  // Fallback: stringify but this shouldn't happen often
+  return typeof content === 'undefined' ? '' : String(content)
+}
+
 export interface ConversationMessage {
   type: 'user' | 'assistant' | 'system'
   timestamp?: string
@@ -98,7 +144,7 @@ export async function ingestConversation(
     const textsWithIndices: Array<{ text: string; index: number }> = []
     batch.forEach((msg, idx) => {
       const content = msg.message?.content || ''
-      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      const text = extractTextFromContent(content)
       if (text.trim().length > 0) {
         textsWithIndices.push({ text, index: idx })
       }
@@ -122,10 +168,10 @@ export async function ingestConversation(
     // Process each message in batch
     for (let i = 0; i < batch.length; i++) {
       const msg = batch[i]
-      let content = msg.message?.content || ''
+      const content = msg.message?.content || ''
 
-      // Ensure content is a string (Claude Code JSONL can have arrays/objects)
-      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      // Extract text from content (handles strings, arrays of content blocks, etc.)
+      const text = extractTextFromContent(content)
 
       if (text.trim().length === 0) {
         stats.skippedMessages++
@@ -396,15 +442,22 @@ export async function indexConversationDelta(
     const batch = batches[batchIdx]
     console.log(`[Delta Index] Batch ${batchIdx + 1}/${batches.length}`)
 
-    // Extract texts for embedding with their indices (ensure strings)
+    // Extract texts for embedding with their indices
     const textsWithIndices: Array<{ text: string; index: number }> = []
     batch.forEach((msg, idx) => {
       const content = msg.message?.content || ''
-      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      const text = extractTextFromContent(content)
       if (text.trim().length > 0) {
         textsWithIndices.push({ text, index: idx })
       }
     })
+
+    // Skip batch if no valid texts (all messages had empty content)
+    if (textsWithIndices.length === 0) {
+      console.log(`[Delta Index] Batch ${batchIdx + 1}/${batches.length} - no valid texts, skipping`)
+      stats.skippedMessages += batch.length
+      continue
+    }
 
     // Generate embeddings in batch
     const embeddings = await embedTexts(textsWithIndices.map(t => t.text))
@@ -419,10 +472,10 @@ export async function indexConversationDelta(
     // Process each message
     for (let i = 0; i < batch.length; i++) {
       const msg = batch[i]
-      let content = msg.message?.content || ''
+      const content = msg.message?.content || ''
 
-      // Ensure content is a string (Claude Code JSONL can have arrays/objects)
-      const text = typeof content === 'string' ? content : JSON.stringify(content)
+      // Extract text from content (handles strings, arrays of content blocks, etc.)
+      const text = extractTextFromContent(content)
 
       if (!text || text.trim().length === 0) {
         stats.skippedMessages++

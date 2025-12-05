@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
+import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
 import { indexProject, clearCodeGraph, findFunctions, findCallChain, getFunctionDependencies } from '@/lib/rag/code-indexer'
 
 /**
@@ -367,8 +368,8 @@ export async function GET(
  * POST /api/agents/:id/graph/code
  * Index a project's code into the graph
  *
- * Body:
- * - projectPath: Path to the project to index
+ * Body (optional):
+ * - projectPath: Path to the project to index (auto-detected from agent config if not provided)
  * - clear: Whether to clear existing data first (default: true)
  * - includePatterns: Glob patterns to include (optional)
  * - excludePatterns: Glob patterns to exclude (optional)
@@ -379,19 +380,47 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    const body = await request.json()
 
-    const { projectPath, clear = true, includePatterns, excludePatterns } = body
+    // Parse body - handle empty body gracefully
+    let body: any = {}
+    try {
+      const text = await request.text()
+      if (text && text.trim()) {
+        body = JSON.parse(text)
+      }
+    } catch {
+      // Empty or invalid body - use defaults
+    }
 
+    let { projectPath, clear = true, includePatterns, excludePatterns } = body
+
+    // Auto-detect projectPath from agent registry if not provided
     if (!projectPath) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required parameter: projectPath' },
-        { status: 400 }
-      )
+      const registryAgent = getAgentFromRegistry(agentId)
+      if (!registryAgent) {
+        return NextResponse.json(
+          { success: false, error: `Agent not found in registry: ${agentId}` },
+          { status: 404 }
+        )
+      }
+
+      // Try to get working directory from various sources in registry data
+      projectPath = registryAgent.tools?.session?.workingDirectory ||
+                    registryAgent.preferences?.defaultWorkingDirectory
+
+      if (!projectPath) {
+        return NextResponse.json(
+          { success: false, error: 'No projectPath provided and agent has no configured working directory' },
+          { status: 400 }
+        )
+      }
+
+      console.log(`[Code Graph API] Auto-detected projectPath from registry: ${projectPath}`)
     }
 
     console.log(`[Code Graph API] Indexing project for agent ${agentId}: ${projectPath}`)
 
+    // Get agent instance for database access
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 

@@ -258,6 +258,13 @@ export class Agent {
       subconscious: this.subconscious?.getStatus() || null
     }
   }
+
+  /**
+   * Get agent config
+   */
+  getConfig(): AgentConfig {
+    return this.config
+  }
 }
 
 /**

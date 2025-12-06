@@ -12,7 +12,7 @@ import {
 } from '@/lib/rag/doc-indexer'
 
 /**
- * GET /api/agents/:id/graph/docs
+ * GET /api/agents/:id/docs
  * Query documentation for an agent
  *
  * Query parameters:
@@ -151,7 +151,7 @@ export async function GET(
 }
 
 /**
- * POST /api/agents/:id/graph/docs
+ * POST /api/agents/:id/docs
  * Index documentation for a project
  *
  * Body (optional):
@@ -238,7 +238,7 @@ export async function POST(
 }
 
 /**
- * DELETE /api/agents/:id/graph/docs
+ * DELETE /api/agents/:id/docs
  * Clear documentation for a project
  *
  * Query parameters:

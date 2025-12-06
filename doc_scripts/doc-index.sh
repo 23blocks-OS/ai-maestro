@@ -37,7 +37,7 @@ fi
 
 # Make the indexing request
 RESPONSE=$(curl -s --max-time 300 -X POST \
-    "${API_BASE}/api/agents/${AGENT_ID}/graph/docs" \
+    "${API_BASE}/api/agents/${AGENT_ID}/docs" \
     -H "Content-Type: application/json" \
     -d "$BODY" 2>/dev/null)
 

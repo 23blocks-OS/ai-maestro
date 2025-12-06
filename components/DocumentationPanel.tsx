@@ -102,7 +102,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     if (!agentId) return
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/docs?action=stats`)
+      const response = await fetch(`/api/agents/${agentId}/docs?action=stats`)
       const data = await response.json()
 
       if (data.success) {
@@ -120,7 +120,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     if (!agentId) return
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/docs?action=list&limit=200`)
+      const response = await fetch(`/api/agents/${agentId}/docs?action=list&limit=200`)
       const data = await response.json()
 
       if (data.success) {
@@ -160,7 +160,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     setSuccess(null)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/docs`, {
+      const response = await fetch(`/api/agents/${agentId}/docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath, clear: true, generateEmbeddings: true }),
@@ -192,7 +192,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
 
     try {
       const response = await fetch(
-        `/api/agents/${agentId}/graph/docs?action=search&q=${encodeURIComponent(searchQuery)}&limit=20`
+        `/api/agents/${agentId}/docs?action=search&q=${encodeURIComponent(searchQuery)}&limit=20`
       )
       const data = await response.json()
 
@@ -217,7 +217,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     setSelectedDoc(doc)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/docs?action=get-doc&docId=${doc.docId}`)
+      const response = await fetch(`/api/agents/${agentId}/docs?action=get-doc&docId=${doc.docId}`)
       const data = await response.json()
 
       if (data.success) {

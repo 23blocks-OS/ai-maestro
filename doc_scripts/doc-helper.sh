@@ -44,7 +44,7 @@ doc_query() {
     shift 2
     local params="$@"
 
-    local url="${API_BASE}/api/agents/${agent_id}/graph/docs?action=${action}${params}"
+    local url="${API_BASE}/api/agents/${agent_id}/docs?action=${action}${params}"
 
     local response
     response=$(curl -s --max-time 30 "$url" 2>/dev/null)

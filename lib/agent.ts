@@ -189,6 +189,9 @@ class AgentSubconscious {
 
         if (unreadCount > 0) {
           console.log(`[Agent ${this.agentId.substring(0, 8)}] 📨 ${unreadCount} unread message(s)`)
+
+          // Try to trigger message check in the agent's terminal if idle
+          await this.triggerMessageCheck(unreadCount)
         }
       } else {
         this.lastMessageResult = { success: false, error: `HTTP ${messagesResponse.status}` }
@@ -196,6 +199,68 @@ class AgentSubconscious {
     } catch (error) {
       this.lastMessageResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check error:`, error)
+    }
+  }
+
+  /**
+   * Find the tmux session name associated with this agent
+   */
+  private async findSessionName(): Promise<string | null> {
+    try {
+      const sessionsResponse = await fetch('http://localhost:23000/api/sessions')
+      if (!sessionsResponse.ok) return null
+
+      const data = await sessionsResponse.json()
+      const sessions = data.sessions || []
+
+      // Find session where agentId matches
+      const session = sessions.find((s: { agentId?: string }) => s.agentId === this.agentId)
+      return session?.id || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Trigger message check command in the terminal
+   */
+  private async triggerMessageCheck(unreadCount: number) {
+    try {
+      // Find the session name for this agent
+      const sessionName = await this.findSessionName()
+      if (!sessionName) {
+        console.log(`[Agent ${this.agentId.substring(0, 8)}] No active session found for message notification`)
+        return
+      }
+
+      // Check if session is idle and send command
+      const commandResponse = await fetch(
+        `http://localhost:23000/api/sessions/${encodeURIComponent(sessionName)}/command`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: `check-aimaestro-messages.sh`,
+            requireIdle: true,
+            addNewline: true
+          })
+        }
+      )
+
+      if (commandResponse.ok) {
+        const result = await commandResponse.json()
+        if (result.success) {
+          console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Triggered message check in terminal (${unreadCount} unread)`)
+        }
+      } else {
+        const result = await commandResponse.json()
+        if (result.idle === false) {
+          console.log(`[Agent ${this.agentId.substring(0, 8)}] Session busy, skipping message notification`)
+        }
+      }
+    } catch (error) {
+      // Silently fail - this is a convenience feature
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] Could not trigger message check:`, error instanceof Error ? error.message : 'Unknown error')
     }
   }
 

@@ -30,8 +30,9 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
-// Expose sessionActivity globally for API routes
+// Expose session state globally for API routes
 global.sessionActivity = sessionActivity
+global.terminalSessions = sessions  // PTY processes per session
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {

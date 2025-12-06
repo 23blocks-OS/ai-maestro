@@ -183,8 +183,15 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
         setError(data.error || 'Failed to index documentation')
       }
     } catch (err: any) {
+      console.error('[DocumentationPanel] Indexing error:', err)
       if (err.name === 'AbortError') {
-        setError('Indexing timed out after 10 minutes. Try with a smaller project.')
+        // Indexing is still running in background, just timed out on client
+        setSuccess('Indexing is running in the background. Refresh in a few minutes to see results.')
+        setShowIndexForm(false)
+      } else if (err.message === 'Failed to fetch' || err.message === '') {
+        // Network error or empty body - indexing might still be running
+        setSuccess('Indexing request sent. The operation may still be running - refresh in a few minutes.')
+        setShowIndexForm(false)
       } else {
         setError(err.message || 'Failed to connect to indexer')
       }
@@ -323,7 +330,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
                 {indexing ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Indexing...
+                    Indexing (may take minutes)...
                   </>
                 ) : (
                   <>

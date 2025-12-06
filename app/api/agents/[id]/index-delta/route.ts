@@ -1,16 +1,99 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
-import { getConversations } from '@/lib/cozo-schema-simple'
+import { getConversations, recordConversation, recordProject, getProjects } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
-import { recordConversation } from '@/lib/cozo-schema-simple'
 import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+
+/**
+ * Extract metadata from a conversation file
+ */
+function extractConversationMetadata(jsonlPath: string, projectPath: string): {
+  sessionId: string | null
+  cwd: string | null
+  firstUserMessage: string | null
+  gitBranch: string | null
+  claudeVersion: string | null
+  firstMessageAt: number | null
+  lastMessageAt: number | null
+  modelNames: string
+  messageCount: number
+} {
+  const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
+  const allLines = fileContent.split('\n').filter(line => line.trim())
+
+  let sessionId: string | null = null
+  let cwd: string | null = null
+  let firstUserMessage: string | null = null
+  let gitBranch: string | null = null
+  let claudeVersion: string | null = null
+  let firstMessageAt: number | null = null
+  let lastMessageAt: number | null = null
+  const modelSet = new Set<string>()
+
+  // Process first 50 lines for metadata
+  const metadataLines = allLines.slice(0, 50)
+  for (const line of metadataLines) {
+    try {
+      const message = JSON.parse(line)
+      if (message.sessionId && !sessionId) sessionId = message.sessionId
+      if (message.cwd && !cwd) cwd = message.cwd
+      if (message.gitBranch && !gitBranch) gitBranch = message.gitBranch
+      if (message.version && !claudeVersion) claudeVersion = message.version
+      if (message.timestamp) {
+        const ts = new Date(message.timestamp).getTime()
+        if (!firstMessageAt || ts < firstMessageAt) firstMessageAt = ts
+      }
+      if (message.type === 'user' && message.message?.content && !firstUserMessage) {
+        const content = message.message.content
+        firstUserMessage = content.substring(0, 100)
+      }
+      if (message.type === 'assistant' && message.message?.model) {
+        const model = message.message.model
+        if (model.includes('sonnet')) modelSet.add('Sonnet 4.5')
+        else if (model.includes('haiku')) modelSet.add('Haiku 4.5')
+        else if (model.includes('opus')) modelSet.add('Opus 4.5')
+      }
+    } catch (parseErr) {
+      // Skip malformed lines
+    }
+  }
+
+  // Extract last message timestamp from end of file
+  for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
+    try {
+      const message = JSON.parse(allLines[i])
+      if (message.timestamp) {
+        lastMessageAt = new Date(message.timestamp).getTime()
+        break
+      }
+    } catch (parseErr) {
+      // Skip
+    }
+  }
+
+  return {
+    sessionId,
+    cwd: cwd || projectPath,
+    firstUserMessage,
+    gitBranch,
+    claudeVersion,
+    firstMessageAt,
+    lastMessageAt,
+    modelNames: Array.from(modelSet).join(', '),
+    messageCount: allLines.length
+  }
+}
 
 /**
  * POST /api/agents/:id/index-delta
  * Index new messages (delta) for all conversations of an agent
  *
- * This endpoint checks each conversation's last_indexed_message_count and
- * indexes only the new messages since the last index.
+ * This endpoint:
+ * 1. DISCOVERS new conversation files in the agent's project directories
+ * 2. Records any new conversations found
+ * 3. Indexes only the new messages since the last index
  *
  * Query parameters:
  * - dryRun: If true, only report what would be indexed without actually indexing (default: false)
@@ -33,36 +116,121 @@ export async function POST(
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
-    // Get all projects for this agent
-    const projectsResult = await agentDb.run(`
-      ?[project_path] := *projects{project_path}
-    `)
+    // Get all projects for this agent (with claude_dir info)
+    // Handle case where projects table doesn't exist yet (schema not initialized)
+    let projectsResult
+    try {
+      projectsResult = await getProjects(agentDb)
+    } catch (error: any) {
+      if (error.code === 'query::relation_not_found' || error.message?.includes('relation_not_found')) {
+        console.log(`[Delta Index API] Schema not initialized for agent ${agentId} - skipping (will retry later)`)
+        return NextResponse.json({
+          success: true,
+          agent_id: agentId,
+          message: 'Schema not initialized yet - will retry on next cycle',
+          new_conversations_discovered: 0,
+          conversations_indexed: 0,
+          total_messages_processed: 0,
+        })
+      }
+      throw error
+    }
 
+    // Phase 1: DISCOVER new conversation files in each project's claude_dir
+    let newConversationsDiscovered = 0
+
+    for (const projectRow of projectsResult.rows) {
+      const projectPath = projectRow[0] as string
+      const projectName = projectRow[1] as string
+      const claudeDir = projectRow[2] as string
+
+      if (!claudeDir || !fs.existsSync(claudeDir)) {
+        console.log(`[Delta Index API] Skipping project ${projectName}: claude_dir not found (${claudeDir})`)
+        continue
+      }
+
+      // Get existing conversation files from database for this project
+      const existingConvosResult = await getConversations(agentDb, projectPath)
+      const existingFiles = new Set(existingConvosResult.rows.map((row: unknown[]) => row[0] as string))
+
+      // Scan claude_dir for .jsonl files
+      try {
+        const files = fs.readdirSync(claudeDir)
+        const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+
+        for (const jsonlFile of jsonlFiles) {
+          const fullPath = path.join(claudeDir, jsonlFile)
+
+          // Skip if already known
+          if (existingFiles.has(fullPath)) {
+            continue
+          }
+
+          // NEW conversation file found!
+          console.log(`[Delta Index API] 🆕 Discovered new conversation: ${jsonlFile}`)
+
+          try {
+            // Extract metadata from the file
+            const metadata = extractConversationMetadata(fullPath, projectPath)
+
+            // Record in database
+            await recordConversation(agentDb, {
+              jsonl_file: fullPath,
+              project_path: projectPath,
+              session_id: metadata.sessionId || 'unknown',
+              message_count: metadata.messageCount,
+              first_message_at: metadata.firstMessageAt || undefined,
+              last_message_at: metadata.lastMessageAt || undefined,
+              first_user_message: metadata.firstUserMessage || undefined,
+              model_names: metadata.modelNames || undefined,
+              git_branch: metadata.gitBranch || undefined,
+              claude_version: metadata.claudeVersion || undefined,
+              last_indexed_at: 0,  // Not indexed yet
+              last_indexed_message_count: 0  // Not indexed yet
+            })
+
+            newConversationsDiscovered++
+            console.log(`[Delta Index API] ✓ Recorded new conversation: ${jsonlFile} (${metadata.messageCount} messages)`)
+          } catch (err) {
+            console.error(`[Delta Index API] Failed to process new conversation ${jsonlFile}:`, err)
+          }
+        }
+      } catch (err) {
+        console.error(`[Delta Index API] Error scanning claude_dir ${claudeDir}:`, err)
+      }
+    }
+
+    if (newConversationsDiscovered > 0) {
+      console.log(`[Delta Index API] 📁 Discovered ${newConversationsDiscovered} new conversation file(s)`)
+    }
+
+    // Phase 2: Get ALL conversations (including newly discovered ones)
     const conversations: Array<{
       jsonl_file: string
       message_count: number
       last_indexed_message_count: number
+      project_path: string
     }> = []
 
-    // Get all conversations for all projects
     for (const projectRow of projectsResult.rows) {
-      const projectPath = projectRow[0]
+      const projectPath = projectRow[0] as string
       const convosResult = await getConversations(agentDb, projectPath)
 
       for (const convoRow of convosResult.rows) {
-        const jsonlFile = convoRow[0]
-        const messageCount = convoRow[4]
-        const lastIndexedMessageCount = convoRow[10] || 0
+        const jsonlFile = convoRow[0] as string
+        const messageCount = convoRow[4] as number
+        const lastIndexedMessageCount = (convoRow[10] as number) || 0
 
         conversations.push({
           jsonl_file: jsonlFile,
           message_count: messageCount,
           last_indexed_message_count: lastIndexedMessageCount,
+          project_path: projectPath,
         })
       }
     }
 
-    console.log(`[Delta Index API] Found ${conversations.length} conversations`)
+    console.log(`[Delta Index API] Found ${conversations.length} total conversations (${newConversationsDiscovered} newly discovered)`)
 
     // Filter conversations that need indexing
     const conversationsNeedingIndex = conversations.filter(
@@ -104,6 +272,7 @@ export async function POST(
         success: true,
         dry_run: true,
         agent_id: agentId,
+        new_conversations_discovered: newConversationsDiscovered,
         conversations_needing_index: conversationsNeedingIndex.length,
         report,
       })
@@ -137,7 +306,7 @@ export async function POST(
       // Update conversation record with new indexed count
       await recordConversation(agentDb, {
         jsonl_file: conv.jsonl_file,
-        project_path: '', // Will be preserved by :put
+        project_path: conv.project_path,
         message_count: currentLineCount,
         last_indexed_at: Date.now(),
         last_indexed_message_count: currentLineCount,
@@ -161,6 +330,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       agent_id: agentId,
+      new_conversations_discovered: newConversationsDiscovered,
       conversations_indexed: conversationsNeedingIndex.length,
       total_messages_processed: totalProcessed,
       total_duration_ms: totalDuration,

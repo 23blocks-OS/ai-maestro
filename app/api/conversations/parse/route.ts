@@ -10,17 +10,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { conversationFile } = body
 
+    console.log('[Parse Conversation] Request for file:', conversationFile)
+
     if (!conversationFile) {
+      console.error('[Parse Conversation] Missing conversationFile parameter')
       return NextResponse.json(
-        { error: 'conversationFile is required' },
+        { success: false, error: 'conversationFile is required' },
         { status: 400 }
       )
     }
 
     // Check if file exists
     if (!fs.existsSync(conversationFile)) {
+      console.error('[Parse Conversation] File not found:', conversationFile)
       return NextResponse.json(
-        { error: 'Conversation file not found' },
+        { success: false, error: `Conversation file not found: ${conversationFile}` },
         { status: 404 }
       )
     }

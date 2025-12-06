@@ -77,6 +77,7 @@ export function GraphVisualization({ agentId, graphType, onNodeSelect }: GraphVi
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<any>(null)
   const [loading, setLoading] = useState(true)
+  const [rendering, setRendering] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [graphData, setGraphData] = useState<GraphData | null>(null)
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
@@ -117,11 +118,14 @@ export function GraphVisualization({ agentId, graphType, onNodeSelect }: GraphVi
     if (!graphData || !containerRef.current) return
 
     const loadCytoscape = async () => {
-      // Dynamically import cytoscape to avoid SSR issues
-      const cytoscape = (await import('cytoscape')).default
-      const dagre = (await import('cytoscape-dagre')).default
+      setRendering(true)
 
-      cytoscape.use(dagre)
+      try {
+        // Dynamically import cytoscape to avoid SSR issues
+        const cytoscape = (await import('cytoscape')).default
+        const dagre = (await import('cytoscape-dagre')).default
+
+        cytoscape.use(dagre)
 
       // Build elements array
       const elements: any[] = []
@@ -290,6 +294,9 @@ export function GraphVisualization({ agentId, graphType, onNodeSelect }: GraphVi
       })
 
       cyRef.current = cy
+      } finally {
+        setRendering(false)
+      }
     }
 
     loadCytoscape()
@@ -322,12 +329,14 @@ export function GraphVisualization({ agentId, graphType, onNodeSelect }: GraphVi
     })
   }
 
-  if (loading) {
+  if (loading || rendering) {
     return (
       <div className="flex items-center justify-center h-full bg-neutral-900/50 rounded-lg">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="text-neutral-400 text-sm">Loading graph data...</span>
+          <span className="text-neutral-400 text-sm">
+            {loading ? 'Loading graph data...' : 'Rendering graph...'}
+          </span>
         </div>
       </div>
     )

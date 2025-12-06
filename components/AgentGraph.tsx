@@ -568,7 +568,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
   const hasData = stats && stats.files > 0
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 overflow-hidden">
+    <div className="flex-1 flex flex-col h-full w-full bg-gray-900 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">

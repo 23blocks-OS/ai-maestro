@@ -32,6 +32,28 @@ interface SubconsciousConfig {
  * 1. Memory (indexes new conversation content)
  * 2. Awareness (checks for messages from other agents)
  */
+interface SubconsciousStatus {
+  isRunning: boolean
+  startedAt: number | null
+  memoryCheckInterval: number
+  messageCheckInterval: number
+  lastMemoryRun: number | null
+  lastMessageRun: number | null
+  lastMemoryResult: {
+    success: boolean
+    messagesProcessed?: number
+    conversationsDiscovered?: number
+    error?: string
+  } | null
+  lastMessageResult: {
+    success: boolean
+    unreadCount?: number
+    error?: string
+  } | null
+  totalMemoryRuns: number
+  totalMessageRuns: number
+}
+
 class AgentSubconscious {
   private agentId: string
   private agent: Agent
@@ -40,6 +62,15 @@ class AgentSubconscious {
   private isRunning = false
   private memoryCheckInterval: number
   private messageCheckInterval: number
+
+  // Status tracking
+  private startedAt: number | null = null
+  private lastMemoryRun: number | null = null
+  private lastMessageRun: number | null = null
+  private lastMemoryResult: SubconsciousStatus['lastMemoryResult'] = null
+  private lastMessageResult: SubconsciousStatus['lastMessageResult'] = null
+  private totalMemoryRuns = 0
+  private totalMessageRuns = 0
 
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
@@ -81,6 +112,7 @@ class AgentSubconscious {
     })
 
     this.isRunning = true
+    this.startedAt = Date.now()
     console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running`)
   }
 
@@ -104,6 +136,9 @@ class AgentSubconscious {
    * Maintain memory by indexing new conversation content
    */
   private async maintainMemory() {
+    this.totalMemoryRuns++
+    this.lastMemoryRun = Date.now()
+
     try {
       // Call the index-delta API - it handles checking if indexing is needed
       const response = await fetch(`http://localhost:23000/api/agents/${this.agentId}/index-delta`, {
@@ -112,15 +147,23 @@ class AgentSubconscious {
       })
 
       if (!response.ok) {
+        this.lastMemoryResult = { success: false, error: `HTTP ${response.status}` }
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Index failed: ${response.status}`)
         return
       }
 
       const result = await response.json()
+      this.lastMemoryResult = {
+        success: true,
+        messagesProcessed: result.total_messages_processed || 0,
+        conversationsDiscovered: result.new_conversations_discovered || 0
+      }
+
       if (result.success && result.total_messages_processed > 0) {
         console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Indexed ${result.total_messages_processed} new message(s)`)
       }
     } catch (error) {
+      this.lastMemoryResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance error:`, error)
     }
   }
@@ -129,6 +172,9 @@ class AgentSubconscious {
    * Check for incoming messages from other agents
    */
   private async checkMessages() {
+    this.totalMessageRuns++
+    this.lastMessageRun = Date.now()
+
     try {
       // Get unread messages for this agent
       const messagesResponse = await fetch(
@@ -139,11 +185,16 @@ class AgentSubconscious {
         const messagesData = await messagesResponse.json()
         const unreadCount = messagesData.messages?.length || 0
 
+        this.lastMessageResult = { success: true, unreadCount }
+
         if (unreadCount > 0) {
           console.log(`[Agent ${this.agentId.substring(0, 8)}] 📨 ${unreadCount} unread message(s)`)
         }
+      } else {
+        this.lastMessageResult = { success: false, error: `HTTP ${messagesResponse.status}` }
       }
     } catch (error) {
+      this.lastMessageResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check error:`, error)
     }
   }
@@ -151,14 +202,24 @@ class AgentSubconscious {
   /**
    * Get subconscious status
    */
-  getStatus() {
+  getStatus(): SubconsciousStatus {
     return {
       isRunning: this.isRunning,
+      startedAt: this.startedAt,
       memoryCheckInterval: this.memoryCheckInterval,
-      messageCheckInterval: this.messageCheckInterval
+      messageCheckInterval: this.messageCheckInterval,
+      lastMemoryRun: this.lastMemoryRun,
+      lastMessageRun: this.lastMessageRun,
+      lastMemoryResult: this.lastMemoryResult,
+      lastMessageResult: this.lastMessageResult,
+      totalMemoryRuns: this.totalMemoryRuns,
+      totalMessageRuns: this.totalMessageRuns
     }
   }
 }
+
+// Export the status type
+export type { SubconsciousStatus }
 
 /**
  * Agent - The core abstraction for autonomous agents
@@ -340,7 +401,63 @@ class AgentRegistry {
       agents: Array.from(this.agents.values()).map(agent => agent.getStatus())
     }
   }
+
+  /**
+   * Get global subconscious status (summary across all agents)
+   */
+  getGlobalSubconsciousStatus() {
+    const agents = Array.from(this.agents.values())
+    const subconsciousStatuses = agents
+      .map(agent => ({
+        agentId: agent.getAgentId(),
+        status: agent.getSubconscious()?.getStatus() || null
+      }))
+      .filter(s => s.status !== null)
+
+    const runningCount = subconsciousStatuses.filter(s => s.status?.isRunning).length
+    const totalMemoryRuns = subconsciousStatuses.reduce((sum, s) => sum + (s.status?.totalMemoryRuns || 0), 0)
+    const totalMessageRuns = subconsciousStatuses.reduce((sum, s) => sum + (s.status?.totalMessageRuns || 0), 0)
+
+    // Find the most recent runs across all agents
+    let lastMemoryRun: number | null = null
+    let lastMessageRun: number | null = null
+    let lastMemoryResult: SubconsciousStatus['lastMemoryResult'] = null
+    let lastMessageResult: SubconsciousStatus['lastMessageResult'] = null
+
+    for (const s of subconsciousStatuses) {
+      if (s.status?.lastMemoryRun && (!lastMemoryRun || s.status.lastMemoryRun > lastMemoryRun)) {
+        lastMemoryRun = s.status.lastMemoryRun
+        lastMemoryResult = s.status.lastMemoryResult
+      }
+      if (s.status?.lastMessageRun && (!lastMessageRun || s.status.lastMessageRun > lastMessageRun)) {
+        lastMessageRun = s.status.lastMessageRun
+        lastMessageResult = s.status.lastMessageResult
+      }
+    }
+
+    return {
+      activeAgents: this.agents.size,
+      runningSubconscious: runningCount,
+      totalMemoryRuns,
+      totalMessageRuns,
+      lastMemoryRun,
+      lastMessageRun,
+      lastMemoryResult,
+      lastMessageResult,
+      agents: subconsciousStatuses
+    }
+  }
 }
 
-// Singleton instance
-export const agentRegistry = new AgentRegistry()
+// Singleton instance using globalThis to ensure it's shared across Next.js API routes
+// This is necessary because Next.js may create separate module contexts
+declare global {
+  // eslint-disable-next-line no-var
+  var _agentRegistry: AgentRegistry | undefined
+}
+
+if (!globalThis._agentRegistry) {
+  globalThis._agentRegistry = new AgentRegistry()
+}
+
+export const agentRegistry = globalThis._agentRegistry

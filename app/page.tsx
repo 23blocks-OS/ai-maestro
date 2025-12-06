@@ -12,6 +12,7 @@ import DocumentationPanel from '@/components/DocumentationPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
 import AgentProfile from '@/components/AgentProfile'
+import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { useSessions } from '@/hooks/useSessions'
@@ -344,14 +345,17 @@ export default function DashboardPage() {
                     </button>
                     <div className="flex-1" />
                     {session.agentId && (
-                      <button
-                        onClick={() => setIsProfileOpen(true)}
-                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
-                        title="View Agent Profile"
-                      >
-                        <User className="w-4 h-4" />
-                        Agent Profile
-                      </button>
+                      <div className="flex items-center">
+                        <AgentSubconsciousIndicator agentId={session.agentId} />
+                        <button
+                          onClick={() => setIsProfileOpen(true)}
+                          className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                          title="View Agent Profile"
+                        >
+                          <User className="w-4 h-4" />
+                          Agent Profile
+                        </button>
+                      </div>
                     )}
                   </div>
 

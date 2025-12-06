@@ -7,6 +7,7 @@ interface ConversationDetailPanelProps {
   conversationFile: string
   projectPath: string
   agentId?: string
+  hostUrl?: string
   onClose: () => void
 }
 
@@ -53,7 +54,7 @@ interface ConversationMetadata {
   toolsUsed: string[]
 }
 
-export default function ConversationDetailPanel({ conversationFile, projectPath, agentId, onClose }: ConversationDetailPanelProps) {
+export default function ConversationDetailPanel({ conversationFile, projectPath, agentId, hostUrl = '', onClose }: ConversationDetailPanelProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -72,24 +73,35 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
   useEffect(() => {
     loadConversation()
-  }, [conversationFile])
+  }, [conversationFile, hostUrl])
 
   const loadConversation = async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/conversations/parse', {
+      // Use hostUrl for remote agents, empty for local
+      const apiUrl = `${hostUrl}/api/conversations/parse`
+      console.log('[ConversationDetail] Fetching from:', apiUrl, 'for file:', conversationFile)
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationFile })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to load conversation')
+        console.error('[ConversationDetail] API error:', response.status, data)
+        throw new Error(data.error || `Failed to load conversation (${response.status})`)
       }
 
-      const data = await response.json()
+      if (!data.success) {
+        console.error('[ConversationDetail] API returned success=false:', data)
+        throw new Error(data.error || 'Failed to parse conversation')
+      }
+
       console.log('[ConversationDetail] API returned', data.messages?.length, 'messages')
       const thinkingInResponse = data.messages?.filter((m: Message) => m.type === 'thinking') || []
       console.log('[ConversationDetail] Thinking messages in API response:', thinkingInResponse.length, thinkingInResponse)
@@ -439,7 +451,7 @@ export default function ConversationDetailPanel({ conversationFile, projectPath,
 
     setIsSearching(true)
     try {
-      const response = await fetch(`/api/agents/${agentId}/search?q=${encodeURIComponent(query)}&conversation_file=${encodeURIComponent(conversationFile)}&limit=50`)
+      const response = await fetch(`${hostUrl}/api/agents/${agentId}/search?q=${encodeURIComponent(query)}&conversation_file=${encodeURIComponent(conversationFile)}&limit=50`)
       if (response.ok) {
         const data = await response.json()
         // Map results to message indices

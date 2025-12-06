@@ -65,6 +65,7 @@ export default function WorkTree({ sessionName, agentId, isVisible = true }: Wor
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
+    hostUrl: string
   } | null>(null)
   const [rebuilding, setRebuilding] = useState(false)
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null)
@@ -507,7 +508,8 @@ export default function WorkTree({ sessionName, agentId, isVisible = true }: Wor
                               className="bg-gray-800/30 border border-gray-700/50 rounded p-3 hover:bg-gray-800/50 transition-colors cursor-pointer"
                               onClick={() => setSelectedConversation({
                                 file: claudeSession.jsonl_file,
-                                projectPath: project.project_path
+                                projectPath: project.project_path,
+                                hostUrl: getHostUrl()
                               })}
                             >
                               {/* Date and Models */}
@@ -591,6 +593,7 @@ export default function WorkTree({ sessionName, agentId, isVisible = true }: Wor
           conversationFile={selectedConversation.file}
           projectPath={selectedConversation.projectPath}
           agentId={agentId}
+          hostUrl={selectedConversation.hostUrl}
           onClose={() => setSelectedConversation(null)}
         />
       )}

@@ -514,10 +514,19 @@ app.prepare().then(() => {
     } catch (error) {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
-  })
 
-  // NOTE: Agent subconscious is now per-agent, started automatically when agents are created
-  // Each agent maintains its own memory and awareness independently
+    // Initialize all agents (starts their subconscious processes)
+    // Use setTimeout to ensure the Next.js API routes are ready
+    setTimeout(async () => {
+      try {
+        const { initializeAgentsViaAPI } = await import('./lib/agent-startup.mjs')
+        const result = await initializeAgentsViaAPI(port)
+        console.log(`[AgentStartup] ✓ ${result.initialized.length} agent(s) initialized with subconscious`)
+      } catch (error) {
+        console.error('[AgentStartup] Failed to initialize agents:', error.message)
+      }
+    }, 3000) // Wait 3 seconds for API routes to be ready
+  })
 
   // Graceful shutdown
   process.on('SIGTERM', () => {

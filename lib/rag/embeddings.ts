@@ -70,41 +70,49 @@ export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
     throw new Error('[Embeddings] Model returned undefined output');
   }
 
-  // Convert to Float32Array and ensure normalization
-  const arrays = Array.isArray(output) ? output : [output];
-  return arrays.map((arr: any, idx: number) => {
-    if (!arr) {
-      throw new Error(`[Embeddings] Embedding ${idx} is undefined`);
-    }
+  // Transformers.js returns a Tensor with shape [batch_size, embedding_dim]
+  // We need to extract each row as a separate embedding
+  const results: Float32Array[] = [];
 
-    // Transformers.js returns Tensor objects with a .data property
-    let vec: Float32Array;
+  // Get the raw data and dimensions
+  let data: Float32Array | number[];
+  let dims: number[];
 
-    if (arr.data && Array.isArray(arr.data)) {
-      // Tensor with data array
-      vec = Float32Array.from(arr.data);
-    } else if (arr.data instanceof Float32Array) {
-      // Tensor with Float32Array data
-      vec = arr.data;
-    } else if (arr instanceof Float32Array) {
-      // Already a Float32Array
-      vec = arr;
-    } else if (Array.isArray(arr)) {
-      // Plain array
-      vec = Float32Array.from(arr);
-    } else {
-      console.error('[Embeddings] Unexpected structure:', {
-        type: typeof arr,
-        constructor: arr.constructor?.name,
-        keys: Object.keys(arr),
-        hasData: 'data' in arr,
-        dataType: arr.data ? typeof arr.data : 'no data'
-      });
-      throw new Error(`[Embeddings] Cannot extract vector from embedding ${idx}`);
-    }
+  if (output.data instanceof Float32Array) {
+    data = output.data;
+    dims = output.dims || [validTexts.length, 384];
+  } else if (Array.isArray(output.data)) {
+    data = output.data;
+    dims = output.dims || [validTexts.length, 384];
+  } else if (output instanceof Float32Array) {
+    data = output;
+    dims = [validTexts.length, 384];
+  } else {
+    console.error('[Embeddings] Unexpected output structure:', {
+      type: typeof output,
+      constructor: output.constructor?.name,
+      keys: Object.keys(output),
+      hasData: 'data' in output,
+      dataType: output.data ? typeof output.data : 'no data',
+      hasDims: 'dims' in output,
+    });
+    throw new Error('[Embeddings] Cannot parse model output');
+  }
 
-    return l2Normalize(vec);
-  });
+  // Handle batch outputs - shape is [batch_size, embedding_dim]
+  const batchSize = dims[0] || validTexts.length;
+  const embeddingDim = dims[1] || 384;
+
+  for (let i = 0; i < batchSize; i++) {
+    const start = i * embeddingDim;
+    const end = start + embeddingDim;
+    const vec = data instanceof Float32Array
+      ? data.slice(start, end)
+      : Float32Array.from(data.slice(start, end));
+    results.push(l2Normalize(vec));
+  }
+
+  return results;
 }
 
 /**

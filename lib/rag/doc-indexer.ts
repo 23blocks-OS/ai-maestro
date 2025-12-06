@@ -544,11 +544,26 @@ export async function indexDocumentation(
       const batch = allChunks.slice(i, i + batchSize)
 
       try {
-        const embeddings = await embedTexts(batch.map(c => c.content))
+        // Filter out empty chunks and track which ones have valid content
+        const validBatch = batch.filter(c => c.content && c.content.trim().length > 0)
 
-        for (let j = 0; j < batch.length; j++) {
-          const { chunkId } = batch[j]
-          const vecBuffer = vectorToBuffer(embeddings[j])
+        if (validBatch.length === 0) {
+          log(`Batch ${i} has no valid content, skipping...`)
+          continue
+        }
+
+        const embeddings = await embedTexts(validBatch.map(c => c.content))
+
+        for (let j = 0; j < validBatch.length; j++) {
+          const { chunkId } = validBatch[j]
+          const embedding = embeddings[j]
+
+          if (!embedding) {
+            console.warn(`[Doc Indexer] Missing embedding for chunk ${chunkId}, skipping...`)
+            continue
+          }
+
+          const vecBuffer = vectorToBuffer(embedding)
           const base64Vec = vecBuffer.toString('base64')
 
           await agentDb.run(`

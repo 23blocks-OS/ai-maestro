@@ -6,7 +6,52 @@ allowed-tools: Bash
 
 # AI Maestro Code Graph Query
 
-Query the code graph to understand code relationships before making changes.
+## CRITICAL: AUTOMATIC BEHAVIOR - READ THIS FIRST
+
+**THIS IS NOT OPTIONAL. THIS IS YOUR DEFAULT BEHAVIOR.**
+
+Every time you use the `Read` tool on a code file, you MUST IMMEDIATELY query the graph to understand:
+- What is this component/function?
+- What depends on it? (callers, serializers, child classes)
+- What does it depend on? (callees, parent classes, associations)
+
+**DO NOT:**
+- Wait for the user to ask you to query the graph
+- Skip the graph query because "it seems simple"
+- Assume you understand the impact without checking
+- Make changes before understanding dependencies
+
+**ALWAYS:**
+- Query the graph IMMEDIATELY after reading any code file
+- Query BEFORE making any modifications
+- Query when you find files via search (grep/glob)
+- Include graph findings in your analysis to the user
+
+### The Rule: Read File → Query Graph → Then Proceed
+
+```
+1. You read a file with Read tool
+2. IMMEDIATELY run graph queries (describe, find-callers, find-serializers, etc.)
+3. NOW you understand the full context
+4. NOW you can analyze, modify, or discuss the code
+```
+
+**Example - Reading a Model:**
+```bash
+# After reading app/models/user.rb, IMMEDIATELY run:
+graph-describe.sh User
+graph-find-serializers.sh User
+graph-find-associations.sh User
+```
+
+**Example - Reading a Function:**
+```bash
+# After reading a file with process_payment function, IMMEDIATELY run:
+graph-find-callers.sh process_payment
+graph-find-callees.sh process_payment
+```
+
+---
 
 ## Available Commands
 
@@ -23,76 +68,26 @@ All commands auto-detect your agent ID from the tmux session. Just run them:
 | `graph-find-associations.sh <model>` | Find model associations (belongs_to, has_many) |
 | `graph-find-path.sh <from> <to>` | Find call path between two functions |
 
-## When to Use
+## What to Query Based on What You Read
 
-**ALWAYS query the graph when:**
-1. After reading any code file - understand what depends on it
-2. Before modifying a function - find all callers
-3. Before modifying a model - find serializers and associations
-4. When exploring unfamiliar code - describe components
+| File Type | IMMEDIATELY Query |
+|-----------|-------------------|
+| Model | `graph-describe.sh`, `graph-find-serializers.sh`, `graph-find-associations.sh` |
+| Controller | `graph-describe.sh`, `graph-find-callees.sh` |
+| Service | `graph-describe.sh`, `graph-find-callers.sh` |
+| Function | `graph-find-callers.sh`, `graph-find-callees.sh` |
+| Serializer | `graph-describe.sh` |
+| Any class | `graph-find-related.sh` |
 
-## Quick Examples
+## Why This Matters
 
-```bash
-# Describe a component
-graph-describe.sh User
+Without querying the graph, you will:
+- Miss serializers that need updating when you change a model
+- Break callers when you change a function signature
+- Miss child classes that inherit your changes
+- Overlook associations that depend on this model
 
-# Find who calls a function
-graph-find-callers.sh authenticate
-
-# Find what a function calls
-graph-find-callees.sh process_payment
-
-# Find all models
-graph-find-by-type.sh model
-
-# Find serializers for User model
-graph-find-serializers.sh User
-
-# Find User model associations
-graph-find-associations.sh User
-
-# Find call path
-graph-find-path.sh create_order send_email
-```
-
-## Workflows
-
-### Before Modifying a Model
-
-```bash
-# 1. Describe it
-graph-describe.sh User
-
-# 2. Find serializers that may need updates
-graph-find-serializers.sh User
-
-# 3. Find associations
-graph-find-associations.sh User
-```
-
-### Before Modifying a Function
-
-```bash
-# 1. Find all callers (they may break if you change signature)
-graph-find-callers.sh authenticate
-
-# 2. Find what it calls
-graph-find-callees.sh authenticate
-```
-
-### Exploring the Codebase
-
-```bash
-# List all models
-graph-find-by-type.sh model
-
-# List all controllers
-graph-find-by-type.sh controller
-
-# Describe a specific component
-graph-describe.sh PaymentService
-```
+**The graph query takes 1 second. A broken deployment takes hours to fix.**
 
 ## Component Types
 
@@ -112,6 +107,8 @@ If scripts fail:
 1. Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
 2. Ensure your agent is registered (scripts auto-detect from tmux session)
 3. Check exact component names (case-sensitive)
+
+If graph is unavailable, inform the user: "Graph unavailable, proceeding with manual analysis - increased risk of missing dependencies."
 
 ## Installation
 

@@ -160,24 +160,34 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     setSuccess(null)
 
     try {
+      // Long timeout for indexing - it can take minutes for large projects
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000) // 10 min timeout
+
       const response = await fetch(`/api/agents/${agentId}/docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath, clear: true, generateEmbeddings: true }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       const data = await response.json()
 
       if (data.success) {
-        setSuccess(`Indexed ${data.stats.documentsProcessed} documents with ${data.stats.chunksCreated} searchable chunks`)
+        setSuccess(`Indexed ${data.stats?.documentsProcessed || data.stats?.documents || '?'} documents with ${data.stats?.chunksCreated || data.stats?.chunks || '?'} searchable chunks`)
         setShowIndexForm(false)
         await fetchStats()
         await fetchDocuments()
       } else {
         setError(data.error || 'Failed to index documentation')
       }
-    } catch (err) {
-      setError('Failed to connect to indexer')
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setError('Indexing timed out after 10 minutes. Try with a smaller project.')
+      } else {
+        setError(err.message || 'Failed to connect to indexer')
+      }
     } finally {
       setIndexing(false)
     }

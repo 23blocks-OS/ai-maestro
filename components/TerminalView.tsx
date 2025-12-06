@@ -274,30 +274,19 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal, isConnected, sendMessage])
 
-  // CRITICAL: Periodically ensure selection layer stays active
-  // This prevents the yellow browser selection from taking over
-  useEffect(() => {
-    if (!terminal || !isVisible) return
-
-    // Every 2 seconds, check and re-activate selection layer if needed
-    const interval = setInterval(() => {
-      if (terminal && !terminal.hasSelection()) {
-        // Don't steal focus from input elements (modals, forms, etc.)
-        const activeElement = document.activeElement
-        const isInputFocused = activeElement?.tagName === 'INPUT' ||
-                               activeElement?.tagName === 'TEXTAREA' ||
-                               activeElement?.tagName === 'SELECT' ||
-                               activeElement?.getAttribute('contenteditable') === 'true'
-
-        if (!isInputFocused) {
-          // Only re-activate if user isn't actively selecting or typing
-          terminal.focus()
-        }
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [terminal, isVisible])
+  // Copy selection to clipboard
+  const copySelection = useCallback(() => {
+    if (!terminal) return
+    const selection = terminal.getSelection()
+    if (selection) {
+      navigator.clipboard.writeText(selection)
+        .then(() => {
+          // Optionally show feedback
+          console.log('[Terminal] Copied selection to clipboard')
+        })
+        .catch(err => console.error('[Terminal] Failed to copy:', err))
+    }
+  }, [terminal])
 
   // Handle terminal resize
   useEffect(() => {
@@ -578,6 +567,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 {loggingEnabled ? '📝' : '🚫'} <span className="hidden md:inline">{loggingEnabled ? 'Logging' : 'No Log'}</span>
               </button>
               <span className="text-gray-500 hidden md:inline">|</span>
+              <button
+                onClick={copySelection}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title="Copy selected text to clipboard"
+              >
+                📋 <span className="hidden md:inline">Copy</span>
+              </button>
               <button
                 onClick={() => terminal.clear()}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"

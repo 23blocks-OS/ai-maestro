@@ -8,6 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import { getHostById } from './lib/hosts-config-server.mjs'
+import { hostHints } from './lib/host-hints-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
@@ -23,6 +24,63 @@ const handle = app.getRequestHandler()
 // Session state management
 const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
 const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+const idleTimers = new Map() // sessionName -> { timer, wasActive }
+
+// Idle threshold in milliseconds (30 seconds)
+const IDLE_THRESHOLD_MS = 30 * 1000
+
+/**
+ * Get agentId for a session by checking the agent registry
+ */
+function getAgentIdForSession(sessionName) {
+  try {
+    const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
+    if (fs.existsSync(agentFilePath)) {
+      const agentData = JSON.parse(fs.readFileSync(agentFilePath, 'utf8'))
+      return agentData.id
+    }
+  } catch {
+    // Agent file doesn't exist or is invalid
+  }
+  return null
+}
+
+/**
+ * Track session activity and detect idle transitions
+ * Sends host hints to agents when session goes idle
+ */
+function trackSessionActivity(sessionName) {
+  const now = Date.now()
+  const previousActivity = sessionActivity.get(sessionName)
+  const previousState = idleTimers.get(sessionName)
+
+  // Update activity timestamp
+  sessionActivity.set(sessionName, now)
+
+  // Clear existing idle timer
+  if (previousState?.timer) {
+    clearTimeout(previousState.timer)
+  }
+
+  // Schedule idle transition check
+  const timer = setTimeout(() => {
+    // Check if still idle (no new activity since timer was set)
+    const currentActivity = sessionActivity.get(sessionName)
+    if (currentActivity && now === currentActivity) {
+      // Session went idle - notify agent via host hints
+      const agentId = getAgentIdForSession(sessionName)
+      if (agentId) {
+        console.log(`[IdleDetect] Session ${sessionName} went idle, notifying agent ${agentId.substring(0, 8)}`)
+        hostHints.notifyIdleTransition(agentId)
+      }
+    }
+    // Update state to reflect idle
+    idleTimers.set(sessionName, { timer: null, wasActive: false })
+  }, IDLE_THRESHOLD_MS)
+
+  // Update idle timer state
+  idleTimers.set(sessionName, { timer, wasActive: true })
+}
 
 // Create logs directory if it doesn't exist
 const logsDir = path.join(process.cwd(), 'logs')
@@ -324,7 +382,7 @@ app.prepare().then(() => {
           !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
 
         if (hasSubstantialContent) {
-          sessionActivity.set(sessionName, Date.now())
+          trackSessionActivity(sessionName)
         }
 
         // Send data to all clients and wait for write completion
@@ -377,7 +435,7 @@ app.prepare().then(() => {
     sessionState.clients.add(ws)
 
     // Track connection as activity (so newly opened sessions show as active)
-    sessionActivity.set(sessionName, Date.now())
+    trackSessionActivity(sessionName)
     console.log(`[ACTIVITY-TRACK] Set activity for ${sessionName}, map size: ${sessionActivity.size}`)
 
     // If there was a cleanup timer scheduled, cancel it (client reconnected)

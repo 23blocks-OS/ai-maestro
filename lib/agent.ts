@@ -14,6 +14,7 @@
  */
 
 import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
+import { hostHints } from './host-hints'
 
 interface AgentConfig {
   agentId: string
@@ -23,6 +24,22 @@ interface AgentConfig {
 interface SubconsciousConfig {
   memoryCheckInterval?: number  // How often to check for new conversations (default: 5 minutes)
   messageCheckInterval?: number // How often to check for messages (default: 2 minutes)
+}
+
+// Activity-based interval configuration
+const ACTIVITY_INTERVALS = {
+  active: 5 * 60 * 1000,        // 5 min when actively used
+  idle: 30 * 60 * 1000,         // 30 min when idle
+  disconnected: 60 * 60 * 1000  // 60 min when no session connected
+}
+
+// Type for host hints (optional optimization from AI Maestro host)
+export type HostHintType = 'run_now' | 'skip' | 'idle_transition'
+
+export interface HostHint {
+  type: HostHintType
+  agentId: string
+  timestamp: number
 }
 
 /**
@@ -37,6 +54,8 @@ interface SubconsciousStatus {
   startedAt: number | null
   memoryCheckInterval: number
   messageCheckInterval: number
+  activityState: 'active' | 'idle' | 'disconnected'
+  staggerOffset: number
   lastMemoryRun: number | null
   lastMessageRun: number | null
   lastMemoryResult: {
@@ -67,6 +86,10 @@ class AgentSubconscious {
   private memoryCheckInterval: number
   private messageCheckInterval: number
   private instanceNumber: number
+  private staggerOffset: number
+
+  // Activity state for adaptive intervals
+  private activityState: 'active' | 'idle' | 'disconnected' = 'disconnected'
 
   // Status tracking
   private startedAt: number | null = null
@@ -80,11 +103,27 @@ class AgentSubconscious {
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
     this.agent = agent
-    // Increased intervals to reduce system load with many agents
-    this.memoryCheckInterval = config.memoryCheckInterval || 15 * 60 * 1000  // 15 minutes (was 5)
-    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (was 2)
+    // Default interval (will be adjusted based on activity)
+    this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
+    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes
     // Assign instance number for staggering initial runs
     this.instanceNumber = subconsciousInstanceCount++
+    // Calculate stagger offset based on agentId hash (consistent across restarts)
+    this.staggerOffset = this.calculateStaggerOffset()
+  }
+
+  /**
+   * Calculate stagger offset based on agentId hash
+   * This ensures consistent spreading of agents across time
+   */
+  private calculateStaggerOffset(): number {
+    // Hash the agentId to get a consistent number
+    const hash = this.agentId.split('').reduce(
+      (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0
+    )
+    // Spread across 5 minutes (300 seconds) to avoid clustering
+    const maxOffset = 5 * 60 * 1000 // 5 minutes
+    return Math.abs(hash) % maxOffset
   }
 
   /**
@@ -97,31 +136,47 @@ class AgentSubconscious {
     }
 
     console.log(`[Agent ${this.agentId.substring(0, 8)}] 🧠 Starting subconscious...`)
-    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory maintenance: every ${this.memoryCheckInterval / 1000}s`)
-    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message checking: every ${this.messageCheckInterval / 1000}s`)
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Stagger offset: ${Math.round(this.staggerOffset / 1000)}s`)
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory interval: ${this.memoryCheckInterval / 60000} min (${this.activityState})`)
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message interval: ${this.messageCheckInterval / 60000} min`)
 
-    // Start periodic memory maintenance
-    this.memoryTimer = setInterval(() => {
-      this.maintainMemory().catch(err => {
-        console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance failed:`, err)
-      })
-    }, this.memoryCheckInterval)
-
-    // Start periodic message checking
+    // Start periodic message checking (no stagger needed, lightweight)
     this.messageTimer = setInterval(() => {
       this.checkMessages().catch(err => {
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check failed:`, err)
       })
     }, this.messageCheckInterval)
 
-    // Skip initial memory maintenance entirely to avoid CPU spike on server restart
-    // Agents will run memory maintenance on their first scheduled interval (15 min)
-    // Users can manually trigger indexing via the API if needed
-    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory check scheduled (first run in ${this.memoryCheckInterval / 60000} min)`)
+    // Start memory maintenance with stagger offset
+    // First run is delayed by staggerOffset, then runs on interval
+    this.initialDelayTimer = setTimeout(() => {
+      // Run first memory maintenance
+      this.maintainMemory().catch(err => {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Initial memory maintenance failed:`, err)
+      })
+
+      // Start the regular interval timer
+      this.memoryTimer = setInterval(() => {
+        this.maintainMemory().catch(err => {
+          console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance failed:`, err)
+        })
+      }, this.memoryCheckInterval)
+    }, this.staggerOffset)
 
     this.isRunning = true
     this.startedAt = Date.now()
-    console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running`)
+
+    // Subscribe to host hints (optional optimization)
+    // If host hints aren't available, agent continues running with its own timers
+    try {
+      hostHints.subscribe(this.agentId, (hint) => this.handleHostHint(hint))
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subscribed to host hints`)
+    } catch (e) {
+      // Host hints not available - agent runs independently (this is fine)
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hints not available - running autonomously`)
+    }
+
+    console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running (first memory check in ${Math.round(this.staggerOffset / 1000)}s)`)
   }
 
   /**
@@ -140,6 +195,14 @@ class AgentSubconscious {
       clearTimeout(this.initialDelayTimer)
       this.initialDelayTimer = null
     }
+
+    // Unsubscribe from host hints
+    try {
+      hostHints.unsubscribe(this.agentId)
+    } catch {
+      // Host hints not available - that's fine
+    }
+
     this.isRunning = false
     console.log(`[Agent ${this.agentId.substring(0, 8)}] Subconscious stopped`)
   }
@@ -277,6 +340,88 @@ class AgentSubconscious {
   }
 
   /**
+   * Set activity state and adjust intervals accordingly
+   * Called by the host when session activity changes
+   */
+  setActivityState(state: 'active' | 'idle' | 'disconnected') {
+    const prevState = this.activityState
+    this.activityState = state
+
+    // Trigger immediate index on idle transition (good time to catch up)
+    if (prevState === 'active' && state === 'idle') {
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] Session went idle - triggering memory maintenance`)
+      this.maintainMemory().catch(err => {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Idle transition maintenance failed:`, err)
+      })
+    }
+
+    // Update interval based on new activity state
+    const newInterval = ACTIVITY_INTERVALS[state]
+    if (newInterval !== this.memoryCheckInterval) {
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] Activity: ${prevState} -> ${state}, interval: ${newInterval / 60000} min`)
+      this.memoryCheckInterval = newInterval
+      this.rescheduleMemoryTimer()
+    }
+  }
+
+  /**
+   * Get current activity state
+   */
+  getActivityState(): 'active' | 'idle' | 'disconnected' {
+    return this.activityState
+  }
+
+  /**
+   * Reschedule memory timer with new interval
+   */
+  private rescheduleMemoryTimer() {
+    if (!this.isRunning) return
+
+    // Clear existing timer
+    if (this.memoryTimer) {
+      clearInterval(this.memoryTimer)
+      this.memoryTimer = null
+    }
+
+    // Start new timer with updated interval
+    this.memoryTimer = setInterval(() => {
+      this.maintainMemory().catch(err => {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance failed:`, err)
+      })
+    }, this.memoryCheckInterval)
+  }
+
+  /**
+   * Handle host hints (optional optimization)
+   * Agent works fine without these - they're just optimization hints
+   */
+  handleHostHint(hint: HostHint) {
+    if (hint.agentId !== this.agentId) return
+
+    switch (hint.type) {
+      case 'idle_transition':
+        // Session just went idle - good time to index
+        console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hint: idle_transition`)
+        this.setActivityState('idle')
+        break
+
+      case 'run_now':
+        // Host says it's a good time to run
+        console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hint: run_now`)
+        this.maintainMemory().catch(err => {
+          console.error(`[Agent ${this.agentId.substring(0, 8)}] Hint-triggered maintenance failed:`, err)
+        })
+        break
+
+      case 'skip':
+        // Host is busy - we'll just wait for next interval
+        // (no action needed, just don't run)
+        console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hint: skip (will wait for next interval)`)
+        break
+    }
+  }
+
+  /**
    * Get subconscious status
    */
   getStatus(): SubconsciousStatus {
@@ -285,6 +430,8 @@ class AgentSubconscious {
       startedAt: this.startedAt,
       memoryCheckInterval: this.memoryCheckInterval,
       messageCheckInterval: this.messageCheckInterval,
+      activityState: this.activityState,
+      staggerOffset: this.staggerOffset,
       lastMemoryRun: this.lastMemoryRun,
       lastMessageRun: this.lastMessageRun,
       lastMemoryResult: this.lastMemoryResult,

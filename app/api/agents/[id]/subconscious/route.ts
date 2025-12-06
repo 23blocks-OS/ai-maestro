@@ -17,6 +17,9 @@ function agentDatabaseExists(agentId: string): boolean {
 /**
  * GET /api/agents/[id]/subconscious
  * Get the subconscious status for a specific agent
+ *
+ * This API will initialize the agent if it exists on disk but not in memory,
+ * ensuring the subconscious starts running.
  */
 export async function GET(
   request: NextRequest,
@@ -35,20 +38,9 @@ export async function GET(
       }, { status: 404 })
     }
 
-    // Try to get agent from in-memory registry
-    const agent = agentRegistry.getExistingAgent(agentId)
-
-    if (!agent) {
-      // Agent exists on disk but not in memory (not yet initialized)
-      return NextResponse.json({
-        success: true,
-        exists: true,
-        initialized: false,
-        isRunning: false,
-        isWarmingUp: true,
-        status: null
-      })
-    }
+    // Get or create the agent (this initializes the subconscious)
+    // Using getAgent() instead of getExistingAgent() ensures initialization
+    const agent = await agentRegistry.getAgent(agentId)
 
     // Get subconscious status
     const subconscious = agent.getSubconscious()

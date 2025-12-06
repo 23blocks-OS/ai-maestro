@@ -75,8 +75,9 @@ class AgentSubconscious {
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
     this.agent = agent
-    this.memoryCheckInterval = config.memoryCheckInterval || 5 * 60 * 1000  // 5 minutes
-    this.messageCheckInterval = config.messageCheckInterval || 2 * 60 * 1000  // 2 minutes
+    // Increased intervals to reduce system load with many agents
+    this.memoryCheckInterval = config.memoryCheckInterval || 15 * 60 * 1000  // 15 minutes (was 5)
+    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (was 2)
   }
 
   /**

@@ -54,14 +54,19 @@ interface SubconsciousStatus {
   totalMessageRuns: number
 }
 
+// Static counter for staggering initial runs across all agents
+let subconsciousInstanceCount = 0
+
 class AgentSubconscious {
   private agentId: string
   private agent: Agent
   private memoryTimer: NodeJS.Timeout | null = null
   private messageTimer: NodeJS.Timeout | null = null
+  private initialDelayTimer: NodeJS.Timeout | null = null
   private isRunning = false
   private memoryCheckInterval: number
   private messageCheckInterval: number
+  private instanceNumber: number
 
   // Status tracking
   private startedAt: number | null = null
@@ -78,6 +83,8 @@ class AgentSubconscious {
     // Increased intervals to reduce system load with many agents
     this.memoryCheckInterval = config.memoryCheckInterval || 15 * 60 * 1000  // 15 minutes (was 5)
     this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (was 2)
+    // Assign instance number for staggering initial runs
+    this.instanceNumber = subconsciousInstanceCount++
   }
 
   /**
@@ -107,10 +114,10 @@ class AgentSubconscious {
       })
     }, this.messageCheckInterval)
 
-    // Run immediately on start
-    this.maintainMemory().catch(err => {
-      console.error(`[Agent ${this.agentId.substring(0, 8)}] Initial memory maintenance failed:`, err)
-    })
+    // Skip initial memory maintenance entirely to avoid CPU spike on server restart
+    // Agents will run memory maintenance on their first scheduled interval (15 min)
+    // Users can manually trigger indexing via the API if needed
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory check scheduled (first run in ${this.memoryCheckInterval / 60000} min)`)
 
     this.isRunning = true
     this.startedAt = Date.now()
@@ -128,6 +135,10 @@ class AgentSubconscious {
     if (this.messageTimer) {
       clearInterval(this.messageTimer)
       this.messageTimer = null
+    }
+    if (this.initialDelayTimer) {
+      clearTimeout(this.initialDelayTimer)
+      this.initialDelayTimer = null
     }
     this.isRunning = false
     console.log(`[Agent ${this.agentId.substring(0, 8)}] Subconscious stopped`)

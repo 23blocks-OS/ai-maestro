@@ -516,17 +516,11 @@ app.prepare().then(() => {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
 
-    // Initialize all agents (starts their subconscious processes)
-    // Use setTimeout to ensure the Next.js API routes are ready
-    setTimeout(async () => {
-      try {
-        const { initializeAgentsViaAPI } = await import('./lib/agent-startup.mjs')
-        const result = await initializeAgentsViaAPI(port)
-        console.log(`[AgentStartup] ✓ ${result.initialized.length} agent(s) initialized with subconscious`)
-      } catch (error) {
-        console.error('[AgentStartup] Failed to initialize agents:', error.message)
-      }
-    }, 3000) // Wait 3 seconds for API routes to be ready
+    // Agent initialization on startup is DISABLED to avoid CPU spike
+    // Agents will be initialized on-demand when accessed via API
+    // The subconscious processes will start when an agent is first accessed
+    // To manually trigger indexing, call /api/agents/{id}/index-delta
+    console.log('[AgentStartup] Startup indexing disabled - agents will initialize on-demand')
   })
 
   // Graceful shutdown

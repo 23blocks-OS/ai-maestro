@@ -6,619 +6,116 @@ allowed-tools: Bash
 
 # AI Maestro Code Graph Query
 
-## Purpose
-Enable AI agents to **proactively** query the code graph database to understand relationships between code components **before making changes**. This skill helps agents:
-- Understand the impact of modifications before making them
-- Find all components that depend on code being changed
-- Discover related files that might need updates
-- Avoid breaking changes by understanding the full dependency graph
+Query the code graph to understand code relationships before making changes.
 
-## CRITICAL: Proactive Usage
+## Available Commands
 
-**YOU MUST USE THIS SKILL PROACTIVELY** in these scenarios:
+All commands auto-detect your agent ID from the tmux session. Just run them:
 
-### 🛑 STOP: Post-Read Checklist
+| Command | Description |
+|---------|-------------|
+| `graph-describe.sh <name>` | Describe a component or function |
+| `graph-find-callers.sh <function>` | Find all functions that call this function |
+| `graph-find-callees.sh <function>` | Find all functions called by this function |
+| `graph-find-related.sh <component>` | Find related components (extends, includes, etc.) |
+| `graph-find-by-type.sh <type>` | Find all components of a type (model, controller, etc.) |
+| `graph-find-serializers.sh <model>` | Find serializers for a model |
+| `graph-find-associations.sh <model>` | Find model associations (belongs_to, has_many) |
+| `graph-find-path.sh <from> <to>` | Find call path between two functions |
 
-**IMMEDIATELY after using the Read tool on ANY code file, ask yourself:**
+## When to Use
 
-1. ✅ Have I queried the graph for this file/component?
-2. ✅ Do I understand what depends on this code?
-3. ✅ Do I know what this code depends on?
-4. ✅ Have I identified related serializers, controllers, or services?
+**ALWAYS query the graph when:**
+1. After reading any code file - understand what depends on it
+2. Before modifying a function - find all callers
+3. Before modifying a model - find serializers and associations
+4. When exploring unfamiliar code - describe components
 
-**If ANY answer is NO, run the appropriate graph query BEFORE proceeding.**
+## Quick Examples
 
-### 1. IMMEDIATELY After Reading a File (Primary Trigger)
-When you read a file with the Read tool, **ALWAYS query the graph immediately** to understand:
-- What is the component's role in the system?
-- What functions/classes call into this code?
-- What serializers depend on this model?
-- What controllers use this service?
-- What will break if this code changes?
-
-**Example - After reading `app/models/user.rb`:**
 ```bash
-# Run these immediately after Read tool returns
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-serializers&name=User" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associations&name=User" | jq
+# Describe a component
+graph-describe.sh User
+
+# Find who calls a function
+graph-find-callers.sh authenticate
+
+# Find what a function calls
+graph-find-callees.sh process_payment
+
+# Find all models
+graph-find-by-type.sh model
+
+# Find serializers for User model
+graph-find-serializers.sh User
+
+# Find User model associations
+graph-find-associations.sh User
+
+# Find call path
+graph-find-path.sh create_order send_email
 ```
 
-### 2. When Searching for Files
-When exploring the codebase or searching for files, use the graph to:
-- Find related files you might have missed
-- Understand how files are connected
-- Discover the full scope of a feature
+## Workflows
 
-### 3. Before Making Any Edit (Safety Net)
-If you somehow missed querying on read, **STOP before editing** and query:
-- The file's role in the larger system
-- What depends on it
-- What it depends on
+### Before Modifying a Model
 
-### 4. When Graph Queries Fail
-If queries return empty results or errors:
-1. **Verify the agent ID** - Use the UUID lookup method below
-2. **Check AI Maestro is running** - `curl -s http://localhost:23000/api/agents | jq '.agents | length'`
-3. **Inform the user** - "Graph unavailable, proceeding with manual analysis via grep"
-4. **Use grep as fallback** - But acknowledge reduced safety
-
-## When to Use This Skill
-
-**PROACTIVE (Use Automatically - Primary Trigger is File Read):**
-- You just read a file with the Read tool → Query its relationships IMMEDIATELY
-- You found a file via grep/glob → Query its connections before reading
-- You're exploring unfamiliar code → Describe the component as you read
-- You're debugging → Trace the call path
-- You're about to modify a function → Find all callers (safety net if missed on read)
-- You're changing a model → Find all serializers and associations (safety net)
-
-**REACTIVE (When Asked):**
-- User asks "who calls this function?"
-- User asks "what depends on X?"
-- User asks "find serializers for model X"
-- User asks "how is X related to Y?"
-- User asks "describe component X"
-
-## API Endpoint
-
-**Base URL:** `http://localhost:23000/api/agents/{agent_id}/graph/query`
-
-**Method:** GET
-
-**Required Parameters:**
-- `q` - Query type (see below)
-
-## Query Types
-
-### 1. find-callers
-Find all functions that call a given function.
-
-**Parameters:**
-- `name` (required) - Function name to find callers for
-
-**Command:**
 ```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-callers&name={FUNCTION_NAME}" | jq
+# 1. Describe it
+graph-describe.sh User
+
+# 2. Find serializers that may need updates
+graph-find-serializers.sh User
+
+# 3. Find associations
+graph-find-associations.sh User
 ```
 
-**Example:**
-```bash
-# Find all functions that call "authenticate"
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-callers&name=authenticate" | jq
+### Before Modifying a Function
 
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "function": "authenticate",
-#     "callers": [
-#       { "name": "login", "file": "app/controllers/sessions_controller.rb" },
-#       { "name": "check_auth", "file": "app/middleware/auth_middleware.rb" }
-#     ],
-#     "count": 2
-#   }
-# }
+```bash
+# 1. Find all callers (they may break if you change signature)
+graph-find-callers.sh authenticate
+
+# 2. Find what it calls
+graph-find-callees.sh authenticate
 ```
 
-### 2. find-callees
-Find all functions called by a given function.
+### Exploring the Codebase
 
-**Parameters:**
-- `name` (required) - Function name to find callees for
-
-**Command:**
 ```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-callees&name={FUNCTION_NAME}" | jq
+# List all models
+graph-find-by-type.sh model
+
+# List all controllers
+graph-find-by-type.sh controller
+
+# Describe a specific component
+graph-describe.sh PaymentService
 ```
 
-**Example:**
-```bash
-# Find all functions called by "process_payment"
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-callees&name=process_payment" | jq
+## Component Types
 
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "function": "process_payment",
-#     "callees": [
-#       { "name": "validate_card", "file": "app/services/payment_service.rb" },
-#       { "name": "charge_customer", "file": "lib/stripe_client.rb" }
-#     ],
-#     "count": 2
-#   }
-# }
-```
-
-### 3. find-related
-Find all components related to a given component (extends, includes, associations, serializers).
-
-**Parameters:**
-- `name` (required) - Component name to find relationships for
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-related&name={COMPONENT_NAME}" | jq
-```
-
-**Example:**
-```bash
-# Find all relationships for User model
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-related&name=User" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "component": "User",
-#     "extends_from": ["ApplicationRecord"],
-#     "extended_by": ["AdminUser", "GuestUser"],
-#     "includes": ["Authable", "Trackable"],
-#     "included_by": [],
-#     "associations": [
-#       { "target": "Post", "type": "has_many" },
-#       { "target": "Profile", "type": "has_one" },
-#       { "target": "Organization", "type": "belongs_to" }
-#     ],
-#     "associated_by": [
-#       { "source": "Comment", "type": "belongs_to" }
-#     ],
-#     "serializes": null,
-#     "serialized_by": ["UserSerializer", "UserDetailSerializer"]
-#   }
-# }
-```
-
-### 4. find-by-type
-Find all components of a given type.
-
-**Parameters:**
-- `type` (required) - Component type (model, serializer, controller, job, service, etc.)
-
-**Available Types:**
-- `model` - ActiveRecord/ORM models
+Use with `graph-find-by-type.sh`:
+- `model` - Database models
 - `serializer` - JSON serializers
-- `controller` - API/web controllers
-- `job` - Background jobs
+- `controller` - API controllers
 - `service` - Service objects
-- `mailer` - Email senders
+- `job` - Background jobs
 - `concern` - Shared modules
-- `helper` - View helpers
-- `validator` - Custom validators
-- `middleware` - Request middleware
 - `component` - React/Vue components
 - `hook` - React hooks
-- `context` - React contexts
-- `store` - State stores
-- `util` - Utility functions
-- `test` - Test files
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-by-type&type={TYPE}" | jq
-```
-
-**Example:**
-```bash
-# Find all models in the project
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-by-type&type=model" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "type": "model",
-#     "components": [
-#       { "name": "User", "file": "app/models/user.rb" },
-#       { "name": "Post", "file": "app/models/post.rb" },
-#       { "name": "Comment", "file": "app/models/comment.rb" }
-#     ],
-#     "count": 3
-#   }
-# }
-```
-
-### 5. find-associations
-Find all associations for a model (belongs_to, has_many, has_one, etc.).
-
-**Parameters:**
-- `name` (required) - Model name to find associations for
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-associations&name={MODEL_NAME}" | jq
-```
-
-**Example:**
-```bash
-# Find associations for Post model
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-associations&name=Post" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "model": "Post",
-#     "outgoing": [
-#       { "target": "User", "type": "belongs_to" },
-#       { "target": "Category", "type": "belongs_to" },
-#       { "target": "Comment", "type": "has_many" }
-#     ],
-#     "incoming": [
-#       { "source": "User", "type": "has_many" }
-#     ]
-#   }
-# }
-```
-
-### 6. find-serializers
-Find all serializers for a model.
-
-**Parameters:**
-- `name` (required) - Model name to find serializers for
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-serializers&name={MODEL_NAME}" | jq
-```
-
-**Example:**
-```bash
-# Find serializers for User model
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-serializers&name=User" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "model": "User",
-#     "serializers": [
-#       { "name": "UserSerializer", "file": "app/serializers/user_serializer.rb" },
-#       { "name": "UserDetailSerializer", "file": "app/serializers/user_detail_serializer.rb" }
-#     ],
-#     "count": 2
-#   }
-# }
-```
-
-### 7. find-path
-Find the call path between two functions.
-
-**Parameters:**
-- `from` (required) - Starting function name
-- `to` (required) - Target function name
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=find-path&from={FROM_FUNCTION}&to={TO_FUNCTION}" | jq
-```
-
-**Example:**
-```bash
-# Find how "create_order" eventually calls "send_email"
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=find-path&from=create_order&to=send_email" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "from": "create_order",
-#     "to": "send_email",
-#     "paths": [
-#       { "depth": 3, "via": ["create_order", "process_order", "notify_customer"] }
-#     ],
-#     "found": true
-#   }
-# }
-```
-
-### 8. describe
-Get a full description of a component and all its relationships.
-
-**Parameters:**
-- `name` (required) - Component or function name to describe
-
-**Command:**
-```bash
-curl -s "http://localhost:23000/api/agents/{AGENT_ID}/graph/query?q=describe&name={NAME}" | jq
-```
-
-**Example:**
-```bash
-# Describe the User component
-curl -s "http://localhost:23000/api/agents/backend-api/graph/query?q=describe&name=User" | jq
-
-# Response:
-# {
-#   "success": true,
-#   "result": {
-#     "name": "User",
-#     "found": true,
-#     "type": "component",
-#     "class_type": "model",
-#     "file": "app/models/user.rb",
-#     "relationships": {
-#       "extends_from": ["ApplicationRecord"],
-#       "includes": ["Devise::Models::Authenticatable"],
-#       "associations": [
-#         { "target": "Post", "type": "has_many" }
-#       ],
-#       "serialized_by": ["UserSerializer"]
-#     }
-#   }
-# }
-```
-
-## Getting Your Agent ID
-
-**IMPORTANT:** The agent ID is the **UUID** from the AI Maestro agents list, NOT the tmux session name.
-
-### Step 1: Find your agent UUID
-
-```bash
-# List all agents and find yours by matching the currentSession to your tmux session
-TMUX_SESSION=$(tmux display-message -p '#S')
-AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
-echo "Your agent UUID: $AGENT_ID"
-```
-
-### Step 2: Verify the agent ID works
-
-```bash
-# Quick test - should return components, not empty results
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq '.result.count'
-```
-
-### Alternative: Use alias (if supported)
-
-```bash
-# Some setups support using the agent alias instead of UUID
-AGENT_ALIAS=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .alias")
-echo "Your agent alias: $AGENT_ALIAS"
-```
-
-### Troubleshooting Agent ID Issues
-
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| Empty results (`"count": 0`) | Wrong agent ID or graph not indexed | Verify UUID with agents list |
-| Connection refused | AI Maestro not running | Start the AI Maestro service |
-| `"found": false` | Component name mismatch | Check exact class/function name |
-
-## IMPACT ANALYSIS WORKFLOWS (Use Before Making Changes)
-
-### Workflow: Before Modifying a Model
-
-**Scenario:** You're about to add a field to the User model or change a method.
-
-```bash
-# Get agent UUID (run once per session)
-TMUX_SESSION=$(tmux display-message -p '#S')
-AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
-
-# Step 1: Understand the model's full context
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
-
-# Step 2: Find ALL serializers that expose this model (they may need updates)
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-serializers&name=User" | jq
-
-# Step 3: Find ALL associations (other models that reference this)
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associations&name=User" | jq
-
-# Step 4: Find related components (inheritance, includes, etc.)
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-related&name=User" | jq
-```
-
-**Before making your change, you now know:**
-- Which serializers might need the new field added
-- Which models have associations that might be affected
-- What modules this model includes (they might have conflicting methods)
-- What classes extend this model (they inherit your changes)
-
-### Workflow: Before Modifying a Function
-
-**Scenario:** You're about to change a function's signature or behavior.
-
-```bash
-# Assumes AGENT_ID is set from UUID lookup above
-
-# Step 1: Find ALL callers of this function (they may break!)
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&name=process_payment" | jq
-
-# Step 2: Find what this function calls (understand the flow)
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&name=process_payment" | jq
-
-# Step 3: If it's a method, describe the class context
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=PaymentService" | jq
-```
-
-**Before making your change, you now know:**
-- Every place that calls this function (update them if signature changes)
-- What downstream functions might be affected
-- The broader context of the class/module
-
-### Workflow: Before Modifying a Controller
-
-**Scenario:** You're changing an API endpoint.
-
-```bash
-# Assumes AGENT_ID is set from UUID lookup above
-
-# Step 1: Describe the controller
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=UsersController" | jq
-
-# Step 2: Find what models it uses
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&name=create" | jq
-
-# Step 3: Find serializers it might use
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=serializer" | jq '.result.components[] | select(.name | contains("User"))'
-```
-
-### Workflow: After Finding a File via Search
-
-**Scenario:** You used grep/glob and found `app/services/payment_service.rb`
-
-```bash
-# Assumes AGENT_ID is set from UUID lookup above
-
-# Immediately query its relationships before deciding what to do
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=PaymentService" | jq
-
-# Find everything that uses this service
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&name=process" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&name=charge" | jq
-```
-
-### Workflow: Exploring Unfamiliar Code
-
-**Scenario:** You're new to a codebase or feature area.
-
-```bash
-# Assumes AGENT_ID is set from UUID lookup above
-
-# Step 1: Get inventory of all key components
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=controller" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=service" | jq
-
-# Step 2: For each key model, understand its relationships
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=Order" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associations&name=Order" | jq
-```
-
-### Workflow: Debugging - Trace the Call Path
-
-**Scenario:** You need to understand how data flows through the system.
-
-```bash
-# Assumes AGENT_ID is set from UUID lookup above
-
-# Find the path from an entry point to a specific function
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-path&from=create&to=send_notification" | jq
-
-# If no direct path, trace step by step
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&name=create" | jq
-# Then for each callee...
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&name=process_order" | jq
-```
-
-## QUICK REFERENCE WORKFLOWS
-
-### Session Setup (Run First)
-```bash
-# Run this ONCE at the start of your session to set AGENT_ID
-TMUX_SESSION=$(tmux display-message -p '#S')
-export AGENT_ID=$(curl -s "http://localhost:23000/api/agents" | jq -r ".agents[] | select(.currentSession == \"$TMUX_SESSION\") | .id")
-echo "Agent ID: $AGENT_ID"
-
-# Verify it works
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq '.result.count'
-```
-
-### Understanding a Model
-```bash
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=describe&name=User" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-associations&name=User" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-serializers&name=User" | jq
-```
-
-### Tracing Function Calls
-```bash
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callers&name=authenticate" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-callees&name=authenticate" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-path&from=login&to=send_email" | jq
-```
-
-### Finding Components by Type
-```bash
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=model" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=serializer" | jq
-curl -s "http://localhost:23000/api/agents/$AGENT_ID/graph/query?q=find-by-type&type=controller" | jq
-```
 
 ## Error Handling
 
-**Missing required parameter:**
-```json
-{
-  "success": false,
-  "error": "find-callers requires \"name\" parameter"
-}
+If scripts fail:
+1. Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
+2. Ensure your agent is registered (scripts auto-detect from tmux session)
+3. Check exact component names (case-sensitive)
+
+## Installation
+
+If commands are not found, run the installer:
+```bash
+./install-graph-tools.sh
 ```
-
-**Unknown query type:**
-```json
-{
-  "success": false,
-  "error": "Unknown query type: unknown",
-  "available_queries": ["find-callers", "find-callees", "find-related", ...]
-}
-```
-
-**Component not found:**
-```json
-{
-  "success": true,
-  "result": {
-    "name": "NonExistent",
-    "found": false
-  }
-}
-```
-
-## Tips for Proactive Usage
-
-### The Golden Rule: Query IMMEDIATELY After You Read
-
-**ALWAYS run at least one query immediately after reading any code file:**
-
-| What You Just Read | Query Immediately |
-|-------------------|-------------------|
-| Model | `describe`, `find-serializers`, `find-associations` |
-| Function/Method | `find-callers`, `find-callees` |
-| Controller | `describe`, `find-callees` |
-| Service | `find-callers`, `describe` |
-| Serializer | `describe` (find which model it serializes) |
-
-### Best Practices
-
-1. **Query immediately after every file read** - When you read a file, immediately query its relationships
-2. **Query on every file search** - When you find a file via grep/glob, query before reading
-3. **Use `describe` first** - Get the full picture before diving into specifics
-4. **Check callers for signature changes** - If you change a function signature, find all callers
-5. **Check serializers for model changes** - Model changes often require serializer updates
-6. **Trace paths for debugging** - Use `find-path` to understand how data flows
-
-### Avoid Breaking Changes
-
-The graph query helps you avoid:
-- Changing a function signature without updating callers
-- Adding model fields without updating serializers
-- Breaking inheritance chains
-- Missing dependent components
-
-## References
-
-- [AI Maestro Documentation](https://github.com/23blocks-OS/ai-maestro)
-- [Graph API Code](/app/api/agents/[id]/graph/query/route.ts)

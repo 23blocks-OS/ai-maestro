@@ -435,14 +435,79 @@ export async function GET(
             description.class_type = r[3]
             description.file = r[2]
 
-            // Get related info (reuse find-related logic)
-            const relatedResponse = await GET(request, { params })
-            if (relatedResponse.ok) {
-              const relatedData = await relatedResponse.json()
-              if (relatedData.success && relatedData.result) {
-                description.relationships = relatedData.result
-              }
+            // Get related info by calling find-related inline
+            // (Previously this called GET recursively which caused infinite loop)
+            const related: any = {
+              extends_from: [],
+              extended_by: [],
+              includes: [],
+              associations: [],
+              serialized_by: [],
             }
+
+            // Find parent class
+            try {
+              const extendsResult = await agentDb.run(`
+                ?[parent_name] :=
+                  *components{component_id: child, name: child_name},
+                  child_name = '${escapeString(name)}',
+                  *extends{child_class: child, parent_class: parent},
+                  *components{component_id: parent, name: parent_name}
+              `)
+              related.extends_from = extendsResult.rows.map((row: any[]) => row[0])
+            } catch { /* ignore */ }
+
+            // Find child classes
+            try {
+              const extendedByResult = await agentDb.run(`
+                ?[child_name] :=
+                  *components{component_id: parent, name: parent_name},
+                  parent_name = '${escapeString(name)}',
+                  *extends{child_class: child, parent_class: parent},
+                  *components{component_id: child, name: child_name}
+              `)
+              related.extended_by = extendedByResult.rows.map((row: any[]) => row[0])
+            } catch { /* ignore */ }
+
+            // Find included modules
+            try {
+              const includesResult = await agentDb.run(`
+                ?[module_name] :=
+                  *components{component_id: class_id, name: class_name},
+                  class_name = '${escapeString(name)}',
+                  *includes{class_id, module_name}
+              `)
+              related.includes = includesResult.rows.map((row: any[]) => row[0])
+            } catch { /* ignore */ }
+
+            // Find associations
+            try {
+              const associationsResult = await agentDb.run(`
+                ?[to_class_name, assoc_type] :=
+                  *components{component_id: from_id, name: from_name},
+                  from_name = '${escapeString(name)}',
+                  *associations{from_class: from_id, to_class, assoc_type},
+                  *components{component_id: to_class, name: to_class_name}
+              `)
+              related.associations = associationsResult.rows.map((row: any[]) => ({
+                target: row[0],
+                type: row[1],
+              }))
+            } catch { /* ignore */ }
+
+            // Find serializers
+            try {
+              const serializedByResult = await agentDb.run(`
+                ?[serializer_name] :=
+                  *components{component_id: model_id, name: model_name},
+                  model_name = '${escapeString(name)}',
+                  *serializes{serializer_id, model_id},
+                  *components{component_id: serializer_id, name: serializer_name}
+              `)
+              related.serialized_by = serializedByResult.rows.map((row: any[]) => row[0])
+            } catch { /* ignore */ }
+
+            description.relationships = related
           }
         } catch { /* ignore */ }
 

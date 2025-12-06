@@ -498,6 +498,12 @@ app.prepare().then(() => {
     })
   })
 
+  // Increase server timeout for long-running operations like doc indexing
+  // Default is 120000 (2 min), we set to 15 minutes
+  server.timeout = 15 * 60 * 1000
+  server.keepAliveTimeout = 15 * 60 * 1000
+  server.headersTimeout = 15 * 60 * 1000 + 1000
+
   server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
 

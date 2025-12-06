@@ -212,6 +212,7 @@ export async function POST(
     const agentDb = await agent.getDatabase()
 
     // Index the documentation
+    console.log(`[Docs API] Starting indexDocumentation...`)
     const stats = await indexDocumentation(agentDb, projectPath, {
       clear,
       generateEmbeddings,
@@ -222,16 +223,23 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({
+    console.log(`[Docs API] Indexing complete, stats:`, JSON.stringify(stats))
+
+    const response = {
       success: true,
       agent_id: agentId,
       projectPath,
       stats,
-    })
+    }
+
+    console.log(`[Docs API] Sending response:`, JSON.stringify(response))
+    return NextResponse.json(response)
   } catch (error) {
     console.error('[Docs API] Error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[Docs API] Error message:', errorMessage)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }

@@ -278,7 +278,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-gray-100">
+    <div className="flex-1 h-full w-full flex flex-col bg-gray-900 text-gray-100 overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-800 p-4">
         <div className="flex items-center justify-between mb-4">

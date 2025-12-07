@@ -3,6 +3,7 @@ import { agentRegistry } from '@/lib/agent'
 import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
 import {
   indexDocumentation,
+  indexDocsDelta,
   clearDocGraph,
   getDocStats,
   searchDocsBySimilarity,
@@ -60,6 +61,11 @@ export async function GET(
             { status: 400 }
           )
         }
+
+        // Trigger delta indexing in the background before search (ensures fresh results)
+        triggerBackgroundDocsDeltaIndexing(agentId, projectPath).catch((err) => {
+          console.error('[Docs API] Background delta indexing failed:', err)
+        })
 
         if (keyword) {
           result = await searchDocsByKeyword(agentDb, keyword, limit, projectPath)
@@ -156,7 +162,8 @@ export async function GET(
  *
  * Body (optional):
  * - projectPath: Path to the project to index (auto-detected from agent config if not provided)
- * - clear: Whether to clear existing data first (default: true)
+ * - delta: Use delta indexing (only index changed files) (default: false)
+ * - clear: Whether to clear existing data first (default: true, ignored if delta=true)
  * - generateEmbeddings: Whether to generate semantic embeddings (default: true)
  * - includePatterns: Glob patterns to include (optional)
  * - excludePatterns: Glob patterns to exclude (optional)
@@ -179,7 +186,7 @@ export async function POST(
       // Empty or invalid body - use defaults
     }
 
-    let { projectPath, clear = true, generateEmbeddings = true, includePatterns, excludePatterns } = body
+    let { projectPath, delta = false, clear = true, generateEmbeddings = true, includePatterns, excludePatterns } = body
 
     // Auto-detect projectPath from agent registry if not provided
     if (!projectPath) {
@@ -205,30 +212,44 @@ export async function POST(
       console.log(`[Docs API] Auto-detected projectPath from registry: ${projectPath}`)
     }
 
-    console.log(`[Docs API] Indexing documentation for agent ${agentId}: ${projectPath}`)
-
     // Get agent instance for database access
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
-    // Index the documentation
-    console.log(`[Docs API] Starting indexDocumentation...`)
-    const stats = await indexDocumentation(agentDb, projectPath, {
-      clear,
-      generateEmbeddings,
-      includePatterns,
-      excludePatterns,
-      onProgress: (status) => {
-        console.log(`[Docs API] ${status}`)
-      },
-    })
+    let stats: any
 
-    console.log(`[Docs API] Indexing complete, stats:`, JSON.stringify(stats))
+    if (delta) {
+      // Delta indexing - only index changed files
+      console.log(`[Docs API] Delta indexing documentation for agent ${agentId}: ${projectPath}`)
+      stats = await indexDocsDelta(agentDb, projectPath, {
+        generateEmbeddings,
+        includePatterns,
+        excludePatterns,
+        onProgress: (status) => {
+          console.log(`[Docs API] ${status}`)
+        },
+      })
+      console.log(`[Docs API] Delta indexing complete, stats:`, JSON.stringify(stats))
+    } else {
+      // Full indexing
+      console.log(`[Docs API] Full indexing documentation for agent ${agentId}: ${projectPath}`)
+      stats = await indexDocumentation(agentDb, projectPath, {
+        clear,
+        generateEmbeddings,
+        includePatterns,
+        excludePatterns,
+        onProgress: (status) => {
+          console.log(`[Docs API] ${status}`)
+        },
+      })
+      console.log(`[Docs API] Full indexing complete, stats:`, JSON.stringify(stats))
+    }
 
     const response = {
       success: true,
       agent_id: agentId,
       projectPath,
+      mode: delta ? 'delta' : 'full',
       stats,
     }
 
@@ -280,5 +301,43 @@ export async function DELETE(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * Trigger delta indexing of documentation in the background (non-blocking)
+ */
+async function triggerBackgroundDocsDeltaIndexing(agentId: string, projectPath?: string): Promise<void> {
+  console.log(`[Docs API] Triggering background docs delta indexing for agent ${agentId}`)
+
+  try {
+    const body: any = { delta: true }
+    if (projectPath) {
+      body.projectPath = projectPath
+    }
+
+    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/docs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      console.error(`[Docs API] Delta indexing returned status ${response.status}`)
+      return
+    }
+
+    const result = await response.json()
+    if (result.success) {
+      const stats = result.stats || {}
+      const totalChanges = (stats.filesNew || 0) + (stats.filesModified || 0) + (stats.filesDeleted || 0)
+      if (totalChanges > 0) {
+        console.log(`[Docs API] Delta indexed: ${stats.filesNew || 0} new, ${stats.filesModified || 0} modified, ${stats.filesDeleted || 0} deleted files`)
+      }
+    }
+  } catch (error) {
+    console.error('[Docs API] Failed to trigger docs delta indexing:', error)
   }
 }

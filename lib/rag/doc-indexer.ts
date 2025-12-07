@@ -359,6 +359,9 @@ export async function clearDocGraph(agentDb: AgentDatabase, projectPath?: string
         await agentDb.run(`?[doc_id, tag] := *doc_tags{doc_id, tag}, is_in(doc_id, [${idList}]) :rm doc_tags`)
         await agentDb.run(`?[doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at] := *documents{doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at}, is_in(doc_id, [${idList}]) :rm documents`)
       }
+
+      // Also clear doc file metadata for this project
+      await clearDocFileMetadata(agentDb, projectPath)
     } else {
       // Clear all
       await agentDb.run(`?[chunk_id, vec] := *doc_chunk_vec{chunk_id, vec} :rm doc_chunk_vec`)
@@ -367,6 +370,9 @@ export async function clearDocGraph(agentDb: AgentDatabase, projectPath?: string
       await agentDb.run(`?[section_id, doc_id, heading, level, parent_section_id, content, char_start, char_end] := *doc_sections{section_id, doc_id, heading, level, parent_section_id, content, char_start, char_end} :rm doc_sections`)
       await agentDb.run(`?[doc_id, tag] := *doc_tags{doc_id, tag} :rm doc_tags`)
       await agentDb.run(`?[doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at] := *documents{doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at} :rm documents`)
+
+      // Also clear all doc file metadata
+      await clearDocFileMetadata(agentDb)
     }
 
     console.log(`[Doc Indexer] Documentation graph cleared`)
@@ -876,4 +882,563 @@ export async function getDocumentWithSections(
   }))
 
   return { doc, sections }
+}
+
+// ============================================================================
+// DELTA INDEXING FUNCTIONS
+// ============================================================================
+
+export interface DocFileMetadata {
+  file_path: string
+  project_path: string
+  content_hash: string
+  mtime_ms: number
+  size_bytes: number
+  last_indexed_at: number
+}
+
+export interface DocFileChange {
+  file_path: string
+  change_type: 'new' | 'modified' | 'deleted'
+  current_hash?: string
+  current_mtime?: number
+  current_size?: number
+}
+
+export interface DeltaDocIndexStats extends IndexStats {
+  filesNew: number
+  filesModified: number
+  filesDeleted: number
+  filesUnchanged: number
+}
+
+/**
+ * Compute SHA256 hash of file content
+ */
+export function computeDocFileHash(filePath: string): string {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8')
+    return crypto.createHash('sha256').update(content).digest('hex')
+  } catch (error) {
+    console.error(`[Doc Indexer] Failed to hash file: ${filePath}`, error)
+    return ''
+  }
+}
+
+/**
+ * Get file stats (mtime, size)
+ */
+export function getDocFileStats(filePath: string): { mtime_ms: number; size_bytes: number } | null {
+  try {
+    const stats = fs.statSync(filePath)
+    return {
+      mtime_ms: Math.floor(stats.mtimeMs),
+      size_bytes: stats.size,
+    }
+  } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Get stored doc file metadata for a project from CozoDB
+ */
+export async function getProjectDocFileMetadata(
+  agentDb: AgentDatabase,
+  projectPath: string
+): Promise<DocFileMetadata[]> {
+  try {
+    const result = await agentDb.run(`
+      ?[file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at] :=
+        *doc_file_metadata{file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at},
+        project_path = ${escapeForCozo(projectPath)}
+    `)
+
+    return result.rows.map((row: any[]) => ({
+      file_path: row[0],
+      project_path: row[1],
+      content_hash: row[2],
+      mtime_ms: row[3],
+      size_bytes: row[4],
+      last_indexed_at: row[5],
+    }))
+  } catch (error: any) {
+    // Table might not exist yet
+    if (error.code === 'eval::unknown_relation') {
+      return []
+    }
+    throw error
+  }
+}
+
+/**
+ * Upsert doc file metadata into CozoDB
+ */
+export async function upsertDocFileMetadata(
+  agentDb: AgentDatabase,
+  metadata: DocFileMetadata
+): Promise<void> {
+  await agentDb.run(`
+    ?[file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at] <- [[
+      ${escapeForCozo(metadata.file_path)},
+      ${escapeForCozo(metadata.project_path)},
+      ${escapeForCozo(metadata.content_hash)},
+      ${metadata.mtime_ms},
+      ${metadata.size_bytes},
+      ${metadata.last_indexed_at}
+    ]]
+    :put doc_file_metadata
+  `)
+}
+
+/**
+ * Delete doc file metadata from CozoDB
+ */
+export async function deleteDocFileMetadata(
+  agentDb: AgentDatabase,
+  filePath: string
+): Promise<void> {
+  await agentDb.run(`
+    ?[file_path] <- [[${escapeForCozo(filePath)}]]
+    :rm doc_file_metadata {file_path}
+  `)
+}
+
+/**
+ * Remove document graph data for a specific file (before re-indexing)
+ */
+export async function removeDocFileGraphData(
+  agentDb: AgentDatabase,
+  filePath: string
+): Promise<void> {
+  // Get doc_id for this file path
+  const docResult = await agentDb.run(`
+    ?[doc_id] := *documents{doc_id, file_path}, file_path = ${escapeForCozo(filePath)}
+  `)
+
+  if (docResult.rows.length === 0) {
+    return // File wasn't indexed
+  }
+
+  const docId = docResult.rows[0][0] as string
+
+  // Remove embeddings -> terms -> chunks -> sections -> tags -> document
+  try {
+    await agentDb.run(`
+      ?[chunk_id, vec] := *doc_chunk_vec{chunk_id, vec}, *doc_chunks{chunk_id, doc_id}, doc_id = ${escapeForCozo(docId)}
+      :rm doc_chunk_vec
+    `)
+  } catch (e) { /* Table might be empty */ }
+
+  try {
+    await agentDb.run(`
+      ?[chunk_id, term] := *doc_terms{chunk_id, term}, *doc_chunks{chunk_id, doc_id}, doc_id = ${escapeForCozo(docId)}
+      :rm doc_terms
+    `)
+  } catch (e) { /* Table might be empty */ }
+
+  try {
+    await agentDb.run(`
+      ?[chunk_id, doc_id, chunk_index, heading, content, char_start, char_end] :=
+        *doc_chunks{chunk_id, doc_id, chunk_index, heading, content, char_start, char_end},
+        doc_id = ${escapeForCozo(docId)}
+      :rm doc_chunks
+    `)
+  } catch (e) { /* Table might be empty */ }
+
+  try {
+    await agentDb.run(`
+      ?[section_id, doc_id, heading, level, parent_section_id, content, char_start, char_end] :=
+        *doc_sections{section_id, doc_id, heading, level, parent_section_id, content, char_start, char_end},
+        doc_id = ${escapeForCozo(docId)}
+      :rm doc_sections
+    `)
+  } catch (e) { /* Table might be empty */ }
+
+  try {
+    await agentDb.run(`
+      ?[doc_id, tag] := *doc_tags{doc_id, tag}, doc_id = ${escapeForCozo(docId)}
+      :rm doc_tags
+    `)
+  } catch (e) { /* Table might be empty */ }
+
+  try {
+    await agentDb.run(`
+      ?[doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at] :=
+        *documents{doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at},
+        doc_id = ${escapeForCozo(docId)}
+      :rm documents
+    `)
+  } catch (e) { /* Table might be empty */ }
+}
+
+/**
+ * Detect doc file changes between filesystem and database
+ */
+export async function detectDocFileChanges(
+  agentDb: AgentDatabase,
+  projectPath: string,
+  currentFilePaths: string[]
+): Promise<{
+  newFiles: DocFileChange[]
+  modifiedFiles: DocFileChange[]
+  deletedFiles: DocFileChange[]
+  unchangedFiles: string[]
+}> {
+  console.log(`[Doc Indexer] Detecting file changes for ${currentFilePaths.length} files...`)
+
+  // Get stored metadata for this project
+  const storedMetadata = await getProjectDocFileMetadata(agentDb, projectPath)
+  const storedByPath = new Map<string, DocFileMetadata>()
+  for (const meta of storedMetadata) {
+    storedByPath.set(meta.file_path, meta)
+  }
+
+  const newFiles: DocFileChange[] = []
+  const modifiedFiles: DocFileChange[] = []
+  const unchangedFiles: string[] = []
+  const seenPaths = new Set<string>()
+
+  // Check each current file
+  for (const filePath of currentFilePaths) {
+    seenPaths.add(filePath)
+
+    const stats = getDocFileStats(filePath)
+    if (!stats) {
+      console.warn(`[Doc Indexer] Could not stat file: ${filePath}`)
+      continue
+    }
+
+    const stored = storedByPath.get(filePath)
+
+    if (!stored) {
+      // New file
+      const hash = computeDocFileHash(filePath)
+      newFiles.push({
+        file_path: filePath,
+        change_type: 'new',
+        current_hash: hash,
+        current_mtime: stats.mtime_ms,
+        current_size: stats.size_bytes,
+      })
+    } else {
+      // File exists in DB - check if modified
+      // Quick check: compare mtime and size first (fast)
+      if (stats.mtime_ms > stored.mtime_ms || stats.size_bytes !== stored.size_bytes) {
+        // Potentially modified - verify with hash
+        const hash = computeDocFileHash(filePath)
+        if (hash !== stored.content_hash) {
+          modifiedFiles.push({
+            file_path: filePath,
+            change_type: 'modified',
+            current_hash: hash,
+            current_mtime: stats.mtime_ms,
+            current_size: stats.size_bytes,
+          })
+        } else {
+          // mtime changed but content same - still unchanged
+          unchangedFiles.push(filePath)
+        }
+      } else {
+        unchangedFiles.push(filePath)
+      }
+    }
+  }
+
+  // Find deleted files (in DB but not in filesystem)
+  const deletedFiles: DocFileChange[] = []
+  for (const [filePath] of storedByPath) {
+    if (!seenPaths.has(filePath)) {
+      deletedFiles.push({
+        file_path: filePath,
+        change_type: 'deleted',
+      })
+    }
+  }
+
+  console.log(`[Doc Indexer] Changes detected: ${newFiles.length} new, ${modifiedFiles.length} modified, ${deletedFiles.length} deleted, ${unchangedFiles.length} unchanged`)
+
+  return { newFiles, modifiedFiles, deletedFiles, unchangedFiles }
+}
+
+/**
+ * Index a single document file and update metadata
+ */
+async function indexSingleDocFile(
+  agentDb: AgentDatabase,
+  filePath: string,
+  projectPath: string,
+  generateEmbeddings: boolean,
+  contentHash: string,
+  mtime: number,
+  size: number
+): Promise<{ chunks: number; embeddings: number }> {
+  const doc = await parseDocument(filePath, projectPath)
+  if (!doc) return { chunks: 0, embeddings: 0 }
+
+  const now = Date.now()
+  let embeddingsCount = 0
+
+  try {
+    // Insert document
+    await agentDb.run(`
+      ?[doc_id, file_path, title, doc_type, project_path, checksum, created_at, updated_at] <- [[
+        ${escapeForCozo(doc.docId)},
+        ${escapeForCozo(doc.filePath)},
+        ${escapeForCozo(doc.title)},
+        ${escapeForCozo(doc.docType)},
+        ${escapeForCozo(projectPath)},
+        ${escapeForCozo(doc.checksum)},
+        ${now},
+        ${now}
+      ]]
+      :put documents
+    `)
+
+    // Insert sections
+    for (const section of doc.sections) {
+      const sectionId = `${doc.docId}-${section.id}`
+      const parentSectionId = section.parentId ? `${doc.docId}-${section.parentId}` : null
+
+      await agentDb.run(`
+        ?[section_id, doc_id, heading, level, parent_section_id, content, char_start, char_end] <- [[
+          ${escapeForCozo(sectionId)},
+          ${escapeForCozo(doc.docId)},
+          ${escapeForCozo(section.heading)},
+          ${section.level},
+          ${parentSectionId ? escapeForCozo(parentSectionId) : 'null'},
+          ${escapeForCozo(section.content.slice(0, 10000))},
+          ${section.charStart},
+          ${section.charEnd}
+        ]]
+        :put doc_sections
+      `)
+    }
+
+    // Insert chunks and embeddings
+    const chunksForEmbedding: { chunkId: string; content: string }[] = []
+
+    for (let i = 0; i < doc.chunks.length; i++) {
+      const chunk = doc.chunks[i]
+      const chunkId = `${doc.docId}-${chunk.id}`
+
+      await agentDb.run(`
+        ?[chunk_id, doc_id, chunk_index, heading, content, char_start, char_end] <- [[
+          ${escapeForCozo(chunkId)},
+          ${escapeForCozo(doc.docId)},
+          ${i},
+          ${chunk.heading ? escapeForCozo(chunk.heading) : 'null'},
+          ${escapeForCozo(chunk.content)},
+          ${chunk.charStart},
+          ${chunk.charEnd}
+        ]]
+        :put doc_chunks
+      `)
+
+      // Extract and store terms
+      const terms = extractTerms(chunk.content)
+      if (terms.length > 0) {
+        const termRows = terms.map(term =>
+          `[${escapeForCozo(chunkId)}, ${escapeForCozo(term)}]`
+        ).join(', ')
+        await agentDb.run(`?[chunk_id, term] <- [${termRows}] :put doc_terms`)
+      }
+
+      if (generateEmbeddings && chunk.content.trim()) {
+        chunksForEmbedding.push({ chunkId, content: chunk.content })
+      }
+    }
+
+    // Generate embeddings
+    if (generateEmbeddings && chunksForEmbedding.length > 0) {
+      const embeddings = await embedTexts(chunksForEmbedding.map(c => c.content))
+      for (let i = 0; i < chunksForEmbedding.length; i++) {
+        const { chunkId } = chunksForEmbedding[i]
+        const embedding = embeddings[i]
+        if (embedding) {
+          const vecBuffer = vectorToBuffer(embedding)
+          const base64Vec = vecBuffer.toString('base64')
+          await agentDb.run(`
+            ?[chunk_id, vec] <- [[
+              ${escapeForCozo(chunkId)},
+              decode_base64('${base64Vec}')
+            ]]
+            :put doc_chunk_vec
+          `)
+          embeddingsCount++
+        }
+      }
+    }
+
+    // Add tags
+    const tags = [doc.docType]
+    if (doc.docType === 'adr') tags.push('decision')
+    if (doc.docType === 'design') tags.push('architecture')
+    if (doc.docType === 'readme') tags.push('overview')
+
+    for (const tag of tags) {
+      await agentDb.run(`
+        ?[doc_id, tag] <- [[${escapeForCozo(doc.docId)}, ${escapeForCozo(tag)}]]
+        :put doc_tags
+      `)
+    }
+
+    // Update file metadata
+    await upsertDocFileMetadata(agentDb, {
+      file_path: filePath,
+      project_path: projectPath,
+      content_hash: contentHash,
+      mtime_ms: mtime,
+      size_bytes: size,
+      last_indexed_at: now,
+    })
+
+    return { chunks: doc.chunks.length, embeddings: embeddingsCount }
+  } catch (error) {
+    console.error(`[Doc Indexer] Error indexing ${filePath}:`, error)
+    return { chunks: 0, embeddings: 0 }
+  }
+}
+
+/**
+ * Delta index documentation for a project - only re-index changed files
+ */
+export async function indexDocsDelta(
+  agentDb: AgentDatabase,
+  projectPath: string,
+  options: {
+    includePatterns?: string[]
+    excludePatterns?: string[]
+    generateEmbeddings?: boolean
+    onProgress?: (status: string) => void
+  } = {}
+): Promise<DeltaDocIndexStats> {
+  const {
+    includePatterns = DOC_PATTERNS,
+    excludePatterns = EXCLUDE_PATTERNS,
+    generateEmbeddings = true,
+    onProgress,
+  } = options
+
+  const stats: DeltaDocIndexStats = {
+    documents: 0,
+    sections: 0,
+    chunks: 0,
+    embeddings: 0,
+    filesNew: 0,
+    filesModified: 0,
+    filesDeleted: 0,
+    filesUnchanged: 0,
+  }
+
+  const log = (msg: string) => {
+    console.log(`[Doc Indexer] ${msg}`)
+    onProgress?.(msg)
+  }
+
+  log(`Delta indexing documentation in ${projectPath}`)
+
+  // Find all current documentation files
+  const allFiles: string[] = []
+  for (const pattern of includePatterns) {
+    const files = await glob(pattern, {
+      cwd: projectPath,
+      absolute: true,
+      ignore: excludePatterns,
+      nodir: true,
+    })
+    allFiles.push(...files)
+  }
+
+  // Deduplicate
+  const uniqueFiles = [...new Set(allFiles)]
+  log(`Found ${uniqueFiles.length} documentation files`)
+
+  // Detect what changed
+  log('Detecting changes...')
+  const { newFiles, modifiedFiles, deletedFiles, unchangedFiles } = await detectDocFileChanges(
+    agentDb,
+    projectPath,
+    uniqueFiles
+  )
+
+  stats.filesNew = newFiles.length
+  stats.filesModified = modifiedFiles.length
+  stats.filesDeleted = deletedFiles.length
+  stats.filesUnchanged = unchangedFiles.length
+
+  // Handle deleted files
+  for (const deleted of deletedFiles) {
+    log(`Removing deleted file: ${path.relative(projectPath, deleted.file_path)}`)
+    await removeDocFileGraphData(agentDb, deleted.file_path)
+    await deleteDocFileMetadata(agentDb, deleted.file_path)
+  }
+
+  // Handle modified files - remove old data first
+  for (const modified of modifiedFiles) {
+    log(`Re-indexing modified file: ${path.relative(projectPath, modified.file_path)}`)
+    await removeDocFileGraphData(agentDb, modified.file_path)
+
+    const result = await indexSingleDocFile(
+      agentDb,
+      modified.file_path,
+      projectPath,
+      generateEmbeddings,
+      modified.current_hash!,
+      modified.current_mtime!,
+      modified.current_size!
+    )
+    stats.documents++
+    stats.chunks += result.chunks
+    stats.embeddings += result.embeddings
+  }
+
+  // Handle new files
+  for (const newFile of newFiles) {
+    log(`Indexing new file: ${path.relative(projectPath, newFile.file_path)}`)
+
+    const result = await indexSingleDocFile(
+      agentDb,
+      newFile.file_path,
+      projectPath,
+      generateEmbeddings,
+      newFile.current_hash!,
+      newFile.current_mtime!,
+      newFile.current_size!
+    )
+    stats.documents++
+    stats.chunks += result.chunks
+    stats.embeddings += result.embeddings
+  }
+
+  log(`Delta indexing complete: ${stats.filesNew} new, ${stats.filesModified} modified, ${stats.filesDeleted} deleted, ${stats.filesUnchanged} unchanged`)
+
+  return stats
+}
+
+/**
+ * Clear doc file metadata for a project
+ */
+export async function clearDocFileMetadata(agentDb: AgentDatabase, projectPath?: string): Promise<void> {
+  try {
+    if (projectPath) {
+      await agentDb.run(`
+        ?[file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at] :=
+          *doc_file_metadata{file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at},
+          project_path = ${escapeForCozo(projectPath)}
+        :rm doc_file_metadata
+      `)
+    } else {
+      await agentDb.run(`
+        ?[file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at] :=
+          *doc_file_metadata{file_path, project_path, content_hash, mtime_ms, size_bytes, last_indexed_at}
+        :rm doc_file_metadata
+      `)
+    }
+    console.log(`[Doc Indexer] Doc file metadata cleared`)
+  } catch (error: any) {
+    if (!error.message?.includes('not found')) {
+      console.error('[Doc Indexer] Error clearing doc file metadata:', error)
+    }
+  }
 }

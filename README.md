@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
 
-[Quick Start](./docs/QUICKSTART.md) • [Features](#-features) • [Documentation](#-documentation) • [Contributing](./CONTRIBUTING.md)
+[Quick Start](./docs/QUICKSTART.md) • [Features](#-features) • [Updating](#-updating-ai-maestro) • [Documentation](#-documentation) • [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -303,6 +303,108 @@ claude
 ### 3. Start Coding
 
 Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.
+
+---
+
+## 🔄 Updating AI Maestro
+
+AI Maestro automatically checks for updates and shows you when a new version is available.
+
+### Update Notification
+
+When a new version is released, you'll see a **green badge** in the footer next to the version number:
+
+```
+Version 0.11.3  [v0.12.0]  • Made with ♥ in Boulder Colorado
+                 ↑
+           Click to see update details
+```
+
+Click the badge to see:
+- What version you're on vs. latest
+- Link to changelog
+- Update instructions
+
+> **Note:** The update check requires internet access. If you're running in an air-gapped environment, it will silently skip the check - AI Maestro works perfectly offline.
+
+### One-Command Update
+
+To update AI Maestro to the latest version:
+
+```bash
+cd /path/to/ai-maestro
+./update-aimaestro.sh
+```
+
+**What this updates:**
+- ✅ Application code (pulls latest from GitHub)
+- ✅ Dependencies (runs `yarn install`)
+- ✅ Rebuilds the application
+- ✅ CLI scripts (messaging, docs, etc.) → `~/.local/bin/`
+- ✅ Claude Code skills → `~/.claude/skills/`
+- ✅ Restarts PM2 automatically (if running)
+
+**Example output:**
+```
+╔════════════════════════════════════════╗
+║      AI Maestro - Full Updater         ║
+╚════════════════════════════════════════╝
+
+Current version: 0.11.3
+New commits available: 5
+
+Recent changes:
+abc1234 feat: Add new feature
+def5678 fix: Bug fix
+
+📥 Pulling latest changes...
+🔨 Installing dependencies...
+🔨 Building application...
+🚀 Installing scripts and skills...
+🔄 Restarting AI Maestro via PM2...
+
+╔════════════════════════════════════════╗
+║        Update Complete!                ║
+╚════════════════════════════════════════╝
+
+Updated: 0.11.3 → 0.12.0
+
+⚠️  IMPORTANT: Restart your Claude Code sessions
+    to reload updated skills
+```
+
+### Manual Update (Alternative)
+
+If you prefer to update manually:
+
+```bash
+cd /path/to/ai-maestro
+
+# 1. Pull latest code
+git pull origin main
+
+# 2. Install dependencies
+yarn install
+
+# 3. Rebuild
+yarn build
+
+# 4. Reinstall scripts and skills
+./install-messaging.sh  # Select option 3 for both
+
+# 5. Restart server
+pm2 restart ai-maestro
+```
+
+### After Updating
+
+**Important:** After any update, restart your Claude Code sessions to reload updated skills:
+
+1. In each tmux session running Claude Code:
+   - Type `exit` or press `Ctrl+D` to exit Claude
+   - Type `claude` to restart
+
+This ensures your agents have the latest skills and capabilities.
 
 ---
 

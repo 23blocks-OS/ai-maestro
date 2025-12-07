@@ -140,7 +140,12 @@ class AgentSubconscious {
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory interval: ${this.memoryCheckInterval / 60000} min (${this.activityState})`)
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message interval: ${this.messageCheckInterval / 60000} min`)
 
-    // Start periodic message checking (no stagger needed, lightweight)
+    // Run first message check immediately (lightweight, no stagger needed)
+    this.checkMessages().catch(err => {
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Initial message check failed:`, err)
+    })
+
+    // Start periodic message checking
     this.messageTimer = setInterval(() => {
       this.checkMessages().catch(err => {
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check failed:`, err)
@@ -251,9 +256,17 @@ class AgentSubconscious {
     this.lastMessageRun = Date.now()
 
     try {
-      // Get unread messages for this agent
+      // First, find the session name - messages are organized by session name, not agentId
+      const sessionName = await this.findSessionName()
+      if (!sessionName) {
+        // No active session, skip message check
+        this.lastMessageResult = { success: true, unreadCount: 0 }
+        return
+      }
+
+      // Get unread messages for this session
       const messagesResponse = await fetch(
-        `http://localhost:23000/api/messages?session=${this.agentId}&box=inbox&status=unread`
+        `http://localhost:23000/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox&status=unread`
       )
 
       if (messagesResponse.ok) {
@@ -266,7 +279,8 @@ class AgentSubconscious {
           console.log(`[Agent ${this.agentId.substring(0, 8)}] 📨 ${unreadCount} unread message(s)`)
 
           // Try to trigger message check in the agent's terminal if idle
-          await this.triggerMessageCheck(unreadCount)
+          // Pass message summaries so we can craft a helpful prompt
+          await this.triggerMessageCheck(messagesData.messages || [])
         }
       } else {
         this.lastMessageResult = { success: false, error: `HTTP ${messagesResponse.status}` }
@@ -288,8 +302,16 @@ class AgentSubconscious {
       const data = await sessionsResponse.json()
       const sessions = data.sessions || []
 
-      // Find session where agentId matches
-      const session = sessions.find((s: { agentId?: string }) => s.agentId === this.agentId)
+      // First, try to find session where agentId matches
+      let session = sessions.find((s: { agentId?: string }) => s.agentId === this.agentId)
+
+      // If not found, try matching by session name/id (for agents whose ID is the session name)
+      if (!session) {
+        session = sessions.find((s: { id?: string; name?: string }) =>
+          s.id === this.agentId || s.name === this.agentId
+        )
+      }
+
       return session?.id || null
     } catch {
       return null
@@ -297,9 +319,10 @@ class AgentSubconscious {
   }
 
   /**
-   * Trigger message check command in the terminal
+   * Trigger message notification in Claude Code's prompt
+   * Sends a natural language prompt that Claude will understand and act on
    */
-  private async triggerMessageCheck(unreadCount: number) {
+  private async triggerMessageCheck(messages: Array<{ from?: string; subject?: string; priority?: string }>) {
     try {
       // Find the session name for this agent
       const sessionName = await this.findSessionName()
@@ -308,16 +331,35 @@ class AgentSubconscious {
         return
       }
 
-      // Check if session is idle and send command
+      // Craft a natural language prompt for Claude Code
+      const unreadCount = messages.length
+      let prompt: string
+
+      if (unreadCount === 1) {
+        const msg = messages[0]
+        const fromInfo = msg.from ? ` from ${msg.from}` : ''
+        const subjectInfo = msg.subject ? ` about "${msg.subject}"` : ''
+        const urgentFlag = msg.priority === 'urgent' ? ' [URGENT]' : ''
+        prompt = `${urgentFlag}You have a new message${fromInfo}${subjectInfo}. Please check your inbox.`
+      } else {
+        // Multiple messages - summarize
+        const urgentCount = messages.filter(m => m.priority === 'urgent').length
+        const senders = [...new Set(messages.map(m => m.from).filter(Boolean))].slice(0, 3)
+        const sendersInfo = senders.length > 0 ? ` from ${senders.join(', ')}${senders.length < messages.length ? ' and others' : ''}` : ''
+        const urgentFlag = urgentCount > 0 ? ` [${urgentCount} URGENT]` : ''
+        prompt = `${urgentFlag}You have ${unreadCount} new messages${sendersInfo}. Please check your inbox.`
+      }
+
+      // Send the natural language prompt to Claude Code
       const commandResponse = await fetch(
         `http://localhost:23000/api/sessions/${encodeURIComponent(sessionName)}/command`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            command: `check-aimaestro-messages.sh`,
+            command: prompt.trim(),
             requireIdle: true,
-            addNewline: true
+            addNewline: true  // Press Enter to submit the prompt to Claude
           })
         }
       )
@@ -325,7 +367,7 @@ class AgentSubconscious {
       if (commandResponse.ok) {
         const result = await commandResponse.json()
         if (result.success) {
-          console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Triggered message check in terminal (${unreadCount} unread)`)
+          console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Sent message notification to Claude (${unreadCount} unread)`)
         }
       } else {
         const result = await commandResponse.json()
@@ -335,7 +377,7 @@ class AgentSubconscious {
       }
     } catch (error) {
       // Silently fail - this is a convenience feature
-      console.log(`[Agent ${this.agentId.substring(0, 8)}] Could not trigger message check:`, error instanceof Error ? error.message : 'Unknown error')
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] Could not send message notification:`, error instanceof Error ? error.message : 'Unknown error')
     }
   }
 

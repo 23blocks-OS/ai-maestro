@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.12.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.12.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -746,6 +746,9 @@ Built with modern, battle-tested tools:
 - **Frontend**: Next.js 14, React 18, Tailwind CSS
 - **Terminal**: xterm.js with WebGL acceleration
 - **Backend**: Custom Node.js server with WebSocket
+- **Database**: [CozoDB](https://www.cozodb.org/) - Embedded graph-relational database for agent memory
+- **Code Analysis**: [ts-morph](https://ts-morph.com/) - TypeScript/JavaScript AST parsing for Code Graph
+- **Embeddings**: Transformers.js with all-MiniLM-L6-v2 for semantic search
 - **Font**: Space Grotesk for a modern feel
 - **Icons**: lucide-react
 
@@ -1067,8 +1070,10 @@ Free to use for any purpose, including commercial.
 
 Built with amazing open source tools:
 - [Claude Code](https://claude.ai) by Anthropic
+- [CozoDB](https://www.cozodb.org/) - Graph-relational database
 - [xterm.js](https://xtermjs.org/) - Terminal emulator
 - [Next.js](https://nextjs.org/) - React framework
+- [ts-morph](https://ts-morph.com/) - TypeScript compiler API wrapper
 - [tmux](https://github.com/tmux/tmux) - Terminal multiplexer
 - [lucide-react](https://lucide.dev/) - Icons
 

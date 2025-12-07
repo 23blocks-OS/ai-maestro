@@ -694,7 +694,7 @@ yarn dev
     <section class="py-16 px-8">
         <div class="max-w-[1200px] mx-auto">
             <h2 class="text-4xl md:text-5xl text-center mb-8 font-bold">Tech Stack</h2>
-            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4 max-w-[900px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1000px] mx-auto">
                 <div class="p-4 bg-gray-50 rounded-lg text-center">
                     <strong>Frontend:</strong> Next.js 14, React 18, Tailwind CSS
                 </div>
@@ -705,7 +705,13 @@ yarn dev
                     <strong>Backend:</strong> Custom Node.js server with WebSocket
                 </div>
                 <div class="p-4 bg-gray-50 rounded-lg text-center">
-                    <strong>Font:</strong> Space Grotesk
+                    <strong>Database:</strong> <a href="https://www.cozodb.org/" target="_blank" class="text-primary hover:underline">CozoDB</a> graph-relational DB
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
+                    <strong>Code Analysis:</strong> <a href="https://ts-morph.com/" target="_blank" class="text-primary hover:underline">ts-morph</a> AST parsing
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg text-center">
+                    <strong>Embeddings:</strong> Transformers.js + MiniLM-L6-v2
                 </div>
             </div>
         </div>

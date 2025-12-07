@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.11.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.11.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -19,13 +19,19 @@
 
 ## The Problem
 
-You're managing multiple AI coding agents across different machines. Your MacBook handles frontend work, but your Mac Mini has 32GB RAM perfect for backend builds. Your cloud server runs Docker containers. Each machine has its own terminal sessions, but you're constantly SSH-ing between them, losing track of which agent is where, and wishing you could see everything in one place.
+Your AI agents are scattered across terminals, computers, and cloud servers. They forget everything between sessions. They can't talk to each other. You're the bottleneck - copy-pasting context, relaying messages, and manually coordinating their work.
 
 ## The Solution
 
 ![AI Maestro Dashboard](./docs/images/aiteam-web.png)
 
-**AI Maestro** gives you one beautiful web dashboard for all your AI coding agents - whether they're running on your laptop, desktop, or cloud servers. The **Manager/Worker pattern** lets you control sessions across multiple machines as if they were all local.
+**AI Maestro** is an **AI Agent Orchestrator** that gives your agents superpowers:
+- **Persistent memory** that grows over time (Code Graph + CozoDB)
+- **Direct agent-to-agent communication** (no more playing messenger)
+- **Run agents anywhere** - laptop, remote servers, Docker containers
+- **One dashboard** to orchestrate them all
+
+Your agents become a coordinated team, not isolated tools.
 
 ### One Dashboard, Unlimited Machines
 
@@ -127,6 +133,7 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - Filter by type: Files, Functions, Components
   - See imports, calls, extends, includes, associations
   - Focus mode to explore specific code paths
+  - **Delta Indexing**: Only re-indexes changed files (~100ms vs 1000ms+ full re-index)
 - **Agent Subconscious**: Background memory maintenance
   - Automatic conversation indexing for semantic search
   - Message checking for inter-agent communication
@@ -585,18 +592,25 @@ Take notes for each session. They're saved automatically to your browser:
 
 ## 🎯 Why AI Maestro?
 
-**Problem**: Managing multiple AI agents is chaotic.
-**Solution**: One dashboard to rule them all.
+### 🧠 Agents That Remember
+Every agent has persistent memory powered by CozoDB. They learn your codebase and remember past conversations. No more re-explaining context every session.
+
+### 💬 Agents That Communicate
+Direct agent-to-agent messaging. Your frontend agent can request APIs from backend agent without you playing messenger. Built-in inbox/outbox with priority levels.
+
+### 🌐 Agents Everywhere
+Run agents on your laptop, remote servers, Docker containers, or cloud VMs. Manage them all from one dashboard with the Manager/Worker architecture.
+
+### 🗺️ Agents That Understand
+Code Graph visualization shows your entire codebase structure. Agents know what files relate to what before they even start. Delta indexing keeps everything current (~100ms updates).
+
+---
 
 **Why not just use tmux directly?**
-You can! AI Maestro is built on tmux. But instead of memorizing keybindings and switching between panes, you get:
-- Visual organization
-- Point-and-click switching
-- Persistent notes
-- Beautiful UI
+You can! AI Maestro is built on tmux. But instead of memorizing keybindings and switching between panes, you get visual organization, point-and-click switching, persistent memory, agent communication, and Code Graph visualization.
 
 **Is it just a tmux GUI?**
-Think of it as tmux + organization + notes + visual hierarchy. You still have full access to your tmux sessions from the terminal.
+It started that way, but now it's an AI Agent Orchestrator. Think of it as tmux + memory + communication + code understanding + visual hierarchy. You still have full access to your tmux sessions from the terminal.
 
 ---
 

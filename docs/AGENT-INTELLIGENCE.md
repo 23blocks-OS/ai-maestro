@@ -182,6 +182,60 @@ The CozoDB database stores:
 5. **Relationship Mapping**: Builds graph of relationships
 6. **Storage**: Stores entities and relationships in CozoDB
 
+### Delta Indexing
+
+**The Problem:** Full code re-indexing is slow and wasteful. A typical project with 200+ files takes 1000ms+ to fully re-index, even when only a few files change.
+
+**The Solution:** Delta indexing tracks file content hashes (SHA256) and only re-indexes files that have actually changed.
+
+**Why It Matters:** Fast iterations (~100ms when no changes vs 1000ms+ full re-index) means your code graph stays current as you work, without the wait.
+
+**How it works:**
+1. **First run**: Full index + file metadata initialization (hash, mtime, size)
+2. **Subsequent runs**: Compare filesystem state against stored metadata
+3. **Only re-index**: New files, modified files (hash changed), remove deleted files
+4. **Skip unchanged**: Files with matching hash are left alone
+
+**Using Delta Indexing:**
+
+```bash
+# CLI command (from any tmux session)
+graph-index-delta.sh
+
+# Or with specific project path
+graph-index-delta.sh /path/to/project
+```
+
+**API Endpoint:**
+```bash
+# Delta index
+POST /api/agents/{agentId}/graph/code
+Content-Type: application/json
+{"delta": true}
+
+# Response shows what changed
+{
+  "success": true,
+  "mode": "delta",
+  "stats": {
+    "filesNew": 0,
+    "filesModified": 1,
+    "filesDeleted": 0,
+    "filesUnchanged": 191,
+    "filesIndexed": 1,
+    "durationMs": 127
+  }
+}
+```
+
+**Performance:**
+| Scenario | Duration |
+|----------|----------|
+| Full index (200 files) | ~1000ms |
+| Delta index (no changes) | ~100ms |
+| Delta index (1 file changed) | ~130ms |
+| Delta index (10 files changed) | ~300ms |
+
 ## Supported Languages
 
 | Language   | File Extensions | Entity Types |
@@ -206,8 +260,13 @@ GET /api/agents/{agentId}/graph/entities?type=function
 # Get relationships
 GET /api/agents/{agentId}/graph/relationships
 
-# Trigger reindex
-POST /api/agents/{agentId}/graph/index
+# Full reindex (re-indexes all files)
+POST /api/agents/{agentId}/graph/code
+
+# Delta reindex (only changed files - RECOMMENDED)
+POST /api/agents/{agentId}/graph/code
+Content-Type: application/json
+{"delta": true}
 ```
 
 ### Subconscious Endpoints

@@ -57,6 +57,7 @@ graph-find-callees.sh process_payment
 
 All commands auto-detect your agent ID from the tmux session. Just run them:
 
+### Query Commands
 | Command | Description |
 |---------|-------------|
 | `graph-describe.sh <name>` | Describe a component or function |
@@ -67,6 +68,37 @@ All commands auto-detect your agent ID from the tmux session. Just run them:
 | `graph-find-serializers.sh <model>` | Find serializers for a model |
 | `graph-find-associations.sh <model>` | Find model associations (belongs_to, has_many) |
 | `graph-find-path.sh <from> <to>` | Find call path between two functions |
+
+### Indexing Commands
+| Command | Description |
+|---------|-------------|
+| `graph-index-delta.sh [project-path]` | **Delta index** - only re-index changed files |
+
+## Delta Indexing (New)
+
+When files change in your codebase, use delta indexing to quickly update the graph:
+
+```bash
+# Delta index - only process changed files
+graph-index-delta.sh
+
+# Delta index a specific project
+graph-index-delta.sh /path/to/project
+```
+
+**First Run Behavior:**
+- First time: Does a full index + initializes file tracking metadata
+- Subsequent runs: Only indexes new/modified/deleted files
+
+**Output shows:**
+- New files added
+- Modified files re-indexed
+- Deleted files removed
+- Unchanged files skipped
+
+**Performance:**
+- Full index: 30-120 seconds (1000+ files)
+- Delta index: 1-5 seconds (5-10 changed files)
 
 ## What to Query Based on What You Read
 

@@ -670,6 +670,28 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
     }
   }
 
+  // Document file metadata - tracks doc file state for delta indexing
+  try {
+    await agentDb.run(`
+      :create doc_file_metadata {
+        file_path: String
+        =>
+        project_path: String,
+        content_hash: String,
+        mtime_ms: Int,
+        size_bytes: Int,
+        last_indexed_at: Int
+      }
+    `)
+    console.log('[SCHEMA-RAG] ✓ Created doc_file_metadata table')
+  } catch (error: any) {
+    if (error.code === 'eval::stored_relation_conflict') {
+      console.log('[SCHEMA-RAG] ℹ doc_file_metadata table already exists')
+    } else {
+      throw error
+    }
+  }
+
   // Document chunks - text chunks for semantic search with embeddings
   try {
     await agentDb.run(`

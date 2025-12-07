@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
-
-const AGENTS_DIR = path.join(os.homedir(), '.aimaestro', 'agents')
-
-/**
- * Check if agent database exists on filesystem
- */
-function agentDatabaseExists(agentId: string): boolean {
-  const agentDir = path.join(AGENTS_DIR, agentId)
-  return fs.existsSync(agentDir)
-}
 
 /**
  * GET /api/agents/[id]/subconscious
  * Get the subconscious status for a specific agent
  *
- * This API will initialize the agent if it exists on disk but not in memory,
- * ensuring the subconscious starts running.
+ * This API will initialize the agent if it doesn't exist yet,
+ * creating the database and starting the subconscious.
+ * This enables lazy initialization when a new session is first accessed.
  */
 export async function GET(
   request: NextRequest,
@@ -28,18 +16,8 @@ export async function GET(
   try {
     const { id: agentId } = await params
 
-    // Check if agent exists on filesystem
-    const exists = agentDatabaseExists(agentId)
-    if (!exists) {
-      return NextResponse.json({
-        success: false,
-        exists: false,
-        error: 'Agent not found'
-      }, { status: 404 })
-    }
-
-    // Get or create the agent (this initializes the subconscious)
-    // Using getAgent() instead of getExistingAgent() ensures initialization
+    // Get or create the agent (this initializes the database and subconscious)
+    // Using getAgent() ensures lazy initialization for new sessions
     const agent = await agentRegistry.getAgent(agentId)
 
     // Get subconscious status

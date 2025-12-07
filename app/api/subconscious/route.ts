@@ -94,8 +94,8 @@ export async function GET() {
       })
     }
 
-    // Fetch status for all agents in parallel (limit to first 20 for performance)
-    const agentIdsToCheck = discoveredAgentIds.slice(0, 20)
+    // Fetch status for all agents in parallel (limit to 100 for performance)
+    const agentIdsToCheck = discoveredAgentIds.slice(0, 100)
     const statusPromises = agentIdsToCheck.map(fetchAgentStatus)
     const statuses = await Promise.all(statusPromises)
     const validStatuses = statuses.filter((s): s is AgentSubconsciousStatus => s !== null)

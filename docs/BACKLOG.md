@@ -2181,6 +2181,45 @@ messageEvents.on('message:urgent', (msg) => {
 
 ---
 
+### Super-Claude-Kit Analysis (2025-12-06)
+
+**Reference:** https://github.com/arpitnath/super-claude-kit
+
+Reviewed this Claude Code enhancement toolkit. After analysis, most features we already have or do better:
+
+**What They Have That We Already Cover:**
+
+| Their Feature | Our Equivalent |
+|---------------|----------------|
+| Impact Analysis (tool) | ✅ Built into graph-query skill (proactive usage) |
+| Session Memory (Capsule) | ✅ CozoDB + agent memories |
+| Code Understanding (tree-sitter) | ✅ Language-specific parsers + code graph |
+| Tool suggestions | ✅ Skills with proactive instructions |
+
+**Features We Don't Have (Low Priority):**
+
+1. **Discovery Logging** - Structured categorization of learnings
+   - Categories: patterns, insights, bugs, architecture decisions
+   - Files stored in `.claude/discoveries/`
+   - Could add to our memory system but low value for now
+
+2. **Keyword Triggers** - Auto-suggesting tools based on keywords in user input
+   - Their shell hook pattern-matches keywords and suggests tools
+   - Example: "refactor" → suggests impact-analysis
+   - Our skills somewhat do this already via proactive instructions
+
+3. **TOON Format** - Token-Oriented Object Notation (~52% token reduction)
+   - Optimizes structured data for fewer tokens
+   - We don't hit token limits that would justify this
+
+4. **Session Summary Hook** - Auto-generates summary on session end
+   - Tasks completed/in-progress, files modified, discoveries
+   - Could be useful but agents have persistent memory already
+
+**Conclusion:** Not adding these now. Our architecture with CozoDB, graph-query skill with proactive instructions, and agent memory system covers the important use cases. Revisit if users request specific features.
+
+---
+
 ## Completed Features
 
 ### v0.4.2 - Complete Installation System

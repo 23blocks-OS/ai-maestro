@@ -43,7 +43,7 @@ print_info() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ]; then
+if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ] || [ ! -d "docs_scripts" ]; then
     print_error "Error: This script must be run from the AI Maestro root directory"
     echo ""
     echo "Usage:"
@@ -180,6 +180,21 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo ""
     print_success "Installed $SCRIPT_COUNT messaging scripts"
 
+    # Install docs scripts
+    print_info "Installing docs scripts to ~/.local/bin/..."
+    DOCS_SCRIPT_COUNT=0
+    for script in docs_scripts/*.sh; do
+        if [ -f "$script" ]; then
+            SCRIPT_NAME=$(basename "$script")
+            cp "$script" ~/.local/bin/
+            chmod +x ~/.local/bin/"$SCRIPT_NAME"
+            print_success "Installed: $SCRIPT_NAME"
+            ((DOCS_SCRIPT_COUNT++))
+        fi
+    done
+    echo ""
+    print_success "Installed $DOCS_SCRIPT_COUNT docs scripts"
+
     # Check if ~/.local/bin is in PATH
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         print_warning "~/.local/bin is not in your PATH"
@@ -211,7 +226,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     mkdir -p ~/.claude/skills
 
     # Copy all skills
-    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search")
+    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search")
 
     for skill in "${SKILLS_TO_INSTALL[@]}"; do
         if [ -d "skills/$skill" ]; then
@@ -270,7 +285,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Checking installed skills..."
 
-    for skill in agent-messaging graph-query memory-search; do
+    for skill in agent-messaging graph-query memory-search docs-search; do
         if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
             print_success "$skill skill is installed"
         else
@@ -318,6 +333,11 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo "      > \"Search my memory for discussions about caching\""
     echo "      > \"Find where we talked about authentication\""
     echo "      > \"Recall our discussion about the payment flow\""
+    echo ""
+    echo "   📚 docs-search - Search auto-generated documentation"
+    echo "      > \"Search docs for authentication functions\""
+    echo "      > \"Find documentation for PaymentService\""
+    echo "      > \"What functions handle user validation?\""
     echo ""
     echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/skills"
     echo ""

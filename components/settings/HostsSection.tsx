@@ -47,21 +47,18 @@ export default function HostsSection() {
     setHealthStatus(prev => ({ ...prev, [host.id]: 'checking' }))
 
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
-
-      const response = await fetch(`${host.url}/api/sessions`, {
-        signal: controller.signal,
+      // Use proxy endpoint to avoid CORS and network accessibility issues
+      const response = await fetch(`/api/hosts/health?url=${encodeURIComponent(host.url)}`, {
+        signal: AbortSignal.timeout(5000), // 5 second timeout
       })
-
-      clearTimeout(timeoutId)
 
       if (response.ok) {
         setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
       } else {
         setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
       }
-    } catch {
+    } catch (err) {
+      console.error(`Health check failed for ${host.id}:`, err)
       setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
     }
   }
@@ -367,15 +364,10 @@ function AddHostWizard({
 
       const parsedUrl = new URL(testUrl)
 
-      // Test connection
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-      const response = await fetch(`${testUrl}/api/sessions`, {
-        signal: controller.signal,
+      // Test connection via proxy endpoint to avoid CORS issues
+      const response = await fetch(`/api/hosts/health?url=${encodeURIComponent(testUrl)}`, {
+        signal: AbortSignal.timeout(5000),
       })
-
-      clearTimeout(timeoutId)
 
       if (!response.ok) {
         throw new Error('Host is not reachable or is not an AI Maestro instance')

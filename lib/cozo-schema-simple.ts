@@ -71,13 +71,75 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
         first_user_message: String?,
         model_names: String?,
         git_branch: String?,
-        claude_version: String?
+        claude_version: String?,
+        last_indexed_at: Int?,
+        last_indexed_message_count: Int?
       }
     `)
     console.log('[SCHEMA] ✓ Created conversations table')
   } catch (error: any) {
     if (error.code === 'eval::stored_relation_conflict') {
       console.log('[SCHEMA] ℹ conversations table already exists')
+
+      // Try to migrate old schema by adding missing columns
+      try {
+        // Read existing conversations
+        const existing = await agentDb.run(`?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] := *conversations{jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version}`)
+
+        // If this query succeeded, we have the old schema - need to migrate
+        if (existing.rows && existing.rows.length > 0) {
+          console.log('[SCHEMA] ℹ Migrating old conversations schema...')
+
+          // Drop and recreate with new schema
+          await agentDb.run(`:remove conversations`)
+          await agentDb.run(`
+            :create conversations {
+              jsonl_file: String
+              =>
+              project_path: String,
+              session_id: String?,
+              first_message_at: Int?,
+              last_message_at: Int?,
+              message_count: Int,
+              first_user_message: String?,
+              model_names: String?,
+              git_branch: String?,
+              claude_version: String?,
+              last_indexed_at: Int?,
+              last_indexed_message_count: Int?
+            }
+          `)
+
+          // Re-insert old data with null values for new fields
+          for (const row of existing.rows) {
+            await agentDb.run(`
+              ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
+                '${row[0]}',
+                '${row[1]}',
+                ${row[2] ? `'${row[2]}'` : 'null'},
+                ${row[3] || 'null'},
+                ${row[4] || 'null'},
+                ${row[5] || 0},
+                ${row[6] ? `'${String(row[6]).replace(/'/g, "''")}'` : 'null'},
+                ${row[7] ? `'${String(row[7]).replace(/'/g, "''")}'` : 'null'},
+                ${row[8] ? `'${String(row[8]).replace(/'/g, "''")}'` : 'null'},
+                ${row[9] ? `'${String(row[9]).replace(/'/g, "''")}'` : 'null'},
+                null,
+                0
+              ]]
+              :put conversations
+            `)
+          }
+
+          console.log(`[SCHEMA] ✓ Migrated ${existing.rows.length} conversations to new schema`)
+        }
+      } catch (migrationError: any) {
+        // If migration fails or table already has new schema, continue
+        if (migrationError.code === 'eval::named_field_not_found') {
+          // Old schema detected but migration attempted - this is fine
+          console.log('[SCHEMA] ℹ Schema migration completed or not needed')
+        }
+      }
     } else {
       throw error
     }
@@ -147,6 +209,8 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
   model_names?: string
   git_branch?: string
   claude_version?: string
+  last_indexed_at?: number
+  last_indexed_message_count?: number
 }): Promise<void> {
   // Escape single quotes in strings for CozoDB
   const escapeString = (str: string | undefined) => {
@@ -155,7 +219,7 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
   }
 
   await agentDb.run(`
-    ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] <- [[
+    ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
       '${conversation.jsonl_file}',
       '${conversation.project_path}',
       ${conversation.session_id ? `'${conversation.session_id}'` : 'null'},
@@ -165,7 +229,9 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
       ${escapeString(conversation.first_user_message)},
       ${escapeString(conversation.model_names)},
       ${escapeString(conversation.git_branch)},
-      ${escapeString(conversation.claude_version)}
+      ${escapeString(conversation.claude_version)},
+      ${conversation.last_indexed_at || 'null'},
+      ${conversation.last_indexed_message_count || 0}
     ]]
     :put conversations
   `)
@@ -203,15 +269,25 @@ export async function getProjects(agentDb: AgentDatabase) {
  * Get conversations for a project
  */
 export async function getConversations(agentDb: AgentDatabase, projectPath: string) {
-  return await agentDb.run(`
-    ?[jsonl_file, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] :=
-      *conversations{
-        jsonl_file, project_path, session_id,
-        first_message_at, last_message_at, message_count,
-        first_user_message, model_names, git_branch, claude_version
-      },
-      project_path = '${projectPath}'
+  // Try with new schema fields first
+  try {
+    return await agentDb.run(`
+      ?[jsonl_file, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] :=
+        *conversations{
+          jsonl_file, project_path, session_id,
+          first_message_at, last_message_at, message_count,
+          first_user_message, model_names, git_branch, claude_version,
+          last_indexed_at, last_indexed_message_count
+        },
+        project_path = '${projectPath}'
 
-    :order -last_message_at
-  `)
+      :order -last_message_at
+    `)
+  } catch (error: any) {
+    // If the conversations table doesn't exist or is missing columns, this is a critical error
+    // All databases should be migrated - run scripts/migrate-agent-databases.mjs if needed
+    console.error(`[SCHEMA] ERROR: Failed to query conversations for ${projectPath}:`, error.message)
+    console.error(`[SCHEMA] Run 'node scripts/migrate-agent-databases.mjs' to fix schema issues`)
+    throw error
+  }
 }

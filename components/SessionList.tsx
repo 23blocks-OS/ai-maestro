@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useHosts } from '@/hooks/useHosts'
+import { SubconsciousStatus } from './SubconsciousStatus'
 
 interface SessionListProps {
   sessions: Session[]
@@ -471,7 +472,18 @@ export default function SessionList({
 
     setActionLoading(true)
     try {
-      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+      // Determine the correct host URL for the session
+      let targetUrl = `/api/sessions/${selectedSession.id}`
+
+      if (selectedSession.hostId && selectedSession.hostId !== 'local' && selectedSession.remote) {
+        // Remote session - need to proxy to the correct host
+        const host = hosts.find(h => h.id === selectedSession.hostId)
+        if (host) {
+          targetUrl = `${host.url}/api/sessions/${selectedSession.id}`
+        }
+      }
+
+      const response = await fetch(targetUrl, {
         method: 'DELETE',
       })
 
@@ -876,8 +888,12 @@ export default function SessionList({
         )}
       </div>
 
-      {/* Settings Link */}
-      <div className="border-t border-sidebar-border px-3 py-3 mt-auto">
+      {/* Subconscious Status & Settings */}
+      <div className="border-t border-sidebar-border px-3 py-3 mt-auto space-y-1">
+        {/* Subconscious Status */}
+        <SubconsciousStatus />
+
+        {/* Settings Link */}
         <Link
           href="/settings"
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 group"

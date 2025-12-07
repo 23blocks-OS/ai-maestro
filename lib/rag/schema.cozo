@@ -1,0 +1,289 @@
+# AI Maestro RAG System - CozoDB Schema
+# This schema supports embeddings, code graphs, and database schema graphs
+
+# ============================================================================
+# MESSAGE & CONVERSATION TABLES
+# ============================================================================
+
+# Main message storage
+:create msg {
+  id: String,
+  thread_id: String,
+  role: String,      # user | assistant | system
+  ts: Int,           # Unix timestamp in milliseconds
+  text: String
+}
+
+# Message embeddings (dense vectors)
+:create msg_vec {
+  id: String,        # foreign key to msg.id
+  vec: Bytes         # Float32Array as bytes (384-d for bge-small-en-v1.5)
+}
+
+# Message keywords (for filtering)
+:create msg_terms {
+  id: String,        # foreign key to msg.id
+  term: String       # lowercase keyword
+}
+
+# Code symbols extracted from messages
+:create code_symbols {
+  id: String,        # foreign key to msg.id
+  symbol: String     # identifier from code blocks
+}
+
+# ============================================================================
+# CODE GRAPH TABLES
+# ============================================================================
+
+# Files in the codebase
+:create file {
+  id: String,        # hash of path
+  path: String,      # relative file path
+  module: String     # module/package name
+}
+
+# Functions/methods
+:create fn {
+  id: String,        # hash of (file, name)
+  name: String,      # function name
+  file: String,      # foreign key to file.id
+  export: Bool,      # is exported
+  lang: String       # ts | js | py | go | etc
+}
+
+# Components (React/Vue/etc)
+:create component {
+  id: String,        # hash of (file, name)
+  name: String,      # component name
+  file: String       # foreign key to file.id
+}
+
+# Services/classes
+:create service {
+  id: String,        # hash of (file, name)
+  name: String,      # service name
+  file: String       # foreign key to file.id
+}
+
+# API endpoints
+:create api {
+  id: String,        # hash of (method, path)
+  method: String,    # GET | POST | PUT | DELETE | etc
+  path: String,      # /api/users/:id
+  service: String    # service that implements it
+}
+
+# ============================================================================
+# CODE GRAPH EDGES
+# ============================================================================
+
+# File declares functions
+:create declares {
+  file_id: String,
+  fn_id: String
+}
+
+# File imports another file/module
+:create imports {
+  from_file: String,
+  to_file: String
+}
+
+# Function calls another function
+:create calls {
+  caller_fn: String,
+  callee_fn: String
+}
+
+# Function uses an API
+:create uses_api {
+  fn_id: String,
+  api_id: String
+}
+
+# Service depends on another service
+:create service_depends {
+  svc_a: String,
+  svc_b: String
+}
+
+# Component calls/uses a function
+:create component_calls {
+  component_id: String,
+  fn_id: String
+}
+
+# ============================================================================
+# DATABASE SCHEMA GRAPH (PostgreSQL)
+# ============================================================================
+
+# Database nodes
+:create db_node {
+  id: String,
+  name: String
+}
+
+# Schema nodes
+:create schema_node {
+  id: String,
+  name: String,
+  db: String
+}
+
+# Tables
+:create table_node {
+  id: String,
+  name: String,
+  schema: String
+}
+
+# Columns
+:create column_node {
+  id: String,
+  name: String,
+  table: String,
+  data_type: String,
+  udt: String,
+  nullable: Bool,
+  default: String
+}
+
+# Indexes
+:create index_node {
+  id: String,
+  name: String,
+  table: String,
+  is_unique: Bool,
+  method: String
+}
+
+# Constraints (PK, FK, UNIQUE, CHECK)
+:create constraint_node {
+  id: String,
+  name: String,
+  table: String,
+  kind: String       # pk | unique | check | fk
+}
+
+# Views
+:create view_node {
+  id: String,
+  name: String,
+  schema: String,
+  definition: String
+}
+
+# Enums
+:create enum_node {
+  id: String,
+  name: String,
+  schema: String
+}
+
+# Enum values
+:create enum_value {
+  id: String,
+  enum_id: String,
+  value: String
+}
+
+# Stored procedures/functions
+:create proc_node {
+  id: String,
+  name: String,
+  schema: String,
+  kind: String,      # function | procedure
+  lang: String       # plpgsql | sql | etc
+}
+
+# Triggers
+:create trigger_node {
+  id: String,
+  name: String,
+  table: String,
+  when: String,
+  events: String,
+  enabled: Bool
+}
+
+# ============================================================================
+# DATABASE SCHEMA EDGES
+# ============================================================================
+
+# Foreign key relationships
+:create fk_edge {
+  src_table: String,
+  src_col: String,
+  dst_table: String,
+  dst_col: String,
+  on_delete: String,
+  on_update: String
+}
+
+# Index contains columns
+:create index_on {
+  index: String,
+  column: String
+}
+
+# Check constraint depends on columns
+:create check_depends_on {
+  constraint: String,
+  column: String
+}
+
+# View depends on table/view
+:create view_depends_on {
+  view: String,
+  object: String,
+  kind: String       # table | view
+}
+
+# Procedure reads from table
+:create proc_reads_table {
+  proc_id: String,
+  table_id: String
+}
+
+# Procedure writes to table
+:create proc_writes_table {
+  proc_id: String,
+  table_id: String,
+  op: String         # INSERT | UPDATE | DELETE | MERGE
+}
+
+# Procedure calls another procedure
+:create proc_calls_proc {
+  caller_proc: String,
+  callee_proc: String
+}
+
+# Trigger invokes procedure
+:create trigger_invokes_proc {
+  trigger: String,
+  proc: String
+}
+
+# Column uses enum type
+:create column_uses_enum {
+  column: String,
+  enum: String
+}
+
+# ============================================================================
+# OPTIONAL: NODE SUMMARIES FOR SEMANTIC GRAPH SEARCH
+# ============================================================================
+
+# Summaries for code nodes (functions, components, etc)
+:create node_summary {
+  id: String,
+  kind: String,      # fn | component | service | table | etc
+  summary: String    # brief description
+}
+
+# Embeddings for node summaries
+:create node_vec {
+  id: String,
+  vec: Bytes         # Float32Array as bytes
+}

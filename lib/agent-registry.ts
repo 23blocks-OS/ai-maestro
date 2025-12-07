@@ -384,3 +384,38 @@ export function resolveAlias(aliasOrId: string): string | null {
   const agent = getAgentByAlias(aliasOrId) || getAgent(aliasOrId)
   return agent?.id || null
 }
+
+/**
+ * Rename agent's session name
+ * Updates the tmuxSessionName in registry when a session is renamed
+ */
+export function renameAgentSession(oldSessionName: string, newSessionName: string): boolean {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.tools.session?.tmuxSessionName === oldSessionName)
+
+  if (index === -1) {
+    return false // Agent not found
+  }
+
+  if (agents[index].tools.session) {
+    agents[index].tools.session.tmuxSessionName = newSessionName
+    agents[index].lastActive = new Date().toISOString()
+  }
+
+  return saveAgents(agents)
+}
+
+/**
+ * Delete agent by session name
+ * Removes the agent from registry when its session is deleted
+ */
+export function deleteAgentBySession(sessionName: string): boolean {
+  const agents = loadAgents()
+  const filtered = agents.filter(a => a.tools.session?.tmuxSessionName !== sessionName)
+
+  if (filtered.length === agents.length) {
+    return false // Agent not found
+  }
+
+  return saveAgents(filtered)
+}

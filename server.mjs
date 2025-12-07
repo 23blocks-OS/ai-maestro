@@ -8,6 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import { getHostById } from './lib/hosts-config-server.mjs'
+import { hostHints } from './lib/host-hints-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
@@ -23,6 +24,63 @@ const handle = app.getRequestHandler()
 // Session state management
 const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
 const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+const idleTimers = new Map() // sessionName -> { timer, wasActive }
+
+// Idle threshold in milliseconds (30 seconds)
+const IDLE_THRESHOLD_MS = 30 * 1000
+
+/**
+ * Get agentId for a session by checking the agent registry
+ */
+function getAgentIdForSession(sessionName) {
+  try {
+    const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
+    if (fs.existsSync(agentFilePath)) {
+      const agentData = JSON.parse(fs.readFileSync(agentFilePath, 'utf8'))
+      return agentData.id
+    }
+  } catch {
+    // Agent file doesn't exist or is invalid
+  }
+  return null
+}
+
+/**
+ * Track session activity and detect idle transitions
+ * Sends host hints to agents when session goes idle
+ */
+function trackSessionActivity(sessionName) {
+  const now = Date.now()
+  const previousActivity = sessionActivity.get(sessionName)
+  const previousState = idleTimers.get(sessionName)
+
+  // Update activity timestamp
+  sessionActivity.set(sessionName, now)
+
+  // Clear existing idle timer
+  if (previousState?.timer) {
+    clearTimeout(previousState.timer)
+  }
+
+  // Schedule idle transition check
+  const timer = setTimeout(() => {
+    // Check if still idle (no new activity since timer was set)
+    const currentActivity = sessionActivity.get(sessionName)
+    if (currentActivity && now === currentActivity) {
+      // Session went idle - notify agent via host hints
+      const agentId = getAgentIdForSession(sessionName)
+      if (agentId) {
+        console.log(`[IdleDetect] Session ${sessionName} went idle, notifying agent ${agentId.substring(0, 8)}`)
+        hostHints.notifyIdleTransition(agentId)
+      }
+    }
+    // Update state to reflect idle
+    idleTimers.set(sessionName, { timer: null, wasActive: false })
+  }, IDLE_THRESHOLD_MS)
+
+  // Update idle timer state
+  idleTimers.set(sessionName, { timer, wasActive: true })
+}
 
 // Create logs directory if it doesn't exist
 const logsDir = path.join(process.cwd(), 'logs')
@@ -30,8 +88,9 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
-// Expose sessionActivity globally for API routes
+// Expose session state globally for API routes
 global.sessionActivity = sessionActivity
+global.terminalSessions = sessions  // PTY processes per session
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
@@ -323,7 +382,7 @@ app.prepare().then(() => {
           !(data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data))
 
         if (hasSubstantialContent) {
-          sessionActivity.set(sessionName, Date.now())
+          trackSessionActivity(sessionName)
         }
 
         // Send data to all clients and wait for write completion
@@ -376,7 +435,7 @@ app.prepare().then(() => {
     sessionState.clients.add(ws)
 
     // Track connection as activity (so newly opened sessions show as active)
-    sessionActivity.set(sessionName, Date.now())
+    trackSessionActivity(sessionName)
     console.log(`[ACTIVITY-TRACK] Set activity for ${sessionName}, map size: ${sessionActivity.size}`)
 
     // If there was a cleanup timer scheduled, cancel it (client reconnected)
@@ -386,55 +445,38 @@ app.prepare().then(() => {
       sessionState.cleanupTimer = null
     }
 
-    // Send full scrollback history to new clients
-    // Critical: We need to capture the full history so scrollback works on reconnect
+    // Send scrollback history to new clients
+    // Reduced to 500 lines for faster loading with oh-my-zsh
     setTimeout(async () => {
       try {
         const { execSync } = await import('child_process')
 
-        // Try to capture scrollback history (last 1000 lines for reasonable performance)
         let historyContent = ''
         try {
-          // CRITICAL: Capture WITHOUT escape sequences to avoid cursor positioning
-          // -S -1000: Start from 1000 lines back (enough for context, not overwhelming)
-          // -p: Print to stdout
-          // -J: Join wrapped lines (removes artificial wrapping from tmux's internal width)
-          // NO -e flag: Without escape sequences, tmux sends plain text with newlines
-          // This allows xterm.js to add lines to scrollback instead of repositioning cursor
+          // Reduced from 1000 to 500 lines for faster loading
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -1000 -J`,
-            { encoding: 'utf8', timeout: 3000 }
+            `tmux capture-pane -t ${sessionName} -p -S -500 -J`,
+            { encoding: 'utf8', timeout: 2000 }
           ).toString()
         } catch (historyError) {
-          // Fallback: if full history fails, at least get visible content
+          // Fallback: just get visible content
           try {
             historyContent = execSync(
               `tmux capture-pane -t ${sessionName} -p -J`,
-              { encoding: 'utf8', timeout: 2000 }
+              { encoding: 'utf8', timeout: 1000 }
             ).toString()
           } catch (fallbackError) {
-            // Last resort: no -J flag
-            historyContent = execSync(
-              `tmux capture-pane -t ${sessionName} -p`,
-              { encoding: 'utf8', timeout: 2000 }
-            ).toString()
+            console.error('Failed to capture history:', fallbackError)
           }
         }
 
         if (ws.readyState === 1 && historyContent) {
-          // CRITICAL: Convert plain text to terminal-friendly format
-          // Each line must end with \r\n for xterm.js to add it to scrollback
-          // Plain newlines (\n) would just move cursor down without creating history
           const lines = historyContent.split('\n')
           const formattedHistory = lines.map(line => line + '\r\n').join('')
 
           console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
 
-          // Send history content as formatted data
           ws.send(formattedHistory)
-
-          // Send a special message to signal that initial history load is complete
-          // This allows the client to trigger scrollToBottom() and fit()
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       } catch (error) {
@@ -515,6 +557,12 @@ app.prepare().then(() => {
     })
   })
 
+  // Increase server timeout for long-running operations like doc indexing
+  // Default is 120000 (2 min), we set to 15 minutes
+  server.timeout = 15 * 60 * 1000
+  server.keepAliveTimeout = 15 * 60 * 1000
+  server.headersTimeout = 15 * 60 * 1000 + 1000
+
   server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
 
@@ -525,10 +573,21 @@ app.prepare().then(() => {
     } catch (error) {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
+
+    // Agent initialization on startup is DISABLED to avoid CPU spike
+    // Agents will be initialized on-demand when accessed via API
+    // The subconscious processes will start when an agent is first accessed
+    // To manually trigger indexing, call /api/agents/{id}/index-delta
+    console.log('[AgentStartup] Startup indexing disabled - agents will initialize on-demand')
   })
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
+    console.log('[Server] Shutting down gracefully...')
+
+    // NOTE: Agents are managed by Next.js API routes
+    // They will be garbage collected when the process exits
+
     sessions.forEach((state) => {
       // Close log stream
       if (state.logStream) {
@@ -540,6 +599,7 @@ app.prepare().then(() => {
       }
     })
     server.close(() => {
+      console.log('[Server] Shutdown complete')
       process.exit(0)
     })
   })

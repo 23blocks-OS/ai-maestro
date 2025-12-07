@@ -25,7 +25,6 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
   const [isMobile, setIsMobile] = useState(false)
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
@@ -103,6 +102,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (!term) return
     try {
       term.focus()
+      // CRITICAL: Also clear selection to re-activate selection layer
+      // This ensures xterm's selection service is active, not browser default
+      term.clearSelection()
     } catch {}
   }, [])
 
@@ -127,46 +129,28 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
-          // After initial history loads, force a complete refresh of all xterm layers
-          // This fixes: yellow selection, scrollbar not updating, and layer misalignment
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
-
-            // CRITICAL: Wait for xterm.js to finish processing history
+            // Wait for xterm.js to finish processing history
             setTimeout(() => {
-
-              // 1. Scroll to bottom first
+              // 1. Scroll to bottom
               term.scrollToBottom()
 
-              // 2. Focus terminal to activate selection layer
-              term.focus()
+              // 2. Focus terminal to activate selection layer (but not if user is typing in an input)
+              const activeElement = document.activeElement
+              const isInputFocused = activeElement?.tagName === 'INPUT' ||
+                                     activeElement?.tagName === 'TEXTAREA' ||
+                                     activeElement?.tagName === 'SELECT' ||
+                                     activeElement?.getAttribute('contenteditable') === 'true'
 
-              // 3. CRITICAL: Force selection service to re-initialize
-              // This ensures xterm.js's selection layer is active, not browser default
+              if (!isInputFocused) {
+                term.focus()
+              }
+
+              // 3. Clear selection to ensure selection layer is initialized
+              // This activates xterm.js's selection service
               term.clearSelection()
-
-              // 4. Refresh all layers (canvas, selection, scrollbar)
-              term.refresh(0, term.rows - 1)
-
-
-              // 5. Final refresh after a small delay to ensure selection layer is ready
-              setTimeout(() => {
-                // Click on terminal to ensure it's truly active
-                const terminalElement = term.element
-                if (terminalElement) {
-                  // Dispatch a synthetic click to fully activate the terminal
-                  const clickEvent = new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                  })
-                  terminalElement.dispatchEvent(clickEvent)
-                }
-
-                term.refresh(0, term.rows - 1)
-              }, 50)
-
             }, 100)
           }
           return
@@ -188,21 +172,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // Only report activity for substantial content (not cursor blinks or control sequences)
       // Filter out idle terminal noise to properly detect active vs idle state
 
-      // Always write data to terminal first
+      // Write data to terminal
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
-
-        // CRITICAL: Refresh selection layer after content updates
-        // Debounced to avoid performance issues during rapid updates
-        if (refreshTimeoutRef.current) {
-          clearTimeout(refreshTimeoutRef.current)
-        }
-        refreshTimeoutRef.current = setTimeout(() => {
-          if (terminalInstanceRef.current) {
-            // Refresh only the visible portion to maintain performance
-            terminalInstanceRef.current.refresh(0, terminalInstanceRef.current.rows - 1)
-          }
-        }, 200) // Wait 200ms after last write
       } else {
         messageBufferRef.current.push(data)
       }
@@ -276,16 +248,16 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
-  // Mobile-specific: trigger fit when notes collapse/expand (changes terminal height on mobile)
+  // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {
-    if (isMobile && isReady && terminal) {
-      // Notes state changed on mobile, terminal height changed dramatically
+    if (isReady && terminal) {
+      // Notes state or footer tab changed, terminal height changed
       const timeout = setTimeout(() => {
         fitTerminal()
       }, 150)
       return () => clearTimeout(timeout)
     }
-  }, [notesCollapsed, footerTab, isMobile, isReady, terminal, fitTerminal, session.id])
+  }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal, session.id])
 
   // Handle terminal input
   useEffect(() => {
@@ -301,6 +273,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       disposable.dispose()
     }
   }, [terminal, isConnected, sendMessage])
+
+  // Copy selection to clipboard
+  const copySelection = useCallback(() => {
+    if (!terminal) return
+    const selection = terminal.getSelection()
+    if (selection) {
+      navigator.clipboard.writeText(selection)
+        .then(() => {
+          // Optionally show feedback
+          console.log('[Terminal] Copied selection to clipboard')
+        })
+        .catch(err => console.error('[Terminal] Failed to copy:', err))
+    }
+  }, [terminal])
 
   // Handle terminal resize
   useEffect(() => {
@@ -582,6 +568,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
               </button>
               <span className="text-gray-500 hidden md:inline">|</span>
               <button
+                onClick={copySelection}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title="Copy selected text to clipboard"
+              >
+                📋 <span className="hidden md:inline">Copy</span>
+              </button>
+              <button
                 onClick={() => terminal.clear()}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                 title="Clear terminal scrollback buffer (removes duplicate lines from Claude Code status updates)"
@@ -612,23 +605,36 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
       {/* Terminal Container */}
       <div
-        className="flex-1 relative overflow-hidden"
+        className="flex-1 min-h-0 relative overflow-hidden"
         style={{
-          // Prevent mobile rubber-band scrolling
-          overscrollBehavior: 'contain',
-          // CRITICAL: Ensure terminal stays within flex boundaries
-          // Without minHeight: 0, flex-1 won't shrink when notes expand
+          // CRITICAL: flex-1 takes remaining space after footer
+          // min-h-0 allows flex item to shrink below content size
+          // overflow-hidden prevents terminal from escaping container bounds
+          flex: '1 1 0%',
           minHeight: 0,
-          // Ensure this container respects flex layout and doesn't overflow
-          maxHeight: '100%'
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         <div
           ref={terminalRef}
-          className="absolute inset-0"
+          onClick={() => {
+            // CRITICAL: On every click, forcefully re-activate selection layer
+            // This fixes the yellow highlight issue by ensuring xterm's selection
+            // service is always active when user interacts with terminal
+            if (terminalInstanceRef.current) {
+              const term = terminalInstanceRef.current
+              term.focus()
+              // Clear and re-activate selection service
+              term.clearSelection()
+            }
+          }}
           style={{
-            // CRITICAL: Prevent touch events from bubbling to parent on mobile
-            touchAction: isMobile ? 'pan-y pinch-zoom' : 'auto'
+            // Terminal takes full available space within container
+            flex: '1 1 0%',
+            minHeight: 0,
+            width: '100%',
+            position: 'relative'
           }}
         />
         {!isReady && (

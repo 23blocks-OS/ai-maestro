@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAgentDatabase, AgentDatabase } from '@/lib/cozo-db'
+import { agentRegistry } from '@/lib/agent'
+import { AgentDatabase } from '@/lib/cozo-db'
 
 /**
  * GET /api/agents/:id/database
@@ -12,8 +13,9 @@ export async function GET(
   try {
     const { id: agentId } = await params
 
-    // Create/open agent database
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Get database info
     const metadata = await agentDb.getMetadata()
@@ -21,8 +23,7 @@ export async function GET(
     const exists = agentDb.exists()
     const size = agentDb.getSize()
 
-    // Close connection
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,
@@ -58,8 +59,9 @@ export async function POST(
   try {
     const { id: agentId } = await params
 
-    // Create/initialize agent database
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Test a simple query
     const testResult = await agentDb.run(`
@@ -73,8 +75,7 @@ export async function POST(
     const dbPath = agentDb.getPath()
     const size = agentDb.getSize()
 
-    // Close connection
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,

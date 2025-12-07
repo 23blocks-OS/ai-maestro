@@ -210,27 +210,31 @@ if [ "$INSTALL_SKILL" = true ]; then
     # Create directory if it doesn't exist
     mkdir -p ~/.claude/skills
 
-    # Copy skill
-    if [ -d "skills/agent-messaging" ]; then
-        # Remove old version if exists
-        if [ -d ~/.claude/skills/agent-messaging ]; then
-            print_warning "Removing old version of agent-messaging skill..."
-            rm -rf ~/.claude/skills/agent-messaging
-        fi
+    # Copy all skills
+    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search")
 
-        cp -r skills/agent-messaging ~/.claude/skills/
-        print_success "Installed: agent-messaging skill"
+    for skill in "${SKILLS_TO_INSTALL[@]}"; do
+        if [ -d "skills/$skill" ]; then
+            # Remove old version if exists
+            if [ -d ~/.claude/skills/"$skill" ]; then
+                print_warning "Removing old version of $skill skill..."
+                rm -rf ~/.claude/skills/"$skill"
+            fi
 
-        # Verify skill file exists
-        if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
-            SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
-            print_success "Skill file verified (${SKILL_SIZE} bytes)"
+            cp -r "skills/$skill" ~/.claude/skills/
+            print_success "Installed: $skill skill"
+
+            # Verify skill file exists
+            if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
+                SKILL_SIZE=$(wc -c < ~/.claude/skills/"$skill"/SKILL.md)
+                print_success "Skill file verified (${SKILL_SIZE} bytes)"
+            else
+                print_error "Skill file not found after installation"
+            fi
         else
-            print_error "Skill file not found after installation"
+            print_warning "Skill source directory not found: skills/$skill"
         fi
-    else
-        print_error "Skill source directory not found: skills/agent-messaging"
-    fi
+    done
 fi
 
 echo ""
@@ -261,23 +265,18 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     fi
 fi
 
-# Verify skill
+# Verify skills
 if [ "$INSTALL_SKILL" = true ]; then
     echo ""
-    print_info "Checking installed skill..."
+    print_info "Checking installed skills..."
 
-    if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
-        print_success "agent-messaging skill is installed"
-
-        # Check skill metadata
-        if grep -q "name: AI Maestro Agent Messaging" ~/.claude/skills/agent-messaging/SKILL.md; then
-            print_success "Skill metadata is valid"
+    for skill in agent-messaging graph-query memory-search; do
+        if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
+            print_success "$skill skill is installed"
         else
-            print_warning "Skill metadata may be malformed"
+            print_warning "$skill skill not found"
         fi
-    else
-        print_error "agent-messaging skill not found"
-    fi
+    done
 fi
 
 echo ""
@@ -302,12 +301,23 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 fi
 
 if [ "$INSTALL_SKILL" = true ]; then
-    echo "2️⃣  Claude Code Skill (Skills Mode)"
+    echo "2️⃣  Claude Code Skills (Skills Mode)"
     echo ""
-    echo "   In any Claude Code session, just ask:"
-    echo "   > \"Send a message to backend-architect asking about the API\""
+    echo "   Available skills:"
     echo ""
-    echo "   Claude will automatically use the agent-messaging skill!"
+    echo "   📬 agent-messaging - Send/receive messages between agents"
+    echo "      > \"Send a message to backend-architect asking about the API\""
+    echo "      > \"Check my messages\""
+    echo ""
+    echo "   🔍 graph-query - Query code relationships and structure"
+    echo "      > \"Who calls the authenticate function?\""
+    echo "      > \"Find all serializers for the User model\""
+    echo "      > \"What classes extend ApplicationRecord?\""
+    echo ""
+    echo "   🧠 memory-search - Search your conversation history"
+    echo "      > \"Search my memory for discussions about caching\""
+    echo "      > \"Find where we talked about authentication\""
+    echo "      > \"Recall our discussion about the payment flow\""
     echo ""
     echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/skills"
     echo ""

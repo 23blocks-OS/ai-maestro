@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.10.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.11.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -117,6 +117,31 @@ Works with **any** terminal-based AI:
   - [📖 Installation Guide](./messaging_scripts/README.md)
 - **Web UI**: Rich inbox/compose interface in Messages tab
 - See [📬 Communication Docs](./docs/AGENT-COMMUNICATION-QUICKSTART.md) for 5-minute setup
+
+### Agent Intelligence System (New in v0.11!)
+Your AI agents become smarter over time with persistent memory and deep code understanding.
+
+- **Code Graph Visualization**: Interactive graph showing your codebase structure
+  - Multi-language support: Ruby, TypeScript, Python, and more
+  - Visualize classes, functions, components, and their relationships
+  - Filter by type: Files, Functions, Components
+  - See imports, calls, extends, includes, associations
+  - Focus mode to explore specific code paths
+- **Agent Subconscious**: Background memory maintenance
+  - Automatic conversation indexing for semantic search
+  - Message checking for inter-agent communication
+  - Self-staggering scheduler (scales to 100+ agents without CPU spikes)
+  - Activity-aware intervals (faster when active, slower when idle)
+- **Conversation Memory**: Full conversation history with search
+  - Browse every conversation your agents have had
+  - See thinking messages and tool usage
+  - Search across all conversations semantically
+  - Track model usage and conversation statistics
+- **Auto-Generated Documentation**: Living documentation from your codebase
+  - Automatically extracts and indexes code documentation
+  - Search through all documented functions and classes
+
+> [See Agent Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) for setup and configuration
 
 ### Built for Speed
 - WebSocket streaming for real-time terminal I/O
@@ -628,6 +653,9 @@ Built with modern, battle-tested tools:
 - **[Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)** - Comprehensive reference
 - **[Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
 
+### Agent Intelligence
+- **[Agent Intelligence Guide](./docs/AGENT-INTELLIGENCE.md)** - Code Graph, Subconscious, and Memory systems
+
 ### General
 - **[Windows Installation](./docs/WINDOWS-INSTALLATION.md)** - Complete WSL2 setup guide for Windows users
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
@@ -662,12 +690,20 @@ Built with modern, battle-tested tools:
 - ✅ WebSocket proxy for remote sessions
 - ✅ Tailscale VPN integration
 
-### Phase 4 (Q1 2026)
+### Phase 4 ✅ Complete (v0.11.0)
+- ✅ Agent Intelligence System
+- ✅ Code Graph visualization with multi-language support
+- ✅ Agent Subconscious with background memory maintenance
+- ✅ Conversation history browser with semantic search
+- ✅ Auto-generated documentation from codebase
+- ✅ CozoDB embedded database per agent
+
+### Phase 5 (2026)
 - [ ] Search & filter across all sessions
 - [ ] Export session transcripts
 - [ ] Session playback (time-travel debugging)
 
-### Phase 5 (Future)
+### Phase 6 (Future)
 - [ ] Session sharing & collaboration
 - [ ] AI-generated session summaries
 - [ ] Performance metrics dashboard

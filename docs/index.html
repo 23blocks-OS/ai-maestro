@@ -77,7 +77,7 @@
         "priceCurrency": "USD"
       },
       "description": "Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. Zero-configuration terminal multiplexer for autonomous AI agents.",
-      "softwareVersion": "0.10.1",
+      "softwareVersion": "0.11.0",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
@@ -99,7 +99,11 @@
         "Agent-to-agent communication with inbox/outbox",
         "Unread message tracking and auto-mark-as-read",
         "Mobile remote access",
-        "Hierarchical session organization"
+        "Hierarchical session organization",
+        "Code Graph visualization with multi-language support",
+        "Agent Subconscious with background memory maintenance",
+        "Conversation memory with semantic search",
+        "CozoDB embedded database per agent"
       ],
       "aggregateRating": {
         "@type": "AggregateRating",
@@ -358,13 +362,27 @@
                     <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
-                    <img src="https://img.shields.io/badge/version-0.10.1-blue" alt="Version">
+                    <img src="https://img.shields.io/badge/version-0.11.0-blue" alt="Version">
                     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)%20%7C%20Linux-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
                 </div>
             </div>
         </div>
     </header>
+
+    <!-- Problem-Solution Section -->
+    <section class="py-16 bg-gray-50 px-8">
+        <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-red-600 mb-4 text-2xl font-bold">The Problem</h2>
+                <p class="leading-relaxed">Your AI agents are scattered across terminals, computers, and cloud servers. They forget everything between sessions. They can't talk to each other. You're the bottleneck - copy-pasting context, relaying messages, and manually coordinating their work.</p>
+            </div>
+            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
+                <h2 class="text-emerald-600 mb-4 text-2xl font-bold">The Solution</h2>
+                <p class="leading-relaxed">AI Maestro is an <strong>AI Agent Orchestrator</strong> that gives your agents superpowers. Persistent memory that grows over time. Direct agent-to-agent communication. Run agents on your laptop, remote servers, or Docker containers - all from one dashboard. Your agents become a coordinated team, not isolated tools.</p>
+            </div>
+        </div>
+    </section>
 
     <!-- Screenshot Section -->
     <section class="py-8 md:py-16 px-8">
@@ -373,16 +391,51 @@
         </div>
     </section>
 
-    <!-- Problem-Solution Section -->
-    <section class="py-16 bg-gray-50 px-8">
-        <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
-                <h2 class="text-red-600 mb-4 text-2xl font-bold">The Problem</h2>
-                <p class="leading-relaxed">You're using Claude Code for backend, Aider for frontend, and Cursor for docs. Each in its own terminal window. Each in a different tmux pane. You're constantly switching contexts, losing track of which agent is where, and your terminal tabs look like chaos.</p>
-            </div>
-            <div class="p-8 md:p-8 bg-white rounded-2xl border border-gray-200">
-                <h2 class="text-emerald-600 mb-4 text-2xl font-bold">The Solution</h2>
-                <p class="leading-relaxed">AI Maestro gives you one beautiful web dashboard for all your AI coding agents. Click between sessions instantly. Organize them hierarchically. Take notes. Never lose track again.</p>
+    <!-- NEW: Featured Release Section -->
+    <section class="py-12 md:py-20 px-8 bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+                <div class="flex-1">
+                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur rounded-full text-sm font-bold mb-6">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        NEW IN v0.11
+                    </div>
+                    <h2 class="text-3xl md:text-5xl font-bold mb-4">Agent Intelligence System</h2>
+                    <p class="text-xl text-white/90 mb-6">Your AI agents now have persistent memory. Code Graph visualization, background subconscious processing, and semantic search across all conversations.</p>
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">🗺️</span>
+                            </div>
+                            <span class="font-medium">Code Graph</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">🧠</span>
+                            </div>
+                            <span class="font-medium">Subconscious</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">💬</span>
+                            </div>
+                            <span class="font-medium">Memory</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">📚</span>
+                            </div>
+                            <span class="font-medium">Auto-Docs</span>
+                        </div>
+                    </div>
+                    <a href="agent-intelligence.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-purple-600 hover:bg-gray-100 hover:-translate-y-0.5 hover:shadow-lg text-lg">
+                        Explore Agent Intelligence
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </a>
+                </div>
+                <div class="flex-1">
+                    <img src="images/code_graph_02.png" alt="Code Graph Visualization" class="w-full rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-4 border-white/20">
+                </div>
             </div>
         </div>
     </section>
@@ -436,6 +489,14 @@
                     <div class="text-5xl mb-4">💬</div>
                     <h3 class="mb-4 text-gray-800 text-xl font-semibold">Conversation History</h3>
                     <p class="leading-relaxed text-gray-600">Browse, search, and analyze every conversation your agents have had. Full thinking messages and tool usage tracking.</p>
+                </a>
+                <a href="agent-intelligence.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-secondary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.2)] no-underline text-inherit block cursor-pointer bg-gradient-to-br from-purple-50 to-indigo-50">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="text-5xl">🧠</div>
+                        <span class="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">NEW</span>
+                    </div>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Agent Intelligence</h3>
+                    <p class="leading-relaxed text-gray-600">Code Graph visualization, persistent memory with CozoDB, background subconscious processing, and semantic search across all conversations.</p>
                 </a>
                 <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
                     <div class="text-5xl mb-4">🎯</div>

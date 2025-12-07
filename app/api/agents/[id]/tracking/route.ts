@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAgentDatabase } from '@/lib/cozo-db'
+import { agentRegistry } from '@/lib/agent'
 import {
   initializeTrackingSchema,
   upsertAgent,
@@ -21,8 +21,9 @@ export async function GET(
   try {
     const { id: agentId } = await params
 
-    // Open agent database
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Get full context
     const context = await getAgentFullContext(agentDb, agentId)
@@ -30,7 +31,7 @@ export async function GET(
     // Get work history
     const history = await getAgentWorkHistory(agentDb, agentId)
 
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,
@@ -62,8 +63,9 @@ export async function POST(
     const { id: agentId } = await params
     const body = await request.json().catch(() => ({}))
 
-    // Open agent database
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Initialize schema
     await initializeTrackingSchema(agentDb)
@@ -161,7 +163,7 @@ export async function POST(
     // TODO: Fix getAgentFullContext query syntax
     // const context = await getAgentFullContext(agentDb, agentId)
 
-    await agentDb.close()
+    // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
     return NextResponse.json({
       success: true,

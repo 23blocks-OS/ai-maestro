@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAgentDatabase } from '@/lib/cozo-db'
+import { agentRegistry } from '@/lib/agent'
 import {
   initializeSimpleSchema,
   recordSession,
@@ -9,6 +9,7 @@ import {
   getProjects,
   getConversations
 } from '@/lib/cozo-schema-simple'
+import { initializeRagSchema } from '@/lib/cozo-schema-rag'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -23,7 +24,9 @@ export async function GET(
   try {
     const { id: agentId } = await params
 
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
     // Get sessions and projects
     const sessions = await getSessions(agentDb, agentId)
@@ -40,7 +43,8 @@ export async function GET(
       })
     }
 
-    await agentDb.close()
+    // NOTE: Agent's subconscious now handles background indexing automatically
+    // No need to manually trigger - each agent maintains its own memory
 
     return NextResponse.json({
       success: true,
@@ -61,6 +65,37 @@ export async function GET(
 }
 
 /**
+ * Trigger delta indexing in the background (non-blocking)
+ */
+async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
+  console.log(`[Memory API] Triggering background delta indexing for agent ${agentId}`)
+
+  try {
+    // Call the delta indexing endpoint
+    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/index-delta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      console.error(`[Memory API] Delta indexing returned status ${response.status}`)
+      return
+    }
+
+    const result = await response.json()
+    if (result.success && result.total_messages_processed > 0) {
+      console.log(`[Memory API] ✅ Delta indexed ${result.total_messages_processed} messages`)
+    } else {
+      console.log(`[Memory API] No new messages to index`)
+    }
+  } catch (error) {
+    console.error('[Memory API] Failed to trigger delta indexing:', error)
+  }
+}
+
+/**
  * POST /api/agents/:id/memory
  * Initialize schema and optionally populate from current tmux sessions
  */
@@ -72,13 +107,34 @@ export async function POST(
     const { id: agentId } = await params
     const body = await request.json().catch(() => ({}))
 
-    const agentDb = await createAgentDatabase({ agentId })
+    // Get or create agent (will initialize with subconscious if first time)
+    const agent = await agentRegistry.getAgent(agentId)
+    const agentDb = await agent.getDatabase()
 
-    // Initialize schema
+    // Initialize schema (simple + RAG extensions)
     await initializeSimpleSchema(agentDb)
+    await initializeRagSchema(agentDb)
 
     // If requested, populate from current tmux sessions AND historical conversations
     if (body.populateFromSessions) {
+      // Check if database is already populated to avoid expensive rescanning
+      // Unless force=true is specified
+      if (!body.force) {
+        const existingProjects = await getProjects(agentDb)
+        if (existingProjects.rows && existingProjects.rows.length > 0) {
+          console.log(`[Memory API] Database already populated with ${existingProjects.rows.length} projects. Skipping population scan. Use force=true to re-populate.`)
+          // NOTE: Don't close agentDb - it's owned by the agent and stays open
+          return NextResponse.json({
+            success: true,
+            agent_id: agentId,
+            message: 'Memory schema initialized (already populated)',
+            skipped_population: true
+          })
+        }
+      } else {
+        console.log(`[Memory API] Force flag set - re-populating database`)
+      }
+
       console.log('[Memory API] Populating from tmux sessions and historical conversations...')
 
       // Fetch current sessions
@@ -257,7 +313,7 @@ export async function POST(
       console.log('[Memory API] ✅ Populated from sessions and historical conversations')
     }
 
-    await agentDb.close()
+    // NOTE: Agent's subconscious is already running and will maintain memory automatically
 
     return NextResponse.json({
       success: true,

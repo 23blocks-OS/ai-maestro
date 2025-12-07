@@ -55,9 +55,26 @@ export class AgentDatabase {
 
       // Store agent metadata
       await this.initializeAgentMetadata()
+
+      // Auto-migrate: Initialize RAG schema if not present
+      await this.ensureRagSchema()
     } catch (error) {
       console.error(`[CozoDB] Failed to initialize database:`, error)
       throw error
+    }
+  }
+
+  /**
+   * Ensure RAG schema tables exist (auto-migration)
+   */
+  private async ensureRagSchema(): Promise<void> {
+    try {
+      const { initializeRagSchema } = await import('./cozo-schema-rag')
+      await initializeRagSchema(this)
+      console.log(`[CozoDB] RAG schema migration complete`)
+    } catch (error) {
+      console.error(`[CozoDB] Failed to ensure RAG schema:`, error)
+      // Don't throw - allow database to work without RAG features
     }
   }
 

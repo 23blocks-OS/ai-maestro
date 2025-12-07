@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
 import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
-import { indexProject, clearCodeGraph, findFunctions, findCallChain, getFunctionDependencies } from '@/lib/rag/code-indexer'
+import {
+  indexProject,
+  indexProjectDelta,
+  clearCodeGraph,
+  findFunctions,
+  findCallChain,
+  getFunctionDependencies,
+  initializeFileMetadata,
+  getProjectFileMetadata,
+  DeltaIndexStats,
+} from '@/lib/rag/code-indexer'
 
 /**
  * GET /api/agents/:id/graph/code
@@ -370,7 +380,9 @@ export async function GET(
  *
  * Body (optional):
  * - projectPath: Path to the project to index (auto-detected from agent config if not provided)
- * - clear: Whether to clear existing data first (default: true)
+ * - delta: Whether to do delta indexing (only changed files) (default: false)
+ * - clear: Whether to clear existing data first (default: true, ignored when delta=true)
+ * - initMetadata: Initialize file metadata for existing indexed files (for migration)
  * - includePatterns: Glob patterns to include (optional)
  * - excludePatterns: Glob patterns to exclude (optional)
  */
@@ -392,7 +404,7 @@ export async function POST(
       // Empty or invalid body - use defaults
     }
 
-    let { projectPath, clear = true, includePatterns, excludePatterns } = body
+    let { projectPath, delta = false, clear = true, initMetadata = false, includePatterns, excludePatterns } = body
 
     // Auto-detect projectPath from agent registry if not provided
     if (!projectPath) {
@@ -418,11 +430,75 @@ export async function POST(
       console.log(`[Code Graph API] Auto-detected projectPath from registry: ${projectPath}`)
     }
 
-    console.log(`[Code Graph API] Indexing project for agent ${agentId}: ${projectPath}`)
-
     // Get agent instance for database access
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
+
+    // Handle initMetadata request (migration helper)
+    if (initMetadata) {
+      console.log(`[Code Graph API] Initializing file metadata for agent ${agentId}: ${projectPath}`)
+      const count = await initializeFileMetadata(agentDb, projectPath)
+      return NextResponse.json({
+        success: true,
+        agent_id: agentId,
+        projectPath,
+        action: 'initMetadata',
+        filesInitialized: count,
+      })
+    }
+
+    // Delta indexing - only index changed files
+    if (delta) {
+      console.log(`[Code Graph API] Delta indexing project for agent ${agentId}: ${projectPath}`)
+
+      // Check if we have file metadata (required for delta)
+      const existingMetadata = await getProjectFileMetadata(agentDb, projectPath)
+      if (existingMetadata.length === 0) {
+        console.log(`[Code Graph API] No file metadata found, falling back to full index with metadata initialization`)
+        // Do a full index first, then initialize metadata
+        await clearCodeGraph(agentDb, projectPath)
+        const stats = await indexProject(agentDb, projectPath, {
+          includePatterns,
+          excludePatterns,
+          onProgress: (status) => {
+            console.log(`[Code Graph API] ${status}`)
+          },
+        })
+
+        // Initialize file metadata for future delta indexing
+        const metadataCount = await initializeFileMetadata(agentDb, projectPath)
+
+        return NextResponse.json({
+          success: true,
+          agent_id: agentId,
+          projectPath,
+          mode: 'full_with_metadata_init',
+          stats,
+          metadataFilesInitialized: metadataCount,
+          message: 'First delta request - performed full index with metadata initialization. Future delta calls will be incremental.',
+        })
+      }
+
+      // Perform delta indexing
+      const stats = await indexProjectDelta(agentDb, projectPath, {
+        includePatterns,
+        excludePatterns,
+        onProgress: (status) => {
+          console.log(`[Code Graph API] ${status}`)
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        agent_id: agentId,
+        projectPath,
+        mode: 'delta',
+        stats,
+      })
+    }
+
+    // Full indexing (default behavior)
+    console.log(`[Code Graph API] Full indexing project for agent ${agentId}: ${projectPath}`)
 
     // Clear existing graph if requested
     if (clear) {
@@ -439,11 +515,20 @@ export async function POST(
       },
     })
 
+    // Optionally initialize file metadata after full index for future delta support
+    let metadataCount = 0
+    if (clear) {
+      // If we cleared, also initialize metadata so delta works next time
+      metadataCount = await initializeFileMetadata(agentDb, projectPath)
+    }
+
     return NextResponse.json({
       success: true,
       agent_id: agentId,
       projectPath,
+      mode: 'full',
       stats,
+      metadataFilesInitialized: metadataCount,
     })
   } catch (error) {
     console.error('[Code Graph API] Error:', error)

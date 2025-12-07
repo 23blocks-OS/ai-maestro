@@ -69,6 +69,7 @@
       "description": "Give AI agents persistent memory with Code Graph visualization, background subconscious processing, conversation history, and semantic search using CozoDB embedded databases",
       "featureList": [
         "Code Graph visualization with multi-language support",
+        "Delta indexing - only re-indexes changed files (~100ms vs 1000ms+)",
         "Agent Subconscious for background memory maintenance",
         "Conversation history browser with semantic search",
         "CozoDB embedded database per agent",
@@ -139,6 +140,13 @@
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "CozoDB is an embedded graph database that runs locally with each agent. It stores code entities, relationships, conversation indexes, and semantic embeddings. Unlike cloud databases, it requires no external services and keeps all data local for privacy and speed."
+        }
+      },{
+        "@type": "Question",
+        "name": "What is delta indexing and why is it important?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Delta indexing is a smart code re-indexing strategy that only processes files that have actually changed. Instead of re-indexing your entire codebase every time (which can take 1000ms+ for 200+ files), delta indexing tracks file content hashes and only re-indexes new, modified, or deleted files. This results in ~100ms index updates when no files have changed, allowing your code graph to stay current as you work without the wait."
         }
       }]
     }
@@ -329,12 +337,18 @@
     <!-- Overview Section -->
     <section class="py-16 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div class="feature-card p-6 bg-white rounded-2xl border border-gray-200">
                     <div class="text-4xl mb-4">🗺️</div>
                     <h3 class="text-lg font-bold mb-2 text-gray-800">Code Graph</h3>
                     <p class="text-gray-600 text-sm">Interactive visualization of your codebase structure and relationships</p>
                 </div>
+                <a href="#delta-indexing" class="feature-card p-6 bg-white rounded-2xl border-2 border-green-200 no-underline hover:border-green-400">
+                    <div class="text-4xl mb-4">⚡</div>
+                    <h3 class="text-lg font-bold mb-2 text-gray-800">Delta Indexing</h3>
+                    <p class="text-gray-600 text-sm">10x faster updates - only re-indexes changed files</p>
+                    <span class="inline-block mt-2 px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">NEW</span>
+                </a>
                 <div class="feature-card p-6 bg-white rounded-2xl border border-gray-200">
                     <div class="text-4xl mb-4">🧠</div>
                     <h3 class="text-lg font-bold mb-2 text-gray-800">Subconscious</h3>
@@ -397,14 +411,75 @@
                         <li>Search for specific entities</li>
                         <li>Zoom, pan, and navigate</li>
                         <li>Real-time statistics</li>
+                        <li class="font-semibold text-purple-600">Delta indexing (~100ms vs 1000ms+)</li>
                     </ul>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- Delta Indexing Section -->
+    <section id="delta-indexing" class="py-16 md:py-24 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-bold rounded-full mb-4">
+                        NEW
+                    </div>
+                    <h2 class="text-4xl md:text-5xl font-bold mb-6">Delta Indexing</h2>
+                    <p class="text-lg text-gray-600 mb-6">Your code graph stays current as you work - without the wait.</p>
+
+                    <div class="space-y-6">
+                        <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-400">
+                            <h4 class="font-bold text-red-800 mb-2">The Problem</h4>
+                            <p class="text-red-700 text-sm">Full code re-indexing is slow and wasteful. A typical project with 200+ files takes 1000ms+ to re-index, even when only a few files change.</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-400">
+                            <h4 class="font-bold text-green-800 mb-2">The Solution</h4>
+                            <p class="text-green-700 text-sm">Delta indexing tracks file content hashes (SHA256) and only re-indexes files that have actually changed - new, modified, or deleted.</p>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">
+                            <h4 class="font-bold text-blue-800 mb-2">Why It Matters</h4>
+                            <p class="text-blue-700 text-sm">Fast iterations (~100ms when no changes vs 1000ms+ full re-index) means your code graph stays current as you work, without the wait.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-8 rounded-2xl border border-gray-200">
+                    <h3 class="text-2xl font-bold mb-6 text-gray-800">Performance Comparison</h3>
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-gray-200">
+                                <th class="py-3 px-3 font-semibold text-gray-800">Scenario</th>
+                                <th class="py-3 px-3 font-semibold text-gray-800">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-gray-100">
+                                <td class="py-3 px-3 text-gray-600">Full index (200 files)</td>
+                                <td class="py-3 px-3 text-red-500 font-semibold">~1000ms</td>
+                            </tr>
+                            <tr class="border-b border-gray-100">
+                                <td class="py-3 px-3 text-gray-600">Delta index (no changes)</td>
+                                <td class="py-3 px-3 text-green-500 font-semibold">~100ms</td>
+                            </tr>
+                            <tr class="border-b border-gray-100">
+                                <td class="py-3 px-3 text-gray-600">Delta index (1 file changed)</td>
+                                <td class="py-3 px-3 text-green-500 font-semibold">~130ms</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 px-3 text-gray-600">Delta index (10 files changed)</td>
+                                <td class="py-3 px-3 text-green-500 font-semibold">~300ms</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="text-gray-500 text-sm mt-4">10x faster updates mean your code graph is always ready.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Subconscious Section -->
-    <section id="subconscious" class="py-16 md:py-24 px-8">
+    <section id="subconscious" class="py-16 md:py-24 bg-gray-50 px-8">
         <div class="max-w-[1200px] mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                 <div>

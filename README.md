@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.11.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.11.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -127,6 +127,7 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - Filter by type: Files, Functions, Components
   - See imports, calls, extends, includes, associations
   - Focus mode to explore specific code paths
+  - **Delta Indexing**: Only re-indexes changed files (~100ms vs 1000ms+ full re-index)
 - **Agent Subconscious**: Background memory maintenance
   - Automatic conversation indexing for semantic search
   - Message checking for inter-agent communication

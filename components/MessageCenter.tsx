@@ -4,14 +4,23 @@ import { useState, useEffect, useCallback } from 'react'
 import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
+/**
+ * Agent recipient info for messaging
+ */
+export interface AgentRecipient {
+  id: string              // Agent ID (used for messaging)
+  alias: string           // Display name
+  tmuxSessionName?: string // Tmux session name (for backward compatibility)
+}
+
 interface MessageCenterProps {
   sessionName: string
   agentId?: string  // Primary identifier when available
-  allSessions: string[]
+  allAgents: AgentRecipient[]
   isVisible?: boolean
 }
 
-export default function MessageCenter({ sessionName, agentId, allSessions, isVisible = true }: MessageCenterProps) {
+export default function MessageCenter({ sessionName, agentId, allAgents, isVisible = true }: MessageCenterProps) {
   // Use agentId as primary identifier if available, fall back to sessionName
   const messageIdentifier = agentId || sessionName
   const [messages, setMessages] = useState<MessageSummary[]>([])
@@ -761,13 +770,13 @@ export default function MessageCenter({ sessionName, agentId, allSessions, isVis
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
-                list="sessions-list"
+                list="agents-list"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter agent name"
+                placeholder="Enter agent ID or alias"
               />
-              <datalist id="sessions-list">
-                {allSessions.filter(s => s !== sessionName).map(session => (
-                  <option key={session} value={session} />
+              <datalist id="agents-list">
+                {allAgents.filter(a => a.id !== agentId).map(agent => (
+                  <option key={agent.id} value={agent.id} label={agent.alias} />
                 ))}
               </datalist>
             </div>

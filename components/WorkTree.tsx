@@ -404,12 +404,12 @@ export default function WorkTree({ sessionName, agentId, hostId, isVisible = tru
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Sessions Section */}
+        {/* Work Sessions Section */}
         {workData.sessions.length > 0 && (
           <div className="mb-8">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Activity className="w-4 h-4" />
-              Sessions ({workData.sessions.length})
+              Work Sessions ({workData.sessions.length})
             </h3>
             <div className="space-y-2">
               {workData.sessions.map((session) => (

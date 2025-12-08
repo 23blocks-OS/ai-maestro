@@ -454,7 +454,11 @@ export default function DashboardPage() {
                       <MessageCenter
                         sessionName={session.id}
                         agentId={agent.id}
-                        allSessions={onlineAgents.map(a => a.session.tmuxSessionName || a.id)}
+                        allAgents={onlineAgents.map(a => ({
+                          id: a.id,
+                          alias: a.displayName || a.alias || a.id,
+                          tmuxSessionName: a.session.tmuxSessionName
+                        }))}
                         isVisible={isActive && activeTab === 'messages'}
                       />
                     ) : activeTab === 'worktree' ? (

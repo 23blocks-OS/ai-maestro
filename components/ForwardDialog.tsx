@@ -2,42 +2,43 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import type { AgentRecipient } from './MessageCenter'
 
 interface ForwardDialogProps {
   messageId: string
-  fromSession: string
-  allSessions: string[]
-  onConfirm: (toSession: string, note: string) => Promise<void>
+  fromAgentId: string
+  allAgents: AgentRecipient[]
+  onConfirm: (toAgentId: string, note: string) => Promise<void>
   onCancel: () => void
 }
 
 export default function ForwardDialog({
   messageId,
-  fromSession,
-  allSessions,
+  fromAgentId,
+  allAgents,
   onConfirm,
   onCancel,
 }: ForwardDialogProps) {
-  const [selectedSession, setSelectedSession] = useState('')
+  const [selectedAgent, setSelectedAgent] = useState('')
   const [forwardNote, setForwardNote] = useState('')
   const [isForwarding, setIsForwarding] = useState(false)
 
   const handleConfirm = async () => {
-    if (!selectedSession) {
-      alert('Please select a session to forward to')
+    if (!selectedAgent) {
+      alert('Please select an agent to forward to')
       return
     }
 
     setIsForwarding(true)
     try {
-      await onConfirm(selectedSession, forwardNote)
+      await onConfirm(selectedAgent, forwardNote)
     } finally {
       setIsForwarding(false)
     }
   }
 
-  // Filter out current session from options
-  const availableSessions = allSessions.filter(s => s !== fromSession)
+  // Filter out current agent from options
+  const availableAgents = allAgents.filter(a => a.id !== fromAgentId)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -56,23 +57,23 @@ export default function ForwardDialog({
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          {/* Session Selector */}
+          {/* Agent Selector */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Forward to session:
+              Forward to agent:
             </label>
             <select
-              id="forward-session-select"
-              name="forwardSession"
-              value={selectedSession}
-              onChange={(e) => setSelectedSession(e.target.value)}
+              id="forward-agent-select"
+              name="forwardAgent"
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isForwarding}
             >
-              <option value="">Select a session...</option>
-              {availableSessions.map((session) => (
-                <option key={session} value={session}>
-                  {session}
+              <option value="">Select an agent...</option>
+              {availableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.alias}
                 </option>
               ))}
             </select>
@@ -110,7 +111,7 @@ export default function ForwardDialog({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={isForwarding || !selectedSession}
+            disabled={isForwarding || !selectedAgent}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isForwarding ? 'Forwarding...' : 'Forward'}

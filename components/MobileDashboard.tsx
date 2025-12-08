@@ -206,7 +206,12 @@ export default function MobileDashboard({
               ) : (
                 <MobileMessageCenter
                   sessionName={session.id}
-                  allSessions={onlineAgents.map(a => a.session.tmuxSessionName || a.id)}
+                  agentId={agent.id}
+                  allAgents={onlineAgents.map(a => ({
+                    id: a.id,
+                    alias: a.displayName || a.alias || a.id,
+                    tmuxSessionName: a.session.tmuxSessionName
+                  }))}
                 />
               )}
             </div>

@@ -395,11 +395,11 @@ export default function MobileWorkTree({
           </div>
         )}
 
-        {/* Sessions Section */}
+        {/* Work Sessions Section */}
         {workData.sessions.length > 0 && (
           <div className="p-4 space-y-2">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Recent Sessions ({workData.sessions.length})
+              Recent Work Sessions ({workData.sessions.length})
             </h3>
             {workData.sessions.map((session) => (
               <div key={session.session_id} className="bg-gray-800/50 rounded-lg px-4 py-3">

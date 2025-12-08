@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-09
-**Phase:** 1 - Local Sessions with Full UI Management
+**Phase:** 1 - Local Agents with Full UI Management
 
 ---
 
@@ -24,7 +24,7 @@ Before starting, ensure you have:
 
 ---
 
-## 1. Quick Start: Your First Session
+## 1. Quick Start: Your First Agent
 
 ### Step 1: Create a tmux Session
 
@@ -176,9 +176,9 @@ You can now manage agents directly from the dashboard UI!
 
 **Warning:** Deletion is permanent and cannot be undone!
 
-## 4. Command-Line Session Management
+## 4. Command-Line Agent Management
 
-You can also manage sessions via terminal commands:
+You can also manage agents via terminal commands:
 
 ### List All Sessions
 
@@ -227,9 +227,9 @@ tmux rename-session -t "old-name" "new-name"
 
 ---
 
-## 4. Working with Multiple Sessions
+## 4. Working with Multiple Agents
 
-### Create Multiple Sessions
+### Create Multiple Agents
 
 ```bash
 # Create first session (with your AI agent)
@@ -251,18 +251,18 @@ tmux send-keys -t db-migration 'copilot' C-m
 # Dashboard will show all three
 ```
 
-### Switch Between Sessions in Dashboard
+### Switch Between Agents in Dashboard
 
 1. Open dashboard: http://localhost:23000
-2. Click any session name in the left sidebar
+2. Click any agent name in the left sidebar
 3. Terminal content updates instantly
-4. Previous sessions keep running in background
+4. Previous agents keep running in background
 
 ---
 
-## 5. Session Lifecycle
+## 5. Agent Lifecycle
 
-### Session States
+### Agent States
 
 **Active** 🟢
 - AI agent is running

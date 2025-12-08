@@ -13,8 +13,8 @@ Skills are Claude Code's way of extending functionality. They're markdown files 
 Enables agent-to-agent communication using AI Maestro's messaging system.
 
 **Capabilities:**
-- Send messages to other agent sessions
-- Check your session's inbox
+- Send messages to other agents
+- Check your agent's inbox
 - Read messages from other agents
 - Send instant tmux notifications
 - Natural language messaging commands
@@ -23,7 +23,7 @@ Enables agent-to-agent communication using AI Maestro's messaging system.
 ```
 You: "Send a message to backend-architect asking them to implement POST /api/users"
 
-Claude: I'll send that message to the backend-architect session.
+Claude: I'll send that message to the backend-architect agent.
 [loads agent-messaging skill automatically]
 [runs: send-aimaestro-message.sh backend-architect "Need POST endpoint" "Please implement POST /api/users with validation" high request]
 ✅ Message sent to backend-architect

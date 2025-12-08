@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.14.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.15.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -149,6 +149,28 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - Search through all documented functions and classes
 
 > [See Agent Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) for setup and configuration
+
+### Portable Agents (New in v0.15!)
+Move your AI agents anywhere. Export, import, transfer, and clone agents across machines.
+
+- **Export to .zip Files**: Package agents with full configuration
+  - Agent metadata, settings, and customizations
+  - Message history (inbox/outbox)
+  - Git repository associations
+  - One-click download from agent profile
+- **Import from Any Source**: Bring agents into new AI Maestro instances
+  - Drag-and-drop or file picker
+  - Automatic conflict detection
+  - Preview before importing
+- **Cross-Host Transfer**: Move agents between machines
+  - Transfer to any connected worker host
+  - Full data migration (messages, settings, repos)
+- **Clone & Backup**: Duplicate agents for experimentation
+  - Create agent backups before major changes
+  - Share agent configurations with teammates
+  - Version your agent setups
+
+> [See Multi-Computer Guide](./docs/multi-computer.html#portable-agents) for detailed transfer workflows
 
 ### Built for Speed
 - WebSocket streaming for real-time terminal I/O

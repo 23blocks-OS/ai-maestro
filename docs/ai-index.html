@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Zero-configuration terminal multiplexer with agent-to-agent communication.",
-      "softwareVersion": "0.14.0",
+      "softwareVersion": "0.15.0",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -53,6 +53,7 @@
         "Mobile remote access via Tailscale VPN",
         "Distributed workers across multiple machines",
         "Docker containerized agents (local and cloud)",
+        "Portable agents (export, import, clone, transfer between hosts)",
         "Conversation history with full-text search",
         "Session notes and per-agent memory",
         "Works on macOS, Windows (WSL2), and Linux"
@@ -82,7 +83,7 @@
             <h2>What is AI Maestro?</h2>
             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It auto-discovers tmux sessions and provides real-time terminal streaming with zero configuration.</p>
 
-            <p><strong>Version:</strong> 0.14.0 (December 2025)</p>
+            <p><strong>Version:</strong> 0.15.0 (December 2025)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -114,6 +115,8 @@
                 <li><strong>Conversation History:</strong> Browse, search, and analyze all agent conversations</li>
                 <li><strong>Docker Support:</strong> Containerized agents (local and hybrid cloud)</li>
                 <li><strong>Session Notes:</strong> Per-agent note-taking with localStorage persistence</li>
+                <li><strong>Agent Management:</strong> Create, configure, export, import, and transfer agents between hosts</li>
+                <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer, cloning, and backup</li>
             </ul>
         </section>
 
@@ -269,7 +272,7 @@ yarn dev
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.14.0 (December 2025)</li>
+                <li><strong>Current Version:</strong> 0.15.0 (December 2025)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>

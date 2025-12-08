@@ -560,6 +560,173 @@ workers:
         </div>
     </section>
 
+    <!-- Portable Agents -->
+    <section id="portable-agents" class="py-20 bg-gradient-to-br from-cyan-50 via-white to-blue-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-100 border border-cyan-300 rounded-full text-cyan-700 text-sm font-semibold mb-4">
+                    <span>NEW in v0.15.0</span>
+                </div>
+                <h2 class="text-4xl font-bold mb-4 gradient-text">Portable Agents</h2>
+                <p class="text-xl text-gray-600 mb-4">Export, transfer, clone, and backup your AI agents across any machine</p>
+                <a href="agent-management.html" class="text-cyan-600 hover:text-cyan-700 font-semibold no-underline">See full Agent Management guide &rarr;</a>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 mb-12">
+                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Export Agents</h3>
+                    <p class="text-gray-600 mb-4">
+                        Export any agent to a portable <code class="bg-gray-100 px-1 rounded">.zip</code> file. Includes configuration, memory database, message history, and git repository references.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono text-gray-600">
+                            Agent Settings → Export → Downloads .zip file
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Import Anywhere</h3>
+                    <p class="text-gray-600 mb-4">
+                        Drop <code class="bg-gray-100 px-1 rounded">.zip</code> files into AI Maestro on any machine. Automatically restores configuration, memory, and messages. Offers to clone git repositories.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono text-gray-600">
+                            New Host → Import Agent → Select file → Restored!
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Clone Agents</h3>
+                    <p class="text-gray-600 mb-4">
+                        Create copies of agents on the same machine or across hosts. Perfect for spinning up multiple similar agents or creating backups before experiments.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono text-gray-600">
+                            Export → Import on same machine → New agent clone
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Backup & Restore</h3>
+                    <p class="text-gray-600 mb-4">
+                        Keep backups of your critical agents. Restore from any point in time. Perfect for team onboarding or disaster recovery.
+                    </p>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-sm font-mono text-gray-600">
+                            Weekly exports → Cloud storage → Instant recovery
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What's Included in Export -->
+            <div class="bg-white rounded-2xl p-8 border border-gray-200 mb-12">
+                <h3 class="text-2xl font-semibold mb-6 text-gray-800 text-center">What's in an Export?</h3>
+                <div class="grid md:grid-cols-4 gap-6">
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <p class="font-medium text-gray-800">Configuration</p>
+                        <p class="text-sm text-gray-500">Registry settings</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                            </svg>
+                        </div>
+                        <p class="font-medium text-gray-800">Memory DB</p>
+                        <p class="text-sm text-gray-500">CozoDB database</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <p class="font-medium text-gray-800">Messages</p>
+                        <p class="text-sm text-gray-500">Inbox & sent</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                            </svg>
+                        </div>
+                        <p class="font-medium text-gray-800">Git Repos</p>
+                        <p class="text-sm text-gray-500">Remote URLs</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Use Cases for Portable Agents -->
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-2 text-gray-800">Machine Migration</h4>
+                    <p class="text-gray-600 text-sm">
+                        Moving to a new laptop? Export all agents, import on new machine, and you're back to work in minutes.
+                    </p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-2 text-gray-800">Team Onboarding</h4>
+                    <p class="text-gray-600 text-sm">
+                        Share pre-configured agent setups with new team members. Everyone starts with the same optimized configurations.
+                    </p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-2 text-gray-800">Cross-Host Transfer</h4>
+                    <p class="text-gray-600 text-sm">
+                        Move agents between local machine and worker hosts. Optimize placement based on workload requirements.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- When to Upgrade -->
     <section class="py-20 bg-gray-50">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

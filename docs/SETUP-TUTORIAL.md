@@ -1,6 +1,6 @@
 # AI Maestro: Manager/Worker Setup Tutorial
 
-Step-by-step guide to configure AI Maestro's distributed architecture for managing sessions across multiple machines.
+Step-by-step guide to configure AI Maestro's distributed architecture for managing agents across multiple machines.
 
 ## Table of Contents
 
@@ -108,15 +108,15 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 6. Customize name: "Mac Mini" or "Cloud Server"
 7. Click **Add Host**
 
-### Step 4: Create Session on Remote Worker
+### Step 4: Create Agent on Remote Worker
 
 1. Go back to Dashboard (click "Back to Dashboard")
 2. Click **+** (Create New Agent)
 3. Select host: Choose your new worker from dropdown
-4. Enter session name: `test-remote-session`
+4. Enter agent name: `test-remote-agent`
 5. Click **Create Agent**
 
-🎉 **Done!** You should see your session appear with a blue "Worker Name" badge.
+🎉 **Done!** You should see your agent appear with a blue "Worker Name" badge.
 
 ---
 
@@ -402,13 +402,13 @@ pm2 logs ai-maestro
    # Use: http://192.168.x.x:23000
    ```
 
-### Sessions Not Appearing
+### Agents Not Appearing
 
-**Symptom:** Worker added successfully, but sessions don't show
+**Symptom:** Worker added successfully, but agents don't show
 
 **Solutions:**
 
-1. **Create a test session on worker:**
+1. **Create a test agent on worker:**
    ```bash
    # SSH into worker or access its terminal
    tmux new-session -s test-worker-session
@@ -428,7 +428,7 @@ pm2 logs ai-maestro
 
 ### WebSocket Connection Fails
 
-**Symptom:** Session appears but terminal is blank or shows "Connecting..."
+**Symptom:** Agent appears but terminal is blank or shows "Connecting..."
 
 **Solutions:**
 
@@ -457,7 +457,7 @@ pm2 logs ai-maestro
 
 ### Permission Denied
 
-**Symptom:** Can't create sessions on worker
+**Symptom:** Can't create agents on worker
 
 **Solutions:**
 
@@ -492,7 +492,7 @@ pm2 logs ai-maestro
 - ✅ Use local network for workers in same location
 - ✅ Use Tailscale "exit nodes" for regional cloud workers
 - ✅ Monitor worker resource usage (pm2 monit)
-- ✅ Close unused sessions to free resources
+- ✅ Close unused agents to free resources
 
 ### Reliability
 

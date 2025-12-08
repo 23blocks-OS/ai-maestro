@@ -13,9 +13,9 @@ function getAIMaestroVersion(): string {
   try {
     const data = fs.readFileSync(VERSION_FILE, 'utf-8')
     const { version } = JSON.parse(data)
-    return version || '0.14.0'
+    return version || '0.15.0'
   } catch {
-    return '0.14.0'
+    return '0.15.0'
   }
 }
 

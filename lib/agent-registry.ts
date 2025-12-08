@@ -254,15 +254,31 @@ export function incrementAgentMetric(
 
 /**
  * Delete an agent and clean up associated data
+ * Also kills the tmux session if running
  */
 export function deleteAgent(id: string): boolean {
   const agents = loadAgents()
-  const filtered = agents.filter(a => a.id !== id)
+  const agentToDelete = agents.find(a => a.id === id)
 
-  if (filtered.length === agents.length) {
+  if (!agentToDelete) {
     return false // Agent not found
   }
 
+  // Kill tmux session if the agent has one
+  const tmuxSessionName = agentToDelete.tools.session?.tmuxSessionName || agentToDelete.alias
+  if (tmuxSessionName) {
+    try {
+      const { execSync } = require('child_process')
+      // Check if session exists and kill it
+      execSync(`tmux kill-session -t "${tmuxSessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+      console.log(`[Agent Registry] Killed tmux session: ${tmuxSessionName}`)
+    } catch (error) {
+      // Session might not exist, that's okay
+      console.log(`[Agent Registry] Could not kill tmux session ${tmuxSessionName} (may not exist)`)
+    }
+  }
+
+  const filtered = agents.filter(a => a.id !== id)
   saveAgents(filtered)
 
   // Clean up agent-specific directory (database, etc.)

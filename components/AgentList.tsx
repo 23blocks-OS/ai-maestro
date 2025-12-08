@@ -26,6 +26,7 @@ import {
   Wifi,
   WifiOff,
   User,
+  Upload,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
@@ -37,6 +38,8 @@ interface AgentListProps {
   activeAgentId: string | null
   onAgentSelect: (agent: UnifiedAgent) => void
   onShowAgentProfile: (agent: UnifiedAgent) => void
+  onShowAgentProfileDangerZone?: (agent: UnifiedAgent) => void  // Opens profile scrolled to danger zone
+  onImportAgent?: () => void  // Opens import dialog
   loading?: boolean
   error?: Error | null
   onRefresh?: () => void
@@ -46,6 +49,7 @@ interface AgentListProps {
     offline: number
     orphans: number
   } | null
+  subconsciousRefreshTrigger?: number  // Increment to force subconscious status refresh
 }
 
 /**
@@ -133,10 +137,13 @@ export default function AgentList({
   activeAgentId,
   onAgentSelect,
   onShowAgentProfile,
+  onShowAgentProfileDangerZone,
+  onImportAgent,
   loading,
   error,
   onRefresh,
   stats,
+  subconsciousRefreshTrigger,
 }: AgentListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -328,6 +335,9 @@ export default function AgentList({
 
   const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string) => {
     setActionLoading(true)
+    const startTime = Date.now()
+    const MIN_ANIMATION_TIME = 10000 // Minimum 10 seconds to show animation - it's part of the experience!
+
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
@@ -340,9 +350,20 @@ export default function AgentList({
         throw new Error(data.error || 'Failed to create agent')
       }
 
+      // Ensure minimum animation time
+      const elapsed = Date.now() - startTime
+      if (elapsed < MIN_ANIMATION_TIME) {
+        await new Promise(resolve => setTimeout(resolve, MIN_ANIMATION_TIME - elapsed))
+      }
+
       setShowCreateModal(false)
       onRefresh?.()
     } catch (error) {
+      // Ensure minimum animation time even for errors
+      const elapsed = Date.now() - startTime
+      if (elapsed < MIN_ANIMATION_TIME) {
+        await new Promise(resolve => setTimeout(resolve, MIN_ANIMATION_TIME - elapsed))
+      }
       alert(error instanceof Error ? error.message : 'Failed to create session')
     } finally {
       setActionLoading(false)
@@ -379,6 +400,16 @@ export default function AgentList({
             >
               <Plus className="w-4 h-4" />
             </button>
+            {onImportAgent && (
+              <button
+                onClick={onImportAgent}
+                className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-purple-400 hover:text-purple-300 hover:scale-110"
+                aria-label="Import agent"
+                title="Import agent"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onRefresh}
               disabled={loading}
@@ -688,6 +719,18 @@ export default function AgentList({
                                             >
                                               <Edit2 className="w-3 h-3" />
                                             </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                if (onShowAgentProfileDangerZone) {
+                                                  onShowAgentProfileDangerZone(agent)
+                                                }
+                                              }}
+                                              className="p-1 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all duration-200"
+                                              title="Delete agent"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
                                           </div>
                                         </div>
                                       </div>
@@ -713,7 +756,7 @@ export default function AgentList({
 
       {/* Footer */}
       <div className="border-t border-sidebar-border px-3 py-3 mt-auto space-y-1">
-        <SubconsciousStatus />
+        <SubconsciousStatus refreshTrigger={subconsciousRefreshTrigger} />
 
         <Link
           href="/settings"
@@ -774,24 +817,85 @@ function CreateAgentModal({
   const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
   const [animationProgress, setAnimationProgress] = useState(0)
 
-  // Animate through phases when loading
+  // Fun AI-themed aliases - names ending in AI or IA (Spanish for AI)
+  const AI_ALIASES = [
+    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
+    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
+    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI', 'DataIA',
+    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA',
+    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI', 'UgAI',
+  ]
+
+  // Get a random alias based on the agent name (deterministic)
+  const getRandomAlias = (agentName: string): string => {
+    const hash = agentName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return AI_ALIASES[hash % AI_ALIASES.length]
+  }
+
+  // Animate through phases when loading - spread over 10 seconds for a delightful experience
   useEffect(() => {
     if (loading) {
+      // Reset and start animation sequence
       setAnimationPhase('preparing')
-      setAnimationProgress(20)
+      setAnimationProgress(5)
 
+      // Progress updates for preparing phase (0-2.5s)
       const timer1 = setTimeout(() => {
-        setAnimationPhase('creating')
-        setAnimationProgress(50)
-      }, 600)
+        setAnimationProgress(12)
+      }, 500)
 
       const timer2 = setTimeout(() => {
-        setAnimationProgress(80)
-      }, 1200)
+        setAnimationProgress(20)
+      }, 1000)
+
+      const timer3 = setTimeout(() => {
+        setAnimationProgress(28)
+      }, 1800)
+
+      // Transition to creating phase (2.5s)
+      const timer4 = setTimeout(() => {
+        setAnimationPhase('creating')
+        setAnimationProgress(35)
+      }, 2500)
+
+      // Progress updates for creating phase (2.5-6s)
+      const timer5 = setTimeout(() => {
+        setAnimationProgress(45)
+      }, 3200)
+
+      const timer6 = setTimeout(() => {
+        setAnimationProgress(55)
+      }, 3900)
+
+      const timer7 = setTimeout(() => {
+        setAnimationProgress(65)
+      }, 4600)
+
+      const timer8 = setTimeout(() => {
+        setAnimationProgress(78)
+      }, 5300)
+
+      const timer9 = setTimeout(() => {
+        setAnimationProgress(90)
+      }, 6000)
+
+      // Transition to ready/celebration phase (6.5s) - gives 3.5s to enjoy the celebration!
+      const timer10 = setTimeout(() => {
+        setAnimationPhase('ready')
+        setAnimationProgress(100)
+      }, 6500)
 
       return () => {
         clearTimeout(timer1)
         clearTimeout(timer2)
+        clearTimeout(timer3)
+        clearTimeout(timer4)
+        clearTimeout(timer5)
+        clearTimeout(timer6)
+        clearTimeout(timer7)
+        clearTimeout(timer8)
+        clearTimeout(timer9)
+        clearTimeout(timer10)
       }
     }
   }, [loading])
@@ -816,6 +920,7 @@ function CreateAgentModal({
             <CreateAgentAnimation
               phase={animationPhase}
               agentName={name}
+              agentAlias={getRandomAlias(name)}
               progress={animationProgress}
             />
           </div>

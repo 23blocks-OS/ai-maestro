@@ -50,8 +50,10 @@ export default function DashboardPage() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<UnifiedAgent | null>(null)
+  const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
 
   // Derive active agent from state
   const activeAgent = agents.find(a => a.id === activeAgentId) || null
@@ -177,7 +179,46 @@ export default function DashboardPage() {
 
   const handleShowAgentProfile = (agent: UnifiedAgent) => {
     setProfileAgent(agent)
+    setProfileScrollToDangerZone(false)
     setIsProfileOpen(true)
+  }
+
+  const handleShowAgentProfileDangerZone = (agent: UnifiedAgent) => {
+    setProfileAgent(agent)
+    setProfileScrollToDangerZone(true)
+    setIsProfileOpen(true)
+  }
+
+  const handleDeleteAgent = async (agentId: string) => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to delete agent')
+      }
+
+      // Close profile panel
+      setIsProfileOpen(false)
+      setProfileAgent(null)
+      setProfileScrollToDangerZone(false)
+
+      // Clear active agent if it was the deleted one
+      if (activeAgentId === agentId) {
+        setActiveAgentId(null)
+      }
+
+      // Refresh agents list
+      refreshAgents()
+
+      // Trigger subconscious status refresh
+      setSubconsciousRefreshTrigger(prev => prev + 1)
+    } catch (error) {
+      console.error('Failed to delete agent:', error)
+      throw error // Re-throw so the dialog can handle it
+    }
   }
 
   const handleStartSession = async (agent: UnifiedAgent) => {
@@ -255,7 +296,6 @@ export default function DashboardPage() {
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
           activeAgentId={activeAgentId}
-          onImportAgent={() => setShowImportDialog(true)}
         />
 
         {/* Migration Banner */}
@@ -273,10 +313,13 @@ export default function DashboardPage() {
               activeAgentId={activeAgentId}
               onAgentSelect={handleAgentSelect}
               onShowAgentProfile={handleShowAgentProfile}
+              onShowAgentProfileDangerZone={handleShowAgentProfileDangerZone}
+              onImportAgent={() => setShowImportDialog(true)}
               loading={agentsLoading}
               error={agentsError}
               onRefresh={refreshAgents}
               stats={agentStats}
+              subconsciousRefreshTrigger={subconsciousRefreshTrigger}
             />
           </aside>
 
@@ -530,10 +573,13 @@ export default function DashboardPage() {
             onClose={() => {
               setIsProfileOpen(false)
               setProfileAgent(null)
+              setProfileScrollToDangerZone(false)
             }}
             agentId={profileAgent.id}
             sessionStatus={profileAgent.session}
             onStartSession={() => handleStartSession(profileAgent)}
+            onDeleteAgent={handleDeleteAgent}
+            scrollToDangerZone={profileScrollToDangerZone}
           />
         )}
 

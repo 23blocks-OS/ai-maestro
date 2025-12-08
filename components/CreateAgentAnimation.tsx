@@ -6,6 +6,7 @@ import { Sparkles, Star, Cpu, Terminal, Zap, Heart, Code, Folder, GitBranch } fr
 interface CreateAgentAnimationProps {
   phase: 'naming' | 'preparing' | 'creating' | 'ready' | 'error'
   agentName: string
+  agentAlias?: string  // Fun AI-themed nickname (e.g., MarIA, LunAI)
   progress?: number
 }
 
@@ -62,6 +63,7 @@ const PHASE_CONFIG = {
 export default function CreateAgentAnimation({
   phase,
   agentName,
+  agentAlias,
   progress = 0,
 }: CreateAgentAnimationProps) {
   const config = PHASE_CONFIG[phase]
@@ -84,29 +86,31 @@ export default function CreateAgentAnimation({
         }}
       />
 
-      {/* Main Animation Area */}
-      <div className="relative h-48 w-full flex items-center justify-center mb-6">
+      {/* Main Animation Area - taller for ready phase to fit name + alias */}
+      <div className={`relative w-full flex items-center justify-center ${phase === 'ready' ? 'min-h-[320px]' : 'h-48'} mb-6`}>
         <AnimatePresence mode="wait">
           {phase === 'naming' && <NamingAnimation key="naming" agentName={agentName} />}
           {phase === 'preparing' && <PreparingAnimation key="preparing" />}
           {phase === 'creating' && <CreatingAnimation key="creating" />}
-          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} />}
+          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} agentAlias={agentAlias} />}
           {phase === 'error' && <ErrorAnimation key="error" />}
         </AnimatePresence>
       </div>
 
-      {/* Status Message */}
-      <motion.div
-        key={currentMessage}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        className="text-center"
-      >
-        <span className={`text-lg font-medium ${config.color}`}>
-          {currentMessage}
-        </span>
-      </motion.div>
+      {/* Status Message - hidden during ready phase since it has its own content */}
+      {phase !== 'ready' && (
+        <motion.div
+          key={currentMessage}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="text-center"
+        >
+          <span className={`text-lg font-medium ${config.color}`}>
+            {currentMessage}
+          </span>
+        </motion.div>
+      )}
 
       {/* Progress indicator for creating phase */}
       {phase === 'creating' && (
@@ -389,7 +393,7 @@ function CreatingAnimation() {
 }
 
 // Ready Animation - Agent comes to life!
-function ReadyAnimation({ agentName }: { agentName: string }) {
+function ReadyAnimation({ agentName, agentAlias }: { agentName: string; agentAlias?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -456,35 +460,80 @@ function ReadyAnimation({ agentName }: { agentName: string }) {
         👋
       </motion.div>
 
-      {/* Name badge */}
+      {/* Agent name and alias display */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-        className="mt-4 px-4 py-2 bg-green-500/20 rounded-full border border-green-500/30"
+        transition={{ delay: 0.6 }}
+        className="mt-6 text-center"
       >
-        <span className="text-green-400 font-medium">{agentName}</span>
+        {/* Agent name */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="mb-2"
+        >
+          <span className="text-gray-400 text-sm">Your new agent</span>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1, type: 'spring' }}
+          className="px-5 py-2 bg-green-500/20 rounded-xl border border-green-500/30 mb-3"
+        >
+          <span className="text-green-400 font-bold text-lg">{agentName}</span>
+        </motion.div>
+
+        {/* Alias with flair */}
+        {agentAlias && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.5 }}
+            className="space-y-1"
+          >
+            <span className="text-gray-500 text-sm">You can also call them</span>
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 1.8, type: 'spring', damping: 8 }}
+              className="flex items-center justify-center gap-2"
+            >
+              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+                {agentAlias}
+              </span>
+              <motion.span
+                animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
+                transition={{ delay: 2, duration: 0.8 }}
+                className="text-xl"
+              >
+                ✨
+              </motion.span>
+            </motion.div>
+          </motion.div>
+        )}
       </motion.div>
 
-      {/* Celebration confetti */}
-      {[...Array(12)].map((_, i) => (
+      {/* Celebration confetti - more of it! */}
+      {[...Array(16)].map((_, i) => (
         <motion.div
           key={i}
           initial={{ y: 0, opacity: 1, scale: 0 }}
           animate={{
-            y: -150 - Math.random() * 50,
-            x: (Math.random() - 0.5) * 200,
+            y: -180 - Math.random() * 60,
+            x: (Math.random() - 0.5) * 250,
             opacity: 0,
             scale: 1,
             rotate: Math.random() * 360,
           }}
           transition={{
-            duration: 1.5,
-            delay: 0.3 + Math.random() * 0.3,
+            duration: 2,
+            delay: 0.3 + Math.random() * 0.5,
           }}
           className="absolute text-xl"
         >
-          {['🎉', '✨', '🎊', '⭐', '🌟', '💫'][Math.floor(Math.random() * 6)]}
+          {['🎉', '✨', '🎊', '⭐', '🌟', '💫', '🚀', '💜'][Math.floor(Math.random() * 8)]}
         </motion.div>
       ))}
     </motion.div>

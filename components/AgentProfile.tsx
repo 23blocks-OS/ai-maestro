@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   X, User, Users, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
+import DeleteAgentDialog from './DeleteAgentDialog'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -19,9 +20,11 @@ interface AgentProfileProps {
   agentId: string
   sessionStatus?: AgentSessionStatus  // Session status from unified API
   onStartSession?: () => void         // Callback to start a session for offline agents
+  onDeleteAgent?: (agentId: string) => Promise<void>  // Callback to delete agent
+  scrollToDangerZone?: boolean        // Whether to auto-scroll to danger zone
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone }: AgentProfileProps) {
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -31,6 +34,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [newTagValue, setNewTagValue] = useState('')
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Repository state
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -45,8 +49,24 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     repositories: true,
     metrics: true,
     documentation: false,
-    customMetadata: false
+    customMetadata: false,
+    dangerZone: false
   })
+
+  // Ref for danger zone scrolling
+  const dangerZoneRef = useRef<HTMLElement>(null)
+
+  // Auto-scroll to danger zone when requested
+  useEffect(() => {
+    if (scrollToDangerZone && isOpen && !loading && dangerZoneRef.current) {
+      // Expand the danger zone section
+      setExpandedSections(prev => ({ ...prev, dangerZone: true }))
+      // Scroll after a short delay to let the expansion happen
+      setTimeout(() => {
+        dangerZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+    }
+  }, [scrollToDangerZone, isOpen, loading])
 
   // Fetch agent data
   useEffect(() => {
@@ -781,6 +801,45 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </div>
                 )}
               </section>
+
+              {/* Danger Zone Section */}
+              <section ref={dangerZoneRef as React.RefObject<HTMLElement>}>
+                <button
+                  onClick={() => toggleSection('dangerZone')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-500 mb-4 hover:text-red-400 transition-all"
+                >
+                  {expandedSections.dangerZone ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <AlertTriangle className="w-4 h-4" />
+                  Danger Zone
+                </button>
+
+                {expandedSections.dangerZone && (
+                  <div className="p-4 bg-red-500/5 border border-red-500/30 rounded-xl space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                        <Trash2 className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-red-300 mb-1">Delete this agent</h4>
+                        <p className="text-sm text-gray-400 mb-3">
+                          Permanently delete this agent and all associated data. This action cannot be undone.
+                        </p>
+                        <button
+                          onClick={() => setShowDeleteDialog(true)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Agent
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           </>
         )}
@@ -865,6 +924,22 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         <ExportAgentDialog
           isOpen={showExportDialog}
           onClose={() => setShowExportDialog(false)}
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
+        />
+      )}
+
+      {/* Delete Agent Dialog */}
+      {agent && (
+        <DeleteAgentDialog
+          isOpen={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={async () => {
+            if (onDeleteAgent) {
+              await onDeleteAgent(agent.id)
+            }
+          }}
           agentId={agent.id}
           agentAlias={agent.alias}
           agentDisplayName={agent.displayName}

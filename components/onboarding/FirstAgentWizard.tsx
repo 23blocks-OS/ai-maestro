@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Check, AlertCircle, Terminal } from 'lucide-react'
+import CreateAgentAnimation from '../CreateAgentAnimation'
 
 interface FirstAgentWizardProps {
   onComplete: () => void
@@ -14,6 +15,8 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
+  const [animationProgress, setAnimationProgress] = useState(0)
 
   const validateAgentName = (name: string): boolean => {
     // Must be alphanumeric with hyphens/underscores
@@ -53,8 +56,22 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
   const handleCreateAgent = async () => {
     setCreating(true)
     setError(null)
+    setAnimationPhase('preparing')
+    setAnimationProgress(10)
+
+    // Animate preparing phase
+    const prepareInterval = setInterval(() => {
+      setAnimationProgress(prev => Math.min(prev + 5, 30))
+    }, 100)
 
     try {
+      // Transition to creating phase
+      setTimeout(() => {
+        clearInterval(prepareInterval)
+        setAnimationPhase('creating')
+        setAnimationProgress(40)
+      }, 800)
+
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,10 +86,25 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
         throw new Error(data.error || 'Failed to create agent')
       }
 
+      // Animate completion
+      setAnimationProgress(80)
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      setAnimationPhase('ready')
+      setAnimationProgress(100)
+
+      // Short delay to show the celebration
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
       setStep('success')
     } catch (err) {
+      clearInterval(prepareInterval)
+      setAnimationPhase('error')
       setError(err instanceof Error ? err.message : 'Failed to create agent')
-      setStep('directory')
+      // Return to directory step after showing error animation
+      setTimeout(() => {
+        setStep('directory')
+      }, 2000)
     } finally {
       setCreating(false)
     }
@@ -208,32 +240,48 @@ export default function FirstAgentWizard({ onComplete, onCancel }: FirstAgentWiz
           )}
 
           {step === 'creating' && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-full bg-blue-500/10 border-2 border-blue-500 flex items-center justify-center mb-4 animate-pulse">
-                <Terminal className="w-8 h-8 text-blue-400" />
-              </div>
-              <h3 className="text-lg font-medium text-white mb-2">Creating your agent...</h3>
-              <p className="text-sm text-gray-400">This will just take a moment</p>
-            </div>
+            <CreateAgentAnimation
+              phase={animationPhase}
+              agentName={agentName}
+              progress={animationProgress}
+            />
           )}
 
           {step === 'success' && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center mb-4">
-                <Check className="w-8 h-8 text-green-400" />
+            <div className="flex flex-col items-center justify-center py-8">
+              {/* Animated success header */}
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🤖</div>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  Welcome to the team, <span className="text-green-400">{agentName}</span>!
+                </h3>
+                <p className="text-gray-400">
+                  Your new AI companion is ready to help you build amazing things
+                </p>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Agent Created Successfully! 🎉</h3>
-              <p className="text-sm text-gray-400 mb-6 text-center">
-                Your agent <code className="bg-gray-800 px-2 py-0.5 rounded text-blue-400">{agentName}</code> is ready
-              </p>
 
-              <div className="w-full p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-3">Next steps:</h4>
-                <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
-                  <li>Look for your agent in the sidebar (it should appear automatically)</li>
-                  <li>Click on it to open the terminal</li>
-                  <li>Run your AI coding tool: <code className="bg-gray-900 px-2 py-0.5 rounded">claude</code>, <code className="bg-gray-900 px-2 py-0.5 rounded">aider</code>, etc.</li>
-                  <li>Add notes below the terminal to document your work</li>
+              <div className="w-full p-5 bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-xl">
+                <h4 className="text-sm font-medium text-green-400 mb-4 flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Quick Start Guide
+                </h4>
+                <ol className="space-y-3 text-sm text-gray-300">
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span>
+                    <span>Find <code className="bg-gray-800 px-2 py-0.5 rounded text-blue-400">{agentName}</code> in the sidebar</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span>
+                    <span>Click to open the terminal</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span>
+                    <span>Run <code className="bg-gray-800 px-2 py-0.5 rounded">claude</code> or your favorite AI tool</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span>
+                    <span>Start building something awesome! 🚀</span>
+                  </li>
                 </ol>
               </div>
             </div>

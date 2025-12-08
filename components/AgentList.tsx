@@ -28,6 +28,7 @@ import {
   User,
 } from 'lucide-react'
 import Link from 'next/link'
+import CreateAgentAnimation from './CreateAgentAnimation'
 import { useHosts } from '@/hooks/useHosts'
 import { SubconsciousStatus } from './SubconsciousStatus'
 
@@ -757,7 +758,7 @@ function AgentStatusIndicator({ isOnline }: { isOnline: boolean }) {
   )
 }
 
-// Simplified Create Modal
+// Animated Create Modal
 function CreateAgentModal({
   onClose,
   onCreate,
@@ -770,6 +771,30 @@ function CreateAgentModal({
   const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
+  const [animationProgress, setAnimationProgress] = useState(0)
+
+  // Animate through phases when loading
+  useEffect(() => {
+    if (loading) {
+      setAnimationPhase('preparing')
+      setAnimationProgress(20)
+
+      const timer1 = setTimeout(() => {
+        setAnimationPhase('creating')
+        setAnimationProgress(50)
+      }, 600)
+
+      const timer2 = setTimeout(() => {
+        setAnimationProgress(80)
+      }, 1200)
+
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+      }
+    }
+  }, [loading])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -779,62 +804,79 @@ function CreateAgentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-700" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
-                Agent Name *
-              </label>
-              <input
-                id="agent-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="23blocks-api-myagent"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                autoFocus
-                pattern="[a-zA-Z0-9_\-]+"
-                title="Only letters, numbers, dashes, and underscores allowed"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Format: group-subgroup-name (e.g., 23blocks-api-auth)
-              </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={loading ? undefined : onClose}>
+      <div className="bg-gray-900 rounded-xl w-full max-w-md shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {loading ? (
+          // Animated creation view
+          <div className="p-6">
+            <div className="text-center mb-2">
+              <h3 className="text-lg font-semibold text-gray-100">Creating Your Agent</h3>
+              <p className="text-sm text-gray-400">{name}</p>
             </div>
-            <div>
-              <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
-                Working Directory (optional)
-              </label>
-              <input
-                id="working-dir"
-                type="text"
-                value={workingDirectory}
-                onChange={(e) => setWorkingDirectory(e.target.value)}
-                placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              />
-            </div>
+            <CreateAgentAnimation
+              phase={animationPhase}
+              agentName={name}
+              progress={animationProgress}
+            />
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !name.trim()}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
-            >
-              {loading ? 'Creating...' : 'Create Agent'}
-            </button>
+        ) : (
+          // Form view
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
+                    Agent Name *
+                  </label>
+                  <input
+                    id="agent-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="23blocks-api-myagent"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    autoFocus
+                    pattern="[a-zA-Z0-9_\-]+"
+                    title="Only letters, numbers, dashes, and underscores allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Format: group-subgroup-name (e.g., 23blocks-api-auth)
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
+                    Working Directory (optional)
+                  </label>
+                  <input
+                    id="working-dir"
+                    type="text"
+                    value={workingDirectory}
+                    onChange={(e) => setWorkingDirectory(e.target.value)}
+                    placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!name.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
+                >
+                  Create Agent
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        )}
       </div>
     </div>
   )

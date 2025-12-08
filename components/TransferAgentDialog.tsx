@@ -5,6 +5,7 @@ import { X, Send, Copy, Server, AlertCircle, CheckCircle, Loader2, ArrowRight, G
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
 import type { PortableRepository } from '@/types/portable'
+import TransferAnimation from './TransferAnimation'
 
 interface TransferAgentDialogProps {
   agentId: string
@@ -43,6 +44,15 @@ export default function TransferAgentDialog({
   const [progress, setProgress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<TransferResult | null>(null)
+
+  // Animation state
+  const [animationPhase, setAnimationPhase] = useState<'packing' | 'traveling' | 'arriving' | 'ready' | 'error'>('packing')
+  const [animationProgress, setAnimationProgress] = useState(0)
+  const [transferDetails, setTransferDetails] = useState<{
+    messagesImported?: number
+    reposCloned?: number
+    dbSize?: string
+  }>({})
 
   // Repository state
   const [repositories, setRepositories] = useState<PortableRepository[]>([])
@@ -98,6 +108,15 @@ export default function TransferAgentDialog({
     setProgress('Preparing agent export...')
     setError(null)
 
+    // Start animation
+    setAnimationPhase('packing')
+    setAnimationProgress(10)
+
+    // Simulate packing progress
+    const packingInterval = setInterval(() => {
+      setAnimationProgress(prev => Math.min(prev + 5, 30))
+    }, 200)
+
     try {
       // Call the transfer API
       const response = await fetch(`/api/agents/${agentId}/transfer`, {
@@ -144,18 +163,47 @@ export default function TransferAgentDialog({
           }
         }
       } else {
-        // Non-streaming response
+        // Non-streaming response - animate through phases
+        clearInterval(packingInterval)
+
+        // Transition to traveling
+        setAnimationPhase('traveling')
+        setAnimationProgress(40)
+
         const data = await response.json()
 
         if (!response.ok) {
           throw new Error(data.error || 'Transfer failed')
         }
 
+        // Transition to arriving
+        setAnimationPhase('arriving')
+        setAnimationProgress(70)
+
+        // Extract transfer details from response
+        if (data.importResult?.stats) {
+          const stats = data.importResult.stats
+          setTransferDetails({
+            messagesImported: (stats.messagesImported?.inbox || 0) + (stats.messagesImported?.sent || 0),
+            reposCloned: stats.repositoriesCloned || 0,
+            dbSize: stats.databaseImported ? 'Imported' : undefined
+          })
+        }
+
+        // Short delay to show arriving animation
+        await new Promise(resolve => setTimeout(resolve, 1500))
+
+        // Transition to ready
+        setAnimationPhase('ready')
+        setAnimationProgress(100)
+
         setResult(data)
         setStatus('complete')
         onTransferComplete?.(data)
       }
     } catch (err) {
+      clearInterval(packingInterval)
+      setAnimationPhase('error')
       setError(err instanceof Error ? err.message : 'Transfer failed')
       setStatus('error')
     }
@@ -174,6 +222,37 @@ export default function TransferAgentDialog({
   }
 
   const isInProgress = ['exporting', 'transferring', 'importing', 'cleaning'].includes(status)
+
+  // Show the animated transfer screen when in progress or complete
+  if (isInProgress || status === 'complete' || status === 'error') {
+    const currentHostName = 'This machine'
+    const targetHostName = selectedHost?.name || 'Target'
+
+    return (
+      <>
+        <TransferAnimation
+          phase={animationPhase}
+          agentName={agentDisplayName || agentAlias}
+          agentAvatar={undefined}
+          sourceName={currentHostName}
+          targetName={targetHostName}
+          progress={animationProgress}
+          transferDetails={transferDetails}
+        />
+        {/* Close button overlay for complete/error states */}
+        {(status === 'complete' || status === 'error') && (
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+            <button
+              onClick={onClose}
+              className="px-8 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-full font-medium shadow-xl transition-all border border-gray-700"
+            >
+              {status === 'complete' ? 'Done' : 'Close'}
+            </button>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -200,48 +279,9 @@ export default function TransferAgentDialog({
           </button>
         </div>
 
-        {/* Content */}
+        {/* Content - Configuration state */}
         <div className="p-5 space-y-5">
-          {status === 'complete' && result?.success ? (
-            // Success state
-            <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-green-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">
-                {mode === 'move' ? 'Agent Moved!' : 'Agent Cloned!'}
-              </h3>
-              <p className="text-sm text-gray-400 mb-4">
-                {agentDisplayName || agentAlias} has been {mode === 'move' ? 'moved' : 'cloned'} to {selectedHost?.name}
-              </p>
-              {result.newAlias && result.newAlias !== agentAlias && (
-                <p className="text-sm text-blue-400">
-                  New alias: <span className="font-mono">{result.newAlias}</span>
-                </p>
-              )}
-            </div>
-          ) : status === 'error' ? (
-            // Error state
-            <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-red-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Transfer Failed</h3>
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          ) : isInProgress ? (
-            // Progress state
-            <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
-                <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">{getStatusMessage()}</h3>
-              <p className="text-sm text-gray-400">{progress}</p>
-            </div>
-          ) : (
-            // Configuration state
-            <>
-              {/* Target Host Selection */}
+          {/* Target Host Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Target Host
@@ -403,59 +443,36 @@ export default function TransferAgentDialog({
                 )}
               </div>
 
-              {/* Warning for move mode */}
-              {mode === 'move' && (
-                <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-orange-400 mt-0.5" />
-                    <p className="text-sm text-orange-300">
-                      Move mode will delete the agent from this host after successful transfer.
-                      Messages and work history will be transferred to the new host.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
+          {/* Warning for move mode */}
+          {mode === 'move' && (
+            <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-orange-400 mt-0.5" />
+                <p className="text-sm text-orange-300">
+                  Move mode will delete the agent from this host after successful transfer.
+                  Messages and work history will be transferred to the new host.
+                </p>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-800">
-          {status === 'complete' || status === 'error' ? (
-            <button
-              onClick={onClose}
-              className="px-5 py-2.5 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-all font-medium"
-            >
-              Close
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={onClose}
-                disabled={isInProgress}
-                className="px-5 py-2.5 text-gray-400 hover:text-gray-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTransfer}
-                disabled={isInProgress || availableHosts.length === 0 || !selectedHostId}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
-              >
-                {isInProgress ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Transferring...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    {mode === 'move' ? 'Move Agent' : 'Clone Agent'}
-                  </>
-                )}
-              </button>
-            </>
-          )}
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleTransfer}
+            disabled={availableHosts.length === 0 || !selectedHostId}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            {mode === 'move' ? 'Move Agent' : 'Clone Agent'}
+          </button>
         </div>
       </div>
     </div>

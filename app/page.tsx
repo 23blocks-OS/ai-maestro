@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import SessionList from '@/components/SessionList'
+import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import TerminalViewNew from '@/components/TerminalViewNew'
 import ChatView from '@/components/ChatView'
@@ -17,18 +18,36 @@ import MigrationBanner from '@/components/MigrationBanner'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useSessions } from '@/hooks/useSessions'
+import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText } from 'lucide-react'
+import type { UnifiedAgent } from '@/types/agent'
 
 export default function DashboardPage() {
   const { sessions, loading, error, refreshSessions } = useSessions()
+  const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'docs'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [profileAgent, setProfileAgent] = useState<UnifiedAgent | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+
+  // Feature flag for agent-centric sidebar (stored in localStorage)
+  const [useAgentCentricSidebar, setUseAgentCentricSidebar] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('use-agent-centric-sidebar') === 'true'
+  })
+
+  // Save feature flag to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('use-agent-centric-sidebar', String(useAgentCentricSidebar))
+    }
+  }, [useAgentCentricSidebar])
 
   // Check for onboarding completion on mount
   useEffect(() => {
@@ -151,6 +170,62 @@ export default function DashboardPage() {
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
+    // Close the profile panel when switching sessions
+    setIsProfileOpen(false)
+  }
+
+  // Agent-centric handlers
+  const handleAgentSelect = (agent: UnifiedAgent) => {
+    // Only select online agents (which have a session)
+    if (agent.session.status === 'online' && agent.session.tmuxSessionName) {
+      setActiveAgentId(agent.id)
+      setActiveSessionId(agent.session.tmuxSessionName)
+      // Close the profile panel when switching agents
+      setIsProfileOpen(false)
+    }
+  }
+
+  const handleShowAgentProfile = (agent: UnifiedAgent) => {
+    setProfileAgent(agent)
+    setIsProfileOpen(true)
+  }
+
+  const handleStartSession = async (agent: UnifiedAgent) => {
+    try {
+      const sessionName = agent.tools.session?.tmuxSessionName || `${(agent.tags || []).join('-')}-${agent.alias}`.replace(/^-/, '')
+      const workingDirectory = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+
+      const response = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: sessionName,
+          workingDirectory,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create session')
+      }
+
+      // Close profile panel and refresh
+      setIsProfileOpen(false)
+      setProfileAgent(null)
+      refreshSessions()
+      refreshAgents()
+
+      // After a brief delay, select the new session
+      setTimeout(() => {
+        setActiveSessionId(sessionName)
+        const newAgent = agents.find(a => a.session.tmuxSessionName === sessionName)
+        if (newAgent) {
+          setActiveAgentId(newAgent.id)
+        }
+      }, 500)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to start session')
+    }
   }
 
   const toggleSidebar = () => {
@@ -208,15 +283,28 @@ export default function DashboardPage() {
             border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden relative
             ${sidebarCollapsed ? 'w-0' : 'w-80'}
           `}>
-            <SessionList
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSessionSelect={handleSessionSelect}
-              loading={loading}
-              error={error}
-              onRefresh={refreshSessions}
-              onToggleSidebar={toggleSidebar}
-            />
+            {useAgentCentricSidebar ? (
+              <AgentList
+                agents={agents}
+                activeAgentId={activeAgentId}
+                onAgentSelect={handleAgentSelect}
+                onShowAgentProfile={handleShowAgentProfile}
+                loading={agentsLoading}
+                error={agentsError}
+                onRefresh={refreshAgents}
+                stats={agentStats}
+              />
+            ) : (
+              <SessionList
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSessionSelect={handleSessionSelect}
+                loading={loading}
+                error={error}
+                onRefresh={refreshSessions}
+                onToggleSidebar={toggleSidebar}
+              />
+            )}
           </aside>
 
           {/* Main Content */}
@@ -349,7 +437,16 @@ export default function DashboardPage() {
                       <div className="flex items-center">
                         <AgentSubconsciousIndicator agentId={session.agentId} />
                         <button
-                          onClick={() => setIsProfileOpen(true)}
+                          onClick={() => {
+                            // For agent-centric mode, we need to set profileAgent too
+                            if (useAgentCentricSidebar) {
+                              const agent = agents.find(a => a.id === session.agentId)
+                              if (agent) {
+                                setProfileAgent(agent)
+                              }
+                            }
+                            setIsProfileOpen(true)
+                          }}
                           className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
                           title="View Agent Profile"
                         >
@@ -433,7 +530,21 @@ export default function DashboardPage() {
       </footer>
 
       {/* Agent Profile Panel */}
-      {activeSession?.agentId && (
+      {/* When using agent-centric mode, show profile for profileAgent */}
+      {useAgentCentricSidebar && profileAgent && (
+        <AgentProfile
+          isOpen={isProfileOpen}
+          onClose={() => {
+            setIsProfileOpen(false)
+            setProfileAgent(null)
+          }}
+          agentId={profileAgent.id}
+          sessionStatus={profileAgent.session}
+          onStartSession={() => handleStartSession(profileAgent)}
+        />
+      )}
+      {/* When using session-centric mode, show profile for active session's agent */}
+      {!useAgentCentricSidebar && activeSession?.agentId && (
         <AgentProfile
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}

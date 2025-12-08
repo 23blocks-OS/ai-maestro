@@ -214,3 +214,25 @@ export interface UpdateAgentMetricsRequest {
   estimatedCost?: number
   customMetrics?: Record<string, number | string>
 }
+
+/**
+ * Live session status for unified agent view
+ */
+export interface AgentSessionStatus {
+  status: 'online' | 'offline'
+  tmuxSessionName?: string        // Actual tmux session name if online
+  workingDirectory?: string       // Current working directory
+  hostId?: string                 // Host identifier (for remote sessions)
+  hostName?: string               // Human-readable host name
+  lastActivity?: string           // Last activity timestamp (ISO)
+  windows?: number                // Number of tmux windows
+}
+
+/**
+ * Unified Agent - Agent with live session status merged
+ * Used by the agent-centric sidebar
+ */
+export interface UnifiedAgent extends Agent {
+  session: AgentSessionStatus
+  isOrphan: boolean               // True if session exists but agent was auto-registered
+}

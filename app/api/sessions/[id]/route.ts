@@ -2,10 +2,7 @@ import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { unpersistSession } from '@/lib/session-persistence'
-import { deleteAgentBySession } from '@/lib/agent-registry'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
+import { deleteAgentBySession, getAgentBySession } from '@/lib/agent-registry'
 
 const execAsync = promisify(exec)
 
@@ -18,15 +15,12 @@ export async function DELETE(
   try {
     const { id: sessionName } = await params
 
-    // Check if this is a cloud agent
-    const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
-    const isCloudAgent = fs.existsSync(agentFilePath)
+    // Look up the agent associated with this session
+    const agent = getAgentBySession(sessionName)
+    const isCloudAgent = agent?.deployment?.type === 'cloud'
 
     if (isCloudAgent) {
-      // Delete cloud agent configuration file
-      fs.unlinkSync(agentFilePath)
-
-      // Also delete from registry (if agent exists there)
+      // Delete the agent (this will clean up messages, data directories, etc.)
       deleteAgentBySession(sessionName)
 
       return NextResponse.json({ success: true, name: sessionName, type: 'cloud' })

@@ -84,7 +84,7 @@ Agent names (which become tmux session names) must follow these rules:
 - Forward slashes: `/` (for hierarchy)
 
 **Valid examples:**
-- `my-session`
+- `my-agent`
 - `project_alpha`
 - `team/backend/api-v2`
 - `test123`
@@ -92,7 +92,7 @@ Agent names (which become tmux session names) must follow these rules:
 **Invalid examples:**
 - `my session` (spaces not allowed)
 - `project@backend` (special chars not allowed)
-- `user's-session` (apostrophes not allowed)
+- `user's-agent` (apostrophes not allowed)
 
 ## Common Use Cases
 

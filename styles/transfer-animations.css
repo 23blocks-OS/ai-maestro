@@ -1,0 +1,723 @@
+/**
+ * Transfer Animation Delight - CSS Animations
+ *
+ * Whimsical animations for the agent transfer experience.
+ * All animations respect prefers-reduced-motion.
+ */
+
+/* ===== PACKING PHASE ===== */
+
+@keyframes drop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.8);
+  }
+  60% {
+    transform: translateY(5px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes box-fill {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes sparkle-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) rotate(360deg);
+  }
+}
+
+.packing-item {
+  animation: drop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.packing-box {
+  animation: box-fill 0.6s ease-out forwards;
+}
+
+.sparkle {
+  animation: sparkle-pop 1s ease-out forwards;
+}
+
+/* ===== TRAVELING PHASE ===== */
+
+@keyframes rocket-travel {
+  0% {
+    left: 10%;
+    transform: translateY(0) rotate(-15deg);
+  }
+  25% {
+    transform: translateY(-5px) rotate(-10deg);
+  }
+  50% {
+    transform: translateY(5px) rotate(-15deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(-10deg);
+  }
+  100% {
+    left: 90%;
+    transform: translateY(0) rotate(-15deg);
+  }
+}
+
+@keyframes rocket-trail {
+  0% {
+    width: 0;
+    opacity: 1;
+  }
+  100% {
+    width: 40px;
+    opacity: 0;
+  }
+}
+
+@keyframes star-field {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: -1000px 0;
+  }
+}
+
+@keyframes network-pulse {
+  0%, 100% {
+    opacity: 0.2;
+    r: 4;
+  }
+  50% {
+    opacity: 0.6;
+    r: 6;
+  }
+}
+
+@keyframes data-packet-flow {
+  0% {
+    offset-distance: 0%;
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+.rocket {
+  animation: rocket-travel 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
+  position: absolute;
+  top: 50%;
+  transform-origin: center;
+}
+
+.rocket-trail {
+  animation: rocket-trail 0.5s ease-out infinite;
+}
+
+.star-field {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 100px,
+    rgba(255, 255, 255, 0.1) 100px,
+    rgba(255, 255, 255, 0.1) 101px
+  );
+  animation: star-field 2s linear infinite;
+}
+
+/* ===== ARRIVING PHASE ===== */
+
+@keyframes confetti-pop {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100px) rotate(720deg) scale(0.5);
+  }
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(150px) rotate(360deg);
+  }
+}
+
+@keyframes banner-unfurl {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+    opacity: 0;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes door-open {
+  0% {
+    transform: perspective(400px) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(400px) rotateY(-90deg);
+  }
+}
+
+@keyframes unpack-float {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes land-bounce {
+  0% {
+    transform: translateY(-50px) scale(0.8);
+  }
+  50% {
+    transform: translateY(10px) scale(1.1);
+  }
+  70% {
+    transform: translateY(-5px) scale(0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.confetti {
+  animation: confetti-pop 1s ease-out forwards;
+}
+
+.confetti-alt {
+  animation: confetti-fall 2s ease-in forwards;
+}
+
+.banner {
+  animation: banner-unfurl 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.unpack-item {
+  animation: unpack-float 0.5s ease-out forwards;
+}
+
+.landing {
+  animation: land-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ===== READY PHASE ===== */
+
+@keyframes fill-bar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes power-up-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+
+@keyframes check-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-45deg);
+  }
+  60% {
+    transform: scale(1.2) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes press-start-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes target-lock {
+  0% {
+    transform: scale(1.5) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+    opacity: 0.8;
+  }
+}
+
+.status-bar {
+  animation: fill-bar 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.power-up {
+  animation: power-up-glow 1.5s ease-in-out infinite;
+}
+
+.check-mark {
+  animation: check-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.press-start {
+  animation: press-start-pulse 2s ease-in-out infinite;
+}
+
+/* ===== ERROR PHASE ===== */
+
+@keyframes sympathetic-wobble {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-5deg) translateX(-2px);
+  }
+  50% {
+    transform: rotate(5deg) translateX(2px);
+  }
+  75% {
+    transform: rotate(-3deg) translateX(-1px);
+  }
+}
+
+@keyframes band-aid-stick {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotate(0deg);
+  }
+  60% {
+    transform: translateY(5px) rotate(45deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(45deg);
+  }
+}
+
+@keyframes sweat-drop {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.5);
+  }
+}
+
+@keyframes confused-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-5px) rotate(5deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(-5deg);
+  }
+}
+
+@keyframes retry-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@keyframes tool-wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+
+.error-wobble {
+  animation: sympathetic-wobble 0.5s ease-in-out;
+}
+
+.band-aid {
+  animation: band-aid-stick 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.sweat-drop {
+  animation: sweat-drop 1s ease-in forwards;
+}
+
+.confused {
+  animation: confused-float 2s ease-in-out infinite;
+}
+
+.retry-button {
+  animation: retry-pulse 2s ease-in-out infinite;
+}
+
+.repair-tool {
+  animation: tool-wiggle 0.5s ease-in-out infinite;
+}
+
+/* ===== SHARED ANIMATIONS ===== */
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rotate-gentle {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-gentle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-out forwards;
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slide-in-down {
+  animation: slide-in-down 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-rotate {
+  animation: rotate-gentle 2s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse-gentle 2s ease-in-out infinite;
+}
+
+/* ===== EASTER EGG ANIMATIONS ===== */
+
+@keyframes retro-pixel {
+  0%, 100% {
+    filter: contrast(1) brightness(1);
+  }
+  50% {
+    filter: contrast(1.2) brightness(1.1);
+  }
+}
+
+@keyframes achievement-slide {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  20%, 80% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes birthday-cake {
+  0% {
+    transform: translateY(100px) scale(0.5) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(-10px) scale(1.1) rotate(5deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.retro-mode {
+  animation: retro-pixel 0.5s ease-in-out infinite;
+  image-rendering: pixelated;
+  font-family: 'Courier New', monospace;
+}
+
+.achievement-toast {
+  animation: achievement-slide 4s ease-in-out forwards;
+}
+
+.birthday-cake {
+  animation: birthday-cake 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ===== LOADING STATES ===== */
+
+@keyframes loading-dots {
+  0%, 20% {
+    content: '.';
+  }
+  40% {
+    content: '..';
+  }
+  60%, 100% {
+    content: '...';
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.loading-text::after {
+  content: '';
+  animation: loading-dots 1.5s steps(4, end) infinite;
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ===== ACCESSIBILITY ===== */
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Show final state immediately */
+  .packing-item,
+  .rocket,
+  .confetti,
+  .status-bar,
+  .banner,
+  .unpack-item {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Keep essential feedback */
+  .retry-button {
+    animation: none !important;
+  }
+
+  .retry-button:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+  .sparkle,
+  .star-field,
+  .shimmer {
+    opacity: 0.5;
+  }
+
+  .status-bar,
+  .banner,
+  .retry-button {
+    border: 2px solid currentColor;
+  }
+}
+
+/* ===== PARTICLE HELPERS ===== */
+
+/* Stagger delays for multiple elements */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+/* Color variants for particles */
+.particle-blue { color: #3b82f6; }
+.particle-green { color: #10b981; }
+.particle-orange { color: #f59e0b; }
+.particle-red { color: #ef4444; }
+.particle-purple { color: #8b5cf6; }
+.particle-yellow { color: #eab308; }
+
+/* Size variants */
+.particle-sm { font-size: 0.75rem; }
+.particle-md { font-size: 1rem; }
+.particle-lg { font-size: 1.5rem; }
+.particle-xl { font-size: 2rem; }
+
+/* ===== UTILITY CLASSES ===== */
+
+.spring-bounce {
+  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ease-out-expo {
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ease-in-out-back {
+  animation-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

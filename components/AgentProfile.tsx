@@ -1,14 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   X, User, Users, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
-  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder
+  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle
 } from 'lucide-react'
-import type { Agent, AgentDocumentation, AgentSessionStatus } from '@/types/agent'
+import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
+import TransferAgentDialog from './TransferAgentDialog'
+import ExportAgentDialog from './ExportAgentDialog'
+import DeleteAgentDialog from './DeleteAgentDialog'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -16,9 +20,11 @@ interface AgentProfileProps {
   agentId: string
   sessionStatus?: AgentSessionStatus  // Session status from unified API
   onStartSession?: () => void         // Callback to start a session for offline agents
+  onDeleteAgent?: (agentId: string) => Promise<void>  // Callback to delete agent
+  scrollToDangerZone?: boolean        // Whether to auto-scroll to danger zone
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone }: AgentProfileProps) {
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -26,16 +32,41 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [editingField, setEditingField] = useState<string | null>(null)
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [newTagValue, setNewTagValue] = useState('')
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  // Repository state
+  const [repositories, setRepositories] = useState<Repository[]>([])
+  const [loadingRepos, setLoadingRepos] = useState(false)
+  const [detectingRepos, setDetectingRepos] = useState(false)
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
     work: true,
     deployment: true,
+    repositories: true,
     metrics: true,
     documentation: false,
-    customMetadata: false
+    customMetadata: false,
+    dangerZone: false
   })
+
+  // Ref for danger zone scrolling
+  const dangerZoneRef = useRef<HTMLElement>(null)
+
+  // Auto-scroll to danger zone when requested
+  useEffect(() => {
+    if (scrollToDangerZone && isOpen && !loading && dangerZoneRef.current) {
+      // Expand the danger zone section
+      setExpandedSections(prev => ({ ...prev, dangerZone: true }))
+      // Scroll after a short delay to let the expansion happen
+      setTimeout(() => {
+        dangerZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+    }
+  }, [scrollToDangerZone, isOpen, loading])
 
   // Fetch agent data
   useEffect(() => {
@@ -58,6 +89,50 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
     fetchAgent()
   }, [isOpen, agentId])
+
+  // Fetch repositories when agent loads
+  useEffect(() => {
+    if (!isOpen || !agentId) return
+
+    const fetchRepos = async () => {
+      setLoadingRepos(true)
+      try {
+        const response = await fetch(`/api/agents/${agentId}/repos`)
+        if (response.ok) {
+          const data = await response.json()
+          setRepositories(data.repositories || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch repos:', error)
+      } finally {
+        setLoadingRepos(false)
+      }
+    }
+
+    fetchRepos()
+  }, [isOpen, agentId])
+
+  // Detect repositories from working directory
+  const handleDetectRepos = async () => {
+    setDetectingRepos(true)
+    try {
+      const response = await fetch(`/api/agents/${agentId}/repos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detectFromWorkingDir: true })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.repositories) {
+          setRepositories(data.repositories)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to detect repos:', error)
+    } finally {
+      setDetectingRepos(false)
+    }
+  }
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
@@ -163,7 +238,26 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             {/* Header */}
             <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Export Button */}
+                <button
+                  onClick={() => setShowExportDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-gray-200"
+                  title="Export Agent"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                {/* Transfer Button */}
+                <button
+                  onClick={() => setShowTransferDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-blue-400"
+                  title="Transfer to Another Host"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700 mx-1" />
+                {/* Save Button */}
                 <button
                   onClick={handleSave}
                   disabled={!hasChanges || saving}
@@ -483,6 +577,121 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
+              {/* Repositories Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('repositories')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.repositories ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <FolderGit2 className="w-4 h-4" />
+                  Git Repositories
+                  {repositories.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded">
+                      {repositories.length}
+                    </span>
+                  )}
+                </button>
+
+                {expandedSections.repositories && (
+                  <div className="space-y-3">
+                    {loadingRepos ? (
+                      <div className="flex items-center gap-2 text-gray-400 text-sm p-4 bg-gray-800/50 rounded-lg">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Loading repositories...
+                      </div>
+                    ) : repositories.length === 0 ? (
+                      <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                        <p className="text-sm text-gray-400 mb-3">
+                          No repositories detected. Click below to scan the working directory.
+                        </p>
+                        <button
+                          onClick={handleDetectRepos}
+                          disabled={detectingRepos}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                        >
+                          {detectingRepos ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Detecting...
+                            </>
+                          ) : (
+                            <>
+                              <FolderGit2 className="w-4 h-4" />
+                              Detect Repositories
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Repository list */}
+                        {repositories.map((repo, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-all"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                                <GitBranch className="w-5 h-5 text-orange-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-semibold text-gray-100">{repo.name}</span>
+                                  {repo.isPrimary && (
+                                    <span className="px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded">
+                                      primary
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate mb-1" title={repo.remoteUrl}>
+                                  {repo.remoteUrl}
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-gray-400">
+                                  {repo.currentBranch && (
+                                    <span className="flex items-center gap-1">
+                                      <GitBranch className="w-3 h-3" />
+                                      {repo.currentBranch}
+                                    </span>
+                                  )}
+                                  {repo.lastCommit && (
+                                    <span className="font-mono">{repo.lastCommit}</span>
+                                  )}
+                                </div>
+                                {repo.localPath && (
+                                  <div className="text-xs text-gray-500 mt-2 flex items-center gap-1 truncate" title={repo.localPath}>
+                                    <Folder className="w-3 h-3" />
+                                    {repo.localPath}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Detect more button */}
+                        <button
+                          onClick={handleDetectRepos}
+                          disabled={detectingRepos}
+                          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-all disabled:opacity-50"
+                        >
+                          {detectingRepos ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                          Refresh
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </section>
+
               {/* Metrics Section */}
               <section>
                 <button
@@ -592,6 +801,45 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </div>
                 )}
               </section>
+
+              {/* Danger Zone Section */}
+              <section ref={dangerZoneRef as React.RefObject<HTMLElement>}>
+                <button
+                  onClick={() => toggleSection('dangerZone')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-500 mb-4 hover:text-red-400 transition-all"
+                >
+                  {expandedSections.dangerZone ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <AlertTriangle className="w-4 h-4" />
+                  Danger Zone
+                </button>
+
+                {expandedSections.dangerZone && (
+                  <div className="p-4 bg-red-500/5 border border-red-500/30 rounded-xl space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                        <Trash2 className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-red-300 mb-1">Delete this agent</h4>
+                        <p className="text-sm text-gray-400 mb-3">
+                          Permanently delete this agent and all associated data. This action cannot be undone.
+                        </p>
+                        <button
+                          onClick={() => setShowDeleteDialog(true)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Agent
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           </>
         )}
@@ -651,6 +899,51 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Transfer Agent Dialog */}
+      {showTransferDialog && agent && (
+        <TransferAgentDialog
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
+          currentHostId={agent.deployment?.local?.hostname === 'localhost' ? 'local' : undefined}
+          onClose={() => setShowTransferDialog(false)}
+          onTransferComplete={(result) => {
+            if (result.success && result.mode === 'move') {
+              // Agent was moved, close the profile
+              onClose()
+            }
+            setShowTransferDialog(false)
+          }}
+        />
+      )}
+
+      {/* Export Agent Dialog */}
+      {agent && (
+        <ExportAgentDialog
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
+        />
+      )}
+
+      {/* Delete Agent Dialog */}
+      {agent && (
+        <DeleteAgentDialog
+          isOpen={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={async () => {
+            if (onDeleteAgent) {
+              await onDeleteAgent(agent.id)
+            }
+          }}
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
+        />
       )}
     </>
   )

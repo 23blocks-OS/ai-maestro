@@ -3,7 +3,7 @@
  * Types for exporting and importing agents between AI Maestro instances
  */
 
-import type { Agent } from './agent'
+import type { Agent, Repository } from './agent'
 
 /**
  * Export manifest that describes the exported agent package
@@ -31,7 +31,20 @@ export interface AgentExportManifest {
       archived: number         // Number of archived messages
     }
   }
+  // Git repositories the agent works with (for cloning on import)
+  repositories?: PortableRepository[]
   checksum?: string            // Optional SHA-256 checksum of contents
+}
+
+/**
+ * Repository info for portable export (excludes local paths)
+ */
+export interface PortableRepository {
+  name: string                 // Friendly name
+  remoteUrl: string            // Git remote URL (required for cloning)
+  defaultBranch?: string       // Default branch
+  isPrimary?: boolean          // Is this the primary repo
+  originalPath?: string        // Original local path (for reference only)
 }
 
 /**
@@ -42,6 +55,19 @@ export interface AgentImportOptions {
   newId?: boolean              // Generate a new ID instead of keeping original
   skipMessages?: boolean       // Don't import messages
   overwrite?: boolean          // Overwrite existing agent with same alias
+
+  // Repository handling
+  cloneRepositories?: boolean  // Whether to clone repos on import
+  repositoryMappings?: RepositoryMapping[]  // Custom path mappings for repos
+}
+
+/**
+ * Mapping of repository to local path on target machine
+ */
+export interface RepositoryMapping {
+  remoteUrl: string            // The git remote URL to identify the repo
+  localPath: string            // Where to clone or find the repo on target
+  skip?: boolean               // Skip this repo (don't clone)
 }
 
 /**
@@ -60,7 +86,22 @@ export interface AgentImportResult {
       sent: number
       archived: number
     }
+    repositoriesCloned?: number  // Number of repos cloned
+    repositoriesSkipped?: number // Number of repos skipped
   }
+  // Details about repository handling
+  repositoryResults?: RepositoryImportResult[]
+}
+
+/**
+ * Result of importing/cloning a single repository
+ */
+export interface RepositoryImportResult {
+  name: string
+  remoteUrl: string
+  status: 'cloned' | 'skipped' | 'exists' | 'failed'
+  localPath?: string           // Where the repo now exists
+  error?: string               // Error message if failed
 }
 
 /**

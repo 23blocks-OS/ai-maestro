@@ -27,12 +27,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           )}
           <h1 className="text-sm text-white">AI Maestro</h1>
         </div>
-        <a
-          href={immersiveUrl}
-          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-        >
-          Immersive Experience
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={immersiveUrl}
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            Immersive Experience
+          </a>
+        </div>
       </div>
     </header>
   )

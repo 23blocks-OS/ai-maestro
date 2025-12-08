@@ -47,7 +47,11 @@ function formatTimeAgo(timestamp: number | null): string {
   return `${days}d ago`
 }
 
-export function SubconsciousStatus() {
+interface SubconsciousStatusProps {
+  refreshTrigger?: number  // Increment this to force a refresh
+}
+
+export function SubconsciousStatus({ refreshTrigger }: SubconsciousStatusProps = {}) {
   const [status, setStatus] = useState<SubconsciousStatusData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +81,13 @@ export function SubconsciousStatus() {
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
   }, [fetchStatus])
+
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      fetchStatus()
+    }
+  }, [refreshTrigger, fetchStatus])
 
   // Close popover on outside click
   useEffect(() => {

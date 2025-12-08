@@ -26,8 +26,10 @@ import {
   Wifi,
   WifiOff,
   User,
+  Upload,
 } from 'lucide-react'
 import Link from 'next/link'
+import CreateAgentAnimation from './CreateAgentAnimation'
 import { useHosts } from '@/hooks/useHosts'
 import { SubconsciousStatus } from './SubconsciousStatus'
 
@@ -36,6 +38,8 @@ interface AgentListProps {
   activeAgentId: string | null
   onAgentSelect: (agent: UnifiedAgent) => void
   onShowAgentProfile: (agent: UnifiedAgent) => void
+  onShowAgentProfileDangerZone?: (agent: UnifiedAgent) => void  // Opens profile scrolled to danger zone
+  onImportAgent?: () => void  // Opens import dialog
   loading?: boolean
   error?: Error | null
   onRefresh?: () => void
@@ -45,6 +49,7 @@ interface AgentListProps {
     offline: number
     orphans: number
   } | null
+  subconsciousRefreshTrigger?: number  // Increment to force subconscious status refresh
 }
 
 /**
@@ -132,10 +137,13 @@ export default function AgentList({
   activeAgentId,
   onAgentSelect,
   onShowAgentProfile,
+  onShowAgentProfileDangerZone,
+  onImportAgent,
   loading,
   error,
   onRefresh,
   stats,
+  subconsciousRefreshTrigger,
 }: AgentListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -325,8 +333,9 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string) => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string): Promise<boolean> => {
     setActionLoading(true)
+
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
@@ -339,13 +348,18 @@ export default function AgentList({
         throw new Error(data.error || 'Failed to create agent')
       }
 
-      setShowCreateModal(false)
-      onRefresh?.()
+      return true // Success - modal will handle showing celebration
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to create session')
+      return false
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const handleCreateComplete = () => {
+    setShowCreateModal(false)
+    onRefresh?.()
   }
 
   return (
@@ -378,6 +392,16 @@ export default function AgentList({
             >
               <Plus className="w-4 h-4" />
             </button>
+            {onImportAgent && (
+              <button
+                onClick={onImportAgent}
+                className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-purple-400 hover:text-purple-300 hover:scale-110"
+                aria-label="Import agent"
+                title="Import agent"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onRefresh}
               disabled={loading}
@@ -687,6 +711,18 @@ export default function AgentList({
                                             >
                                               <Edit2 className="w-3 h-3" />
                                             </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                if (onShowAgentProfileDangerZone) {
+                                                  onShowAgentProfileDangerZone(agent)
+                                                }
+                                              }}
+                                              className="p-1 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all duration-200"
+                                              title="Delete agent"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
                                           </div>
                                         </div>
                                       </div>
@@ -712,7 +748,7 @@ export default function AgentList({
 
       {/* Footer */}
       <div className="border-t border-sidebar-border px-3 py-3 mt-auto space-y-1">
-        <SubconsciousStatus />
+        <SubconsciousStatus refreshTrigger={subconsciousRefreshTrigger} />
 
         <Link
           href="/settings"
@@ -732,6 +768,7 @@ export default function AgentList({
         <CreateAgentModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateAgent}
+          onComplete={handleCreateComplete}
           loading={actionLoading}
         />
       )}
@@ -757,84 +794,240 @@ function AgentStatusIndicator({ isOnline }: { isOnline: boolean }) {
   )
 }
 
-// Simplified Create Modal
+// Animated Create Modal
 function CreateAgentModal({
   onClose,
   onCreate,
+  onComplete,
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string) => void
+  onCreate: (name: string, workingDirectory?: string, hostId?: string) => Promise<boolean>
+  onComplete: () => void
   loading: boolean
 }) {
   const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
+  const [animationProgress, setAnimationProgress] = useState(0)
+  const [isCreating, setIsCreating] = useState(false)  // Animation in progress
+  const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
+  const [showButton, setShowButton] = useState(false)  // Show "Let's Go!" button
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fun AI-themed aliases - names ending in AI or IA (Spanish for AI)
+  const AI_ALIASES = [
+    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
+    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
+    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI', 'DataIA',
+    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA',
+    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI', 'UgAI',
+  ]
+
+  // Get a random alias based on the agent name (deterministic)
+  const getRandomAlias = (agentName: string): string => {
+    const hash = agentName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return AI_ALIASES[hash % AI_ALIASES.length]
+  }
+
+  // Animate through phases when creating - spread over 10 seconds for a delightful experience
+  useEffect(() => {
+    if (isCreating) {
+      // Reset and start animation sequence
+      setAnimationPhase('preparing')
+      setAnimationProgress(5)
+
+      // Progress updates for preparing phase (0-2.5s)
+      const timer1 = setTimeout(() => {
+        setAnimationProgress(12)
+      }, 500)
+
+      const timer2 = setTimeout(() => {
+        setAnimationProgress(20)
+      }, 1000)
+
+      const timer3 = setTimeout(() => {
+        setAnimationProgress(28)
+      }, 1800)
+
+      // Transition to creating phase (2.5s)
+      const timer4 = setTimeout(() => {
+        setAnimationPhase('creating')
+        setAnimationProgress(35)
+      }, 2500)
+
+      // Progress updates for creating phase (2.5-6s)
+      const timer5 = setTimeout(() => {
+        setAnimationProgress(45)
+      }, 3200)
+
+      const timer6 = setTimeout(() => {
+        setAnimationProgress(55)
+      }, 3900)
+
+      const timer7 = setTimeout(() => {
+        setAnimationProgress(65)
+      }, 4600)
+
+      const timer8 = setTimeout(() => {
+        setAnimationProgress(78)
+      }, 5300)
+
+      const timer9 = setTimeout(() => {
+        setAnimationProgress(90)
+      }, 6000)
+
+      // Transition to ready/celebration phase (6.5s)
+      const timer10 = setTimeout(() => {
+        setAnimationPhase('ready')
+        setAnimationProgress(100)
+      }, 6500)
+
+      // Show the "Let's Go!" button after celebration animations complete (8s)
+      const timer11 = setTimeout(() => {
+        if (creationSuccess) {
+          setShowButton(true)
+        }
+      }, 8000)
+
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+        clearTimeout(timer3)
+        clearTimeout(timer4)
+        clearTimeout(timer5)
+        clearTimeout(timer6)
+        clearTimeout(timer7)
+        clearTimeout(timer8)
+        clearTimeout(timer9)
+        clearTimeout(timer10)
+        clearTimeout(timer11)
+      }
+    }
+  }, [isCreating, creationSuccess])
+
+  // Show button when API completes successfully and we're in ready phase
+  useEffect(() => {
+    if (creationSuccess && animationPhase === 'ready') {
+      // Small delay after reaching ready phase to let animations settle
+      const timer = setTimeout(() => {
+        setShowButton(true)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [creationSuccess, animationPhase])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onCreate(name.trim(), workingDirectory.trim() || undefined)
+      setIsCreating(true)
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined)
+      if (success) {
+        setCreationSuccess(true)
+        // Animation continues, user will click "Let's Go!" to close
+      } else {
+        // Error occurred, close modal
+        setIsCreating(false)
+      }
     }
   }
 
+  const handleLetsGo = () => {
+    onComplete()
+  }
+
+  // Show animation when creating or when celebration is showing
+  const showAnimation = isCreating || creationSuccess
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-700" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
-                Agent Name *
-              </label>
-              <input
-                id="agent-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="23blocks-api-myagent"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                autoFocus
-                pattern="[a-zA-Z0-9_\-]+"
-                title="Only letters, numbers, dashes, and underscores allowed"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Format: group-subgroup-name (e.g., 23blocks-api-auth)
-              </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={showAnimation ? undefined : onClose}>
+      <div className="bg-gray-900 rounded-xl w-full max-w-md shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {showAnimation ? (
+          // Animated creation view
+          <div className="p-6">
+            <div className="text-center mb-2">
+              <h3 className="text-lg font-semibold text-gray-100">
+                {animationPhase === 'ready' ? 'Your Agent is Ready!' : 'Creating Your Agent'}
+              </h3>
+              {animationPhase !== 'ready' && <p className="text-sm text-gray-400">{name}</p>}
             </div>
-            <div>
-              <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
-                Working Directory (optional)
-              </label>
-              <input
-                id="working-dir"
-                type="text"
-                value={workingDirectory}
-                onChange={(e) => setWorkingDirectory(e.target.value)}
-                placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              />
-            </div>
+            <CreateAgentAnimation
+              phase={animationPhase}
+              agentName={name}
+              agentAlias={getRandomAlias(name)}
+              progress={animationProgress}
+            />
+            {/* Let's Go button - appears after celebration */}
+            {showButton && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleLetsGo}
+                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                >
+                  <span>Let&apos;s Go!</span>
+                  <span className="text-lg">🚀</span>
+                </button>
+              </div>
+            )}
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !name.trim()}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
-            >
-              {loading ? 'Creating...' : 'Create Agent'}
-            </button>
+        ) : (
+          // Form view
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
+                    Agent Name *
+                  </label>
+                  <input
+                    id="agent-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="23blocks-api-myagent"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    autoFocus
+                    pattern="[a-zA-Z0-9_\-]+"
+                    title="Only letters, numbers, dashes, and underscores allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Format: group-subgroup-name (e.g., 23blocks-api-auth)
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
+                    Working Directory (optional)
+                  </label>
+                  <input
+                    id="working-dir"
+                    type="text"
+                    value={workingDirectory}
+                    onChange={(e) => setWorkingDirectory(e.target.value)}
+                    placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!name.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
+                >
+                  Create Agent
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+        )}
       </div>
     </div>
   )

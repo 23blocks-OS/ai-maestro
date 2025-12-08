@@ -20,7 +20,11 @@ import {
   MapIcon,
   File,
   X,
-  ExternalLink
+  ExternalLink,
+  Folder,
+  FolderOpen,
+  LayoutGrid,
+  FolderTree
 } from 'lucide-react'
 
 interface DocStats {
@@ -89,6 +93,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
   const [docContent, setDocContent] = useState<any | null>(null)
   const [loadingDoc, setLoadingDoc] = useState(false)
   const [activeView, setActiveView] = useState<'browse' | 'search'>('browse')
+  const [groupBy, setGroupBy] = useState<'type' | 'folder'>('folder')  // Default to folder view
 
   // Update project path when workingDirectory prop changes
   useEffect(() => {
@@ -266,6 +271,30 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     return acc
   }, {} as Record<string, DocumentMeta[]>)
 
+  // Group documents by folder (relative to working directory)
+  const documentsByFolder = documents.reduce((acc, doc) => {
+    // Get relative path from working directory
+    let relativePath = doc.filePath
+    if (workingDirectory && doc.filePath.startsWith(workingDirectory)) {
+      relativePath = doc.filePath.slice(workingDirectory.length).replace(/^\//, '')
+    }
+
+    // Extract folder path (everything except the filename)
+    const parts = relativePath.split('/')
+    const folderPath = parts.length > 1 ? parts.slice(0, -1).join('/') : '(root)'
+
+    if (!acc[folderPath]) acc[folderPath] = []
+    acc[folderPath].push(doc)
+    return acc
+  }, {} as Record<string, DocumentMeta[]>)
+
+  // Sort folder keys alphabetically
+  const sortedFolderKeys = Object.keys(documentsByFolder).sort((a, b) => {
+    if (a === '(root)') return -1
+    if (b === '(root)') return 1
+    return a.localeCompare(b)
+  })
+
   // Handle search on Enter
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
@@ -348,7 +377,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
 
         {/* Stats Bar */}
         {stats && stats.documents > 0 && (
-          <div className="flex flex-wrap gap-3 mb-4 text-sm">
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 rounded">
               <FileText className="w-3.5 h-3.5 text-blue-400" />
               <span className="text-gray-400">Docs:</span>
@@ -363,6 +392,29 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
               <Search className="w-3.5 h-3.5 text-purple-400" />
               <span className="text-gray-400">Chunks:</span>
               <span className="font-medium">{stats.chunks}</span>
+            </div>
+            {/* Group by toggle */}
+            <div className="ml-auto flex items-center gap-1 bg-gray-800 rounded p-0.5">
+              <button
+                onClick={() => setGroupBy('folder')}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  groupBy === 'folder' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                }`}
+                title="Group by folder"
+              >
+                <FolderTree className="w-3.5 h-3.5" />
+                Folders
+              </button>
+              <button
+                onClick={() => setGroupBy('type')}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  groupBy === 'type' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                }`}
+                title="Group by type"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Types
+              </button>
             </div>
           </div>
         )}
@@ -511,48 +563,109 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
           <div className="flex-1 flex min-h-0">
             {/* Document List */}
             <div className="w-80 flex-shrink-0 border-r border-gray-800 overflow-y-auto">
-              {Object.entries(documentsByType).map(([type, docs]) => {
-                const typeConfig = DOC_TYPE_CONFIG[type] || DOC_TYPE_CONFIG.doc
-                const Icon = typeConfig.icon
-                const isExpanded = expandedTypes.has(type)
+              {groupBy === 'folder' ? (
+                /* Folder-based grouping */
+                sortedFolderKeys.map((folderPath) => {
+                  const docs = [...documentsByFolder[folderPath]].sort((a, b) => {
+                    const nameA = (a.title || a.filePath.split('/').pop() || '').toLowerCase()
+                    const nameB = (b.title || b.filePath.split('/').pop() || '').toLowerCase()
+                    return nameA.localeCompare(nameB)
+                  })
+                  const isExpanded = expandedTypes.has(`folder:${folderPath}`)
+                  const displayPath = folderPath === '(root)' ? 'Root' : folderPath
 
-                return (
-                  <div key={type} className="border-b border-gray-800">
-                    <button
-                      onClick={() => toggleType(type)}
-                      className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-800 transition-colors"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                  return (
+                    <div key={folderPath} className="border-b border-gray-800">
+                      <button
+                        onClick={() => toggleType(`folder:${folderPath}`)}
+                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-800 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-500" />
+                        )}
+                        {isExpanded ? (
+                          <FolderOpen className="w-4 h-4 text-yellow-500" />
+                        ) : (
+                          <Folder className="w-4 h-4 text-yellow-500" />
+                        )}
+                        <span className="flex-1 text-left text-sm font-medium truncate" title={displayPath}>
+                          {displayPath}
+                        </span>
+                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+                          {docs.length}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="bg-gray-850">
+                          {docs.map((doc) => {
+                            const typeConfig = DOC_TYPE_CONFIG[doc.docType] || DOC_TYPE_CONFIG.doc
+                            const TypeIcon = typeConfig.icon
+                            return (
+                              <button
+                                key={doc.docId}
+                                onClick={() => fetchDocContent(doc)}
+                                className={`w-full flex items-center gap-2 px-4 py-2 pl-10 text-left hover:bg-gray-800 transition-colors ${
+                                  selectedDoc?.docId === doc.docId ? 'bg-gray-800 border-l-2 border-blue-500' : ''
+                                }`}
+                              >
+                                <TypeIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: typeConfig.color }} />
+                                <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
                       )}
-                      <Icon className="w-4 h-4" style={{ color: typeConfig.color }} />
-                      <span className="flex-1 text-left text-sm font-medium">{typeConfig.label}</span>
-                      <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
-                        {docs.length}
-                      </span>
-                    </button>
+                    </div>
+                  )
+                })
+              ) : (
+                /* Type-based grouping */
+                Object.entries(documentsByType).map(([type, docs]) => {
+                  const typeConfig = DOC_TYPE_CONFIG[type] || DOC_TYPE_CONFIG.doc
+                  const Icon = typeConfig.icon
+                  const isExpanded = expandedTypes.has(type)
 
-                    {isExpanded && (
-                      <div className="bg-gray-850">
-                        {docs.map((doc) => (
-                          <button
-                            key={doc.docId}
-                            onClick={() => fetchDocContent(doc)}
-                            className={`w-full flex items-center gap-2 px-4 py-2 pl-10 text-left hover:bg-gray-800 transition-colors ${
-                              selectedDoc?.docId === doc.docId ? 'bg-gray-800 border-l-2 border-blue-500' : ''
-                            }`}
-                          >
-                            <File className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                            <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  return (
+                    <div key={type} className="border-b border-gray-800">
+                      <button
+                        onClick={() => toggleType(type)}
+                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-800 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-500" />
+                        )}
+                        <Icon className="w-4 h-4" style={{ color: typeConfig.color }} />
+                        <span className="flex-1 text-left text-sm font-medium">{typeConfig.label}</span>
+                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+                          {docs.length}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="bg-gray-850">
+                          {docs.map((doc) => (
+                            <button
+                              key={doc.docId}
+                              onClick={() => fetchDocContent(doc)}
+                              className={`w-full flex items-center gap-2 px-4 py-2 pl-10 text-left hover:bg-gray-800 transition-colors ${
+                                selectedDoc?.docId === doc.docId ? 'bg-gray-800 border-l-2 border-blue-500' : ''
+                              }`}
+                            >
+                              <File className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm truncate">{doc.title || doc.filePath.split('/').pop()}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
 
             {/* Document Preview */}

@@ -26,13 +26,13 @@ Before starting, ensure you have:
 
 ## 1. Quick Start: Your First Agent
 
-### Step 1: Create a tmux Session
+### Step 1: Create an Agent
 
 ```bash
 # Navigate to your project directory
 cd ~/projects/my-app
 
-# Start a new tmux session with a descriptive name
+# Create an agent (this starts a tmux session for it)
 tmux new-session -s my-app-dev
 
 # You're now inside tmux - your prompt should show a green bar at bottom
@@ -180,10 +180,10 @@ You can now manage agents directly from the dashboard UI!
 
 You can also manage agents via terminal commands:
 
-### List All Sessions
+### List All Agents
 
 ```bash
-# Show all running tmux sessions
+# Show all running agents (via tmux)
 tmux list-sessions
 # or shorthand:
 tmux ls
@@ -275,14 +275,14 @@ tmux send-keys -t db-migration 'copilot' C-m
 - Safe to interact
 
 **Ended** ⚪
-- tmux session was killed
+- Agent was terminated (tmux session killed)
 - AI tool exited
 - Appears in dashboard until refresh
 
 ### Typical Workflow
 
 ```bash
-# Morning: Start work sessions
+# Morning: Start agents
 cd ~/projects/app-a && tmux new -s app-a -d && tmux send-keys -t app-a 'claude' C-m
 cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'aider' C-m
 
@@ -294,7 +294,7 @@ cd ~/agents-web && yarn dev
 # Evening: Review what's running
 tmux ls
 
-# Keep sessions running overnight (optional)
+# Keep agents running overnight (optional)
 # Or clean up:
 tmux kill-session -t app-a
 tmux kill-session -t app-b
@@ -369,18 +369,18 @@ start-ai-session backend aider ~/projects/api
 start-ai-session mobile cursor ~/projects/app
 ```
 
-### Helper: List Active Sessions
+### Helper: List Active Agents
 
-Save as `~/bin/list-ai-sessions`:
+Save as `~/bin/list-ai-agents`:
 
 ```bash
 #!/bin/bash
 
-echo "🎯 Active AI Agent Sessions:"
+echo "🎯 Active AI Agents:"
 echo ""
 
 if ! tmux has-session 2>/dev/null; then
-    echo "No active sessions"
+    echo "No active agents"
     exit 0
 fi
 
@@ -392,40 +392,40 @@ while IFS='|' read -r name created windows; do
     echo ""
 done
 
-echo "💡 Tip: View all sessions in dashboard at http://localhost:23000"
+echo "💡 Tip: View all agents in dashboard at http://localhost:23000"
 ```
 
 **Make executable and run:**
 ```bash
-chmod +x ~/bin/list-ai-sessions
-list-ai-sessions
+chmod +x ~/bin/list-ai-agents
+list-ai-agents
 ```
 
-### Helper: Kill All AI Sessions
+### Helper: Kill All Agents
 
-Save as `~/bin/cleanup-ai-sessions`:
+Save as `~/bin/cleanup-ai-agents`:
 
 ```bash
 #!/bin/bash
 
-echo "🧹 Cleaning up AI agent sessions..."
+echo "🧹 Cleaning up AI agents..."
 
 if ! tmux has-session 2>/dev/null; then
-    echo "No active sessions to clean up"
+    echo "No active agents to clean up"
     exit 0
 fi
 
-# List sessions
+# List agents
 echo ""
-echo "Current sessions:"
+echo "Current agents:"
 tmux ls
 
 echo ""
-read -p "Kill ALL sessions? (yes/no): " CONFIRM
+read -p "Kill ALL agents? (yes/no): " CONFIRM
 
 if [ "$CONFIRM" = "yes" ]; then
     tmux kill-server
-    echo "✅ All sessions terminated"
+    echo "✅ All agents terminated"
 else
     echo "❌ Cancelled"
 fi
@@ -433,7 +433,7 @@ fi
 
 **Make executable:**
 ```bash
-chmod +x ~/bin/cleanup-ai-sessions
+chmod +x ~/bin/cleanup-ai-agents
 ```
 
 ---
@@ -643,9 +643,9 @@ exec $SHELL
 git push  # Should work now
 ```
 
-**Option 2: Create new sessions**
+**Option 2: Create new agents**
 
-New sessions from AI Maestro will automatically have SSH configured correctly.
+New agents from AI Maestro will automatically have SSH configured correctly.
 
 ### Troubleshooting SSH Issues
 
@@ -706,7 +706,7 @@ git remote set-url origin git@github.com:user/repo.git
 
 ### Services Not Running After Restart (MOST COMMON)
 
-**Problem:** After restarting your Mac, the dashboard shows "Socket Error" or "Cannot connect" when trying to create sessions.
+**Problem:** After restarting your Mac, the dashboard shows "Socket Error" or "Cannot connect" when trying to create agents.
 
 **Cause:** The tmux server is not running. tmux sessions don't survive system restarts by default.
 
@@ -811,7 +811,7 @@ Now after every restart, both tmux and your dashboard will start automatically!
 
 **Solution:** This is an SSH configuration issue. Follow the comprehensive guide in [Section 8: SSH Configuration for Git Operations](#8-ssh-configuration-for-git-operations).
 
-Quick fix for existing sessions:
+Quick fix for existing agents:
 ```bash
 # In AI Maestro terminal
 exec $SHELL
@@ -821,7 +821,7 @@ exec $SHELL
 
 ### Agent Not Appearing in Dashboard
 
-**Problem:** Created a tmux session but it doesn't show in the dashboard.
+**Problem:** Created an agent but it doesn't show in the dashboard.
 
 **Solution:**
 ```bash
@@ -930,11 +930,11 @@ tmux new -s test              # ❌ Too vague
 ### Resource Management
 
 ```bash
-# Check how many sessions you're running
+# Check how many agents you're running
 tmux ls | wc -l
 
-# Keep it reasonable (5-10 active sessions max)
-# Kill old sessions you're done with
+# Keep it reasonable (5-10 active agents max)
+# Kill agents you're done with
 tmux kill-session -t completed-task
 ```
 
@@ -958,8 +958,8 @@ start-ai-session experiments aider ~/tests
 open http://localhost:23000             # Open dashboard
 
 # Evening routine
-list-ai-sessions                        # Review active sessions
-cleanup-ai-sessions                     # Kill all sessions (optional)
+list-ai-agents                          # Review active agents
+cleanup-ai-agents                       # Kill all agents (optional)
 # Or keep them running overnight
 ```
 
@@ -978,25 +978,25 @@ Quick summary:
 - **Dashboard auto-start**: Use `pm2 startup` and `pm2 save` to auto-start the dashboard
 - **Verification**: Both services will start automatically after every restart
 
-### Persistent Sessions Across Reboots
+### Persistent Agents Across Reboots
 
-tmux sessions end when you restart your Mac. To persist them:
+Agents (tmux sessions) end when you restart your Mac. To persist them:
 
 1. **tmux-resurrect plugin** - Save and restore tmux sessions
 2. **systemd user services** (on Linux)
 3. **Manual session recreation script** (run after reboot)
 
-Example restoration script `~/bin/restore-sessions`:
+Example restoration script `~/bin/restore-agents`:
 
 ```bash
 #!/bin/bash
 
-# Restore common sessions after reboot
+# Restore common agents after reboot
 start-ai-session main claude ~/projects/main
 start-ai-session experiments aider ~/experiments
 start-ai-session docs cursor ~/documentation
 
-echo "✅ Sessions restored"
+echo "✅ Agents restored"
 ```
 
 ---
@@ -1025,8 +1025,8 @@ pm2 start server.mjs --name ai-maestro  # Start with PM2
 
 # Helper Scripts (if created)
 start-ai-session name agent   # Create agent with AI tool
-list-ai-sessions              # List all agents
-cleanup-ai-sessions           # Kill all agents
+list-ai-agents                # List all agents
+cleanup-ai-agents             # Kill all agents
 ```
 
 ---

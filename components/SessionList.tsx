@@ -154,6 +154,8 @@ export default function SessionList({
   const [restorableCount, setRestorableCount] = useState(0)
   const [showRestoreModal, setShowRestoreModal] = useState(false)
   const [agentsMap, setAgentsMap] = useState<Record<string, any>>({})
+  const [orphanAgents, setOrphanAgents] = useState<any[]>([])
+  const [showOrphanAgentsModal, setShowOrphanAgentsModal] = useState(false)
 
   // Host management (Manager/Worker pattern)
   const { hosts } = useHosts()
@@ -353,6 +355,38 @@ export default function SessionList({
     return () => clearInterval(interval)
   }, [sessions])
 
+  // Calculate orphan agents (agents without active sessions)
+  useEffect(() => {
+    const calculateOrphanAgents = async () => {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          const agents = data.agents || []
+
+          // Get session IDs for comparison
+          const sessionIds = new Set(sessions.map(s => s.id))
+
+          // Find agents whose tmuxSessionName doesn't match any session
+          const orphans = agents.filter((agent: any) => {
+            const tmuxSessionName = agent.tools?.session?.tmuxSessionName || agent.alias
+            return !sessionIds.has(tmuxSessionName)
+          })
+
+          setOrphanAgents(orphans)
+        }
+      } catch (error) {
+        console.error('Failed to calculate orphan agents:', error)
+      }
+    }
+
+    calculateOrphanAgents()
+
+    // Refresh every 30 seconds
+    const interval = setInterval(calculateOrphanAgents, 30000)
+    return () => clearInterval(interval)
+  }, [sessions])
+
   const toggleLevel1 = (level1: string) => {
     setExpandedLevel1((prev) => {
       const next = new Set(prev)
@@ -511,6 +545,19 @@ export default function SessionList({
             AI Agents ({sessions.length})
           </h2>
           <div className="flex items-center gap-2">
+            {orphanAgents.length > 0 && (
+              <button
+                onClick={() => setShowOrphanAgentsModal(true)}
+                className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-purple-400 hover:text-purple-300 hover:scale-110 relative"
+                aria-label="Inactive agents"
+                title={`${orphanAgents.length} imported/inactive ${orphanAgents.length === 1 ? 'agent' : 'agents'} without sessions`}
+              >
+                <Package className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {orphanAgents.length}
+                </span>
+              </button>
+            )}
             {restorableCount > 0 && (
               <button
                 onClick={() => setShowRestoreModal(true)}
@@ -953,6 +1000,30 @@ export default function SessionList({
           }}
           loading={actionLoading}
           setLoading={setActionLoading}
+        />
+      )}
+
+      {/* Orphan Agents Modal */}
+      {showOrphanAgentsModal && (
+        <OrphanAgentsModal
+          agents={orphanAgents}
+          onClose={() => setShowOrphanAgentsModal(false)}
+          onActivate={(agentAlias) => {
+            setShowOrphanAgentsModal(false)
+            // Trigger create session flow
+            handleCreateSession(agentAlias, orphanAgents.find(a => a.alias === agentAlias)?.preferences?.defaultWorkingDirectory)
+          }}
+          onDelete={async (agentId) => {
+            try {
+              const response = await fetch(`/api/agents/${agentId}`, { method: 'DELETE' })
+              if (response.ok) {
+                setOrphanAgents(prev => prev.filter(a => a.id !== agentId))
+              }
+            } catch (error) {
+              console.error('Failed to delete agent:', error)
+            }
+          }}
+          loading={actionLoading}
         />
       )}
     </div>
@@ -1680,6 +1751,130 @@ function RestoreSessionsModal({
                     : `Restore ${selectedSessions.size} ${selectedSessions.size === 1 ? 'Session' : 'Sessions'}`}
                 </button>
               </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function OrphanAgentsModal({
+  agents,
+  onClose,
+  onActivate,
+  onDelete,
+  loading,
+}: {
+  agents: any[]
+  onClose: () => void
+  onActivate: (agentAlias: string) => void
+  onDelete: (agentId: string) => void
+  loading: boolean
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-2xl shadow-2xl border border-gray-700 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-purple-400 mb-4 flex items-center gap-2">
+          <Package className="w-5 h-5" />
+          Inactive Agents
+        </h3>
+
+        <p className="text-sm text-gray-400 mb-4">
+          These agents are registered but don&apos;t have active sessions. Click &quot;Activate&quot; to create a session.
+        </p>
+
+        {agents.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-gray-400">All agents have active sessions</p>
+          </div>
+        ) : (
+          <>
+            {/* Agent List */}
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 max-h-96">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-all group"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/20 border border-purple-500/30">
+                    {agent.avatar ? (
+                      <span className="text-lg">{agent.avatar}</span>
+                    ) : (
+                      <Package className="w-5 h-5 text-purple-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-gray-100 truncate">{agent.alias}</span>
+                      {agent.displayName && agent.displayName !== agent.alias && (
+                        <span className="text-xs text-gray-400">({agent.displayName})</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <Code2 className="w-3 h-3" />
+                        <span>{agent.program || 'claude-code'}</span>
+                        {agent.model && <span className="text-gray-500">• {agent.model}</span>}
+                      </div>
+                      {agent.preferences?.defaultWorkingDirectory && (
+                        <div className="flex items-center gap-1">
+                          <Folder className="w-3 h-3" />
+                          <span className="truncate">{agent.preferences.defaultWorkingDirectory}</span>
+                        </div>
+                      )}
+                      {agent.tags && agent.tags.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {agent.tags.slice(0, 3).map((tag: string) => (
+                            <span key={tag} className="px-1.5 py-0.5 bg-gray-600 rounded text-[10px]">
+                              {tag}
+                            </span>
+                          ))}
+                          {agent.tags.length > 3 && (
+                            <span className="text-gray-500">+{agent.tags.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onActivate(agent.tools?.session?.tmuxSessionName || agent.alias)
+                      }}
+                      disabled={loading}
+                      className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Activate
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Delete agent "${agent.alias}"? This removes the agent from the registry but keeps its database.`)) {
+                          onDelete(agent.id)
+                        }
+                      }}
+                      className="p-1.5 rounded hover:bg-gray-600 text-gray-400 hover:text-red-400 transition-all duration-200"
+                      title="Delete agent"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-gray-100 disabled:opacity-50 transition-colors rounded-lg hover:bg-gray-700"
+              >
+                Close
+              </button>
             </div>
           </>
         )}

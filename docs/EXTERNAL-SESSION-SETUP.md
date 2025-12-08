@@ -136,7 +136,7 @@ tmux new-session -s backend/api/data-layer
 - Check dashboard is running: http://localhost:3000
 
 ### Lost agents after reboot
-tmux agents don't persist across system restarts. You'll need to recreate your agents.
+tmux sessions don't persist across system restarts. You'll need to recreate your agents.
 
 ## Best Practices
 

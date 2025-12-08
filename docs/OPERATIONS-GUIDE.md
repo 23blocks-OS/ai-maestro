@@ -32,7 +32,7 @@ Before starting, ensure you have:
 # Navigate to your project directory
 cd ~/projects/my-app
 
-# Start a new tmux agent with a descriptive name
+# Start a new tmux session with a descriptive name
 tmux new-session -s my-app-dev
 
 # You're now inside tmux - your prompt should show a green bar at bottom
@@ -41,7 +41,7 @@ tmux new-session -s my-app-dev
 ### Step 2: Start Your AI Tool
 
 ```bash
-# Inside the tmux agent, start your AI assistant
+# Inside the tmux session, start your AI assistant
 # Choose one:
 claude              # Claude Code
 aider               # Aider AI
@@ -60,7 +60,7 @@ cursor              # Cursor AI
 # This detaches from tmux but keeps the agent running
 
 # You'll return to your normal terminal
-# The tmux agent continues running in the background
+# The tmux session continues running in the background
 ```
 
 ### Step 4: Start the Dashboard
@@ -275,7 +275,7 @@ tmux send-keys -t db-migration 'copilot' C-m
 - Safe to interact
 
 **Ended** ⚪
-- tmux agent was killed
+- tmux session was killed
 - AI tool exited
 - Appears in dashboard until refresh
 
@@ -606,7 +606,7 @@ source ~/.zshrc
 
 ### Verifying It Works
 
-**Test in a new tmux agent:**
+**Test in a new tmux session:**
 ```bash
 # Create test agent
 tmux new-session -s test-ssh -d
@@ -632,11 +632,11 @@ SSH_AUTH_SOCK=~/.ssh/ssh_auth_sock ssh -T git@github.com
 
 ### Fixing Existing Sessions
 
-If you have tmux agents that were created before this setup, they'll still have the old SSH config. Two options:
+If you have tmux sessions that were created before this setup, they'll still have the old SSH config. Two options:
 
 **Option 1: Restart the shell (quick)**
 ```bash
-# In AI Maestro terminal or attached tmux agent
+# In AI Maestro terminal or attached tmux session
 exec $SHELL
 
 # Then test
@@ -678,7 +678,7 @@ New sessions from AI Maestro will automatically have SSH configured correctly.
 
 **Problem: Works in terminal but not in AI Maestro**
 
-This means the shell environment in your tmux agent needs refreshing:
+This means the shell environment in your tmux session needs refreshing:
 ```bash
 # In the AI Maestro terminal
 exec $SHELL
@@ -712,7 +712,7 @@ git remote set-url origin git@github.com:user/repo.git
 
 **Immediate Fix:**
 ```bash
-# Create a tmux agent to start the tmux server
+# Create a tmux session to start the tmux server
 tmux new-session -s default -d
 
 # Now refresh your dashboard - it should work
@@ -821,7 +821,7 @@ exec $SHELL
 
 ### Agent Not Appearing in Dashboard
 
-**Problem:** Created a tmux agent but it doesn't show in the dashboard.
+**Problem:** Created a tmux session but it doesn't show in the dashboard.
 
 **Solution:**
 ```bash
@@ -843,7 +843,7 @@ tmux ls
 
 **Solution:**
 ```bash
-# 1. Verify tmux agent is actually running
+# 1. Verify tmux session is actually running
 tmux ls
 
 # 2. Try attaching manually

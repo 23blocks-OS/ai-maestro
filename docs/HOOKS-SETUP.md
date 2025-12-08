@@ -316,4 +316,4 @@ Once your hook is working:
 
 - [AGENT-MESSAGING-GUIDE.md](./AGENT-MESSAGING-GUIDE.md) - Complete messaging system guide
 - [Claude Code Hooks Documentation](https://docs.claude.com/en/docs/claude-code/hooks-guide) - Official hooks reference
-- [EXTERNAL-SESSION-SETUP.md](../EXTERNAL-SESSION-SETUP.md) - Creating tmux agents
+- [EXTERNAL-SESSION-SETUP.md](../EXTERNAL-SESSION-SETUP.md) - Creating tmux sessions

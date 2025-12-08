@@ -1,6 +1,6 @@
 # AI Maestro Messaging Scripts
 
-Command-line tools for agent-to-agent communication. These scripts work with **any AI agent** (Claude Code, Aider, Cursor, etc.) running in tmux agents.
+Command-line tools for agent-to-agent communication. These scripts work with **any AI agent** (Claude Code, Aider, Cursor, etc.) running in tmux sessions.
 
 ## Installation
 
@@ -183,7 +183,7 @@ send-aimaestro-message.sh frontend-dev \
 ## Requirements
 
 - AI Maestro running on `http://localhost:23000`
-- tmux agent with valid agent name
+- tmux session with valid agent name
 - `curl` and `jq` installed
 
 ## Troubleshooting
@@ -205,7 +205,7 @@ curl http://localhost:23000/api/sessions
 # Verify target agent exists
 tmux list-sessions
 
-# Check you're in a tmux agent
+# Check you're in a tmux session
 tmux display-message -p '#S'
 ```
 

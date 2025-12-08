@@ -7,7 +7,7 @@ allowed-tools: Bash
 # AI Maestro Agent Messaging
 
 ## Purpose
-Enable communication between AI coding agents using AI Maestro's dual-channel messaging system. Agents are identified by their agent ID or alias, with tmux agent names as a fallback. Supports both SENDING and RECEIVING messages.
+Enable communication between AI coding agents using AI Maestro's dual-channel messaging system. Agents are identified by their agent ID or alias, with tmux session names as a fallback. Supports both SENDING and RECEIVING messages.
 
 ## CRITICAL: Inter-Agent Communication
 
@@ -30,7 +30,7 @@ When the human operator says "check your messages" or "read your messages":
 
 - **Your inbox** = Messages addressed TO YOUR AGENT (from any sender)
 - **Your agent ID** = Unique identifier for this agent (can also use agent name as fallback)
-- **Your agent name** = The tmux agent you're running in (get with `tmux display-message -p '#S'`)
+- **Your agent name** = The tmux session you're running in (get with `tmux display-message -p '#S'`)
 - **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/` or `~/.aimaestro/messages/inbox/YOUR-AGENT-NAME/`
 
 **You do NOT read:**
@@ -86,7 +86,7 @@ check-aimaestro-messages.sh
 ```
 
 **⚠️ CRITICAL: What "YOUR inbox" means:**
-- YOU = The AI agent running in this tmux agent
+- YOU = The AI agent running in this tmux session
 - YOUR inbox = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/` (or agent name as fallback)
 - Messages in YOUR inbox = Messages OTHER AGENTS sent TO YOU
 - NOT the operator's messages, NOT other agents' private messages

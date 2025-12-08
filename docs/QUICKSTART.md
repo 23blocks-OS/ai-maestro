@@ -69,20 +69,20 @@ open http://localhost:23000
 
 ## First Steps
 
-### Create Your First Session
+### Create Your First Agent
 
 1. Click the **+** button in the sidebar
-2. Enter a session name (e.g., `test-my-first-agent`)
+2. Enter an agent name (e.g., `test-my-first-agent`)
    - Use format: `project-category-name` for automatic grouping
    - Example: `apps-website-frontend`
 3. (Optional) Set working directory
 4. Click **Create Agent**
 
-The session will appear in the sidebar. Click it to open the terminal.
+The agent will appear in the sidebar. Click it to open the terminal.
 
 ### Test the Terminal
 
-1. Click on your newly created session
+1. Click on your newly created agent
 2. Type in the terminal: `echo "Hello from AI Maestro"`
 3. Try some commands:
    ```bash
@@ -91,11 +91,11 @@ The session will appear in the sidebar. Click it to open the terminal.
    claude        # Start Claude Code (if installed)
    ```
 
-### Add Session Notes
+### Add Agent Notes
 
 1. Scroll down below the terminal
 2. Click **Notes** section (if collapsed)
-3. Type notes about what this session is for
+3. Type notes about what this agent is working on
 4. Notes auto-save to localStorage
 
 ---
@@ -104,7 +104,7 @@ The session will appear in the sidebar. Click it to open the terminal.
 
 ### Add a Remote Worker (Optional)
 
-Want to manage sessions on another machine? See [Setup Tutorial](./SETUP-TUTORIAL.md).
+Want to manage agents on another machine? See [Setup Tutorial](./SETUP-TUTORIAL.md).
 
 ### Understand the Architecture
 
@@ -156,12 +156,12 @@ pm2 status
 
 ## Tips
 
-- **Session Naming:** Use `level1-level2-name` format for automatic hierarchical organization
+- **Agent Naming:** Use `level1-level2-name` format for automatic hierarchical organization
   - Example: `clients-acme-frontend` groups under "clients" → "acme"
 
-- **Multiple Sessions:** Create as many as you need - they're organized automatically
+- **Multiple Agents:** Create as many as you need - they're organized automatically
 
-- **Session Notes:** Document what each agent is working on
+- **Agent Notes:** Document what each agent is working on
 
 - **Settings:** Click Settings (bottom of sidebar) to configure remote hosts
 
@@ -184,7 +184,7 @@ kill -9 <PID>
 PORT=3000 yarn dev
 ```
 
-### Can't create sessions
+### Can't create agents
 
 ```bash
 # Check if tmux is installed

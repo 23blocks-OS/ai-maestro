@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide explains how to create and manage AI coding assistant sessions using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing sessions from `tmux ls` and provides full session management (create, rename, delete) directly from the UI!
+This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
 
 ---
 
@@ -94,9 +94,9 @@ open http://localhost:23000
 
 ---
 
-## 2. Session Naming Best Practices
+## 2. Agent Naming Best Practices
 
-The dashboard automatically organizes sessions hierarchically using forward slashes in names. This creates a beautiful, color-coded sidebar!
+The dashboard automatically organizes agents hierarchically using forward slashes in names. This creates a beautiful, color-coded sidebar!
 
 ### Hierarchical Naming Pattern (RECOMMENDED)
 
@@ -143,36 +143,36 @@ tmux new-session -s blog-frontend
 
 ---
 
-## 3. UI-Based Session Management
+## 3. UI-Based Agent Management
 
-You can now manage sessions directly from the dashboard UI!
+You can now manage agents directly from the dashboard UI!
 
-### Create a New Session (From UI)
+### Create a New Agent (From UI)
 
 1. Click the **"+" (Create)** button in the sidebar header
-2. Enter session name (use forward slashes for hierarchy)
+2. Enter agent name (use forward slashes for hierarchy)
 3. Optionally specify working directory
 4. Click "Create Agent"
-5. Session appears immediately in sidebar
+5. Agent appears immediately in sidebar
 
 **Example:**
 - Name: `fluidmind/agents/api-developer`
 - Working Dir: `/Users/you/projects/api`
 
-### Rename a Session (From UI)
+### Rename an Agent (From UI)
 
-1. Hover over any session in the sidebar
+1. Hover over any agent in the sidebar
 2. Click the **Edit** icon that appears
 3. Enter new name
 4. Click "Rename"
 5. Dashboard updates immediately
 
-### Delete a Session (From UI)
+### Delete an Agent (From UI)
 
-1. Hover over any session in the sidebar
+1. Hover over any agent in the sidebar
 2. Click the **Delete** icon that appears
 3. Confirm deletion in modal
-4. Session is terminated and removed
+4. Agent is terminated and removed
 
 **Warning:** Deletion is permanent and cannot be undone!
 
@@ -438,15 +438,15 @@ chmod +x ~/bin/cleanup-ai-sessions
 
 ---
 
-## 7. Session Notes Feature
+## 7. Agent Notes Feature
 
-Each session has a built-in notes area for capturing important information while working with your AI agent.
+Each agent has a built-in notes area for capturing important information while working with your AI agent.
 
-### Using Session Notes
+### Using Agent Notes
 
-1. **Expand Notes**: Click "Show Session Notes" button below the terminal (if collapsed)
+1. **Expand Notes**: Click "Show Agent Notes" button below the terminal (if collapsed)
 2. **Take Notes**: Type directly in the textarea - supports copy/paste
-3. **Auto-Save**: Notes save automatically to localStorage (per-session)
+3. **Auto-Save**: Notes save automatically to localStorage (per-agent)
 4. **Collapse**: Click the down arrow to hide notes and maximize terminal space
 
 ### Notes Use Cases
@@ -454,7 +454,7 @@ Each session has a built-in notes area for capturing important information while
 - **Track decisions**: Record architectural decisions made with your AI agent
 - **Save commands**: Copy/paste useful commands your AI suggests
 - **Todo lists**: Keep track of what's left to implement
-- **Context**: Notes for when you return to the session later
+- **Context**: Notes for when you return to the agent later
 - **Code snippets**: Temporary storage for code before committing
 
 **Note:** Notes are stored in browser localStorage and persist between dashboard restarts!
@@ -819,9 +819,9 @@ exec $SHELL
 
 ---
 
-### Session Not Appearing in Dashboard
+### Agent Not Appearing in Dashboard
 
-**Problem:** Created a tmux session but it doesn't show in the dashboard.
+**Problem:** Created a tmux session but the agent doesn't show in the dashboard.
 
 **Solution:**
 ```bash

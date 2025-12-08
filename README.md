@@ -55,7 +55,7 @@ Your Browser (localhost:23000)
 - ✅ Leverage machine-specific capabilities (Mac for iOS, Linux for Docker)
 - ✅ Scale horizontally - add more machines as needed
 - ✅ Work from anywhere (Tailscale VPN)
-- ✅ One click to switch between any session on any machine
+- ✅ One click to switch between any agent on any machine
 
 ---
 
@@ -92,14 +92,14 @@ Works with **any** terminal-based AI:
 - **3-level hierarchy**: Use hyphens to create structure (e.g., `project-category-agent`)
 - **Dynamic color coding**: Each top-level category gets its own color automatically
 - **Visual hierarchy**: Expandable accordion with icons
-- **Auto-grouping**: Sessions with hyphens are automatically organized
-- **Instant search**: Find any session immediately *(coming in v1.1)*
+- **Auto-grouping**: Agents with hyphens are automatically organized
+- **Instant search**: Find any agent immediately *(coming in v1.1)*
 
-### Session Management
-- **Create** sessions from the UI
+### Agent Management
+- **Create** agents from the UI
 - **Rename** with a click
 - **Delete** when done
-- **Notes** for each session (auto-saved to localStorage)
+- **Notes** for each agent (auto-saved to localStorage)
 - **Auto-discovery**: Detects all your tmux sessions automatically
 
 ### Agent Communication System
@@ -270,12 +270,12 @@ cp .env.example .env.local
 # See the Security and Configuration sections below for all options
 ```
 
-### 2. Create Your First Session
+### 2. Create Your First Agent
 
 **Option A: From the UI** (Recommended)
 
 1. Click the **"+" button** in the sidebar
-2. Enter a session name using hyphens for hierarchy:
+2. Enter an agent name using hyphens for hierarchy:
    - Simple: `my-project`
    - Organized: `myproject-backend-api` (creates 3 levels)
 3. Choose your working directory
@@ -295,14 +295,14 @@ claude
 # Detach: Ctrl+B then D
 ```
 
-> **💡 Hierarchy Tip**: Session names with hyphens create automatic organization:
+> **💡 Hierarchy Tip**: Agent names with hyphens create automatic organization:
 > - `project-backend` → 2 levels (project > backend)
 > - `project-backend-api` → 3 levels (project > backend > api)
 > - Each top level gets its own color automatically!
 
 ### 3. Start Coding
 
-Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.
+Your agent is now live in the dashboard. Click to switch between agents. Add notes. Organize your work. That's it.
 
 ---
 
@@ -649,11 +649,11 @@ check-new-messages-arrived.sh
 ## 📸 Screenshots
 
 <details>
-<summary><b>Hierarchical Session Organization</b></summary>
+<summary><b>Hierarchical Agent Organization</b></summary>
 
-Sessions organized automatically using hyphens, with color coding and icons:
+Agents organized automatically using hyphens, with color coding and icons:
 
-**Example session names:**
+**Example agent names:**
 - `fluidmind-agents-backend-architect`
 - `fluidmind-agents-frontend-developer`
 - `fluidmind-experiments-api-tester`
@@ -680,9 +680,9 @@ Each top-level category gets a unique color automatically - no configuration nee
 </details>
 
 <details>
-<summary><b>Session Notes</b></summary>
+<summary><b>Agent Notes</b></summary>
 
-Take notes for each session. They're saved automatically to your browser:
+Take notes for each agent. They're saved automatically to your browser:
 - Track architectural decisions
 - Save commands for later
 - Keep TODO lists
@@ -793,7 +793,7 @@ Built with modern, battle-tested tools:
 - ✅ Local tmux session management
 - ✅ Hierarchical organization
 - ✅ Dynamic color coding
-- ✅ Session notes
+- ✅ Agent notes
 - ✅ Full CRUD from UI
 
 ### Phase 2 ✅ Complete
@@ -818,13 +818,13 @@ Built with modern, battle-tested tools:
 - ✅ CozoDB embedded database per agent
 
 ### Phase 5 (2026)
-- [ ] Search & filter across all sessions
-- [ ] Export session transcripts
-- [ ] Session playback (time-travel debugging)
+- [ ] Search & filter across all agents
+- [ ] Export agent transcripts
+- [ ] Agent playback (time-travel debugging)
 
 ### Phase 6 (Future)
-- [ ] Session sharing & collaboration
-- [ ] AI-generated session summaries
+- [ ] Agent sharing & collaboration
+- [ ] AI-generated agent summaries
 - [ ] Performance metrics dashboard
 - [ ] Cloud deployment templates
 

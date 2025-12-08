@@ -364,7 +364,7 @@ export default function MobileDashboard({
             >
               AI Maestro
             </a>
-            {' '}v0.12.1 •{' '}
+            {' '}v0.14.0 •{' '}
             <a
               href="https://x.com/jkpelaez"
               target="_blank"

@@ -44,7 +44,7 @@ ${mainContent}
 ---
 
 **About AI Maestro:**
-AI Maestro is an open-source dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Version 0.12.1, MIT License.
+AI Maestro is an open-source dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Version 0.14.0, MIT License.
 
 **GitHub:** https://github.com/23blocks-OS/ai-maestro
 **Website:** https://ai-maestro.23blocks.com

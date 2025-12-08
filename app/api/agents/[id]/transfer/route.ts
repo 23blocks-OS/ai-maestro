@@ -3,7 +3,6 @@ import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-r
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import FormData from 'form-data'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -69,12 +68,12 @@ export async function POST(
 
     const exportBuffer = Buffer.from(await exportResponse.arrayBuffer())
 
-    // Step 2: Send to target host's import API
+    // Step 2: Send to target host's import API using native FormData with Blob
     const formData = new FormData()
-    formData.append('file', exportBuffer, {
-      filename: `${agent.alias || agent.id}.zip`,
-      contentType: 'application/zip'
-    })
+
+    // Create a Blob from the buffer
+    const blob = new Blob([exportBuffer], { type: 'application/zip' })
+    formData.append('file', blob, `${agent.alias || agent.id}.zip`)
 
     // Add import options
     const importOptions: Record<string, unknown> = {}
@@ -86,8 +85,7 @@ export async function POST(
     // Send to target host
     const importResponse = await fetch(`${normalizedUrl}/api/agents/import`, {
       method: 'POST',
-      body: formData as unknown as BodyInit,
-      headers: formData.getHeaders()
+      body: formData
     })
 
     if (!importResponse.ok) {

@@ -333,10 +333,8 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string) => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string): Promise<boolean> => {
     setActionLoading(true)
-    const startTime = Date.now()
-    const MIN_ANIMATION_TIME = 10000 // Minimum 10 seconds to show animation - it's part of the experience!
 
     try {
       const response = await fetch('/api/sessions/create', {
@@ -350,24 +348,18 @@ export default function AgentList({
         throw new Error(data.error || 'Failed to create agent')
       }
 
-      // Ensure minimum animation time
-      const elapsed = Date.now() - startTime
-      if (elapsed < MIN_ANIMATION_TIME) {
-        await new Promise(resolve => setTimeout(resolve, MIN_ANIMATION_TIME - elapsed))
-      }
-
-      setShowCreateModal(false)
-      onRefresh?.()
+      return true // Success - modal will handle showing celebration
     } catch (error) {
-      // Ensure minimum animation time even for errors
-      const elapsed = Date.now() - startTime
-      if (elapsed < MIN_ANIMATION_TIME) {
-        await new Promise(resolve => setTimeout(resolve, MIN_ANIMATION_TIME - elapsed))
-      }
       alert(error instanceof Error ? error.message : 'Failed to create session')
+      return false
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const handleCreateComplete = () => {
+    setShowCreateModal(false)
+    onRefresh?.()
   }
 
   return (
@@ -776,6 +768,7 @@ export default function AgentList({
         <CreateAgentModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateAgent}
+          onComplete={handleCreateComplete}
           loading={actionLoading}
         />
       )}
@@ -805,10 +798,12 @@ function AgentStatusIndicator({ isOnline }: { isOnline: boolean }) {
 function CreateAgentModal({
   onClose,
   onCreate,
+  onComplete,
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string) => void
+  onCreate: (name: string, workingDirectory?: string, hostId?: string) => Promise<boolean>
+  onComplete: () => void
   loading: boolean
 }) {
   const { hosts } = useHosts()
@@ -816,6 +811,9 @@ function CreateAgentModal({
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
   const [animationProgress, setAnimationProgress] = useState(0)
+  const [isCreating, setIsCreating] = useState(false)  // Animation in progress
+  const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
+  const [showButton, setShowButton] = useState(false)  // Show "Let's Go!" button
 
   // Fun AI-themed aliases - names ending in AI or IA (Spanish for AI)
   const AI_ALIASES = [
@@ -832,9 +830,9 @@ function CreateAgentModal({
     return AI_ALIASES[hash % AI_ALIASES.length]
   }
 
-  // Animate through phases when loading - spread over 10 seconds for a delightful experience
+  // Animate through phases when creating - spread over 10 seconds for a delightful experience
   useEffect(() => {
-    if (loading) {
+    if (isCreating) {
       // Reset and start animation sequence
       setAnimationPhase('preparing')
       setAnimationProgress(5)
@@ -879,11 +877,18 @@ function CreateAgentModal({
         setAnimationProgress(90)
       }, 6000)
 
-      // Transition to ready/celebration phase (6.5s) - gives 3.5s to enjoy the celebration!
+      // Transition to ready/celebration phase (6.5s)
       const timer10 = setTimeout(() => {
         setAnimationPhase('ready')
         setAnimationProgress(100)
       }, 6500)
+
+      // Show the "Let's Go!" button after celebration animations complete (8s)
+      const timer11 = setTimeout(() => {
+        if (creationSuccess) {
+          setShowButton(true)
+        }
+      }, 8000)
 
       return () => {
         clearTimeout(timer1)
@@ -896,26 +901,55 @@ function CreateAgentModal({
         clearTimeout(timer8)
         clearTimeout(timer9)
         clearTimeout(timer10)
+        clearTimeout(timer11)
       }
     }
-  }, [loading])
+  }, [isCreating, creationSuccess])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Show button when API completes successfully and we're in ready phase
+  useEffect(() => {
+    if (creationSuccess && animationPhase === 'ready') {
+      // Small delay after reaching ready phase to let animations settle
+      const timer = setTimeout(() => {
+        setShowButton(true)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [creationSuccess, animationPhase])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onCreate(name.trim(), workingDirectory.trim() || undefined)
+      setIsCreating(true)
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined)
+      if (success) {
+        setCreationSuccess(true)
+        // Animation continues, user will click "Let's Go!" to close
+      } else {
+        // Error occurred, close modal
+        setIsCreating(false)
+      }
     }
   }
 
+  const handleLetsGo = () => {
+    onComplete()
+  }
+
+  // Show animation when creating or when celebration is showing
+  const showAnimation = isCreating || creationSuccess
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={loading ? undefined : onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={showAnimation ? undefined : onClose}>
       <div className="bg-gray-900 rounded-xl w-full max-w-md shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {loading ? (
+        {showAnimation ? (
           // Animated creation view
           <div className="p-6">
             <div className="text-center mb-2">
-              <h3 className="text-lg font-semibold text-gray-100">Creating Your Agent</h3>
-              <p className="text-sm text-gray-400">{name}</p>
+              <h3 className="text-lg font-semibold text-gray-100">
+                {animationPhase === 'ready' ? 'Your Agent is Ready!' : 'Creating Your Agent'}
+              </h3>
+              {animationPhase !== 'ready' && <p className="text-sm text-gray-400">{name}</p>}
             </div>
             <CreateAgentAnimation
               phase={animationPhase}
@@ -923,6 +957,18 @@ function CreateAgentModal({
               agentAlias={getRandomAlias(name)}
               progress={animationProgress}
             />
+            {/* Let's Go button - appears after celebration */}
+            {showButton && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleLetsGo}
+                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                >
+                  <span>Let&apos;s Go!</span>
+                  <span className="text-lg">🚀</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           // Form view

@@ -10,23 +10,41 @@ import {
   deleteMessage,
   getUnreadCount,
   getMessageStats,
-  listSessionsWithMessages,
+  listAgentsWithMessages,
+  resolveAgentIdentifier,
 } from '@/lib/messageQueue'
 
 /**
- * GET /api/messages?session=<sessionName>&status=<status>&from=<from>&box=<inbox|sent>
- * List messages for a session
+ * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
+ * List messages for an agent
+ *
+ * The 'agent' parameter accepts:
+ * - Agent ID (UUID)
+ * - Agent alias (e.g., "crm")
+ * - Session name (e.g., "23blocks-api-crm") for backward compatibility
+ *
+ * Also supports 'session' parameter for backward compatibility
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sessionName = searchParams.get('session')
+  // Support 'agentId', 'agent', and 'session' parameters (agentId/agent preferred)
+  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
   const box = searchParams.get('box') || 'inbox' // 'inbox' or 'sent'
 
+  // Resolve agent info
+  if (action === 'resolve' && agentIdentifier) {
+    const resolved = resolveAgentIdentifier(agentIdentifier)
+    if (!resolved) {
+      return NextResponse.json({ error: 'Agent not found', resolved: null }, { status: 404 })
+    }
+    return NextResponse.json({ resolved })
+  }
+
   // Get specific message
-  if (sessionName && messageId) {
-    const message = await getMessage(sessionName, messageId, box as 'inbox' | 'sent')
+  if (agentIdentifier && messageId) {
+    const message = await getMessage(agentIdentifier, messageId, box as 'inbox' | 'sent')
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
     }
@@ -34,32 +52,32 @@ export async function GET(request: NextRequest) {
   }
 
   // Get unread count (inbox only)
-  if (action === 'unread-count' && sessionName) {
-    const count = await getUnreadCount(sessionName)
+  if (action === 'unread-count' && agentIdentifier) {
+    const count = await getUnreadCount(agentIdentifier)
     return NextResponse.json({ count })
   }
 
   // Get sent count
-  if (action === 'sent-count' && sessionName) {
-    const count = await getSentCount(sessionName)
+  if (action === 'sent-count' && agentIdentifier) {
+    const count = await getSentCount(agentIdentifier)
     return NextResponse.json({ count })
   }
 
   // Get message stats
-  if (action === 'stats' && sessionName) {
-    const stats = await getMessageStats(sessionName)
+  if (action === 'stats' && agentIdentifier) {
+    const stats = await getMessageStats(agentIdentifier)
     return NextResponse.json(stats)
   }
 
-  // List all sessions with messages
-  if (action === 'sessions') {
-    const sessions = await listSessionsWithMessages()
-    return NextResponse.json({ sessions })
+  // List all agents with messages
+  if (action === 'agents' || action === 'sessions') {
+    const agents = await listAgentsWithMessages()
+    return NextResponse.json({ agents, sessions: agents }) // Both for compatibility
   }
 
-  // List messages for a session
-  if (!sessionName) {
-    return NextResponse.json({ error: 'Session name required' }, { status: 400 })
+  // List messages for an agent
+  if (!agentIdentifier) {
+    return NextResponse.json({ error: 'Agent identifier required (agent ID, alias, or session name)' }, { status: 400 })
   }
 
   // List sent messages
@@ -67,7 +85,7 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
     const to = searchParams.get('to') || undefined
 
-    const messages = await listSentMessages(sessionName, { priority, to })
+    const messages = await listSentMessages(agentIdentifier, { priority, to })
     return NextResponse.json({ messages })
   }
 
@@ -76,13 +94,21 @@ export async function GET(request: NextRequest) {
   const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
   const from = searchParams.get('from') || undefined
 
-  const messages = await listInboxMessages(sessionName, { status, priority, from })
+  const messages = await listInboxMessages(agentIdentifier, { status, priority, from })
   return NextResponse.json({ messages })
 }
 
 /**
  * POST /api/messages
  * Send a new message
+ *
+ * Body:
+ * - from: Agent ID, alias, or session name
+ * - to: Agent ID, alias, or session name
+ * - subject: Message subject
+ * - content: { type, message, context? }
+ * - priority?: 'low' | 'normal' | 'high' | 'urgent'
+ * - inReplyTo?: Message ID being replied to
  */
 export async function POST(request: NextRequest) {
   try {
@@ -110,23 +136,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message }, { status: 201 })
   } catch (error) {
     console.error('Error sending message:', error)
-    return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Failed to send message'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
 /**
- * PATCH /api/messages?session=<sessionName>&id=<messageId>&action=<action>
+ * PATCH /api/messages?agent=<agentId|alias|sessionName>&id=<messageId>&action=<action>
  * Update message status (mark as read, archive, etc.)
  */
 export async function PATCH(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sessionName = searchParams.get('session')
+  const agentIdentifier = searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
 
-  if (!sessionName || !messageId) {
+  if (!agentIdentifier || !messageId) {
     return NextResponse.json(
-      { error: 'Session name and message ID required' },
+      { error: 'Agent identifier and message ID required' },
       { status: 400 }
     )
   }
@@ -136,10 +163,10 @@ export async function PATCH(request: NextRequest) {
 
     switch (action) {
       case 'read':
-        success = await markMessageAsRead(sessionName, messageId)
+        success = await markMessageAsRead(agentIdentifier, messageId)
         break
       case 'archive':
-        success = await archiveMessage(sessionName, messageId)
+        success = await archiveMessage(agentIdentifier, messageId)
         break
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -157,23 +184,23 @@ export async function PATCH(request: NextRequest) {
 }
 
 /**
- * DELETE /api/messages?session=<sessionName>&id=<messageId>
+ * DELETE /api/messages?agent=<agentId|alias|sessionName>&id=<messageId>
  * Delete a message
  */
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sessionName = searchParams.get('session')
+  const agentIdentifier = searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
 
-  if (!sessionName || !messageId) {
+  if (!agentIdentifier || !messageId) {
     return NextResponse.json(
-      { error: 'Session name and message ID required' },
+      { error: 'Agent identifier and message ID required' },
       { status: 400 }
     )
   }
 
   try {
-    const success = await deleteMessage(sessionName, messageId)
+    const success = await deleteMessage(agentIdentifier, messageId)
 
     if (!success) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })

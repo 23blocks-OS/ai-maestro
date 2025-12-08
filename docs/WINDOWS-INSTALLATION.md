@@ -725,7 +725,7 @@ A: WSL2 uses about 2-4GB of RAM when running. If you have 8GB+ RAM, you won't no
 
 ---
 
-**Q: Can I access Windows files from AI Maestro sessions?**
+**Q: Can I access Windows files from AI Maestro agents?**
 
 A: Yes! All Windows drives are mounted at `/mnt/c/`, `/mnt/d/`, etc. You can create tmux sessions anywhere:
 
@@ -750,7 +750,7 @@ A: Absolutely! Install your AI agent inside WSL2:
 # Example: Claude Code
 # Download and install according to their docs
 
-# Create a session
+# Create an agent
 tmux new-session -s claude-backend
 claude
 
@@ -774,7 +774,7 @@ A: Yes! You can install Ubuntu, Debian, Fedora, etc., and run AI Maestro in any 
 
 **Q: What if I already have tmux sessions from before installing AI Maestro?**
 
-A: They'll appear in the dashboard automatically! AI Maestro auto-discovers all tmux sessions.
+A: They'll appear as agents in the dashboard automatically! AI Maestro auto-discovers all tmux sessions.
 
 ---
 

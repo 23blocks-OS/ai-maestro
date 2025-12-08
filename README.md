@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.12.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.14.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -55,7 +55,7 @@ Your Browser (localhost:23000)
 - ✅ Leverage machine-specific capabilities (Mac for iOS, Linux for Docker)
 - ✅ Scale horizontally - add more machines as needed
 - ✅ Work from anywhere (Tailscale VPN)
-- ✅ One click to switch between any session on any machine
+- ✅ One click to switch between any agent on any machine
 
 ---
 
@@ -68,7 +68,7 @@ Distribute your AI agents across **unlimited machines** - all managed from one b
 
 - **Smart Discovery Wizard**: Just enter a URL, AI Maestro auto-discovers and tests the connection
 - **Real-time Health Monitoring**: Green/red/yellow indicators show worker status at a glance
-- **Seamless Experience**: Remote sessions work exactly like local ones (transparent WebSocket proxying)
+- **Seamless Experience**: Remote agents work exactly like local ones (transparent WebSocket proxying)
 - **Secure by Default**: Tailscale VPN integration for encrypted remote access
 - **Zero Configuration**: Works out-of-the-box with local network or Tailscale IPs
 
@@ -92,14 +92,14 @@ Works with **any** terminal-based AI:
 - **3-level hierarchy**: Use hyphens to create structure (e.g., `project-category-agent`)
 - **Dynamic color coding**: Each top-level category gets its own color automatically
 - **Visual hierarchy**: Expandable accordion with icons
-- **Auto-grouping**: Sessions with hyphens are automatically organized
-- **Instant search**: Find any session immediately *(coming in v1.1)*
+- **Auto-grouping**: Agents with hyphens are automatically organized
+- **Instant search**: Find any agent immediately *(coming in v1.1)*
 
-### Session Management
-- **Create** sessions from the UI
+### Agent Management
+- **Create** agents from the UI
 - **Rename** with a click
 - **Delete** when done
-- **Notes** for each session (auto-saved to localStorage)
+- **Notes** for each agent (auto-saved to localStorage)
 - **Auto-discovery**: Detects all your tmux sessions automatically
 
 ### Agent Communication System
@@ -116,7 +116,7 @@ Works with **any** terminal-based AI:
   - Formatted output (for critical alerts)
 - **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./messaging_scripts))
   - [`send-aimaestro-message.sh`](./messaging_scripts/send-aimaestro-message.sh) - Send structured messages
-  - [`forward-aimaestro-message.sh`](./messaging_scripts/forward-aimaestro-message.sh) - Forward messages between sessions
+  - [`forward-aimaestro-message.sh`](./messaging_scripts/forward-aimaestro-message.sh) - Forward messages between agents
   - [`check-and-show-messages.sh`](./messaging_scripts/check-and-show-messages.sh) - Display inbox
   - [`check-new-messages-arrived.sh`](./messaging_scripts/check-new-messages-arrived.sh) - Quick unread count
   - [`send-tmux-message.sh`](./messaging_scripts/send-tmux-message.sh) - Instant notifications
@@ -266,16 +266,16 @@ cp .env.example .env.local
 
 # Edit .env.local to customize:
 # - HOSTNAME: Change to 'localhost' for local-only access
-# - ENABLE_LOGGING: Set to 'true' to enable session logging
+# - ENABLE_LOGGING: Set to 'true' to enable agent logging
 # See the Security and Configuration sections below for all options
 ```
 
-### 2. Create Your First Session
+### 2. Create Your First Agent
 
 **Option A: From the UI** (Recommended)
 
 1. Click the **"+" button** in the sidebar
-2. Enter a session name using hyphens for hierarchy:
+2. Enter an agent name using hyphens for hierarchy:
    - Simple: `my-project`
    - Organized: `myproject-backend-api` (creates 3 levels)
 3. Choose your working directory
@@ -295,14 +295,14 @@ claude
 # Detach: Ctrl+B then D
 ```
 
-> **💡 Hierarchy Tip**: Session names with hyphens create automatic organization:
+> **💡 Hierarchy Tip**: Agent names with hyphens create automatic organization:
 > - `project-backend` → 2 levels (project > backend)
 > - `project-backend-api` → 3 levels (project > backend > api)
 > - Each top level gets its own color automatically!
 
 ### 3. Start Coding
 
-Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.
+Your agent is now live in the dashboard. Click to switch between agents. Add notes. Organize your work. That's it.
 
 ---
 
@@ -369,7 +369,7 @@ def5678 fix: Bug fix
 
 Updated: 0.11.3 → 0.12.0
 
-⚠️  IMPORTANT: Restart your Claude Code sessions
+⚠️  IMPORTANT: Restart your Claude Code agents
     to reload updated skills
 ```
 
@@ -398,7 +398,7 @@ pm2 restart ai-maestro
 
 ### After Updating
 
-**Important:** After any update, restart your Claude Code sessions to reload updated skills:
+**Important:** After any update, restart your Claude Code agents to reload updated skills:
 
 1. In each tmux session running Claude Code:
    - Type `exit` or press `Ctrl+D` to exit Claude
@@ -475,7 +475,7 @@ Find your machine name in Tailscale settings (e.g., `macbook-pro`, `desktop-work
 
 - 📊 **Monitor long-running builds** from your phone
 - 🐛 **Check agent progress** while away from desk
-- 📝 **Read session notes** on your tablet
+- 📝 **Read agent notes** on your tablet
 - ✅ **Verify completions** without being at your computer
 - 🔄 **Switch between agents** from anywhere
 - 💻 **Full terminal input** - Type commands and interact with agents from any device
@@ -564,10 +564,10 @@ send-aimaestro-message.sh backend-architect \
 
 ### Claude Code Integration
 
-Every agent session can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./skills/agent-messaging)):
+Every agent can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./skills/agent-messaging)):
 
 ```bash
-# In any agent session, just say:
+# With any agent, just say:
 > "Send a message to backend-architect asking them to implement POST /api/users"
 > "Forward the last message to qa-tester with a note to verify the implementation"
 
@@ -587,7 +587,7 @@ Every agent session can use the messaging system automatically via a **Claude Co
 
 ### Built-In UI
 
-Each session has a **Messages tab** with:
+Each agent has a **Messages tab** with:
 - 📥 **Inbox** - See all messages sent to this agent
 - 📤 **Sent** - Track what you've sent to other agents
 - ✍️ **Compose** - Send new messages with priority/type selection
@@ -606,13 +606,13 @@ Each session has a **Messages tab** with:
 ```bash
 ./update-messaging.sh
 # Updates scripts and skill - backs up old version automatically
-# Remember to restart Claude sessions to reload updated skill
+# Remember to restart agents to reload updated skill
 ```
 
 **Manual Install:** See [Installation Guide](./messaging_scripts/README.md)
 
 ```bash
-# 1. Agents check inbox on session start
+# 1. Agents check inbox on startup
 check-and-show-messages.sh
 
 # 2. Send your first message
@@ -649,11 +649,11 @@ check-new-messages-arrived.sh
 ## 📸 Screenshots
 
 <details>
-<summary><b>Hierarchical Session Organization</b></summary>
+<summary><b>Hierarchical Agent Organization</b></summary>
 
-Sessions organized automatically using hyphens, with color coding and icons:
+Agents organized automatically using hyphens, with color coding and icons:
 
-**Example session names:**
+**Example agent names:**
 - `fluidmind-agents-backend-architect`
 - `fluidmind-agents-frontend-developer`
 - `fluidmind-experiments-api-tester`
@@ -680,9 +680,9 @@ Each top-level category gets a unique color automatically - no configuration nee
 </details>
 
 <details>
-<summary><b>Session Notes</b></summary>
+<summary><b>Agent Notes</b></summary>
 
-Take notes for each session. They're saved automatically to your browser:
+Take notes for each agent. They're saved automatically to your browser:
 - Track architectural decisions
 - Save commands for later
 - Keep TODO lists
@@ -793,7 +793,7 @@ Built with modern, battle-tested tools:
 - ✅ Local tmux session management
 - ✅ Hierarchical organization
 - ✅ Dynamic color coding
-- ✅ Session notes
+- ✅ Agent notes
 - ✅ Full CRUD from UI
 
 ### Phase 2 ✅ Complete
@@ -806,7 +806,7 @@ Built with modern, battle-tested tools:
 - ✅ Manager/Worker distributed architecture
 - ✅ Remote host management via Settings UI
 - ✅ Smart host discovery wizard
-- ✅ WebSocket proxy for remote sessions
+- ✅ WebSocket proxy for remote agents
 - ✅ Tailscale VPN integration
 
 ### Phase 4 ✅ Complete (v0.11.0)
@@ -818,13 +818,13 @@ Built with modern, battle-tested tools:
 - ✅ CozoDB embedded database per agent
 
 ### Phase 5 (2026)
-- [ ] Search & filter across all sessions
-- [ ] Export session transcripts
-- [ ] Session playback (time-travel debugging)
+- [ ] Search & filter across all agents
+- [ ] Export agent transcripts
+- [ ] Agent playback (time-travel debugging)
 
 ### Phase 6 (Future)
-- [ ] Session sharing & collaboration
-- [ ] AI-generated session summaries
+- [ ] Agent sharing & collaboration
+- [ ] AI-generated agent summaries
 - [ ] Performance metrics dashboard
 - [ ] Cloud deployment templates
 
@@ -925,13 +925,13 @@ curl http://192.168.1.100:23000  # Replace with your machine's IP
 
 ---
 
-#### 📝 Session Logging Configuration
+#### 📝 Agent Logging Configuration
 
-**Session Logging (Disabled by Default)**
+**Agent Logging (Disabled by Default)**
 
-AI Maestro can optionally log terminal session content to `./logs/{sessionName}.txt` files. This is useful for:
+AI Maestro can optionally log terminal agent content to `./logs/{agentName}.txt` files. This is useful for:
 - 📊 Reviewing AI agent conversations
-- 🐛 Debugging issues after sessions end
+- 🐛 Debugging issues after agents stop
 - 📖 Creating documentation from agent interactions
 - 🔍 Searching through past work
 
@@ -945,14 +945,14 @@ AI Maestro can optionally log terminal session content to `./logs/{sessionName}.
 
 1. **Global master switch** (in `.env.local`):
 ```bash
-# Enable session logging
+# Enable agent logging
 ENABLE_LOGGING=true
 
-# Disable all session logging (default)
+# Disable all agent logging (default)
 ENABLE_LOGGING=false
 ```
 
-2. **Per-session toggle**: Each terminal has a 📝/🚫 button in the header to enable/disable logging for that specific session
+2. **Per-agent toggle**: Each terminal has a 📝/🚫 button in the header to enable/disable logging for that specific agent
 
 **Privacy considerations:**
 - Log files are stored locally only (`./logs/` directory)
@@ -962,9 +962,9 @@ ENABLE_LOGGING=false
 - Consider disabling logging when working with sensitive data
 
 **Disk usage:**
-- Log files grow with session activity
+- Log files grow with agent activity
 - No automatic cleanup or rotation (manage manually)
-- Disable logging globally or per-session to save disk space
+- Disable logging globally or per-agent to save disk space
 
 ---
 
@@ -995,8 +995,8 @@ ENABLE_LOGGING=false
 **If you're setting up Manager/Worker architecture on macOS 15+ (Sequoia) or macOS 26+ (Tahoe), you MUST apply this fix.**
 
 **Symptoms:**
-- ✅ Local sessions work fine
-- ❌ Remote worker sessions don't appear
+- ✅ Local agents work fine
+- ❌ Remote agents don't appear
 - ❌ `EHOSTUNREACH` errors in PM2 logs
 - ✅ `curl` to remote workers works from terminal
 

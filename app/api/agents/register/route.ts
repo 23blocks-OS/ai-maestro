@@ -53,7 +53,8 @@ export async function POST(request: Request) {
         // Extract alias from session name (last part after dashes)
         const parts = sessionName.split('-')
         const alias = parts[parts.length - 1] || sessionName
-        const tags = parts.slice(0, -1)
+        // Normalize tags to lowercase for case-insensitive handling
+        const tags = parts.slice(0, -1).map((t: string) => t.toLowerCase())
 
         try {
           registryAgent = createAgent({

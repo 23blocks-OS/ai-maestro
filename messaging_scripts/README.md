@@ -18,7 +18,7 @@ cd /path/to/ai-maestro
 cd /path/to/ai-maestro
 git pull origin main        # Get latest changes
 ./update-messaging.sh       # Update scripts and skill
-# Remember to restart Claude sessions after updating
+# Remember to restart Claude agents after updating
 ```
 
 ### Manual Installation
@@ -59,7 +59,7 @@ send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
 ```
 
 **Parameters:**
-- `to_session` - Target agent's session name (required)
+- `to_session` - Target agent's name (required)
 - `subject` - Brief subject line (required)
 - `message` - Message content (required)
 - `priority` - low | normal | high | urgent (optional, default: normal)
@@ -79,7 +79,7 @@ send-aimaestro-message.sh orchestrator "Task complete" "Feature implemented at s
 
 ### 2. check-and-show-messages.sh
 
-Display all messages in your session's inbox.
+Display all messages in your agent's inbox.
 
 **Usage:**
 ```bash
@@ -123,7 +123,7 @@ send-tmux-message.sh <target_session> <message> [method]
 ```
 
 **Parameters:**
-- `target_session` - Target agent's session name (required)
+- `target_session` - Target agent's name (required)
 - `message` - Alert text (required)
 - `method` - display | inject | echo (optional, default: display)
 
@@ -146,7 +146,7 @@ send-tmux-message.sh backend-api "PRODUCTION DOWN!" echo
 
 ## Common Workflows
 
-### Check inbox on session start
+### Check inbox on agent start
 ```bash
 # Best practice: Check messages when starting work
 check-and-show-messages.sh
@@ -183,7 +183,7 @@ send-aimaestro-message.sh frontend-dev \
 ## Requirements
 
 - AI Maestro running on `http://localhost:23000`
-- tmux session with valid session name
+- tmux session with valid agent name
 - `curl` and `jq` installed
 
 ## Troubleshooting
@@ -202,7 +202,7 @@ ls -la ~/.local/bin/*.sh
 # Check AI Maestro is running
 curl http://localhost:23000/api/sessions
 
-# Verify target session exists
+# Verify target agent exists
 tmux list-sessions
 
 # Check you're in a tmux session
@@ -211,7 +211,7 @@ tmux display-message -p '#S'
 
 **No messages found:**
 - This is normal if your inbox is empty
-- Messages are stored in `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+- Messages are stored in `~/.aimaestro/messages/inbox/YOUR-AGENT-NAME/`
 
 ## Documentation
 

@@ -3,13 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Edit, MoreVertical } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
+import type { AgentRecipient } from './MessageCenter'
 
 interface MobileMessageCenterProps {
   sessionName: string
-  allSessions: string[]
+  agentId?: string  // Primary identifier when available
+  allAgents: AgentRecipient[]
 }
 
-export default function MobileMessageCenter({ sessionName, allSessions }: MobileMessageCenterProps) {
+export default function MobileMessageCenter({ sessionName, agentId, allAgents }: MobileMessageCenterProps) {
+  // Use agentId as primary identifier if available, fall back to sessionName
+  const messageIdentifier = agentId || sessionName
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -36,46 +40,46 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch sent messages
   const fetchSentMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=unread-count`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
       console.error('Error fetching unread count:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
       // Mark as read if unread (inbox only)
       if (box === 'inbox' && message.status === 'unread') {
-        await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
+        await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
         fetchMessages()
@@ -103,7 +107,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messageId: forwardingOriginalMessage.id,
-            fromSession: sessionName,
+            fromSession: messageIdentifier,
             toSession: composeTo,
             forwardNote: forwardNote || undefined,
           }),
@@ -130,7 +134,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: sessionName,
+            from: messageIdentifier,
             to: composeTo,
             subject: composeSubject,
             priority: composePriority,
@@ -166,7 +170,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
     if (!confirm('Are you sure you want to delete this message?')) return
 
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
       })
       setSelectedMessage(null)
@@ -181,7 +185,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
   // Archive message
   const archiveMessage = async (messageId: string) => {
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=archive`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
         method: 'PATCH',
       })
       setSelectedMessage(null)
@@ -217,9 +221,9 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
 
     if (isInboxMessage) {
       markdown += `**From:** ${selectedMessage.from}\n`
-      markdown += `**To:** ${sessionName}\n`
+      markdown += `**To:** ${messageIdentifier}\n`
     } else {
-      markdown += `**From:** ${sessionName}\n`
+      markdown += `**From:** ${messageIdentifier}\n`
       markdown += `**To:** ${selectedMessage.to}\n`
     }
 
@@ -278,7 +282,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
       fetchUnreadCount()
     }, 10000)
     return () => clearInterval(interval)
-  }, [sessionName, fetchMessages, fetchSentMessages, fetchUnreadCount])
+  }, [messageIdentifier, fetchMessages, fetchSentMessages, fetchUnreadCount])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -586,19 +590,19 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">
-                To (Session Name):
+                To (Agent Name):
               </label>
               <input
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
-                list="sessions-list"
+                list="agents-list"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter session name"
+                placeholder="Enter agent ID or alias"
               />
-              <datalist id="sessions-list">
-                {allSessions.filter(s => s !== sessionName).map(session => (
-                  <option key={session} value={session} />
+              <datalist id="agents-list">
+                {allAgents.filter(a => a.id !== agentId).map(agent => (
+                  <option key={agent.id} value={agent.id} label={agent.alias} />
                 ))}
               </datalist>
             </div>

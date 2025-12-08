@@ -39,13 +39,13 @@ HOSTNAME=localhost PORT=3000 yarn dev
 ### Data Storage
 
 **Local Data Only:**
-- Session notes stored in browser localStorage
+- Agent notes stored in browser localStorage
 - No data transmitted over the internet
 - No cloud sync or backup
 - Clearing browser data will delete all notes
 
 **Sensitive Information:**
-- Do NOT store passwords or API keys in session notes
+- Do NOT store passwords or API keys in agent notes
 - Do NOT expose sensitive environment variables in terminal sessions
 - Session content is stored in memory only (not persisted)
 
@@ -141,7 +141,7 @@ tmux kill-server
 **Planned for Phase 2+:**
 - [ ] HTTPS/TLS support
 - [ ] User authentication
-- [ ] Session-level access control
+- [ ] Agent-level access control
 - [ ] Encrypted note storage
 - [ ] Audit logging
 - [ ] Rate limiting

@@ -77,7 +77,7 @@
         "priceCurrency": "USD"
       },
       "description": "Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. Zero-configuration terminal multiplexer for autonomous AI agents.",
-      "softwareVersion": "0.12.1",
+      "softwareVersion": "0.14.0",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
@@ -94,12 +94,12 @@
       "featureList": [
         "Multi-agent AI orchestration",
         "Claude Code integration",
-        "Terminal session management",
+        "Terminal agent management",
         "Real-time WebSocket streaming",
         "Agent-to-agent communication with inbox/outbox",
         "Unread message tracking and auto-mark-as-read",
         "Mobile remote access",
-        "Hierarchical session organization",
+        "Hierarchical agent organization",
         "Code Graph visualization with multi-language support",
         "Agent Subconscious with background memory maintenance",
         "Conversation memory with semantic search",
@@ -136,7 +136,7 @@
         "name": "Can I access AI Maestro from my mobile device?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. AI Maestro has a touch-optimized mobile interface that works with secure Tailscale VPN for remote access from phones or tablets. You can monitor agent progress, read terminal output, and manage sessions from anywhere."
+          "text": "Yes. AI Maestro has a touch-optimized mobile interface that works with secure Tailscale VPN for remote access from phones or tablets. You can monitor agent progress, read terminal output, and manage agents from anywhere."
         }
       },{
         "@type": "Question",
@@ -168,13 +168,13 @@
       },{
         "@type": "HowToStep",
         "position": 2,
-        "name": "Create Your First Agent Session",
-        "text": "Click the + button in the sidebar, enter a session name with hyphens for hierarchy (e.g., myproject-backend-api), choose working directory, and click Create Agent"
+        "name": "Create Your First Agent",
+        "text": "Click the + button in the sidebar, enter an agent name with hyphens for hierarchy (e.g., myproject-backend-api), choose working directory, and click Create Agent"
       },{
         "@type": "HowToStep",
         "position": 3,
         "name": "Start Coding",
-        "text": "Your session is live. Click to switch between sessions, add notes, and organize your AI agent workflow."
+        "text": "Your agent is live. Click to switch between agents, add notes, and organize your AI agent workflow."
       }]
     }
     </script>
@@ -362,7 +362,7 @@
                     <a href="#quick-start" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-primary border-2 border-primary hover:bg-primary hover:text-white text-lg">Learn More</a>
                 </div>
                 <div class="flex flex-wrap gap-2 justify-center">
-                    <img src="https://img.shields.io/badge/version-0.12.1-blue" alt="Version">
+                    <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="Version">
                     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)%20%7C%20Linux-lightgrey" alt="Platform">
                     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
                 </div>
@@ -462,13 +462,13 @@
                 </div>
                 <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
                     <div class="text-5xl mb-4">📝</div>
-                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Session Notes</h3>
-                    <p class="leading-relaxed text-gray-600">Take notes for each session, auto-saved to localStorage. Track decisions, save commands, keep TODOs.</p>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Agent Notes</h3>
+                    <p class="leading-relaxed text-gray-600">Take notes for each agent, auto-saved to localStorage. Track decisions, save commands, keep TODOs.</p>
                 </div>
                 <div class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]">
                     <div class="text-5xl mb-4">🔄</div>
-                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Full Session Management</h3>
-                    <p class="leading-relaxed text-gray-600">Create, rename, and delete sessions from the UI. Auto-discovery of existing tmux sessions.</p>
+                    <h3 class="mb-4 text-gray-800 text-xl font-semibold">Full Agent Management</h3>
+                    <p class="leading-relaxed text-gray-600">Create, rename, and delete agents from the UI. Auto-discovery of existing tmux sessions.</p>
                 </div>
                 <a href="messaging.html" class="p-8 border border-gray-200 rounded-2xl transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)] no-underline text-inherit block cursor-pointer">
                     <div class="text-5xl mb-4">📬</div>
@@ -664,11 +664,11 @@ yarn dev
                 </div>
                 <div class="bg-white p-8 rounded-2xl border border-gray-200">
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">2</div>
-                    <h3 class="text-2xl mb-4 font-semibold">Create Your First Session</h3>
+                    <h3 class="text-2xl mb-4 font-semibold">Create Your First Agent</h3>
                     <p class="leading-relaxed"><strong>From the UI (Recommended):</strong></p>
                     <ol class="ml-6 mt-2 list-decimal">
                         <li class="mb-2">Click the <strong>"+" button</strong> in the sidebar</li>
-                        <li class="mb-2">Enter a session name using hyphens for hierarchy:<br>
+                        <li class="mb-2">Enter an agent name using hyphens for hierarchy:<br>
                             <code class="bg-gray-100 px-2 py-1 rounded text-[0.9em] font-mono">myproject-backend-api</code> → creates 3 levels</li>
                         <li class="mb-2">Choose your working directory</li>
                         <li class="mb-2">Click "Create Agent"</li>
@@ -684,7 +684,7 @@ yarn dev
                 <div class="bg-white p-8 rounded-2xl border border-gray-200">
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full text-2xl font-bold mb-4">3</div>
                     <h3 class="text-2xl mb-4 font-semibold">Start Coding</h3>
-                    <p class="leading-relaxed">Your session is now live in the dashboard. Click to switch between sessions. Add notes. Organize your work. That's it.</p>
+                    <p class="leading-relaxed">Your agent is now live in the dashboard. Click to switch between agents. Add notes. Organize your work. That's it.</p>
                 </div>
             </div>
         </div>

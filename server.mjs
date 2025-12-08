@@ -319,7 +319,7 @@ app.prepare().then(() => {
       // Continue with local tmux fallback
     }
 
-    // Get or create session state (for traditional local tmux agents)
+    // Get or create session state (for traditional local tmux sessions)
     let sessionState = sessions.get(sessionName)
 
     if (!sessionState) {

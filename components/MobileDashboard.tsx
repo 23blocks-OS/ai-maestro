@@ -1,67 +1,92 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import TerminalView from './TerminalView'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
+import type { UnifiedAgent } from '@/types/agent'
 import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
 
 interface MobileDashboardProps {
-  sessions: Session[]
+  agents: UnifiedAgent[]
   loading: boolean
   error: string | null
   onRefresh: () => void
 }
 
+// Helper: Convert agent to session-like object for TerminalView compatibility
+function agentToSession(agent: UnifiedAgent): Session {
+  return {
+    id: agent.session.tmuxSessionName || agent.id,
+    name: agent.displayName || agent.alias,
+    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    status: 'active' as const,
+    createdAt: agent.createdAt,
+    lastActivity: agent.lastActive || agent.createdAt,
+    windows: 1,
+    agentId: agent.id,
+    hostId: agent.session.hostId,
+  }
+}
+
 export default function MobileDashboard({
-  sessions,
+  agents,
   loading,
   error,
   onRefresh
 }: MobileDashboardProps) {
   const { hosts } = useHosts()
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
   } | null>(null)
   const [notes, setNotes] = useState('')
-  const [connectionStatus, setConnectionStatus] = useState<{ [sessionId: string]: boolean }>({})
+  const [connectionStatus, setConnectionStatus] = useState<{ [agentId: string]: boolean }>({})
 
-  // Auto-select first session when sessions load
+  // Filter to only online agents for terminal tabs
+  const onlineAgents = useMemo(
+    () => agents.filter(a => a.session.status === 'online'),
+    [agents]
+  )
+
+  // Auto-select first agent when agents load
   useEffect(() => {
-    if (sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0].id)
+    if (onlineAgents.length > 0 && !activeAgentId) {
+      setActiveAgentId(onlineAgents[0].id)
     }
-  }, [sessions, activeSessionId])
+  }, [onlineAgents, activeAgentId])
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId)
+  const activeAgent = agents.find((a) => a.id === activeAgentId)
 
-  // Load notes from localStorage when active session changes
+  // Storage ID for notes
+  const storageId = activeAgentId
+
+  // Load notes from localStorage when active agent changes
   useEffect(() => {
-    if (activeSessionId) {
-      const notesKey = `session-notes-${activeSessionId}`
+    if (storageId) {
+      const notesKey = `agent-notes-${storageId}`
       const savedNotes = localStorage.getItem(notesKey)
       setNotes(savedNotes || '')
     }
-  }, [activeSessionId])
+  }, [storageId])
 
   // Save notes to localStorage when they change
   useEffect(() => {
-    if (activeSessionId && notes !== undefined) {
-      const notesKey = `session-notes-${activeSessionId}`
+    if (storageId && notes !== undefined) {
+      const notesKey = `agent-notes-${storageId}`
       localStorage.setItem(notesKey, notes)
     }
-  }, [notes, activeSessionId])
+  }, [notes, storageId])
 
-  const handleSessionSelect = (sessionId: string) => {
-    setActiveSessionId(sessionId)
-    // Switch to terminal tab when selecting a session from hosts tab
+  const handleAgentSelect = (agentId: string) => {
+    setActiveAgentId(agentId)
+    // Switch to terminal tab when selecting an agent from hosts tab
     setActiveTab('terminal')
   }
 
@@ -73,27 +98,28 @@ export default function MobileDashboard({
     setSelectedConversation(null)
   }
 
-  // Parse session name for display (show last part if hierarchical)
-  const getDisplayName = (sessionId: string) => {
-    const parts = sessionId.split('/')
-    return parts[parts.length - 1]
+  // Get display name for an agent
+  const getAgentDisplayName = (agent: UnifiedAgent) => {
+    return agent.displayName || agent.alias || agent.id
   }
 
   // Format display as agent@host
   const getAgentHostDisplay = () => {
-    if (!activeSession) return 'No Agent Selected'
-    const agentName = getDisplayName(activeSession.id)
-    const hostName = activeSession.hostId === 'local' ? 'local' : (hosts.find(h => h.id === activeSession.hostId)?.name || activeSession.hostId)
+    if (!activeAgent) return 'No Agent Selected'
+    const agentName = getAgentDisplayName(activeAgent)
+    const hostName = activeAgent.session.hostId === 'local'
+      ? 'local'
+      : (hosts.find(h => h.id === activeAgent.session.hostId)?.name || activeAgent.session.hostId || 'local')
     return `${agentName}@${hostName}`
   }
 
   // Handle connection status updates from TerminalView
-  const handleConnectionStatusChange = (sessionId: string, isConnected: boolean) => {
-    setConnectionStatus(prev => ({ ...prev, [sessionId]: isConnected }))
+  const handleConnectionStatusChange = (agentId: string, isConnected: boolean) => {
+    setConnectionStatus(prev => ({ ...prev, [agentId]: isConnected }))
   }
 
-  // Get connection status for active session
-  const isActiveSessionConnected = activeSessionId ? connectionStatus[activeSessionId] ?? false : false
+  // Get connection status for active agent
+  const isActiveAgentConnected = activeAgentId ? connectionStatus[activeAgentId] ?? false : false
 
   return (
     <div
@@ -109,12 +135,12 @@ export default function MobileDashboard({
       {/* Top Bar */}
       <header className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
         <div className="flex items-center px-4 py-3">
-          {/* Current Session Display with Connection Status */}
+          {/* Current Agent Display with Connection Status */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Connection indicator - green/red dot */}
             <div
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                isActiveSessionConnected ? 'bg-green-500' : 'bg-red-500'
+                isActiveAgentConnected ? 'bg-green-500' : 'bg-red-500'
               }`}
             />
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
@@ -128,7 +154,7 @@ export default function MobileDashboard({
             onClick={onRefresh}
             disabled={loading}
             className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0 flex items-center justify-center"
-            aria-label="Refresh sessions"
+            aria-label="Refresh agents"
           >
             <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -145,23 +171,24 @@ export default function MobileDashboard({
       {/* Main Content */}
       <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
         {/* Empty State */}
-        {sessions.length === 0 && (
+        {onlineAgents.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
             <Terminal className="w-16 h-16 text-gray-600 mb-4" />
-            <p className="text-lg font-medium text-gray-300 mb-2">No Agents Found</p>
+            <p className="text-lg font-medium text-gray-300 mb-2">No Online Agents</p>
             <p className="text-sm text-gray-500">
-              Create a new agent to get started
+              Start an agent&apos;s tmux session to connect
             </p>
           </div>
         )}
 
-        {/* Terminal & Messages Tabs - Session-Specific */}
-        {(activeTab === 'terminal' || activeTab === 'messages') && sessions.map(session => {
-          const isActive = session.id === activeSessionId
+        {/* Terminal & Messages Tabs - Agent-Specific */}
+        {(activeTab === 'terminal' || activeTab === 'messages') && onlineAgents.map(agent => {
+          const isActive = agent.id === activeAgentId
+          const session = agentToSession(agent)
 
           return (
             <div
-              key={session.id}
+              key={agent.id}
               className="absolute inset-0 flex flex-col"
               style={{
                 visibility: isActive ? 'visible' : 'hidden',
@@ -174,51 +201,57 @@ export default function MobileDashboard({
                   session={session}
                   hideFooter={true}
                   hideHeader={true}
-                  onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(session.id, isConnected)}
+                  onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
                 />
               ) : (
                 <MobileMessageCenter
                   sessionName={session.id}
-                  allSessions={sessions.map(s => s.id)}
+                  agentId={agent.id}
+                  allAgents={onlineAgents.map(a => ({
+                    id: a.id,
+                    alias: a.displayName || a.alias || a.id,
+                    tmuxSessionName: a.session.tmuxSessionName
+                  }))}
                 />
               )}
             </div>
           )
         })}
 
-        {/* Work Tab - Shows work history for active session */}
-        {activeTab === 'work' && activeSession && (
+        {/* Work Tab - Shows work history for active agent */}
+        {activeTab === 'work' && activeAgent && (
           <div className="absolute inset-0">
             <MobileWorkTree
-              sessionName={activeSession.id}
-              agentId={activeSession.agentId}
+              sessionName={activeAgent.session.tmuxSessionName || activeAgent.id}
+              agentId={activeAgent.id}
+              hostId={activeAgent.session.hostId}
               onConversationSelect={handleConversationSelect}
             />
           </div>
         )}
 
-        {/* Hosts Tab - Shows all sessions grouped by host */}
+        {/* Hosts Tab - Shows all agents grouped by host */}
         {activeTab === 'hosts' && (
           <div className="absolute inset-0">
             <MobileHostsList
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSessionSelect={handleSessionSelect}
+              agents={agents}
+              activeAgentId={activeAgentId}
+              onAgentSelect={handleAgentSelect}
             />
           </div>
         )}
 
-        {/* Notes Tab - Shows notes for active session */}
-        {activeTab === 'notes' && activeSession && (
+        {/* Notes Tab - Shows notes for active agent */}
+        {activeTab === 'notes' && activeAgent && (
           <div className="absolute inset-0 flex flex-col bg-gray-900">
             {/* Notes Header */}
             <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-950">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-400" />
-                <h2 className="text-sm font-semibold text-white">Session Notes</h2>
+                <h2 className="text-sm font-semibold text-white">Agent Notes</h2>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {getDisplayName(activeSession.id)}
+                {getAgentDisplayName(activeAgent)}
               </p>
             </div>
 
@@ -331,7 +364,7 @@ export default function MobileDashboard({
             >
               AI Maestro
             </a>
-            {' '}v0.12.1 •{' '}
+            {' '}v0.14.0 •{' '}
             <a
               href="https://x.com/jkpelaez"
               target="_blank"

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Claude Code Dashboard** - A browser-based terminal dashboard for managing multiple Claude Code sessions running in tmux on macOS. The application auto-discovers tmux sessions and provides a unified web interface with real-time terminal streaming.
+**Claude Code Dashboard** - A browser-based terminal dashboard for managing multiple Claude Code agents running in tmux on macOS. The application auto-discovers agents from tmux sessions and provides a unified web interface with real-time terminal streaming.
 
 **Current Phase:** Phase 1 - Local-only, auto-discovery, no authentication
 **Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS, lucide-react
@@ -90,23 +90,23 @@ When modifying `server.mjs`:
 - Maintain the session pooling logic (multiple clients → one PTY)
 - Never block the event loop during PTY operations
 
-### 2. Session Auto-Discovery Pattern
+### 2. Agent Auto-Discovery Pattern
 
-**Unlike typical session management systems**, this application does NOT use a configuration file or database. Sessions are discovered in real-time:
+**Unlike typical agent management systems**, this application does NOT use a configuration file or database. Agents are discovered in real-time from tmux sessions:
 
 ```
 /api/sessions → Execute `tmux ls` → Parse output → Return JSON
 ```
 
 **Implementation details:**
-- Sessions are ephemeral - they exist only while tmux is running
+- Agents are ephemeral - they exist only while tmux is running
 - No persistent state between dashboard restarts
-- Session metadata comes from tmux directly (creation time, working directory)
-- The dashboard does NOT create or manage sessions (Phase 1 limitation)
+- Agent metadata comes from tmux directly (creation time, working directory)
+- The dashboard does NOT create or manage agents (Phase 1 limitation)
 
-When implementing session-related features:
-- Always assume sessions can disappear between API calls
-- Never cache session data longer than 5-10 seconds
+When implementing agent-related features:
+- Always assume agents can disappear between API calls
+- Never cache agent data longer than 5-10 seconds
 - Handle `tmux ls` returning empty results gracefully
 - Session IDs must match tmux session names exactly (alphanumeric + hyphens/underscores only)
 
@@ -136,14 +136,14 @@ When working with terminal components:
 
 ### 4. Tab-Based Multi-Terminal Architecture
 
-**Critical architectural pattern (v0.3.0+):** All sessions are mounted simultaneously as "virtual tabs" with CSS visibility toggling.
+**Critical architectural pattern (v0.3.0+):** All agents are mounted simultaneously as "virtual tabs" with CSS visibility toggling.
 
 **Why this architecture:**
-- Eliminates complex session-switching logic (was 85+ lines of race condition handling)
-- Terminals initialize once on mount, never re-initialize on session switch
-- Instant session switching (no unmount/remount cycle)
+- Eliminates complex agent-switching logic (was 85+ lines of race condition handling)
+- Terminals initialize once on mount, never re-initialize on agent switch
+- Instant agent switching (no unmount/remount cycle)
 - Preserves terminal state, scrollback, and WebSocket connections
-- Session notes stay in memory (no localStorage reload on switch)
+- Agent notes stay in memory (no localStorage reload on switch)
 
 **Implementation:**
 ```tsx
@@ -170,7 +170,7 @@ When working with terminal components:
 - `display: none` removes element from layout → getBoundingClientRect() returns 0 dimensions → terminal initializes with incorrect width
 - `visibility: hidden` keeps element in layout → correct dimensions → proper terminal sizing
 - `pointerEvents: none` prevents hidden tabs from capturing mouse events
-- Text selection works immediately without session switching
+- Text selection works immediately without agent switching
 
 **Terminal initialization pattern:**
 ```typescript
@@ -190,10 +190,10 @@ useEffect(() => {
 ```
 
 **What was removed:**
-- Session change detection (currentSessionRef, sessionChanged checks)
+- Agent change detection (currentSessionRef, sessionChanged checks)
 - Race condition handling (initializingRef, duplicate initialization prevention)
 - Stale initialization cleanup verification
-- Notes/logging re-sync on session change (loaded once on mount)
+- Notes/logging re-sync on agent change (loaded once on mount)
 
 ### 5. React State Management Pattern
 
@@ -201,37 +201,37 @@ useEffect(() => {
 
 ```
 App State:
-- Active session ID (localStorage persistence, drives visibility toggle)
-- Session list (fetched from /api/sessions every 10s)
-- WebSocket connection state (per session, persistent)
+- Active agent ID (localStorage persistence, drives visibility toggle)
+- Agent list (fetched from /api/sessions every 10s)
+- WebSocket connection state (per agent, persistent)
 
 Component State:
-- Terminal instance (xterm.js, created once per session)
+- Terminal instance (xterm.js, created once per agent)
 - Connection errors (transient, cleared on retry)
-- Session notes (loaded once, persist in component state)
+- Agent notes (loaded once, persist in component state)
 ```
 
 **Key hooks:**
 - `useSessions()` - Fetches session list, auto-refreshes
 - `useTerminal()` - Manages xterm.js lifecycle (init once, resize, dispose)
 - `useWebSocket()` - Handles WebSocket connection, reconnection, message routing
-- `useActiveSession()` - Tracks selected session with localStorage
+- `useActiveSession()` - Tracks selected agent with localStorage
 
 When adding new state:
 - Keep it in the nearest component that needs it
 - Use Context only if 3+ components need the same state
 - Never store terminal content in React state (xterm.js manages this)
-- Consider if state needs to persist across session switches (keep in component) vs. reload (use effect with session.id dependency)
+- Consider if state needs to persist across agent switches (keep in component) vs. reload (use effect with session.id dependency)
 
 ### 6. UI Enhancement Patterns
 
-**Hierarchical Session Organization:**
+**Hierarchical Agent Organization:**
 
-Sessions are organized in a 3-level hierarchy based on their names:
+Agents are organized in a 3-level hierarchy based on their names:
 ```
 fluidmind/agents/backend-architect  →  Level 1: "fluidmind"
                                         Level 2: "agents"
-                                        Session: "backend-architect"
+                                        Agent: "backend-architect"
 ```
 
 **Dynamic Color System:**
@@ -255,16 +255,16 @@ const getCategoryColor = (category: string) => {
 - Default icon: `Layers` (can be customized per category)
 - Icons for: folders, terminals, actions (edit, delete, create)
 
-**Session Notes Feature:**
-- Collapsible textarea below terminal for per-session notes
+**Agent Notes Feature:**
+- Collapsible textarea below terminal for per-agent notes
 - Auto-saves to localStorage (`session-notes-${sessionId}`)
 - Collapse state persisted (`session-notes-collapsed-${sessionId}`)
 - Full copy/paste/edit support
 
-**Session Management:**
-- Rename sessions with validation (API call to backend)
-- Delete sessions with confirmation modal
-- Create new sessions with optional working directory
+**Agent Management:**
+- Rename agents with validation (API call to backend)
+- Delete agents with confirmation modal
+- Create new agents with optional working directory
 - All actions update UI optimistically with error handling
 
 **UI Best Practices:**
@@ -516,7 +516,7 @@ try {
 
 - **Every character creates a new line**: `convertEol` was set to `true` - must be `false` for PTY connections
 - **Can't scroll back during Claude session**: Claude Code uses alternate screen buffer - use Shift+PageUp/Down to scroll xterm.js buffer, or tmux copy mode (Ctrl-b [) to access tmux's scrollback
-- **Lost history after switching sessions**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
+- **Lost history after switching agents**: History capture timeout was too short or tmux session not fully initialized - increased timeout to 150ms
 
 ### WebSocket Reconnection Strategy
 
@@ -546,7 +546,7 @@ tmux session names are limited to: `^[a-zA-Z0-9_-]+$`
 
 **DO NOT implement:**
 - User authentication (not needed for localhost)
-- Session-level permissions (all sessions accessible to local user)
+- Agent-level permissions (all agents accessible to local user)
 - HTTPS/TLS (overkill for localhost)
 
 These are deferred to Phase 2+ if remote access is needed.
@@ -602,7 +602,7 @@ useEffect(() => {
 }, []) // Empty deps with tab architecture - WebSocket persists across visibility changes
 ```
 
-**Tab-based architecture change (v0.3.0+):** WebSocket connections are no longer recreated on session switch. They're created once on mount and persist until component unmounts (when session is removed from session list).
+**Tab-based architecture change (v0.3.0+):** WebSocket connections are no longer recreated on agent switch. They're created once on mount and persist until component unmounts (when agent is removed from the list).
 
 ### 4. tmux Session Name Parsing
 
@@ -668,14 +668,14 @@ Set via `.env.local` (gitignored). Never commit `.env.local`.
 
 - **[README.md](./README.md)** - Project overview, quick start, architecture
 - **[docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Installation prerequisites
-- **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Session management, troubleshooting
+- **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Agent management, troubleshooting
 
 Refer to these when users ask about setup or usage.
 
 ## Roadmap Context
 
-**Phase 1 (Current):** Auto-discovery, localhost-only, read-only session interaction
-**Phase 2 (Planned):** Session creation from UI, grouping, search
+**Phase 1 (Current):** Auto-discovery, localhost-only, read-only agent interaction
+**Phase 2 (Planned):** Agent creation from UI, grouping, search
 **Phase 3 (Future):** Remote SSH sessions, authentication, collaboration
 
 When implementing features:
@@ -701,7 +701,7 @@ When implementing features:
 
 1. `server.mjs` - Custom server combining HTTP and WebSocket
 2. `app/page.tsx` - Main UI composition with footer (SessionList + TerminalView)
-3. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, session management
+3. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, agent management
 4. `components/TerminalView.tsx` - Terminal display with collapsible notes feature
 5. `hooks/useWebSocket.ts` - WebSocket connection management
 6. `hooks/useTerminal.ts` - xterm.js lifecycle management
@@ -710,9 +710,9 @@ When implementing features:
 **Read these in order** to understand the full data flow from tmux → browser.
 
 **Key UI patterns:**
-- Tab-based multi-terminal architecture (v0.3.0+) - all sessions mounted, visibility toggling
+- Tab-based multi-terminal architecture (v0.3.0+) - all agents mounted, visibility toggling
 - Dynamic color assignment (hash-based, no hardcoding)
-- Hierarchical grouping (3-level: category/subcategory/session)
-- Session notes (per-session localStorage)
+- Hierarchical grouping (3-level: category/subcategory/agent)
+- Agent notes (per-agent localStorage)
 - Avoid nested buttons (use div with cursor-pointer)
 - Use visibility:hidden for inactive tabs (not display:none)

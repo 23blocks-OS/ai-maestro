@@ -2,11 +2,17 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { getHostById } from './hosts-config-server.mjs'
+import { loadAgents, getAgentBySession } from './agent-registry'
+import type { Agent } from '@/types/agent'
 
 export interface Message {
   id: string
-  from: string
-  to: string
+  from: string           // Agent ID (or session name for backward compat)
+  fromAlias?: string     // Agent alias for display
+  fromSession?: string   // Actual session name (for delivery)
+  to: string             // Agent ID (or session name for backward compat)
+  toAlias?: string       // Agent alias for display
+  toSession?: string     // Actual session name (for delivery)
   timestamp: string
   subject: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
@@ -36,7 +42,9 @@ export interface Message {
 export interface MessageSummary {
   id: string
   from: string
+  fromAlias?: string
   to: string
+  toAlias?: string
   timestamp: string
   subject: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
@@ -45,18 +53,71 @@ export interface MessageSummary {
   preview: string
 }
 
+interface ResolvedAgent {
+  agentId: string
+  alias: string
+  displayName?: string
+  sessionName?: string  // Current tmux session (may be null if offline)
+}
+
 const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
 
 /**
- * Parse a qualified session name (session-name@host-id)
- * Returns { sessionName, hostId } or { sessionName, hostId: null } if no host specified
+ * Resolve an agent identifier (alias, ID, or session name) to full agent info
+ * Priority: 1) exact ID match, 2) exact alias match, 3) session name match
  */
-function parseQualifiedName(qualifiedName: string): { sessionName: string; hostId: string | null } {
+function resolveAgent(identifier: string): ResolvedAgent | null {
+  const agents = loadAgents()
+
+  // 1. Try exact ID match
+  let agent = agents.find(a => a.id === identifier)
+
+  // 2. Try exact alias match (case-insensitive)
+  if (!agent) {
+    agent = agents.find(a => a.alias.toLowerCase() === identifier.toLowerCase())
+  }
+
+  // 3. Try tmux session name match
+  if (!agent) {
+    agent = agents.find(a => a.tools.session?.tmuxSessionName === identifier)
+  }
+
+  // 4. Try partial alias match in session name (e.g., "crm" matches "23blocks-api-crm")
+  if (!agent) {
+    agent = agents.find(a => {
+      const sessionName = a.tools.session?.tmuxSessionName || ''
+      const segments = sessionName.split(/[-_]/)
+      return segments.includes(identifier.toLowerCase())
+    })
+  }
+
+  if (!agent) return null
+
+  return {
+    agentId: agent.id,
+    alias: agent.alias,
+    displayName: agent.displayName,
+    sessionName: agent.tools.session?.tmuxSessionName
+  }
+}
+
+/**
+ * Get agent ID from session name (for CLI scripts that detect session via tmux)
+ */
+export function getAgentIdFromSession(sessionName: string): string | null {
+  const agent = getAgentBySession(sessionName)
+  return agent?.id || null
+}
+
+/**
+ * Parse a qualified name (identifier@host-id)
+ */
+function parseQualifiedName(qualifiedName: string): { identifier: string; hostId: string | null } {
   const parts = qualifiedName.split('@')
   if (parts.length === 2) {
-    return { sessionName: parts[0], hostId: parts[1] }
+    return { identifier: parts[0], hostId: parts[1] }
   }
-  return { sessionName: qualifiedName, hostId: null }
+  return { identifier: qualifiedName, hostId: null }
 }
 
 /**
@@ -85,37 +146,38 @@ function generateMessageId(): string {
 }
 
 /**
- * Get the inbox directory for a session
+ * Get the inbox directory for an agent (by ID)
  */
-function getInboxDir(sessionName: string): string {
-  return path.join(MESSAGE_DIR, 'inbox', sessionName)
+function getInboxDir(agentId: string): string {
+  return path.join(MESSAGE_DIR, 'inbox', agentId)
 }
 
 /**
- * Get the sent directory for a session
+ * Get the sent directory for an agent (by ID)
  */
-function getSentDir(sessionName: string): string {
-  return path.join(MESSAGE_DIR, 'sent', sessionName)
+function getSentDir(agentId: string): string {
+  return path.join(MESSAGE_DIR, 'sent', agentId)
 }
 
 /**
- * Get the archived directory for a session
+ * Get the archived directory for an agent (by ID)
  */
-function getArchivedDir(sessionName: string): string {
-  return path.join(MESSAGE_DIR, 'archived', sessionName)
+function getArchivedDir(agentId: string): string {
+  return path.join(MESSAGE_DIR, 'archived', agentId)
 }
 
 /**
- * Ensure session-specific directories exist
+ * Ensure agent-specific directories exist
  */
-async function ensureSessionDirectories(sessionName: string): Promise<void> {
-  await fs.mkdir(getInboxDir(sessionName), { recursive: true })
-  await fs.mkdir(getSentDir(sessionName), { recursive: true })
-  await fs.mkdir(getArchivedDir(sessionName), { recursive: true })
+async function ensureAgentDirectories(agentId: string): Promise<void> {
+  await fs.mkdir(getInboxDir(agentId), { recursive: true })
+  await fs.mkdir(getSentDir(agentId), { recursive: true })
+  await fs.mkdir(getArchivedDir(agentId), { recursive: true })
 }
 
 /**
- * Send a message from one session to another (supports cross-host messaging)
+ * Send a message from one agent to another
+ * Accepts agent alias, ID, or session name as identifiers
  */
 export async function sendMessage(
   from: string,
@@ -128,15 +190,33 @@ export async function sendMessage(
   }
 ): Promise<Message> {
   await ensureMessageDirectories()
-  await ensureSessionDirectories(from)
 
-  // Parse qualified name (session-name@host-id)
-  const { sessionName: recipientSessionName, hostId: targetHostId } = parseQualifiedName(to)
+  // Parse qualified name (identifier@host-id)
+  const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(to)
+
+  // Resolve sender agent
+  const fromAgent = resolveAgent(from)
+  if (!fromAgent) {
+    throw new Error(`Unknown sender: ${from}. Please register this agent first.`)
+  }
+
+  // Resolve recipient agent
+  const toAgent = resolveAgent(toIdentifier)
+  if (!toAgent) {
+    throw new Error(`Unknown recipient: ${to}. Please ensure the agent is registered.`)
+  }
+
+  await ensureAgentDirectories(fromAgent.agentId)
+  await ensureAgentDirectories(toAgent.agentId)
 
   const message: Message = {
     id: generateMessageId(),
-    from,
-    to: recipientSessionName, // Use unqualified name in message
+    from: fromAgent.agentId,
+    fromAlias: fromAgent.alias,
+    fromSession: fromAgent.sessionName,
+    to: toAgent.agentId,
+    toAlias: toAgent.alias,
+    toSession: toAgent.sessionName,
     timestamp: new Date().toISOString(),
     subject,
     priority: options?.priority || 'normal',
@@ -146,50 +226,31 @@ export async function sendMessage(
   }
 
   // Determine if recipient is on a remote host
+  // Note: hostId comes from qualified name (e.g., "crm@remote-host")
   let recipientIsRemote = false
   let remoteHostUrl: string | null = null
 
-  try {
-    // Fetch sessions to find recipient (use relative URL for mobile compatibility)
-    const response = await fetch('/api/sessions')
-    const data = await response.json()
-
-    // Find recipient session
-    // If hostId specified (qualified name), match both session name and hostId
-    // Otherwise, match session name only (backward compatible)
-    const recipientSession = data.sessions?.find((s: any) => {
-      const nameMatches = s.name === recipientSessionName || s.id === recipientSessionName
-      if (targetHostId) {
-        // Qualified name - must match both name and host
-        return nameMatches && s.hostId === targetHostId
-      }
-      // Unqualified name - match name only (first match)
-      return nameMatches
-    })
-
-    if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
-      // Recipient is on a remote host
-      const remoteHost = getHostById(recipientSession.hostId)
-      if (remoteHost) {
-        recipientIsRemote = true
-        remoteHostUrl = remoteHost.url
-      }
+  if (targetHostId && targetHostId !== 'local') {
+    const remoteHost = getHostById(targetHostId)
+    if (remoteHost) {
+      recipientIsRemote = true
+      remoteHostUrl = remoteHost.url
     }
-  } catch (error) {
-    console.warn('[MessageQueue] Failed to determine recipient host, assuming local:', error)
   }
 
   if (recipientIsRemote && remoteHostUrl) {
     // Send message to remote host via HTTP
-    console.log(`[MessageQueue] Sending message to remote session ${to} at ${remoteHostUrl}`)
+    console.log(`[MessageQueue] Sending message to remote agent ${toAgent.alias} at ${remoteHostUrl}`)
 
     try {
       const remoteResponse = await fetch(`${remoteHostUrl}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from,
-          to,
+          from: fromAgent.agentId,
+          fromAlias: fromAgent.alias,
+          to: toAgent.agentId,
+          toAlias: toAgent.alias,
           subject,
           content,
           priority: options?.priority,
@@ -201,55 +262,63 @@ export async function sendMessage(
         throw new Error(`Remote host returned ${remoteResponse.status}`)
       }
 
-      console.log(`[MessageQueue] ✓ Message delivered to remote host ${remoteHostUrl}`)
+      console.log(`[MessageQueue] Message delivered to remote host ${remoteHostUrl}`)
     } catch (error) {
       console.error(`[MessageQueue] Failed to send message to remote host:`, error)
-      throw new Error(`Failed to deliver message to remote session: ${error}`)
+      throw new Error(`Failed to deliver message to remote agent: ${error}`)
     }
   } else {
-    // Local recipient - write to filesystem
-    await ensureSessionDirectories(recipientSessionName)
-    const inboxPath = path.join(getInboxDir(recipientSessionName), `${message.id}.json`)
+    // Local recipient - write to filesystem using agent ID
+    const inboxPath = path.join(getInboxDir(toAgent.agentId), `${message.id}.json`)
     await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
   }
 
-  // Always write to sender's sent folder (locally)
-  const sentPath = path.join(getSentDir(from), `${message.id}.json`)
+  // Always write to sender's sent folder (locally) using agent ID
+  const sentPath = path.join(getSentDir(fromAgent.agentId), `${message.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(message, null, 2))
 
   return message
 }
 
 /**
- * Forward a message to another session (supports cross-host forwarding)
+ * Forward a message to another agent
  */
 export async function forwardMessage(
   originalMessageId: string,
-  fromSession: string,
-  toSession: string,
+  fromAgent: string,
+  toAgent: string,
   forwardNote?: string,
   providedOriginalMessage?: Message
 ): Promise<Message> {
-  // Parse qualified name (session-name@host-id)
-  const { sessionName: recipientSessionName, hostId: targetHostId } = parseQualifiedName(toSession)
+  // Parse qualified name
+  const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(toAgent)
+
+  // Resolve agents
+  const fromResolved = resolveAgent(fromAgent)
+  if (!fromResolved) {
+    throw new Error(`Unknown sender: ${fromAgent}`)
+  }
+
+  const toResolved = resolveAgent(toIdentifier)
+  if (!toResolved) {
+    throw new Error(`Unknown recipient: ${toAgent}`)
+  }
 
   // Get the original message
-  // If providedOriginalMessage is given (remote forward), use it
-  // Otherwise fetch from local filesystem (local forward)
   let originalMessage: Message | null
 
   if (providedOriginalMessage) {
     originalMessage = providedOriginalMessage
   } else {
-    originalMessage = await getMessage(fromSession, originalMessageId)
+    originalMessage = await getMessage(fromResolved.agentId, originalMessageId)
     if (!originalMessage) {
       throw new Error(`Message ${originalMessageId} not found`)
     }
   }
 
   await ensureMessageDirectories()
-  await ensureSessionDirectories(fromSession)
-  await ensureSessionDirectories(recipientSessionName)
+  await ensureAgentDirectories(fromResolved.agentId)
+  await ensureAgentDirectories(toResolved.agentId)
 
   // Build forwarded content
   let forwardedContent = ''
@@ -257,8 +326,8 @@ export async function forwardMessage(
     forwardedContent += `${forwardNote}\n\n`
   }
   forwardedContent += `--- Forwarded Message ---\n`
-  forwardedContent += `From: ${originalMessage.from}\n`
-  forwardedContent += `To: ${originalMessage.to}\n`
+  forwardedContent += `From: ${originalMessage.fromAlias || originalMessage.from}\n`
+  forwardedContent += `To: ${originalMessage.toAlias || originalMessage.to}\n`
   forwardedContent += `Sent: ${new Date(originalMessage.timestamp).toLocaleString()}\n`
   forwardedContent += `Subject: ${originalMessage.subject}\n\n`
   forwardedContent += `${originalMessage.content.message}\n`
@@ -267,8 +336,12 @@ export async function forwardMessage(
   // Create forwarded message
   const forwardedMessage: Message = {
     id: generateMessageId(),
-    from: fromSession,
-    to: recipientSessionName, // Use unqualified name in message
+    from: fromResolved.agentId,
+    fromAlias: fromResolved.alias,
+    fromSession: fromResolved.sessionName,
+    to: toResolved.agentId,
+    toAlias: toResolved.alias,
+    toSession: toResolved.sessionName,
     timestamp: new Date().toISOString(),
     subject: `Fwd: ${originalMessage.subject}`,
     priority: originalMessage.priority,
@@ -282,58 +355,36 @@ export async function forwardMessage(
       originalFrom: originalMessage.from,
       originalTo: originalMessage.to,
       originalTimestamp: originalMessage.timestamp,
-      forwardedBy: fromSession,
+      forwardedBy: fromResolved.agentId,
       forwardedAt: new Date().toISOString(),
       forwardNote,
     },
   }
 
   // Determine if recipient is on a remote host
+  // Note: hostId comes from qualified name (e.g., "crm@remote-host")
   let recipientIsRemote = false
   let remoteHostUrl: string | null = null
 
-  try {
-    const response = await fetch('/api/sessions')
-    const data = await response.json()
-
-    // Find recipient session
-    // If hostId specified (qualified name), match both session name and hostId
-    // Otherwise, match session name only (backward compatible)
-    const recipientSession = data.sessions?.find((s: any) => {
-      const nameMatches = s.name === recipientSessionName || s.id === recipientSessionName
-      if (targetHostId) {
-        // Qualified name - must match both name and host
-        return nameMatches && s.hostId === targetHostId
-      }
-      // Unqualified name - match name only (first match)
-      return nameMatches
-    })
-
-    if (recipientSession && recipientSession.hostId && recipientSession.hostId !== 'local') {
-      const remoteHost = getHostById(recipientSession.hostId)
-      if (remoteHost) {
-        recipientIsRemote = true
-        remoteHostUrl = remoteHost.url
-      }
+  if (targetHostId && targetHostId !== 'local') {
+    const remoteHost = getHostById(targetHostId)
+    if (remoteHost) {
+      recipientIsRemote = true
+      remoteHostUrl = remoteHost.url
     }
-  } catch (error) {
-    console.warn('[MessageQueue] Failed to determine recipient host for forward, assuming local:', error)
   }
 
   if (recipientIsRemote && remoteHostUrl) {
-    // Forward message to remote host via HTTP
-    // Must send full message content since remote host doesn't have access to local filesystem
-    console.log(`[MessageQueue] Forwarding message to remote session ${toSession} at ${remoteHostUrl}`)
+    console.log(`[MessageQueue] Forwarding message to remote agent ${toResolved.alias} at ${remoteHostUrl}`)
 
     try {
       const remoteResponse = await fetch(`${remoteHostUrl}/api/messages/forward`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // Send full original message instead of just ID
           originalMessage: originalMessage,
-          fromSession,
-          toSession,
+          fromAgent: fromResolved.agentId,
+          toAgent: toResolved.agentId,
           forwardNote,
         }),
       })
@@ -342,37 +393,148 @@ export async function forwardMessage(
         throw new Error(`Remote host returned ${remoteResponse.status}`)
       }
 
-      console.log(`[MessageQueue] ✓ Forwarded message to remote host ${remoteHostUrl}`)
+      console.log(`[MessageQueue] Forwarded message to remote host ${remoteHostUrl}`)
     } catch (error) {
       console.error(`[MessageQueue] Failed to forward message to remote host:`, error)
-      throw new Error(`Failed to forward message to remote session: ${error}`)
+      throw new Error(`Failed to forward message to remote agent: ${error}`)
     }
   } else {
-    // Local recipient - write to filesystem
-    const inboxPath = path.join(getInboxDir(recipientSessionName), `${forwardedMessage.id}.json`)
+    // Local recipient - write to filesystem using agent ID
+    const inboxPath = path.join(getInboxDir(toResolved.agentId), `${forwardedMessage.id}.json`)
     await fs.writeFile(inboxPath, JSON.stringify(forwardedMessage, null, 2))
   }
 
-  // Write to sender's sent folder (mark as forwarded) - always local
-  const sentPath = path.join(getSentDir(fromSession), `fwd_${forwardedMessage.id}.json`)
+  // Write to sender's sent folder
+  const sentPath = path.join(getSentDir(fromResolved.agentId), `fwd_${forwardedMessage.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(forwardedMessage, null, 2))
 
   return forwardedMessage
 }
 
 /**
- * List messages in a session's inbox
+ * List messages in an agent's inbox
+ * Accepts agent alias, ID, or session name
+ *
+ * Checks multiple locations for backward compatibility:
+ * 1. Agent ID folder (new format)
+ * 2. Session name folder (legacy, may be symlink to old UUID)
  */
 export async function listInboxMessages(
-  sessionName: string,
+  agentIdentifier: string,
   filter?: {
     status?: Message['status']
     priority?: Message['priority']
     from?: string
   }
 ): Promise<MessageSummary[]> {
-  await ensureSessionDirectories(sessionName)
-  const inboxDir = getInboxDir(sessionName)
+  // Resolve agent
+  const agent = resolveAgent(agentIdentifier)
+  if (!agent) {
+    // Fallback: try as direct folder name (backward compat)
+    return listInboxMessagesByFolder(agentIdentifier, filter)
+  }
+
+  await ensureAgentDirectories(agent.agentId)
+
+  // Collect messages from multiple possible locations
+  const allMessages: MessageSummary[] = []
+  const seenIds = new Set<string>()
+
+  // Location 1: Agent ID folder (new format)
+  const agentIdDir = getInboxDir(agent.agentId)
+  await collectMessagesFromDir(agentIdDir, filter, allMessages, seenIds)
+
+  // Location 2: Session name folder (legacy - may be symlink to old UUID)
+  if (agent.sessionName && agent.sessionName !== agent.agentId) {
+    const sessionDir = path.join(MESSAGE_DIR, 'inbox', agent.sessionName)
+    await collectMessagesFromDir(sessionDir, filter, allMessages, seenIds)
+  }
+
+  // Location 3: Original identifier if different (fallback)
+  if (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName) {
+    const identifierDir = path.join(MESSAGE_DIR, 'inbox', agentIdentifier)
+    await collectMessagesFromDir(identifierDir, filter, allMessages, seenIds)
+  }
+
+  // Sort by timestamp (newest first)
+  allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  return allMessages
+}
+
+/**
+ * Helper to collect messages from a directory into the results array
+ */
+async function collectMessagesFromDir(
+  dirPath: string,
+  filter: {
+    status?: Message['status']
+    priority?: Message['priority']
+    from?: string
+  } | undefined,
+  results: MessageSummary[],
+  seenIds: Set<string>
+): Promise<void> {
+  let files: string[]
+  try {
+    files = await fs.readdir(dirPath)
+  } catch (error) {
+    return // Directory doesn't exist, skip
+  }
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue
+
+    const filePath = path.join(dirPath, file)
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const message: Message = JSON.parse(content)
+
+      // Skip if we've already seen this message ID
+      if (seenIds.has(message.id)) continue
+
+      // Apply filters
+      if (filter?.status && message.status !== filter.status) continue
+      if (filter?.priority && message.priority !== filter.priority) continue
+      if (filter?.from) {
+        const fromMatches = message.from === filter.from ||
+                          message.fromAlias === filter.from ||
+                          message.fromSession === filter.from
+        if (!fromMatches) continue
+      }
+
+      seenIds.add(message.id)
+      results.push({
+        id: message.id,
+        from: message.from,
+        fromAlias: message.fromAlias,
+        to: message.to,
+        toAlias: message.toAlias,
+        timestamp: message.timestamp,
+        subject: message.subject,
+        priority: message.priority,
+        status: message.status,
+        type: message.content.type,
+        preview: message.content.message.substring(0, 100),
+      })
+    } catch (error) {
+      console.error(`Error reading message file ${file}:`, error)
+    }
+  }
+}
+
+/**
+ * Fallback: list messages by folder name (backward compatibility)
+ */
+async function listInboxMessagesByFolder(
+  folderName: string,
+  filter?: {
+    status?: Message['status']
+    priority?: Message['priority']
+    from?: string
+  }
+): Promise<MessageSummary[]> {
+  const inboxDir = path.join(MESSAGE_DIR, 'inbox', folderName)
 
   let files: string[]
   try {
@@ -391,7 +553,6 @@ export async function listInboxMessages(
       const content = await fs.readFile(filePath, 'utf-8')
       const message: Message = JSON.parse(content)
 
-      // Apply filters
       if (filter?.status && message.status !== filter.status) continue
       if (filter?.priority && message.priority !== filter.priority) continue
       if (filter?.from && message.from !== filter.from) continue
@@ -399,7 +560,9 @@ export async function listInboxMessages(
       messages.push({
         id: message.id,
         from: message.from,
+        fromAlias: message.fromAlias,
         to: message.to,
+        toAlias: message.toAlias,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,
@@ -412,24 +575,122 @@ export async function listInboxMessages(
     }
   }
 
-  // Sort by timestamp (newest first)
   messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
   return messages
 }
 
 /**
- * List messages in a session's sent folder (outbox)
+ * List messages in an agent's sent folder
+ * Checks multiple locations for backward compatibility
  */
 export async function listSentMessages(
-  sessionName: string,
+  agentIdentifier: string,
   filter?: {
     priority?: Message['priority']
     to?: string
   }
 ): Promise<MessageSummary[]> {
-  await ensureSessionDirectories(sessionName)
-  const sentDir = getSentDir(sessionName)
+  const agent = resolveAgent(agentIdentifier)
+  if (!agent) {
+    // Fallback to direct folder
+    return listSentMessagesByFolder(agentIdentifier, filter)
+  }
+
+  await ensureAgentDirectories(agent.agentId)
+
+  // Collect messages from multiple possible locations
+  const allMessages: MessageSummary[] = []
+  const seenIds = new Set<string>()
+
+  // Location 1: Agent ID folder (new format)
+  const agentIdDir = getSentDir(agent.agentId)
+  await collectSentMessagesFromDir(agentIdDir, filter, allMessages, seenIds)
+
+  // Location 2: Session name folder (legacy - may be symlink to old UUID)
+  if (agent.sessionName && agent.sessionName !== agent.agentId) {
+    const sessionDir = path.join(MESSAGE_DIR, 'sent', agent.sessionName)
+    await collectSentMessagesFromDir(sessionDir, filter, allMessages, seenIds)
+  }
+
+  // Location 3: Original identifier if different (fallback)
+  if (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName) {
+    const identifierDir = path.join(MESSAGE_DIR, 'sent', agentIdentifier)
+    await collectSentMessagesFromDir(identifierDir, filter, allMessages, seenIds)
+  }
+
+  allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  return allMessages
+}
+
+/**
+ * Helper to collect sent messages from a directory
+ */
+async function collectSentMessagesFromDir(
+  dirPath: string,
+  filter: {
+    priority?: Message['priority']
+    to?: string
+  } | undefined,
+  results: MessageSummary[],
+  seenIds: Set<string>
+): Promise<void> {
+  let files: string[]
+  try {
+    files = await fs.readdir(dirPath)
+  } catch (error) {
+    return // Directory doesn't exist, skip
+  }
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue
+
+    const filePath = path.join(dirPath, file)
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const message: Message = JSON.parse(content)
+
+      // Skip if we've already seen this message ID
+      if (seenIds.has(message.id)) continue
+
+      if (filter?.priority && message.priority !== filter.priority) continue
+      if (filter?.to) {
+        const toMatches = message.to === filter.to ||
+                         message.toAlias === filter.to ||
+                         message.toSession === filter.to
+        if (!toMatches) continue
+      }
+
+      seenIds.add(message.id)
+      results.push({
+        id: message.id,
+        from: message.from,
+        fromAlias: message.fromAlias,
+        to: message.to,
+        toAlias: message.toAlias,
+        timestamp: message.timestamp,
+        subject: message.subject,
+        priority: message.priority,
+        status: message.status,
+        type: message.content.type,
+        preview: message.content.message.substring(0, 100),
+      })
+    } catch (error) {
+      console.error(`Error reading sent message file ${file}:`, error)
+    }
+  }
+}
+
+/**
+ * Fallback: list sent messages by folder name
+ */
+async function listSentMessagesByFolder(
+  folderName: string,
+  filter?: {
+    priority?: Message['priority']
+    to?: string
+  }
+): Promise<MessageSummary[]> {
+  const sentDir = path.join(MESSAGE_DIR, 'sent', folderName)
 
   let files: string[]
   try {
@@ -448,14 +709,15 @@ export async function listSentMessages(
       const content = await fs.readFile(filePath, 'utf-8')
       const message: Message = JSON.parse(content)
 
-      // Apply filters
       if (filter?.priority && message.priority !== filter.priority) continue
       if (filter?.to && message.to !== filter.to) continue
 
       messages.push({
         id: message.id,
         from: message.from,
+        fromAlias: message.fromAlias,
         to: message.to,
+        toAlias: message.toAlias,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,
@@ -468,88 +730,145 @@ export async function listSentMessages(
     }
   }
 
-  // Sort by timestamp (newest first)
   messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
   return messages
 }
 
 /**
- * Get sent message count for a session
+ * Get sent message count for an agent
  */
-export async function getSentCount(sessionName: string): Promise<number> {
-  const messages = await listSentMessages(sessionName)
+export async function getSentCount(agentIdentifier: string): Promise<number> {
+  const messages = await listSentMessages(agentIdentifier)
   return messages.length
 }
 
 /**
- * Get a specific message by ID from inbox or sent folder
+ * Get a specific message by ID
+ * Checks multiple locations for backward compatibility
  */
 export async function getMessage(
-  sessionName: string,
+  agentIdentifier: string,
   messageId: string,
   box: 'inbox' | 'sent' = 'inbox'
 ): Promise<Message | null> {
-  const dir = box === 'sent' ? getSentDir(sessionName) : getInboxDir(sessionName)
-  const messagePath = path.join(dir, `${messageId}.json`)
+  const agent = resolveAgent(agentIdentifier)
+  const boxDir = box === 'sent' ? 'sent' : 'inbox'
 
-  try {
-    const content = await fs.readFile(messagePath, 'utf-8')
-    return JSON.parse(content)
-  } catch (error) {
-    // If not found in specified box, try the other box as fallback
-    const fallbackDir = box === 'sent' ? getInboxDir(sessionName) : getSentDir(sessionName)
-    const fallbackPath = path.join(fallbackDir, `${messageId}.json`)
+  // Build list of directories to check
+  const dirsToCheck: string[] = []
 
+  // 1. Agent ID folder (if resolved)
+  if (agent) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.agentId))
+  }
+
+  // 2. Session name folder (may be symlink to old UUID)
+  if (agent?.sessionName && agent.sessionName !== agent.agentId) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.sessionName))
+  }
+
+  // 3. Original identifier as fallback
+  if (!agent || (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName)) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agentIdentifier))
+  }
+
+  // Try each directory
+  for (const dir of dirsToCheck) {
+    const messagePath = path.join(dir, `${messageId}.json`)
     try {
-      const content = await fs.readFile(fallbackPath, 'utf-8')
+      const content = await fs.readFile(messagePath, 'utf-8')
       return JSON.parse(content)
-    } catch (fallbackError) {
-      return null
+    } catch (error) {
+      // Continue to next location
     }
   }
+
+  return null
 }
 
 /**
  * Mark a message as read
+ * Finds message in any legacy location and updates it in place
  */
-export async function markMessageAsRead(sessionName: string, messageId: string): Promise<boolean> {
-  const message = await getMessage(sessionName, messageId)
+export async function markMessageAsRead(agentIdentifier: string, messageId: string): Promise<boolean> {
+  const message = await getMessage(agentIdentifier, messageId)
   if (!message) return false
 
   message.status = 'read'
 
-  const inboxPath = path.join(getInboxDir(sessionName), `${messageId}.json`)
-  await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+  // Find where the message actually exists
+  const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
+  if (!messagePath) return false
 
-  return true
+  try {
+    await fs.writeFile(messagePath, JSON.stringify(message, null, 2))
+    return true
+  } catch (error) {
+    return false
+  }
 }
 
 /**
- * Archive a message (move from inbox to archived)
+ * Helper to find the actual path of a message file
  */
-export async function archiveMessage(sessionName: string, messageId: string): Promise<boolean> {
-  const message = await getMessage(sessionName, messageId)
+async function findMessagePath(
+  agentIdentifier: string,
+  messageId: string,
+  box: 'inbox' | 'sent'
+): Promise<string | null> {
+  const agent = resolveAgent(agentIdentifier)
+  const boxDir = box === 'sent' ? 'sent' : 'inbox'
+
+  // Build list of directories to check
+  const dirsToCheck: string[] = []
+
+  if (agent) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.agentId))
+  }
+
+  if (agent?.sessionName && agent.sessionName !== agent.agentId) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.sessionName))
+  }
+
+  if (!agent || (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName)) {
+    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agentIdentifier))
+  }
+
+  // Try each directory
+  for (const dir of dirsToCheck) {
+    const messagePath = path.join(dir, `${messageId}.json`)
+    try {
+      await fs.access(messagePath)
+      return messagePath
+    } catch (error) {
+      // Continue to next location
+    }
+  }
+
+  return null
+}
+
+/**
+ * Archive a message
+ * Finds message in any legacy location, moves to archive
+ */
+export async function archiveMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
+  const message = await getMessage(agentIdentifier, messageId)
   if (!message) return false
 
   message.status = 'archived'
 
-  const inboxPath = path.join(getInboxDir(sessionName), `${messageId}.json`)
-  const archivedPath = path.join(getArchivedDir(sessionName), `${messageId}.json`)
+  // Find where the message actually exists
+  const inboxPath = await findMessagePath(agentIdentifier, messageId, 'inbox')
+  if (!inboxPath) return false
 
-  await fs.writeFile(archivedPath, JSON.stringify(message, null, 2))
-  await fs.unlink(inboxPath)
-
-  return true
-}
-
-/**
- * Delete a message permanently
- */
-export async function deleteMessage(sessionName: string, messageId: string): Promise<boolean> {
-  const inboxPath = path.join(getInboxDir(sessionName), `${messageId}.json`)
+  const agent = resolveAgent(agentIdentifier)
+  const agentId = agent?.agentId || agentIdentifier
+  const archivedPath = path.join(getArchivedDir(agentId), `${messageId}.json`)
 
   try {
+    await fs.mkdir(path.dirname(archivedPath), { recursive: true })
+    await fs.writeFile(archivedPath, JSON.stringify(message, null, 2))
     await fs.unlink(inboxPath)
     return true
   } catch (error) {
@@ -558,37 +877,57 @@ export async function deleteMessage(sessionName: string, messageId: string): Pro
 }
 
 /**
- * Get unread message count for a session
+ * Delete a message permanently
+ * Finds message in any legacy location and deletes it
  */
-export async function getUnreadCount(sessionName: string): Promise<number> {
-  const messages = await listInboxMessages(sessionName, { status: 'unread' })
+export async function deleteMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
+  // Find where the message actually exists
+  const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
+  if (!messagePath) return false
+
+  try {
+    await fs.unlink(messagePath)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+/**
+ * Get unread message count for an agent
+ */
+export async function getUnreadCount(agentIdentifier: string): Promise<number> {
+  const messages = await listInboxMessages(agentIdentifier, { status: 'unread' })
   return messages.length
 }
 
 /**
- * List all sessions with messages
+ * List all agents with messages
  */
-export async function listSessionsWithMessages(): Promise<string[]> {
+export async function listAgentsWithMessages(): Promise<string[]> {
   await ensureMessageDirectories()
   const inboxDir = path.join(MESSAGE_DIR, 'inbox')
 
   try {
-    const sessions = await fs.readdir(inboxDir)
-    return sessions
+    const folders = await fs.readdir(inboxDir)
+    return folders
   } catch (error) {
     return []
   }
 }
 
+// Alias for backward compatibility
+export const listSessionsWithMessages = listAgentsWithMessages
+
 /**
- * Get message statistics for a session
+ * Get message statistics for an agent
  */
-export async function getMessageStats(sessionName: string): Promise<{
+export async function getMessageStats(agentIdentifier: string): Promise<{
   unread: number
   total: number
   byPriority: Record<string, number>
 }> {
-  const messages = await listInboxMessages(sessionName)
+  const messages = await listInboxMessages(agentIdentifier)
 
   const stats = {
     unread: messages.filter(m => m.status === 'unread').length,
@@ -606,4 +945,11 @@ export async function getMessageStats(sessionName: string): Promise<{
   })
 
   return stats
+}
+
+/**
+ * Resolve an agent identifier and return info (for CLI scripts)
+ */
+export function resolveAgentIdentifier(identifier: string): ResolvedAgent | null {
+  return resolveAgent(identifier)
 }

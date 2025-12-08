@@ -6,11 +6,12 @@ import HostsSection from '@/components/settings/HostsSection'
 import HelpSection from '@/components/settings/HelpSection'
 import AboutSection from '@/components/settings/AboutSection'
 import OnboardingSection from '@/components/settings/OnboardingSection'
+import ExperimentsSection from '@/components/settings/ExperimentsSection'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState<'hosts' | 'help' | 'about' | 'onboarding'>('hosts')
+  const [activeSection, setActiveSection] = useState<'hosts' | 'help' | 'about' | 'onboarding' | 'experiments'>('hosts')
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
@@ -35,6 +36,7 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           {activeSection === 'hosts' && <HostsSection />}
+          {activeSection === 'experiments' && <ExperimentsSection />}
           {activeSection === 'onboarding' && <OnboardingSection />}
           {activeSection === 'help' && <HelpSection />}
           {activeSection === 'about' && <AboutSection />}

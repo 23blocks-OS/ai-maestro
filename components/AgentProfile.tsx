@@ -6,22 +6,26 @@ import {
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
-  Cloud, Monitor, Server
+  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder
 } from 'lucide-react'
-import type { Agent, AgentDocumentation } from '@/types/agent'
+import type { Agent, AgentDocumentation, AgentSessionStatus } from '@/types/agent'
 
 interface AgentProfileProps {
   isOpen: boolean
   onClose: () => void
   agentId: string
+  sessionStatus?: AgentSessionStatus  // Session status from unified API
+  onStartSession?: () => void         // Callback to start a session for offline agents
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession }: AgentProfileProps) {
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [showTagDialog, setShowTagDialog] = useState(false)
+  const [newTagValue, setNewTagValue] = useState('')
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -111,8 +115,17 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
 
   const addTag = (tag: string) => {
     if (!agent || !tag.trim()) return
-    if (!agent.tags?.includes(tag)) {
-      updateField('tags', [...(agent.tags || []), tag])
+    const normalizedTag = tag.trim().toLowerCase()
+    if (!agent.tags?.includes(normalizedTag)) {
+      updateField('tags', [...(agent.tags || []), normalizedTag])
+    }
+  }
+
+  const handleAddTagSubmit = () => {
+    if (newTagValue.trim()) {
+      addTag(newTagValue)
+      setNewTagValue('')
+      setShowTagDialog(false)
     }
   }
 
@@ -188,6 +201,66 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
 
             {/* Content */}
             <div className="p-6 space-y-8">
+              {/* Session Status Section - Shows at top for quick access */}
+              {sessionStatus && (
+                <div className={`rounded-xl p-4 border ${
+                  sessionStatus.status === 'online'
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : 'bg-gray-800 border-gray-700'
+                }`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      {sessionStatus.status === 'online' ? (
+                        <>
+                          <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                            <Wifi className="w-5 h-5 text-green-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-green-300">Online</div>
+                            <div className="text-xs text-gray-400">
+                              Session: {sessionStatus.tmuxSessionName}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center">
+                            <WifiOff className="w-5 h-5 text-gray-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-300">Offline</div>
+                            <div className="text-xs text-gray-500">
+                              No active session
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Start Session Button - Only show when offline */}
+                    {sessionStatus.status === 'offline' && onStartSession && (
+                      <button
+                        onClick={onStartSession}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-all shadow-lg hover:shadow-green-500/25"
+                      >
+                        <Play className="w-4 h-4" />
+                        Start Session
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Session details when online */}
+                  {sessionStatus.status === 'online' && sessionStatus.workingDirectory && (
+                    <div className="mt-3 pt-3 border-t border-green-500/20">
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Folder className="w-3 h-3" />
+                        <span className="font-mono truncate">{sessionStatus.workingDirectory}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Identity Section */}
               <section>
                 <button
@@ -307,10 +380,7 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
                           </span>
                         ))}
                         <button
-                          onClick={() => {
-                            const tag = prompt('Enter tag name:')
-                            if (tag) addTag(tag)
-                          }}
+                          onClick={() => setShowTagDialog(true)}
                           className="px-3 py-1 border border-dashed border-gray-600 rounded-full text-sm text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-all"
                         >
                           + Add Tag
@@ -526,6 +596,62 @@ export default function AgentProfile({ isOpen, onClose, agentId }: AgentProfileP
           </>
         )}
       </div>
+
+      {/* Add Tag Dialog */}
+      {showTagDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Tag className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-100">Add Tag</h3>
+                <p className="text-sm text-gray-400">Tags help organize and group agents</p>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={newTagValue}
+              onChange={(e) => setNewTagValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddTagSubmit()
+                if (e.key === 'Escape') {
+                  setShowTagDialog(false)
+                  setNewTagValue('')
+                }
+              }}
+              placeholder="Enter tag name..."
+              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+              autoFocus
+            />
+
+            <p className="text-xs text-gray-500 mt-2">
+              Tags are automatically converted to lowercase
+            </p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowTagDialog(false)
+                  setNewTagValue('')
+                }}
+                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddTagSubmit}
+                disabled={!newTagValue.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Add Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

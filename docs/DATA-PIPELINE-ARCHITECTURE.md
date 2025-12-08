@@ -1031,7 +1031,7 @@ Returns metrics for specific agent.
 
 ### Phase 1: Local Agents (Week 1) - 13 points
 
-**Goal:** Basic metrics collection for local tmux agents
+**Goal:** Basic metrics collection for local tmux sessions
 
 **Tasks:**
 1. Create MetricsCollector class (JSONL parser + SQLite)

@@ -2,13 +2,13 @@
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-09
-**Phase:** 1 - Local Sessions with Full UI Management
+**Phase:** 1 - Local Agents with Full UI Management
 
 ---
 
 ## Overview
 
-This guide explains how to create and manage AI coding assistant sessions using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing sessions from `tmux ls` and provides full session management (create, rename, delete) directly from the UI!
+This guide explains how to create and manage AI coding agents using the AI Maestro dashboard. Works with **Claude Code, OpenAI Codex, GitHub Copilot CLI, Cursor, Aider**, and any other terminal-based AI agent. The dashboard **automatically discovers** existing agents from `tmux ls` and provides full agent management (create, rename, delete) directly from the UI!
 
 ---
 
@@ -24,21 +24,21 @@ Before starting, ensure you have:
 
 ---
 
-## 1. Quick Start: Your First Session
+## 1. Quick Start: Your First Agent
 
-### Step 1: Create a tmux Session
+### Step 1: Create an Agent
 
 ```bash
 # Navigate to your project directory
 cd ~/projects/my-app
 
-# Start a new tmux session with a descriptive name
+# Create an agent (this starts a tmux session for it)
 tmux new-session -s my-app-dev
 
 # You're now inside tmux - your prompt should show a green bar at bottom
 ```
 
-### Step 2: Start Your AI Agent
+### Step 2: Start Your AI Tool
 
 ```bash
 # Inside the tmux session, start your AI assistant
@@ -57,7 +57,7 @@ cursor              # Cursor AI
 
 ```bash
 # Press: Ctrl+B, then D (hold Ctrl+B, release, then press D)
-# This detaches from tmux but keeps the session running
+# This detaches from tmux but keeps the agent running
 
 # You'll return to your normal terminal
 # The tmux session continues running in the background
@@ -94,9 +94,9 @@ open http://localhost:23000
 
 ---
 
-## 2. Session Naming Best Practices
+## 2. Agent Naming Best Practices
 
-The dashboard automatically organizes sessions hierarchically using forward slashes in names. This creates a beautiful, color-coded sidebar!
+The dashboard automatically organizes agents hierarchically using forward slashes in names. This creates a beautiful, color-coded sidebar!
 
 ### Hierarchical Naming Pattern (RECOMMENDED)
 
@@ -143,47 +143,47 @@ tmux new-session -s blog-frontend
 
 ---
 
-## 3. UI-Based Session Management
+## 3. UI-Based Agent Management
 
-You can now manage sessions directly from the dashboard UI!
+You can now manage agents directly from the dashboard UI!
 
-### Create a New Session (From UI)
+### Create a New Agent (From UI)
 
 1. Click the **"+" (Create)** button in the sidebar header
-2. Enter session name (use forward slashes for hierarchy)
+2. Enter agent name (use forward slashes for hierarchy)
 3. Optionally specify working directory
 4. Click "Create Agent"
-5. Session appears immediately in sidebar
+5. Agent appears immediately in sidebar
 
 **Example:**
 - Name: `fluidmind/agents/api-developer`
 - Working Dir: `/Users/you/projects/api`
 
-### Rename a Session (From UI)
+### Rename an Agent (From UI)
 
-1. Hover over any session in the sidebar
+1. Hover over any agent in the sidebar
 2. Click the **Edit** icon that appears
 3. Enter new name
 4. Click "Rename"
 5. Dashboard updates immediately
 
-### Delete a Session (From UI)
+### Delete an Agent (From UI)
 
-1. Hover over any session in the sidebar
+1. Hover over any agent in the sidebar
 2. Click the **Delete** icon that appears
 3. Confirm deletion in modal
-4. Session is terminated and removed
+4. Agent is terminated and removed
 
 **Warning:** Deletion is permanent and cannot be undone!
 
-## 4. Command-Line Session Management
+## 4. Command-Line Agent Management
 
-You can also manage sessions via terminal commands:
+You can also manage agents via terminal commands:
 
-### List All Sessions
+### List All Agents
 
 ```bash
-# Show all running tmux sessions
+# Show all running agents (via tmux)
 tmux list-sessions
 # or shorthand:
 tmux ls
@@ -193,10 +193,10 @@ tmux ls
 # ecommerce/api: 1 windows (created Wed Jan 10 15:10:12 2025)
 ```
 
-### Attach to a Session
+### Attach to an Agent
 
 ```bash
-# Attach to a specific session
+# Attach to a specific agent
 tmux attach-session -t "fluidmind/agents/backend"
 # or shorthand:
 tmux a -t "fluidmind/agents/backend"
@@ -204,65 +204,65 @@ tmux a -t "fluidmind/agents/backend"
 # Note: Use quotes for names with slashes!
 ```
 
-### Kill a Session
+### Kill an Agent
 
 ```bash
-# Kill a specific session (CAUTION: Permanent!)
+# Kill a specific agent (CAUTION: Permanent!)
 tmux kill-session -t "my-app-dev"
 
-# Kill all sessions (CAUTION!)
+# Kill all agents (CAUTION!)
 tmux kill-server
 ```
 
-### Rename a Session
+### Rename an Agent
 
 ```bash
-# From inside the session:
+# From inside the agent:
 # Press Ctrl+B, then $
 # Type new name and press Enter
 
-# From outside the session:
+# From outside the agent:
 tmux rename-session -t "old-name" "new-name"
 ```
 
 ---
 
-## 4. Working with Multiple Sessions
+## 4. Working with Multiple Agents
 
-### Create Multiple Sessions
+### Create Multiple Agents
 
 ```bash
-# Create first session (with your AI agent)
+# Create first agent (with Claude)
 cd ~/projects/frontend
 tmux new-session -s frontend-dev -d
 tmux send-keys -t frontend-dev 'claude' C-m  # or aider, cursor, copilot, etc.
 
-# Create second session (different AI agent)
+# Create second agent (with Aider)
 cd ~/projects/backend
 tmux new-session -s backend-api -d
 tmux send-keys -t backend-api 'aider' C-m
 
-# Create third session (another AI agent)
+# Create third agent (with Copilot)
 cd ~/projects/database
 tmux new-session -s db-migration -d
 tmux send-keys -t db-migration 'copilot' C-m
 
-# All three sessions are now running in background
+# All three agents are now running in background
 # Dashboard will show all three
 ```
 
-### Switch Between Sessions in Dashboard
+### Switch Between Agents in Dashboard
 
 1. Open dashboard: http://localhost:23000
-2. Click any session name in the left sidebar
+2. Click any agent name in the left sidebar
 3. Terminal content updates instantly
-4. Previous sessions keep running in background
+4. Previous agents keep running in background
 
 ---
 
-## 5. Session Lifecycle
+## 5. Agent Lifecycle
 
-### Session States
+### Agent States
 
 **Active** 🟢
 - AI agent is running
@@ -270,19 +270,19 @@ tmux send-keys -t db-migration 'copilot' C-m
 - Terminal is responsive
 
 **Idle** 🟡
-- Session running but no recent activity
-- AI agent still active
+- Agent running but no recent activity
+- AI tool still active
 - Safe to interact
 
 **Ended** ⚪
-- tmux session was killed
-- AI agent exited
+- Agent was terminated (tmux session killed)
+- AI tool exited
 - Appears in dashboard until refresh
 
 ### Typical Workflow
 
 ```bash
-# Morning: Start work sessions
+# Morning: Start agents
 cd ~/projects/app-a && tmux new -s app-a -d && tmux send-keys -t app-a 'claude' C-m
 cd ~/projects/app-b && tmux new -s app-b -d && tmux send-keys -t app-b 'aider' C-m
 
@@ -294,7 +294,7 @@ cd ~/agents-web && yarn dev
 # Evening: Review what's running
 tmux ls
 
-# Keep sessions running overnight (optional)
+# Keep agents running overnight (optional)
 # Or clean up:
 tmux kill-session -t app-a
 tmux kill-session -t app-b
@@ -304,14 +304,14 @@ tmux kill-session -t app-b
 
 ## 6. Automation Scripts
 
-### Helper: Start Session with AI Agent
+### Helper: Start Agent with AI Tool
 
 Save as `~/bin/start-ai-session`:
 
 ```bash
 #!/bin/bash
 
-# Usage: start-ai-session <session-name> <ai-command> [directory]
+# Usage: start-ai-session <agent-name> <ai-command> [directory]
 # Example: start-ai-session my-project claude ~/projects/app
 # Example: start-ai-session backend aider ~/projects/api
 
@@ -320,27 +320,27 @@ AI_COMMAND=${2:-claude}  # Default to claude if not specified
 WORK_DIR=${3:-$(pwd)}
 
 if [ -z "$SESSION_NAME" ]; then
-    echo "Usage: start-ai-session <session-name> <ai-command> [directory]"
+    echo "Usage: start-ai-session <agent-name> <ai-command> [directory]"
     echo "Example: start-ai-session my-project claude ~/projects/app"
     echo "AI commands: claude, aider, copilot, cursor, etc."
     exit 1
 fi
 
-# Check if session already exists
+# Check if agent already exists
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    echo "❌ Session '$SESSION_NAME' already exists"
+    echo "❌ Agent '$SESSION_NAME' already exists"
     echo "   Attach: tmux a -t $SESSION_NAME"
     exit 1
 fi
 
-# Create session in background
+# Create agent in background
 cd "$WORK_DIR"
 tmux new-session -d -s "$SESSION_NAME" -c "$WORK_DIR"
 
-# Start AI agent in the session
+# Start AI tool in the agent
 tmux send-keys -t "$SESSION_NAME" "$AI_COMMAND" C-m
 
-echo "✅ Session '$SESSION_NAME' created with $AI_COMMAND"
+echo "✅ Agent '$SESSION_NAME' created with $AI_COMMAND"
 echo "   Directory: $WORK_DIR"
 echo "   View in dashboard: http://localhost:23000"
 echo "   Attach manually: tmux a -t $SESSION_NAME"
@@ -357,30 +357,30 @@ source ~/.zshrc
 
 **Usage:**
 ```bash
-# Start session with Claude in current directory
+# Start agent with Claude in current directory
 start-ai-session my-project claude
 
-# Start session with Aider in specific directory
+# Start agent with Aider in specific directory
 start-ai-session api-work aider ~/projects/api
 
-# Start multiple sessions with different AI agents
+# Start multiple agents with different AI tools
 start-ai-session frontend claude ~/projects/web
 start-ai-session backend aider ~/projects/api
 start-ai-session mobile cursor ~/projects/app
 ```
 
-### Helper: List Active Sessions
+### Helper: List Active Agents
 
-Save as `~/bin/list-ai-sessions`:
+Save as `~/bin/list-ai-agents`:
 
 ```bash
 #!/bin/bash
 
-echo "🎯 Active AI Agent Sessions:"
+echo "🎯 Active AI Agents:"
 echo ""
 
 if ! tmux has-session 2>/dev/null; then
-    echo "No active sessions"
+    echo "No active agents"
     exit 0
 fi
 
@@ -392,40 +392,40 @@ while IFS='|' read -r name created windows; do
     echo ""
 done
 
-echo "💡 Tip: View all sessions in dashboard at http://localhost:23000"
+echo "💡 Tip: View all agents in dashboard at http://localhost:23000"
 ```
 
 **Make executable and run:**
 ```bash
-chmod +x ~/bin/list-ai-sessions
-list-ai-sessions
+chmod +x ~/bin/list-ai-agents
+list-ai-agents
 ```
 
-### Helper: Kill All AI Sessions
+### Helper: Kill All Agents
 
-Save as `~/bin/cleanup-ai-sessions`:
+Save as `~/bin/cleanup-ai-agents`:
 
 ```bash
 #!/bin/bash
 
-echo "🧹 Cleaning up AI agent sessions..."
+echo "🧹 Cleaning up AI agents..."
 
 if ! tmux has-session 2>/dev/null; then
-    echo "No active sessions to clean up"
+    echo "No active agents to clean up"
     exit 0
 fi
 
-# List sessions
+# List agents
 echo ""
-echo "Current sessions:"
+echo "Current agents:"
 tmux ls
 
 echo ""
-read -p "Kill ALL sessions? (yes/no): " CONFIRM
+read -p "Kill ALL agents? (yes/no): " CONFIRM
 
 if [ "$CONFIRM" = "yes" ]; then
     tmux kill-server
-    echo "✅ All sessions terminated"
+    echo "✅ All agents terminated"
 else
     echo "❌ Cancelled"
 fi
@@ -433,20 +433,20 @@ fi
 
 **Make executable:**
 ```bash
-chmod +x ~/bin/cleanup-ai-sessions
+chmod +x ~/bin/cleanup-ai-agents
 ```
 
 ---
 
-## 7. Session Notes Feature
+## 7. Agent Notes Feature
 
-Each session has a built-in notes area for capturing important information while working with your AI agent.
+Each agent has a built-in notes area for capturing important information while working with your AI agent.
 
-### Using Session Notes
+### Using Agent Notes
 
-1. **Expand Notes**: Click "Show Session Notes" button below the terminal (if collapsed)
+1. **Expand Notes**: Click "Show Agent Notes" button below the terminal (if collapsed)
 2. **Take Notes**: Type directly in the textarea - supports copy/paste
-3. **Auto-Save**: Notes save automatically to localStorage (per-session)
+3. **Auto-Save**: Notes save automatically to localStorage (per-agent)
 4. **Collapse**: Click the down arrow to hide notes and maximize terminal space
 
 ### Notes Use Cases
@@ -454,7 +454,7 @@ Each session has a built-in notes area for capturing important information while
 - **Track decisions**: Record architectural decisions made with your AI agent
 - **Save commands**: Copy/paste useful commands your AI suggests
 - **Todo lists**: Keep track of what's left to implement
-- **Context**: Notes for when you return to the session later
+- **Context**: Notes for when you return to the agent later
 - **Code snippets**: Temporary storage for code before committing
 
 **Note:** Notes are stored in browser localStorage and persist between dashboard restarts!
@@ -548,7 +548,7 @@ kill -9 <PID>
 
 ### The Problem
 
-When working with AI agents in tmux sessions (especially after system restarts), you may encounter:
+When working with AI agents in tmux (especially after system restarts), you may encounter:
 ```
 git@gitlab.com: Permission denied (publickey).
 fatal: Could not read from remote repository.
@@ -608,7 +608,7 @@ source ~/.zshrc
 
 **Test in a new tmux session:**
 ```bash
-# Create test session
+# Create test agent
 tmux new-session -s test-ssh -d
 
 # Test SSH
@@ -643,9 +643,9 @@ exec $SHELL
 git push  # Should work now
 ```
 
-**Option 2: Create new sessions**
+**Option 2: Create new agents**
 
-New sessions from AI Maestro will automatically have SSH configured correctly.
+New agents from AI Maestro will automatically have SSH configured correctly.
 
 ### Troubleshooting SSH Issues
 
@@ -706,7 +706,7 @@ git remote set-url origin git@github.com:user/repo.git
 
 ### Services Not Running After Restart (MOST COMMON)
 
-**Problem:** After restarting your Mac, the dashboard shows "Socket Error" or "Cannot connect" when trying to create sessions.
+**Problem:** After restarting your Mac, the dashboard shows "Socket Error" or "Cannot connect" when trying to create agents.
 
 **Cause:** The tmux server is not running. tmux sessions don't survive system restarts by default.
 
@@ -811,7 +811,7 @@ Now after every restart, both tmux and your dashboard will start automatically!
 
 **Solution:** This is an SSH configuration issue. Follow the comprehensive guide in [Section 8: SSH Configuration for Git Operations](#8-ssh-configuration-for-git-operations).
 
-Quick fix for existing sessions:
+Quick fix for existing agents:
 ```bash
 # In AI Maestro terminal
 exec $SHELL
@@ -819,13 +819,13 @@ exec $SHELL
 
 ---
 
-### Session Not Appearing in Dashboard
+### Agent Not Appearing in Dashboard
 
-**Problem:** Created a tmux session but it doesn't show in the dashboard.
+**Problem:** Created an agent but it doesn't show in the dashboard.
 
 **Solution:**
 ```bash
-# 1. Verify session exists
+# 1. Verify agent exists
 tmux ls
 
 # 2. Refresh dashboard in browser (Cmd+R or F5)
@@ -837,9 +837,9 @@ tmux ls
 # Press Ctrl+C, then run `yarn dev` again
 ```
 
-### Can't Connect to Session in Dashboard
+### Can't Connect to Agent in Dashboard
 
-**Problem:** Session appears in list but clicking it shows "Connection Error"
+**Problem:** Agent appears in list but clicking it shows "Connection Error"
 
 **Solution:**
 ```bash
@@ -847,11 +847,11 @@ tmux ls
 tmux ls
 
 # 2. Try attaching manually
-tmux attach -t <session-name>
+tmux attach -t <agent-name>
 
-# 3. If session is frozen, kill and recreate it
-tmux kill-session -t <session-name>
-start-ai-session <session-name> claude  # or your preferred AI agent
+# 3. If agent is frozen, kill and recreate it
+tmux kill-session -t <agent-name>
+start-ai-session <agent-name> claude  # or your preferred AI tool
 
 # 4. Check dashboard WebSocket connection
 # Open browser console (F12) and look for errors
@@ -867,8 +867,8 @@ start-ai-session <session-name> claude  # or your preferred AI agent
 
 # 2. Refresh the browser page
 
-# 3. Check if your AI agent is still running in tmux:
-tmux attach -t <session-name>
+# 3. Check if your AI tool is still running in tmux:
+tmux attach -t <agent-name>
 # If your AI exited, restart it:
 claude  # or aider, cursor, copilot, etc.
 
@@ -896,13 +896,13 @@ node --version  # Should be v18.17+ or v20.x
 PORT=3001 yarn dev
 ```
 
-### Session Names Look Weird
+### Agent Names Look Weird
 
-**Problem:** Session names contain strange characters or are too long
+**Problem:** Agent names contain strange characters or are too long
 
 **Solution:**
 ```bash
-# Rename the session
+# Rename the agent
 tmux rename-session -t old-name new-clean-name
 
 # Use proper naming conventions (see Section 2)
@@ -912,10 +912,10 @@ tmux rename-session -t old-name new-clean-name
 
 ## 9. Best Practices
 
-### Session Organization
+### Agent Organization
 
 ```bash
-# Group related sessions with prefixes
+# Group related agents with prefixes
 tmux new -s project-frontend
 tmux new -s project-backend
 tmux new -s project-database
@@ -924,27 +924,27 @@ tmux new -s project-database
 tmux new -s fix-auth-bug      # ✅ Good
 tmux new -s test              # ❌ Too vague
 
-# One session per distinct task or context
+# One agent per distinct task or context
 ```
 
 ### Resource Management
 
 ```bash
-# Check how many sessions you're running
+# Check how many agents you're running
 tmux ls | wc -l
 
-# Keep it reasonable (5-10 active sessions max)
-# Kill old sessions you're done with
+# Keep it reasonable (5-10 active agents max)
+# Kill agents you're done with
 tmux kill-session -t completed-task
 ```
 
-### Backup Important Sessions
+### Backup Important Agents
 
 ```bash
-# Capture terminal content before killing session
-tmux capture-pane -pt <session-name> -S - > ~/backups/session-backup.txt
+# Capture terminal content before killing agent
+tmux capture-pane -pt <agent-name> -S - > ~/backups/agent-backup.txt
 
-# Or ask your AI agent to save the conversation
+# Or ask your AI tool to save the conversation
 # (e.g., "Please summarize our conversation and save it")
 ```
 
@@ -958,8 +958,8 @@ start-ai-session experiments aider ~/tests
 open http://localhost:23000             # Open dashboard
 
 # Evening routine
-list-ai-sessions                        # Review active sessions
-cleanup-ai-sessions                     # Kill all sessions (optional)
+list-ai-agents                          # Review active agents
+cleanup-ai-agents                       # Kill all agents (optional)
 # Or keep them running overnight
 ```
 
@@ -978,25 +978,25 @@ Quick summary:
 - **Dashboard auto-start**: Use `pm2 startup` and `pm2 save` to auto-start the dashboard
 - **Verification**: Both services will start automatically after every restart
 
-### Persistent Sessions Across Reboots
+### Persistent Agents Across Reboots
 
-tmux sessions end when you restart your Mac. To persist them:
+Agents (tmux sessions) end when you restart your Mac. To persist them:
 
 1. **tmux-resurrect plugin** - Save and restore tmux sessions
 2. **systemd user services** (on Linux)
 3. **Manual session recreation script** (run after reboot)
 
-Example restoration script `~/bin/restore-sessions`:
+Example restoration script `~/bin/restore-agents`:
 
 ```bash
 #!/bin/bash
 
-# Restore common sessions after reboot
+# Restore common agents after reboot
 start-ai-session main claude ~/projects/main
 start-ai-session experiments aider ~/experiments
 start-ai-session docs cursor ~/documentation
 
-echo "✅ Sessions restored"
+echo "✅ Agents restored"
 ```
 
 ---
@@ -1006,16 +1006,16 @@ echo "✅ Sessions restored"
 ### Essential Commands
 
 ```bash
-# Session Management
-tmux new -s name              # Create session
-tmux ls                       # List sessions
-tmux a -t name                # Attach to session
-tmux kill-session -t name     # Kill session
+# Agent Management
+tmux new -s name              # Create agent
+tmux ls                       # List agents
+tmux a -t name                # Attach to agent
+tmux kill-session -t name     # Kill agent
 
 # Inside tmux
 Ctrl+B, D                     # Detach
-Ctrl+B, $                     # Rename session
-Ctrl+D                        # Exit AI agent (closes session)
+Ctrl+B, $                     # Rename agent
+Ctrl+D                        # Exit AI tool (closes agent)
 
 # Dashboard
 yarn dev                      # Start dashboard
@@ -1024,9 +1024,9 @@ Ctrl+C                        # Stop dashboard
 pm2 start server.mjs --name ai-maestro  # Start with PM2
 
 # Helper Scripts (if created)
-start-ai-session name agent   # Create session with AI agent
-list-ai-sessions              # List all sessions
-cleanup-ai-sessions           # Kill all sessions
+start-ai-session name agent   # Create agent with AI tool
+list-ai-agents                # List all agents
+cleanup-ai-agents             # Kill all agents
 ```
 
 ---
@@ -1038,7 +1038,7 @@ After mastering basic operations:
 1. 📖 Read [UX-SPECIFICATIONS.md](./UX-SPECIFICATIONS.md) to understand all dashboard features
 2. 🏗️ Read [TECHNICAL-SPECIFICATIONS.md](./TECHNICAL-SPECIFICATIONS.md) for architecture details
 3. 🎨 Read [FRONTEND-IMPLEMENTATION.md](./FRONTEND-IMPLEMENTATION.md) if modifying the UI
-4. 🚀 Explore Phase 2 features (session creation from UI, remote sessions)
+4. 🚀 Explore Phase 2 features (agent creation from UI, remote agents)
 
 ---
 

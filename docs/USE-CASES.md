@@ -29,19 +29,19 @@ See how developers and teams are using AI Maestro's distributed architecture to 
 - ✅ All projects visible in one dashboard
 - ✅ Quickly switch context between clients
 - ✅ Hierarchical organization keeps projects separate
-- ✅ Session notes document decisions for each project
-- ✅ Easy to show client progress (share screen of specific session)
+- ✅ Agent notes document decisions for each project
+- ✅ Easy to show client progress (share screen of specific agent)
 
 **Why AI Maestro:**
 Without AI Maestro, Sarah would need to:
 - Remember tmux session names across projects
 - `tmux ls` and `tmux attach` repeatedly
-- Keep mental map of which sessions belong to which client
+- Keep mental map of which agents belong to which client
 - Switch between terminal windows constantly
 
 ### Use Case 2: The Heavy Workload Developer
 
-**Scenario:** Mike runs resource-intensive AI coding sessions that slow down his laptop.
+**Scenario:** Mike runs resource-intensive AI coding agents that slow down his laptop.
 
 **Setup:**
 - **MacBook Air M2** (Manager - 8GB RAM)
@@ -108,12 +108,12 @@ Without AI Maestro, Sarah would need to:
 **Workflow:**
 1. Each developer has AI Maestro on their laptop
 2. All add GPU server as remote worker (same IP, different ports or user isolation)
-3. Each can see only their sessions (OS-level user separation)
+3. Each can see only their agents (OS-level user separation)
 4. Team channel posts when GPU is free
 
 **Benefits:**
 - ✅ One expensive GPU server ($3-5k) vs 4 workstations ($12-20k)
-- ✅ Each developer manages their own sessions
+- ✅ Each developer manages their own agents
 - ✅ No SSH/terminal sharing complexity
 - ✅ Clean browser-based interface
 - ✅ Can monitor job progress from anywhere
@@ -129,7 +129,7 @@ Without AI Maestro, Sarah would need to:
 
 - **Developer Laptops** (Managers)
   - Each dev connects to office Mac Mini
-  - Each dev has their own sessions on the shared machine
+  - Each dev has their own agents on the shared machine
 
 **Benefits:**
 - ✅ Junior devs access powerful Mac without buying one
@@ -184,7 +184,7 @@ Without AI Maestro, Sarah would need to:
 **Workflow:**
 1. Monday-Thursday: Local development only
 2. Friday: Spin up 32-core cloud VM
-3. Create release sessions on cloud VM
+3. Create release agents on cloud VM
 4. Parallel builds complete in minutes
 5. Shut down VM after release
 6. **Monthly cost:** 4 hours × $1/hour = **$4/month** instead of always-on $730/month
@@ -253,10 +253,10 @@ Without AI Maestro, Sarah would need to:
 
 **Benefits:**
 - ✅ Monitor all student progress in one view
-- ✅ Jump into any student's session to help
+- ✅ Jump into any student's agent to help
 - ✅ Consistent environment across all students
 - ✅ See who's stuck without asking
-- ✅ Session notes for grading/feedback
+- ✅ Agent notes for grading/feedback
 
 ---
 
@@ -266,7 +266,7 @@ Without AI Maestro, Sarah would need to:
 
 **Stage 1: Starting Out**
 - 1× MacBook Air M2 8GB
-- All sessions local
+- All agents local
 - **Cost:** $0 additional
 
 **Stage 2: Growing Workload**

@@ -43,7 +43,7 @@ print_info() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ] || [ ! -d "docs_scripts" ]; then
+if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ] || [ ! -d "docs_scripts" ] || [ ! -d "portable_scripts" ]; then
     print_error "Error: This script must be run from the AI Maestro root directory"
     echo ""
     echo "Usage:"
@@ -195,6 +195,21 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo ""
     print_success "Installed $DOCS_SCRIPT_COUNT docs scripts"
 
+    # Install portable agent scripts
+    print_info "Installing portable agent scripts to ~/.local/bin/..."
+    PORTABLE_SCRIPT_COUNT=0
+    for script in portable_scripts/*.sh; do
+        if [ -f "$script" ]; then
+            SCRIPT_NAME=$(basename "$script")
+            cp "$script" ~/.local/bin/
+            chmod +x ~/.local/bin/"$SCRIPT_NAME"
+            print_success "Installed: $SCRIPT_NAME"
+            ((PORTABLE_SCRIPT_COUNT++))
+        fi
+    done
+    echo ""
+    print_success "Installed $PORTABLE_SCRIPT_COUNT portable agent scripts"
+
     # Check if ~/.local/bin is in PATH
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         print_warning "~/.local/bin is not in your PATH"
@@ -343,7 +358,21 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
 fi
 
-echo "3️⃣  Documentation"
+echo "3️⃣  Portable Agents (Export/Import)"
+echo ""
+echo "   Transfer agents between AI Maestro instances:"
+echo ""
+echo "   $ list-agents.sh                    # List available agents"
+echo "   $ export-agent.sh backend-api       # Export agent to ZIP"
+echo "   $ import-agent.sh agent-export.zip  # Import on new machine"
+echo ""
+echo "   Options:"
+echo "   --alias <name>     Override agent name on import"
+echo "   --new-id           Generate new ID (keeps original by default)"
+echo "   --overwrite        Replace existing agent with same name"
+echo ""
+
+echo "4️⃣  Documentation"
 echo ""
 echo "   📬 Quickstart: https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-QUICKSTART.md"
 echo "   📋 Best Practices: https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-GUIDELINES.md"

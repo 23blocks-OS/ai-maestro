@@ -103,7 +103,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     program: request.program,
     model: request.model,
     taskDescription: request.taskDescription,
-    tags: request.tags || [],
+    tags: normalizeTags(request.tags),
     capabilities: [],
     owner: request.owner,
     team: request.team,
@@ -171,6 +171,11 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     if (existing) {
       throw new Error(`Agent with alias "${updates.alias}" already exists`)
     }
+  }
+
+  // Normalize tags if being updated
+  if (updates.tags) {
+    updates.tags = normalizeTags(updates.tags)
   }
 
   // Update agent
@@ -248,7 +253,7 @@ export function incrementAgentMetric(
 }
 
 /**
- * Delete an agent
+ * Delete an agent and clean up associated data
  */
 export function deleteAgent(id: string): boolean {
   const agents = loadAgents()
@@ -260,11 +265,31 @@ export function deleteAgent(id: string): boolean {
 
   saveAgents(filtered)
 
-  // TODO: Clean up agent directory (messages, etc.)
-  // const agentDir = path.join(AGENTS_DIR, id)
-  // if (fs.existsSync(agentDir)) {
-  //   fs.rmSync(agentDir, { recursive: true })
-  // }
+  // Clean up agent-specific directory (database, etc.)
+  const agentDir = path.join(AGENTS_DIR, id)
+  if (fs.existsSync(agentDir)) {
+    try {
+      fs.rmSync(agentDir, { recursive: true })
+    } catch (error) {
+      console.error(`[Agent Registry] Failed to clean up agent directory ${id}:`, error)
+    }
+  }
+
+  // Clean up message directories for this agent
+  const messageBaseDir = path.join(AIMAESTRO_DIR, 'messages')
+  const messageBoxes = ['inbox', 'sent', 'archived']
+
+  for (const box of messageBoxes) {
+    const boxDir = path.join(messageBaseDir, box, id)
+    if (fs.existsSync(boxDir)) {
+      try {
+        fs.rmSync(boxDir, { recursive: true })
+        console.log(`[Agent Registry] Cleaned up ${box} messages for agent ${id}`)
+      } catch (error) {
+        console.error(`[Agent Registry] Failed to clean up ${box} messages for agent ${id}:`, error)
+      }
+    }
+  }
 
   return true
 }
@@ -351,6 +376,14 @@ export function unlinkSession(agentId: string): boolean {
 }
 
 /**
+ * Normalize tags to lowercase for case-insensitive handling
+ */
+function normalizeTags(tags?: string[]): string[] {
+  if (!tags || tags.length === 0) return []
+  return tags.map(tag => tag.toLowerCase())
+}
+
+/**
  * Search agents by query (alias, displayName, taskDescription, tags)
  */
 export function searchAgents(query: string): Agent[] {
@@ -410,12 +443,11 @@ export function renameAgentSession(oldSessionName: string, newSessionName: strin
  * Removes the agent from registry when its session is deleted
  */
 export function deleteAgentBySession(sessionName: string): boolean {
-  const agents = loadAgents()
-  const filtered = agents.filter(a => a.tools.session?.tmuxSessionName !== sessionName)
-
-  if (filtered.length === agents.length) {
+  const agent = getAgentBySession(sessionName)
+  if (!agent) {
     return false // Agent not found
   }
 
-  return saveAgents(filtered)
+  // Use deleteAgent to properly clean up messages and data directories
+  return deleteAgent(agent.id)
 }

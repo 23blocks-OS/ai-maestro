@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { GitBranch, Folder, FileCode, Clock, Activity, RefreshCw, AlertCircle, Database } from 'lucide-react'
 import ConversationDetailPanel from './ConversationDetailPanel'
 import { useHosts } from '@/hooks/useHosts'
-import { useSessions } from '@/hooks/useSessions'
 
 interface WorkTreeProps {
   sessionName: string
   agentId?: string
+  hostId?: string  // Agent-centric: pass hostId directly instead of looking up via sessions
   isVisible?: boolean
 }
 
@@ -54,9 +54,8 @@ interface ClaudeSessionWork {
   claude_version?: string
 }
 
-export default function WorkTree({ sessionName, agentId, isVisible = true }: WorkTreeProps) {
+export default function WorkTree({ sessionName, agentId, hostId, isVisible = true }: WorkTreeProps) {
   const { hosts } = useHosts()
-  const { sessions } = useSessions()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
   const [loading, setLoading] = useState(false) // Start as false, will load when visible
   const [error, setError] = useState<string | null>(null)
@@ -70,18 +69,15 @@ export default function WorkTree({ sessionName, agentId, isVisible = true }: Wor
   const [rebuilding, setRebuilding] = useState(false)
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null)
 
-  // Determine which host this agent is on
+  // Determine which host this agent is on - agent-centric: use hostId prop directly
   const getHostUrl = (): string => {
-    // Find the session for this agent
-    const agentSession = sessions.find(s => s.agentId === agentId || s.id === sessionName || s.name === sessionName)
-
-    if (!agentSession || !agentSession.hostId || agentSession.hostId === 'local') {
-      // Local agent - use relative URL (works on mobile devices)
+    // Local agent - use relative URL (works on mobile devices)
+    if (!hostId || hostId === 'local') {
       return ''
     }
 
     // Remote agent - find host URL
-    const host = hosts.find(h => h.id === agentSession.hostId)
+    const host = hosts.find(h => h.id === hostId)
     if (host) {
       console.log(`[WorkTree] Agent ${agentId} is on remote host ${host.id} (${host.url})`)
       return host.url
@@ -408,12 +404,12 @@ export default function WorkTree({ sessionName, agentId, isVisible = true }: Wor
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Sessions Section */}
+        {/* Work Sessions Section */}
         {workData.sessions.length > 0 && (
           <div className="mb-8">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Activity className="w-4 h-4" />
-              Sessions ({workData.sessions.length})
+              Work Sessions ({workData.sessions.length})
             </h3>
             <div className="space-y-2">
               {workData.sessions.map((session) => (

@@ -1,8 +1,11 @@
 /**
- * Session Discovery Helpers
+ * Tmux Discovery Helpers
  *
- * Functions to discover tmux sessions from both local and remote hosts.
- * Used in the Manager/Worker pattern for multi-host session management.
+ * Low-level functions to discover tmux sessions from both local and remote hosts.
+ * These functions return Session objects representing raw tmux session metadata.
+ *
+ * For agent-centric operations, use the unified agents API instead (/api/agents/unified).
+ * This module is used internally by the agents API for tmux discovery.
  */
 
 import { Session } from '@/types/session'

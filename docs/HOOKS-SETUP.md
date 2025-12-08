@@ -4,13 +4,13 @@ This guide shows how to set up Claude Code hooks to automatically check for mess
 
 ## What are Hooks?
 
-Claude Code hooks are shell commands that run automatically at specific points during your session. They provide deterministic control - ensuring certain actions **always** happen rather than relying on Claude to remember to do them.
+Claude Code hooks are shell commands that run automatically at specific points during your agent's lifecycle. They provide deterministic control - ensuring certain actions **always** happen rather than relying on Claude to remember to do them.
 
 ## Message Checking Hook
 
 We'll create a hook that checks for new messages:
-- **When**: At the start of each session
-- **What**: Checks `~/.aimaestro/messages/inbox/[your-session]/`
+- **When**: At the start of each agent
+- **What**: Checks `~/.aimaestro/messages/inbox/[your-agent]/`
 - **Result**: Notifies Claude if there are unread messages
 
 ## Setup Instructions
@@ -51,7 +51,7 @@ Add this configuration:
 ### Step 2: What This Does
 
 **SessionStart Hook:**
-- Runs once when Claude Code session starts
+- Runs once when Claude Code agent starts
 - Checks for unread messages
 - Shows notification if any exist
 
@@ -174,7 +174,7 @@ If the file doesn't exist, create it with the hook configuration above.
 
 1. **Restart Claude Code** to load the new hook configuration
 2. **Send a test message** via the AI Maestro dashboard
-3. **Start a new Claude session** in that tmux session
+3. **Start a new Claude Code instance** in that tmux session
 4. **You should see** the notification about unread messages
 
 ## Hook Behavior

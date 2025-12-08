@@ -4,13 +4,25 @@ import { useState, useEffect, useCallback } from 'react'
 import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
+/**
+ * Agent recipient info for messaging
+ */
+export interface AgentRecipient {
+  id: string              // Agent ID (used for messaging)
+  alias: string           // Display name
+  tmuxSessionName?: string // Tmux session name (for backward compatibility)
+}
+
 interface MessageCenterProps {
   sessionName: string
-  allSessions: string[]
+  agentId?: string  // Primary identifier when available
+  allAgents: AgentRecipient[]
   isVisible?: boolean
 }
 
-export default function MessageCenter({ sessionName, allSessions, isVisible = true }: MessageCenterProps) {
+export default function MessageCenter({ sessionName, agentId, allAgents, isVisible = true }: MessageCenterProps) {
+  // Use agentId as primary identifier if available, fall back to sessionName
+  const messageIdentifier = agentId || sessionName
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -36,29 +48,29 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch sent messages
   const fetchSentMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=unread-count`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
@@ -69,7 +81,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Fetch sent count
   const fetchSentCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=sent-count`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=sent-count`)
       const data = await response.json()
       setSentCount(data.count || 0)
     } catch (error) {
@@ -80,13 +92,13 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
       // Mark as read if unread (inbox only)
       if (box === 'inbox' && message.status === 'unread') {
-        await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
+        await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
         fetchMessages()
@@ -182,7 +194,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
     if (!confirm('Are you sure you want to delete this message?')) return
 
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
       })
       setSelectedMessage(null)
@@ -196,7 +208,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Archive message
   const archiveMessage = async (messageId: string) => {
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=archive`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
         method: 'PATCH',
       })
       setSelectedMessage(null)
@@ -750,7 +762,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
           <div className="space-y-4 max-w-2xl">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                To (Session Name):
+                To (Agent Name):
               </label>
               <input
                 id="compose-to"
@@ -758,13 +770,13 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
-                list="sessions-list"
+                list="agents-list"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter session name"
+                placeholder="Enter agent ID or alias"
               />
-              <datalist id="sessions-list">
-                {allSessions.filter(s => s !== sessionName).map(session => (
-                  <option key={session} value={session} />
+              <datalist id="agents-list">
+                {allAgents.filter(a => a.id !== agentId).map(agent => (
+                  <option key={agent.id} value={agent.id} label={agent.alias} />
                 ))}
               </datalist>
             </div>

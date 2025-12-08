@@ -32,8 +32,8 @@ import { SubconsciousStatus } from './SubconsciousStatus'
 
 interface SessionListProps {
   sessions: Session[]
-  activeSessionId: string | null
-  onSessionSelect: (sessionId: string) => void
+  activeAgentId: string | null
+  onAgentSelect: (agentId: string) => void
   loading?: boolean
   error?: Error | null
   onRefresh?: () => void
@@ -138,8 +138,8 @@ const DEFAULT_ICON = Layers
 
 export default function SessionList({
   sessions,
-  activeSessionId,
-  onSessionSelect,
+  activeAgentId,
+  onAgentSelect,
   loading,
   error,
   onRefresh,
@@ -480,7 +480,7 @@ export default function SessionList({
       setShowCreateModal(false)
       onRefresh?.()
       // Navigate to new session after refresh
-      setTimeout(() => onSessionSelect(name), 500)
+      setTimeout(() => onAgentSelect(name), 500)
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to create session')
     } finally {
@@ -508,8 +508,8 @@ export default function SessionList({
       setSelectedSession(null)
       onRefresh?.()
       // Navigate to renamed session if it was active
-      if (activeSessionId === selectedSession.id) {
-        setTimeout(() => onSessionSelect(newName), 500)
+      if (activeAgentId === selectedSession.id) {
+        setTimeout(() => onAgentSelect(newName), 500)
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to rename session')
@@ -836,13 +836,13 @@ export default function SessionList({
                             {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
                                 {sessionsList.map((session) => {
-                                  const isActive = activeSessionId === session.id
+                                  const isActive = activeAgentId === session.id
                                   const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
 
                                   return (
                                     <li key={session.id} className="group/session relative">
                                       <div
-                                        onClick={() => onSessionSelect(session.id)}
+                                        onClick={() => onAgentSelect(session.id)}
                                         className={`w-full py-2.5 px-3 ${indentClass} text-left transition-all duration-200 cursor-pointer rounded-lg relative overflow-hidden ${
                                           isActive
                                             ? 'shadow-sm'
@@ -1535,7 +1535,7 @@ function DeleteConfirmModal({
             disabled={loading}
             className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-red-500/25"
           >
-            {loading ? 'Deleting...' : 'Delete Session'}
+            {loading ? 'Deleting...' : 'Delete Agent'}
           </button>
         </div>
       </div>

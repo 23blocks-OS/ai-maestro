@@ -7,14 +7,14 @@ Understanding AI Maestro's architecture will help you maximize its potential for
 - [What is AI Maestro?](#what-is-ai-maestro)
 - [Localhost vs Remote Hosts](#localhost-vs-remote-hosts)
 - [The Manager/Worker Pattern](#the-managerworker-pattern)
-- [Sessions and Agents](#sessions-and-agents)
+- [Agents and tmux Sessions](#agents-and-tmux-sessions)
 - [Security Model](#security-model)
 
 ---
 
 ## What is AI Maestro?
 
-AI Maestro is a **browser-based dashboard** for managing multiple Claude Code sessions across one or more machines. Think of it as a "mission control" for your AI coding workforce.
+AI Maestro is a **browser-based dashboard** for managing multiple AI coding agents across one or more machines. Think of it as a "mission control" for your AI coding workforce.
 
 ### The Problem It Solves
 
@@ -46,7 +46,7 @@ Understanding the difference between localhost and remote hosts is crucial to le
 **Example:**
 ```
 Your MacBook Pro running AI Maestro
-  └─ Local sessions: frontend-app, backend-api, docs-writer
+  └─ Local agents: frontend-app, backend-api, docs-writer
 ```
 
 **When to use:**
@@ -69,7 +69,7 @@ A **remote host** is another computer running AI Maestro that your local instanc
 **Example:**
 ```
 Your MacBook Pro (Manager)
-  ├─ Local sessions: project-manager, code-reviewer
+  ├─ Local agents: project-manager, code-reviewer
   ├─ Mac Mini (Worker) → ios-build-agent, ui-tester
   └─ Cloud Server (Worker) → database-migrations, deployment-agent
 ```
@@ -91,10 +91,10 @@ AI Maestro uses a **Manager/Worker architecture** - one instance acts as the con
 The **Manager** is the AI Maestro instance you interact with in your browser.
 
 **Responsibilities:**
-- Display all sessions (local + remote) in one unified dashboard
+- Display all agents (local + remote) in one unified dashboard
 - Route WebSocket connections to the appropriate machine
 - Provide the Settings UI for managing workers
-- Aggregate session data from all workers
+- Aggregate agent data from all workers
 
 **Analogy:** The manager is like an air traffic controller - it doesn't fly the planes, but it coordinates all of them.
 
@@ -103,10 +103,10 @@ The **Manager** is the AI Maestro instance you interact with in your browser.
 A **Worker** is an AI Maestro instance running on a remote machine that the Manager can control.
 
 **Responsibilities:**
-- Run local tmux/Claude Code sessions
-- Report session status to Manager (when requested)
+- Run local agents (in tmux sessions with Claude Code)
+- Report agent status to Manager (when requested)
 - Accept WebSocket connections proxied from Manager
-- Execute session creation/deletion commands
+- Execute agent creation/deletion commands
 
 **Analogy:** Workers are like planes - they do the actual work, but take instructions from the tower.
 
@@ -170,52 +170,52 @@ A **Worker** is an AI Maestro instance running on a remote machine that the Mana
 3. Worker creates PTY to remote tmux
 4. Terminal I/O flows: Browser ↔ Manager ↔ Worker ↔ Remote tmux
 
-**Key Benefit:** From the browser's perspective, all sessions look the same - it doesn't care where they're running!
+**Key Benefit:** From the browser's perspective, all agents look the same - it doesn't care where they're running!
 
 ---
 
-## Sessions and Agents
+## Agents and tmux Sessions
 
-### What is a Session?
+### What is an Agent?
 
-A **session** is a tmux terminal session running Claude Code (or any other CLI tool).
+An **agent** is an AI coding assistant (like Claude Code, Aider, or Cursor) that you create and manage in AI Maestro.
 
 **Agent Anatomy:**
 ```
 Agent Name: customers-zoom-backend
-  ├─ tmux session (terminal multiplexer)
+  ├─ tmux session (terminal multiplexer - the underlying tool)
   ├─ Working directory: ~/projects/zoom-app/backend
-  ├─ Claude Code instance (AI tool)
+  ├─ Claude Code instance (AI tool running inside)
   └─ Agent notes (stored in AI Maestro)
 ```
 
 ### Hierarchical Organization
 
-AI Maestro automatically organizes sessions using a 3-level hierarchy based on naming:
+AI Maestro automatically organizes agents using a 3-level hierarchy based on naming:
 
-**Format:** `level1-level2-sessionName`
+**Format:** `level1-level2-agentName`
 
 **Example:**
 ```
 customers-zoom-backend
   └─ Level 1: "customers"     (top-level category)
   └─ Level 2: "zoom"          (subcategory/project)
-  └─ Session: "backend"       (specific agent)
+  └─ Agent: "backend"         (specific agent)
 ```
 
 **Benefits:**
 - Visual grouping in sidebar (collapsible folders)
 - Color-coded categories (auto-assigned)
 - Easy filtering by project or client
-- Scalable to hundreds of sessions
+- Scalable to hundreds of agents
 
-### Agent vs Session
+### Agent vs tmux Session
 
-While we often use these terms interchangeably:
-- **Session** = Technical term (tmux session)
-- **Agent** = Conceptual term (AI assistant doing work)
+**Important distinction:**
+- **Agent** = What you create and manage (the AI assistant doing work)
+- **tmux session** = The underlying tool that runs the agent
 
-In practice, one session runs one agent (Claude Code instance).
+When you create an agent, AI Maestro creates a tmux session for it. The tmux session is just the container - the agent is what matters to you.
 
 ---
 
@@ -287,9 +287,9 @@ server.listen(23000, '0.0.0.0', () => { ... })
 ### What AI Maestro Does NOT Protect
 
 AI Maestro assumes OS-level security:
-- ❌ No user authentication (anyone with access can control all sessions)
-- ❌ No session-level permissions (all sessions visible to all users)
-- ❌ No credential encryption (don't store API keys in session notes)
+- ❌ No user authentication (anyone with access can control all agents)
+- ❌ No agent-level permissions (all agents visible to all users)
+- ❌ No credential encryption (don't store API keys in agent notes)
 - ❌ No audit logging (no record of who did what)
 
 **Best Practices:**
@@ -304,9 +304,9 @@ AI Maestro assumes OS-level security:
 
 1. **Localhost** = this machine, **Remote Host** = other machines
 2. **Manager** coordinates, **Workers** execute
-3. Sessions are automatically organized by naming convention
+3. **Agents** are automatically organized by naming convention (tmux sessions are the underlying tool)
 4. Security relies on OS users + network isolation (Tailscale recommended)
-5. One browser dashboard can manage unlimited machines
+5. One browser dashboard can manage unlimited machines and agents
 
 **Next Steps:**
 - [Use Cases](./USE-CASES.md) - See real-world scenarios

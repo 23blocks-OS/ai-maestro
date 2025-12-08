@@ -463,7 +463,7 @@ export default function SessionList({
     return Object.values(level2Groups).reduce((sum, sessions) => sum + sessions.length, 0)
   }
 
-  const handleCreateSession = async (name: string, workingDirectory?: string, hostId?: string) => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string) => {
     setActionLoading(true)
     try {
       const response = await fetch('/api/sessions/create', {
@@ -971,11 +971,11 @@ export default function SessionList({
         </Link>
       </div>
 
-      {/* Create Session Modal */}
+      {/* Create Agent Modal */}
       {showCreateModal && (
-        <CreateSessionModal
+        <CreateAgentModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateSession}
+          onCreate={handleCreateAgent}
           loading={actionLoading}
         />
       )}
@@ -1028,7 +1028,7 @@ export default function SessionList({
           onActivate={(agentAlias) => {
             setShowOrphanAgentsModal(false)
             // Trigger create session flow
-            handleCreateSession(agentAlias, orphanAgents.find(a => a.alias === agentAlias)?.preferences?.defaultWorkingDirectory)
+            handleCreateAgent(agentAlias, orphanAgents.find(a => a.alias === agentAlias)?.preferences?.defaultWorkingDirectory)
           }}
           onDelete={async (agentId) => {
             try {
@@ -1070,7 +1070,7 @@ function SessionStatus({ status }: { status: Session['status'] }) {
 }
 
 // Modal Components
-function CreateSessionModal({
+function CreateAgentModal({
   onClose,
   onCreate,
   loading,
@@ -1765,7 +1765,7 @@ function RestoreSessionsModal({
                 >
                   {loading
                     ? 'Restoring...'
-                    : `Restore ${selectedSessions.size} ${selectedSessions.size === 1 ? 'Session' : 'Sessions'}`}
+                    : `Restore ${selectedSessions.size} ${selectedSessions.size === 1 ? 'Agent' : 'Agents'}`}
                 </button>
               </div>
             </div>

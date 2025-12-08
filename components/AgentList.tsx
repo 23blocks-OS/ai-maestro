@@ -325,7 +325,7 @@ export default function AgentList({
     }
   }
 
-  const handleCreateSession = async (name: string, workingDirectory?: string, hostId?: string) => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string) => {
     setActionLoading(true)
     try {
       const response = await fetch('/api/sessions/create', {
@@ -336,7 +336,7 @@ export default function AgentList({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to create session')
+        throw new Error(data.error || 'Failed to create agent')
       }
 
       setShowCreateModal(false)
@@ -727,11 +727,11 @@ export default function AgentList({
         </Link>
       </div>
 
-      {/* Create Session Modal */}
+      {/* Create Agent Modal */}
       {showCreateModal && (
         <CreateAgentModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateSession}
+          onCreate={handleCreateAgent}
           loading={actionLoading}
         />
       )}

@@ -6,7 +6,7 @@ This guide addresses common issues when using AI Maestro with Claude Code and ot
 
 ## Scrollback Issues with Claude Code
 
-### Problem: Can't Scroll Back During Claude Code Sessions
+### Problem: Can't Scroll Back When Using Claude Code
 
 **Symptom**: When Claude Code is running, you can only scroll back 1-2 pages, then you see shell history instead of Claude's responses.
 
@@ -111,9 +111,9 @@ yarn dev
 
 ---
 
-## Session Discovery Issues
+## Agent Discovery Issues
 
-### Problem: Sessions Don't Appear in Dashboard
+### Problem: Agents Don't Appear in Dashboard
 
 **Symptom**: You created a tmux session but it doesn't show up in AI Maestro.
 
@@ -128,7 +128,7 @@ yarn dev
    tmux list-sessions
    ```
 
-4. **Verify session name format**:
+4. **Verify agent name format**:
    - Must be alphanumeric with hyphens/underscores only
    - Examples: `project-backend`, `my_agent`, `test123`
    - Invalid: `project backend` (spaces not allowed)
@@ -532,9 +532,9 @@ If terminal is completely broken:
 2. **Reduce scrollback buffer**:
    In `hooks/useTerminal.ts`, you can reduce `scrollback: 50000` to `10000`
 
-3. **Close unused sessions**:
+3. **Close unused agents**:
    ```bash
-   tmux kill-session -t <unused-session>
+   tmux kill-session -t <unused-agent>
    ```
 
 4. **Check CPU usage**:
@@ -801,7 +801,7 @@ echo "AI Maestro: http://$IP:23000"
 
 **Symptoms**:
 - All tmux sessions disappear after Windows restart
-- AI Maestro shows "No sessions found"
+- AI Maestro shows no agents
 
 **Cause**: WSL2 VM completely shuts down when Windows restarts. tmux sessions don't persist across VM restarts.
 
@@ -825,7 +825,7 @@ pm2 save
 pm2 startup
 ```
 
-**3. Accept the Workflow**: Create sessions as needed after restart. Use meaningful session names with hyphens for organization.
+**3. Accept the Workflow**: Create agents as needed after restart. Use meaningful agent names with hyphens for organization.
 
 ---
 

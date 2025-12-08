@@ -40,11 +40,11 @@ export default function HelpSection() {
     },
     {
       icon: FileText,
-      title: 'Session Notes & Logging',
-      description: 'Document your work and track session activity',
+      title: 'Agent Notes & Logging',
+      description: 'Document your work and track agent activity',
       topics: [
-        'Adding notes to sessions',
-        'Viewing session logs',
+        'Adding notes to agents',
+        'Viewing agent logs',
         'Exporting terminal history',
         'Organizing agent workspaces',
       ],
@@ -162,7 +162,7 @@ export default function HelpSection() {
           <li className="flex items-start gap-2">
             <span className="text-blue-400 mt-1">•</span>
             <span>
-              <strong>Session notes:</strong> Click the notes section below the terminal to document your work
+              <strong>Agent notes:</strong> Click the notes section below the terminal to document your work
             </span>
           </li>
           <li className="flex items-start gap-2">

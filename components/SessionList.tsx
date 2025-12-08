@@ -488,7 +488,7 @@ export default function SessionList({
     }
   }
 
-  const handleRenameSession = async (newName: string) => {
+  const handleRenameAgent = async (newName: string) => {
     if (!selectedSession) return
 
     setActionLoading(true)
@@ -518,7 +518,7 @@ export default function SessionList({
     }
   }
 
-  const handleDeleteSession = async () => {
+  const handleDeleteAgent = async () => {
     if (!selectedSession) return
 
     setActionLoading(true)
@@ -704,7 +704,7 @@ export default function SessionList({
         </div>
       )}
 
-      {/* Session List */}
+      {/* Agent List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {loading && sessions.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">
@@ -879,7 +879,7 @@ export default function SessionList({
                                               </div>
                                             )}
 
-                                            {/* Session name */}
+                                            {/* Agent name */}
                                             <span
                                               className={`text-sm truncate font-medium ${
                                                 isActive ? 'font-semibold' : ''
@@ -980,15 +980,15 @@ export default function SessionList({
         />
       )}
 
-      {/* Rename Session Modal */}
+      {/* Rename Agent Modal */}
       {showRenameModal && selectedSession && (
-        <RenameSessionModal
+        <RenameAgentModal
           currentName={selectedSession.id}
           onClose={() => {
             setShowRenameModal(false)
             setSelectedSession(null)
           }}
-          onRename={handleRenameSession}
+          onRename={handleRenameAgent}
           loading={actionLoading}
         />
       )}
@@ -1001,7 +1001,7 @@ export default function SessionList({
             setShowDeleteConfirm(false)
             setSelectedSession(null)
           }}
-          onDelete={handleDeleteSession}
+          onDelete={handleDeleteAgent}
           loading={actionLoading}
         />
       )}
@@ -1432,7 +1432,7 @@ function CreateAgentModal({
   )
 }
 
-function RenameSessionModal({
+function RenameAgentModal({
   currentName,
   onClose,
   onRename,
@@ -1596,7 +1596,7 @@ function RestoreSessionsModal({
     })
   }
 
-  const handleDeleteSession = async (sessionId: string) => {
+  const handleDeleteAgent = async (sessionId: string) => {
     if (!confirm(`Are you sure you want to permanently delete the saved session "${sessionId}"? This cannot be undone.`)) {
       return
     }
@@ -1688,7 +1688,7 @@ function RestoreSessionsModal({
               Select sessions to restore. These sessions were previously created but are not currently active.
             </p>
 
-            {/* Session List */}
+            {/* Agent List */}
             <div className="flex-1 overflow-y-auto space-y-2 mb-4 max-h-96">
               {sessions.map((session) => (
                 <div
@@ -1722,7 +1722,7 @@ function RestoreSessionsModal({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDeleteSession(session.id)
+                      handleDeleteAgent(session.id)
                     }}
                     className="opacity-0 group-hover:opacity-100 p-2 rounded hover:bg-gray-600 text-gray-400 hover:text-red-400 transition-all duration-200 flex-shrink-0"
                     title="Delete saved session"

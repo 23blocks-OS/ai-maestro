@@ -786,7 +786,7 @@ function CreateAgentModal({
           <div className="space-y-4">
             <div>
               <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
-                Session Name *
+                Agent Name *
               </label>
               <input
                 id="agent-name"

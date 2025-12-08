@@ -586,7 +586,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">
-                To (Session Name):
+                To (Agent Name):
               </label>
               <input
                 type="text"
@@ -594,7 +594,7 @@ export default function MobileMessageCenter({ sessionName, allSessions }: Mobile
                 onChange={(e) => setComposeTo(e.target.value)}
                 list="sessions-list"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter session name"
+                placeholder="Enter agent name"
               />
               <datalist id="sessions-list">
                 {allSessions.filter(s => s !== sessionName).map(session => (

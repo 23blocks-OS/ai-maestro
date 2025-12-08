@@ -753,7 +753,7 @@ export default function MessageCenter({ sessionName, agentId, allSessions, isVis
           <div className="space-y-4 max-w-2xl">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                To (Session Name):
+                To (Agent Name):
               </label>
               <input
                 id="compose-to"
@@ -763,7 +763,7 @@ export default function MessageCenter({ sessionName, agentId, allSessions, isVis
                 onChange={(e) => setComposeTo(e.target.value)}
                 list="sessions-list"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter session name"
+                placeholder="Enter agent name"
               />
               <datalist id="sessions-list">
                 {allSessions.filter(s => s !== sessionName).map(session => (

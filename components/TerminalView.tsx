@@ -783,7 +783,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             />
           </svg>
           <span className="text-sm text-gray-400">
-            {footerTab === 'prompt' ? 'Show Prompt Builder' : 'Show Session Notes'}
+            {footerTab === 'prompt' ? 'Show Prompt Builder' : 'Show Agent Notes'}
           </span>
         </div>
       )}

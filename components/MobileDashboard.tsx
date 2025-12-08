@@ -45,7 +45,7 @@ export default function MobileDashboard({
   // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
   const storageId = activeSession?.agentId || activeAgentId
 
-  // Load notes from localStorage when active session changes
+  // Load notes from localStorage when active agent changes
   useEffect(() => {
     if (storageId) {
       const notesKey = `agent-notes-${storageId}`
@@ -76,9 +76,9 @@ export default function MobileDashboard({
     setSelectedConversation(null)
   }
 
-  // Parse session name for display (show last part if hierarchical)
-  const getDisplayName = (sessionId: string) => {
-    const parts = sessionId.split('/')
+  // Parse agent name for display (show last part if hierarchical)
+  const getDisplayName = (agentId: string) => {
+    const parts = agentId.split('/')
     return parts[parts.length - 1]
   }
 
@@ -112,7 +112,7 @@ export default function MobileDashboard({
       {/* Top Bar */}
       <header className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
         <div className="flex items-center px-4 py-3">
-          {/* Current Session Display with Connection Status */}
+          {/* Current Agent Display with Connection Status */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Connection indicator - green/red dot */}
             <div

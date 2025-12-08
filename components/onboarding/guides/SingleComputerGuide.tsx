@@ -36,7 +36,7 @@ export default function SingleComputerGuide({ onBack, onComplete }: SingleComput
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span>Session notes for documenting your work</span>
+                <span>Agent notes for documenting your work</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
@@ -164,7 +164,7 @@ export default function SingleComputerGuide({ onBack, onComplete }: SingleComput
           <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
             <h3 className="font-medium text-white mb-2">What happens next:</h3>
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
-              <li>Session appears in the sidebar</li>
+              <li>Agent appears in the sidebar</li>
               <li>Click it to open the terminal</li>
               <li>Run your AI tool: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">claude</code>, <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">aider</code>, etc.</li>
               <li>Add notes below the terminal to document your work</li>

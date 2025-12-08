@@ -10,19 +10,19 @@ import '@xterm/xterm/css/xterm.css'
 export default function ImmersivePage() {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [sessions, setSessions] = useState<Session[]>([])
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [showSessionDialog, setShowSessionDialog] = useState(false)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  const [showAgentDialog, setShowAgentDialog] = useState(false)
   const terminalInstanceRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
-  // Read session from URL parameter
+  // Read agent from URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const sessionParam = params.get('session')
     if (sessionParam) {
-      const decodedSession = decodeURIComponent(sessionParam)
-      setActiveSessionId(decodedSession)
+      const decodedAgent = decodeURIComponent(sessionParam)
+      setActiveAgentId(decodedAgent)
     }
   }, [])
 
@@ -34,9 +34,9 @@ export default function ImmersivePage() {
         const data = await res.json()
         setSessions(data.sessions || [])
 
-        // Auto-select first session if available
-        if (data.sessions && data.sessions.length > 0 && !activeSessionId) {
-          setActiveSessionId(data.sessions[0].id)
+        // Auto-select first agent if available
+        if (data.sessions && data.sessions.length > 0 && !activeAgentId) {
+          setActiveAgentId(data.sessions[0].id)
         }
       } catch (error) {
         console.error('Failed to fetch sessions:', error)
@@ -46,11 +46,11 @@ export default function ImmersivePage() {
     fetchSessions()
     const interval = setInterval(fetchSessions, 10000)
     return () => clearInterval(interval)
-  }, [activeSessionId])
+  }, [activeAgentId])
 
   // Initialize terminal
   useEffect(() => {
-    if (!terminalRef.current || !activeSessionId) return
+    if (!terminalRef.current || !activeAgentId) return
 
     let term: any
     let fitAddon: any
@@ -110,7 +110,7 @@ export default function ImmersivePage() {
 
       // Connect WebSocket
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${protocol}//${window.location.host}/term?name=${activeSessionId}`)
+      const ws = new WebSocket(`${protocol}//${window.location.host}/term?name=${activeAgentId}`)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -203,14 +203,14 @@ export default function ImmersivePage() {
         terminalInstanceRef.current.dispose()
       }
     }
-  }, [activeSessionId])
+  }, [activeAgentId])
 
-  // Show session dialog if no active session
+  // Show agent dialog if no active agent
   useEffect(() => {
-    if (sessions.length > 0 && !activeSessionId) {
-      setShowSessionDialog(true)
+    if (sessions.length > 0 && !activeAgentId) {
+      setShowAgentDialog(true)
     }
-  }, [sessions, activeSessionId])
+  }, [sessions, activeAgentId])
 
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col">
@@ -218,21 +218,21 @@ export default function ImmersivePage() {
       <header className="bg-gray-950 border-b border-gray-800 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
           <a
-            href={activeSessionId ? `/?session=${encodeURIComponent(activeSessionId)}` : '/'}
+            href={activeAgentId ? `/?session=${encodeURIComponent(activeAgentId)}` : '/'}
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             ← Back to Dashboard
           </a>
           <span className="text-sm text-gray-500">|</span>
           <span className="text-sm text-white">
-            {activeSessionId ? `Session: ${activeSessionId}` : 'No Session'}
+            {activeAgentId ? `Agent: ${activeAgentId}` : 'No Agent'}
           </span>
         </div>
         <button
-          onClick={() => setShowSessionDialog(true)}
+          onClick={() => setShowAgentDialog(true)}
           className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
         >
-          Switch Session
+          Switch Agent
         </button>
       </header>
 
@@ -244,11 +244,11 @@ export default function ImmersivePage() {
         />
       </div>
 
-      {/* Session Selection Dialog */}
-      {showSessionDialog && (
+      {/* Agent Selection Dialog */}
+      {showAgentDialog && (
         <div
           className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center"
-          onClick={() => setShowSessionDialog(false)}
+          onClick={() => setShowAgentDialog(false)}
         >
           <div
             className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4"
@@ -269,11 +269,11 @@ export default function ImmersivePage() {
                   <button
                     key={session.id}
                     onClick={() => {
-                      setActiveSessionId(session.id)
-                      setShowSessionDialog(false)
+                      setActiveAgentId(session.id)
+                      setShowAgentDialog(false)
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      session.id === activeSessionId
+                      session.id === activeAgentId
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
@@ -285,7 +285,7 @@ export default function ImmersivePage() {
             )}
 
             <button
-              onClick={() => setShowSessionDialog(false)}
+              onClick={() => setShowAgentDialog(false)}
               className="mt-4 w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors"
             >
               Cancel

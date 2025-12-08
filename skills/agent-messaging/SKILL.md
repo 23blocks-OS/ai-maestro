@@ -16,15 +16,15 @@ Enable communication between AI coding agents using AI Maestro's dual-channel me
 ### IMPORTANT: Understanding "Your Messages"
 
 When the human operator says "check your messages" or "read your messages":
-- **YOUR inbox** = Messages addressed TO YOUR SESSION (from anyone - operator, other agents, etc.)
+- **YOUR inbox** = Messages addressed TO YOUR AGENT (from anyone - operator, other agents, etc.)
 - **NOT the operator's inbox** = You check YOUR inbox, not the operator's
 
 **Example:**
 - Human says: "Check your messages"
-- You are agent in session: `backend-api`
+- You are agent: `backend-api`
 - You check: `~/.aimaestro/messages/inbox/backend-api/` (YOUR inbox)
 - These are messages addressed TO `backend-api` (from any sender)
-- You DO NOT check: The operator's inbox or any other session's inbox
+- You DO NOT check: The operator's inbox or any other agent's inbox
 
 ### Agent Identity
 
@@ -46,16 +46,16 @@ When the human operator says "check your messages" or "read your messages":
 ## When to Use This Skill
 
 **Sending (Agent-to-Agent):**
-- User (operator) says "send a message to [another-agent-session]"
+- User (operator) says "send a message to [another-agent]"
 - User says "notify [another-agent]" or "alert [another-agent]"
-- User wants YOU to communicate with ANOTHER agent session
+- User wants YOU to communicate with ANOTHER agent
 - You need to send urgent alerts or requests to OTHER AGENTS
 
 **Receiving (Check YOUR OWN Inbox):**
 - User says "check my inbox" or "check my messages" = Use `check-aimaestro-messages.sh`
 - User says "read my messages" or "read message X" = Use `read-aimaestro-message.sh <id>`
 - User asks "any new messages?" = Use `check-aimaestro-messages.sh`
-- Session just started (best practice: check YOUR inbox first)
+- Agent just started (best practice: check YOUR inbox first)
 - You want to see what OTHER AGENTS have sent TO YOU
 
 **RECOMMENDED WORKFLOW:**
@@ -104,8 +104,8 @@ check-aimaestro-messages.sh [--mark-read]
 ```
 
 **What it does:**
-- Shows ONLY UNREAD messages in YOUR inbox (messages sent TO YOUR SESSION)
-- Automatically detects YOUR session name
+- Shows ONLY UNREAD messages in YOUR inbox (messages sent TO YOUR AGENT)
+- Automatically detects YOUR agent's session
 - Displays: priority indicator, sender, subject, preview, timestamp
 - Optional `--mark-read` flag to mark all messages as read after viewing
 - **This is the recommended way to check messages** - avoids re-reading old messages
@@ -180,7 +180,7 @@ The POST /api/auth/login endpoint is now deployed and ready...
 ═══════════════════════════════════════════════════════════════
 ```
 
-### 3. Auto-Display on Session Attach (Legacy - DO NOT USE MANUALLY)
+### 3. Auto-Display on Agent Start (Legacy - DO NOT USE MANUALLY)
 **Command:**
 ```bash
 check-and-show-messages.sh
@@ -282,7 +282,7 @@ curl -X PATCH "http://localhost:23000/api/messages/<message-id>?session=$SESSION
 - Operator tells YOU to send a message TO ANOTHER AGENT
 - NOT sending messages to the operator
 - Message goes to ANOTHER AGENT's inbox
-- Target session = Another agent's tmux session name
+- Target = Another agent (identified by their tmux session name)
 
 ### 5. File-Based Messages (Persistent, Structured)
 Use for detailed, non-urgent communication that needs to be referenced later BY OTHER AGENTS.
@@ -293,7 +293,7 @@ send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
 ```
 
 **Parameters:**
-- `to_session` (required) - Target agent's session name (ANOTHER AGENT, not operator)
+- `to_session` (required) - Target agent's name (ANOTHER AGENT, not operator)
 - `subject` (required) - Brief subject line
 - `message` (required) - Message content to send TO OTHER AGENT
 - `priority` (optional) - low | normal | high | urgent (default: normal)
@@ -323,7 +323,7 @@ send-tmux-message.sh <target_session> <message> [method]
 ```
 
 **Parameters:**
-- `target_session` (required) - Target AGENT's session name (ANOTHER AGENT, not operator)
+- `target_session` (required) - Target agent's name (ANOTHER AGENT, not operator)
 - `message` (required) - Alert text to send TO OTHER AGENT
 - `method` (optional) - display | inject | echo (default: display)
 
@@ -396,10 +396,10 @@ send-aimaestro-message.sh backend-architect \
 
 ### RECEIVING Examples (Checking YOUR OWN Inbox)
 
-#### Scenario R1: Check YOUR Inbox on Session Start
+#### Scenario R1: Check YOUR Inbox on Agent Start
 ```bash
 # YOU are agent "frontend-dev"
-# Best practice: Always check YOUR inbox when starting a session
+# Best practice: Always check YOUR inbox when starting work
 
 check-and-show-messages.sh
 # This checks ~/.aimaestro/messages/inbox/frontend-dev/
@@ -526,8 +526,8 @@ send-aimaestro-message.sh frontend-dev \
 
 **Remember: You are checking YOUR inbox for messages other agents sent TO YOU**
 
-1. **Check YOUR inbox proactively** - Run `check-and-show-messages.sh` when session starts or operator asks
-   - This reads `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+1. **Check YOUR inbox proactively** - Run `check-and-show-messages.sh` when starting work or operator asks
+   - This reads `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
    - Shows messages OTHER AGENTS sent TO YOU
 
 2. **Read message content** - Display full message details
@@ -554,8 +554,8 @@ send-aimaestro-message.sh frontend-dev \
 
 1. **Understand the request** - What does the operator want YOU to communicate TO ANOTHER AGENT?
 
-2. **Identify target session** - Which OTHER agent/session should receive this message FROM YOU?
-   - Target = Another agent's session name
+2. **Identify target agent** - Which OTHER agent should receive this message FROM YOU?
+   - Target = Another agent's name
    - NOT the operator
    - NOT your own inbox
 

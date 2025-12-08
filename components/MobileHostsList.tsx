@@ -3,24 +3,23 @@
 import { useState, useMemo } from 'react'
 import {
   Server,
-  Cloud,
   Terminal,
   ChevronDown,
   ChevronRight,
   Plus
 } from 'lucide-react'
-import type { Session } from '@/types/session'
+import type { UnifiedAgent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 
 interface MobileHostsListProps {
-  sessions: Session[]
+  agents: UnifiedAgent[]
   activeAgentId: string | null
   onAgentSelect: (agentId: string) => void
   onCreateAgent?: () => void
 }
 
 export default function MobileHostsList({
-  sessions,
+  agents,
   activeAgentId,
   onAgentSelect,
   onCreateAgent
@@ -28,20 +27,20 @@ export default function MobileHostsList({
   const { hosts } = useHosts()
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set(['local']))
 
-  // Group sessions by host
-  const groupedSessions = useMemo(() => {
-    const groups: { [hostId: string]: Session[] } = {}
+  // Group agents by host
+  const groupedAgents = useMemo(() => {
+    const groups: { [hostId: string]: UnifiedAgent[] } = {}
 
-    sessions.forEach((session) => {
-      const hostId = session.hostId || 'local'
+    agents.forEach((agent) => {
+      const hostId = agent.session.hostId || 'local'
       if (!groups[hostId]) {
         groups[hostId] = []
       }
-      groups[hostId].push(session)
+      groups[hostId].push(agent)
     })
 
     return groups
-  }, [sessions])
+  }, [agents])
 
   const toggleHost = (hostId: string) => {
     const newExpanded = new Set(expandedHosts)
@@ -75,27 +74,30 @@ export default function MobileHostsList({
     return host?.url ? new URL(host.url).host : 'Unknown'
   }
 
-  const getDisplayName = (sessionId: string) => {
-    const parts = sessionId.split('/')
-    return parts[parts.length - 1]
+  // Get display name for an agent
+  const getAgentDisplayName = (agent: UnifiedAgent) => {
+    return agent.displayName || agent.alias || agent.id
   }
 
-  const getBreadcrumb = (sessionId: string) => {
-    const parts = sessionId.split('/')
-    return parts.length > 1 ? parts.slice(0, -1).join(' / ') : null
+  // Get breadcrumb from tags
+  const getAgentBreadcrumb = (agent: UnifiedAgent) => {
+    if (agent.tags && agent.tags.length > 0) {
+      return agent.tags.join(' / ')
+    }
+    return null
   }
 
   // Sort hosts: local first, then alphabetically
   const sortedHostIds = useMemo(() => {
-    const hostIds = Object.keys(groupedSessions)
+    const hostIds = Object.keys(groupedAgents)
     return hostIds.sort((a, b) => {
       if (a === 'local') return -1
       if (b === 'local') return 1
       return getHostName(a).localeCompare(getHostName(b))
     })
-  }, [groupedSessions])
+  }, [groupedAgents])
 
-  if (sessions.length === 0) {
+  if (agents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
         <Server className="w-16 h-16 text-gray-600 mb-4" />
@@ -135,7 +137,7 @@ export default function MobileHostsList({
           )}
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          {sortedHostIds.length} host{sortedHostIds.length !== 1 ? 's' : ''} • {sessions.length} agent{sessions.length !== 1 ? 's' : ''}
+          {sortedHostIds.length} host{sortedHostIds.length !== 1 ? 's' : ''} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -143,7 +145,7 @@ export default function MobileHostsList({
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-2">
           {sortedHostIds.map((hostId) => {
-            const hostSessions = groupedSessions[hostId] || []
+            const hostAgents = groupedAgents[hostId] || []
             const isExpanded = expandedHosts.has(hostId)
             const HostIcon = getHostIcon(hostId)
 
@@ -172,29 +174,30 @@ export default function MobileHostsList({
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="px-2 py-0.5 bg-gray-700 text-gray-300 rounded text-xs font-medium">
-                      {hostSessions.length}
+                      {hostAgents.length}
                     </span>
                   </div>
                 </button>
 
-                {/* Sessions List */}
+                {/* Agents List */}
                 {isExpanded && (
                   <div className="border-t border-gray-700">
-                    {hostSessions.length === 0 ? (
+                    {hostAgents.length === 0 ? (
                       <div className="px-4 py-3 text-xs text-gray-500 text-center">
                         No agents on this host
                       </div>
                     ) : (
                       <div className="divide-y divide-gray-700">
-                        {hostSessions.map((session) => {
-                          const isActive = session.id === activeAgentId
-                          const displayName = getDisplayName(session.id)
-                          const breadcrumb = getBreadcrumb(session.id)
+                        {hostAgents.map((agent) => {
+                          const isActive = agent.id === activeAgentId
+                          const displayName = getAgentDisplayName(agent)
+                          const breadcrumb = getAgentBreadcrumb(agent)
+                          const isOnline = agent.session.status === 'online'
 
                           return (
                             <button
-                              key={session.id}
-                              onClick={() => onAgentSelect(session.id)}
+                              key={agent.id}
+                              onClick={() => onAgentSelect(agent.id)}
                               className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
                                 isActive
                                   ? 'bg-blue-900/30'
@@ -213,10 +216,19 @@ export default function MobileHostsList({
                                 {breadcrumb && (
                                   <p className="text-xs text-gray-500 truncate">{breadcrumb}</p>
                                 )}
+                                {agent.taskDescription && (
+                                  <p className="text-xs text-gray-500 truncate mt-0.5">{agent.taskDescription}</p>
+                                )}
                               </div>
-                              {isActive && (
-                                <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                              )}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {/* Online/Offline indicator */}
+                                <div className={`w-2 h-2 rounded-full ${
+                                  isOnline ? 'bg-green-500' : 'bg-gray-500'
+                                }`} />
+                                {isActive && (
+                                  <div className="w-2 h-2 rounded-full bg-blue-400" />
+                                )}
+                              </div>
                             </button>
                           )
                         })}

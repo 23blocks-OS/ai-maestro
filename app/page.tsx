@@ -22,6 +22,21 @@ import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileT
 import type { UnifiedAgent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
+// Helper: Convert agent to session-like object for TerminalView compatibility
+function agentToSession(agent: UnifiedAgent): Session {
+  return {
+    id: agent.session.tmuxSessionName || agent.id,
+    name: agent.displayName || agent.alias,
+    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    status: 'active' as const,
+    createdAt: agent.createdAt,
+    lastActivity: agent.lastActive || agent.createdAt,
+    windows: 1,
+    agentId: agent.id,
+    hostId: agent.session.hostId,
+  }
+}
+
 export default function DashboardPage() {
   // Agent-centric: Primary hook is useAgents
   const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
@@ -209,33 +224,18 @@ export default function DashboardPage() {
     setShowOnboarding(false)
   }
 
-  // Helper: Convert agent to session-like object for TerminalView compatibility
-  const agentToSession = (agent: UnifiedAgent): Session => ({
-    id: agent.session.tmuxSessionName || agent.id,
-    name: agent.displayName || agent.alias,
-    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
-    status: 'active' as const,
-    createdAt: agent.createdAt,
-    lastActivity: agent.lastActive || agent.createdAt,
-    windows: 1,
-    agentId: agent.id,
-    hostId: agent.session.hostId,
-  })
-
   // Show onboarding flow if not completed
   if (showOnboarding) {
     return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
   }
 
   // Render mobile-specific dashboard for small screens
-  // Agent-centric: Convert online agents to sessions for MobileDashboard compatibility
+  // Agent-centric: MobileDashboard now accepts agents directly
   if (isMobile) {
-    const mobileSessions: Session[] = onlineAgents.map(agent => agentToSession(agent))
-
     return (
       <TerminalProvider key="mobile-dashboard">
         <MobileDashboard
-          sessions={mobileSessions}
+          agents={agents}
           loading={agentsLoading}
           error={agentsError?.message || null}
           onRefresh={refreshAgents}

@@ -6,9 +6,10 @@ import {
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
-  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder
+  Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus } from '@/types/agent'
+import TransferAgentDialog from './TransferAgentDialog'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -26,6 +27,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [editingField, setEditingField] = useState<string | null>(null)
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [newTagValue, setNewTagValue] = useState('')
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -92,6 +95,32 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     } catch (error) {
       console.error('Failed to save agent:', error)
       setSaving(false)
+    }
+  }
+
+  const handleExport = async () => {
+    if (!agent) return
+
+    setExporting(true)
+    try {
+      const response = await fetch(`/api/agents/${agentId}/export`)
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${agent.alias || agent.id}-export.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export agent:', error)
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -163,7 +192,31 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             {/* Header */}
             <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Export Button */}
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                  title="Export Agent"
+                >
+                  {exporting ? (
+                    <div className="w-5 h-5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-5 h-5" />
+                  )}
+                </button>
+                {/* Transfer Button */}
+                <button
+                  onClick={() => setShowTransferDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-blue-400"
+                  title="Transfer to Another Host"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700 mx-1" />
+                {/* Save Button */}
                 <button
                   onClick={handleSave}
                   disabled={!hasChanges || saving}
@@ -651,6 +704,24 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Transfer Agent Dialog */}
+      {showTransferDialog && agent && (
+        <TransferAgentDialog
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
+          currentHostId={agent.deployment?.local?.hostname === 'localhost' ? 'local' : undefined}
+          onClose={() => setShowTransferDialog(false)}
+          onTransferComplete={(result) => {
+            if (result.success && result.mode === 'move') {
+              // Agent was moved, close the profile
+              onClose()
+            }
+            setShowTransferDialog(false)
+          }}
+        />
       )}
     </>
   )

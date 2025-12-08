@@ -15,11 +15,11 @@ import {
   Calendar
 } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
-import { useSessions } from '@/hooks/useSessions'
 
 interface MobileWorkTreeProps {
   sessionName: string
   agentId?: string
+  hostId?: string  // Agent-centric: pass hostId directly instead of looking up via sessions
   onConversationSelect: (file: string, projectPath: string) => void
 }
 
@@ -68,30 +68,29 @@ interface ClaudeSessionWork {
 export default function MobileWorkTree({
   sessionName,
   agentId,
+  hostId,
   onConversationSelect
 }: MobileWorkTreeProps) {
   const { hosts } = useHosts()
-  const { sessions } = useSessions()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
 
-  // Determine which host this agent is on
+  // Determine which host this agent is on - agent-centric: use hostId prop directly
   const getHostUrl = (): string => {
-    const agentSession = sessions.find(s => s.agentId === agentId || s.id === sessionName || s.name === sessionName)
-
-    if (!agentSession || !agentSession.hostId || agentSession.hostId === 'local') {
-      // Use empty string for relative URLs (works on mobile devices)
+    // Local agent - use relative URL (works on mobile devices)
+    if (!hostId || hostId === 'local') {
       return ''
     }
 
-    const host = hosts.find(h => h.id === agentSession.hostId)
+    // Remote agent - find host URL
+    const host = hosts.find(h => h.id === hostId)
     if (host) {
       return host.url
     }
 
-    // Use empty string for relative URLs (works on mobile devices)
+    // Fallback to local - use relative URL (works on mobile devices)
     return ''
   }
 

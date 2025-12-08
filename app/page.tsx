@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import SessionList from '@/components/SessionList'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import TerminalViewNew from '@/components/TerminalViewNew'
@@ -17,16 +16,17 @@ import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndica
 import MigrationBanner from '@/components/MigrationBanner'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
-import { useSessions } from '@/hooks/useSessions'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText } from 'lucide-react'
 import type { UnifiedAgent } from '@/types/agent'
+import type { Session } from '@/types/session'
 
 export default function DashboardPage() {
-  const { sessions, loading, error, refreshSessions } = useSessions()
+  // Agent-centric: Primary hook is useAgents
   const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+
+  // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -36,18 +36,8 @@ export default function DashboardPage() {
   const [profileAgent, setProfileAgent] = useState<UnifiedAgent | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
-  // Feature flag for agent-centric sidebar (stored in localStorage)
-  const [useAgentCentricSidebar, setUseAgentCentricSidebar] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('use-agent-centric-sidebar') === 'true'
-  })
-
-  // Save feature flag to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('use-agent-centric-sidebar', String(useAgentCentricSidebar))
-    }
-  }, [useAgentCentricSidebar])
+  // Derive active agent from state
+  const activeAgent = agents.find(a => a.id === activeAgentId) || null
 
   // Check for onboarding completion on mount
   useEffect(() => {
@@ -57,20 +47,28 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Read session from URL parameter on mount
+  // Read agent from URL parameter on mount (changed from ?session= to ?agent=)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const sessionParam = params.get('session')
-    if (sessionParam) {
-      setActiveSessionId(decodeURIComponent(sessionParam))
+    const agentParam = params.get('agent')
+    if (agentParam) {
+      setActiveAgentId(decodeURIComponent(agentParam))
     }
-  }, [])
+    // Also support legacy ?session= param for backwards compatibility
+    const sessionParam = params.get('session')
+    if (sessionParam && !agentParam) {
+      // Find agent by session name
+      const agent = agents.find(a => a.session.tmuxSessionName === decodeURIComponent(sessionParam))
+      if (agent) {
+        setActiveAgentId(agent.id)
+      }
+    }
+  }, [agents])
 
   // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768)
-      // Auto-collapse sidebar on mobile
       if (window.innerWidth < 768) {
         setSidebarCollapsed(true)
       }
@@ -81,46 +79,35 @@ export default function DashboardPage() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
+  // Auto-select first online agent when agents load
   useEffect(() => {
-    // Auto-select first session when sessions load (only if no session is set)
-    if (sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0].id)
+    if (onlineAgents.length > 0 && !activeAgentId) {
+      setActiveAgentId(onlineAgents[0].id)
     }
-  }, [sessions, activeSessionId])
+  }, [onlineAgents, activeAgentId])
 
-  // Initialize agent memories for all sessions on load (once per browser session)
+  // Initialize agent memories for all agents on load
   useEffect(() => {
-    if (sessions.length === 0) return
+    if (agents.length === 0) return
 
-    // Check if we've already initialized in this browser session
     const initKey = 'aimaestro-agents-initialized'
     const lastInit = sessionStorage.getItem(initKey)
     const now = Date.now()
 
-    // Only initialize once per browser session, or if it's been more than 1 hour
     if (lastInit && (now - parseInt(lastInit)) < 3600000) {
       console.log('[Dashboard] Agent memories already initialized in this session')
       return
     }
 
     const initializeAgentMemories = async () => {
-      // Get unique agent IDs
-      const agentIds = new Set(
-        sessions
-          .map(s => s.agentId)
-          .filter((id): id is string => id !== null && id !== undefined)
-      )
+      const agentIds = agents.map(a => a.id)
+      console.log(`[Dashboard] Initializing memory for ${agentIds.length} agents...`)
 
-      console.log(`[Dashboard] Initializing memory for ${agentIds.size} agents...`)
-
-      // Initialize each agent's memory in parallel
-      const initPromises = Array.from(agentIds).map(async (agentId) => {
+      const initPromises = agentIds.map(async (agentId) => {
         try {
-          // Check if memory exists
           const checkResponse = await fetch(`/api/agents/${agentId}/memory`)
           const checkData = await checkResponse.json()
 
-          // If no memory, initialize it
           if (!checkData.success || (!checkData.sessions?.length && !checkData.projects?.length)) {
             console.log(`[Dashboard] Initializing memory for agent ${agentId}`)
             await fetch(`/api/agents/${agentId}/memory`, {
@@ -135,23 +122,21 @@ export default function DashboardPage() {
       })
 
       await Promise.all(initPromises)
-
-      // Mark as initialized for this browser session
       sessionStorage.setItem(initKey, now.toString())
       console.log('[Dashboard] Agent memory initialization complete')
     }
 
     initializeAgentMemories()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions.length]) // Only depend on length, not full sessions array
+  }, [agents.length])
 
-  // Fetch unread message count for active session
+  // Fetch unread message count for active agent
   useEffect(() => {
-    if (!activeSessionId) return
+    if (!activeAgentId) return
 
     const fetchUnreadCount = async () => {
       try {
-        const response = await fetch(`/api/messages?session=${encodeURIComponent(activeSessionId)}&action=unread-count`)
+        // Now fetching by agent ID, not session name
+        const response = await fetch(`/api/messages?agentId=${encodeURIComponent(activeAgentId)}&action=unread-count`)
         if (response.ok) {
           const data = await response.json()
           setUnreadCount(data.count || 0)
@@ -162,27 +147,15 @@ export default function DashboardPage() {
     }
 
     fetchUnreadCount()
-
-    // Refresh every 10 seconds
     const interval = setInterval(fetchUnreadCount, 10000)
     return () => clearInterval(interval)
-  }, [activeSessionId])
-
-  const handleSessionSelect = (sessionId: string) => {
-    setActiveSessionId(sessionId)
-    // Close the profile panel when switching sessions
-    setIsProfileOpen(false)
-  }
+  }, [activeAgentId])
 
   // Agent-centric handlers
   const handleAgentSelect = (agent: UnifiedAgent) => {
-    // Only select online agents (which have a session)
-    if (agent.session.status === 'online' && agent.session.tmuxSessionName) {
-      setActiveAgentId(agent.id)
-      setActiveSessionId(agent.session.tmuxSessionName)
-      // Close the profile panel when switching agents
-      setIsProfileOpen(false)
-    }
+    // Can select any agent (online or offline)
+    setActiveAgentId(agent.id)
+    setIsProfileOpen(false)
   }
 
   const handleShowAgentProfile = (agent: UnifiedAgent) => {
@@ -209,19 +182,13 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to create session')
       }
 
-      // Close profile panel and refresh
       setIsProfileOpen(false)
       setProfileAgent(null)
-      refreshSessions()
       refreshAgents()
 
-      // After a brief delay, select the new session
+      // Select the agent after session starts
       setTimeout(() => {
-        setActiveSessionId(sessionName)
-        const newAgent = agents.find(a => a.session.tmuxSessionName === sessionName)
-        if (newAgent) {
-          setActiveAgentId(newAgent.id)
-        }
+        setActiveAgentId(agent.id)
       }, 500)
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to start session')
@@ -234,8 +201,7 @@ export default function DashboardPage() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
-    // Refresh sessions to show any newly created session
-    refreshSessions()
+    refreshAgents()
   }
 
   const handleOnboardingSkip = () => {
@@ -243,7 +209,18 @@ export default function DashboardPage() {
     setShowOnboarding(false)
   }
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId)
+  // Helper: Convert agent to session-like object for TerminalView compatibility
+  const agentToSession = (agent: UnifiedAgent): Session => ({
+    id: agent.session.tmuxSessionName || agent.id,
+    name: agent.displayName || agent.alias,
+    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    status: 'active' as const,
+    createdAt: agent.createdAt,
+    lastActivity: agent.lastActive || agent.createdAt,
+    windows: 1,
+    agentId: agent.id,
+    hostId: agent.session.hostId,
+  })
 
   // Show onboarding flow if not completed
   if (showOnboarding) {
@@ -251,66 +228,59 @@ export default function DashboardPage() {
   }
 
   // Render mobile-specific dashboard for small screens
-  // CRITICAL: Use key prop to force complete unmount/remount when switching layouts
-  // This prevents duplicate WebSocket connections and terminal instances
+  // Agent-centric: Convert online agents to sessions for MobileDashboard compatibility
   if (isMobile) {
+    const mobileSessions: Session[] = onlineAgents.map(agent => agentToSession(agent))
+
     return (
       <TerminalProvider key="mobile-dashboard">
         <MobileDashboard
-          sessions={sessions}
-          loading={loading}
-          error={error?.message || null}
-          onRefresh={refreshSessions}
+          sessions={mobileSessions}
+          loading={agentsLoading}
+          error={agentsError?.message || null}
+          onRefresh={refreshAgents}
         />
       </TerminalProvider>
     )
   }
 
-  // Desktop dashboard
+  // Desktop dashboard - AGENT-CENTRIC
   return (
     <TerminalProvider key="desktop-dashboard">
       <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
-        <Header onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} activeSessionId={activeSessionId} />
+        <Header
+          onToggleSidebar={toggleSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          activeSessionId={activeAgent?.session.tmuxSessionName || null}
+        />
 
         {/* Migration Banner */}
         <MigrationBanner />
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Sidebar */}
+          {/* Sidebar - Always AgentList now */}
           <aside className={`
             border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden relative
             ${sidebarCollapsed ? 'w-0' : 'w-80'}
           `}>
-            {useAgentCentricSidebar ? (
-              <AgentList
-                agents={agents}
-                activeAgentId={activeAgentId}
-                onAgentSelect={handleAgentSelect}
-                onShowAgentProfile={handleShowAgentProfile}
-                loading={agentsLoading}
-                error={agentsError}
-                onRefresh={refreshAgents}
-                stats={agentStats}
-              />
-            ) : (
-              <SessionList
-                sessions={sessions}
-                activeSessionId={activeSessionId}
-                onSessionSelect={handleSessionSelect}
-                loading={loading}
-                error={error}
-                onRefresh={refreshSessions}
-                onToggleSidebar={toggleSidebar}
-              />
-            )}
+            <AgentList
+              agents={agents}
+              activeAgentId={activeAgentId}
+              onAgentSelect={handleAgentSelect}
+              onShowAgentProfile={handleShowAgentProfile}
+              loading={agentsLoading}
+              error={agentsError}
+              onRefresh={refreshAgents}
+              stats={agentStats}
+            />
           </aside>
 
           {/* Main Content */}
           <main className="flex-1 flex flex-col relative">
-            {/* Empty State - shown when no sessions */}
-            {sessions.length === 0 && (
+            {/* Empty State - shown when no agents */}
+            {agents.length === 0 && !agentsLoading && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center">
                   <svg
@@ -326,7 +296,7 @@ export default function DashboardPage() {
                       d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <p className="text-xl mb-2">No sessions found</p>
+                  <p className="text-xl mb-2">No agents found</p>
                   <p className="text-sm">
                     Create a tmux session with Claude Code to get started
                   </p>
@@ -334,13 +304,39 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* All Sessions Mounted as Tabs - toggle visibility with CSS */}
-            {sessions.map(session => {
-              const isActive = session.id === activeSessionId
+            {/* Offline agent selected - show profile prompt */}
+            {activeAgent && activeAgent.session.status === 'offline' && (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="text-center max-w-md">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
+                    <User className="w-10 h-10 text-gray-500" />
+                  </div>
+                  <p className="text-xl mb-2 text-gray-300">{activeAgent.displayName || activeAgent.alias}</p>
+                  <p className="text-sm mb-4 text-gray-500">This agent is offline</p>
+                  <button
+                    onClick={() => handleStartSession(activeAgent)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all"
+                  >
+                    Start Session
+                  </button>
+                  <button
+                    onClick={() => handleShowAgentProfile(activeAgent)}
+                    className="ml-3 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                  >
+                    View Profile
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* All Online Agents Mounted as Tabs - toggle visibility with CSS */}
+            {onlineAgents.map(agent => {
+              const isActive = agent.id === activeAgentId
+              const session = agentToSession(agent)
 
               return (
                 <div
-                  key={session.id}
+                  key={agent.id}
                   className="absolute inset-0 flex flex-col"
                   style={{
                     visibility: isActive ? 'visible' : 'hidden',
@@ -433,28 +429,17 @@ export default function DashboardPage() {
                       Docs
                     </button>
                     <div className="flex-1" />
-                    {session.agentId && (
-                      <div className="flex items-center">
-                        <AgentSubconsciousIndicator agentId={session.agentId} />
-                        <button
-                          onClick={() => {
-                            // For agent-centric mode, we need to set profileAgent too
-                            if (useAgentCentricSidebar) {
-                              const agent = agents.find(a => a.id === session.agentId)
-                              if (agent) {
-                                setProfileAgent(agent)
-                              }
-                            }
-                            setIsProfileOpen(true)
-                          }}
-                          className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
-                          title="View Agent Profile"
-                        >
-                          <User className="w-4 h-4" />
-                          Agent Profile
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center">
+                      <AgentSubconsciousIndicator agentId={agent.id} />
+                      <button
+                        onClick={() => handleShowAgentProfile(agent)}
+                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                        title="View Agent Profile"
+                      >
+                        <User className="w-4 h-4" />
+                        Agent Profile
+                      </button>
+                    </div>
                   </div>
 
                   {/* Tab Content */}
@@ -468,26 +453,28 @@ export default function DashboardPage() {
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
                         sessionName={session.id}
-                        allSessions={sessions.map(s => s.id)}
+                        agentId={agent.id}
+                        allSessions={onlineAgents.map(a => a.session.tmuxSessionName || a.id)}
                         isVisible={isActive && activeTab === 'messages'}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
                         sessionName={session.id}
-                        agentId={session.agentId}
+                        agentId={agent.id}
+                        hostId={agent.session.hostId}
                         isVisible={isActive && activeTab === 'worktree'}
                       />
                     ) : activeTab === 'graph' ? (
                       <AgentGraph
                         sessionName={session.id}
-                        agentId={session.agentId}
+                        agentId={agent.id}
                         isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
                       />
                     ) : (
                       <DocumentationPanel
                         sessionName={session.id}
-                        agentId={session.agentId}
+                        agentId={agent.id}
                         isVisible={isActive && activeTab === 'docs'}
                         workingDirectory={session.workingDirectory}
                       />
@@ -497,61 +484,52 @@ export default function DashboardPage() {
               )
             })}
           </main>
-      </div>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
-          <p className="text-xs md:text-sm text-white leading-none">
-            <VersionChecker /> • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
-          </p>
-          <p className="text-xs md:text-sm text-white leading-none">
-            Concept by{' '}
-            <a
-              href="https://x.com/jkpelaez"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-gray-300 transition-colors"
-            >
-              Juan Peláez
-            </a>{' '}
-            @{' '}
-            <a
-              href="https://23blocks.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-red-500 hover:text-red-400 transition-colors"
-            >
-              23blocks
-            </a>
-            . Coded by Claude
-          </p>
         </div>
-      </footer>
 
-      {/* Agent Profile Panel */}
-      {/* When using agent-centric mode, show profile for profileAgent */}
-      {useAgentCentricSidebar && profileAgent && (
-        <AgentProfile
-          isOpen={isProfileOpen}
-          onClose={() => {
-            setIsProfileOpen(false)
-            setProfileAgent(null)
-          }}
-          agentId={profileAgent.id}
-          sessionStatus={profileAgent.session}
-          onStartSession={() => handleStartSession(profileAgent)}
-        />
-      )}
-      {/* When using session-centric mode, show profile for active session's agent */}
-      {!useAgentCentricSidebar && activeSession?.agentId && (
-        <AgentProfile
-          isOpen={isProfileOpen}
-          onClose={() => setIsProfileOpen(false)}
-          agentId={activeSession.agentId}
-        />
-      )}
-    </div>
+        {/* Footer */}
+        <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
+            <p className="text-xs md:text-sm text-white leading-none">
+              <VersionChecker /> • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            </p>
+            <p className="text-xs md:text-sm text-white leading-none">
+              Concept by{' '}
+              <a
+                href="https://x.com/jkpelaez"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-gray-300 transition-colors"
+              >
+                Juan Peláez
+              </a>{' '}
+              @{' '}
+              <a
+                href="https://23blocks.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-red-500 hover:text-red-400 transition-colors"
+              >
+                23blocks
+              </a>
+              . Coded by Claude
+            </p>
+          </div>
+        </footer>
+
+        {/* Agent Profile Panel */}
+        {profileAgent && (
+          <AgentProfile
+            isOpen={isProfileOpen}
+            onClose={() => {
+              setIsProfileOpen(false)
+              setProfileAgent(null)
+            }}
+            agentId={profileAgent.id}
+            sessionStatus={profileAgent.session}
+            onStartSession={() => handleStartSession(profileAgent)}
+          />
+        )}
+      </div>
     </TerminalProvider>
   )
 }

@@ -42,22 +42,25 @@ export default function MobileDashboard({
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
+  // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
+  const storageId = activeSession?.agentId || activeSessionId
+
   // Load notes from localStorage when active session changes
   useEffect(() => {
-    if (activeSessionId) {
-      const notesKey = `session-notes-${activeSessionId}`
+    if (storageId) {
+      const notesKey = `agent-notes-${storageId}`
       const savedNotes = localStorage.getItem(notesKey)
       setNotes(savedNotes || '')
     }
-  }, [activeSessionId])
+  }, [storageId])
 
   // Save notes to localStorage when they change
   useEffect(() => {
-    if (activeSessionId && notes !== undefined) {
-      const notesKey = `session-notes-${activeSessionId}`
+    if (storageId && notes !== undefined) {
+      const notesKey = `agent-notes-${storageId}`
       localStorage.setItem(notesKey, notes)
     }
-  }, [notes, activeSessionId])
+  }, [notes, storageId])
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId)
@@ -192,6 +195,7 @@ export default function MobileDashboard({
             <MobileWorkTree
               sessionName={activeSession.id}
               agentId={activeSession.agentId}
+              hostId={activeSession.hostId}
               onConversationSelect={handleConversationSelect}
             />
           </div>

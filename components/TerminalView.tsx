@@ -27,12 +27,15 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [isMobile, setIsMobile] = useState(false)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
+  // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
+  const storageId = session.agentId || session.id
+
   // CRITICAL: Initialize notesCollapsed from localStorage SYNCHRONOUSLY during render
   // This ensures the terminal container has the correct height BEFORE xterm.js initializes
   const [notesCollapsed, setNotesCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     const mobile = window.innerWidth < 768
-    const collapsedKey = `session-notes-collapsed-${session.id}`
+    const collapsedKey = `agent-notes-collapsed-${session.agentId || session.id}`
     const savedCollapsed = localStorage.getItem(collapsedKey)
     if (savedCollapsed !== null) {
       return savedCollapsed === 'true'
@@ -50,7 +53,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const [loggingEnabled, setLoggingEnabled] = useState(() => {
     if (typeof window === 'undefined') return true
-    const loggingKey = `session-logging-${session.id}`
+    const loggingKey = `agent-logging-${session.agentId || session.id}`
     const savedLogging = localStorage.getItem(loggingKey)
     return savedLogging !== null ? savedLogging === 'true' : true
   })
@@ -366,8 +369,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   // Load notes from localStorage ONCE on mount
   // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
-    const storageKey = `session-notes-${session.id}`
-    const savedNotes = localStorage.getItem(storageKey)
+    const key = `agent-notes-${storageId}`
+    const savedNotes = localStorage.getItem(key)
     if (savedNotes !== null) {
       setNotes(savedNotes)
     } else {
@@ -378,8 +381,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   }, [])
 
   useEffect(() => {
-    const storageKey = `session-prompt-${session.id}`
-    const savedPrompt = localStorage.getItem(storageKey)
+    const key = `agent-prompt-${storageId}`
+    const savedPrompt = localStorage.getItem(key)
     if (savedPrompt !== null) {
       setPromptDraft(savedPrompt)
     } else {
@@ -390,14 +393,12 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   // Save notes to localStorage when they change
   useEffect(() => {
-    const storageKey = `session-notes-${session.id}`
-    localStorage.setItem(storageKey, notes)
-  }, [notes, session.id])
+    localStorage.setItem(`agent-notes-${storageId}`, notes)
+  }, [notes, storageId])
 
   useEffect(() => {
-    const storageKey = `session-prompt-${session.id}`
-    localStorage.setItem(storageKey, promptDraft)
-  }, [promptDraft, session.id])
+    localStorage.setItem(`agent-prompt-${storageId}`, promptDraft)
+  }, [promptDraft, storageId])
 
   useEffect(() => {
     if (notesCollapsed) return
@@ -416,15 +417,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   // Save collapsed state to localStorage
   useEffect(() => {
-    const collapsedKey = `session-notes-collapsed-${session.id}`
-    localStorage.setItem(collapsedKey, String(notesCollapsed))
-  }, [notesCollapsed, session.id])
+    localStorage.setItem(`agent-notes-collapsed-${storageId}`, String(notesCollapsed))
+  }, [notesCollapsed, storageId])
 
   // Save logging state to localStorage
   useEffect(() => {
-    const loggingKey = `session-logging-${session.id}`
-    localStorage.setItem(loggingKey, String(loggingEnabled))
-  }, [loggingEnabled, session.id])
+    localStorage.setItem(`agent-logging-${storageId}`, String(loggingEnabled))
+  }, [loggingEnabled, storageId])
 
   useEffect(() => {
     localStorage.setItem(FOOTER_TAB_STORAGE_KEY, footerTab)
@@ -703,8 +702,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           </div>
           {footerTab === 'notes' ? (
             <textarea
-              id={`session-notes-${session.id}`}
-              name={`sessionNotes-${session.id}`}
+              id={`agent-notes-${storageId}`}
+              name={`agentNotes-${storageId}`}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Take notes while working with your agent..."

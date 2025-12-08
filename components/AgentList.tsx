@@ -599,7 +599,9 @@ export default function AgentList({
                             {/* Agents */}
                             {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
-                                {agentsList.map((agent) => {
+                                {[...agentsList]
+                                  .sort((a, b) => (a.displayName || a.alias).toLowerCase().localeCompare((b.displayName || b.alias).toLowerCase()))
+                                  .map((agent) => {
                                   const isActive = activeAgentId === agent.id
                                   const isOnline = agent.session.status === 'online'
                                   const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'

@@ -27,8 +27,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // Support both 'agent' and 'session' parameters (agent preferred)
-  const agentIdentifier = searchParams.get('agent') || searchParams.get('session')
+  // Support 'agentId', 'agent', and 'session' parameters (agentId/agent preferred)
+  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
   const box = searchParams.get('box') || 'inbox' // 'inbox' or 'sent'

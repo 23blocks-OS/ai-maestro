@@ -6,11 +6,14 @@ import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 interface MessageCenterProps {
   sessionName: string
+  agentId?: string  // Primary identifier when available
   allSessions: string[]
   isVisible?: boolean
 }
 
-export default function MessageCenter({ sessionName, allSessions, isVisible = true }: MessageCenterProps) {
+export default function MessageCenter({ sessionName, agentId, allSessions, isVisible = true }: MessageCenterProps) {
+  // Use agentId as primary identifier if available, fall back to sessionName
+  const messageIdentifier = agentId || sessionName
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -36,29 +39,29 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch sent messages
   const fetchSentMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&box=sent`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }, [sessionName])
+  }, [messageIdentifier])
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=unread-count`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
@@ -69,7 +72,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Fetch sent count
   const fetchSentCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&action=sent-count`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=sent-count`)
       const data = await response.json()
       setSentCount(data.count || 0)
     } catch (error) {
@@ -80,13 +83,13 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&box=${box}`)
+      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
       // Mark as read if unread (inbox only)
       if (box === 'inbox' && message.status === 'unread') {
-        await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=read`, {
+        await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
         fetchMessages()
@@ -182,7 +185,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
     if (!confirm('Are you sure you want to delete this message?')) return
 
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
       })
       setSelectedMessage(null)
@@ -196,7 +199,7 @@ export default function MessageCenter({ sessionName, allSessions, isVisible = tr
   // Archive message
   const archiveMessage = async (messageId: string) => {
     try {
-      await fetch(`/api/messages?session=${encodeURIComponent(sessionName)}&id=${messageId}&action=archive`, {
+      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
         method: 'PATCH',
       })
       setSelectedMessage(null)

@@ -19,6 +19,7 @@ import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText } from 'lucide-react'
+import ImportAgentDialog from '@/components/ImportAgentDialog'
 import type { UnifiedAgent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<UnifiedAgent | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showImportDialog, setShowImportDialog] = useState(false)
 
   // Derive active agent from state
   const activeAgent = agents.find(a => a.id === activeAgentId) || null
@@ -253,6 +255,7 @@ export default function DashboardPage() {
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
           activeAgentId={activeAgentId}
+          onImportAgent={() => setShowImportDialog(true)}
         />
 
         {/* Migration Banner */}
@@ -533,6 +536,16 @@ export default function DashboardPage() {
             onStartSession={() => handleStartSession(profileAgent)}
           />
         )}
+
+        {/* Import Agent Dialog */}
+        <ImportAgentDialog
+          isOpen={showImportDialog}
+          onClose={() => setShowImportDialog(false)}
+          onImportComplete={() => {
+            setShowImportDialog(false)
+            refreshAgents()
+          }}
+        />
       </div>
     </TerminalProvider>
   )

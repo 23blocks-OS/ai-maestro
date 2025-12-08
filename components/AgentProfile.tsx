@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
+import ExportAgentDialog from './ExportAgentDialog'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -29,7 +30,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [newTagValue, setNewTagValue] = useState('')
   const [showTransferDialog, setShowTransferDialog] = useState(false)
-  const [exporting, setExporting] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   // Repository state
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -149,32 +150,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
   }
 
-  const handleExport = async () => {
-    if (!agent) return
-
-    setExporting(true)
-    try {
-      const response = await fetch(`/api/agents/${agentId}/export`)
-      if (!response.ok) {
-        throw new Error('Export failed')
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${agent.alias || agent.id}-export.zip`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to export agent:', error)
-    } finally {
-      setExporting(false)
-    }
-  }
-
   const updateField = (field: string, value: any) => {
     if (!agent) return
     setAgent({ ...agent, [field]: value })
@@ -246,16 +221,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
               <div className="flex items-center gap-2">
                 {/* Export Button */}
                 <button
-                  onClick={handleExport}
-                  disabled={exporting}
-                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                  onClick={() => setShowExportDialog(true)}
+                  className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-gray-200"
                   title="Export Agent"
                 >
-                  {exporting ? (
-                    <div className="w-5 h-5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-                  ) : (
-                    <Download className="w-5 h-5" />
-                  )}
+                  <Download className="w-5 h-5" />
                 </button>
                 {/* Transfer Button */}
                 <button
@@ -887,6 +857,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             }
             setShowTransferDialog(false)
           }}
+        />
+      )}
+
+      {/* Export Agent Dialog */}
+      {agent && (
+        <ExportAgentDialog
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          agentId={agent.id}
+          agentAlias={agent.alias}
+          agentDisplayName={agent.displayName}
         />
       )}
     </>

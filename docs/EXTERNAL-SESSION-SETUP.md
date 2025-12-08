@@ -4,7 +4,7 @@ This guide explains how to create agents via terminal commands (using tmux sessi
 
 ## Quick Start
 
-Create a new tmux agent with Claude Code running:
+Create a new tmux session with Claude Code running:
 
 ```bash
 # Create a detached agent
@@ -69,7 +69,7 @@ Once the agent appears in the dashboard, you can:
 
 3. **Detach and reattach**:
    ```bash
-   # In tmux agent, press: Ctrl-b d (detach)
+   # In tmux session, press: Ctrl-b d (detach)
    # Later, reattach from terminal:
    tmux attach-session -t myproject/feature/implementation
    # Or click the agent in the dashboard

@@ -146,7 +146,7 @@ which send-aimaestro-message.sh
 # Check AI Maestro is running
 curl http://localhost:23000/api/sessions
 
-# Verify you're in a tmux agent
+# Verify you're in a tmux session
 tmux display-message -p '#S'
 ```
 

@@ -34,7 +34,7 @@ See how developers and teams are using AI Maestro's distributed architecture to 
 
 **Why AI Maestro:**
 Without AI Maestro, Sarah would need to:
-- Remember tmux agent names across projects
+- Remember tmux session names across projects
 - `tmux ls` and `tmux attach` repeatedly
 - Keep mental map of which agents belong to which client
 - Switch between terminal windows constantly

@@ -26,7 +26,7 @@ Before starting, ensure you have:
 
 ## 1. Quick Start: Your First Agent
 
-### Step 1: Create a tmux Agent
+### Step 1: Create a tmux Session
 
 ```bash
 # Navigate to your project directory

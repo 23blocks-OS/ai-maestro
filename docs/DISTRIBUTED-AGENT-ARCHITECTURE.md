@@ -423,7 +423,7 @@ export async function GET() {
 5. ✅ Test terminal resizing, scrollback, input/output
 
 **Success Criteria:**
-- Dashboard connects to containerized agent same as tmux agent
+- Dashboard connects to containerized agent same as tmux session
 - Terminal performance acceptable (no noticeable latency)
 - Container restart doesn't lose agent state (workspace persists)
 

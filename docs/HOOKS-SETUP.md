@@ -174,7 +174,7 @@ If the file doesn't exist, create it with the hook configuration above.
 
 1. **Restart Claude Code** to load the new hook configuration
 2. **Send a test message** via the AI Maestro dashboard
-3. **Start a new Claude Code instance** in that tmux agent
+3. **Start a new Claude Code instance** in that tmux session
 4. **You should see** the notification about unread messages
 
 ## Hook Behavior

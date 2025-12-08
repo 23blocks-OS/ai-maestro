@@ -365,12 +365,29 @@ export default function SessionList({
           const agents = data.agents || []
 
           // Get session IDs for comparison
-          const sessionIds = new Set(sessions.map(s => s.id))
+          const sessionIdList = sessions.map(s => s.id)
 
-          // Find agents whose tmuxSessionName doesn't match any session
+          // Find agents whose alias doesn't match any session
+          // Sessions have pattern like "23blocks-api-authentication" where agent alias is "api-authentication"
+          // So we check if any session ID ends with the agent alias
           const orphans = agents.filter((agent: any) => {
-            const tmuxSessionName = agent.tools?.session?.tmuxSessionName || agent.alias
-            return !sessionIds.has(tmuxSessionName)
+            const agentAlias = agent.alias
+            const tmuxSessionName = agent.tools?.session?.tmuxSessionName
+
+            // Check if any session matches this agent
+            const hasMatchingSession = sessionIdList.some(sessionId => {
+              // Exact match with tmuxSessionName
+              if (tmuxSessionName && sessionId === tmuxSessionName) return true
+              // Exact match with alias
+              if (sessionId === agentAlias) return true
+              // Session ends with agent alias (e.g., "23blocks-api-auth" ends with "api-auth")
+              if (sessionId.endsWith(`-${agentAlias}`)) return true
+              // Session contains agent alias as a segment
+              if (sessionId.includes(`-${agentAlias}-`)) return true
+              return false
+            })
+
+            return !hasMatchingSession
           })
 
           setOrphanAgents(orphans)

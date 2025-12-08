@@ -5,11 +5,11 @@ import { Menu } from 'lucide-react'
 interface HeaderProps {
   onToggleSidebar?: () => void
   sidebarCollapsed?: boolean
-  activeSessionId?: string | null
+  activeAgentId?: string | null
 }
 
-export default function Header({ onToggleSidebar, sidebarCollapsed, activeSessionId }: HeaderProps) {
-  const immersiveUrl = activeSessionId ? `/immersive?session=${encodeURIComponent(activeSessionId)}` : '/immersive'
+export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentId }: HeaderProps) {
+  const immersiveUrl = activeAgentId ? `/immersive?agent=${encodeURIComponent(activeAgentId)}` : '/immersive'
 
   return (
     <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">

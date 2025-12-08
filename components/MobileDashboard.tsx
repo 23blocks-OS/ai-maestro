@@ -24,26 +24,26 @@ export default function MobileDashboard({
   onRefresh
 }: MobileDashboardProps) {
   const { hosts } = useHosts()
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
   } | null>(null)
   const [notes, setNotes] = useState('')
-  const [connectionStatus, setConnectionStatus] = useState<{ [sessionId: string]: boolean }>({})
+  const [connectionStatus, setConnectionStatus] = useState<{ [agentId: string]: boolean }>({})
 
-  // Auto-select first session when sessions load
+  // Auto-select first agent when agents load
   useEffect(() => {
-    if (sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0].id)
+    if (sessions.length > 0 && !activeAgentId) {
+      setActiveAgentId(sessions[0].id)
     }
-  }, [sessions, activeSessionId])
+  }, [sessions, activeAgentId])
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId)
+  const activeSession = sessions.find((s) => s.id === activeAgentId)
 
   // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
-  const storageId = activeSession?.agentId || activeSessionId
+  const storageId = activeSession?.agentId || activeAgentId
 
   // Load notes from localStorage when active session changes
   useEffect(() => {
@@ -62,9 +62,9 @@ export default function MobileDashboard({
     }
   }, [notes, storageId])
 
-  const handleSessionSelect = (sessionId: string) => {
-    setActiveSessionId(sessionId)
-    // Switch to terminal tab when selecting a session from hosts tab
+  const handleAgentSelect = (agentId: string) => {
+    setActiveAgentId(agentId)
+    // Switch to terminal tab when selecting an agent from hosts tab
     setActiveTab('terminal')
   }
 
@@ -91,12 +91,12 @@ export default function MobileDashboard({
   }
 
   // Handle connection status updates from TerminalView
-  const handleConnectionStatusChange = (sessionId: string, isConnected: boolean) => {
-    setConnectionStatus(prev => ({ ...prev, [sessionId]: isConnected }))
+  const handleConnectionStatusChange = (agentId: string, isConnected: boolean) => {
+    setConnectionStatus(prev => ({ ...prev, [agentId]: isConnected }))
   }
 
-  // Get connection status for active session
-  const isActiveSessionConnected = activeSessionId ? connectionStatus[activeSessionId] ?? false : false
+  // Get connection status for active agent
+  const isActiveAgentConnected = activeAgentId ? connectionStatus[activeAgentId] ?? false : false
 
   return (
     <div
@@ -117,7 +117,7 @@ export default function MobileDashboard({
             {/* Connection indicator - green/red dot */}
             <div
               className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                isActiveSessionConnected ? 'bg-green-500' : 'bg-red-500'
+                isActiveAgentConnected ? 'bg-green-500' : 'bg-red-500'
               }`}
             />
             <Terminal className="w-5 h-5 text-blue-400 flex-shrink-0" />
@@ -158,9 +158,9 @@ export default function MobileDashboard({
           </div>
         )}
 
-        {/* Terminal & Messages Tabs - Session-Specific */}
+        {/* Terminal & Messages Tabs - Agent-Specific */}
         {(activeTab === 'terminal' || activeTab === 'messages') && sessions.map(session => {
-          const isActive = session.id === activeSessionId
+          const isActive = session.id === activeAgentId
 
           return (
             <div
@@ -201,25 +201,25 @@ export default function MobileDashboard({
           </div>
         )}
 
-        {/* Hosts Tab - Shows all sessions grouped by host */}
+        {/* Hosts Tab - Shows all agents grouped by host */}
         {activeTab === 'hosts' && (
           <div className="absolute inset-0">
             <MobileHostsList
               sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSessionSelect={handleSessionSelect}
+              activeAgentId={activeAgentId}
+              onAgentSelect={handleAgentSelect}
             />
           </div>
         )}
 
-        {/* Notes Tab - Shows notes for active session */}
+        {/* Notes Tab - Shows notes for active agent */}
         {activeTab === 'notes' && activeSession && (
           <div className="absolute inset-0 flex flex-col bg-gray-900">
             {/* Notes Header */}
             <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-950">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-400" />
-                <h2 className="text-sm font-semibold text-white">Session Notes</h2>
+                <h2 className="text-sm font-semibold text-white">Agent Notes</h2>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {getDisplayName(activeSession.id)}

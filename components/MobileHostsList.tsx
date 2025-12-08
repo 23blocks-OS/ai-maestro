@@ -14,16 +14,16 @@ import { useHosts } from '@/hooks/useHosts'
 
 interface MobileHostsListProps {
   sessions: Session[]
-  activeSessionId: string | null
-  onSessionSelect: (sessionId: string) => void
-  onCreateSession?: () => void
+  activeAgentId: string | null
+  onAgentSelect: (agentId: string) => void
+  onCreateAgent?: () => void
 }
 
 export default function MobileHostsList({
   sessions,
-  activeSessionId,
-  onSessionSelect,
-  onCreateSession
+  activeAgentId,
+  onAgentSelect,
+  onCreateAgent
 }: MobileHostsListProps) {
   const { hosts } = useHosts()
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set(['local']))
@@ -103,9 +103,9 @@ export default function MobileHostsList({
         <p className="text-sm text-gray-500 mb-4">
           Create a new agent to get started
         </p>
-        {onCreateSession && (
+        {onCreateAgent && (
           <button
-            onClick={onCreateSession}
+            onClick={onCreateAgent}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -125,9 +125,9 @@ export default function MobileHostsList({
             <Server className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">Hosts & Agents</h2>
           </div>
-          {onCreateSession && (
+          {onCreateAgent && (
             <button
-              onClick={onCreateSession}
+              onClick={onCreateAgent}
               className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4 text-gray-400" />
@@ -187,14 +187,14 @@ export default function MobileHostsList({
                     ) : (
                       <div className="divide-y divide-gray-700">
                         {hostSessions.map((session) => {
-                          const isActive = session.id === activeSessionId
+                          const isActive = session.id === activeAgentId
                           const displayName = getDisplayName(session.id)
                           const breadcrumb = getBreadcrumb(session.id)
 
                           return (
                             <button
                               key={session.id}
-                              onClick={() => onSessionSelect(session.id)}
+                              onClick={() => onAgentSelect(session.id)}
                               className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
                                 isActive
                                   ? 'bg-blue-900/30'

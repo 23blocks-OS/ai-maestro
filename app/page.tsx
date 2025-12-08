@@ -252,7 +252,7 @@ export default function DashboardPage() {
         <Header
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
-          activeSessionId={activeAgent?.session.tmuxSessionName || null}
+          activeAgentId={activeAgentId}
         />
 
         {/* Migration Banner */}

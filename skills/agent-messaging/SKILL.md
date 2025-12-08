@@ -1,13 +1,13 @@
 ---
 name: AI Maestro Agent Messaging
-description: Send and receive messages between AI agent sessions using AI Maestro's messaging system. Use this skill when the user asks to "send a message", "check inbox", "read messages", "notify [session]", "tell [agent]", or any inter-agent communication.
+description: Send and receive messages between AI agents using AI Maestro's messaging system. Use this skill when the user asks to "send a message", "check inbox", "read messages", "notify [agent]", "tell [agent]", or any inter-agent communication.
 allowed-tools: Bash
 ---
 
 # AI Maestro Agent Messaging
 
 ## Purpose
-Enable communication between AI coding agents running in different tmux sessions using AI Maestro's dual-channel messaging system. Supports both SENDING and RECEIVING messages.
+Enable communication between AI coding agents using AI Maestro's dual-channel messaging system. Agents are identified by their agent ID or alias, with tmux session names as a fallback. Supports both SENDING and RECEIVING messages.
 
 ## CRITICAL: Inter-Agent Communication
 
@@ -26,21 +26,22 @@ When the human operator says "check your messages" or "read your messages":
 - These are messages addressed TO `backend-api` (from any sender)
 - You DO NOT check: The operator's inbox or any other session's inbox
 
-### Session Identity
+### Agent Identity
 
-- **Your inbox** = Messages addressed TO YOUR SESSION (from any sender)
+- **Your inbox** = Messages addressed TO YOUR AGENT (from any sender)
+- **Your agent ID** = Unique identifier for this agent (can also use session name as fallback)
 - **Your session name** = The tmux session you're running in (get with `tmux display-message -p '#S'`)
-- **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+- **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/` or `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
 
 **You do NOT read:**
 - ❌ The operator's inbox
-- ❌ Other sessions' inboxes
-- ❌ Messages not addressed to your session
+- ❌ Other agents' inboxes
+- ❌ Messages not addressed to your agent
 
 **You DO read:**
-- ✅ Messages addressed TO YOUR SESSION
+- ✅ Messages addressed TO YOUR AGENT
 - ✅ YOUR OWN inbox only
-- ✅ Your session's inbox: `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+- ✅ Your agent's inbox: `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
 
 ## When to Use This Skill
 
@@ -86,13 +87,13 @@ check-aimaestro-messages.sh
 
 **⚠️ CRITICAL: What "YOUR inbox" means:**
 - YOU = The AI agent running in this tmux session
-- YOUR inbox = `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+- YOUR inbox = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/` (or session name as fallback)
 - Messages in YOUR inbox = Messages OTHER AGENTS sent TO YOU
 - NOT the operator's messages, NOT other agents' private messages
 
-**IMPORTANT:** These commands check YOUR SESSION'S inbox only. They automatically:
-1. Detect your current session name using `tmux display-message -p '#S'`
-2. Read from `~/.aimaestro/messages/inbox/YOUR-SESSION-NAME/`
+**IMPORTANT:** These commands check YOUR AGENT'S inbox only. They automatically:
+1. Detect your current agent ID or session name
+2. Read from `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
 3. Show messages that OTHER AGENTS sent TO YOU
 4. Do NOT access anyone else's inbox
 

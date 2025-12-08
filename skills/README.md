@@ -95,7 +95,7 @@ skills/
 - **Claude Code** with skills support enabled
 - **AI Maestro** running (`http://localhost:23000`)
 - **Messaging scripts** installed in PATH (see `../messaging_scripts/README.md`)
-- **tmux** session with valid session name
+- **tmux** agent with valid agent name
 
 ## Verifying Skills are Loaded
 
@@ -118,7 +118,7 @@ ls -la ~/.claude/skills/
 
 **Works with:**
 - ✅ Claude Code (official Anthropic CLI)
-- ✅ Any tmux-based AI agent session
+- ✅ Any tmux-based AI agent
 
 **Does NOT work with:**
 - ❌ Aider (doesn't support Claude Code skills)
@@ -146,7 +146,7 @@ which send-aimaestro-message.sh
 # Check AI Maestro is running
 curl http://localhost:23000/api/sessions
 
-# Verify you're in a tmux session
+# Verify you're in a tmux agent
 tmux display-message -p '#S'
 ```
 

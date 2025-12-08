@@ -116,7 +116,7 @@ A **Worker** is an AI Maestro instance running on a remote machine that the Mana
 ┌─────────────────────────────────────────────────────────────────┐
 │  Your Browser (http://localhost:23000)                          │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Session List                    Terminal View            │   │
+│  │ Agent List                      Terminal View            │   │
 │  │ ┌───────────────────┐          ┌────────────────────┐   │   │
 │  │ │ LOCAL             │          │ $ claude            │   │   │
 │  │ │ ├─ project-mgr ●  │          │ > analyzing code... │   │   │
@@ -180,13 +180,13 @@ A **Worker** is an AI Maestro instance running on a remote machine that the Mana
 
 A **session** is a tmux terminal session running Claude Code (or any other CLI tool).
 
-**Session Anatomy:**
+**Agent Anatomy:**
 ```
-Session Name: customers-zoom-backend
+Agent Name: customers-zoom-backend
   ├─ tmux session (terminal multiplexer)
   ├─ Working directory: ~/projects/zoom-app/backend
-  ├─ Claude Code instance (AI agent)
-  └─ Session notes (stored in AI Maestro)
+  ├─ Claude Code instance (AI tool)
+  └─ Agent notes (stored in AI Maestro)
 ```
 
 ### Hierarchical Organization

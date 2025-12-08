@@ -170,7 +170,7 @@ When working with terminal components:
 - `display: none` removes element from layout → getBoundingClientRect() returns 0 dimensions → terminal initializes with incorrect width
 - `visibility: hidden` keeps element in layout → correct dimensions → proper terminal sizing
 - `pointerEvents: none` prevents hidden tabs from capturing mouse events
-- Text selection works immediately without session switching
+- Text selection works immediately without agent switching
 
 **Terminal initialization pattern:**
 ```typescript
@@ -190,10 +190,10 @@ useEffect(() => {
 ```
 
 **What was removed:**
-- Session change detection (currentSessionRef, sessionChanged checks)
+- Agent change detection (currentSessionRef, sessionChanged checks)
 - Race condition handling (initializingRef, duplicate initialization prevention)
 - Stale initialization cleanup verification
-- Notes/logging re-sync on session change (loaded once on mount)
+- Notes/logging re-sync on agent change (loaded once on mount)
 
 ### 5. React State Management Pattern
 

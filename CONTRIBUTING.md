@@ -185,9 +185,9 @@ Currently, there's no automated test suite. When contributing:
 
 **Manual Testing Checklist:**
 1. Start the dashboard (`yarn dev`)
-2. Create test sessions
-3. Test session switching
-4. Test session management (create/rename/delete)
+2. Create test agents
+3. Test agent switching
+4. Test agent management (create/rename/delete)
 5. Test notes functionality
 6. Test terminal interaction
 7. Check browser console for errors

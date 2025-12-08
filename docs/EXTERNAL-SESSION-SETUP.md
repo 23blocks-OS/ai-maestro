@@ -4,15 +4,15 @@ This guide explains how to create agents via terminal commands (using tmux sessi
 
 ## Quick Start
 
-Create a new tmux session with Claude Code running:
+Create a new tmux agent with Claude Code running:
 
 ```bash
-# Create a detached session
-tmux new-session -s my-session-name -d
-tmux send-keys -t my-session-name 'claude' C-m
+# Create a detached agent
+tmux new-session -s my-agent-name -d
+tmux send-keys -t my-agent-name 'claude' C-m
 
-# Or create an interactive session
-tmux new-session -s my-session-name
+# Or create an interactive agent
+tmux new-session -s my-agent-name
 # Then manually run: claude
 ```
 
@@ -69,7 +69,7 @@ Once the agent appears in the dashboard, you can:
 
 3. **Detach and reattach**:
    ```bash
-   # In tmux session, press: Ctrl-b d (detach)
+   # In tmux agent, press: Ctrl-b d (detach)
    # Later, reattach from terminal:
    tmux attach-session -t myproject/feature/implementation
    # Or click the agent in the dashboard
@@ -131,19 +131,19 @@ tmux new-session -s backend/api/data-layer
 - Check session exists: `tmux list-sessions`
 
 ### Can't connect to agent
-- Verify session name: `tmux list-sessions`
-- Check Claude is running: `tmux attach -t session-name` (then detach with Ctrl-b d)
+- Verify agent name: `tmux list-sessions`
+- Check Claude is running: `tmux attach -t agent-name` (then detach with Ctrl-b d)
 - Check dashboard is running: http://localhost:3000
 
 ### Lost agents after reboot
-tmux sessions don't persist across system restarts. You'll need to recreate your agents.
+tmux agents don't persist across system restarts. You'll need to recreate your agents.
 
 ## Best Practices
 
 1. **Use descriptive hierarchical names** - Makes it easy to find agents later
 2. **Start Claude immediately** - Send the `claude` command right after agent creation
 3. **Add notes in dashboard** - Document what each agent is working on
-4. **Clean up old agents** - Delete finished agents: `tmux kill-session -t session-name`
+4. **Clean up old agents** - Delete finished agents: `tmux kill-session -t agent-name`
 5. **Use consistent naming** - Establish a naming convention for your projects
 
 ## Example: Complete Setup

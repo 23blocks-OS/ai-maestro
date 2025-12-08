@@ -13,6 +13,7 @@ interface TransferRequest {
   targetHostUrl: string
   mode: 'move' | 'clone'
   newAlias?: string
+  cloneRepositories?: boolean
 }
 
 /**
@@ -41,7 +42,7 @@ export async function POST(
     }
 
     const body: TransferRequest = await request.json()
-    const { targetHostUrl, mode, newAlias } = body
+    const { targetHostUrl, mode, newAlias, cloneRepositories } = body
 
     if (!targetHostUrl) {
       return NextResponse.json({ error: 'Target host URL required' }, { status: 400 })
@@ -79,6 +80,9 @@ export async function POST(
     const importOptions: Record<string, unknown> = {}
     if (newAlias) {
       importOptions.newAlias = newAlias
+    }
+    if (cloneRepositories) {
+      importOptions.cloneRepositories = true
     }
     formData.append('options', JSON.stringify(importOptions))
 

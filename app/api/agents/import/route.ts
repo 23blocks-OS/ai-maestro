@@ -5,9 +5,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import { promisify } from 'util'
-import type { Agent } from '@/types/agent'
-import type { AgentExportManifest, AgentImportOptions, AgentImportResult } from '@/types/portable'
+import { execSync } from 'child_process'
+import type { Agent, Repository } from '@/types/agent'
+import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -19,6 +19,77 @@ const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true })
+  }
+}
+
+/**
+ * Clone a git repository
+ * Returns the result of the clone operation
+ */
+function cloneRepository(
+  repo: PortableRepository,
+  targetPath: string
+): RepositoryImportResult {
+  try {
+    // Check if directory already exists
+    if (fs.existsSync(targetPath)) {
+      // Check if it's already a git repo with the same remote
+      const gitDir = path.join(targetPath, '.git')
+      if (fs.existsSync(gitDir)) {
+        try {
+          const existingRemote = execSync('git config --get remote.origin.url', {
+            cwd: targetPath,
+            encoding: 'utf-8',
+            timeout: 5000
+          }).trim()
+
+          if (existingRemote === repo.remoteUrl) {
+            return {
+              name: repo.name,
+              remoteUrl: repo.remoteUrl,
+              status: 'exists',
+              localPath: targetPath
+            }
+          }
+        } catch {
+          // Not a valid git repo or no remote
+        }
+      }
+      // Directory exists but isn't the same repo
+      return {
+        name: repo.name,
+        remoteUrl: repo.remoteUrl,
+        status: 'failed',
+        localPath: targetPath,
+        error: `Directory ${targetPath} already exists`
+      }
+    }
+
+    // Ensure parent directory exists
+    ensureDir(path.dirname(targetPath))
+
+    // Clone the repository
+    const branch = repo.defaultBranch || 'main'
+    execSync(`git clone --branch ${branch} "${repo.remoteUrl}" "${targetPath}"`, {
+      encoding: 'utf-8',
+      timeout: 300000, // 5 minute timeout for large repos
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    return {
+      name: repo.name,
+      remoteUrl: repo.remoteUrl,
+      status: 'cloned',
+      localPath: targetPath
+    }
+  } catch (error) {
+    return {
+      name: repo.name,
+      remoteUrl: repo.remoteUrl,
+      status: 'failed',
+      localPath: targetPath,
+      error: error instanceof Error ? error.message : 'Clone failed'
+    }
   }
 }
 
@@ -101,15 +172,18 @@ async function extractZip(zipBuffer: Buffer, destDir: string): Promise<void> {
 export async function POST(request: Request) {
   const warnings: string[] = []
   const errors: string[] = []
-  const stats = {
+  const stats: AgentImportResult['stats'] = {
     registryImported: false,
     databaseImported: false,
     messagesImported: {
       inbox: 0,
       sent: 0,
       archived: 0
-    }
+    },
+    repositoriesCloned: 0,
+    repositoriesSkipped: 0
   }
+  const repositoryResults: RepositoryImportResult[] = []
 
   let tempDir: string | null = null
 
@@ -293,6 +367,86 @@ export async function POST(request: Request) {
       }
     }
 
+    // Clone repositories if requested
+    const clonedRepos: Repository[] = []
+    if (options.cloneRepositories && manifest.repositories && manifest.repositories.length > 0) {
+      for (const repo of manifest.repositories) {
+        // Check if this repo should be skipped via mapping
+        const mapping = options.repositoryMappings?.find(m => m.remoteUrl === repo.remoteUrl)
+        if (mapping?.skip) {
+          repositoryResults.push({
+            name: repo.name,
+            remoteUrl: repo.remoteUrl,
+            status: 'skipped'
+          })
+          stats.repositoriesSkipped = (stats.repositoriesSkipped || 0) + 1
+          continue
+        }
+
+        // Determine target path
+        let targetPath: string
+        if (mapping?.localPath) {
+          targetPath = mapping.localPath
+        } else if (repo.originalPath) {
+          // Use original path as default (same structure on new machine)
+          targetPath = repo.originalPath
+        } else {
+          // Fallback to ~/repos/<name>
+          targetPath = path.join(os.homedir(), 'repos', repo.name)
+        }
+
+        // Clone the repository
+        const result = cloneRepository(repo, targetPath)
+        repositoryResults.push(result)
+
+        if (result.status === 'cloned') {
+          stats.repositoriesCloned = (stats.repositoriesCloned || 0) + 1
+          clonedRepos.push({
+            name: repo.name,
+            remoteUrl: repo.remoteUrl,
+            localPath: result.localPath!,
+            defaultBranch: repo.defaultBranch,
+            isPrimary: repo.isPrimary,
+            lastSynced: new Date().toISOString()
+          })
+        } else if (result.status === 'exists') {
+          // Repo already exists at path - still add to agent's repos
+          clonedRepos.push({
+            name: repo.name,
+            remoteUrl: repo.remoteUrl,
+            localPath: result.localPath!,
+            defaultBranch: repo.defaultBranch,
+            isPrimary: repo.isPrimary
+          })
+          warnings.push(`Repository ${repo.name} already exists at ${result.localPath}`)
+        } else if (result.status === 'failed') {
+          warnings.push(`Failed to clone ${repo.name}: ${result.error}`)
+        }
+      }
+
+      // Update agent with cloned repositories
+      if (clonedRepos.length > 0) {
+        const agents = loadAgents()
+        const agentIndex = agents.findIndex(a => a.id === agentToImport.id)
+        if (agentIndex >= 0) {
+          agents[agentIndex].tools.repositories = clonedRepos
+          // Update working directory to primary repo if agent doesn't have one
+          const primaryRepo = clonedRepos.find(r => r.isPrimary) || clonedRepos[0]
+          if (primaryRepo && !agents[agentIndex].tools.session?.workingDirectory) {
+            if (agents[agentIndex].tools.session) {
+              agents[agentIndex].tools.session.workingDirectory = primaryRepo.localPath
+            }
+            if (!agents[agentIndex].preferences) {
+              agents[agentIndex].preferences = {}
+            }
+            agents[agentIndex].preferences!.defaultWorkingDirectory = primaryRepo.localPath
+          }
+          saveAgents(agents)
+          agentToImport.tools.repositories = clonedRepos
+        }
+      }
+    }
+
     // Clean up temp directory
     fs.rmSync(tempDir, { recursive: true, force: true })
     tempDir = null
@@ -303,7 +457,8 @@ export async function POST(request: Request) {
       agent: agentToImport,
       warnings,
       errors,
-      stats
+      stats,
+      repositoryResults: repositoryResults.length > 0 ? repositoryResults : undefined
     }
 
     return NextResponse.json(result)

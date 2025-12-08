@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Send, Copy, Server, AlertCircle, CheckCircle, Loader2, ArrowRight } from 'lucide-react'
+import { X, Send, Copy, Server, AlertCircle, CheckCircle, Loader2, ArrowRight, GitBranch, FolderGit2 } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
+import type { PortableRepository } from '@/types/portable'
 
 interface TransferAgentDialogProps {
   agentId: string
@@ -43,6 +44,11 @@ export default function TransferAgentDialog({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<TransferResult | null>(null)
 
+  // Repository state
+  const [repositories, setRepositories] = useState<PortableRepository[]>([])
+  const [loadingRepos, setLoadingRepos] = useState(true)
+  const [cloneRepositories, setCloneRepositories] = useState(true)
+
   // Filter out the current host from available targets
   const availableHosts = hosts.filter(h => h.id !== currentHostId && h.enabled)
 
@@ -52,6 +58,33 @@ export default function TransferAgentDialog({
       setSelectedHostId(availableHosts[0].id)
     }
   }, [availableHosts, selectedHostId])
+
+  // Fetch repositories when dialog opens
+  useEffect(() => {
+    const fetchRepos = async () => {
+      try {
+        setLoadingRepos(true)
+        const response = await fetch(`/api/agents/${agentId}/repos`)
+        if (response.ok) {
+          const data = await response.json()
+          // Convert to PortableRepository format
+          const portableRepos: PortableRepository[] = (data.repositories || []).map((repo: any) => ({
+            name: repo.name,
+            remoteUrl: repo.remoteUrl,
+            defaultBranch: repo.defaultBranch || repo.currentBranch,
+            isPrimary: repo.isPrimary,
+            originalPath: repo.localPath
+          }))
+          setRepositories(portableRepos)
+        }
+      } catch (err) {
+        console.error('Failed to fetch repos:', err)
+      } finally {
+        setLoadingRepos(false)
+      }
+    }
+    fetchRepos()
+  }, [agentId])
 
   const selectedHost = hosts.find(h => h.id === selectedHostId)
 
@@ -74,7 +107,8 @@ export default function TransferAgentDialog({
           targetHostId: selectedHostId,
           targetHostUrl: selectedHost.url,
           mode,
-          newAlias: newAlias.trim() || undefined
+          newAlias: newAlias.trim() || undefined,
+          cloneRepositories: cloneRepositories && repositories.length > 0
         })
       })
 
@@ -301,6 +335,72 @@ export default function TransferAgentDialog({
                 <p className="text-xs text-gray-500 mt-1">
                   Leave empty to keep the same alias (may be auto-renamed if it conflicts)
                 </p>
+              </div>
+
+              {/* Repositories Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <div className="flex items-center gap-2">
+                    <FolderGit2 className="w-4 h-4" />
+                    Git Repositories
+                  </div>
+                </label>
+                {loadingRepos ? (
+                  <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    <span className="text-sm text-gray-400">Detecting repositories...</span>
+                  </div>
+                ) : repositories.length === 0 ? (
+                  <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg">
+                    <p className="text-sm text-gray-500">No git repositories detected</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Clone option */}
+                    <label className="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition-all">
+                      <input
+                        type="checkbox"
+                        checked={cloneRepositories}
+                        onChange={(e) => setCloneRepositories(e.target.checked)}
+                        className="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-200">Clone repositories on target</span>
+                        <p className="text-xs text-gray-500">Git clone the repos to the same paths on the new host</p>
+                      </div>
+                    </label>
+
+                    {/* Repository list */}
+                    <div className={`space-y-1 ${!cloneRepositories ? 'opacity-50' : ''}`}>
+                      {repositories.map((repo, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 p-2 bg-gray-800/50 rounded-lg"
+                        >
+                          <GitBranch className="w-4 h-4 text-gray-500" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                              {repo.name}
+                              {repo.isPrimary && (
+                                <span className="px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded">
+                                  primary
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate" title={repo.remoteUrl}>
+                              {repo.remoteUrl}
+                            </div>
+                            {repo.originalPath && (
+                              <div className="text-xs text-gray-600 truncate" title={repo.originalPath}>
+                                → {repo.originalPath}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Warning for move mode */}

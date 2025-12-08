@@ -83,10 +83,28 @@ export interface AgentTools {
   // Cloud tool (for autonomous work)
   cloud?: CloudTool
 
+  // Git repositories the agent works with
+  repositories?: Repository[]
+
   // Future tools can be added here
   // slack?: SlackTool
   // github?: GitHubTool
   // etc.
+}
+
+/**
+ * Git repository that an agent works with
+ * Used for portable agent transfer - repos can be cloned on new hosts
+ */
+export interface Repository {
+  name: string                    // Friendly name (e.g., "crm-api")
+  remoteUrl: string               // Git remote URL (e.g., "git@github.com:23blocks/crm-api.git")
+  localPath: string               // Local path where cloned (e.g., "/Users/juan/projects/crm-api")
+  defaultBranch?: string          // Default branch (e.g., "main", "master")
+  currentBranch?: string          // Current checked out branch
+  lastCommit?: string             // Last commit hash
+  lastSynced?: string             // When repo was last fetched/pulled (ISO timestamp)
+  isPrimary?: boolean             // Is this the primary/main repo for the agent
 }
 
 export interface SessionTool {

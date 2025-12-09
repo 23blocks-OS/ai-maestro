@@ -63,40 +63,84 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
     <link rel="manifest" href="site.webmanifest">
-
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: { sans: ['Space Grotesk', 'system-ui', 'sans-serif'] },
-                    colors: { primary: '#6366f1', secondary: '#8b5cf6' }
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
                 }
             }
         }
     </script>
 
+
+    
     <style>
         html {
             scroll-behavior: smooth;
             scroll-padding-top: 80px;
         }
-        body { font-family: 'Space Grotesk', system-ui, sans-serif; }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
         .gradient-text {
-            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
+        /* Hamburger menu */
         .hamburger span {
             display: block;
             width: 24px;
             height: 2px;
-            background: #1f2937;
+            background: #e2e8f0;
             transition: all 0.3s ease;
         }
         .hamburger.active span:nth-child(1) {
@@ -121,62 +165,76 @@
             pointer-events: auto;
         }
 
-        /* Typing cursor animation */
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        }
+
+        /* Typing cursor */
         .typing-cursor {
             display: inline-block;
             width: 3px;
-            height: 1.2em;
-            background-color: #6366f1;
-            margin-left: 2px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
+            animation: blink 1s infinite;
             vertical-align: text-bottom;
-            animation: blink 1s step-end infinite;
         }
+
         @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
         }
     </style>
+
 </head>
-<body class="font-sans text-gray-800 leading-relaxed antialiased bg-white">
+<body class="font-sans antialiased">
     <!-- Google Tag Manager (noscript) -->
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
-    <!-- Copy for AI Button - Fixed Position -->
+    
+    <!-- Copy for AI Button -->
     <button
         onclick="copyForAI()"
-        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-        title="Copy this page in AI-friendly format to paste into ChatGPT, Claude, or any LLM"
-        style="font-family: 'Space Grotesk', system-ui, sans-serif;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
-        Copy for AI
+        COPY FOR AI
     </button>
 
+
+    
     <!-- Navigation -->
-    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
-        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
-            <div class="flex justify-between items-center py-3 md:py-4">
-                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
-                    AI Maestro
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
                 </a>
 
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
-                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
-                    <a href="index.html#work-modes" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Work Modes</a>
-                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
                 </div>
 
                 <!-- Mobile Navigation -->
-                <div class="flex md:hidden items-center gap-2">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
-                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>
                         <span></span>
@@ -185,34 +243,31 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
-                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
-                <a href="index.html#work-modes" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Work Modes</a>
-                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
             </div>
         </div>
     </nav>
 
     <script>
-        // Hamburger menu toggle
         const hamburger = document.getElementById('hamburger');
         const mobileMenu = document.getElementById('mobile-menu');
-
         hamburger.addEventListener('click', () => {
             hamburger.classList.toggle('active');
             mobileMenu.classList.toggle('active');
         });
-
-        // Close menu when clicking a link
         mobileMenu.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', () => {
                 hamburger.classList.remove('active');
                 mobileMenu.classList.remove('active');
             });
         });
-
-        // Close menu when clicking outside
         document.addEventListener('click', (e) => {
             if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
                 hamburger.classList.remove('active');
@@ -221,25 +276,28 @@
         });
     </script>
 
+
     <!-- Hero Section -->
-    <section class="relative py-20 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-purple-50 via-transparent to-indigo-50 pointer-events-none"></div>
+    <section class="relative py-24 overflow-hidden">
+        <!-- Background Effects -->
+        <div class="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900"></div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div class="text-center max-w-4xl mx-auto">
-                <p class="text-[2rem] md:text-[3rem] font-semibold text-gray-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
-                <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6">
-                    <span class="gradient-text">Agent Management</span><br/>
-                    <span class="text-gray-800">Create, Export & Transfer</span>
+                <p class="text-2xl md:text-3xl font-display font-medium text-slate-400 mb-4" id="announcement"><span class="typing-cursor"></span></p>
+                <h1 class="text-4xl md:text-6xl font-display font-bold leading-tight mb-6">
+                    <span class="gradient-text">Your Agents, Your Way</span>
                 </h1>
-                <p class="text-xl text-gray-600 mb-8 leading-relaxed">
-                    Full lifecycle management for your AI agents. Create new agents, configure their settings, export/import for backup and sharing, and transfer between hosts.
+                <p class="text-xl text-slate-400 mb-10 leading-relaxed max-w-2xl mx-auto">
+                    Full lifecycle management for your AI agents. Create new agents, configure settings, export/import for backup and sharing, and transfer between hosts.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="#create-agent" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition no-underline">
+                    <a href="#create-agent" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-cyan-500 text-slate-900 font-bold text-lg hover:bg-cyan-400 transition-all duration-200 no-underline">
                         Create Your First Agent
                     </a>
-                    <a href="#portable-agents" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-3 rounded-lg font-semibold transition no-underline">
+                    <a href="#portable-agents" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-lg border border-slate-700 hover:border-cyan-500/50 hover:bg-slate-700 transition-all duration-200 no-underline">
                         Export & Import
                     </a>
                 </div>
@@ -248,16 +306,16 @@
     </section>
 
     <!-- Create Agent Section -->
-    <section id="create-agent" class="py-20 bg-gray-50">
+    <section id="create-agent" class="py-20 bg-slate-950">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold mb-4 gradient-text">Create New Agents</h2>
-                <p class="text-xl text-gray-600">Spin up new AI agents in seconds</p>
+                <h2 class="text-4xl font-display font-bold mb-4 gradient-text">Create New Agents</h2>
+                <p class="text-xl text-slate-400">Spin up new AI agents in seconds</p>
             </div>
 
             <!-- Demo Video -->
             <div class="max-w-4xl mx-auto mb-16">
-                <div class="rounded-2xl overflow-hidden shadow-2xl border border-purple-200">
+                <div class="rounded-2xl overflow-hidden border border-slate-700 shadow-2xl shadow-cyan-500/10">
                     <video
                         autoplay
                         loop
@@ -270,102 +328,111 @@
                         Your browser does not support the video tag.
                     </video>
                 </div>
-                <p class="text-center text-sm text-gray-500 mt-4">Creating a new agent in AI Maestro</p>
+                <p class="text-center text-sm text-slate-500 mt-4">Creating a new agent in AI Maestro</p>
             </div>
 
             <div class="grid md:grid-cols-3 gap-8">
-                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition text-center">
-                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                        </svg>
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-cyan-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-cyan-500/50 transition-all duration-300 text-center h-full">
+                        <div class="w-16 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg class="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">One-Click Creation</h3>
+                        <p class="text-slate-400">
+                            Click the + button, enter a name and optional working directory. That's it - your agent is ready in seconds.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">One-Click Creation</h3>
-                    <p class="text-gray-600">
-                        Click the + button, enter a name and optional working directory. That's it - your agent is ready in seconds.
-                    </p>
                 </div>
 
-                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition text-center">
-                    <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-purple-500/30 to-purple-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-purple-500/50 transition-all duration-300 text-center h-full">
+                        <div class="w-16 h-16 bg-purple-500/10 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Visual Progress</h3>
+                        <p class="text-slate-400">
+                            See the creation progress in real-time. Know exactly when your agent is ready to use.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Visual Progress</h3>
-                    <p class="text-gray-600">
-                        See the creation progress in real-time. Know exactly when your agent is ready to use.
-                    </p>
                 </div>
 
-                <div class="bg-white rounded-2xl p-8 border border-gray-200 hover:shadow-lg transition text-center">
-                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-amber-500/30 to-amber-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-amber-500/50 transition-all duration-300 text-center h-full">
+                        <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Instant Terminal</h3>
+                        <p class="text-slate-400">
+                            Your new agent's terminal is ready immediately. Start coding with Claude Code, Aider, or any AI assistant.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Instant Terminal</h3>
-                    <p class="text-gray-600">
-                        Your new agent's terminal is ready immediately. Start coding with Claude Code, Aider, or any AI assistant.
-                    </p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Agent Configuration Section -->
-    <section id="configuration" class="py-20">
+    <section id="configuration" class="py-20 bg-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
-                <h2 class="text-4xl font-bold mb-4 gradient-text">Configure Your Agents</h2>
-                <p class="text-xl text-gray-600">Customize each agent's settings, appearance, and behavior</p>
+                <h2 class="text-4xl font-display font-bold mb-4 gradient-text">Configure Your Agents</h2>
+                <p class="text-xl text-slate-400">Customize each agent's settings, appearance, and behavior</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-8">
-                <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-8 border border-purple-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Display Settings</h3>
-                    <ul class="space-y-3 text-gray-600">
+                <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Display Settings</h3>
+                    <ul class="space-y-3 text-slate-300">
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Display Name:</strong> Friendly name shown in the dashboard</span>
+                            <span><strong class="text-white">Display Name:</strong> Friendly name shown in the dashboard</span>
                         </li>
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Alias:</strong> Short identifier for messaging and CLI</span>
+                            <span><strong class="text-white">Alias:</strong> Short identifier for messaging and CLI</span>
                         </li>
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Description:</strong> Document what this agent is for</span>
+                            <span><strong class="text-white">Description:</strong> Document what this agent is for</span>
                         </li>
                     </ul>
                 </div>
 
-                <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-8 border border-purple-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Working Environment</h3>
-                    <ul class="space-y-3 text-gray-600">
+                <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Working Environment</h3>
+                    <ul class="space-y-3 text-slate-300">
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Working Directory:</strong> Default path for the agent's terminal</span>
+                            <span><strong class="text-white">Working Directory:</strong> Default path for the agent's terminal</span>
                         </li>
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Git Repositories:</strong> Link repos for automatic detection</span>
+                            <span><strong class="text-white">Git Repositories:</strong> Link repos for automatic detection</span>
                         </li>
                         <li class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                             </svg>
-                            <span><strong>Host Assignment:</strong> Run on local or remote workers</span>
+                            <span><strong class="text-white">Host Assignment:</strong> Run on local or remote workers</span>
                         </li>
                     </ul>
                 </div>
@@ -374,126 +441,141 @@
     </section>
 
     <!-- Portable Agents Section -->
-    <section id="portable-agents" class="py-20 bg-gradient-to-br from-cyan-50 via-white to-blue-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="portable-agents" class="py-20 bg-slate-950 relative overflow-hidden">
+        <!-- Background glow -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-3xl"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div class="text-center mb-16">
-                <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-100 border border-cyan-300 rounded-full text-cyan-700 text-sm font-semibold mb-4">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-semibold mb-4">
                     <span>NEW in v0.15.0</span>
                 </div>
-                <h2 class="text-4xl font-bold mb-4 gradient-text">Portable Agents</h2>
-                <p class="text-xl text-gray-600">Export, transfer, clone, and backup your AI agents across any machine</p>
+                <h2 class="text-4xl font-display font-bold mb-4 gradient-text">Portable Agents</h2>
+                <p class="text-xl text-slate-400">Export, transfer, clone, and backup your AI agents across any machine</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-8 mb-12">
-                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
-                    <div class="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Export Agents</h3>
-                    <p class="text-gray-600 mb-4">
-                        Export any agent to a portable <code class="bg-gray-100 px-1 rounded">.zip</code> file. Includes configuration, memory database, message history, and git repository references.
-                    </p>
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <p class="text-sm font-mono text-gray-600">
-                            Agent Settings &rarr; Export &rarr; Downloads .zip file
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/30 to-cyan-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-cyan-500/50 transition-all duration-300 h-full">
+                        <div class="w-12 h-12 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex items-center justify-center mb-6">
+                            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Export Agents</h3>
+                        <p class="text-slate-400 mb-4">
+                            Export any agent to a portable <code class="bg-slate-800 px-1.5 py-0.5 rounded text-cyan-400 text-sm">.zip</code> file. Includes configuration, memory database, message history, and git repository references.
                         </p>
+                        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                            <p class="text-sm font-mono text-slate-400">
+                                Agent Settings &rarr; Export &rarr; Downloads .zip file
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
-                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Import Anywhere</h3>
-                    <p class="text-gray-600 mb-4">
-                        Drop <code class="bg-gray-100 px-1 rounded">.zip</code> files into AI Maestro on any machine. Automatically restores configuration, memory, and messages.
-                    </p>
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <p class="text-sm font-mono text-gray-600">
-                            New Host &rarr; Import Agent &rarr; Select file &rarr; Restored!
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500/30 to-blue-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-blue-500/50 transition-all duration-300 h-full">
+                        <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center justify-center mb-6">
+                            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Import Anywhere</h3>
+                        <p class="text-slate-400 mb-4">
+                            Drop <code class="bg-slate-800 px-1.5 py-0.5 rounded text-cyan-400 text-sm">.zip</code> files into AI Maestro on any machine. Automatically restores configuration, memory, and messages.
                         </p>
+                        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                            <p class="text-sm font-mono text-slate-400">
+                                New Host &rarr; Import Agent &rarr; Select file &rarr; Restored!
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
-                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Clone Agents</h3>
-                    <p class="text-gray-600 mb-4">
-                        Create copies of agents on the same machine or across hosts. Perfect for spinning up multiple similar agents.
-                    </p>
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <p class="text-sm font-mono text-gray-600">
-                            Export &rarr; Import on same machine &rarr; New clone
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-purple-500/30 to-purple-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-purple-500/50 transition-all duration-300 h-full">
+                        <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/30 rounded-lg flex items-center justify-center mb-6">
+                            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Clone Agents</h3>
+                        <p class="text-slate-400 mb-4">
+                            Create copies of agents on the same machine or across hosts. Perfect for spinning up multiple similar agents.
                         </p>
+                        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                            <p class="text-sm font-mono text-slate-400">
+                                Export &rarr; Import on same machine &rarr; New clone
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl p-8 border border-cyan-200 hover:shadow-lg transition">
-                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Backup & Restore</h3>
-                    <p class="text-gray-600 mb-4">
-                        Keep backups of your critical agents. Restore from any point in time. Perfect for disaster recovery.
-                    </p>
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <p class="text-sm font-mono text-gray-600">
-                            Weekly exports &rarr; Cloud storage &rarr; Instant recovery
+                <div class="group relative">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-green-500/30 to-green-600/30 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-500"></div>
+                    <div class="relative bg-slate-900 rounded-2xl p-8 border border-slate-700 hover:border-green-500/50 transition-all duration-300 h-full">
+                        <div class="w-12 h-12 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center justify-center mb-6">
+                            <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-display font-semibold mb-3 text-white">Backup & Restore</h3>
+                        <p class="text-slate-400 mb-4">
+                            Keep backups of your critical agents. Restore from any point in time. Perfect for disaster recovery.
                         </p>
+                        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                            <p class="text-sm font-mono text-slate-400">
+                                Weekly exports &rarr; Cloud storage &rarr; Instant recovery
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- What's Included -->
-            <div class="bg-white rounded-2xl p-8 border border-gray-200">
-                <h3 class="text-2xl font-semibold mb-6 text-gray-800 text-center">What's in an Export?</h3>
+            <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700">
+                <h3 class="text-2xl font-display font-semibold mb-6 text-white text-center">What's in an Export?</h3>
                 <div class="grid md:grid-cols-4 gap-6">
                     <div class="text-center">
-                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="w-12 h-12 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                             </svg>
                         </div>
-                        <p class="font-medium text-gray-800">Configuration</p>
-                        <p class="text-sm text-gray-500">Registry settings</p>
+                        <p class="font-medium text-white">Configuration</p>
+                        <p class="text-sm text-slate-500">Registry settings</p>
                     </div>
                     <div class="text-center">
-                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="w-12 h-12 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
                             </svg>
                         </div>
-                        <p class="font-medium text-gray-800">Memory DB</p>
-                        <p class="text-sm text-gray-500">CozoDB database</p>
+                        <p class="font-medium text-white">Memory DB</p>
+                        <p class="text-sm text-slate-500">CozoDB database</p>
                     </div>
                     <div class="text-center">
-                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="w-12 h-12 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                             </svg>
                         </div>
-                        <p class="font-medium text-gray-800">Messages</p>
-                        <p class="text-sm text-gray-500">Inbox & sent</p>
+                        <p class="font-medium text-white">Messages</p>
+                        <p class="text-sm text-slate-500">Inbox & sent</p>
                     </div>
                     <div class="text-center">
-                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="w-12 h-12 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                             </svg>
                         </div>
-                        <p class="font-medium text-gray-800">Git Repos</p>
-                        <p class="text-sm text-gray-500">Remote URLs</p>
+                        <p class="font-medium text-white">Git Repos</p>
+                        <p class="text-sm text-slate-500">Remote URLs</p>
                     </div>
                 </div>
             </div>
@@ -501,54 +583,73 @@
     </section>
 
     <!-- CTA -->
-    <section class="py-20 relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-purple-50 via-transparent to-indigo-50 pointer-events-none"></div>
+    <section class="py-20 relative overflow-hidden bg-slate-900">
+        <!-- Background Effects -->
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
+
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
-            <h2 class="text-4xl font-bold mb-6">
+            <h2 class="text-4xl font-display font-bold mb-6">
                 <span class="gradient-text">Ready to Manage</span><br/>
-                <span class="text-gray-800">Your AI Agents?</span>
+                <span class="text-white">Your AI Agents?</span>
             </h2>
-            <p class="text-xl text-gray-600 mb-8">
+            <p class="text-xl text-slate-400 mb-8">
                 Get started with AI Maestro and manage your AI agents from one dashboard.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/23blocks-OS/ai-maestro#readme" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                <a href="https://github.com/23blocks-OS/ai-maestro#readme" target="_blank" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-cyan-500 text-slate-900 font-bold text-lg hover:bg-cyan-400 transition-all duration-200 no-underline">
                     Get Started
                 </a>
-                <a href="index.html" class="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
+                <a href="index.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-slate-800 text-white font-bold text-lg border border-slate-700 hover:border-cyan-500/50 hover:bg-slate-700 transition-all duration-200 no-underline">
                     Back to Overview
                 </a>
             </div>
         </div>
     </section>
 
+    
     <!-- Footer -->
-    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
-        <div class="max-w-[1200px] mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
-                <div>
-                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
-                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+                <div class="md:col-span-2">
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-10 h-10">
+                        <span class="font-display font-bold text-xl text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 leading-relaxed max-w-md">The future of work platform. Orchestrate multiple AI coding agents from one dashboard.</p>
+                    <div class="flex items-center gap-4 mt-6">
+                        <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                        </a>
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-slate-400 hover:text-cyan-400 transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        </a>
+                    </div>
                 </div>
                 <div>
-                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                    <h4 class="font-display font-bold text-white mb-4">Resources</h4>
+                    <ul class="space-y-3">
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro#readme" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Documentation</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/issues" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Issues</a></li>
+                        <li><a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="text-slate-400 hover:text-cyan-400 transition-colors no-underline">Contributing</a></li>
+                    </ul>
                 </div>
                 <div>
-                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
-                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Pelaez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
-                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">&#9829;</span> in Boulder, Colorado</p>
-                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                    <h4 class="font-display font-bold text-white mb-4">Built by</h4>
+                    <p class="text-slate-400">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">Juan Pelaez</a> @ <a href="https://23blocks.com" target="_blank" class="hover:text-cyan-400 transition-colors no-underline">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-sm mt-2">Made with <span class="text-red-500">&#9829;</span> in Boulder, CO</p>
+                    <p class="text-slate-500 text-sm">Coded with Claude</p>
                 </div>
             </div>
-            <div class="text-center pt-8 border-t border-white/10 opacity-70">
-                <p>&copy; 2025 Juan Pelaez / 23blocks. MIT License.</p>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">&copy; 2025 Juan Pelaez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>
+
 
     <!-- Copy for AI functionality -->
     <script src="copy-for-ai.js"></script>

@@ -145,10 +145,10 @@
       }]
     }
     </script>
-
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -157,33 +157,76 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
                     },
                     colors: {
-                        primary: '#6366f1',
-                        'primary-dark': '#4f46e5',
-                        secondary: '#8b5cf6',
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
                     }
                 }
             }
         }
     </script>
 
+
     <!-- GSAP CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
+    
     <style>
         html {
             scroll-behavior: smooth;
             scroll-padding-top: 80px;
         }
 
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
         .hamburger span {
             display: block;
             width: 24px;
             height: 2px;
-            background: #1f2937;
+            background: #e2e8f0;
             transition: all 0.3s ease;
         }
         .hamburger.active span:nth-child(1) {
@@ -208,13 +251,19 @@
             pointer-events: auto;
         }
 
-        /* Typing cursor animation */
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+        }
+
+        /* Typing cursor */
         .typing-cursor {
             display: inline-block;
             width: 3px;
-            height: 1.2em;
-            background-color: #8b5cf6;
-            margin-left: 2px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
             animation: blink 1s infinite;
             vertical-align: text-bottom;
         }
@@ -224,40 +273,42 @@
             50%, 100% { opacity: 0; }
         }
     </style>
+
 </head>
-<body class="font-sans text-gray-800 leading-relaxed antialiased">
+<body class="font-sans antialiased">
     <!-- Google Tag Manager (noscript) -->
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
 
-    <!-- Copy for AI Button - Fixed Position -->
+    
+    <!-- Copy for AI Button -->
     <button
         onclick="copyForAI()"
-        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-        title="Copy this page in AI-friendly format to paste into ChatGPT, Claude, or any LLM"
-        style="font-family: 'Space Grotesk', system-ui, sans-serif;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
-        Copy for AI
+        COPY FOR AI
     </button>
 
+
     <!-- Navigation (same as index.html) -->
-    <nav class="sticky top-0 bg-white/90 backdrop-blur-lg border-b border-gray-200 z-[100]">
+    <nav class="sticky top-0 bg-slate-900/90 backdrop-blur-lg border-b border-slate-700 z-[100]">
         <div class="max-w-[1200px] mx-auto px-4 md:px-8">
             <div class="flex justify-between items-center py-3 md:py-4">
-                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-bold text-gray-800 no-underline hover:opacity-80 transition-opacity duration-200">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-display font-bold text-white no-underline hover:opacity-80 transition-opacity duration-200">
                     <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
                     AI Maestro
                 </a>
 
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
-                    <a href="index.html#features" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
-                    <a href="index.html#quick-start" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-gray-800 no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
+                    <a href="index.html#features" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
+                    <a href="index.html#quick-start" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
                     <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
                 </div>
 
@@ -273,10 +324,10 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
-                <a href="index.html#features" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Features</a>
-                <a href="index.html#quick-start" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">Quick Start</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-gray-800 no-underline font-medium transition-all duration-200 hover:bg-gray-50 hover:text-primary">GitHub</a>
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">GitHub</a>
             </div>
         </div>
     </nav>
@@ -308,12 +359,12 @@
     <!-- Hero Section -->
     <header class="py-12 md:py-24 text-center px-4 md:px-0 bg-gradient-to-br from-secondary/10 to-primary/10">
         <div class="max-w-[1200px] mx-auto">
-            <p class="text-[2rem] md:text-[3rem] font-semibold text-gray-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
-            <h1 class="text-4xl md:text-[3.5rem] font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Your AI agents go wherever you go.</h1>
-            <p class="text-lg md:text-xl text-gray-600 max-w-[700px] mx-auto mb-8">Monitor and control your coding agents from your phone, tablet, or any device. Secure remote access with zero port forwarding.</p>
+            <p class="text-[2rem] md:text-[3rem] font-semibold text-slate-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
+            <h1 class="text-4xl md:text-[3.5rem] font-display font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Your Agents, Anywhere</h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Your AI agents go wherever you go. Monitor and control your coding agents from your phone, tablet, or any device. Secure remote access with zero port forwarding.</p>
             <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
-                <a href="#setup" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-secondary text-white hover:bg-purple-700 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(139,92,246,0.4)] text-lg">Quick Setup Guide</a>
-                <a href="index.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-secondary border-2 border-secondary hover:bg-secondary hover:text-white text-lg">Back to Features</a>
+                <a href="#setup" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-secondary text-white hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(139,92,246,0.4)] text-lg">Quick Setup Guide</a>
+                <a href="index.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-secondary border-2 border-secondary hover:bg-secondary hover:text-white text-lg">Back to Features</a>
             </div>
         </div>
     </header>
@@ -321,8 +372,8 @@
     <!-- Screenshots Section -->
     <section class="py-16 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">AI Maestro on Mobile</h2>
-            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Full-featured dashboard optimized for touch</p>
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">AI Maestro on Mobile</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Full-featured dashboard optimized for touch</p>
 
             <div class="flex justify-center gap-8 md:gap-12 mb-8 flex-wrap">
                 <img src="images/aimaestro-mobile.png" alt="AI Maestro on Mobile" class="w-[45%] md:w-[320px] min-w-[200px] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
@@ -332,21 +383,21 @@
     </section>
 
     <!-- Problem-Solution Section -->
-    <section class="py-16 bg-gray-50 px-8">
+    <section class="py-16 bg-slate-950 px-8">
         <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="p-8 bg-white rounded-2xl border border-gray-200">
-                <h2 class="text-red-600 mb-4 text-2xl font-bold">Before: Tied to Your Desk</h2>
-                <p class="leading-relaxed text-gray-600 mb-4">You started a long build before lunch. Now you're at a coffee shop wondering if it finished.</p>
+            <div class="p-8 bg-slate-900 rounded-2xl border border-slate-700">
+                <h2 class="text-red-600 mb-4 text-2xl font-display font-bold">Before: Tied to Your Desk</h2>
+                <p class="leading-relaxed text-slate-400 mb-4">You started a long build before lunch. Now you're at a coffee shop wondering if it finished.</p>
                 <ul class="list-none p-0 space-y-2">
-                    <li class="text-gray-600">❌ Can't check agent progress remotely</li>
-                    <li class="text-gray-600">❌ No way to monitor builds on the go</li>
-                    <li class="text-gray-600">❌ Missing important completions</li>
-                    <li class="text-gray-600">❌ Anxious about work status</li>
+                    <li class="text-slate-400">❌ Can't check agent progress remotely</li>
+                    <li class="text-slate-400">❌ No way to monitor builds on the go</li>
+                    <li class="text-slate-400">❌ Missing important completions</li>
+                    <li class="text-slate-400">❌ Anxious about work status</li>
                 </ul>
             </div>
-            <div class="p-8 bg-white rounded-2xl border border-gray-200">
-                <h2 class="text-emerald-600 mb-4 text-2xl font-bold">After: Freedom to Move</h2>
-                <p class="leading-relaxed text-gray-600 mb-4">Check your agents from your phone. Monitor progress from anywhere. Stay informed without being desk-bound.</p>
+            <div class="p-8 bg-slate-900 rounded-2xl border border-slate-700">
+                <h2 class="text-emerald-600 mb-4 text-2xl font-display font-bold">After: Freedom to Move</h2>
+                <p class="leading-relaxed text-slate-400 mb-4">Check your agents from your phone. Monitor progress from anywhere. Stay informed without being desk-bound.</p>
                 <ul class="list-none p-0 space-y-2">
                     <li class="text-emerald-600">✅ Full dashboard on any device</li>
                     <li class="text-emerald-600">✅ Secure encrypted access</li>
@@ -360,107 +411,107 @@
     <!-- Mobile Features Section -->
     <section class="py-16 md:py-24 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">Mobile-First Design</h2>
-            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Every pixel optimized for small screens</p>
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">Mobile-First Design</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Every pixel optimized for small screens</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">✨</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Touch-Optimized</h3>
-                    <p class="text-gray-600">Tap targets sized for fingers, not mice. Swipe gestures for quick navigation. Smooth scrolling throughout.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Touch-Optimized</h3>
+                    <p class="text-slate-400">Tap targets sized for fingers, not mice. Swipe gestures for quick navigation. Smooth scrolling throughout.</p>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">📱</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Auto-Collapsing Sidebar</h3>
-                    <p class="text-gray-600">Maximizes terminal space on small screens. Toggle with a tap. Remembers your preference.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Auto-Collapsing Sidebar</h3>
+                    <p class="text-slate-400">Maximizes terminal space on small screens. Toggle with a tap. Remembers your preference.</p>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">🎯</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Compact Header</h3>
-                    <p class="text-gray-600">Only essential info visible. More space for what matters. Clean, distraction-free interface.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Compact Header</h3>
+                    <p class="text-slate-400">Only essential info visible. More space for what matters. Clean, distraction-free interface.</p>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">📝</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Smart Notes Panel</h3>
-                    <p class="text-gray-600">Collapsed by default on mobile. Expand when needed. Full editing support with auto-save.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Smart Notes Panel</h3>
+                    <p class="text-slate-400">Collapsed by default on mobile. Expand when needed. Full editing support with auto-save.</p>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">⚡</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Full Terminal Access</h3>
-                    <p class="text-gray-600">View complete output. Scroll through history. Copy text selections. Read-only for safety.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Full Terminal Access</h3>
+                    <p class="text-slate-400">View complete output. Scroll through history. Copy text selections. Read-only for safety.</p>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">🎨</div>
-                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Responsive Layout</h3>
-                    <p class="text-gray-600">Adapts to any screen size. Portrait or landscape. Phone, tablet, or desktop. Always beautiful.</p>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Responsive Layout</h3>
+                    <p class="text-slate-400">Adapts to any screen size. Portrait or landscape. Phone, tablet, or desktop. Always beautiful.</p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Tailscale Section -->
-    <section class="py-16 md:py-24 bg-gray-50 px-8" id="setup">
+    <section class="py-16 md:py-24 bg-slate-950 px-8" id="setup">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-bold">🔒 Secure Remote Access with Tailscale</h2>
-            <p class="text-center text-lg text-gray-600 max-w-[700px] mx-auto mb-12">Zero-config VPN that just works. No port forwarding, no firewall hassles.</p>
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">🔒 Secure Remote Access with Tailscale</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Zero-config VPN that just works. No port forwarding, no firewall hassles.</p>
 
-            <div class="bg-white p-8 rounded-2xl border border-gray-200 mb-8">
+            <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 mb-8">
                 <p class="bg-amber-50 border-l-[3px] border-amber-500 px-4 py-3 mb-8 rounded text-sm text-amber-900">
                     <strong>Note:</strong> AI Maestro is not endorsed by or affiliated with Tailscale in any way. We simply use it and recommend it based on our positive experience.
                 </p>
 
-                <h3 class="text-2xl font-bold mb-6 text-gray-800">Why Tailscale?</h3>
+                <h3 class="text-2xl font-display font-bold mb-6 text-white">Why Tailscale?</h3>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <div class="p-6 bg-gray-50 rounded-xl">
+                    <div class="p-6 bg-slate-950 rounded-xl">
                         <div class="text-4xl mb-3">🛡️</div>
-                        <h4 class="text-lg mb-2 text-gray-800 font-semibold">Zero Port Forwarding</h4>
-                        <p class="text-gray-600">No need to expose ports to the internet. No router configuration. Works behind any firewall.</p>
+                        <h4 class="text-lg mb-2 text-white font-semibold">Zero Port Forwarding</h4>
+                        <p class="text-slate-400">No need to expose ports to the internet. No router configuration. Works behind any firewall.</p>
                     </div>
 
-                    <div class="p-6 bg-gray-50 rounded-xl">
+                    <div class="p-6 bg-slate-950 rounded-xl">
                         <div class="text-4xl mb-3">🔐</div>
-                        <h4 class="text-lg mb-2 text-gray-800 font-semibold">Encrypted Connections</h4>
-                        <p class="text-gray-600">All traffic automatically encrypted. WireGuard protocol. Military-grade security.</p>
+                        <h4 class="text-lg mb-2 text-white font-semibold">Encrypted Connections</h4>
+                        <p class="text-slate-400">All traffic automatically encrypted. WireGuard protocol. Military-grade security.</p>
                     </div>
 
-                    <div class="p-6 bg-gray-50 rounded-xl">
+                    <div class="p-6 bg-slate-950 rounded-xl">
                         <div class="text-4xl mb-3">🌍</div>
-                        <h4 class="text-lg mb-2 text-gray-800 font-semibold">Works Anywhere</h4>
-                        <p class="text-gray-600">Behind NAT, firewalls, routers. Coffee shops. Hotel Wi-Fi. Cellular networks. Just works.</p>
+                        <h4 class="text-lg mb-2 text-white font-semibold">Works Anywhere</h4>
+                        <p class="text-slate-400">Behind NAT, firewalls, routers. Coffee shops. Hotel Wi-Fi. Cellular networks. Just works.</p>
                     </div>
 
-                    <div class="p-6 bg-gray-50 rounded-xl">
+                    <div class="p-6 bg-slate-950 rounded-xl">
                         <div class="text-4xl mb-3">💰</div>
-                        <h4 class="text-lg mb-2 text-gray-800 font-semibold">Free for Personal Use</h4>
-                        <p class="text-gray-600">Up to 100 devices. No credit card required. Perfect for individual developers.</p>
+                        <h4 class="text-lg mb-2 text-white font-semibold">Free for Personal Use</h4>
+                        <p class="text-slate-400">Up to 100 devices. No credit card required. Perfect for individual developers.</p>
                     </div>
                 </div>
             </div>
 
             <!-- Setup Guide -->
-            <div class="bg-white p-8 rounded-2xl border border-gray-200 mb-8">
-                <h3 class="text-2xl font-bold mb-6 text-gray-800">Quick Setup (5 Minutes)</h3>
+            <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 mb-8">
+                <h3 class="text-2xl font-display font-bold mb-6 text-white">Quick Setup (5 Minutes)</h3>
 
                 <div class="space-y-6">
                     <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-bold">1</div>
+                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-display font-bold">1</div>
                         <div>
-                            <h4 class="font-semibold text-gray-800 mb-2">Install on Your Development Machine</h4>
+                            <h4 class="font-semibold text-white mb-2">Install on Your Development Machine</h4>
                             <pre class="bg-gray-800 text-green-400 p-3 rounded text-sm overflow-x-auto">brew install tailscale</pre>
-                            <p class="text-sm text-gray-600 mt-2">For Linux: <code class="bg-gray-100 px-2 py-1 rounded">curl -fsSL https://tailscale.com/install.sh | sh</code></p>
+                            <p class="text-sm text-slate-400 mt-2">For Linux: <code class="bg-slate-800 px-2 py-1 rounded">curl -fsSL https://tailscale.com/install.sh | sh</code></p>
                         </div>
                     </div>
 
                     <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-bold">2</div>
+                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-display font-bold">2</div>
                         <div>
-                            <h4 class="font-semibold text-gray-800 mb-2">Install on Your Mobile Device</h4>
+                            <h4 class="font-semibold text-white mb-2">Install on Your Mobile Device</h4>
                             <div class="flex gap-4 mt-3">
                                 <a href="https://apps.apple.com/app/tailscale/id1470499037" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm no-underline hover:bg-gray-800">
                                     <span>📱</span> App Store
@@ -473,79 +524,79 @@
                     </div>
 
                     <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-bold">3</div>
+                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-display font-bold">3</div>
                         <div>
-                            <h4 class="font-semibold text-gray-800 mb-2">Sign In on Both Devices</h4>
-                            <p class="text-gray-600">Use the same account (Google, Microsoft, or GitHub). They'll automatically connect to each other.</p>
+                            <h4 class="font-semibold text-white mb-2">Sign In on Both Devices</h4>
+                            <p class="text-slate-400">Use the same account (Google, Microsoft, or GitHub). They'll automatically connect to each other.</p>
                         </div>
                     </div>
 
                     <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-bold">4</div>
+                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-display font-bold">4</div>
                         <div>
-                            <h4 class="font-semibold text-gray-800 mb-2">Start AI Maestro</h4>
+                            <h4 class="font-semibold text-white mb-2">Start AI Maestro</h4>
                             <pre class="bg-gray-800 text-green-400 p-3 rounded text-sm overflow-x-auto">cd ai-maestro
 yarn dev</pre>
-                            <p class="text-sm text-gray-600 mt-2">Server starts on port 23000</p>
+                            <p class="text-sm text-slate-400 mt-2">Server starts on port 23000</p>
                         </div>
                     </div>
 
                     <div class="flex gap-4">
-                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-bold">5</div>
+                        <div class="flex-shrink-0 w-10 h-10 bg-secondary text-white rounded-full flex items-center justify-center font-display font-bold">5</div>
                         <div>
-                            <h4 class="font-semibold text-gray-800 mb-2">Access from Mobile</h4>
-                            <p class="text-gray-600 mb-2">Open your mobile browser and navigate to:</p>
-                            <code class="bg-gray-100 px-3 py-2 rounded block text-sm">http://YOUR-MACHINE-NAME:23000</code>
-                            <p class="text-sm text-gray-600 mt-2">Find your machine name in Tailscale app → Machines</p>
+                            <h4 class="font-semibold text-white mb-2">Access from Mobile</h4>
+                            <p class="text-slate-400 mb-2">Open your mobile browser and navigate to:</p>
+                            <code class="bg-slate-800 px-3 py-2 rounded block text-sm">http://YOUR-MACHINE-NAME:23000</code>
+                            <p class="text-sm text-slate-400 mt-2">Find your machine name in Tailscale app → Machines</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-8 bg-blue-50 border-l-4 border-primary p-4 rounded-r-lg">
-                    <p class="font-semibold text-gray-800 mb-1">💡 Pro Tip</p>
-                    <p class="text-gray-700 text-sm">Bookmark the URL on your mobile device for instant access. Add it to your home screen for a native app-like experience!</p>
+                <div class="mt-8 bg-slate-950 border-l-4 border-primary p-4 rounded-r-lg">
+                    <p class="font-semibold text-white mb-1">💡 Pro Tip</p>
+                    <p class="text-slate-200 text-sm">Bookmark the URL on your mobile device for instant access. Add it to your home screen for a native app-like experience!</p>
                 </div>
             </div>
 
             <!-- Use Cases -->
-            <div class="bg-white p-8 rounded-2xl border border-gray-200">
-                <h3 class="text-2xl font-bold mb-6 text-gray-800">Real-World Use Cases</h3>
+            <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700">
+                <h3 class="text-2xl font-display font-bold mb-6 text-white">Real-World Use Cases</h3>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">📊</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Monitor Long Builds</h4>
-                        <p class="text-sm text-gray-700">Started a 30-minute build? Grab lunch and check progress from your phone. Get notified when it's done.</p>
+                        <h4 class="font-semibold text-white mb-2">Monitor Long Builds</h4>
+                        <p class="text-sm text-slate-200">Started a 30-minute build? Grab lunch and check progress from your phone. Get notified when it's done.</p>
                     </div>
 
-                    <div class="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">🐛</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Check Agent Progress</h4>
-                        <p class="text-sm text-gray-700">Away from desk? See what your agents are working on. Read their output. No need to rush back.</p>
+                        <h4 class="font-semibold text-white mb-2">Check Agent Progress</h4>
+                        <p class="text-sm text-slate-200">Away from desk? See what your agents are working on. Read their output. No need to rush back.</p>
                     </div>
 
-                    <div class="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">📝</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Review Session Notes</h4>
-                        <p class="text-sm text-gray-700">Read notes on your tablet while thinking through a problem. Update todos from your phone during commute.</p>
+                        <h4 class="font-semibold text-white mb-2">Review Session Notes</h4>
+                        <p class="text-sm text-slate-200">Read notes on your tablet while thinking through a problem. Update todos from your phone during commute.</p>
                     </div>
 
-                    <div class="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">✅</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Verify Completions</h4>
-                        <p class="text-sm text-gray-700">Quick glance to see if tests passed. Check if deployment succeeded. Stay informed without interrupting flow.</p>
+                        <h4 class="font-semibold text-white mb-2">Verify Completions</h4>
+                        <p class="text-sm text-slate-200">Quick glance to see if tests passed. Check if deployment succeeded. Stay informed without interrupting flow.</p>
                     </div>
 
-                    <div class="p-4 bg-gradient-to-br from-rose-50 to-rose-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">🏠</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Work from Couch</h4>
-                        <p class="text-sm text-gray-700">Monitor agents from tablet while relaxing. Full visibility without being at desk. Remote doesn't mean disconnected.</p>
+                        <h4 class="font-semibold text-white mb-2">Work from Couch</h4>
+                        <p class="text-sm text-slate-200">Monitor agents from tablet while relaxing. Full visibility without being at desk. Remote doesn't mean disconnected.</p>
                     </div>
 
-                    <div class="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg">
+                    <div class="p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
                         <div class="text-2xl mb-2">✈️</div>
-                        <h4 class="font-semibold text-gray-800 mb-2">Check While Traveling</h4>
-                        <p class="text-sm text-gray-700">Airport delay? Check your builds. Hotel room? Review what agents accomplished. Always connected.</p>
+                        <h4 class="font-semibold text-white mb-2">Check While Traveling</h4>
+                        <p class="text-sm text-slate-200">Airport delay? Check your builds. Hotel room? Review what agents accomplished. Always connected.</p>
                     </div>
                 </div>
             </div>
@@ -555,81 +606,81 @@ yarn dev</pre>
     <!-- Technical Details Section -->
     <section class="py-16 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-12 font-bold">Technical Details</h2>
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-display font-bold">Technical Details</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Responsive Breakpoints</h3>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Responsive Breakpoints</h3>
                     <div class="space-y-2 text-sm">
-                        <div class="flex justify-between p-2 bg-gray-50 rounded">
-                            <span class="font-mono text-gray-600">Mobile</span>
-                            <span class="text-gray-800">&lt; 768px</span>
+                        <div class="flex justify-between p-2 bg-slate-950 rounded">
+                            <span class="font-mono text-slate-400">Mobile</span>
+                            <span class="text-white">&lt; 768px</span>
                         </div>
-                        <div class="flex justify-between p-2 bg-gray-50 rounded">
-                            <span class="font-mono text-gray-600">Tablet</span>
-                            <span class="text-gray-800">768px - 1024px</span>
+                        <div class="flex justify-between p-2 bg-slate-950 rounded">
+                            <span class="font-mono text-slate-400">Tablet</span>
+                            <span class="text-white">768px - 1024px</span>
                         </div>
-                        <div class="flex justify-between p-2 bg-gray-50 rounded">
-                            <span class="font-mono text-gray-600">Desktop</span>
-                            <span class="text-gray-800">&gt; 1024px</span>
+                        <div class="flex justify-between p-2 bg-slate-950 rounded">
+                            <span class="font-mono text-slate-400">Desktop</span>
+                            <span class="text-white">&gt; 1024px</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Network Requirements</h3>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Network Requirements</h3>
                     <ul class="space-y-2 text-sm">
                         <li class="flex items-start gap-2">
                             <span class="text-emerald-600 mt-1">✓</span>
-                            <span class="text-gray-700"><strong>Bandwidth:</strong> Minimal (text-based terminal output)</span>
+                            <span class="text-slate-200"><strong>Bandwidth:</strong> Minimal (text-based terminal output)</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <span class="text-emerald-600 mt-1">✓</span>
-                            <span class="text-gray-700"><strong>Latency:</strong> WebSocket keeps it snappy</span>
+                            <span class="text-slate-200"><strong>Latency:</strong> WebSocket keeps it snappy</span>
                         </li>
                         <li class="flex items-start gap-2">
                             <span class="text-emerald-600 mt-1">✓</span>
-                            <span class="text-gray-700"><strong>Connection:</strong> Works on 4G/5G/Wi-Fi</span>
+                            <span class="text-slate-200"><strong>Connection:</strong> Works on 4G/5G/Wi-Fi</span>
                         </li>
                     </ul>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Browser Compatibility</h3>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Browser Compatibility</h3>
                     <ul class="space-y-2 text-sm">
                         <li class="flex items-center gap-2">
                             <span>🌐</span>
-                            <span class="text-gray-700">Safari (iOS 12.0+)</span>
+                            <span class="text-slate-200">Safari (iOS 12.0+)</span>
                         </li>
                         <li class="flex items-center gap-2">
                             <span>🌐</span>
-                            <span class="text-gray-700">Chrome (Mobile & Desktop)</span>
+                            <span class="text-slate-200">Chrome (Mobile & Desktop)</span>
                         </li>
                         <li class="flex items-center gap-2">
                             <span>🌐</span>
-                            <span class="text-gray-700">Firefox (Mobile & Desktop)</span>
+                            <span class="text-slate-200">Firefox (Mobile & Desktop)</span>
                         </li>
                         <li class="flex items-center gap-2">
                             <span>🌐</span>
-                            <span class="text-gray-700">Edge (Chromium-based)</span>
+                            <span class="text-slate-200">Edge (Chromium-based)</span>
                         </li>
                     </ul>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Security Features</h3>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Security Features</h3>
                     <ul class="space-y-2 text-sm">
                         <li class="flex items-start gap-2">
-                            <span class="text-blue-600 mt-1">🔒</span>
-                            <span class="text-gray-700">Tailscale encryption (WireGuard)</span>
+                            <span class="text-blue-400 mt-1">🔒</span>
+                            <span class="text-slate-200">Tailscale encryption (WireGuard)</span>
                         </li>
                         <li class="flex items-start gap-2">
-                            <span class="text-blue-600 mt-1">🔒</span>
-                            <span class="text-gray-700">No public internet exposure</span>
+                            <span class="text-blue-400 mt-1">🔒</span>
+                            <span class="text-slate-200">No public internet exposure</span>
                         </li>
                         <li class="flex items-start gap-2">
-                            <span class="text-blue-600 mt-1">🔒</span>
-                            <span class="text-gray-700">Read-only terminal on mobile</span>
+                            <span class="text-blue-400 mt-1">🔒</span>
+                            <span class="text-slate-200">Read-only terminal on mobile</span>
                         </li>
                     </ul>
                 </div>
@@ -640,13 +691,13 @@ yarn dev</pre>
     <!-- CTA Section -->
     <section class="py-16 md:py-24 text-center bg-gradient-to-br from-secondary to-primary text-white px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl mb-4 font-bold">Ready to work from anywhere?</h2>
+            <h2 class="text-4xl md:text-5xl mb-4 font-display font-bold">Ready to work from anywhere?</h2>
             <p class="text-xl mb-8 opacity-90">Set up mobile access in under 5 minutes.</p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
-                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-white text-secondary hover:bg-gray-50 hover:-translate-y-0.5 text-lg" target="_blank">
+                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-secondary hover:bg-slate-950 hover:-translate-y-0.5 text-lg" target="_blank">
                     Get Started on GitHub
                 </a>
-                <a href="index.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-white hover:text-secondary text-lg">
+                <a href="index.html" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-transparent text-white border-2 border-white hover:bg-slate-900 hover:text-secondary text-lg">
                     Back to AI Maestro
                 </a>
             </div>

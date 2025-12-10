@@ -52,6 +52,7 @@
     "react": "^18.3.0",
     "react-cytoscapejs": "^2.0.0",
     "react-dom": "^18.3.0",
+    "source-map-support": "^0.5.21",
     "ts-morph": "^27.0.2",
     "uuid": "^13.0.0",
     "ws": "^8.18.0",

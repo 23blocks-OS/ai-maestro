@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
-SKILL_DIR="$HOME/.claude/skills/doc-search"
+SKILL_DIR="$HOME/.claude/skills/docs-search"
 
 echo "AI Maestro Doc Tools Installer"
 echo "==============================="
@@ -24,8 +24,8 @@ for script in "$SCRIPT_DIR/doc_scripts"/*.sh; do
 done
 
 echo ""
-echo "Installing doc-search skill to $SKILL_DIR..."
-cp "$SCRIPT_DIR/skills/doc-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+echo "Installing docs-search skill to $SKILL_DIR..."
+cp "$SCRIPT_DIR/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
 echo "  Installed: SKILL.md"
 
 echo ""

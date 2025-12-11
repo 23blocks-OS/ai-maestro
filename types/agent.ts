@@ -242,6 +242,7 @@ export interface AgentSessionStatus {
   workingDirectory?: string       // Current working directory
   hostId?: string                 // Host identifier (for remote sessions)
   hostName?: string               // Human-readable host name
+  hostUrl?: string                // Host URL for WebSocket connections (e.g., "http://100.80.12.6:23000")
   lastActivity?: string           // Last activity timestamp (ISO)
   windows?: number                // Number of tmux windows
 }
@@ -253,4 +254,37 @@ export interface AgentSessionStatus {
 export interface UnifiedAgent extends Agent {
   session: AgentSessionStatus
   isOrphan: boolean               // True if session exists but agent was auto-registered
+  _cached?: boolean               // True if loaded from cache (remote host unreachable)
+}
+
+/**
+ * Statistics about agents from a host
+ */
+export interface AgentStats {
+  total: number
+  online: number
+  offline: number
+  orphans: number
+  newlyRegistered: number
+}
+
+/**
+ * Host information returned with agent data
+ */
+export interface AgentHostInfo {
+  id: string
+  name: string
+  url: string
+  type: 'local' | 'remote'
+}
+
+/**
+ * Response from GET /api/agents
+ * Each AI Maestro instance returns its own agents with this structure.
+ * Frontend aggregates across multiple hosts.
+ */
+export interface AgentsApiResponse {
+  agents: UnifiedAgent[]
+  stats: AgentStats
+  hostInfo: AgentHostInfo
 }

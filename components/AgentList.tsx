@@ -675,10 +675,30 @@ export default function AgentList({
                                               {agent.displayName || agent.alias}
                                             </span>
 
+                                            {/* Remote host indicator */}
+                                            {agent.session.hostId && agent.session.hostId !== 'local' && (
+                                              <span
+                                                className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 flex-shrink-0"
+                                                title={`Running on ${agent.session.hostName || agent.session.hostId}`}
+                                              >
+                                                @{agent.session.hostName || agent.session.hostId}
+                                              </span>
+                                            )}
+
+                                            {/* Cached indicator */}
+                                            {agent._cached && (
+                                              <span
+                                                className="text-[10px] px-1 py-0.5 rounded bg-gray-500/30 text-gray-400 flex-shrink-0"
+                                                title="Loaded from cache (host unreachable)"
+                                              >
+                                                cached
+                                              </span>
+                                            )}
+
                                             {/* Orphan indicator */}
                                             {agent.isOrphan && (
                                               <span
-                                                className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400"
+                                                className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 flex-shrink-0"
                                                 title="Auto-registered from orphan session"
                                               >
                                                 NEW

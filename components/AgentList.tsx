@@ -663,60 +663,67 @@ export default function AgentList({
                                               />
                                             )}
 
-                                            {/* Agent name */}
-                                            <span
-                                              className={`text-sm truncate font-medium ${
-                                                isActive ? 'font-semibold' : ''
-                                              }`}
-                                              style={{
-                                                color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
-                                              }}
-                                            >
-                                              {agent.displayName || agent.alias}
-                                            </span>
-
-                                            {/* Remote host indicator */}
-                                            {agent.session.hostId && agent.session.hostId !== 'local' && (
-                                              <span
-                                                className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 flex-shrink-0"
-                                                title={`Running on ${agent.session.hostName || agent.session.hostId}`}
-                                              >
-                                                @{agent.session.hostName || agent.session.hostId}
-                                              </span>
-                                            )}
-
-                                            {/* Cached indicator */}
-                                            {agent._cached && (
-                                              <span
-                                                className="text-[10px] px-1 py-0.5 rounded bg-gray-500/30 text-gray-400 flex-shrink-0"
-                                                title="Loaded from cache (host unreachable)"
-                                              >
-                                                cached
-                                              </span>
-                                            )}
-
-                                            {/* Orphan indicator */}
-                                            {agent.isOrphan && (
-                                              <span
-                                                className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 flex-shrink-0"
-                                                title="Auto-registered from orphan session"
-                                              >
-                                                NEW
-                                              </span>
-                                            )}
-
-                                            {/* Unread message indicator */}
-                                            {unreadCounts[agent.id] && unreadCounts[agent.id] > 0 && (
-                                              <div className="flex items-center gap-1 flex-shrink-0">
-                                                <Mail className="w-3 h-3 text-blue-400" />
-                                                <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">
-                                                  {unreadCounts[agent.id]}
+                                            {/* Agent name and host info - stacked layout */}
+                                            <div className="flex-1 min-w-0">
+                                              {/* First row: Agent name + badges + status */}
+                                              <div className="flex items-center gap-1.5">
+                                                <span
+                                                  className={`text-sm truncate font-medium ${
+                                                    isActive ? 'font-semibold' : ''
+                                                  }`}
+                                                  style={{
+                                                    color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
+                                                  }}
+                                                >
+                                                  {agent.displayName || agent.alias}
                                                 </span>
-                                              </div>
-                                            )}
 
-                                            {/* Status indicator */}
-                                            <AgentStatusIndicator isOnline={isOnline} />
+                                                {/* Cached indicator */}
+                                                {agent._cached && (
+                                                  <span
+                                                    className="text-[10px] px-1 py-0.5 rounded bg-gray-500/30 text-gray-400 flex-shrink-0"
+                                                    title="Loaded from cache (host unreachable)"
+                                                  >
+                                                    cached
+                                                  </span>
+                                                )}
+
+                                                {/* Orphan indicator */}
+                                                {agent.isOrphan && (
+                                                  <span
+                                                    className="text-[10px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 flex-shrink-0"
+                                                    title="Auto-registered from orphan session"
+                                                  >
+                                                    NEW
+                                                  </span>
+                                                )}
+
+                                                {/* Unread message indicator */}
+                                                {unreadCounts[agent.id] && unreadCounts[agent.id] > 0 && (
+                                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <Mail className="w-3 h-3 text-blue-400" />
+                                                    <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-full">
+                                                      {unreadCounts[agent.id]}
+                                                    </span>
+                                                  </div>
+                                                )}
+
+                                                {/* Status indicator */}
+                                                <AgentStatusIndicator isOnline={isOnline} />
+                                              </div>
+
+                                              {/* Second row: Remote host indicator (below agent name) */}
+                                              {agent.session.hostId && agent.session.hostId !== 'local' && (
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                  <span
+                                                    className="text-[10px] text-purple-400 truncate"
+                                                    title={`Running on ${agent.session.hostName || agent.session.hostId}`}
+                                                  >
+                                                    @{agent.session.hostName || agent.session.hostId}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
 
                                           {/* Action buttons - show on hover */}

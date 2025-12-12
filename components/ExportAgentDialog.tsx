@@ -10,6 +10,7 @@ interface ExportAgentDialogProps {
   agentId: string
   agentAlias: string
   agentDisplayName?: string
+  hostUrl?: string  // Base URL for remote hosts
 }
 
 type ExportPhase = 'idle' | 'packing' | 'zipping' | 'ready' | 'error'
@@ -50,7 +51,10 @@ export default function ExportAgentDialog({
   agentId,
   agentAlias,
   agentDisplayName,
+  hostUrl,
 }: ExportAgentDialogProps) {
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [phase, setPhase] = useState<ExportPhase>('idle')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +78,7 @@ export default function ExportAgentDialog({
         setProgress(50)
       }, 1200)
 
-      const response = await fetch(`/api/agents/${agentId}/export`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/export`)
 
       if (!response.ok) {
         throw new Error('Export failed')

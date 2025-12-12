@@ -44,9 +44,12 @@ function formatTimeAgo(timestamp: number | null): string {
 
 interface Props {
   agentId: string | undefined
+  hostUrl?: string  // Base URL for remote hosts
 }
 
-export function AgentSubconsciousIndicator({ agentId }: Props) {
+export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [status, setStatus] = useState<SubconsciousStatusData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,7 +64,7 @@ export function AgentSubconsciousIndicator({ agentId }: Props) {
     }
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/subconscious`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/subconscious`)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
@@ -73,7 +76,7 @@ export function AgentSubconsciousIndicator({ agentId }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   useEffect(() => {
     fetchStatus()

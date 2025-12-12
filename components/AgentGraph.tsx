@@ -76,6 +76,7 @@ interface AgentGraphProps {
   agentId: string | null | undefined
   isVisible: boolean
   workingDirectory?: string
+  hostUrl?: string  // Base URL for remote hosts
 }
 
 const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -110,10 +111,12 @@ const EDGE_COLORS: Record<string, string> = {
   serializes: '#06b6d4',  // cyan - serializer relationships
 }
 
-export default function AgentGraph({ sessionName, agentId, isVisible, workingDirectory }: AgentGraphProps) {
+export default function AgentGraph({ sessionName, agentId, isVisible, workingDirectory, hostUrl }: AgentGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<any>(null)
   const [loading, setLoading] = useState(true)
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [indexing, setIndexing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -139,7 +142,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     if (!agentId) return
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/code?action=stats`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/graph/code?action=stats`)
       const data = await response.json()
 
       if (data.success) {
@@ -150,7 +153,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
       console.error('Failed to fetch stats:', err)
     }
     return null
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Fetch full graph data
   const fetchGraphData = useCallback(async () => {
@@ -160,7 +163,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     setError(null)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/code?action=all`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/graph/code?action=all`)
       const data = await response.json()
 
       if (data.success) {
@@ -173,7 +176,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     } finally {
       setLoading(false)
     }
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Focus on a specific node - fetch only its relationships
   const handleFocusNode = useCallback(async (nodeId: string) => {
@@ -183,7 +186,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     setError(null)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/code?action=focus&nodeId=${encodeURIComponent(nodeId)}`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/graph/code?action=focus&nodeId=${encodeURIComponent(nodeId)}`)
       const data = await response.json()
 
       if (data.success) {
@@ -196,7 +199,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     } finally {
       setFocusLoading(false)
     }
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Exit focus mode
   const handleExitFocus = useCallback(() => {
@@ -208,7 +211,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
   const detectProjectPath = useCallback(async () => {
     // Try to get project path from session metadata or worktree
     try {
-      const response = await fetch(`/api/agents/${agentId}/tracking`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/tracking`)
       const data = await response.json()
 
       if (data.success && data.projects?.length > 0) {
@@ -223,7 +226,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
       console.error('Failed to detect project path:', err)
     }
     return null
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Index project code
   const handleIndexProject = async () => {
@@ -234,7 +237,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     setSuccess(null)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/graph/code`, {
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/graph/code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -22,9 +22,12 @@ interface AgentProfileProps {
   onStartSession?: () => void         // Callback to start a session for offline agents
   onDeleteAgent?: (agentId: string) => Promise<void>  // Callback to delete agent
   scrollToDangerZone?: boolean        // Whether to auto-scroll to danger zone
+  hostUrl?: string                    // Base URL for remote hosts
 }
 
-export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone }: AgentProfileProps) {
+export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, onStartSession, onDeleteAgent, scrollToDangerZone, hostUrl }: AgentProfileProps) {
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -75,7 +78,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     const fetchAgent = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`/api/agents/${agentId}`)
+        const response = await fetch(`${baseUrl}/api/agents/${agentId}`)
         if (response.ok) {
           const data = await response.json()
           setAgent(data.agent)
@@ -97,7 +100,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     const fetchRepos = async () => {
       setLoadingRepos(true)
       try {
-        const response = await fetch(`/api/agents/${agentId}/repos`)
+        const response = await fetch(`${baseUrl}/api/agents/${agentId}/repos`)
         if (response.ok) {
           const data = await response.json()
           setRepositories(data.repositories || [])
@@ -116,7 +119,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const handleDetectRepos = async () => {
     setDetectingRepos(true)
     try {
-      const response = await fetch(`/api/agents/${agentId}/repos`, {
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/repos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ detectFromWorkingDir: true })
@@ -143,7 +146,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
     setSaving(true)
     try {
-      const response = await fetch(`/api/agents/${agentId}`, {
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -916,6 +919,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             }
             setShowTransferDialog(false)
           }}
+          hostUrl={hostUrl}
         />
       )}
 
@@ -927,6 +931,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentId={agent.id}
           agentAlias={agent.alias}
           agentDisplayName={agent.displayName}
+          hostUrl={hostUrl}
         />
       )}
 

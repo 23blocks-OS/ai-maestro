@@ -59,6 +59,7 @@ interface DocumentationPanelProps {
   agentId: string | null | undefined
   isVisible: boolean
   workingDirectory?: string
+  hostUrl?: string  // Base URL for remote hosts
 }
 
 // Document type icons and colors
@@ -76,9 +77,11 @@ const DOC_TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; 
   doc: { icon: File, color: '#94a3b8', label: 'General Documentation' },
 }
 
-export default function DocumentationPanel({ sessionName, agentId, isVisible, workingDirectory }: DocumentationPanelProps) {
+export default function DocumentationPanel({ sessionName, agentId, isVisible, workingDirectory, hostUrl }: DocumentationPanelProps) {
   const [loading, setLoading] = useState(true)
   const [indexing, setIndexing] = useState(false)
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [stats, setStats] = useState<DocStats | null>(null)
@@ -107,7 +110,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     if (!agentId) return
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/docs?action=stats`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs?action=stats`)
       const data = await response.json()
 
       if (data.success) {
@@ -118,14 +121,14 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
       console.error('Failed to fetch stats:', err)
     }
     return null
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Fetch document list
   const fetchDocuments = useCallback(async () => {
     if (!agentId) return
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/docs?action=list&limit=200`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs?action=list&limit=200`)
       const data = await response.json()
 
       if (data.success) {
@@ -134,7 +137,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     } catch (err) {
       console.error('Failed to fetch documents:', err)
     }
-  }, [agentId])
+  }, [agentId, baseUrl])
 
   // Load initial data
   useEffect(() => {
@@ -169,7 +172,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000) // 10 min timeout
 
-      const response = await fetch(`/api/agents/${agentId}/docs`, {
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath, clear: true, generateEmbeddings: true }),
@@ -214,7 +217,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
 
     try {
       const response = await fetch(
-        `/api/agents/${agentId}/docs?action=search&q=${encodeURIComponent(searchQuery)}&limit=20`
+        `${baseUrl}/api/agents/${agentId}/docs?action=search&q=${encodeURIComponent(searchQuery)}&limit=20`
       )
       const data = await response.json()
 
@@ -239,7 +242,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     setSelectedDoc(doc)
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/docs?action=get-doc&docId=${doc.docId}`)
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/docs?action=get-doc&docId=${doc.docId}`)
       const data = await response.json()
 
       if (data.success) {

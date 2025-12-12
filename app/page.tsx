@@ -119,24 +119,25 @@ export default function DashboardPage() {
     }
 
     const initializeAgentMemories = async () => {
-      const agentIds = agents.map(a => a.id)
-      console.log(`[Dashboard] Initializing memory for ${agentIds.length} agents...`)
+      console.log(`[Dashboard] Initializing memory for ${agents.length} agents...`)
 
-      const initPromises = agentIds.map(async (agentId) => {
+      const initPromises = agents.map(async (agent) => {
         try {
-          const checkResponse = await fetch(`/api/agents/${agentId}/memory`)
+          // Use agent's hostUrl to route to correct host for remote agents
+          const baseUrl = agent.session.hostUrl || ''
+          const checkResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/memory`)
           const checkData = await checkResponse.json()
 
           if (!checkData.success || (!checkData.sessions?.length && !checkData.projects?.length)) {
-            console.log(`[Dashboard] Initializing memory for agent ${agentId}`)
-            await fetch(`/api/agents/${agentId}/memory`, {
+            console.log(`[Dashboard] Initializing memory for agent ${agent.id}`)
+            await fetch(`${baseUrl}/api/agents/${agent.id}/memory`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ populateFromSessions: true })
             })
           }
         } catch (error) {
-          console.error(`[Dashboard] Failed to initialize agent ${agentId}:`, error)
+          console.error(`[Dashboard] Failed to initialize agent ${agent.id}:`, error)
         }
       })
 
@@ -192,7 +193,9 @@ export default function DashboardPage() {
 
   const handleDeleteAgent = async (agentId: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentId}`, {
+      // Use profileAgent's hostUrl to route to correct host for remote agents
+      const baseUrl = profileAgent?.session.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
         method: 'DELETE',
       })
 
@@ -477,7 +480,7 @@ export default function DashboardPage() {
                     </button>
                     <div className="flex-1" />
                     <div className="flex items-center">
-                      <AgentSubconsciousIndicator agentId={agent.id} />
+                      <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.session.hostUrl} />
                       <button
                         onClick={() => handleShowAgentProfile(agent)}
                         className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
@@ -522,6 +525,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
+                        hostUrl={agent.session.hostUrl}
                       />
                     ) : (
                       <DocumentationPanel
@@ -529,6 +533,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         isVisible={isActive && activeTab === 'docs'}
                         workingDirectory={session.workingDirectory}
+                        hostUrl={agent.session.hostUrl}
                       />
                     )}
                   </div>
@@ -582,6 +587,7 @@ export default function DashboardPage() {
             onStartSession={() => handleStartSession(profileAgent)}
             onDeleteAgent={handleDeleteAgent}
             scrollToDangerZone={profileScrollToDangerZone}
+            hostUrl={profileAgent.session.hostUrl}
           />
         )}
 

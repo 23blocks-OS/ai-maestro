@@ -14,6 +14,7 @@ interface TransferAgentDialogProps {
   currentHostId?: string  // The host where the agent currently lives
   onClose: () => void
   onTransferComplete?: (result: TransferResult) => void
+  hostUrl?: string  // Base URL for remote hosts
 }
 
 interface TransferResult {
@@ -34,9 +35,12 @@ export default function TransferAgentDialog({
   agentDisplayName,
   currentHostId = 'local',
   onClose,
-  onTransferComplete
+  onTransferComplete,
+  hostUrl
 }: TransferAgentDialogProps) {
   const { hosts } = useHosts()
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const baseUrl = hostUrl || ''
   const [selectedHostId, setSelectedHostId] = useState<string>('')
   const [mode, setMode] = useState<TransferMode>('clone')
   const [newAlias, setNewAlias] = useState('')
@@ -74,7 +78,7 @@ export default function TransferAgentDialog({
     const fetchRepos = async () => {
       try {
         setLoadingRepos(true)
-        const response = await fetch(`/api/agents/${agentId}/repos`)
+        const response = await fetch(`${baseUrl}/api/agents/${agentId}/repos`)
         if (response.ok) {
           const data = await response.json()
           // Convert to PortableRepository format
@@ -119,7 +123,7 @@ export default function TransferAgentDialog({
 
     try {
       // Call the transfer API
-      const response = await fetch(`/api/agents/${agentId}/transfer`, {
+      const response = await fetch(`${baseUrl}/api/agents/${agentId}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

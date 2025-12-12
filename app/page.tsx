@@ -150,12 +150,13 @@ export default function DashboardPage() {
 
   // Fetch unread message count for active agent
   useEffect(() => {
-    if (!activeAgentId) return
+    if (!activeAgentId || !activeAgent) return
 
     const fetchUnreadCount = async () => {
       try {
-        // Now fetching by agent ID, not session name
-        const response = await fetch(`/api/messages?agentId=${encodeURIComponent(activeAgentId)}&action=unread-count`)
+        // Use agent's hostUrl to route to the correct host for remote agents
+        const baseUrl = activeAgent.session.hostUrl || ''
+        const response = await fetch(`${baseUrl}/api/messages?agentId=${encodeURIComponent(activeAgentId)}&action=unread-count`)
         if (response.ok) {
           const data = await response.json()
           setUnreadCount(data.count || 0)
@@ -168,7 +169,7 @@ export default function DashboardPage() {
     fetchUnreadCount()
     const interval = setInterval(fetchUnreadCount, 10000)
     return () => clearInterval(interval)
-  }, [activeAgentId])
+  }, [activeAgentId, activeAgent])
 
   // Agent-centric handlers
   const handleAgentSelect = (agent: UnifiedAgent) => {

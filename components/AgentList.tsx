@@ -255,8 +255,9 @@ export default function AgentList({
       // Fetch for all agents (not just online ones) since messages persist
       for (const agent of agents) {
         try {
-          // Use agent ID for lookup - the API now supports agent identifiers
-          const response = await fetch(`/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
+          // Use agent's hostUrl to route to the correct host for remote agents
+          const baseUrl = agent.session.hostUrl || ''
+          const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
           const data = await response.json()
           if (data.count > 0) {
             counts[agent.id] = data.count

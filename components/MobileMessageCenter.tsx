@@ -9,11 +9,14 @@ interface MobileMessageCenterProps {
   sessionName: string
   agentId?: string  // Primary identifier when available
   allAgents: AgentRecipient[]
+  hostUrl?: string  // Base URL for remote hosts (e.g., http://100.80.12.6:23000)
 }
 
-export default function MobileMessageCenter({ sessionName, agentId, allAgents }: MobileMessageCenterProps) {
+export default function MobileMessageCenter({ sessionName, agentId, allAgents, hostUrl }: MobileMessageCenterProps) {
   // Use agentId as primary identifier if available, fall back to sessionName
   const messageIdentifier = agentId || sessionName
+  // Base URL for API calls - empty for local, full URL for remote hosts
+  const apiBaseUrl = hostUrl || ''
   const [messages, setMessages] = useState<MessageSummary[]>([])
   const [sentMessages, setSentMessages] = useState<MessageSummary[]>([])
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -40,46 +43,46 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents }:
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }, [messageIdentifier])
+  }, [messageIdentifier, apiBaseUrl])
 
   // Fetch sent messages
   const fetchSentMessages = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }, [messageIdentifier])
+  }, [messageIdentifier, apiBaseUrl])
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
       console.error('Error fetching unread count:', error)
     }
-  }, [messageIdentifier])
+  }, [messageIdentifier, apiBaseUrl])
 
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
       // Mark as read if unread (inbox only)
       if (box === 'inbox' && message.status === 'unread') {
-        await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
+        await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
         fetchMessages()
@@ -102,7 +105,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents }:
       if (isForwarding && forwardingOriginalMessage) {
         const forwardNote = composeMessage.split('--- Forwarded Message ---')[0].trim()
 
-        const response = await fetch('/api/messages/forward', {
+        const response = await fetch(`${apiBaseUrl}/api/messages/forward`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -130,7 +133,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents }:
           alert(`Failed to forward message: ${error.error}`)
         }
       } else {
-        const response = await fetch('/api/messages', {
+        const response = await fetch(`${apiBaseUrl}/api/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -170,7 +173,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents }:
     if (!confirm('Are you sure you want to delete this message?')) return
 
     try {
-      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
+      await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
       })
       setSelectedMessage(null)
@@ -185,7 +188,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents }:
   // Archive message
   const archiveMessage = async (messageId: string) => {
     try {
-      await fetch(`/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
+      await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
         method: 'PATCH',
       })
       setSelectedMessage(null)

@@ -506,6 +506,7 @@ export default function DashboardPage() {
                           tmuxSessionName: a.session.tmuxSessionName
                         }))}
                         isVisible={isActive && activeTab === 'messages'}
+                        hostUrl={agent.session.hostUrl}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree

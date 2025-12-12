@@ -212,6 +212,7 @@ export default function MobileDashboard({
                     alias: a.displayName || a.alias || a.id,
                     tmuxSessionName: a.session.tmuxSessionName
                   }))}
+                  hostUrl={agent.session.hostUrl}
                 />
               )}
             </div>

@@ -1,8 +1,14 @@
 #!/bin/bash
 # AI Maestro - Send message directly to tmux session
+# Supports agent ID, alias, or tmux session name as target
 
 if [ $# -lt 2 ]; then
-  echo "Usage: send-tmux-message.sh <target_session> <message> [method]"
+  echo "Usage: send-tmux-message.sh <target> <message> [method]"
+  echo ""
+  echo "Target can be:"
+  echo "  - Agent alias (e.g., 'crm', 'backend-api')"
+  echo "  - Agent ID (UUID)"
+  echo "  - Tmux session name (e.g., '23blocks-api-crm')"
   echo ""
   echo "Methods:"
   echo "  display  - Show popup notification (default, non-intrusive)"
@@ -11,12 +17,12 @@ if [ $# -lt 2 ]; then
   echo ""
   echo "Examples:"
   echo "  send-tmux-message.sh backend-architect 'Need API endpoint'"
-  echo "  send-tmux-message.sh backend-architect 'Check your inbox' display"
+  echo "  send-tmux-message.sh crm 'Check your inbox' display"
   echo "  send-tmux-message.sh backend-architect 'Urgent: Fix bug' inject"
   exit 1
 fi
 
-TARGET_SESSION="$1"
+TARGET="$1"
 MESSAGE="$2"
 METHOD="${3:-display}"
 
@@ -26,12 +32,57 @@ if [ -z "$FROM_SESSION" ]; then
   FROM_SESSION="unknown"
 fi
 
-# Check if target session exists
-if ! tmux has-session -t "$TARGET_SESSION" 2>/dev/null; then
-  echo "❌ Error: Session '$TARGET_SESSION' not found"
-  echo "Available sessions:"
-  tmux list-sessions -F "  - #{session_name}"
+# Function to resolve target to tmux session name
+resolve_target() {
+  local target="$1"
+
+  # First, check if it's already a valid tmux session name
+  if tmux has-session -t "$target" 2>/dev/null; then
+    echo "$target"
+    return 0
+  fi
+
+  # Try to resolve via API (handles aliases, IDs, partial matches)
+  local resolved=$(curl -s "http://localhost:23000/api/messages?agent=$target&action=resolve" 2>/dev/null)
+
+  if [ -n "$resolved" ]; then
+    # Extract sessionName from JSON response
+    local session_name=$(echo "$resolved" | jq -r '.resolved.sessionName // empty' 2>/dev/null)
+
+    if [ -n "$session_name" ] && [ "$session_name" != "null" ]; then
+      # Verify the resolved session exists
+      if tmux has-session -t "$session_name" 2>/dev/null; then
+        echo "$session_name"
+        return 0
+      fi
+    fi
+  fi
+
+  # Not found
+  return 1
+}
+
+# Resolve target to tmux session name
+TARGET_SESSION=$(resolve_target "$TARGET")
+
+if [ -z "$TARGET_SESSION" ]; then
+  echo "❌ Error: Could not resolve '$TARGET' to a tmux session"
+  echo ""
+  echo "The target could be:"
+  echo "  - An agent alias (e.g., 'crm', 'backend-api')"
+  echo "  - An agent ID (UUID)"
+  echo "  - A tmux session name"
+  echo ""
+  echo "Available tmux sessions:"
+  tmux list-sessions -F "  - #{session_name}" 2>/dev/null || echo "  (no tmux sessions found)"
+  echo ""
+  echo "Tip: Use 'send-aimaestro-message.sh' for persistent messages that support alias resolution."
   exit 1
+fi
+
+# If we resolved to a different name, show it
+if [ "$TARGET" != "$TARGET_SESSION" ]; then
+  echo "📍 Resolved '$TARGET' to session '$TARGET_SESSION'"
 fi
 
 case "$METHOD" in

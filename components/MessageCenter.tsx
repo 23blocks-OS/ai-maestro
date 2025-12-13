@@ -780,12 +780,14 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
               />
               <datalist id="agents-list">
                 {allAgents.filter(a => a.id !== agentId).map(agent => {
-                  // Use qualified name format (agentId@hostId) for remote agents
-                  const qualifiedId = agent.hostId && agent.hostId !== 'local'
-                    ? `${agent.id}@${agent.hostId}`
-                    : agent.id
+                  // Use alias as value - the API resolves aliases to agent IDs
+                  // For remote agents, append @hostId so the API knows where to route
+                  const isRemote = agent.hostId && agent.hostId !== 'local'
+                  const value = isRemote ? `${agent.alias}@${agent.hostId}` : agent.alias
+                  // Label shows alias with host indicator for remote agents
+                  const label = isRemote ? `${agent.alias} (remote)` : agent.alias
                   return (
-                    <option key={agent.id} value={qualifiedId} label={agent.alias} />
+                    <option key={agent.id} value={value} label={label} />
                   )
                 })}
               </datalist>

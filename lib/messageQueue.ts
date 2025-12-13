@@ -58,6 +58,8 @@ interface ResolvedAgent {
   alias: string
   displayName?: string
   sessionName?: string  // Current tmux session (may be null if offline)
+  hostId?: string       // Host ID (e.g., 'local' or remote host ID)
+  hostUrl?: string      // Full URL to reach this agent's host (e.g., 'http://localhost:23000')
 }
 
 const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
@@ -93,11 +95,18 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
 
   if (!agent) return null
 
+  // Get host info from session or tools
+  const session = agent.tools?.session || (agent as any).session
+  const hostId = session?.hostId || 'local'
+  const hostUrl = session?.hostUrl || 'http://localhost:23000'
+
   return {
     agentId: agent.id,
     alias: agent.alias,
     displayName: agent.displayName,
-    sessionName: agent.tools.session?.tmuxSessionName
+    sessionName: session?.tmuxSessionName,
+    hostId,
+    hostUrl
   }
 }
 

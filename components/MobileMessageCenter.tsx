@@ -604,9 +604,15 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
                 placeholder="Enter agent ID or alias"
               />
               <datalist id="agents-list">
-                {allAgents.filter(a => a.id !== agentId).map(agent => (
-                  <option key={agent.id} value={agent.id} label={agent.alias} />
-                ))}
+                {allAgents.filter(a => a.id !== agentId).map(agent => {
+                  // Use qualified name format (agentId@hostId) for remote agents
+                  const qualifiedId = agent.hostId && agent.hostId !== 'local'
+                    ? `${agent.id}@${agent.hostId}`
+                    : agent.id
+                  return (
+                    <option key={agent.id} value={qualifiedId} label={agent.alias} />
+                  )
+                })}
               </datalist>
             </div>
 

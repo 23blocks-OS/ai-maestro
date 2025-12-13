@@ -11,6 +11,7 @@ export interface AgentRecipient {
   id: string              // Agent ID (used for messaging)
   alias: string           // Display name
   tmuxSessionName?: string // Tmux session name (for backward compatibility)
+  hostId?: string         // Host ID for cross-host messaging (e.g., 'local' or remote host id)
 }
 
 interface MessageCenterProps {
@@ -778,9 +779,15 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                 placeholder="Enter agent ID or alias"
               />
               <datalist id="agents-list">
-                {allAgents.filter(a => a.id !== agentId).map(agent => (
-                  <option key={agent.id} value={agent.id} label={agent.alias} />
-                ))}
+                {allAgents.filter(a => a.id !== agentId).map(agent => {
+                  // Use qualified name format (agentId@hostId) for remote agents
+                  const qualifiedId = agent.hostId && agent.hostId !== 'local'
+                    ? `${agent.id}@${agent.hostId}`
+                    : agent.id
+                  return (
+                    <option key={agent.id} value={qualifiedId} label={agent.alias} />
+                  )
+                })}
               </datalist>
             </div>
 

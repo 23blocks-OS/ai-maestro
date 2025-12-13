@@ -210,7 +210,8 @@ export default function MobileDashboard({
                   allAgents={onlineAgents.map(a => ({
                     id: a.id,
                     alias: a.displayName || a.alias || a.id,
-                    tmuxSessionName: a.session.tmuxSessionName
+                    tmuxSessionName: a.session.tmuxSessionName,
+                    hostId: a.session.hostId
                   }))}
                   hostUrl={agent.session.hostUrl}
                 />

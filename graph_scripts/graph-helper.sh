@@ -16,6 +16,10 @@ get_session() {
 }
 
 # Get the agent UUID for the current tmux session
+# Tries multiple matching strategies:
+# 1. Match by session.tmuxSessionName (exact match)
+# 2. Match by alias (case-insensitive)
+# 3. Match by partial alias in session name segments
 get_agent_id() {
     local session="$1"
     local response
@@ -27,12 +31,37 @@ get_agent_id() {
         return 1
     fi
 
-    # Extract agent ID where currentSession matches our tmux session
-    agent_id=$(echo "$response" | jq -r ".agents[] | select(.currentSession == \"$session\") | .id" 2>/dev/null)
+    # Strategy 1: Match by session.tmuxSessionName (exact match)
+    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null | head -1)
+
+    # Strategy 2: Match by alias (case-insensitive)
+    if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
+        local session_lower
+        session_lower=$(echo "$session" | tr '[:upper:]' '[:lower:]')
+        agent_id=$(echo "$response" | jq -r ".agents[] | select((.alias | ascii_downcase) == \"$session_lower\") | .id" 2>/dev/null | head -1)
+    fi
+
+    # Strategy 3: Check if alias appears as a segment in the session name
+    # e.g., "23blocks-api-crm" contains "crm"
+    if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
+        # Get all agents and check if any alias is a segment of the session name
+        agent_id=$(echo "$response" | jq -r --arg session "$session" '
+            .agents[] |
+            select(
+                ($session | split("-") | map(ascii_downcase)) as $segments |
+                (.alias | ascii_downcase) as $alias |
+                ($segments | index($alias) != null)
+            ) | .id
+        ' 2>/dev/null | head -1)
+    fi
 
     if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
         echo "Error: No agent found for session '$session'" >&2
-        echo "Hint: Run 'register-agent-from-session.mjs' to register this session" >&2
+        echo "" >&2
+        echo "Available agents:" >&2
+        echo "$response" | jq -r '.agents[] | "  - \(.alias) (session: \(.session.tmuxSessionName // "none"))"' 2>/dev/null >&2
+        echo "" >&2
+        echo "Hint: Run 'register-agent-from-session.mjs $session' to register this session" >&2
         return 1
     fi
 

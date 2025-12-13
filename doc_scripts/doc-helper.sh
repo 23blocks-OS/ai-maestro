@@ -27,7 +27,7 @@ get_agent_id() {
         return 1
     fi
 
-    agent_id=$(echo "$response" | jq -r ".agents[] | select(.currentSession == \"$session\") | .id" 2>/dev/null)
+    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null)
 
     if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
         echo "Error: No agent found for session '$session'" >&2

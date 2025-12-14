@@ -2,6 +2,10 @@
 # AI Maestro - Send message directly to tmux session
 # Supports agent ID, alias, or tmux session name as target
 
+# Source messaging helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/messaging-helper.sh"
+
 if [ $# -lt 2 ]; then
   echo "Usage: send-tmux-message.sh <target> <message> [method]"
   echo ""
@@ -26,11 +30,9 @@ TARGET="$1"
 MESSAGE="$2"
 METHOD="${3:-display}"
 
-# Get current session
-FROM_SESSION=$(tmux display-message -p '#S' 2>/dev/null)
-if [ -z "$FROM_SESSION" ]; then
-  FROM_SESSION="unknown"
-fi
+# Initialize messaging to get current session info
+init_messaging 2>/dev/null
+FROM_SESSION="${SESSION:-unknown}"
 
 # Function to resolve target to tmux session name
 resolve_target() {
@@ -43,17 +45,31 @@ resolve_target() {
   fi
 
   # Try to resolve via API (handles aliases, IDs, partial matches)
-  local resolved=$(curl -s "http://localhost:23000/api/messages?agent=$target&action=resolve" 2>/dev/null)
+  local resolved=$(curl -s "${API_BASE}/api/messages?alias=$target&action=resolve" 2>/dev/null)
 
   if [ -n "$resolved" ]; then
-    # Extract sessionName from JSON response
-    local session_name=$(echo "$resolved" | jq -r '.resolved.sessionName // empty' 2>/dev/null)
+    local success=$(echo "$resolved" | jq -r '.success // false' 2>/dev/null)
 
-    if [ -n "$session_name" ] && [ "$session_name" != "null" ]; then
-      # Verify the resolved session exists
-      if tmux has-session -t "$session_name" 2>/dev/null; then
-        echo "$session_name"
-        return 0
+    if [ "$success" = "true" ]; then
+      # Get the agentId and try to find matching tmux session
+      local agent_id=$(echo "$resolved" | jq -r '.agentId // empty' 2>/dev/null)
+
+      if [ -n "$agent_id" ] && [ "$agent_id" != "null" ]; then
+        # Check for structured session name: hostId_agentId
+        local host_id=$(echo "$resolved" | jq -r '.hostId // "local"' 2>/dev/null)
+        local structured_session="${host_id}_${agent_id}"
+
+        if tmux has-session -t "$structured_session" 2>/dev/null; then
+          echo "$structured_session"
+          return 0
+        fi
+
+        # Look for any session containing this agent ID
+        local found_session=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "$agent_id" | head -1)
+        if [ -n "$found_session" ]; then
+          echo "$found_session"
+          return 0
+        fi
       fi
     fi
   fi

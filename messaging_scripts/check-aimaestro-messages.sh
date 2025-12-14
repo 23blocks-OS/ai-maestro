@@ -2,6 +2,10 @@
 # AI Maestro - Check for unread messages
 # Usage: check-aimaestro-messages.sh [--mark-read]
 
+# Source messaging helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/messaging-helper.sh"
+
 MARK_READ=false
 
 # Parse arguments
@@ -33,20 +37,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Get current session
-SESSION=$(tmux display-message -p '#S' 2>/dev/null)
-if [ -z "$SESSION" ]; then
-  echo "Error: Not in a tmux session"
-  exit 1
-fi
+# Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
+init_messaging || exit 1
 
-# Fetch unread messages via API
-RESPONSE=$(curl -s "http://localhost:23000/api/messages?session=${SESSION}&status=unread&box=inbox" 2>&1)
+# Fetch unread messages via API (uses agentId, not session)
+RESPONSE=$(get_unread_messages)
 
 # Check if API call was successful
 if [ $? -ne 0 ]; then
   echo "❌ Error: Failed to connect to AI Maestro API"
-  echo "   Make sure the dashboard is running (http://localhost:23000)"
+  echo "   Make sure the dashboard is running (${API_BASE})"
   exit 1
 fi
 
@@ -78,6 +78,7 @@ fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📬 You have $COUNT unread message(s)"
+echo "   Agent: $AGENT_ID (host: $HOST_ID)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -102,7 +103,7 @@ if [ "$MARK_READ" = true ]; then
     echo "📝 Marking messages as read..."
 
     for MSG_ID in "${MESSAGE_IDS[@]}"; do
-      MARK_RESPONSE=$(curl -s -X PATCH "http://localhost:23000/api/messages?session=${SESSION}&id=${MSG_ID}&action=read")
+      MARK_RESPONSE=$(mark_message_read "$MSG_ID")
       SUCCESS=$(echo "$MARK_RESPONSE" | jq -r '.success' 2>/dev/null)
 
       if [ "$SUCCESS" = "true" ]; then

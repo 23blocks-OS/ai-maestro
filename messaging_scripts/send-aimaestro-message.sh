@@ -1,7 +1,10 @@
 #!/bin/bash
 # AI Maestro - Send a message to another agent
-
 # Usage: send-aimaestro-message.sh <to_agent> <subject> <message> [priority] [type]
+
+# Source messaging helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/messaging-helper.sh"
 
 if [ $# -lt 3 ]; then
   echo "Usage: send-aimaestro-message.sh <to_agent> <subject> <message> [priority] [type]"
@@ -24,12 +27,8 @@ MESSAGE="$3"
 PRIORITY="${4:-normal}"
 TYPE="${5:-request}"
 
-# Get current agent identity (uses session name, API resolves to agent ID)
-FROM_AGENT=$(tmux display-message -p '#S' 2>/dev/null)
-if [ -z "$FROM_AGENT" ]; then
-  echo "Error: Not in a tmux session"
-  exit 1
-fi
+# Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
+init_messaging || exit 1
 
 # Validate priority
 if [[ ! "$PRIORITY" =~ ^(low|normal|high|urgent)$ ]]; then
@@ -43,18 +42,29 @@ if [[ ! "$TYPE" =~ ^(request|response|notification|update)$ ]]; then
   exit 1
 fi
 
-# Build JSON safely using jq to prevent injection
-# API resolves agent identifiers (ID, alias, or session name)
+# Resolve destination agent
+if ! resolve_agent "$TO_AGENT"; then
+  exit 1
+fi
+
+TO_ID="$RESOLVED_AGENT_ID"
+TO_HOST="$RESOLVED_HOST_ID"
+
+# Build JSON payload with agentId (not session name)
 JSON_PAYLOAD=$(jq -n \
-  --arg from "$FROM_AGENT" \
-  --arg to "$TO_AGENT" \
+  --arg from "$AGENT_ID" \
+  --arg fromHost "$HOST_ID" \
+  --arg to "$TO_ID" \
+  --arg toHost "$TO_HOST" \
   --arg subject "$SUBJECT" \
   --arg message "$MESSAGE" \
   --arg priority "$PRIORITY" \
   --arg type "$TYPE" \
   '{
     from: $from,
+    fromHost: $fromHost,
     to: $to,
+    toHost: $toHost,
     subject: $subject,
     priority: $priority,
     content: {
@@ -63,8 +73,8 @@ JSON_PAYLOAD=$(jq -n \
     }
   }')
 
-# Send via API and capture response with HTTP status code
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:23000/api/messages \
+# Send via API
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${API_BASE}/api/messages" \
   -H 'Content-Type: application/json' \
   -d "$JSON_PAYLOAD")
 
@@ -74,7 +84,8 @@ BODY=$(echo "$RESPONSE" | sed '$d')
 
 if [ "$HTTP_CODE" = "201" ]; then
   echo "✅ Message sent to $TO_AGENT"
-  echo "   From: $FROM_AGENT"
+  echo "   From: $AGENT_ID (host: $HOST_ID)"
+  echo "   To: $TO_ID (host: $TO_HOST)"
   echo "   Subject: $SUBJECT"
   echo "   Priority: $PRIORITY"
 else

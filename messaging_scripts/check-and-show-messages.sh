@@ -2,13 +2,15 @@
 # AI Maestro - Check and display UNREAD messages at session start
 # This is the auto-run version that shows in tmux on session attach
 
-SESSION=$(tmux display-message -p '#S' 2>/dev/null)
-if [ -z "$SESSION" ]; then
-  exit 0
-fi
+# Source messaging helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/messaging-helper.sh" 2>/dev/null || exit 0
 
-# Fetch unread messages via API
-RESPONSE=$(curl -s "http://localhost:23000/api/messages?session=${SESSION}&status=unread&box=inbox" 2>/dev/null)
+# Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
+init_messaging 2>/dev/null || exit 0
+
+# Fetch unread messages via API (uses agentId)
+RESPONSE=$(get_unread_messages 2>/dev/null)
 
 # Check if API call was successful
 if [ $? -ne 0 ]; then
@@ -26,6 +28,7 @@ fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo "📬 AI MAESTRO INBOX: $COUNT unread message(s)" >&2
+echo "   Agent: $AGENT_ID (host: $HOST_ID)" >&2
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo "" >&2
 

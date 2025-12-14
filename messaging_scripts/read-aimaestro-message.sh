@@ -2,6 +2,10 @@
 # AI Maestro - Read a specific message and mark as read
 # Usage: read-aimaestro-message.sh <message-id> [--no-mark-read]
 
+# Source messaging helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/messaging-helper.sh"
+
 if [ $# -lt 1 ]; then
   echo "Usage: read-aimaestro-message.sh <message-id> [--no-mark-read]"
   echo ""
@@ -42,20 +46,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Get current session
-SESSION=$(tmux display-message -p '#S' 2>/dev/null)
-if [ -z "$SESSION" ]; then
-  echo "Error: Not in a tmux session"
-  exit 1
-fi
+# Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
+init_messaging || exit 1
 
-# Fetch message via API
-RESPONSE=$(curl -s "http://localhost:23000/api/messages?session=${SESSION}&id=${MESSAGE_ID}&box=inbox" 2>&1)
+# Fetch message via API (uses agentId, not session)
+RESPONSE=$(api_query "GET" "/api/messages?agentId=${AGENT_ID}&id=${MESSAGE_ID}&box=inbox")
 
 # Check if curl failed
 if [ $? -ne 0 ]; then
   echo "❌ Error: Failed to connect to AI Maestro API"
-  echo "   Make sure the dashboard is running (http://localhost:23000)"
+  echo "   Make sure the dashboard is running (${API_BASE})"
   exit 1
 fi
 
@@ -75,6 +75,7 @@ if [ -n "$ERROR" ]; then
   echo "   - Check that the message ID is correct (full ID, not truncated)"
   echo "   - Verify the message exists: check-aimaestro-messages.sh"
   echo "   - Make sure you're in the correct tmux session"
+  echo "   - Current agent: $AGENT_ID (host: $HOST_ID)"
   exit 1
 fi
 
@@ -152,7 +153,7 @@ echo "════════════════════════�
 
 # Mark as read if requested
 if [ "$MARK_READ" = true ]; then
-  MARK_RESPONSE=$(curl -s -X PATCH "http://localhost:23000/api/messages?session=${SESSION}&id=${MESSAGE_ID}&action=read")
+  MARK_RESPONSE=$(mark_message_read "$MESSAGE_ID")
   SUCCESS=$(echo "$MARK_RESPONSE" | jq -r '.success' 2>/dev/null)
 
   if [ "$SUCCESS" = "true" ]; then

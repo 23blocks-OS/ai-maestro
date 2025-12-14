@@ -12,6 +12,11 @@ export interface Agent {
   displayName?: string          // Optional full name (e.g., "ProngHub Notification Agent")
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
 
+  // Host (where the agent lives)
+  hostId: string                // Host identifier (e.g., "local", "mac-mini")
+  hostName?: string             // Human-readable host name
+  hostUrl?: string              // Host URL for API/WebSocket (e.g., "http://100.80.12.6:23000")
+
   // Metadata
   program: string               // AI program (e.g., "Claude Code", "Aider", "Cursor")
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
@@ -45,6 +50,11 @@ export interface Agent {
 
   // Preferences
   preferences?: AgentPreferences
+
+  // Runtime state (set by API, not persisted)
+  session?: AgentSessionStatus   // Live tmux session status
+  isOrphan?: boolean             // True if session exists but agent was auto-registered
+  _cached?: boolean              // True if loaded from cache (remote host unreachable)
 }
 
 export type DeploymentType = 'local' | 'cloud'
@@ -175,6 +185,8 @@ export interface AgentSummary {
   alias: string
   displayName?: string
   avatar?: string               // Avatar URL or emoji
+  hostId: string                // Host where agent lives
+  hostUrl?: string              // Host URL for API calls
   status: AgentStatus
   lastActive: string
   currentSession?: string       // Current tmux session name if running
@@ -195,6 +207,7 @@ export interface CreateAgentRequest {
   workingDirectory?: string
   createSession?: boolean       // Auto-create tmux session
   deploymentType?: DeploymentType // Where to deploy (local or cloud)
+  hostId?: string               // Target host for agent creation (defaults to 'local')
   owner?: string
   team?: string
   documentation?: AgentDocumentation
@@ -234,28 +247,22 @@ export interface UpdateAgentMetricsRequest {
 }
 
 /**
- * Live session status for unified agent view
+ * Live session status (runtime tmux state)
+ * Note: hostId/hostName/hostUrl are now on Agent directly
  */
 export interface AgentSessionStatus {
   status: 'online' | 'offline'
   tmuxSessionName?: string        // Actual tmux session name if online
   workingDirectory?: string       // Current working directory
-  hostId?: string                 // Host identifier (for remote sessions)
-  hostName?: string               // Human-readable host name
-  hostUrl?: string                // Host URL for WebSocket connections (e.g., "http://100.80.12.6:23000")
   lastActivity?: string           // Last activity timestamp (ISO)
   windows?: number                // Number of tmux windows
 }
 
 /**
- * Unified Agent - Agent with live session status merged
- * Used by the agent-centric sidebar
+ * @deprecated Use Agent instead. UnifiedAgent is now just an alias.
+ * Agent now includes session, isOrphan, and _cached directly.
  */
-export interface UnifiedAgent extends Agent {
-  session: AgentSessionStatus
-  isOrphan: boolean               // True if session exists but agent was auto-registered
-  _cached?: boolean               // True if loaded from cache (remote host unreachable)
-}
+export type UnifiedAgent = Agent
 
 /**
  * Statistics about agents from a host

@@ -8,11 +8,11 @@ import {
   ChevronRight,
   Plus
 } from 'lucide-react'
-import type { UnifiedAgent } from '@/types/agent'
+import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 
 interface MobileHostsListProps {
-  agents: UnifiedAgent[]
+  agents: Agent[]
   activeAgentId: string | null
   onAgentSelect: (agentId: string) => void
   onCreateAgent?: () => void
@@ -29,10 +29,10 @@ export default function MobileHostsList({
 
   // Group agents by host
   const groupedAgents = useMemo(() => {
-    const groups: { [hostId: string]: UnifiedAgent[] } = {}
+    const groups: { [hostId: string]: Agent[] } = {}
 
     agents.forEach((agent) => {
-      const hostId = agent.session.hostId || 'local'
+      const hostId = agent.hostId || 'local'
       if (!groups[hostId]) {
         groups[hostId] = []
       }
@@ -75,12 +75,12 @@ export default function MobileHostsList({
   }
 
   // Get display name for an agent
-  const getAgentDisplayName = (agent: UnifiedAgent) => {
+  const getAgentDisplayName = (agent: Agent) => {
     return agent.displayName || agent.alias || agent.id
   }
 
   // Get breadcrumb from tags
-  const getAgentBreadcrumb = (agent: UnifiedAgent) => {
+  const getAgentBreadcrumb = (agent: Agent) => {
     if (agent.tags && agent.tags.length > 0) {
       return agent.tags.join(' / ')
     }
@@ -192,7 +192,7 @@ export default function MobileHostsList({
                           const isActive = agent.id === activeAgentId
                           const displayName = getAgentDisplayName(agent)
                           const breadcrumb = getAgentBreadcrumb(agent)
-                          const isOnline = agent.session.status === 'online'
+                          const isOnline = agent.session?.status === 'online'
 
                           return (
                             <button

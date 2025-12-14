@@ -7,29 +7,29 @@ import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
-import type { UnifiedAgent } from '@/types/agent'
+import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
 
 interface MobileDashboardProps {
-  agents: UnifiedAgent[]
+  agents: Agent[]
   loading: boolean
   error: string | null
   onRefresh: () => void
 }
 
 // Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: UnifiedAgent): Session {
+function agentToSession(agent: Agent): Session {
   return {
-    id: agent.session.tmuxSessionName || agent.id,
+    id: agent.session?.tmuxSessionName || agent.id,
     name: agent.displayName || agent.alias,
-    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
     status: 'active' as const,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActive || agent.createdAt,
     windows: 1,
     agentId: agent.id,
-    hostId: agent.session.hostId,
+    hostId: agent.hostId,
   }
 }
 
@@ -51,7 +51,7 @@ export default function MobileDashboard({
 
   // Filter to only online agents for terminal tabs
   const onlineAgents = useMemo(
-    () => agents.filter(a => a.session.status === 'online'),
+    () => agents.filter(a => a.session?.status === 'online'),
     [agents]
   )
 
@@ -99,7 +99,7 @@ export default function MobileDashboard({
   }
 
   // Get display name for an agent
-  const getAgentDisplayName = (agent: UnifiedAgent) => {
+  const getAgentDisplayName = (agent: Agent) => {
     return agent.displayName || agent.alias || agent.id
   }
 
@@ -107,9 +107,9 @@ export default function MobileDashboard({
   const getAgentHostDisplay = () => {
     if (!activeAgent) return 'No Agent Selected'
     const agentName = getAgentDisplayName(activeAgent)
-    const hostName = activeAgent.session.hostId === 'local'
+    const hostName = activeAgent.hostId === 'local'
       ? 'local'
-      : (hosts.find(h => h.id === activeAgent.session.hostId)?.name || activeAgent.session.hostId || 'local')
+      : (hosts.find(h => h.id === activeAgent.hostId)?.name || activeAgent.hostId || 'local')
     return `${agentName}@${hostName}`
   }
 
@@ -210,10 +210,10 @@ export default function MobileDashboard({
                   allAgents={onlineAgents.map(a => ({
                     id: a.id,
                     alias: a.displayName || a.alias || a.id,
-                    tmuxSessionName: a.session.tmuxSessionName,
-                    hostId: a.session.hostId
+                    tmuxSessionName: a.session?.tmuxSessionName,
+                    hostId: a.hostId
                   }))}
-                  hostUrl={agent.session.hostUrl}
+                  hostUrl={agent.hostUrl}
                 />
               )}
             </div>
@@ -224,9 +224,9 @@ export default function MobileDashboard({
         {activeTab === 'work' && activeAgent && (
           <div className="absolute inset-0">
             <MobileWorkTree
-              sessionName={activeAgent.session.tmuxSessionName || activeAgent.id}
+              sessionName={activeAgent.session?.tmuxSessionName || activeAgent.id}
               agentId={activeAgent.id}
-              hostId={activeAgent.session.hostId}
+              hostId={activeAgent.hostId}
               onConversationSelect={handleConversationSelect}
             />
           </div>

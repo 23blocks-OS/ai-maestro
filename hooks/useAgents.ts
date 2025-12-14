@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { UnifiedAgent, AgentsApiResponse, AgentStats, AgentHostInfo } from '@/types/agent'
+import type { Agent, AgentsApiResponse, AgentStats, AgentHostInfo } from '@/types/agent'
 import type { Host } from '@/types/host'
 import { useHosts } from './useHosts'
 import { cacheRemoteAgents, getCachedAgents } from '@/lib/agent-cache'
@@ -54,15 +54,12 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
 
     const data: AgentsApiResponse = await response.json()
 
-    // Inject host info into each agent's session (for remote hosts, ensure correct hostId/hostName/hostUrl)
+    // Inject host info directly onto agents (for remote hosts, ensure correct hostId/hostName/hostUrl)
     const agents = data.agents.map(agent => ({
       ...agent,
-      session: {
-        ...agent.session,
-        hostId: host.id,
-        hostName: host.name,
-        hostUrl: host.url
-      }
+      hostId: host.id,
+      hostName: host.name,
+      hostUrl: host.url
     }))
 
     // Cache remote host agents for offline access
@@ -100,8 +97,8 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
             agents: cachedAgents,
             stats: {
               total: cachedAgents.length,
-              online: cachedAgents.filter(a => a.session.status === 'online').length,
-              offline: cachedAgents.filter(a => a.session.status === 'offline').length,
+              online: cachedAgents.filter(a => a.session?.status === 'online').length,
+              offline: cachedAgents.filter(a => a.session?.status === 'offline').length,
               orphans: cachedAgents.filter(a => a.isOrphan).length,
               newlyRegistered: 0
             },
@@ -128,11 +125,11 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
  * Aggregate results from multiple hosts
  */
 function aggregateResults(results: HostFetchResult[]): {
-  agents: UnifiedAgent[]
+  agents: Agent[]
   stats: AggregatedStats
   hostErrors: Record<string, Error>
 } {
-  const allAgents: UnifiedAgent[] = []
+  const allAgents: Agent[] = []
   const hostErrors: Record<string, Error> = {}
   let cachedCount = 0
 
@@ -150,8 +147,8 @@ function aggregateResults(results: HostFetchResult[]): {
   // Sort: online first, then alphabetically by alias
   allAgents.sort((a, b) => {
     // Online first
-    if (a.session.status === 'online' && b.session.status !== 'online') return -1
-    if (a.session.status !== 'online' && b.session.status === 'online') return 1
+    if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
+    if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
 
     // Then alphabetically by alias (case-insensitive)
     return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase())
@@ -159,8 +156,8 @@ function aggregateResults(results: HostFetchResult[]): {
 
   const stats: AggregatedStats = {
     total: allAgents.length,
-    online: allAgents.filter(a => a.session.status === 'online').length,
-    offline: allAgents.filter(a => a.session.status === 'offline').length,
+    online: allAgents.filter(a => a.session?.status === 'online').length,
+    offline: allAgents.filter(a => a.session?.status === 'offline').length,
     orphans: allAgents.filter(a => a.isOrphan).length,
     newlyRegistered: results.reduce((sum, r) =>
       sum + (r.response?.stats.newlyRegistered || 0), 0),
@@ -178,7 +175,7 @@ function aggregateResults(results: HostFetchResult[]): {
  */
 export function useAgents() {
   const { hosts, loading: hostsLoading } = useHosts()
-  const [agents, setAgents] = useState<UnifiedAgent[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [stats, setStats] = useState<AggregatedStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -243,13 +240,13 @@ export function useAgents() {
 
   // Computed: agents that are currently online (have active session)
   const onlineAgents = useMemo(
-    () => agents.filter(a => a.session.status === 'online'),
+    () => agents.filter(a => a.session?.status === 'online'),
     [agents]
   )
 
   // Computed: agents that are offline
   const offlineAgents = useMemo(
-    () => agents.filter(a => a.session.status === 'offline'),
+    () => agents.filter(a => a.session?.status === 'offline'),
     [agents]
   )
 
@@ -267,7 +264,7 @@ export function useAgents() {
 
   // Computed: group agents by first tag (level 1 grouping)
   const agentsByGroup = useMemo(() => {
-    const groups: Record<string, UnifiedAgent[]> = {}
+    const groups: Record<string, Agent[]> = {}
 
     for (const agent of agents) {
       const group = agent.tags?.[0] || 'ungrouped'
@@ -280,8 +277,8 @@ export function useAgents() {
     // Sort agents within each group by status (online first), then by alias
     for (const group in groups) {
       groups[group].sort((a, b) => {
-        if (a.session.status === 'online' && b.session.status !== 'online') return -1
-        if (a.session.status !== 'online' && b.session.status === 'online') return 1
+        if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
+        if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
         return a.alias.localeCompare(b.alias)
       })
     }
@@ -291,10 +288,10 @@ export function useAgents() {
 
   // Computed: group agents by host
   const agentsByHost = useMemo(() => {
-    const byHost: Record<string, UnifiedAgent[]> = {}
+    const byHost: Record<string, Agent[]> = {}
 
     for (const agent of agents) {
-      const hostId = agent.session.hostId || 'local'
+      const hostId = agent.hostId || 'local'
       if (!byHost[hostId]) {
         byHost[hostId] = []
       }
@@ -312,7 +309,7 @@ export function useAgents() {
 
   // Find agent by session name
   const getAgentBySession = useCallback(
-    (sessionName: string) => agents.find(a => a.session.tmuxSessionName === sessionName) || null,
+    (sessionName: string) => agents.find(a => a.session?.tmuxSessionName === sessionName) || null,
     [agents]
   )
 

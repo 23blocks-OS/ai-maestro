@@ -20,21 +20,21 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText } from 'lucide-react'
 import ImportAgentDialog from '@/components/ImportAgentDialog'
-import type { UnifiedAgent } from '@/types/agent'
+import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
 // Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: UnifiedAgent): Session {
+function agentToSession(agent: Agent): Session {
   return {
-    id: agent.session.tmuxSessionName || agent.id,
+    id: agent.session?.tmuxSessionName || agent.id,
     name: agent.displayName || agent.alias,
-    workingDirectory: agent.session.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
+    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
     status: 'active' as const,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActive || agent.createdAt,
     windows: 1,
     agentId: agent.id,
-    hostId: agent.session.hostId,
+    hostId: agent.hostId,  // Now directly on agent
   }
 }
 
@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'docs'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [profileAgent, setProfileAgent] = useState<UnifiedAgent | null>(null)
+  const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
   const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -77,7 +77,7 @@ export default function DashboardPage() {
     const sessionParam = params.get('session')
     if (sessionParam && !agentParam) {
       // Find agent by session name
-      const agent = agents.find(a => a.session.tmuxSessionName === decodeURIComponent(sessionParam))
+      const agent = agents.find(a => a.session?.tmuxSessionName === decodeURIComponent(sessionParam))
       if (agent) {
         setActiveAgentId(agent.id)
       }
@@ -124,7 +124,7 @@ export default function DashboardPage() {
       const initPromises = agents.map(async (agent) => {
         try {
           // Use agent's hostUrl to route to correct host for remote agents
-          const baseUrl = agent.session.hostUrl || ''
+          const baseUrl = agent.hostUrl || ''
           const checkResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/memory`)
           const checkData = await checkResponse.json()
 
@@ -156,7 +156,7 @@ export default function DashboardPage() {
     const fetchUnreadCount = async () => {
       try {
         // Use agent's hostUrl to route to the correct host for remote agents
-        const baseUrl = activeAgent.session.hostUrl || ''
+        const baseUrl = activeAgent.hostUrl || ''
         const response = await fetch(`${baseUrl}/api/messages?agentId=${encodeURIComponent(activeAgentId)}&action=unread-count`)
         if (response.ok) {
           const data = await response.json()
@@ -173,19 +173,19 @@ export default function DashboardPage() {
   }, [activeAgentId, activeAgent])
 
   // Agent-centric handlers
-  const handleAgentSelect = (agent: UnifiedAgent) => {
+  const handleAgentSelect = (agent: Agent) => {
     // Can select any agent (online or offline)
     setActiveAgentId(agent.id)
     setIsProfileOpen(false)
   }
 
-  const handleShowAgentProfile = (agent: UnifiedAgent) => {
+  const handleShowAgentProfile = (agent: Agent) => {
     setProfileAgent(agent)
     setProfileScrollToDangerZone(false)
     setIsProfileOpen(true)
   }
 
-  const handleShowAgentProfileDangerZone = (agent: UnifiedAgent) => {
+  const handleShowAgentProfileDangerZone = (agent: Agent) => {
     setProfileAgent(agent)
     setProfileScrollToDangerZone(true)
     setIsProfileOpen(true)
@@ -194,7 +194,7 @@ export default function DashboardPage() {
   const handleDeleteAgent = async (agentId: string) => {
     try {
       // Use profileAgent's hostUrl to route to correct host for remote agents
-      const baseUrl = profileAgent?.session.hostUrl || ''
+      const baseUrl = profileAgent?.hostUrl || ''
       const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
         method: 'DELETE',
       })
@@ -225,7 +225,7 @@ export default function DashboardPage() {
     }
   }
 
-  const handleStartSession = async (agent: UnifiedAgent) => {
+  const handleStartSession = async (agent: Agent) => {
     try {
       const sessionName = agent.tools.session?.tmuxSessionName || `${(agent.tags || []).join('-')}-${agent.alias}`.replace(/^-/, '')
       const workingDirectory = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
@@ -355,7 +355,7 @@ export default function DashboardPage() {
             )}
 
             {/* Offline agent selected - show profile prompt */}
-            {activeAgent && activeAgent.session.status === 'offline' && (
+            {activeAgent && activeAgent.session?.status === 'offline' && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center max-w-md">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
@@ -480,7 +480,7 @@ export default function DashboardPage() {
                     </button>
                     <div className="flex-1" />
                     <div className="flex items-center">
-                      <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.session.hostUrl} />
+                      <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
                       <button
                         onClick={() => handleShowAgentProfile(agent)}
                         className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
@@ -507,17 +507,17 @@ export default function DashboardPage() {
                         allAgents={onlineAgents.map(a => ({
                           id: a.id,
                           alias: a.displayName || a.alias || a.id,
-                          tmuxSessionName: a.session.tmuxSessionName,
-                          hostId: a.session.hostId
+                          tmuxSessionName: a.session?.tmuxSessionName,
+                          hostId: a.hostId
                         }))}
                         isVisible={isActive && activeTab === 'messages'}
-                        hostUrl={agent.session.hostUrl}
+                        hostUrl={agent.hostUrl}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
                         sessionName={session.id}
                         agentId={agent.id}
-                        hostId={agent.session.hostId}
+                        hostId={agent.hostId}
                         isVisible={isActive && activeTab === 'worktree'}
                       />
                     ) : activeTab === 'graph' ? (
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
-                        hostUrl={agent.session.hostUrl}
+                        hostUrl={agent.hostUrl}
                       />
                     ) : (
                       <DocumentationPanel
@@ -534,7 +534,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         isVisible={isActive && activeTab === 'docs'}
                         workingDirectory={session.workingDirectory}
-                        hostUrl={agent.session.hostUrl}
+                        hostUrl={agent.hostUrl}
                       />
                     )}
                   </div>
@@ -588,7 +588,7 @@ export default function DashboardPage() {
             onStartSession={() => handleStartSession(profileAgent)}
             onDeleteAgent={handleDeleteAgent}
             scrollToDangerZone={profileScrollToDangerZone}
-            hostUrl={profileAgent.session.hostUrl}
+            hostUrl={profileAgent.hostUrl}
           />
         )}
 

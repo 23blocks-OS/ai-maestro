@@ -188,7 +188,7 @@ export default function AgentList({
     const filteredAgents =
       selectedHostFilter === 'all'
         ? agents
-        : agents.filter((a) => a.session.hostId === selectedHostFilter)
+        : agents.filter((a) => a.hostId === selectedHostFilter)
 
     filteredAgents.forEach((agent) => {
       const tags = agent.tags || []
@@ -256,7 +256,7 @@ export default function AgentList({
       for (const agent of agents) {
         try {
           // Use agent's hostUrl to route to the correct host for remote agents
-          const baseUrl = agent.session.hostUrl || ''
+          const baseUrl = agent.hostUrl || ''
           const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
           const data = await response.json()
           if (data.count > 0) {
@@ -325,7 +325,7 @@ export default function AgentList({
   }
 
   const handleAgentClick = (agent: UnifiedAgent) => {
-    if (agent.session.status === 'online') {
+    if (agent.session?.status === 'online') {
       // Online agent - select terminal
       onAgentSelect(agent)
     } else {
@@ -449,7 +449,7 @@ export default function AgentList({
               </button>
 
               {hosts.map((host) => {
-                const count = agents.filter((a) => a.session.hostId === host.id).length
+                const count = agents.filter((a) => a.hostId === host.id).length
                 const isSelected = selectedHostFilter === host.id
                 const isLocal = host.type === 'local'
 
@@ -628,7 +628,7 @@ export default function AgentList({
                                   .sort((a, b) => (a.displayName || a.alias).toLowerCase().localeCompare((b.displayName || b.alias).toLowerCase()))
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
-                                  const isOnline = agent.session.status === 'online'
+                                  const isOnline = agent.session?.status === 'online'
                                   const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
 
                                   return (
@@ -714,13 +714,13 @@ export default function AgentList({
                                               </div>
 
                                               {/* Second row: Remote host indicator (below agent name) */}
-                                              {agent.session.hostId && agent.session.hostId !== 'local' && (
+                                              {agent.hostId && agent.hostId !== 'local' && (
                                                 <div className="flex items-center gap-1 mt-0.5">
                                                   <span
                                                     className="text-[10px] text-purple-400 truncate"
-                                                    title={`Running on ${agent.session.hostName || agent.session.hostId}`}
+                                                    title={`Running on ${agent.hostName || agent.hostId}`}
                                                   >
-                                                    @{agent.session.hostName || agent.session.hostId}
+                                                    @{agent.hostName || agent.hostId}
                                                   </span>
                                                 </div>
                                               )}

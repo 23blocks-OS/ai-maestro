@@ -3,6 +3,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
+import { getLocalHost } from '@/lib/hosts-config'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -94,12 +95,21 @@ export function createAgent(request: CreateAgentRequest): Agent {
   // Determine deployment type
   const deploymentType: DeploymentType = request.deploymentType || 'local'
 
+  // Get host information
+  const localHost = getLocalHost()
+  const hostId = request.hostId || localHost?.id || 'local'
+  const hostName = localHost?.name || os.hostname()
+  const hostUrl = localHost?.url || 'http://localhost:23000'
+
   // Create agent
   const agent: Agent = {
     id: uuidv4(),
     alias: request.alias,
     displayName: request.displayName,
     avatar: request.avatar,
+    hostId,
+    hostName,
+    hostUrl,
     program: request.program,
     model: request.model,
     taskDescription: request.taskDescription,
@@ -321,6 +331,8 @@ export function listAgents(): AgentSummary[] {
     alias: a.alias,
     displayName: a.displayName,
     avatar: a.avatar,
+    hostId: a.hostId || 'local',
+    hostUrl: a.hostUrl,
     status: a.status,
     lastActive: a.lastActive,
     currentSession: a.tools.session?.tmuxSessionName,

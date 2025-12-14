@@ -154,13 +154,16 @@ function parseSessionNameToTags(sessionName: string): { tags: string[], alias: s
 /**
  * Auto-create an agent for an orphan session
  */
-function createOrphanAgent(session: DiscoveredSession): Agent {
+function createOrphanAgent(session: DiscoveredSession, hostId: string, hostName: string, hostUrl: string): Agent {
   const { tags, alias } = parseSessionNameToTags(session.name)
 
   const agent: Agent = {
     id: uuidv4(),
     alias,
     displayName: session.name, // Use full session name as display name
+    hostId,                    // Set host directly on agent
+    hostName,
+    hostUrl,
     program: 'claude-code', // Assume Claude Code
     taskDescription: 'Auto-registered from orphan tmux session',
     tags,
@@ -194,15 +197,21 @@ function createOrphanAgent(session: DiscoveredSession): Agent {
 }
 
 /**
- * Convert agent + session status to UnifiedAgent
+ * Merge agent with runtime session status and host info
  */
-function toUnifiedAgent(
+function mergeAgentWithSession(
   agent: Agent,
   sessionStatus: AgentSessionStatus,
+  hostId: string,
+  hostName: string,
+  hostUrl: string,
   isOrphan: boolean
-): UnifiedAgent {
+): Agent {
   return {
     ...agent,
+    hostId,
+    hostName,
+    hostUrl,
     session: sessionStatus,
     isOrphan
   }
@@ -249,7 +258,7 @@ export async function GET(request: Request) {
 
     // 4. Track which sessions have been matched
     const matchedSessionNames = new Set<string>()
-    const unifiedAgents: UnifiedAgent[] = []
+    const resultAgents: Agent[] = []
     const newOrphanAgents: Agent[] = []
 
     // 5. Process each registered agent
@@ -277,48 +286,44 @@ export async function GET(request: Request) {
         }
       }
 
-      // Create session status
+      // Create session status (runtime tmux state only, no host info)
       const sessionStatus: AgentSessionStatus = matchedSession
         ? {
             status: 'online',
             tmuxSessionName: matchedSession.name,
             workingDirectory: matchedSession.workingDirectory,
-            hostId,
-            hostName,
-            hostUrl,
             lastActivity: matchedSession.lastActivity,
             windows: matchedSession.windows
           }
         : {
             status: 'offline',
-            workingDirectory: agent.tools.session?.workingDirectory,
-            hostId,
-            hostName,
-            hostUrl
+            workingDirectory: agent.tools.session?.workingDirectory
           }
 
-      unifiedAgents.push(toUnifiedAgent(agent, sessionStatus, false))
+      resultAgents.push(mergeAgentWithSession(agent, sessionStatus, hostId, hostName, hostUrl, false))
     }
 
     // 6. Process orphan sessions (sessions without matching agents)
     for (const session of discoveredSessions) {
       if (!matchedSessionNames.has(session.name)) {
         // This is an orphan session - auto-register it
-        const orphanAgent = createOrphanAgent(session)
+        const orphanAgent = createOrphanAgent(session, hostId, hostName, hostUrl)
         newOrphanAgents.push(orphanAgent)
 
         const sessionStatus: AgentSessionStatus = {
           status: 'online',
           tmuxSessionName: session.name,
           workingDirectory: session.workingDirectory,
-          hostId,
-          hostName,
-          hostUrl,
           lastActivity: session.lastActivity,
           windows: session.windows
         }
 
-        unifiedAgents.push(toUnifiedAgent(orphanAgent, sessionStatus, true))
+        // orphanAgent already has hostId set, just add session status
+        resultAgents.push({
+          ...orphanAgent,
+          session: sessionStatus,
+          isOrphan: true
+        })
       }
     }
 
@@ -330,22 +335,22 @@ export async function GET(request: Request) {
     }
 
     // 8. Sort: online agents first, then alphabetically by alias
-    unifiedAgents.sort((a, b) => {
+    resultAgents.sort((a, b) => {
       // Online first
-      if (a.session.status === 'online' && b.session.status !== 'online') return -1
-      if (a.session.status !== 'online' && b.session.status === 'online') return 1
+      if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
+      if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
 
       // Then alphabetically by alias (case-insensitive)
       return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase())
     })
 
     return NextResponse.json({
-      agents: unifiedAgents,
+      agents: resultAgents,
       stats: {
-        total: unifiedAgents.length,
-        online: unifiedAgents.filter(a => a.session.status === 'online').length,
-        offline: unifiedAgents.filter(a => a.session.status === 'offline').length,
-        orphans: unifiedAgents.filter(a => a.isOrphan).length,
+        total: resultAgents.length,
+        online: resultAgents.filter(a => a.session?.status === 'online').length,
+        offline: resultAgents.filter(a => a.session?.status === 'offline').length,
+        orphans: resultAgents.filter(a => a.isOrphan).length,
         newlyRegistered: newOrphanAgents.length
       },
       hostInfo: {

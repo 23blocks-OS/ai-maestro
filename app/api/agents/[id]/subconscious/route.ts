@@ -34,8 +34,6 @@ export async function GET(
         startedAt: status.startedAt,
         memoryCheckInterval: status.memoryCheckInterval,
         messageCheckInterval: status.messageCheckInterval,
-        activityState: status.activityState,
-        staggerOffset: status.staggerOffset,
         lastMemoryRun: status.lastMemoryRun,
         lastMessageRun: status.lastMessageRun,
         lastMemoryResult: status.lastMemoryResult,

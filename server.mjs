@@ -30,17 +30,28 @@ const idleTimers = new Map() // sessionName -> { timer, wasActive }
 const IDLE_THRESHOLD_MS = 30 * 1000
 
 /**
- * Get agentId for a session by checking the agent registry
+ * Get agentId for a session
+ *
+ * Session names follow the pattern: hostId_agentId
+ * - For local sessions: the session name IS the agentId (e.g., "my-agent")
+ * - For remote sessions: the session name is "hostId_agentId" (e.g., "remote1_my-agent")
+ *
+ * We verify the agent exists by checking if its database directory exists.
  */
 function getAgentIdForSession(sessionName) {
   try {
-    const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
-    if (fs.existsSync(agentFilePath)) {
-      const agentData = JSON.parse(fs.readFileSync(agentFilePath, 'utf8'))
-      return agentData.id
+    // Parse session name to extract agentId
+    // Format: hostId_agentId or just agentId for local
+    const parts = sessionName.split('_')
+    const agentId = parts.length > 1 ? parts.slice(1).join('_') : sessionName
+
+    // Verify the agent database directory exists
+    const agentDbPath = path.join(os.homedir(), '.aimaestro', 'agents', agentId)
+    if (fs.existsSync(agentDbPath) && fs.statSync(agentDbPath).isDirectory()) {
+      return agentId
     }
   } catch {
-    // Agent file doesn't exist or is invalid
+    // Agent directory doesn't exist or error accessing it
   }
   return null
 }
@@ -185,78 +196,8 @@ app.prepare().then(() => {
     })
   }
 
-  // Handle container agent connections (proxy WebSocket to container)
-  function handleContainerAgent(clientWs, sessionName, containerUrl) {
-    console.log(`🐳 [CONTAINER] Connecting to container: ${containerUrl}`)
-
-    // Connect to container's WebSocket
-    const containerWs = new WebSocket(containerUrl)
-
-    containerWs.on('open', () => {
-      console.log(`🐳 [CONTAINER] Connected to ${sessionName} at ${containerUrl}`)
-
-      // Track activity for container agents too
-      sessionActivity.set(sessionName, Date.now())
-
-      // Proxy messages: browser → container
-      clientWs.on('message', (data) => {
-        if (containerWs.readyState === WebSocket.OPEN) {
-          containerWs.send(data)
-        }
-      })
-
-      // Proxy messages: container → browser
-      containerWs.on('message', (data) => {
-        // Convert Buffer to string if needed
-        const dataStr = typeof data === 'string' ? data : data.toString('utf8')
-
-        if (clientWs.readyState === 1) { // WebSocket.OPEN
-          // CRITICAL: Send as string, not Buffer (browser expects string)
-          clientWs.send(dataStr)
-
-          // Track activity when container sends data
-          if (dataStr.length >= 3) {
-            sessionActivity.set(sessionName, Date.now())
-          }
-        }
-      })
-
-      // Handle container disconnection
-      containerWs.on('close', (code, reason) => {
-        console.log(`🐳 [CONTAINER] Container disconnected: ${sessionName} (${code}: ${reason})`)
-        if (clientWs.readyState === 1) {
-          clientWs.close(1000, 'Container disconnected')
-        }
-      })
-
-      containerWs.on('error', (error) => {
-        console.error(`🐳 [CONTAINER] Error from ${sessionName}:`, error.message)
-        if (clientWs.readyState === 1) {
-          clientWs.close(1011, 'Container error')
-        }
-      })
-
-      // Handle client disconnection
-      clientWs.on('close', () => {
-        console.log(`🐳 [CONTAINER] Client disconnected from ${sessionName}`)
-        if (containerWs.readyState === WebSocket.OPEN) {
-          containerWs.close()
-        }
-      })
-
-      clientWs.on('error', (error) => {
-        console.error(`🐳 [CONTAINER] Client error for ${sessionName}:`, error.message)
-        if (containerWs.readyState === WebSocket.OPEN) {
-          containerWs.close()
-        }
-      })
-    })
-
-    containerWs.on('error', (error) => {
-      console.error(`🐳 [CONTAINER] Failed to connect to ${containerUrl}:`, error.message)
-      clientWs.close(1011, `Cannot connect to container: ${error.message}`)
-    })
-  }
+  // NOTE: Container agent handling removed - not yet implemented
+  // Future: Add handleContainerAgent() when cloud deployment is supported
 
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
@@ -300,24 +241,9 @@ app.prepare().then(() => {
       }
     }
 
-    // Check agent registry to see if this is a cloud (container) agent
-    try {
-      const agentFilePath = path.join(os.homedir(), '.aimaestro', 'agents', `${sessionName}.json`)
-
-      if (fs.existsSync(agentFilePath)) {
-        const agentData = JSON.parse(fs.readFileSync(agentFilePath, 'utf8'))
-
-        if (agentData.deployment?.type === 'cloud' && agentData.deployment.cloud?.websocketUrl) {
-          const containerUrl = agentData.deployment.cloud.websocketUrl
-          console.log(`🐳 [CONTAINER] Proxying ${sessionName} to ${containerUrl}`)
-          handleContainerAgent(ws, sessionName, containerUrl)
-          return
-        }
-      }
-    } catch (error) {
-      console.error(`Error checking agent registry for ${sessionName}:`, error)
-      // Continue with local tmux fallback
-    }
+    // NOTE: Container/cloud agent routing is not yet implemented
+    // Future: Check agent metadata for cloud deployment and proxy to container WebSocket
+    // Currently all agents are local tmux sessions
 
     // Get or create session state (for traditional local tmux sessions)
     let sessionState = sessions.get(sessionName)

@@ -1,52 +1,15 @@
 import { NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
-
-const AGENTS_DIR = path.join(os.homedir(), '.aimaestro', 'agents')
-
-/**
- * Discover agent databases from filesystem (source of truth)
- */
-function discoverAgentDatabases(): string[] {
-  if (!fs.existsSync(AGENTS_DIR)) {
-    return []
-  }
-  try {
-    const entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true })
-    return entries.filter(entry => entry.isDirectory()).map(entry => entry.name)
-  } catch {
-    return []
-  }
-}
-
-interface AgentSubconsciousStatus {
-  agentId: string
-  isRunning: boolean
-  initialized: boolean
-  isWarmingUp: boolean
-  status: {
-    lastMemoryRun: number | null
-    lastMessageRun: number | null
-    lastMemoryResult: {
-      success: boolean
-      messagesProcessed?: number
-      error?: string
-    } | null
-    lastMessageResult: {
-      success: boolean
-      unreadCount?: number
-      error?: string
-    } | null
-    totalMemoryRuns: number
-    totalMessageRuns: number
-  } | null
-}
+import { discoverAgentDatabases } from '@/lib/agent-startup'
+import type {
+  AgentSubconsciousSummary,
+  MemoryRunResult,
+  MessageCheckResult
+} from '@/types/subconscious'
 
 /**
  * Fetch subconscious status for a single agent
  */
-async function fetchAgentStatus(agentId: string): Promise<AgentSubconsciousStatus | null> {
+async function fetchAgentStatus(agentId: string): Promise<AgentSubconsciousSummary | null> {
   try {
     const response = await fetch(`http://localhost:23000/api/agents/${agentId}/subconscious`, {
       cache: 'no-store'
@@ -58,7 +21,14 @@ async function fetchAgentStatus(agentId: string): Promise<AgentSubconsciousStatu
       isRunning: data.isRunning || false,
       initialized: data.initialized || false,
       isWarmingUp: data.isWarmingUp || false,
-      status: data.status || null
+      status: data.status ? {
+        lastMemoryRun: data.status.lastMemoryRun,
+        lastMessageRun: data.status.lastMessageRun,
+        lastMemoryResult: data.status.lastMemoryResult,
+        lastMessageResult: data.status.lastMessageResult,
+        totalMemoryRuns: data.status.totalMemoryRuns,
+        totalMessageRuns: data.status.totalMessageRuns
+      } : null
     }
   } catch {
     return null
@@ -98,7 +68,7 @@ export async function GET() {
     const agentIdsToCheck = discoveredAgentIds.slice(0, 100)
     const statusPromises = agentIdsToCheck.map(fetchAgentStatus)
     const statuses = await Promise.all(statusPromises)
-    const validStatuses = statuses.filter((s): s is AgentSubconsciousStatus => s !== null)
+    const validStatuses = statuses.filter((s): s is AgentSubconsciousSummary => s !== null)
 
     // Aggregate stats
     const activeAgents = validStatuses.filter(s => s.initialized).length
@@ -108,8 +78,8 @@ export async function GET() {
     // Find most recent runs
     let lastMemoryRun: number | null = null
     let lastMessageRun: number | null = null
-    let lastMemoryResult: { success: boolean; messagesProcessed?: number; error?: string } | null = null
-    let lastMessageResult: { success: boolean; unreadCount?: number; error?: string } | null = null
+    let lastMemoryResult: MemoryRunResult | null = null
+    let lastMessageResult: MessageCheckResult | null = null
     let totalMemoryRuns = 0
     let totalMessageRuns = 0
 

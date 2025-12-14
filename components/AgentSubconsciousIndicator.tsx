@@ -2,33 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Brain, Clock, Database, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-react'
-
-interface SubconsciousStatusData {
-  success: boolean
-  exists: boolean
-  initialized: boolean
-  isRunning: boolean
-  isWarmingUp: boolean
-  status: {
-    startedAt: number | null
-    memoryCheckInterval: number
-    messageCheckInterval: number
-    lastMemoryRun: number | null
-    lastMessageRun: number | null
-    lastMemoryResult: {
-      success: boolean
-      messagesProcessed?: number
-      error?: string
-    } | null
-    lastMessageResult: {
-      success: boolean
-      unreadCount?: number
-      error?: string
-    } | null
-    totalMemoryRuns: number
-    totalMessageRuns: number
-  } | null
-}
+import type { AgentSubconsciousStatus } from '@/types/subconscious'
 
 function formatTimeAgo(timestamp: number | null): string {
   if (!timestamp) return 'Never'
@@ -50,7 +24,7 @@ interface Props {
 export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
-  const [status, setStatus] = useState<SubconsciousStatusData | null>(null)
+  const [status, setStatus] = useState<AgentSubconsciousStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showPopover, setShowPopover] = useState(false)

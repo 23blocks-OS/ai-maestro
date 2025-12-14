@@ -2,38 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Brain, Activity, Clock, MessageSquare, Database, AlertCircle, CheckCircle2 } from 'lucide-react'
-
-interface SubconsciousStatusData {
-  success: boolean
-  discoveredAgents: number  // From filesystem (source of truth)
-  activeAgents: number      // In-memory (may be 0 during warmup)
-  runningSubconscious: number
-  isWarmingUp: boolean      // True if discovered > 0 but active = 0
-  totalMemoryRuns: number
-  totalMessageRuns: number
-  lastMemoryRun: number | null
-  lastMessageRun: number | null
-  lastMemoryResult: {
-    success: boolean
-    messagesProcessed?: number
-    conversationsDiscovered?: number
-    error?: string
-  } | null
-  lastMessageResult: {
-    success: boolean
-    unreadCount?: number
-    error?: string
-  } | null
-  agents?: Array<{
-    agentId: string
-    status: {
-      isRunning: boolean
-      startedAt: number | null
-      memoryCheckInterval: number
-      messageCheckInterval: number
-    } | null
-  }>
-}
+import type { GlobalSubconsciousStatus } from '@/types/subconscious'
 
 function formatTimeAgo(timestamp: number | null): string {
   if (!timestamp) return 'Never'
@@ -52,7 +21,7 @@ interface SubconsciousStatusProps {
 }
 
 export function SubconsciousStatus({ refreshTrigger }: SubconsciousStatusProps = {}) {
-  const [status, setStatus] = useState<SubconsciousStatusData | null>(null)
+  const [status, setStatus] = useState<GlobalSubconsciousStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showPopover, setShowPopover] = useState(false)

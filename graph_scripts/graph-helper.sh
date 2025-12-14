@@ -1,35 +1,79 @@
 #!/bin/bash
 # AI Maestro Graph Helper Functions
 # Shared utilities for graph query scripts
-#
-# Sources the centralized agent-helper.sh for agent resolution
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+API_BASE="http://localhost:23000"
 
-# Source the centralized agent helper
-AGENT_HELPER="${SCRIPT_DIR}/../scripts/agent-helper.sh"
-if [ -f "$AGENT_HELPER" ]; then
-    source "$AGENT_HELPER"
-elif [ -f ~/.local/bin/agent-helper.sh ]; then
-    source ~/.local/bin/agent-helper.sh
-else
-    echo "Error: agent-helper.sh not found" >&2
-    echo "Expected at: $AGENT_HELPER or ~/.local/bin/agent-helper.sh" >&2
-    exit 1
-fi
+# Get the current tmux session name
+get_session() {
+    local session
+    session=$(tmux display-message -p '#S' 2>/dev/null)
+    if [ -z "$session" ]; then
+        echo "Error: Not running in a tmux session" >&2
+        return 1
+    fi
+    echo "$session"
+}
+
+# Parse structured session name: hostId_agentId
+# Returns: AGENT_ID and HOST_ID as global variables
+parse_session_name() {
+    local session="$1"
+
+    # Check if session uses structured format (contains underscore after hostId)
+    if [[ "$session" == *"_"* ]]; then
+        HOST_ID="${session%%_*}"
+        AGENT_ID="${session#*_}"
+        return 0
+    fi
+
+    # Legacy format - need to lookup
+    return 1
+}
+
+# Get the agent UUID for the current tmux session
+# First tries to parse from structured session name, falls back to API lookup
+get_agent_id() {
+    local session="$1"
+
+    # Try parsing structured format first (no API call needed)
+    if parse_session_name "$session"; then
+        echo "$AGENT_ID"
+        return 0
+    fi
+
+    # Fallback: API lookup for legacy session names
+    local response
+    local agent_id
+
+    response=$(curl -s "${API_BASE}/api/agents" 2>/dev/null)
+    if [ -z "$response" ]; then
+        echo "Error: Cannot connect to AI Maestro at ${API_BASE}" >&2
+        return 1
+    fi
+
+    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null | head -1)
+
+    if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
+        echo "Error: No agent found for session '$session'" >&2
+        echo "Session format should be: hostId_agentId (e.g., local_uuid-here)" >&2
+        echo "Run 'register-agent-from-session.mjs' to register and rename this session" >&2
+        return 1
+    fi
+
+    AGENT_ID="$agent_id"
+    HOST_ID="local"
+    echo "$agent_id"
+}
 
 # Make a graph query API call
-# Uses AGENT_HOST_URL from agent-helper.sh
 graph_query() {
     local agent_id="$1"
     local query_type="$2"
     shift 2
     local params="$@"
 
-    # Use the agent's host URL (could be remote)
-    local api_base="${AGENT_HOST_URL:-http://localhost:23000}"
-    local url="${api_base}/api/agents/${agent_id}/graph/query?q=${query_type}${params}"
+    local url="${API_BASE}/api/agents/${agent_id}/graph/query?q=${query_type}${params}"
 
     local response
     response=$(curl -s --max-time 10 "$url" 2>/dev/null)
@@ -59,12 +103,23 @@ format_result() {
     echo "$response" | jq '.result' 2>/dev/null
 }
 
-# Initialize - get current agent info
-# Exports: AGENT_ID, AGENT_ALIAS, AGENT_SESSION, AGENT_HOST_ID, AGENT_HOST_URL
-init_graph() {
-    init_agent || return 1
+# Check if jq is available
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        echo "Error: jq is required but not installed" >&2
+        echo "Install with: brew install jq" >&2
+        return 1
+    fi
+}
 
-    # For backward compatibility, also export SESSION
-    SESSION="$AGENT_SESSION"
+# Initialize - get session and agent ID
+init_graph() {
+    check_jq || return 1
+
+    SESSION=$(get_session) || return 1
+    AGENT_ID=$(get_agent_id "$SESSION") || return 1
+
     export SESSION
+    export AGENT_ID
+    export HOST_ID
 }

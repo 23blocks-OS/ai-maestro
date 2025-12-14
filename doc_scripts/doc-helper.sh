@@ -15,9 +15,34 @@ get_session() {
     echo "$session"
 }
 
+# Parse structured session name: hostId_agentId
+# Returns: AGENT_ID and HOST_ID as global variables
+parse_session_name() {
+    local session="$1"
+
+    # Check if session uses structured format (contains underscore after hostId)
+    if [[ "$session" == *"_"* ]]; then
+        HOST_ID="${session%%_*}"
+        AGENT_ID="${session#*_}"
+        return 0
+    fi
+
+    # Legacy format - need to lookup
+    return 1
+}
+
 # Get the agent UUID for the current tmux session
+# First tries to parse from structured session name, falls back to API lookup
 get_agent_id() {
     local session="$1"
+
+    # Try parsing structured format first (no API call needed)
+    if parse_session_name "$session"; then
+        echo "$AGENT_ID"
+        return 0
+    fi
+
+    # Fallback: API lookup for legacy session names
     local response
     local agent_id
 
@@ -27,13 +52,17 @@ get_agent_id() {
         return 1
     fi
 
-    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null)
+    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null | head -1)
 
     if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
         echo "Error: No agent found for session '$session'" >&2
+        echo "Session format should be: hostId_agentId (e.g., local_uuid-here)" >&2
+        echo "Run 'register-agent-from-session.mjs' to register and rename this session" >&2
         return 1
     fi
 
+    AGENT_ID="$agent_id"
+    HOST_ID="local"
     echo "$agent_id"
 }
 
@@ -85,4 +114,5 @@ init_doc() {
 
     export SESSION
     export AGENT_ID
+    export HOST_ID
 }

@@ -142,30 +142,36 @@ export async function POST(request: Request) {
     }
 
     // Local session creation
+    // Determine the actual session name
+    // If agentId is provided, use structured format: hostId_agentId
+    // Otherwise use the provided name (legacy support)
+    const hostId = 'local'
+    const actualSessionName = agentId ? `${hostId}_${agentId}` : name
+
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(
-      `tmux has-session -t "${name}" 2>&1 || echo "not_found"`
+      `tmux has-session -t "${actualSessionName}" 2>&1 || echo "not_found"`
     )
 
     if (!existingCheck.includes('not_found')) {
       return NextResponse.json({ error: 'Session already exists' }, { status: 409 })
     }
 
-    // Create new tmux session
+    // Create new tmux session with structured name
     // Default to current working directory if not specified
     const cwd = workingDirectory || process.cwd()
-    await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
+    await execAsync(`tmux new-session -d -s "${actualSessionName}" -c "${cwd}"`)
 
     // Persist session metadata
     persistSession({
-      id: name,
-      name: name,
+      id: actualSessionName,
+      name: actualSessionName,
       workingDirectory: cwd,
       createdAt: new Date().toISOString(),
       ...(agentId && { agentId })
     })
 
-    return NextResponse.json({ success: true, name })
+    return NextResponse.json({ success: true, name: actualSessionName })
   } catch (error) {
     console.error('Failed to create session:', error)
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })

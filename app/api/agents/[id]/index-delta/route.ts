@@ -3,6 +3,7 @@ import { agentRegistry } from '@/lib/agent'
 import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
+import { getAgent as getRegistryAgent, getAgentBySession } from '@/lib/agent-registry'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -12,9 +13,15 @@ import * as os from 'os'
  * This is called when no projects are registered for an agent
  * @param agentDb - The agent's CozoDB database instance
  * @param agentId - The agent ID to find projects for
+ * @param workingDirectories - Set of known working directories for this agent
  */
-async function autoDiscoverProjects(agentDb: AgentDatabase, agentId: string): Promise<number> {
+async function autoDiscoverProjects(
+  agentDb: AgentDatabase,
+  agentId: string,
+  workingDirectories: Set<string>
+): Promise<number> {
   console.log(`[Delta Index API] Auto-discovering projects for agent ${agentId}...`)
+  console.log(`[Delta Index API] Known working directories: ${Array.from(workingDirectories).join(', ') || 'none'}`)
 
   const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
   if (!fs.existsSync(claudeProjectsDir)) {
@@ -23,7 +30,7 @@ async function autoDiscoverProjects(agentDb: AgentDatabase, agentId: string): Pr
   }
 
   // Get agent's registered sessions to find matching conversations
-  let agentSessionIds = new Set<string>()
+  const agentSessionIds = new Set<string>()
   try {
     const sessionsResult = await getSessions(agentDb, agentId)
     for (const row of sessionsResult.rows) {
@@ -83,9 +90,10 @@ async function autoDiscoverProjects(agentDb: AgentDatabase, agentId: string): Pr
       }
 
       // Check if this conversation belongs to this agent
-      // For now, match by session ID if we have sessions, or by agentId in the path
+      // Match by: 1) session ID, 2) working directory match, 3) agentId in path
       const belongsToAgent =
         (sessionId && agentSessionIds.has(sessionId)) ||
+        (cwd && workingDirectories.has(cwd)) ||
         jsonlPath.includes(agentId) ||
         (cwd && cwd.includes(agentId))
 
@@ -253,7 +261,30 @@ export async function POST(
     // AUTO-DISCOVER: If no projects registered, try to find them from Claude's directory
     if (projectsResult.rows.length === 0) {
       console.log(`[Delta Index API] No projects registered for agent ${agentId} - attempting auto-discovery`)
-      const autoDiscoveredCount = await autoDiscoverProjects(agentDb, agentId)
+
+      // Get agent's known working directories from the file-based registry
+      // The agent's workingDirectory is stored in the registry when the agent is created/session linked
+      const workingDirectories = new Set<string>()
+
+      // Try to find agent in registry by ID first, then by session name
+      const registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
+      if (registryAgent) {
+        // Get workingDirectory from session tools or preferences
+        const sessionWd = registryAgent.tools?.session?.workingDirectory
+        const preferenceWd = registryAgent.preferences?.defaultWorkingDirectory
+        if (sessionWd) {
+          workingDirectories.add(sessionWd)
+          console.log(`[Delta Index API] Found workingDirectory from session: ${sessionWd}`)
+        }
+        if (preferenceWd && preferenceWd !== sessionWd) {
+          workingDirectories.add(preferenceWd)
+          console.log(`[Delta Index API] Found workingDirectory from preferences: ${preferenceWd}`)
+        }
+      } else {
+        console.log(`[Delta Index API] Agent ${agentId} not found in registry - will rely on session/path matching`)
+      }
+
+      const autoDiscoveredCount = await autoDiscoverProjects(agentDb, agentId, workingDirectories)
 
       if (autoDiscoveredCount > 0) {
         // Re-fetch projects after auto-discovery

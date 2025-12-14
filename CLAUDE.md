@@ -90,12 +90,51 @@ When modifying `server.mjs`:
 - Maintain the session pooling logic (multiple clients → one PTY)
 - Never block the event loop during PTY operations
 
-### 2. Agent Auto-Discovery Pattern
+### 2. Agent-First Architecture (CRITICAL)
 
-**Unlike typical agent management systems**, this application does NOT use a configuration file or database. Agents are discovered in real-time from tmux sessions:
+**AGENTS ARE THE CORE ENTITY.** Sessions are optional properties of agents.
 
 ```
-/api/sessions → Execute `tmux ls` → Parse output → Return JSON
+Agent (core entity)
+├── id (UUID)
+├── alias
+├── workingDirectory (stored property, NOT derived from tmux)
+├── tools.session (OPTIONAL)
+│   ├── tmuxSessionName
+│   ├── workingDirectory
+│   └── status
+└── preferences.defaultWorkingDirectory
+```
+
+**Key principles:**
+1. **Agents can exist without sessions** - An agent for querying repos/documents doesn't need a tmux session
+2. **workingDirectory is STORED on the agent** - Set when agent is created or session is linked
+3. **NEVER query tmux to derive agent properties** - All agent data comes from the registry
+4. **Sessions are discovered and LINKED to existing agents** - Not the other way around
+
+**Two agent systems:**
+- **`lib/agent-registry.ts`** - File-based registry (`~/.aimaestro/agents/registry.json`) with full agent metadata
+- **`lib/agent.ts`** - In-memory Agent class for runtime (database, subconscious)
+
+When you need agent metadata (workingDirectory, etc.), use the file-based registry:
+```typescript
+import { getAgent, getAgentBySession } from '@/lib/agent-registry'
+const agent = getAgent(agentId) || getAgentBySession(sessionName)
+const workingDir = agent?.tools?.session?.workingDirectory
+```
+
+**DO NOT:**
+- Query tmux to get working directories
+- Derive agent properties from tmux session state
+- Assume an agent always has a session
+- Create runtime lookups for data that should be stored
+
+### 3. Session Discovery Pattern
+
+Sessions are discovered from tmux and LINKED to agents:
+
+```
+/api/sessions → Execute `tmux ls` → Parse output → Link to registry agents → Return JSON
 ```
 
 **Implementation details:**
@@ -685,6 +724,8 @@ When implementing features:
 
 ## What NOT to Do
 
+- **Don't query tmux to get agent properties** - workingDirectory, etc. are STORED on the agent in the registry, not derived from tmux. See "Agent-First Architecture" section.
+- **Don't assume agents need sessions** - Agents are the core entity; sessions are optional. An agent can exist for querying repos/docs without a tmux session.
 - **Don't use sessions.json** - Sessions are auto-discovered from tmux
 - **Don't implement authentication** - Phase 1 is localhost-only
 - **Don't store terminal history** - xterm.js manages scrollback in-memory
@@ -699,15 +740,17 @@ When implementing features:
 
 **Must read to understand the system:**
 
-1. `server.mjs` - Custom server combining HTTP and WebSocket
-2. `app/page.tsx` - Main UI composition with footer (SessionList + TerminalView)
-3. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, agent management
-4. `components/TerminalView.tsx` - Terminal display with collapsible notes feature
-5. `hooks/useWebSocket.ts` - WebSocket connection management
-6. `hooks/useTerminal.ts` - xterm.js lifecycle management
-7. `app/api/sessions/route.ts` - tmux session discovery logic
+1. `lib/agent-registry.ts` - **File-based agent registry** (stores agents in `~/.aimaestro/agents/registry.json`) - THE source of truth for agent metadata including workingDirectory
+2. `lib/agent.ts` - **In-memory Agent class** for runtime operations (database, subconscious)
+3. `server.mjs` - Custom server combining HTTP and WebSocket
+4. `app/page.tsx` - Main UI composition with footer (SessionList + TerminalView)
+5. `components/SessionList.tsx` - Hierarchical sidebar with dynamic colors, icons, agent management
+6. `components/TerminalView.tsx` - Terminal display with collapsible notes feature
+7. `hooks/useWebSocket.ts` - WebSocket connection management
+8. `hooks/useTerminal.ts` - xterm.js lifecycle management
+9. `app/api/sessions/route.ts` - tmux session discovery logic
 
-**Read these in order** to understand the full data flow from tmux → browser.
+**Read these in order** to understand agents and data flow.
 
 **Key UI patterns:**
 - Tab-based multi-terminal architecture (v0.3.0+) - all agents mounted, visibility toggling

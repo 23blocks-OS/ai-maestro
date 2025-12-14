@@ -10,6 +10,7 @@ import {
   getConversations
 } from '@/lib/cozo-schema-simple'
 import { initializeRagSchema } from '@/lib/cozo-schema-rag'
+import { getAgent as getRegistryAgent, getAgentBySession } from '@/lib/agent-registry'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -144,6 +145,22 @@ export async function POST(
       // Track which sessions belong to this agent
       const agentSessionIds = new Set<string>()
       const projectPaths = new Set<string>()
+
+      // IMPORTANT: Get agent's stored workingDirectory from the file-based registry
+      // This ensures we match conversations even when no active session exists
+      const registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
+      if (registryAgent) {
+        const sessionWd = registryAgent.tools?.session?.workingDirectory
+        const preferenceWd = registryAgent.preferences?.defaultWorkingDirectory
+        if (sessionWd) {
+          projectPaths.add(sessionWd)
+          console.log(`[Memory API] Added workingDirectory from registry session: ${sessionWd}`)
+        }
+        if (preferenceWd && preferenceWd !== sessionWd) {
+          projectPaths.add(preferenceWd)
+          console.log(`[Memory API] Added workingDirectory from registry preferences: ${preferenceWd}`)
+        }
+      }
 
       // Record sessions that belong to this agent
       for (const session of sessionsData.sessions || []) {

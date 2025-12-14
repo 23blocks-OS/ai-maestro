@@ -1,10 +1,124 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
-import { getConversations, recordConversation, recordProject, getProjects } from '@/lib/cozo-schema-simple'
+import { AgentDatabase } from '@/lib/cozo-db'
+import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+
+/**
+ * Auto-discover projects from Claude's projects directory
+ * This is called when no projects are registered for an agent
+ * @param agentDb - The agent's CozoDB database instance
+ * @param agentId - The agent ID to find projects for
+ */
+async function autoDiscoverProjects(agentDb: AgentDatabase, agentId: string): Promise<number> {
+  console.log(`[Delta Index API] Auto-discovering projects for agent ${agentId}...`)
+
+  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+  if (!fs.existsSync(claudeProjectsDir)) {
+    console.log(`[Delta Index API] Claude projects directory not found: ${claudeProjectsDir}`)
+    return 0
+  }
+
+  // Get agent's registered sessions to find matching conversations
+  let agentSessionIds = new Set<string>()
+  try {
+    const sessionsResult = await getSessions(agentDb, agentId)
+    for (const row of sessionsResult.rows) {
+      agentSessionIds.add(row[0] as string)
+    }
+  } catch {
+    // Sessions table might not exist
+  }
+
+  // Recursively find all .jsonl files
+  const findJsonlFiles = (dir: string): string[] => {
+    const files: string[] = []
+    try {
+      const items = fs.readdirSync(dir)
+      for (const item of items) {
+        const itemPath = path.join(dir, item)
+        try {
+          const stats = fs.statSync(itemPath)
+          if (stats.isDirectory()) {
+            files.push(...findJsonlFiles(itemPath))
+          } else if (item.endsWith('.jsonl')) {
+            files.push(itemPath)
+          }
+        } catch {
+          // Skip files we can't read
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+    }
+    return files
+  }
+
+  const allJsonlFiles = findJsonlFiles(claudeProjectsDir)
+  console.log(`[Delta Index API] Found ${allJsonlFiles.length} total conversation files in Claude projects`)
+
+  const discoveredProjects = new Map<string, { projectName: string; claudeDir: string }>()
+  let matchedConversations = 0
+
+  for (const jsonlPath of allJsonlFiles) {
+    try {
+      const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
+      const firstLines = fileContent.split('\n').slice(0, 20)
+
+      let sessionId: string | null = null
+      let cwd: string | null = null
+
+      for (const line of firstLines) {
+        if (!line.trim()) continue
+        try {
+          const message = JSON.parse(line)
+          if (message.sessionId && !sessionId) sessionId = message.sessionId
+          if (message.cwd && !cwd) cwd = message.cwd
+        } catch {
+          // Skip malformed lines
+        }
+      }
+
+      // Check if this conversation belongs to this agent
+      // For now, match by session ID if we have sessions, or by agentId in the path
+      const belongsToAgent =
+        (sessionId && agentSessionIds.has(sessionId)) ||
+        jsonlPath.includes(agentId) ||
+        (cwd && cwd.includes(agentId))
+
+      if (belongsToAgent && cwd) {
+        matchedConversations++
+        if (!discoveredProjects.has(cwd)) {
+          const projectName = cwd.split('/').pop() || 'unknown'
+          const claudeDir = path.dirname(jsonlPath)
+          discoveredProjects.set(cwd, { projectName, claudeDir })
+          console.log(`[Delta Index API] 🆕 Auto-discovered project: ${projectName} (${cwd})`)
+        }
+      }
+    } catch {
+      // Skip files we can't process
+    }
+  }
+
+  // Register discovered projects
+  for (const [projectPath, { projectName, claudeDir }] of discoveredProjects) {
+    try {
+      await recordProject(agentDb, {
+        project_path: projectPath,
+        project_name: projectName,
+        claude_dir: claudeDir
+      })
+    } catch (err) {
+      console.error(`[Delta Index API] Failed to record project ${projectName}:`, err)
+    }
+  }
+
+  console.log(`[Delta Index API] Auto-discovered ${discoveredProjects.size} project(s) from ${matchedConversations} conversation(s)`)
+  return discoveredProjects.size
+}
 
 /**
  * Extract metadata from a conversation file
@@ -134,6 +248,28 @@ export async function POST(
         })
       }
       throw error
+    }
+
+    // AUTO-DISCOVER: If no projects registered, try to find them from Claude's directory
+    if (projectsResult.rows.length === 0) {
+      console.log(`[Delta Index API] No projects registered for agent ${agentId} - attempting auto-discovery`)
+      const autoDiscoveredCount = await autoDiscoverProjects(agentDb, agentId)
+
+      if (autoDiscoveredCount > 0) {
+        // Re-fetch projects after auto-discovery
+        projectsResult = await getProjects(agentDb)
+        console.log(`[Delta Index API] ✓ Auto-discovered ${autoDiscoveredCount} project(s), now have ${projectsResult.rows.length} total`)
+      } else {
+        console.log(`[Delta Index API] No projects could be auto-discovered for agent ${agentId}`)
+        return NextResponse.json({
+          success: true,
+          agent_id: agentId,
+          message: 'No projects found for this agent - conversations will be discovered when sessions are created',
+          new_conversations_discovered: 0,
+          conversations_indexed: 0,
+          total_messages_processed: 0,
+        })
+      }
     }
 
     // Phase 1: DISCOVER new conversation files in each project's claude_dir

@@ -1,23 +1,14 @@
 #!/bin/bash
-# docs-search.sh - Search documentation
+# AI Maestro - Search documentation
 # Usage: docs-search.sh <query>
 #        docs-search.sh --keyword <term>
 #        docs-search.sh --limit 20 <query>
 
 set -e
 
+# Source docs helpers
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/docs-helper.sh" 2>/dev/null || source "$(dirname "$0")/docs-helper.sh" 2>/dev/null || {
-  # Inline helper if not found
-  AIMAESTRO_URL="${AIMAESTRO_URL:-http://localhost:23000}"
-  get_agent_id() {
-    if [ -n "$AIMAESTRO_AGENT_ID" ]; then echo "$AIMAESTRO_AGENT_ID"; return 0; fi
-    if [ -z "$TMUX" ]; then echo "Error: Not in tmux session" >&2; return 1; fi
-    local session_name=$(tmux display-message -p '#S' 2>/dev/null)
-    local response=$(curl -s "${AIMAESTRO_URL}/api/agents?session=${session_name}")
-    echo "$response" | jq -r '.agents[0].id // .[0].id // empty' 2>/dev/null
-  }
-}
+source "${SCRIPT_DIR}/docs-helper.sh"
 
 # Parse arguments
 KEYWORD_MODE=false
@@ -61,23 +52,11 @@ if [ -z "$QUERY" ]; then
   exit 1
 fi
 
-AGENT_ID=$(get_agent_id)
-if [ -z "$AGENT_ID" ]; then
-  exit 1
-fi
+# Initialize (gets SESSION, AGENT_ID, HOST_ID)
+init_docs || exit 1
 
-# URL encode the query
-ENCODED_QUERY=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$QUERY'))" 2>/dev/null || echo "$QUERY")
-
-# Build URL
-if [ "$KEYWORD_MODE" = true ]; then
-  URL="${AIMAESTRO_URL}/api/agents/${AGENT_ID}/docs?action=search&keyword=${ENCODED_QUERY}&limit=${LIMIT}"
-else
-  URL="${AIMAESTRO_URL}/api/agents/${AGENT_ID}/docs?action=search&q=${ENCODED_QUERY}&limit=${LIMIT}"
-fi
-
-# Make request
-RESPONSE=$(curl -s "$URL")
+# Make request using helper
+RESPONSE=$(docs_search "$AGENT_ID" "$QUERY" "$LIMIT" "$KEYWORD_MODE")
 
 # Check for errors
 if echo "$RESPONSE" | jq -e '.success == false' > /dev/null 2>&1; then

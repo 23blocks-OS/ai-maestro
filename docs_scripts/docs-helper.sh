@@ -1,74 +1,84 @@
 #!/bin/bash
-# docs-helper.sh - Common functions for docs scripts
-# This file is sourced by other scripts
+# AI Maestro Documentation Helper Functions
+# Sources common utilities and adds docs-specific functions
 
-# AI Maestro API base URL
-AIMAESTRO_URL="${AIMAESTRO_URL:-http://localhost:23000}"
+# Source common helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh"
 
-# Get agent ID from tmux session name
-get_agent_id() {
-  if [ -n "$AIMAESTRO_AGENT_ID" ]; then
-    echo "$AIMAESTRO_AGENT_ID"
-    return 0
-  fi
+# Make a docs query API call
+docs_query() {
+    local agent_id="$1"
+    local action="$2"
+    shift 2
+    local params="$@"
 
-  if [ -z "$TMUX" ]; then
-    echo "Error: Not in a tmux session and AIMAESTRO_AGENT_ID not set" >&2
-    return 1
-  fi
-
-  local session_name
-  session_name=$(tmux display-message -p '#S' 2>/dev/null)
-  if [ -z "$session_name" ]; then
-    echo "Error: Could not determine tmux session name" >&2
-    return 1
-  fi
-
-  # Query AI Maestro for agent ID by session name
-  local response
-  response=$(curl -s "${AIMAESTRO_URL}/api/agents?session=${session_name}")
-
-  if [ -z "$response" ]; then
-    echo "Error: Could not connect to AI Maestro at ${AIMAESTRO_URL}" >&2
-    return 1
-  fi
-
-  local agent_id
-  agent_id=$(echo "$response" | jq -r '.agents[0].id // empty' 2>/dev/null)
-
-  if [ -z "$agent_id" ]; then
-    # Try alternate response format
-    agent_id=$(echo "$response" | jq -r '.[0].id // empty' 2>/dev/null)
-  fi
-
-  if [ -z "$agent_id" ]; then
-    echo "Error: No agent found for session '${session_name}'" >&2
-    return 1
-  fi
-
-  echo "$agent_id"
+    api_query "GET" "/api/agents/${agent_id}/docs?action=${action}${params}"
 }
 
-# Format JSON output for readability
-format_json() {
-  if command -v jq &> /dev/null; then
-    jq '.'
-  else
-    cat
-  fi
+# Index documentation
+docs_index() {
+    local agent_id="$1"
+    local project_path="$2"
+
+    local body="{}"
+    if [ -n "$project_path" ]; then
+        body=$(jq -n --arg path "$project_path" '{"projectPath": $path}')
+    fi
+
+    api_query "POST" "/api/agents/${agent_id}/docs" -H "Content-Type: application/json" -d "$body"
 }
 
-# Check if AI Maestro is running
-check_aimaestro() {
-  if ! curl -s "${AIMAESTRO_URL}/api/agents" > /dev/null 2>&1; then
-    echo "Error: AI Maestro is not running at ${AIMAESTRO_URL}" >&2
-    echo "Start it with: pm2 start ai-maestro" >&2
-    return 1
-  fi
+# Search documentation
+docs_search() {
+    local agent_id="$1"
+    local query="$2"
+    local limit="${3:-10}"
+    local keyword_mode="${4:-false}"
+
+    local encoded_query
+    encoded_query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))" 2>/dev/null || echo "$query")
+
+    if [ "$keyword_mode" = "true" ]; then
+        api_query "GET" "/api/agents/${agent_id}/docs?action=search&keyword=${encoded_query}&limit=${limit}"
+    else
+        api_query "GET" "/api/agents/${agent_id}/docs?action=search&q=${encoded_query}&limit=${limit}"
+    fi
 }
 
-# URL encode a string
-urlencode() {
-  local string="$1"
-  python3 -c "import urllib.parse; print(urllib.parse.quote('$string'))"
+# Get documentation stats
+docs_stats() {
+    local agent_id="$1"
+    docs_query "$agent_id" "stats"
+}
+
+# List documentation
+docs_list() {
+    local agent_id="$1"
+    local doc_type="${2:-}"
+
+    if [ -n "$doc_type" ]; then
+        docs_query "$agent_id" "list" "&type=${doc_type}"
+    else
+        docs_query "$agent_id" "list"
+    fi
+}
+
+# Get specific document
+docs_get() {
+    local agent_id="$1"
+    local doc_id="$2"
+    docs_query "$agent_id" "get" "&id=${doc_id}"
+}
+
+# Find by type
+docs_find_by_type() {
+    local agent_id="$1"
+    local doc_type="$2"
+    docs_query "$agent_id" "find" "&type=${doc_type}"
+}
+
+# Initialize docs - get session and agent ID
+init_docs() {
+    init_common || return 1
 }

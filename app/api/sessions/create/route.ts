@@ -145,8 +145,8 @@ export async function POST(request: Request) {
     // Determine the actual session name
     // If agentId is provided, use structured format: hostId_agentId
     // Otherwise use the provided name (legacy support)
-    const hostId = 'local'
-    const actualSessionName = agentId ? `${hostId}_${agentId}` : name
+    const localHostId = 'local'
+    const actualSessionName = agentId ? `${localHostId}_${agentId}` : name
 
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(

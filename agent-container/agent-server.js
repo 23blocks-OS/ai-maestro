@@ -24,6 +24,8 @@ const PORT = process.env.AGENT_PORT || 23000
 const AGENT_ID = process.env.AGENT_ID || 'agent-' + Math.random().toString(36).substring(7)
 const SESSION_NAME = process.env.TMUX_SESSION_NAME || 'agent-session'
 const WORKSPACE = process.env.WORKSPACE || '/workspace'
+// AI tool to start in the session (e.g., 'claude', 'aider', 'cursor', or empty for shell only)
+const AI_TOOL = process.env.AI_TOOL || ''
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
@@ -112,9 +114,13 @@ async function initializeTmuxSession() {
       await exec(`tmux new-session -d -s ${SESSION_NAME} -c ${WORKSPACE}`)
       console.log(`✓ Created tmux session: ${SESSION_NAME}`)
 
-      // Start Claude Code CLI in the session
-      await exec(`tmux send-keys -t ${SESSION_NAME} "claude" C-m`)
-      console.log(`✓ Started Claude Code CLI in session`)
+      // Optionally start an AI tool in the session (e.g., 'claude', 'aider', 'cursor')
+      if (AI_TOOL) {
+        await exec(`tmux send-keys -t ${SESSION_NAME} "${AI_TOOL}" C-m`)
+        console.log(`✓ Started ${AI_TOOL} in session`)
+      } else {
+        console.log(`ℹ No AI_TOOL specified - session starts with shell only`)
+      }
     } catch (err) {
       console.error(`✗ Failed to create tmux session:`, err.message)
     }

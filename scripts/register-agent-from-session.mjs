@@ -8,6 +8,14 @@
  *   ./scripts/register-agent-from-session.mjs --all              # Register all sessions (non-interactive)
  *   ./scripts/register-agent-from-session.mjs --session <name>   # Register specific session
  *   ./scripts/register-agent-from-session.mjs -y                 # Non-interactive mode (use defaults)
+ *
+ * Optional AI Tool Configuration:
+ *   --program <name>   # AI tool to use (e.g., claude, aider, cursor)
+ *   --model <name>     # Model to use (e.g., claude-sonnet-4-5, gpt-4)
+ *
+ * Examples:
+ *   ./scripts/register-agent-from-session.mjs --program aider --model gpt-4
+ *   ./scripts/register-agent-from-session.mjs --all -y --program claude
  */
 
 import { execSync } from 'child_process'
@@ -160,8 +168,11 @@ function parseSessionName(sessionName) {
 
 /**
  * Register an agent from a session
+ * @param {string} sessionName - tmux session name
+ * @param {boolean} interactive - prompt for input
+ * @param {object} options - optional overrides { program, model }
  */
-async function registerSession(sessionName, interactive = true) {
+async function registerSession(sessionName, interactive = true, options = {}) {
   // Check if already registered
   const existing = await getAgentBySession(sessionName)
   if (existing) {
@@ -187,7 +198,7 @@ async function registerSession(sessionName, interactive = true) {
   console.log(`   Parsed tags: ${parsed.tags.join(', ') || '(none)'}`)
   console.log(`   Parsed alias: ${parsed.alias}`)
 
-  let alias, displayName, taskDescription, tags
+  let alias, displayName, taskDescription, tags, program, model
 
   if (interactive) {
     console.log('\n--- Agent Metadata ---')
@@ -196,27 +207,39 @@ async function registerSession(sessionName, interactive = true) {
     taskDescription = await question('Task Description: ') || 'General-purpose agent'
     const tagsInput = await question(`Tags (comma-separated) [${parsed.tags.join(', ')}]: `)
     tags = tagsInput ? tagsInput.split(',').map(t => t.trim()) : parsed.tags
+
+    // Ask for program/model (optional - leave empty to not specify)
+    console.log('\n--- AI Tool Configuration (optional) ---')
+    program = options.program || await question('Program (e.g., claude, aider, cursor) [none]: ') || ''
+    model = options.model || await question('Model (e.g., claude-sonnet-4-5, gpt-4) [none]: ') || ''
   } else {
-    // Non-interactive mode: use defaults
+    // Non-interactive mode: use defaults or CLI options
     alias = parsed.alias
     displayName = parsed.alias
     taskDescription = 'General-purpose agent'
     tags = parsed.tags
+    program = options.program || ''
+    model = options.model || ''
   }
 
   try {
-    const response = await createAgentAPI({
+    // Build agent data - only include program/model if specified
+    const agentData = {
       alias,
       displayName,
-      program: 'claude-code',
-      model: 'claude-sonnet-4-5',
       taskDescription,
       tags,
       owner: process.env.USER || 'unknown',
       workingDirectory: workingDir,
       createSession: false, // Don't create session, we're linking existing one
       deploymentType: 'local'
-    })
+    }
+
+    // Only add program/model if explicitly set (support any AI tool)
+    if (program) agentData.program = program
+    if (model) agentData.model = model
+
+    const response = await createAgentAPI(agentData)
 
     // The API returns { agent: {...} }, not just the agent
     const agent = response.agent
@@ -252,6 +275,12 @@ async function main() {
   const sessionIndex = args.indexOf('--session')
   const specificSession = sessionIndex !== -1 ? args[sessionIndex + 1] : null
 
+  // Parse optional --program and --model arguments
+  const programIndex = args.indexOf('--program')
+  const program = programIndex !== -1 ? args[programIndex + 1] : ''
+  const modelIndex = args.indexOf('--model')
+  const model = modelIndex !== -1 ? args[modelIndex + 1] : ''
+
   console.log('🚀 AI Maestro Agent Registration Tool\n')
 
   let sessions = []
@@ -281,7 +310,7 @@ async function main() {
 
   for (const sessionName of sessions) {
     const interactive = !nonInteractive && !isAll && sessions.length === 1
-    const agent = await registerSession(sessionName, interactive)
+    const agent = await registerSession(sessionName, interactive, { program, model })
     results.push({ sessionName, agent, success: agent !== null })
 
     if (sessions.length > 1 && agent) {

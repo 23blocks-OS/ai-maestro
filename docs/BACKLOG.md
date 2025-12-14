@@ -2040,6 +2040,308 @@ Specialist has all original information
 
 ## Later (Future Considerations)
 
+### Professional Distribution System
+
+**Status:** Planned
+**Priority:** Medium
+**Effort:** Medium (3-5 days)
+**Version:** v0.7.0+
+
+**Problem:**
+Current installation requires cloning a repo, running yarn install, building, etc. This is fine for developers but not ideal for broader adoption. Need a "sweet" one-liner installation experience.
+
+**Conclusion - Recommended Approach:**
+
+| Phase | Method | Timeline |
+|-------|--------|----------|
+| **1** | npm global package (`@23blocks/ai-maestro`) | 1-2 days |
+| **2** | Homebrew tap (`brew install ai-maestro`) | 1 day |
+| **3** | `curl \| sh` installer (calls npm or brew) | 1 day |
+| **4** | Pre-built binaries (GitHub Releases) | Later |
+
+**End Goal:**
+```bash
+# The sweet one-liner
+curl -fsSL https://get.aimaestro.dev | sh
+
+# Or platform-specific
+brew install 23blocks/tap/ai-maestro  # macOS
+npm i -g @23blocks/ai-maestro         # Any OS with Node
+```
+
+---
+
+**Distribution Options Evaluated:**
+
+**Option 1: curl | sh (Industry Standard) - RECOMMENDED**
+```bash
+curl -fsSL https://install.aimaestro.dev | sh
+```
+- Detects OS (macOS/Linux/WSL)
+- Downloads pre-built binary or installs via npm
+- Sets up launchd/systemd service
+- Adds CLI to PATH
+- Examples: Homebrew, Rust, Docker, Deno, Bun
+- **Effort:** Medium | **UX:** Excellent
+
+**Option 2: Homebrew (macOS)**
+```bash
+brew tap 23blocks/tap
+brew install ai-maestro
+brew services start ai-maestro
+```
+- Native macOS experience
+- Auto-updates via `brew upgrade`
+- **Effort:** Low | **UX:** Excellent (macOS only)
+
+**Option 3: npm global (Cross-platform)**
+```bash
+npm install -g @23blocks/ai-maestro
+ai-maestro install-service
+ai-maestro start
+```
+- Works anywhere Node.js is installed
+- **Effort:** Low | **UX:** Good (requires Node.js)
+
+**Option 4: Docker Compose (Zero dependencies)**
+```bash
+curl -fsSL https://get.aimaestro.dev/docker | sh
+```
+- Creates docker-compose.yml and starts
+- **Effort:** Low | **UX:** Good (requires Docker)
+
+---
+
+**Why NOT a Desktop App:**
+
+AI Maestro is a **distributed system**, not a desktop app:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Your Mac      │     │  Linux Server   │     │  Cloud VM       │
+│                 │     │                 │     │                 │
+│  ┌───────────┐  │     │  ┌───────────┐  │     │  ┌───────────┐  │
+│  │ AI Maestro│  │────▶│  │ AI Maestro│  │────▶│  │ AI Maestro│  │
+│  │  Service  │  │     │  │  Service  │  │     │  │  Service  │  │
+│  └───────────┘  │     │  └───────────┘  │     │  └───────────┘  │
+│   + Dashboard   │     │   (headless)    │     │   (headless)    │
+│   + Agents      │     │   + Agents      │     │   + Agents      │
+│   + Subconscious│     │   + Subconscious│     │   + Subconscious│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+The right model is **service/daemon**, not desktop app:
+- macOS: launchd plist (like Docker Desktop)
+- Linux: systemd unit or snap/flatpak
+- All: Docker image
+
+The dashboard is just a web UI served by the local service - no need for Electron.
+
+---
+
+**23blocks.com Server Requirements:**
+
+To support the `https://get.aimaestro.dev` URL, need to configure on 23blocks.com servers:
+
+**1. DNS Configuration**
+```
+get.aimaestro.dev  →  A record  →  23blocks server IP
+# OR
+get.aimaestro.dev  →  CNAME     →  23blocks.com
+```
+
+**2. Nginx/Web Server Configuration**
+```nginx
+server {
+    listen 443 ssl;
+    server_name get.aimaestro.dev;
+
+    # SSL certificates (Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/get.aimaestro.dev/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/get.aimaestro.dev/privkey.pem;
+
+    # Main installer script
+    location / {
+        default_type text/plain;
+        root /var/www/aimaestro-installer;
+        try_files /install.sh =404;
+    }
+
+    # Docker installer
+    location /docker {
+        default_type text/plain;
+        root /var/www/aimaestro-installer;
+        try_files /install-docker.sh =404;
+    }
+
+    # Pre-built binaries (future)
+    location /releases/ {
+        root /var/www/aimaestro-installer;
+        autoindex on;
+    }
+}
+```
+
+**3. Installer Scripts to Host**
+```
+/var/www/aimaestro-installer/
+├── install.sh           # Main installer (detects OS, calls npm or brew)
+├── install-docker.sh    # Docker-specific installer
+├── releases/            # Pre-built binaries (future)
+│   ├── ai-maestro-darwin-arm64
+│   ├── ai-maestro-darwin-x64
+│   ├── ai-maestro-linux-x64
+│   └── checksums.txt
+└── version.txt          # Current version for update checks
+```
+
+**4. install.sh Script (Hosted)**
+```bash
+#!/bin/bash
+set -e
+
+echo "AI Maestro Installer"
+echo "===================="
+
+# Detect OS
+OS="unknown"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+fi
+
+# macOS: prefer Homebrew
+if [ "$OS" = "macos" ]; then
+    if command -v brew &> /dev/null; then
+        echo "Installing via Homebrew..."
+        brew tap 23blocks/tap
+        brew install ai-maestro
+        brew services start ai-maestro
+        echo "✅ AI Maestro installed and running"
+        echo "   Dashboard: http://localhost:23000"
+        exit 0
+    fi
+fi
+
+# Fallback: npm global install
+if command -v npm &> /dev/null; then
+    echo "Installing via npm..."
+    npm install -g @23blocks/ai-maestro
+    ai-maestro install-service
+    ai-maestro start
+    echo "✅ AI Maestro installed and running"
+    echo "   Dashboard: http://localhost:23000"
+    exit 0
+fi
+
+echo "❌ Error: Neither Homebrew nor npm found"
+echo "   Install Node.js first: https://nodejs.org"
+exit 1
+```
+
+**5. Homebrew Tap Repository**
+Create: `github.com/23blocks/homebrew-tap`
+```ruby
+# Formula/ai-maestro.rb
+class AiMaestro < Formula
+  desc "Web dashboard for orchestrating multiple AI coding agents"
+  homepage "https://github.com/23blocks-OS/ai-maestro"
+  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.0.tar.gz"
+  sha256 "..."
+  license "MIT"
+
+  depends_on "node@20"
+  depends_on "tmux"
+
+  def install
+    system "npm", "install", "--production"
+    system "npm", "run", "build"
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"bin/ai-maestro"
+  end
+
+  service do
+    run [opt_bin/"ai-maestro", "start"]
+    keep_alive true
+    working_dir var/"ai-maestro"
+    log_path var/"log/ai-maestro.log"
+    error_log_path var/"log/ai-maestro-error.log"
+  end
+end
+```
+
+**6. npm Package Configuration**
+Update `package.json`:
+```json
+{
+  "name": "@23blocks/ai-maestro",
+  "bin": {
+    "ai-maestro": "./bin/ai-maestro.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
+```
+
+Create `bin/ai-maestro.js`:
+```javascript
+#!/usr/bin/env node
+const { spawn } = require('child_process');
+const path = require('path');
+
+const commands = {
+  start: () => spawn('node', [path.join(__dirname, '../server.mjs')], { stdio: 'inherit' }),
+  stop: () => { /* Stop PM2 or launchd service */ },
+  status: () => { /* Check if running */ },
+  'install-service': () => { /* Create launchd/systemd service */ },
+  dashboard: () => { /* Open browser to localhost:23000 */ }
+};
+
+const cmd = process.argv[2] || 'start';
+if (commands[cmd]) {
+  commands[cmd]();
+} else {
+  console.log('Usage: ai-maestro [start|stop|status|install-service|dashboard]');
+}
+```
+
+---
+
+**Implementation Checklist:**
+
+**Phase 1: npm Package**
+- [ ] Create `bin/ai-maestro.js` CLI wrapper
+- [ ] Add `bin` field to package.json
+- [ ] Add `publishConfig` for public npm access
+- [ ] Test `npm install -g` locally
+- [ ] Publish to npm as `@23blocks/ai-maestro`
+- [ ] Test installation on clean machine
+
+**Phase 2: Homebrew Tap**
+- [ ] Create `github.com/23blocks/homebrew-tap` repository
+- [ ] Write `Formula/ai-maestro.rb` formula
+- [ ] Test `brew tap` and `brew install`
+- [ ] Add `brew services` support
+- [ ] Document in README
+
+**Phase 3: curl | sh Installer**
+- [ ] Configure DNS for `get.aimaestro.dev`
+- [ ] Set up Nginx with SSL on 23blocks server
+- [ ] Write and host `install.sh` script
+- [ ] Write and host `install-docker.sh` script
+- [ ] Test installer on macOS/Linux/WSL
+- [ ] Add version checking for updates
+
+**Phase 4: Pre-built Binaries (Future)**
+- [ ] Evaluate `pkg` or `bun build --compile`
+- [ ] Set up GitHub Actions for multi-platform builds
+- [ ] Host binaries at `get.aimaestro.dev/releases/`
+- [ ] Add binary download to installer script
+
+---
+
 ### 8. Message Scheduling
 
 **Problem:** No way to send messages at a specific time.

@@ -129,6 +129,15 @@ const workingDir = agent?.tools?.session?.workingDirectory
 - Assume an agent always has a session
 - Create runtime lookups for data that should be stored
 
+**Subconscious runs LOCAL to the agent:**
+
+The subconscious process runs on the **same machine where the agent lives**. This means it has direct access to:
+- Local conversation files (`~/.claude/projects/`)
+- The agent's CozoDB database (`~/.aimaestro/agents/<id>/`)
+- The local file system (workingDirectory, repos, etc.)
+
+The subconscious does NOT need remote API calls to access agent data - everything is local. This is why `index-delta` can read `.jsonl` files directly from disk.
+
 ### 3. Session Discovery Pattern
 
 Sessions are discovered from tmux and LINKED to agents:

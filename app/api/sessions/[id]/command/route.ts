@@ -4,6 +4,15 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 
+/**
+ * @deprecated Use /api/agents/[id]/session with PATCH method instead.
+ * This endpoint uses tmux session names directly, while the agent endpoint
+ * uses agent IDs and looks up the session from the agent's tools configuration.
+ */
+function logDeprecation() {
+  console.warn('[DEPRECATED] /api/sessions/[id]/command - Use /api/agents/[id]/session (PATCH) instead')
+}
+
 // Define types for global session activity (from server.mjs)
 declare global {
   // eslint-disable-next-line no-var
@@ -84,6 +93,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  logDeprecation()
   try {
     const { id: sessionName } = await params
     const body = await request.json()
@@ -173,6 +183,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  logDeprecation()
   try {
     const { id: sessionName } = await params
 

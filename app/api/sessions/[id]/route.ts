@@ -8,10 +8,20 @@ const execAsync = promisify(exec)
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * @deprecated Use /api/agents/[id]/session?kill=true&deleteAgent=true instead.
+ * This endpoint uses tmux session names directly, while the agent endpoint
+ * uses agent IDs for proper multi-host support.
+ */
+function logDeprecation() {
+  console.warn('[DEPRECATED] DELETE /api/sessions/[id] - Use DELETE /api/agents/[id]/session?kill=true&deleteAgent=true instead')
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  logDeprecation()
   try {
     const { id: sessionName } = await params
 

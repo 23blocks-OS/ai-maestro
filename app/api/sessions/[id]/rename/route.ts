@@ -10,10 +10,20 @@ const execAsync = promisify(exec)
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * @deprecated Use PATCH /api/agents/[id] to update agent alias instead.
+ * This endpoint uses tmux session names directly, while the agent endpoint
+ * uses agent IDs for proper multi-host support.
+ */
+function logDeprecation() {
+  console.warn('[DEPRECATED] PATCH /api/sessions/[id]/rename - Use PATCH /api/agents/[id] to update alias instead')
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  logDeprecation()
   try {
     const [{ newName }, { id: oldName }] = await Promise.all([
       request.json(),

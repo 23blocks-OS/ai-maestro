@@ -21,6 +21,7 @@ interface TerminalViewProps {
 export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false) // Gate for input handler
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
@@ -105,9 +106,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (!term) return
     try {
       term.focus()
-      // CRITICAL: Also clear selection to re-activate selection layer
-      // This ensures xterm's selection service is active, not browser default
-      term.clearSelection()
+      // Note: Do NOT clear selection here - it destroys user's selected text
+      // The selection layer is activated by focusing the terminal
     } catch {}
   }, [])
 
@@ -116,6 +116,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     hostId: session.hostId,  // Pass host ID for remote session routing
     autoConnect: isVisible,  // Only auto-connect when visible
     onOpen: () => {
+      // Reset historyLoaded - server will send new history on each connect
+      setHistoryLoaded(false)
       // Report activity when WebSocket connects
       reportActivity(session.id)
       // Notify parent of connection status change
@@ -132,28 +134,25 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
         // Handle history-complete message
         if (parsed.type === 'history-complete') {
+          setHistoryLoaded(true)
           if (terminalInstanceRef.current) {
             const term = terminalInstanceRef.current
 
             // Wait for xterm.js to finish processing history
             setTimeout(() => {
-              // 1. Scroll to bottom
-              term.scrollToBottom()
+              // 1. CRITICAL: Refit terminal to ensure correct dimensions
+              fitTerminal()
 
-              // 2. Focus terminal to activate selection layer (but not if user is typing in an input)
-              const activeElement = document.activeElement
-              const isInputFocused = activeElement?.tagName === 'INPUT' ||
-                                     activeElement?.tagName === 'TEXTAREA' ||
-                                     activeElement?.tagName === 'SELECT' ||
-                                     activeElement?.getAttribute('contenteditable') === 'true'
+              // 2. Send resize to PTY to sync tmux with correct dimensions
+              // This also triggers a redraw which helps with color issues
+              const resizeMsg = createResizeMessage(term.cols, term.rows)
+              sendMessage(resizeMsg)
 
-              if (!isInputFocused) {
+              // 3. Scroll to bottom and focus
+              setTimeout(() => {
+                term.scrollToBottom()
                 term.focus()
-              }
-
-              // 3. Clear selection to ensure selection layer is initialized
-              // This activates xterm.js's selection service
-              term.clearSelection()
+              }, 50)
             }, 100)
           }
           return
@@ -172,47 +171,49 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         // Not JSON - it's terminal data, continue processing
       }
 
-      // Only report activity for substantial content (not cursor blinks or control sequences)
-      // Filter out idle terminal noise to properly detect active vs idle state
-
-      // Write data to terminal
+      // Write data to terminal - keep this simple, no state updates during write
+      // State updates during rapid writes can cause React reconciliation issues
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
       } else {
         messageBufferRef.current.push(data)
       }
-
-      // Skip reporting activity for tiny packets (likely just control codes)
-      if (data.length < 3) return
-
-      // Skip pure escape sequences without printable content
-      // Escape sequences start with ESC (\x1b) and contain only control characters
-      const isPureEscape = data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data)
-      if (isPureEscape) return
-
-      // This looks like real content - report activity
-      reportActivity(session.id)
     },
   })
 
   // Initialize terminal ONCE on mount - never re-initialize
   // Tab-based architecture: terminal stays mounted, just hidden via CSS
   useEffect(() => {
-    // Wait for the DOM ref to be ready
-    if (!terminalRef.current) {
-      return
-    }
-
-    // Check if container is actually visible and has dimensions
-    const rect = terminalRef.current.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) {
-      return
-    }
-
-
     let cleanup: (() => void) | undefined
+    let retryCount = 0
+    const maxRetries = 10
+    const retryDelay = 100 // ms
+    let retryTimer: NodeJS.Timeout | null = null
+    let mounted = true
 
-    const init = async () => {
+    const tryInit = async () => {
+      if (!mounted) return
+
+      // Wait for the DOM ref to be ready
+      if (!terminalRef.current) {
+        if (retryCount < maxRetries) {
+          retryCount++
+          retryTimer = setTimeout(tryInit, retryDelay)
+        }
+        return
+      }
+
+      // Check if container is actually visible and has dimensions
+      const rect = terminalRef.current.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) {
+        if (retryCount < maxRetries) {
+          retryCount++
+          retryTimer = setTimeout(tryInit, retryDelay)
+        } else {
+          console.warn(`[Terminal] Failed to get valid dimensions after ${maxRetries} retries for session ${session.id}`)
+        }
+        return
+      }
 
       const containerElement = terminalRef.current
       if (!containerElement) {
@@ -220,17 +221,24 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         return
       }
 
-      cleanup = await initializeTerminal(containerElement)
-
-      setIsReady(true)
+      try {
+        cleanup = await initializeTerminal(containerElement)
+        if (mounted) {
+          setIsReady(true)
+        }
+      } catch (error) {
+        console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
+      }
     }
 
-    init().catch((error) => {
-      console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
-    })
+    tryInit()
 
     // Cleanup only on unmount (when tab is removed from DOM)
     return () => {
+      mounted = false
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
       if (cleanup) {
         cleanup()
       }
@@ -263,6 +271,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal, session.id])
 
   // Handle terminal input
+  // Note: Removed historyLoaded gate - it was preventing typing until ESC was pressed
   useEffect(() => {
     if (!terminal || !isConnected) {
       return
@@ -617,15 +626,11 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       >
         <div
           ref={terminalRef}
-          onClick={() => {
-            // CRITICAL: On every click, forcefully re-activate selection layer
-            // This fixes the yellow highlight issue by ensuring xterm's selection
-            // service is always active when user interacts with terminal
+          onMouseDown={() => {
+            // Focus terminal on mousedown to ensure xterm handles selection properly
+            // xterm.js needs focus to use its internal selection (not browser native yellow)
             if (terminalInstanceRef.current) {
-              const term = terminalInstanceRef.current
-              term.focus()
-              // Clear and re-activate selection service
-              term.clearSelection()
+              terminalInstanceRef.current.focus()
             }
           }}
           style={{
@@ -633,7 +638,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             flex: '1 1 0%',
             minHeight: 0,
             width: '100%',
-            position: 'relative'
+            position: 'relative',
+            // Prevent browser native text selection on this container
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
           }}
         />
         {!isReady && (

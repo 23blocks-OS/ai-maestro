@@ -10,9 +10,11 @@ export interface Message {
   from: string           // Agent ID (or session name for backward compat)
   fromAlias?: string     // Agent alias for display
   fromSession?: string   // Actual session name (for delivery)
+  fromHost?: string      // Host ID where sender resides (e.g., 'local', 'mac-mini')
   to: string             // Agent ID (or session name for backward compat)
   toAlias?: string       // Agent alias for display
   toSession?: string     // Actual session name (for delivery)
+  toHost?: string        // Host ID where recipient resides
   timestamp: string
   subject: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
@@ -43,8 +45,10 @@ export interface MessageSummary {
   id: string
   from: string
   fromAlias?: string
+  fromHost?: string
   to: string
   toAlias?: string
+  toHost?: string
   timestamp: string
   subject: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
@@ -187,6 +191,7 @@ async function ensureAgentDirectories(agentId: string): Promise<void> {
 /**
  * Send a message from one agent to another
  * Accepts agent alias, ID, or session name as identifiers
+ * Supports cross-host messaging via fromHost/toHost options
  */
 export async function sendMessage(
   from: string,
@@ -196,6 +201,10 @@ export async function sendMessage(
   options?: {
     priority?: Message['priority']
     inReplyTo?: string
+    fromHost?: string      // Host ID where sender is (for cross-host messages)
+    toHost?: string        // Host ID where recipient is
+    fromAlias?: string     // Pre-resolved alias (from remote host)
+    toAlias?: string       // Pre-resolved alias (from remote host)
   }
 ): Promise<Message> {
   await ensureMessageDirectories()
@@ -203,11 +212,8 @@ export async function sendMessage(
   // Parse qualified name (identifier@host-id)
   const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(to)
 
-  // Resolve sender agent
+  // Resolve sender agent (may fail for remote senders - that's ok, use provided info)
   const fromAgent = resolveAgent(from)
-  if (!fromAgent) {
-    throw new Error(`Unknown sender: ${from}. Please register this agent first.`)
-  }
 
   // Resolve recipient agent
   const toAgent = resolveAgent(toIdentifier)
@@ -215,17 +221,26 @@ export async function sendMessage(
     throw new Error(`Unknown recipient: ${to}. Please ensure the agent is registered.`)
   }
 
-  await ensureAgentDirectories(fromAgent.agentId)
+  // For local sender, ensure directories exist
+  if (fromAgent) {
+    await ensureAgentDirectories(fromAgent.agentId)
+  }
   await ensureAgentDirectories(toAgent.agentId)
+
+  // Determine host info - use provided values or resolve from local agent
+  const fromHostId = options?.fromHost || fromAgent?.hostId || 'local'
+  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || 'local'
 
   const message: Message = {
     id: generateMessageId(),
-    from: fromAgent.agentId,
-    fromAlias: fromAgent.alias,
-    fromSession: fromAgent.sessionName,
+    from: fromAgent?.agentId || from,
+    fromAlias: options?.fromAlias || fromAgent?.alias,
+    fromSession: fromAgent?.sessionName,
+    fromHost: fromHostId,
     to: toAgent.agentId,
-    toAlias: toAgent.alias,
+    toAlias: options?.toAlias || toAgent.alias,
     toSession: toAgent.sessionName,
+    toHost: toHostId,
     timestamp: new Date().toISOString(),
     subject,
     priority: options?.priority || 'normal',
@@ -256,10 +271,12 @@ export async function sendMessage(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: fromAgent.agentId,
-          fromAlias: fromAgent.alias,
-          to: toAgent.agentId,
-          toAlias: toAgent.alias,
+          from: message.from,
+          fromAlias: message.fromAlias,
+          fromHost: message.fromHost,
+          to: message.to,
+          toAlias: message.toAlias,
+          toHost: message.toHost,
           subject,
           content,
           priority: options?.priority,
@@ -283,7 +300,10 @@ export async function sendMessage(
   }
 
   // Always write to sender's sent folder (locally) using agent ID
-  const sentPath = path.join(getSentDir(fromAgent.agentId), `${message.id}.json`)
+  // For local senders, use resolved agent ID; for remote senders, use the from field
+  const senderAgentId = fromAgent?.agentId || message.from
+  await ensureAgentDirectories(senderAgentId)
+  const sentPath = path.join(getSentDir(senderAgentId), `${message.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(message, null, 2))
 
   return message
@@ -517,8 +537,10 @@ async function collectMessagesFromDir(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,
@@ -570,8 +592,10 @@ async function listInboxMessagesByFolder(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,
@@ -674,8 +698,10 @@ async function collectSentMessagesFromDir(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,
@@ -725,8 +751,10 @@ async function listSentMessagesByFolder(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
         priority: message.priority,

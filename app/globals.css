@@ -93,19 +93,19 @@ body {
   background: #4e4e4e;
 }
 
+/* xterm.js selection styling */
 .xterm-screen {
   cursor: text;
-  /* Explicitly enable text selection in terminal */
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
 }
 
-/* Make selection visible */
-.xterm .xterm-selection div {
-  background-color: rgba(58, 61, 65, 0.8) !important;
-  color: #ffffff !important;
+/* Hide accessibility elements to prevent yellow browser selection */
+.xterm .xterm-accessibility,
+.xterm .xterm-accessibility-tree {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
 }
 
 /* Prevent text selection on UI elements */

@@ -26,17 +26,54 @@ get_sent_dir() {
     echo "${HOME}/.aimaestro/messages/sent/${agent_id}"
 }
 
+# Parse agent@host syntax
+# Usage: parse_agent_host "agent@host" or "agent" (defaults to local)
+# Sets: PARSED_AGENT, PARSED_HOST
+parse_agent_host() {
+    local input="$1"
+
+    if [[ "$input" == *"@"* ]]; then
+        PARSED_AGENT="${input%%@*}"
+        PARSED_HOST="${input#*@}"
+    else
+        PARSED_AGENT="$input"
+        PARSED_HOST="local"
+    fi
+}
+
 # Resolve agent alias to agentId and hostId
-# Usage: resolve_agent "alias-or-id"
+# Supports: "alias", "alias@host", "agentId", "agentId@host"
+# Usage: resolve_agent "alias-or-id[@host]"
 # Sets: RESOLVED_AGENT_ID, RESOLVED_HOST_ID, RESOLVED_HOST_URL, RESOLVED_ALIAS, RESOLVED_NAME
 resolve_agent() {
     local alias_or_id="$1"
 
+    # Parse agent@host syntax
+    parse_agent_host "$alias_or_id"
+    local agent_part="$PARSED_AGENT"
+    local host_part="$PARSED_HOST"
+
+    # Load hosts config if not already loaded
+    if [ ${#HOST_URLS[@]} -eq 0 ]; then
+        load_hosts_config
+    fi
+
+    # Get the API URL for the target host
+    local target_api
+    target_api=$(get_host_url "$host_part" 2>/dev/null)
+
+    if [ -z "$target_api" ]; then
+        echo "Error: Unknown host '$host_part'" >&2
+        echo "Available hosts: ${!HOST_URLS[*]}" >&2
+        return 1
+    fi
+
+    # Query the target host's API to resolve the agent
     local response
-    response=$(curl -s "${API_BASE}/api/messages?action=resolve&agent=${alias_or_id}" 2>/dev/null)
+    response=$(curl -s "${target_api}/api/messages?action=resolve&agent=${agent_part}" 2>/dev/null)
 
     if [ -z "$response" ]; then
-        echo "Error: Cannot connect to AI Maestro at ${API_BASE}" >&2
+        echo "Error: Cannot connect to AI Maestro at ${target_api}" >&2
         return 1
     fi
 
@@ -45,13 +82,13 @@ resolve_agent() {
     resolved=$(echo "$response" | jq -r '.resolved // empty' 2>/dev/null)
 
     if [ -z "$resolved" ] || [ "$resolved" = "null" ]; then
-        echo "Error: Could not resolve agent '${alias_or_id}'" >&2
+        echo "Error: Could not resolve agent '${agent_part}' on host '${host_part}'" >&2
         return 1
     fi
 
     RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.resolved.agentId' 2>/dev/null)
-    RESOLVED_HOST_ID=$(echo "$response" | jq -r '.resolved.hostId // "local"' 2>/dev/null)
-    RESOLVED_HOST_URL=$(echo "$response" | jq -r '.resolved.hostUrl // ""' 2>/dev/null)
+    RESOLVED_HOST_ID="$host_part"
+    RESOLVED_HOST_URL="$target_api"
     RESOLVED_ALIAS=$(echo "$response" | jq -r '.resolved.alias // ""' 2>/dev/null)
     RESOLVED_NAME=$(echo "$response" | jq -r '.resolved.displayName // .resolved.alias // ""' 2>/dev/null)
 

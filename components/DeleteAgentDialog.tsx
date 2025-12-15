@@ -107,7 +107,6 @@ export default function DeleteAgentDialog({
                     <span className="text-2xl">🤖</span>
                     <div>
                       <div className="font-semibold text-white">{displayName}</div>
-                      <div className="text-xs text-gray-400 font-mono">{agentId}</div>
                     </div>
                   </div>
                 </div>

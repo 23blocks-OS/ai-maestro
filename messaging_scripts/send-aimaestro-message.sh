@@ -7,17 +7,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/messaging-helper.sh"
 
 if [ $# -lt 3 ]; then
-  echo "Usage: send-aimaestro-message.sh <to_agent> <subject> <message> [priority] [type]"
+  echo "Usage: send-aimaestro-message.sh <to_agent[@host]> <subject> <message> [priority] [type]"
   echo ""
   echo "Arguments:"
-  echo "  to_agent    - Target agent (agent ID, alias, or session name)"
+  echo "  to_agent    - Target agent with optional host: alias, alias@host, or agentId@host"
+  echo "                Examples: backend-api, backend-api@mac-mini, my-agent@local"
   echo "  subject     - Message subject"
   echo "  message     - Message content"
   echo "  priority    - Optional: low|normal|high|urgent (default: normal)"
   echo "  type        - Optional: request|response|notification|update (default: request)"
   echo ""
-  echo "Example:"
-  echo "  send-aimaestro-message.sh backend-architect \"Need API\" \"Please implement POST /api/users\" high request"
+  echo "Examples:"
+  echo "  # Send to local agent"
+  echo "  send-aimaestro-message.sh backend-architect \"Need API\" \"Please implement POST /api/users\""
+  echo ""
+  echo "  # Send to agent on remote host"
+  echo "  send-aimaestro-message.sh backend-api@mac-mini \"Status update\" \"Deployment complete\" high"
   exit 1
 fi
 
@@ -49,12 +54,36 @@ fi
 
 TO_ID="$RESOLVED_AGENT_ID"
 TO_HOST="$RESOLVED_HOST_ID"
+TO_ALIAS="$RESOLVED_ALIAS"
 
-# Build JSON payload with agentId (not session name)
+# Resolve sender's alias for display on remote host
+SENDER_ALIAS=""
+if resolve_agent "$AGENT_ID" 2>/dev/null; then
+    SENDER_ALIAS="$RESOLVED_ALIAS"
+fi
+
+# Determine which API to send to (local or remote)
+# If target is on a different host, send directly to that host's API
+TARGET_API="$API_BASE"
+if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
+    # Message is for a remote host - get its URL
+    TARGET_API="$RESOLVED_HOST_URL"
+    if [ -z "$TARGET_API" ]; then
+        TARGET_API=$(get_host_url "$TO_HOST" 2>/dev/null)
+    fi
+    if [ -z "$TARGET_API" ]; then
+        echo "❌ Cannot find URL for host '$TO_HOST'" >&2
+        exit 1
+    fi
+fi
+
+# Build JSON payload with agentId and aliases for cross-host display
 JSON_PAYLOAD=$(jq -n \
   --arg from "$AGENT_ID" \
+  --arg fromAlias "$SENDER_ALIAS" \
   --arg fromHost "$HOST_ID" \
   --arg to "$TO_ID" \
+  --arg toAlias "$TO_ALIAS" \
   --arg toHost "$TO_HOST" \
   --arg subject "$SUBJECT" \
   --arg message "$MESSAGE" \
@@ -62,8 +91,10 @@ JSON_PAYLOAD=$(jq -n \
   --arg type "$TYPE" \
   '{
     from: $from,
+    fromAlias: $fromAlias,
     fromHost: $fromHost,
     to: $to,
+    toAlias: $toAlias,
     toHost: $toHost,
     subject: $subject,
     priority: $priority,
@@ -73,8 +104,8 @@ JSON_PAYLOAD=$(jq -n \
     }
   }')
 
-# Send via API
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${API_BASE}/api/messages" \
+# Send via API (local or remote depending on target host)
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${TARGET_API}/api/messages" \
   -H 'Content-Type: application/json' \
   -d "$JSON_PAYLOAD")
 

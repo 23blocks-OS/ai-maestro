@@ -1,8 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2 } from 'lucide-react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle } from 'lucide-react'
 import type { Host } from '@/types/host'
+import localVersion from '@/version.json'
+
+/**
+ * Compare two semver-like version strings
+ * Returns: -1 if a < b, 0 if a === b, 1 if a > b
+ */
+function compareVersions(a: string, b: string): number {
+  const partsA = a.split('.').map(Number)
+  const partsB = b.split('.').map(Number)
+
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const numA = partsA[i] || 0
+    const numB = partsB[i] || 0
+    if (numA < numB) return -1
+    if (numA > numB) return 1
+  }
+  return 0
+}
 
 export default function HostsSection() {
   const [hosts, setHosts] = useState<Host[]>([])
@@ -11,6 +29,7 @@ export default function HostsSection() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [healthStatus, setHealthStatus] = useState<Record<string, 'checking' | 'online' | 'offline'>>({})
+  const [hostVersions, setHostVersions] = useState<Record<string, string>>({})
 
   // Form state
   const [formData, setFormData] = useState<Partial<Host>>({
@@ -27,6 +46,32 @@ export default function HostsSection() {
   useEffect(() => {
     fetchHosts()
   }, [])
+
+  // Auto-check health for all hosts on mount to get versions
+  useEffect(() => {
+    if (hosts.length > 0) {
+      hosts.forEach(host => {
+        if (host.enabled) {
+          if (host.type === 'local') {
+            // For local host, fetch version directly
+            fetch('/api/config')
+              .then(res => res.json())
+              .then(data => {
+                if (data.version) {
+                  setHostVersions(prev => ({ ...prev, [host.id]: data.version }))
+                }
+                setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
+              })
+              .catch(() => {
+                setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
+              })
+          } else {
+            checkHealth(host)
+          }
+        }
+      })
+    }
+  }, [hosts.length]) // Only run when hosts list changes
 
   const fetchHosts = async () => {
     try {
@@ -53,7 +98,12 @@ export default function HostsSection() {
       })
 
       if (response.ok) {
+        const data = await response.json()
         setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
+        // Store version if available
+        if (data.version) {
+          setHostVersions(prev => ({ ...prev, [host.id]: data.version }))
+        }
       } else {
         setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
       }
@@ -256,6 +306,23 @@ export default function HostsSection() {
                       <span className="px-2 py-0.5 text-xs bg-gray-500/10 border border-gray-500/30 text-gray-400 rounded">
                         Disabled
                       </span>
+                    )}
+                    {hostVersions[host.id] && (
+                      compareVersions(hostVersions[host.id], localVersion.version) < 0 ? (
+                        // Outdated version - show warning
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded font-mono cursor-help"
+                          title={`Outdated: This host is running v${hostVersions[host.id]}, but v${localVersion.version} is available. Update recommended.`}
+                        >
+                          <ArrowUpCircle className="w-3 h-3" />
+                          v{hostVersions[host.id]}
+                        </span>
+                      ) : (
+                        // Current or newer version
+                        <span className="px-2 py-0.5 text-xs bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono">
+                          v{hostVersions[host.id]}
+                        </span>
+                      )
                     )}
                   </div>
 

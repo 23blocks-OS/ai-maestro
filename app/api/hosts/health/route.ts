@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic'
  *
  * This avoids CORS issues and network accessibility problems
  * when browser tries to fetch directly from remote hosts
+ *
+ * Returns: { success, status, url, version? }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -38,10 +40,14 @@ export async function GET(request: NextRequest) {
     const result = await makeHealthCheckRequest(parsedUrl, 3000)
 
     if (result.success) {
+      // Also fetch version info from /api/config
+      const versionResult = await fetchVersionInfo(parsedUrl, 3000)
+
       return NextResponse.json({
         success: true,
         status: 'online',
-        url: hostUrl
+        url: hostUrl,
+        version: versionResult.version || null
       })
     } else {
       return NextResponse.json({
@@ -103,6 +109,58 @@ function makeHealthCheckRequest(
 
     req.on('error', (err) => {
       resolve({ success: false, error: err.message })
+    })
+
+    req.end()
+  })
+}
+
+/**
+ * Fetch version info from remote host's /api/config endpoint
+ */
+function fetchVersionInfo(
+  url: URL,
+  timeout: number
+): Promise<{ version?: string }> {
+  return new Promise((resolve) => {
+    const protocol = url.protocol === 'https:' ? https : http
+
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: '/api/config',
+      method: 'GET',
+      timeout,
+      headers: {
+        'User-Agent': 'AI-Maestro-Health-Check',
+        'Accept': 'application/json'
+      }
+    }
+
+    const req = protocol.request(options, (res) => {
+      let data = ''
+
+      res.on('data', (chunk) => {
+        data += chunk
+      })
+
+      res.on('end', () => {
+        try {
+          const config = JSON.parse(data)
+          resolve({ version: config.version })
+        } catch (err) {
+          resolve({})
+        }
+      })
+    })
+
+    req.on('timeout', () => {
+      req.destroy()
+      resolve({})
+    })
+
+    req.on('error', () => {
+      resolve({})
     })
 
     req.end()

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 export default function AboutSection() {
   const [systemInfo, setSystemInfo] = useState<{
+    version?: string
     platform?: string
     nodeVersion?: string
     port?: string
@@ -38,11 +39,17 @@ export default function AboutSection() {
 
   const technologies = [
     { name: 'Next.js 14', description: 'React framework with App Router' },
+    { name: 'React 18', description: 'UI component library' },
     { name: 'TypeScript', description: 'Type-safe development' },
-    { name: 'xterm.js', description: 'Terminal emulation' },
-    { name: 'WebSocket', description: 'Real-time communication' },
-    { name: 'tmux', description: 'Terminal multiplexer' },
+    { name: 'xterm.js', description: 'Terminal emulation in browser' },
+    { name: 'node-pty', description: 'Pseudo-terminal bindings' },
+    { name: 'WebSocket', description: 'Real-time bidirectional comms' },
+    { name: 'tmux', description: 'Terminal session multiplexer' },
+    { name: 'CozoDB', description: 'Embedded graph database for agent memory' },
     { name: 'Tailwind CSS', description: 'Utility-first styling' },
+    { name: 'Lucide React', description: 'Icon system' },
+    { name: 'PM2', description: 'Process manager for production' },
+    { name: 'Space Grotesk', description: 'Primary typeface' },
   ]
 
   return (
@@ -50,9 +57,11 @@ export default function AboutSection() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">AI Maestro</h1>
-        <p className="text-lg text-blue-400 font-medium mb-1">Version 0.15.0</p>
+        <p className="text-lg text-blue-400 font-medium mb-1">
+          Version {systemInfo.version || '...'}
+        </p>
         <p className="text-sm text-gray-400">
-          A browser-based terminal dashboard for managing Claude Code sessions
+          A browser-based terminal dashboard for managing AI coding agents
         </p>
       </div>
 
@@ -150,7 +159,7 @@ export default function AboutSection() {
       {/* Technologies */}
       <div className="space-y-4">
         <h2 className="text-lg font-medium text-white">Built With</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {technologies.map((tech) => (
             <div
               key={tech.name}

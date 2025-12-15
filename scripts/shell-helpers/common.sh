@@ -18,16 +18,16 @@ get_session() {
     echo "$session"
 }
 
-# Parse structured session name: hostId_agentId
+# Parse structured session name: agentId@hostId (like email)
 # Sets global variables: AGENT_ID and HOST_ID
 # Returns 0 if structured format, 1 if legacy format
 parse_session_name() {
     local session="$1"
 
-    # Check if session uses structured format (contains underscore after hostId)
-    if [[ "$session" == *"_"* ]]; then
-        HOST_ID="${session%%_*}"
-        AGENT_ID="${session#*_}"
+    # Check if session uses structured format (contains @)
+    if [[ "$session" == *"@"* ]]; then
+        AGENT_ID="${session%%@*}"
+        HOST_ID="${session#*@}"
         return 0
     fi
 
@@ -60,7 +60,7 @@ get_agent_id() {
 
     if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
         echo "Error: No agent found for session '$session'" >&2
-        echo "Session format should be: hostId_agentId (e.g., local_uuid-here)" >&2
+        echo "Session format should be: agentId@hostId (e.g., my-agent@local)" >&2
         echo "Run 'register-agent-from-session.mjs' to register and rename this session" >&2
         return 1
     fi

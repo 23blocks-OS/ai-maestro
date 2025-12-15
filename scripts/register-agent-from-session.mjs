@@ -85,11 +85,11 @@ async function linkSessionAPI(agentId, sessionName, workingDirectory) {
 }
 
 /**
- * Rename tmux session to structured format: hostId_agentId
+ * Rename tmux session to structured format: agentId@hostId (like email)
  * This embeds the agent ID in the session name so scripts don't need lookups
  */
 function renameSessionToStructured(oldName, agentId, hostId = 'local') {
-  const newName = `${hostId}_${agentId}`
+  const newName = `${agentId}@${hostId}`
   try {
     execSync(`tmux rename-session -t "${oldName}" "${newName}"`, { encoding: 'utf-8' })
     return newName
@@ -244,7 +244,7 @@ async function registerSession(sessionName, interactive = true, options = {}) {
     // The API returns { agent: {...} }, not just the agent
     const agent = response.agent
 
-    // Rename session to structured format: hostId_agentId
+    // Rename session to structured format: agentId@hostId (like email)
     // This embeds agent info so scripts don't need API lookups
     console.log(`\n🔄 Renaming session to structured format...`)
     const newSessionName = renameSessionToStructured(sessionName, agent.id, 'local')

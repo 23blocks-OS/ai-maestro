@@ -143,10 +143,10 @@ export async function POST(request: Request) {
 
     // Local session creation
     // Determine the actual session name
-    // If agentId is provided, use structured format: hostId_agentId
+    // If agentId is provided, use structured format: agentId@hostId (like email)
     // Otherwise use the provided name (legacy support)
     const localHostId = 'local'
-    const actualSessionName = agentId ? `${localHostId}_${agentId}` : name
+    const actualSessionName = agentId ? `${agentId}@${localHostId}` : name
 
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(

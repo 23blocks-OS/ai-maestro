@@ -32,18 +32,18 @@ const IDLE_THRESHOLD_MS = 30 * 1000
 /**
  * Get agentId for a session
  *
- * Session names follow the pattern: hostId_agentId
+ * Session names follow the pattern: agentId@hostId (like email)
  * - For local sessions: the session name IS the agentId (e.g., "my-agent")
- * - For remote sessions: the session name is "hostId_agentId" (e.g., "remote1_my-agent")
+ * - For structured sessions: "my-agent@local" or "my-agent@remote1"
  *
  * We verify the agent exists by checking if its database directory exists.
  */
 function getAgentIdForSession(sessionName) {
   try {
     // Parse session name to extract agentId
-    // Format: hostId_agentId or just agentId for local
-    const parts = sessionName.split('_')
-    const agentId = parts.length > 1 ? parts.slice(1).join('_') : sessionName
+    // Format: agentId@hostId or just agentId for legacy
+    const atIndex = sessionName.indexOf('@')
+    const agentId = atIndex > 0 ? sessionName.substring(0, atIndex) : sessionName
 
     // Verify the agent database directory exists
     const agentDbPath = path.join(os.homedir(), '.aimaestro', 'agents', agentId)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle } from 'lucide-react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi } from 'lucide-react'
 import type { Host } from '@/types/host'
 import localVersion from '@/version.json'
 
@@ -294,19 +294,9 @@ export default function HostsSection() {
 
                 {/* Host Info */}
                 <div className="flex-1 min-w-0">
+                  {/* Title Row */}
                   <div className="flex items-center gap-3 mb-1">
                     <h3 className="text-lg font-medium text-white">{host.name}</h3>
-                    <span className="text-xs text-gray-500 font-mono">({host.id})</span>
-                    {host.type === 'local' && (
-                      <span className="px-2 py-0.5 text-xs bg-green-500/10 border border-green-500/30 text-green-400 rounded">
-                        Local
-                      </span>
-                    )}
-                    {host.type === 'remote' && (
-                      <span className="px-2 py-0.5 text-xs bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded">
-                        Remote
-                      </span>
-                    )}
                     {host.tailscale && (
                       <span className="px-2 py-0.5 text-xs bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded">
                         Tailscale
@@ -317,37 +307,78 @@ export default function HostsSection() {
                         Disabled
                       </span>
                     )}
-                    {hostVersions[host.id] && (
-                      compareVersions(hostVersions[host.id], localVersion.version) < 0 ? (
-                        // Outdated version - show warning
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded font-mono cursor-help"
-                          title={`Outdated: This host is running v${hostVersions[host.id]}, but v${localVersion.version} is available. Update recommended.`}
-                        >
-                          <ArrowUpCircle className="w-3 h-3" />
-                          v{hostVersions[host.id]}
-                        </span>
-                      ) : (
-                        // Current or newer version
-                        <span className="px-2 py-0.5 text-xs bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded font-mono">
-                          v{hostVersions[host.id]}
-                        </span>
-                      )
-                    )}
-                    {typeof hostSessionCounts[host.id] === 'number' && (
-                      <span className="px-2 py-0.5 text-xs bg-gray-500/10 border border-gray-500/30 text-gray-400 rounded">
-                        {hostSessionCounts[host.id]} {hostSessionCounts[host.id] === 1 ? 'session' : 'sessions'}
-                      </span>
-                    )}
                   </div>
 
-                  <div className="text-sm text-gray-400 mb-2">
-                    <code className="px-2 py-1 bg-gray-900 rounded text-blue-400">{host.url}</code>
+                  {/* URL */}
+                  <div className="text-sm text-gray-400 mb-3">
+                    <code className="text-gray-500">{host.url}</code>
                   </div>
 
                   {host.description && (
-                    <p className="text-sm text-gray-500">{host.description}</p>
+                    <p className="text-sm text-gray-500 mb-3">{host.description}</p>
                   )}
+
+                  {/* Stats Bar */}
+                  <div className="flex items-center gap-4 text-xs text-gray-400">
+                    {/* Version */}
+                    {hostVersions[host.id] && (
+                      <div className={`flex items-center gap-1.5 ${
+                        compareVersions(hostVersions[host.id], localVersion.version) < 0
+                          ? 'text-orange-400'
+                          : 'text-gray-400'
+                      }`}>
+                        {compareVersions(hostVersions[host.id], localVersion.version) < 0 ? (
+                          <ArrowUpCircle className="w-3.5 h-3.5" />
+                        ) : (
+                          <Package className="w-3.5 h-3.5" />
+                        )}
+                        <span className="font-mono">
+                          v{hostVersions[host.id]}
+                          {compareVersions(hostVersions[host.id], localVersion.version) < 0 && (
+                            <span className="text-gray-500 ml-1">(update available)</span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Separator */}
+                    {hostVersions[host.id] && typeof hostSessionCounts[host.id] === 'number' && (
+                      <span className="text-gray-600">•</span>
+                    )}
+
+                    {/* Sessions */}
+                    {typeof hostSessionCounts[host.id] === 'number' && (
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{hostSessionCounts[host.id]} {hostSessionCounts[host.id] === 1 ? 'session' : 'sessions'}</span>
+                      </div>
+                    )}
+
+                    {/* Separator */}
+                    {(hostVersions[host.id] || typeof hostSessionCounts[host.id] === 'number') && healthStatus[host.id] && (
+                      <span className="text-gray-600">•</span>
+                    )}
+
+                    {/* Status */}
+                    {healthStatus[host.id] === 'online' && (
+                      <div className="flex items-center gap-1.5 text-green-400">
+                        <Wifi className="w-3.5 h-3.5" />
+                        <span>Online</span>
+                      </div>
+                    )}
+                    {healthStatus[host.id] === 'offline' && (
+                      <div className="flex items-center gap-1.5 text-red-400">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Offline</span>
+                      </div>
+                    )}
+                    {healthStatus[host.id] === 'checking' && (
+                      <div className="flex items-center gap-1.5 text-yellow-400">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Checking...</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

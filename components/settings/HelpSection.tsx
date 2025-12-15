@@ -1,6 +1,6 @@
 'use client'
 
-import { Book, ExternalLink, Terminal, Server, MessageSquare, FileText } from 'lucide-react'
+import { Book, ExternalLink, Terminal, Server, MessageSquare, FileText, GitBranch, Search } from 'lucide-react'
 
 export default function HelpSection() {
   const guides = [
@@ -36,6 +36,28 @@ export default function HelpSection() {
         'Reading and replying to messages',
         'Message priorities and status',
         'Using the messaging CLI scripts',
+      ],
+    },
+    {
+      icon: GitBranch,
+      title: 'Code Graph Query',
+      description: 'Query code relationships and understand your codebase structure',
+      topics: [
+        'Understanding code dependencies',
+        'Finding function callers and callees',
+        'Exploring module relationships',
+        'Querying the code graph database',
+      ],
+    },
+    {
+      icon: Search,
+      title: 'Documents Search',
+      description: 'Search and retrieve information from auto-generated documentation',
+      topics: [
+        'Searching function signatures',
+        'Finding API documentation',
+        'Querying class definitions',
+        'Semantic search across docs',
       ],
     },
     {

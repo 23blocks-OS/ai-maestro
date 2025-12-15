@@ -160,6 +160,22 @@ echo ""
 
 # Install messaging scripts
 if [ "$INSTALL_SCRIPTS" = true ]; then
+    print_info "Installing shell helpers to ~/.local/share/aimaestro/..."
+
+    # Create shell helpers directory
+    mkdir -p ~/.local/share/aimaestro/shell-helpers
+
+    # Copy common shell helpers
+    if [ -f "scripts/shell-helpers/common.sh" ]; then
+        cp "scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
+        chmod +x ~/.local/share/aimaestro/shell-helpers/common.sh
+        print_success "Installed: shell-helpers/common.sh"
+    else
+        print_error "common.sh not found in scripts/shell-helpers/"
+        exit 1
+    fi
+
+    echo ""
     print_info "Installing messaging scripts to ~/.local/bin/..."
 
     # Create directory if it doesn't exist

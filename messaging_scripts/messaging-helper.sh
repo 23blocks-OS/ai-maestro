@@ -2,9 +2,18 @@
 # AI Maestro Messaging Helper Functions
 # Sources common utilities and adds messaging-specific functions
 
-# Source common helpers
+# Source common helpers - try installed location first, then repo location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh"
+
+if [ -f "${HOME}/.local/share/aimaestro/shell-helpers/common.sh" ]; then
+    source "${HOME}/.local/share/aimaestro/shell-helpers/common.sh"
+elif [ -f "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh" ]; then
+    source "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh"
+else
+    echo "Error: common.sh not found. Please reinstall messaging scripts." >&2
+    echo "Run: cd /path/to/ai-maestro && ./install-messaging.sh" >&2
+    exit 1
+fi
 
 # Message directories use agentId, not session name
 get_inbox_dir() {

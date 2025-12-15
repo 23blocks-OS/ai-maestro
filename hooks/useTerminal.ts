@@ -102,6 +102,13 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       },
       // Disable Windows mode - we're on Unix/macOS
       windowsMode: false,
+      // Disable accessibility support to prevent yellow native selection
+      // The accessibility tree creates a selectable text layer that shows yellow highlight
+      screenReaderMode: false,
+      // Additional accessibility settings
+      disableStdin: false,
+      // Try to prevent the accessibility tree from being created
+      customGlyphs: true,
       // CRITICAL: This might help with carriage return handling
       macOptionIsMeta: true,
       // Enable right-click for context menu (paste, copy)
@@ -125,6 +132,46 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     // Open terminal in container
     terminal.open(container)
+
+    // Load WebGL addon for better rendering and selection handling
+    // WebGL renders everything on canvas, avoiding DOM-based selection issues (yellow highlight)
+    try {
+      const { WebglAddon } = await import('@xterm/addon-webgl')
+      const webglAddon = new WebglAddon()
+      terminal.loadAddon(webglAddon)
+      console.log(`✅ [Terminal] WebGL renderer loaded for session ${optionsRef.current.sessionId}`)
+
+      // Handle context loss
+      webglAddon.onContextLoss(() => {
+        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}`)
+        webglAddon.dispose()
+      })
+    } catch (e) {
+      console.warn(`[Terminal] WebGL addon not available, using canvas renderer:`, e)
+    }
+
+    // Hide accessibility tree to prevent yellow browser selection
+    const hideAccessibilityTree = () => {
+      const elements = container.querySelectorAll('.xterm-accessibility-tree, .xterm-accessibility')
+      elements.forEach(el => {
+        const htmlEl = el as HTMLElement
+        htmlEl.style.display = 'none'
+        htmlEl.style.pointerEvents = 'none'
+      })
+    }
+
+    // Apply immediately after terminal opens
+    hideAccessibilityTree()
+
+    // Watch for xterm recreating/updating accessibility elements
+    const observer = new MutationObserver(() => {
+      hideAccessibilityTree()
+    })
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true
+    })
 
     // Calculate proper size using FitAddon
     fitAddon.fit()
@@ -203,6 +250,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     // Cleanup function
     return () => {
+      observer.disconnect()
       resizeObserver.disconnect()
       if (optionsRef.current.onUnregister) {
         optionsRef.current.onUnregister()

@@ -141,29 +141,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             // Wait for xterm.js to finish processing history
             setTimeout(() => {
               // 1. CRITICAL: Refit terminal to ensure correct dimensions
-              // This fixes the "new lines instead of inline updates" issue
-              // caused by wrong cols/rows on initial load
               fitTerminal()
 
-              // 2. Send resize to PTY immediately after fit
-              // The onResize handler may not fire if dimensions didn't change from xterm's perspective
+              // 2. Send resize to PTY to sync tmux with correct dimensions
+              // This also triggers a redraw which helps with color issues
               const resizeMsg = createResizeMessage(term.cols, term.rows)
               sendMessage(resizeMsg)
 
-              // 3. Scroll to bottom after fit
+              // 3. Scroll to bottom and focus
               setTimeout(() => {
                 term.scrollToBottom()
-
-                // 4. Focus terminal to activate selection layer (but not if user is typing in an input)
-                const activeElement = document.activeElement
-                const isInputFocused = activeElement?.tagName === 'INPUT' ||
-                                       activeElement?.tagName === 'TEXTAREA' ||
-                                       activeElement?.tagName === 'SELECT' ||
-                                       activeElement?.getAttribute('contenteditable') === 'true'
-
-                if (!isInputFocused) {
-                  term.focus()
-                }
+                term.focus()
               }, 50)
             }, 100)
           }
@@ -183,26 +171,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         // Not JSON - it's terminal data, continue processing
       }
 
-      // Only report activity for substantial content (not cursor blinks or control sequences)
-      // Filter out idle terminal noise to properly detect active vs idle state
-
-      // Write data to terminal
+      // Write data to terminal - keep this simple, no state updates during write
+      // State updates during rapid writes can cause React reconciliation issues
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.write(data)
       } else {
         messageBufferRef.current.push(data)
       }
-
-      // Skip reporting activity for tiny packets (likely just control codes)
-      if (data.length < 3) return
-
-      // Skip pure escape sequences without printable content
-      // Escape sequences start with ESC (\x1b) and contain only control characters
-      const isPureEscape = data.startsWith('\x1b') && !/[\x20-\x7E]/.test(data)
-      if (isPureEscape) return
-
-      // This looks like real content - report activity
-      reportActivity(session.id)
     },
   })
 
@@ -295,16 +270,12 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [notesCollapsed, footerTab, isReady, terminal, fitTerminal, session.id])
 
-  // Handle terminal input - GATED by historyLoaded to prevent input during history streaming
-  // This fixes the "can't type until cancel" issue where keystrokes get lost or buffered
+  // Handle terminal input
+  // Note: Removed historyLoaded gate - it was preventing typing until ESC was pressed
   useEffect(() => {
-    if (!terminal || !isConnected || !historyLoaded) {
+    if (!terminal || !isConnected) {
       return
     }
-
-    // Note: Do NOT call scrollToBottom() here - it interferes with cursor position
-    // for PTY output that uses \r to overwrite lines (like Claude Code status updates)
-    // The history-complete handler already scrolls to bottom after history loads
 
     const disposable = terminal.onData((data) => {
       sendMessage(data)
@@ -313,7 +284,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     return () => {
       disposable.dispose()
     }
-  }, [terminal, isConnected, historyLoaded, sendMessage])
+  }, [terminal, isConnected, sendMessage])
 
   // Copy selection to clipboard
   const copySelection = useCallback(() => {
@@ -655,19 +626,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       >
         <div
           ref={terminalRef}
-          onMouseDown={(e) => {
+          onMouseDown={() => {
             // Focus terminal on mousedown to ensure xterm handles selection properly
-            // Do NOT clear selection here - let user complete their drag selection
-            if (terminalInstanceRef.current) {
-              const term = terminalInstanceRef.current
-              // Only focus if not already focused to avoid disrupting selection
-              if (document.activeElement !== term.textarea) {
-                term.focus()
-              }
-            }
-          }}
-          onDoubleClick={() => {
-            // On double-click, focus and let xterm handle word selection
+            // xterm.js needs focus to use its internal selection (not browser native yellow)
             if (terminalInstanceRef.current) {
               terminalInstanceRef.current.focus()
             }
@@ -677,7 +638,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             flex: '1 1 0%',
             minHeight: 0,
             width: '100%',
-            position: 'relative'
+            position: 'relative',
+            // Prevent browser native text selection on this container
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
           }}
         />
         {!isReady && (

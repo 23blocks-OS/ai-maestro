@@ -48,7 +48,7 @@ These channels serve different purposes and use different underlying mechanisms.
 ├─────────────────────────────────────────────────────────────┤
 │                    HTTP/REST API                             │
 │  POST   /api/messages          - Send message               │
-│  GET    /api/messages?session  - List inbox                 │
+│  GET    /api/messages?agent    - List inbox                 │
 │  GET    /api/messages?id       - Get specific message       │
 │  PATCH  /api/messages?action   - Update status              │
 │  DELETE /api/messages?id       - Delete message             │
@@ -630,7 +630,7 @@ curl -X POST http://localhost:23000/api/messages \
   }'
 
 # Check inbox from external script
-curl "http://localhost:23000/api/messages?session=backend-architect" | jq
+curl "http://localhost:23000/api/messages?agent=backend-architect" | jq
 ```
 
 ---

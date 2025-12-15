@@ -20,7 +20,7 @@ When agents check their messages, they retrieve ALL messages every time, includi
 ### ✅ What Already Works
 
 1. **Message Status Field**: Messages already have a `status` field with values: `unread`, `read`, `archived`
-2. **Mark as Read API**: API endpoint exists: `PATCH /api/messages?session=X&id=Y&action=read`
+2. **Mark as Read API**: API endpoint exists: `PATCH /api/messages?agent=X&id=Y&action=read`
 3. **Status Filtering**: `listInboxMessages()` already supports filtering by status:
    ```typescript
    listInboxMessages(sessionName, { status: 'unread' })
@@ -141,10 +141,10 @@ Context:
 
 **Logic:**
 1. Get current tmux session name
-2. Call API: `GET /api/messages?session=X&status=unread&box=inbox`
+2. Call API: `GET /api/messages?agent=X&status=unread&box=inbox`
 3. Display formatted list with IDs, sender, priority, timestamp, subject, preview
 4. If `--mark-read` flag:
-   - For each message: `PATCH /api/messages?session=X&id=Y&action=read`
+   - For each message: `PATCH /api/messages?agent=X&id=Y&action=read`
    - Show confirmation
 
 **Key Features:**
@@ -159,10 +159,10 @@ Context:
 
 **Logic:**
 1. Get current tmux session name
-2. Call API: `GET /api/messages?session=X&id=Y&box=inbox`
+2. Call API: `GET /api/messages?agent=X&id=Y&box=inbox`
 3. Display full message with formatting
 4. Unless `--no-mark-read` flag:
-   - Call: `PATCH /api/messages?session=X&id=Y&action=read`
+   - Call: `PATCH /api/messages?agent=X&id=Y&action=read`
    - Show confirmation
 
 **Key Features:**

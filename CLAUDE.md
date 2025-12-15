@@ -433,9 +433,9 @@ This installer copies:
 - Messages have status: `unread`, `read`, or `archived`
 
 **API Endpoints:**
-- `GET /api/messages?session=X&box=inbox&status=unread` - List messages with filtering
-- `GET /api/messages?session=X&id=Y&box=inbox` - Get specific message
-- `PATCH /api/messages?session=X&id=Y&action=read` - Mark message as read
+- `GET /api/messages?agent=X&box=inbox&status=unread` - List messages with filtering
+- `GET /api/messages?agent=X&id=Y&box=inbox` - Get specific message
+- `PATCH /api/messages?agent=X&id=Y&action=read` - Mark message as read
 - `POST /api/messages` - Send new message
 
 **Message Format:**

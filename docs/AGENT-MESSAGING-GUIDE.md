@@ -372,14 +372,14 @@ curl -X POST http://localhost:23000/api/messages \
     }
   }'
 
-# List messages for a session
-curl "http://localhost:23000/api/messages?session=backend-architect"
+# List messages for an agent
+curl "http://localhost:23000/api/messages?agent=backend-architect"
 
 # Get unread count
-curl "http://localhost:23000/api/messages?session=backend-architect&action=unread-count"
+curl "http://localhost:23000/api/messages?agent=backend-architect&action=unread-count"
 
 # Mark as read
-curl -X PATCH "http://localhost:23000/api/messages?session=backend-architect&id=msg-123&action=read"
+curl -X PATCH "http://localhost:23000/api/messages?agent=backend-architect&id=msg-123&action=read"
 ```
 
 ---

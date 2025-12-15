@@ -271,9 +271,8 @@ cat ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/msg_1234567890_a
 SESSION_NAME=$(tmux display-message -p '#S')
 
 # Mark message as read
-curl -X PATCH "http://localhost:23000/api/messages/<message-id>?session=$SESSION_NAME" \
-  -H 'Content-Type: application/json' \
-  -d '{"status": "read"}'
+curl -X PATCH "http://localhost:23000/api/messages?agent=$SESSION_NAME&id=<message-id>&action=read" \
+  -H 'Content-Type: application/json'
 ```
 
 ## PART 2: SENDING MESSAGES (TO OTHER AGENTS)

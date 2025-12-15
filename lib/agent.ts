@@ -266,7 +266,7 @@ class AgentSubconscious {
 
       // Get unread messages for this session
       const messagesResponse = await fetch(
-        `http://localhost:23000/api/messages?session=${encodeURIComponent(sessionName)}&box=inbox&status=unread`
+        `http://localhost:23000/api/messages?agent=${encodeURIComponent(sessionName)}&box=inbox&status=unread`
       )
 
       if (messagesResponse.ok) {

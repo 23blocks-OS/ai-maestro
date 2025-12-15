@@ -83,9 +83,13 @@ HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
 if [ "$HTTP_CODE" = "201" ]; then
-  echo "✅ Message sent to $TO_AGENT"
-  echo "   From: $AGENT_ID (host: $HOST_ID)"
-  echo "   To: $TO_ID (host: $TO_HOST)"
+  # Get human-readable names
+  MY_NAME=$(get_my_name)
+  TO_NAME="${RESOLVED_ALIAS:-$TO_AGENT}@${TO_HOST}"
+
+  echo "✅ Message sent"
+  echo "   From: $MY_NAME"
+  echo "   To: $TO_NAME"
   echo "   Subject: $SUBJECT"
   echo "   Priority: $PRIORITY"
 else

@@ -28,7 +28,7 @@ get_sent_dir() {
 
 # Resolve agent alias to agentId and hostId
 # Usage: resolve_agent "alias-or-id"
-# Sets: RESOLVED_AGENT_ID, RESOLVED_HOST_ID, RESOLVED_HOST_URL
+# Sets: RESOLVED_AGENT_ID, RESOLVED_HOST_ID, RESOLVED_HOST_URL, RESOLVED_ALIAS, RESOLVED_NAME
 resolve_agent() {
     local alias_or_id="$1"
 
@@ -52,8 +52,20 @@ resolve_agent() {
     RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.resolved.agentId' 2>/dev/null)
     RESOLVED_HOST_ID=$(echo "$response" | jq -r '.resolved.hostId // "local"' 2>/dev/null)
     RESOLVED_HOST_URL=$(echo "$response" | jq -r '.resolved.hostUrl // ""' 2>/dev/null)
+    RESOLVED_ALIAS=$(echo "$response" | jq -r '.resolved.alias // ""' 2>/dev/null)
+    RESOLVED_NAME=$(echo "$response" | jq -r '.resolved.displayName // .resolved.alias // ""' 2>/dev/null)
 
     return 0
+}
+
+# Get current agent's display name (agent@host format)
+get_my_name() {
+    resolve_agent "$AGENT_ID" 2>/dev/null
+    if [ -n "$RESOLVED_ALIAS" ] && [ "$RESOLVED_ALIAS" != "null" ]; then
+        echo "${RESOLVED_ALIAS}@${HOST_ID:-local}"
+    else
+        echo "${AGENT_ID}@${HOST_ID:-local}"
+    fi
 }
 
 # Send a message to another agent

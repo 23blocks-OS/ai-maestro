@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2025-12-14
-**Current Version:** v0.17.4
+**Current Version:** v0.17.5
 
 ---
 
@@ -2247,7 +2247,7 @@ Create: `github.com/23blocks/homebrew-tap`
 class AiMaestro < Formula
   desc "Web dashboard for orchestrating multiple AI coding agents"
   homepage "https://github.com/23blocks-OS/ai-maestro"
-  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.4.tar.gz"
+  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.5.tar.gz"
   sha256 "..."
   license "MIT"
 

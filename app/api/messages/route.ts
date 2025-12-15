@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const agentIdentifier = searchParams.get('agent') || searchParams.get('session')
+  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
 
@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const agentIdentifier = searchParams.get('agent') || searchParams.get('session')
+  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
   const messageId = searchParams.get('id')
 
   if (!agentIdentifier || !messageId) {

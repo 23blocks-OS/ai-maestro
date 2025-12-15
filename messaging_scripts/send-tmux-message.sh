@@ -45,31 +45,27 @@ resolve_target() {
   fi
 
   # Try to resolve via API (handles aliases, IDs, partial matches)
-  local resolved=$(curl -s "${API_BASE}/api/messages?alias=$target&action=resolve" 2>/dev/null)
+  local response=$(curl -s "${API_BASE}/api/messages?agent=$target&action=resolve" 2>/dev/null)
 
-  if [ -n "$resolved" ]; then
-    local success=$(echo "$resolved" | jq -r '.success // false' 2>/dev/null)
+  if [ -n "$response" ]; then
+    # API returns { resolved: { agentId, hostId, ... } }
+    local agent_id=$(echo "$response" | jq -r '.resolved.agentId // empty' 2>/dev/null)
 
-    if [ "$success" = "true" ]; then
-      # Get the agentId and try to find matching tmux session
-      local agent_id=$(echo "$resolved" | jq -r '.agentId // empty' 2>/dev/null)
+    if [ -n "$agent_id" ] && [ "$agent_id" != "null" ]; then
+      # Check for structured session name: hostId_agentId
+      local host_id=$(echo "$response" | jq -r '.resolved.hostId // "local"' 2>/dev/null)
+      local structured_session="${host_id}_${agent_id}"
 
-      if [ -n "$agent_id" ] && [ "$agent_id" != "null" ]; then
-        # Check for structured session name: hostId_agentId
-        local host_id=$(echo "$resolved" | jq -r '.hostId // "local"' 2>/dev/null)
-        local structured_session="${host_id}_${agent_id}"
+      if tmux has-session -t "$structured_session" 2>/dev/null; then
+        echo "$structured_session"
+        return 0
+      fi
 
-        if tmux has-session -t "$structured_session" 2>/dev/null; then
-          echo "$structured_session"
-          return 0
-        fi
-
-        # Look for any session containing this agent ID
-        local found_session=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "$agent_id" | head -1)
-        if [ -n "$found_session" ]; then
-          echo "$found_session"
-          return 0
-        fi
+      # Look for any session containing this agent ID
+      local found_session=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "$agent_id" | head -1)
+      if [ -n "$found_session" ]; then
+        echo "$found_session"
+        return 0
       fi
     fi
   fi

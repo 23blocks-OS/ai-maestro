@@ -33,24 +33,25 @@ resolve_agent() {
     local alias_or_id="$1"
 
     local response
-    response=$(curl -s "${API_BASE}/api/messages?action=resolve&alias=${alias_or_id}" 2>/dev/null)
+    response=$(curl -s "${API_BASE}/api/messages?action=resolve&agent=${alias_or_id}" 2>/dev/null)
 
     if [ -z "$response" ]; then
         echo "Error: Cannot connect to AI Maestro at ${API_BASE}" >&2
         return 1
     fi
 
-    local success
-    success=$(echo "$response" | jq -r '.success' 2>/dev/null)
+    # Check if resolved object exists (API returns { resolved: { ... } })
+    local resolved
+    resolved=$(echo "$response" | jq -r '.resolved // empty' 2>/dev/null)
 
-    if [ "$success" != "true" ]; then
+    if [ -z "$resolved" ] || [ "$resolved" = "null" ]; then
         echo "Error: Could not resolve agent '${alias_or_id}'" >&2
         return 1
     fi
 
-    RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.agentId' 2>/dev/null)
-    RESOLVED_HOST_ID=$(echo "$response" | jq -r '.hostId // "local"' 2>/dev/null)
-    RESOLVED_HOST_URL=$(echo "$response" | jq -r '.hostUrl // ""' 2>/dev/null)
+    RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.resolved.agentId' 2>/dev/null)
+    RESOLVED_HOST_ID=$(echo "$response" | jq -r '.resolved.hostId // "local"' 2>/dev/null)
+    RESOLVED_HOST_URL=$(echo "$response" | jq -r '.resolved.hostUrl // ""' 2>/dev/null)
 
     return 0
 }

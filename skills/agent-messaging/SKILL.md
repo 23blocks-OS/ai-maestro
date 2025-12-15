@@ -288,11 +288,14 @@ Use for detailed, non-urgent communication that needs to be referenced later BY 
 
 **Command:**
 ```bash
-send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
+send-aimaestro-message.sh <to_agent[@host]> <subject> <message> [priority] [type]
 ```
 
 **Parameters:**
-- `to_session` (required) - Target agent's name (ANOTHER AGENT, not operator)
+- `to_agent[@host]` (required) - Target agent with optional host:
+  - `backend-api` - Send to agent on same host (local)
+  - `backend-api@mac-mini` - Send to agent on remote host "mac-mini"
+  - `backend-api@local` - Explicitly send to local agent
 - `subject` (required) - Brief subject line
 - `message` (required) - Message content to send TO OTHER AGENT
 - `priority` (optional) - low | normal | high | urgent (default: normal)
@@ -300,10 +303,13 @@ send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
 
 **Examples:**
 ```bash
-# Simple request
+# Simple request (local agent)
 send-aimaestro-message.sh backend-architect "Need API endpoint" "Please implement POST /api/users with pagination"
 
-# Urgent notification
+# Cross-host message (agent on remote machine)
+send-aimaestro-message.sh crm-api@mac-mini "Customer data sync" "Please sync customer records from CRM" high request
+
+# Urgent notification (local)
 send-aimaestro-message.sh frontend-dev "Production issue" "API returning 500 errors" urgent notification
 
 # Response to request
@@ -312,6 +318,81 @@ send-aimaestro-message.sh orchestrator "Re: Task complete" "User dashboard finis
 # Progress update
 send-aimaestro-message.sh project-lead "Payment integration: 60% done" "Stripe API integrated. Working on webhooks. ETA: 2 hours." normal update
 ```
+
+## PART 2.5: CROSS-HOST MESSAGING
+
+AI Maestro supports sending messages to agents running on different machines (hosts). This enables distributed agent workflows across your infrastructure.
+
+### Host Configuration
+
+Hosts are configured in `~/.aimaestro/hosts.json`:
+```json
+{
+  "hosts": [
+    {
+      "id": "local",
+      "name": "macbook-pro",
+      "url": "http://localhost:23000",
+      "type": "local",
+      "enabled": true
+    },
+    {
+      "id": "mac-mini",
+      "name": "mac-mini-server",
+      "url": "http://100.80.12.6:23000",
+      "type": "remote",
+      "enabled": true
+    }
+  ]
+}
+```
+
+### Addressing Agents on Remote Hosts
+
+Use the `agent@host` format to send messages to remote agents:
+
+```bash
+# Send to agent "crm-api" on host "mac-mini"
+send-aimaestro-message.sh crm-api@mac-mini "Sync request" "Please sync customer data"
+
+# Send to agent "data-processor" on host "cloud-server"
+send-aimaestro-message.sh data-processor@cloud-server "Process batch" "Run nightly ETL" high request
+```
+
+### How Cross-Host Messaging Works
+
+1. **Parse destination**: Script parses `agent@host` format
+2. **Resolve host URL**: Looks up host URL from `~/.aimaestro/hosts.json`
+3. **Resolve agent**: Queries remote host's API to verify agent exists
+4. **Send directly**: POST message to remote host's `/api/messages` endpoint
+5. **Local copy**: Saves copy in sender's sent folder
+
+### Message Display with Hosts
+
+When viewing messages, sender info includes their host:
+```
+From: backend-api@macbook-pro
+To: crm-api@mac-mini
+Subject: Data sync complete
+```
+
+### Troubleshooting Cross-Host Messaging
+
+**Cannot find host:**
+```bash
+# List available hosts
+source ~/.local/share/aimaestro/shell-helpers/common.sh
+list_hosts
+```
+
+**Remote host unreachable:**
+- Check host URL in `~/.aimaestro/hosts.json`
+- Verify network connectivity: `curl http://<host-url>/api/sessions`
+- Ensure AI Maestro is running on remote host
+
+**Agent not found on remote host:**
+- Verify agent exists on remote: `curl http://<host-url>/api/agents`
+- Check agent alias spelling
 
 ### 6. Instant Notifications (Real-time, Ephemeral)
 Use for urgent alerts that need immediate attention FROM OTHER AGENTS.

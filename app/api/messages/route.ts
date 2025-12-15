@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { from, to, subject, content, priority, inReplyTo } = body
+    const { from, to, subject, content, priority, inReplyTo, fromHost, toHost, fromAlias, toAlias } = body
 
     // Validate required fields
     if (!from || !to || !subject || !content) {
@@ -125,7 +125,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const message = await sendMessage(from, to, subject, content, { priority, inReplyTo })
+    const message = await sendMessage(from, to, subject, content, {
+      priority,
+      inReplyTo,
+      fromHost,
+      toHost,
+      fromAlias,
+      toAlias,
+    })
 
     return NextResponse.json({ message }, { status: 201 })
   } catch (error) {

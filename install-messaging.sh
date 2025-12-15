@@ -175,6 +175,40 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
         exit 1
     fi
 
+    # Setup hosts configuration for cross-host messaging
+    echo ""
+    print_info "Setting up hosts configuration for cross-host messaging..."
+    mkdir -p ~/.aimaestro
+
+    # Copy example hosts.json if user doesn't have one yet
+    if [ ! -f "$HOME/.aimaestro/hosts.json" ]; then
+        if [ -f ".aimaestro/hosts.example.json" ]; then
+            cp ".aimaestro/hosts.example.json" "$HOME/.aimaestro/hosts.json"
+            print_success "Created: ~/.aimaestro/hosts.json (from example)"
+            print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
+        else
+            # Create a minimal default config
+            cat > "$HOME/.aimaestro/hosts.json" << 'EOF'
+{
+  "hosts": [
+    {
+      "id": "local",
+      "name": "local",
+      "url": "http://localhost:23000",
+      "type": "local",
+      "enabled": true,
+      "description": "This machine (local tmux sessions)"
+    }
+  ]
+}
+EOF
+            print_success "Created: ~/.aimaestro/hosts.json (default)"
+            print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
+        fi
+    else
+        print_info "Keeping existing: ~/.aimaestro/hosts.json"
+    fi
+
     echo ""
     print_info "Installing messaging scripts to ~/.local/bin/..."
 

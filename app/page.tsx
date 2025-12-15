@@ -517,6 +517,7 @@ export default function DashboardPage() {
                       <WorkTree
                         sessionName={session.id}
                         agentId={agent.id}
+                        agentAlias={agent.alias}
                         hostId={agent.hostId}
                         isVisible={isActive && activeTab === 'worktree'}
                       />

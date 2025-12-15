@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 /**
@@ -48,6 +48,13 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
   // Copy dropdown state
   const [showCopyDropdown, setShowCopyDropdown] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+
+  // Agent autocomplete state
+  const [showAgentSuggestions, setShowAgentSuggestions] = useState(false)
+  const [filteredAgents, setFilteredAgents] = useState<AgentRecipient[]>([])
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
+  const toInputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
@@ -246,11 +253,11 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
     let markdown = `# Message: ${selectedMessage.subject}\n\n`
 
     if (isInboxMessage) {
-      markdown += `**From:** ${selectedMessage.from}\n`
+      markdown += `**From:** ${formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost)}\n`
       markdown += `**To:** ${sessionName}\n`
     } else {
       markdown += `**From:** ${sessionName}\n`
-      markdown += `**To:** ${selectedMessage.to}\n`
+      markdown += `**To:** ${formatAgentName(selectedMessage.to, selectedMessage.toAlias, selectedMessage.toHost)}\n`
     }
 
     markdown += `**Date:** ${new Date(selectedMessage.timestamp).toLocaleString()}\n`
@@ -291,10 +298,12 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
 
   // Prepare to forward message
   const prepareForward = (message: Message) => {
-    // Build forwarded content
+    // Build forwarded content with human-readable agent names
+    const fromDisplay = formatAgentName(message.from, message.fromAlias, message.fromHost)
+    const toDisplay = formatAgentName(message.to, message.toAlias, message.toHost)
     let forwardedContent = `--- Forwarded Message ---\n`
-    forwardedContent += `From: ${message.from}\n`
-    forwardedContent += `To: ${message.to}\n`
+    forwardedContent += `From: ${fromDisplay}\n`
+    forwardedContent += `To: ${toDisplay}\n`
     forwardedContent += `Sent: ${new Date(message.timestamp).toLocaleString()}\n`
     forwardedContent += `Subject: ${message.subject}\n\n`
     forwardedContent += `${message.content.message}\n`
@@ -349,6 +358,98 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [showCopyDropdown])
+
+  // Filter agents based on input for autocomplete
+  useEffect(() => {
+    if (!composeTo) {
+      setFilteredAgents([])
+      setShowAgentSuggestions(false)
+      return
+    }
+
+    const searchTerm = composeTo.toLowerCase()
+    // Filter out current agent and match by alias or host
+    const filtered = allAgents.filter(agent => {
+      if (agent.id === agentId) return false
+      const aliasMatch = agent.alias.toLowerCase().includes(searchTerm)
+      const hostMatch = agent.hostId?.toLowerCase().includes(searchTerm)
+      const fullMatch = `${agent.alias}@${agent.hostId || 'local'}`.toLowerCase().includes(searchTerm)
+      return aliasMatch || hostMatch || fullMatch
+    })
+
+    setFilteredAgents(filtered)
+    setShowAgentSuggestions(filtered.length > 0)
+    setSelectedSuggestionIndex(-1)
+  }, [composeTo, allAgents, agentId])
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (
+        toInputRef.current && !toInputRef.current.contains(target) &&
+        suggestionsRef.current && !suggestionsRef.current.contains(target)
+      ) {
+        setShowAgentSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Handle keyboard navigation in autocomplete
+  const handleToKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showAgentSuggestions || filteredAgents.length === 0) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setSelectedSuggestionIndex(prev =>
+          prev < filteredAgents.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setSelectedSuggestionIndex(prev => (prev > 0 ? prev - 1 : -1))
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (selectedSuggestionIndex >= 0) {
+          selectAgent(filteredAgents[selectedSuggestionIndex])
+        }
+        break
+      case 'Escape':
+        setShowAgentSuggestions(false)
+        break
+    }
+  }
+
+  // Select an agent from suggestions
+  const selectAgent = (agent: AgentRecipient) => {
+    const isRemote = agent.hostId && agent.hostId !== 'local'
+    const value = isRemote ? `${agent.alias}@${agent.hostId}` : agent.alias
+    setComposeTo(value)
+    setShowAgentSuggestions(false)
+    setSelectedSuggestionIndex(-1)
+  }
+
+  // Format agent display with host indicator
+  const formatAgentDisplay = (agent: AgentRecipient) => {
+    const isRemote = agent.hostId && agent.hostId !== 'local'
+    return {
+      primary: agent.alias,
+      secondary: isRemote ? `@${agent.hostId}` : '@local',
+      isRemote
+    }
+  }
+
+  // Format agent display name - prefer alias over UUID, always include host
+  const formatAgentName = (agentId: string, alias?: string, host?: string) => {
+    const displayName = alias || agentId
+    const hostName = host || 'local'
+    return `${displayName}@${hostName}`
+  }
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -439,7 +540,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                   <div className="flex items-start justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-semibold ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
-                        {msg.from}
+                        {formatAgentName(msg.from, msg.fromAlias, msg.fromHost)}
                       </span>
                       {getPriorityIcon(msg.priority)}
                     </div>
@@ -475,7 +576,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                     </h2>
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <span className="font-medium">From:</span>
-                      <span>{selectedMessage.from}</span>
+                      <span>{formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost)}</span>
                       <span className="mx-2">•</span>
                       <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
                     </div>
@@ -569,7 +670,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                 <div className="mt-6 pt-4 border-t border-gray-800 flex gap-3">
                   <button
                     onClick={() => {
-                      setComposeTo(selectedMessage.from)
+                      // Use alias for reply if available, with host suffix for remote agents
+                      setComposeTo(formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost))
                       setComposeSubject(`Re: ${selectedMessage.subject}`)
                       setComposeType('response')
                       setIsForwarding(false)
@@ -625,7 +727,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-green-400 font-medium">To:</span>
                       <span className="text-sm font-semibold text-gray-300">
-                        {msg.to}
+                        {formatAgentName(msg.to, msg.toAlias, msg.toHost)}
                       </span>
                       {getPriorityIcon(msg.priority)}
                     </div>
@@ -663,7 +765,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                     </h2>
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <span className="font-medium">To:</span>
-                      <span>{selectedMessage.to}</span>
+                      <span>{formatAgentName(selectedMessage.to, selectedMessage.toAlias, selectedMessage.toHost)}</span>
                       <span className="mx-2">•</span>
                       <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
                     </div>
@@ -755,7 +857,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
             <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-md">
               <p className="text-sm text-blue-300">
                 <Forward className="w-4 h-4 inline-block mr-1" />
-                Forwarding message from <strong>{forwardingOriginalMessage?.from}</strong>
+                Forwarding message from <strong>{forwardingOriginalMessage ? formatAgentName(forwardingOriginalMessage.from, forwardingOriginalMessage.fromAlias, forwardingOriginalMessage.fromHost) : ''}</strong>
               </p>
               <p className="text-xs text-blue-400 mt-1">
                 You can add a note at the top of the message before the forwarded content.
@@ -764,33 +866,61 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
           )}
 
           <div className="space-y-4 max-w-2xl">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 To (Agent Name):
               </label>
               <input
+                ref={toInputRef}
                 id="compose-to"
                 name="to"
                 type="text"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
-                list="agents-list"
+                onKeyDown={handleToKeyDown}
+                onFocus={() => composeTo && filteredAgents.length > 0 && setShowAgentSuggestions(true)}
+                autoComplete="off"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter agent ID or alias"
+                placeholder="Type agent name or agent@host"
               />
-              <datalist id="agents-list">
-                {allAgents.filter(a => a.id !== agentId).map(agent => {
-                  // Use alias as value - the API resolves aliases to agent IDs
-                  // For remote agents, append @hostId so the API knows where to route
-                  const isRemote = agent.hostId && agent.hostId !== 'local'
-                  const value = isRemote ? `${agent.alias}@${agent.hostId}` : agent.alias
-                  // Label shows alias with host indicator for remote agents
-                  const label = isRemote ? `${agent.alias} (remote)` : agent.alias
-                  return (
-                    <option key={agent.id} value={value} label={label} />
-                  )
-                })}
-              </datalist>
+
+              {/* Autocomplete suggestions dropdown */}
+              {showAgentSuggestions && filteredAgents.length > 0 && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute z-20 w-full mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                >
+                  {filteredAgents.map((agent, index) => {
+                    const display = formatAgentDisplay(agent)
+                    const isSelected = index === selectedSuggestionIndex
+                    return (
+                      <div
+                        key={agent.id}
+                        onClick={() => selectAgent(agent)}
+                        className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'hover:bg-gray-700 text-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{display.primary}</span>
+                          <span className={`text-sm ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>
+                            {display.secondary}
+                          </span>
+                        </div>
+                        {display.isRemote && (
+                          <Server className={`w-4 h-4 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <p className="mt-1 text-xs text-gray-500">
+                Type to search agents. Use <code className="bg-gray-800 px-1 rounded">agent@host</code> for remote agents.
+              </p>
             </div>
 
             <div>

@@ -8,6 +8,7 @@ import { useHosts } from '@/hooks/useHosts'
 interface WorkTreeProps {
   sessionName: string
   agentId?: string
+  agentAlias?: string  // Human-readable agent name
   hostId?: string  // Agent-centric: pass hostId directly instead of looking up via sessions
   isVisible?: boolean
 }
@@ -54,7 +55,7 @@ interface ClaudeSessionWork {
   claude_version?: string
 }
 
-export default function WorkTree({ sessionName, agentId, hostId, isVisible = true }: WorkTreeProps) {
+export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isVisible = true }: WorkTreeProps) {
   const { hosts } = useHosts()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
   const [loading, setLoading] = useState(false) // Start as false, will load when visible
@@ -369,7 +370,7 @@ export default function WorkTree({ sessionName, agentId, hostId, isVisible = tru
         <div className="flex items-center gap-3">
           <GitBranch className="w-5 h-5 text-blue-400" />
           <h2 className="text-lg font-semibold text-white">Work Tree</h2>
-          <span className="text-sm text-gray-500">Agent: {agentId}</span>
+          <span className="text-sm text-gray-500">Agent: {agentAlias || sessionName}</span>
         </div>
         <div className="flex items-center gap-3">
           {rebuildStatus && (

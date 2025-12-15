@@ -157,7 +157,7 @@ export default function DashboardPage() {
       try {
         // Use agent's hostUrl to route to the correct host for remote agents
         const baseUrl = activeAgent.hostUrl || ''
-        const response = await fetch(`${baseUrl}/api/messages?agentId=${encodeURIComponent(activeAgentId)}&action=unread-count`)
+        const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(activeAgentId)}&action=unread-count`)
         if (response.ok) {
           const data = await response.json()
           setUnreadCount(data.count || 0)

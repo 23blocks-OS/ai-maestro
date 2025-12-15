@@ -13,6 +13,14 @@ export interface UseTerminalOptions {
   onUnregister?: () => void
 }
 
+// Debounce utility for resize events
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  return ((...args: unknown[]) => {
+    if (timeoutId) clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), ms)
+  }) as T
+}
 
 export function useTerminal(options: UseTerminalOptions = {}) {
   const terminalRef = useRef<Terminal | null>(null)
@@ -137,11 +145,20 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       optionsRef.current.onRegister(fitAddon)
     }
 
-    // Simple ResizeObserver - just call fit() when container resizes
-    const resizeObserver = new ResizeObserver(() => {
-      if (fitAddonRef.current) {
-        fitAddonRef.current.fit()
+    // Debounced ResizeObserver - batch resize events to prevent layout thrashing
+    // 150ms debounce allows CSS transitions to complete before refitting
+    const debouncedFit = debounce(() => {
+      if (fitAddonRef.current && terminalRef.current) {
+        try {
+          fitAddonRef.current.fit()
+        } catch (e) {
+          console.warn('[Terminal] Fit failed during resize:', e)
+        }
       }
+    }, 150)
+
+    const resizeObserver = new ResizeObserver(() => {
+      debouncedFit()
     })
 
     resizeObserver.observe(container)

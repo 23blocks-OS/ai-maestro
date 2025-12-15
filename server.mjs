@@ -397,10 +397,12 @@ app.prepare().then(() => {
         }
 
         if (ws.readyState === 1 && historyContent) {
-          const lines = historyContent.split('\n')
-          const formattedHistory = lines.map(line => line + '\r\n').join('')
-
-          console.log(`📜 [HISTORY-SEND] Sending ${lines.length} lines of history for session ${sessionName}`)
+          // History from tmux capture-pane uses \n line endings
+          // For proper display in xterm, we need \r\n (CR+LF)
+          // But we must be careful not to interfere with live PTY output
+          const formattedHistory = historyContent.replace(/\n/g, '\r\n')
+          const lineCount = (historyContent.match(/\n/g) || []).length
+          console.log(`📜 [HISTORY-SEND] Sending ${lineCount} lines of history for session ${sessionName}`)
 
           ws.send(formattedHistory)
           ws.send(JSON.stringify({ type: 'history-complete' }))

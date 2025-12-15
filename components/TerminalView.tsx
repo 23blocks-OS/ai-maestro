@@ -140,23 +140,31 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
             // Wait for xterm.js to finish processing history
             setTimeout(() => {
-              // 1. Scroll to bottom
-              term.scrollToBottom()
+              // 1. CRITICAL: Refit terminal to ensure correct dimensions
+              // This fixes the "new lines instead of inline updates" issue
+              // caused by wrong cols/rows on initial load
+              fitTerminal()
 
-              // 2. Focus terminal to activate selection layer (but not if user is typing in an input)
-              const activeElement = document.activeElement
-              const isInputFocused = activeElement?.tagName === 'INPUT' ||
-                                     activeElement?.tagName === 'TEXTAREA' ||
-                                     activeElement?.tagName === 'SELECT' ||
-                                     activeElement?.getAttribute('contenteditable') === 'true'
+              // 2. Send resize to PTY immediately after fit
+              // The onResize handler may not fire if dimensions didn't change from xterm's perspective
+              const resizeMsg = createResizeMessage(term.cols, term.rows)
+              sendMessage(resizeMsg)
 
-              if (!isInputFocused) {
-                term.focus()
-              }
+              // 3. Scroll to bottom after fit
+              setTimeout(() => {
+                term.scrollToBottom()
 
-              // Note: Do NOT clear selection here - it's not needed and destroys any
-              // selection the user might have made. Focusing the terminal is enough
-              // to activate xterm's selection service.
+                // 4. Focus terminal to activate selection layer (but not if user is typing in an input)
+                const activeElement = document.activeElement
+                const isInputFocused = activeElement?.tagName === 'INPUT' ||
+                                       activeElement?.tagName === 'TEXTAREA' ||
+                                       activeElement?.tagName === 'SELECT' ||
+                                       activeElement?.getAttribute('contenteditable') === 'true'
+
+                if (!isInputFocused) {
+                  term.focus()
+                }
+              }, 50)
             }, 100)
           }
           return
@@ -293,6 +301,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (!terminal || !isConnected || !historyLoaded) {
       return
     }
+
+    // Note: Do NOT call scrollToBottom() here - it interferes with cursor position
+    // for PTY output that uses \r to overwrite lines (like Claude Code status updates)
+    // The history-complete handler already scrolls to bottom after history loads
 
     const disposable = terminal.onData((data) => {
       sendMessage(data)

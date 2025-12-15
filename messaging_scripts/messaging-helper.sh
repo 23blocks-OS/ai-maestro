@@ -100,13 +100,13 @@ send_message() {
 
 # Get unread messages for current agent
 get_unread_messages() {
-    api_query "GET" "/api/messages?agentId=${AGENT_ID}&box=inbox&status=unread"
+    api_query "GET" "/api/messages?agent=${AGENT_ID}&box=inbox&status=unread"
 }
 
 # Mark a message as read
 mark_message_read() {
     local message_id="$1"
-    api_query "PATCH" "/api/messages?agentId=${AGENT_ID}&id=${message_id}&action=read"
+    api_query "PATCH" "/api/messages?agent=${AGENT_ID}&id=${message_id}&action=read"
 }
 
 # Initialize messaging - get session and agent ID

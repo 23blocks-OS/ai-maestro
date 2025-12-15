@@ -18,17 +18,11 @@ import {
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
  * List messages for an agent
  *
- * The 'agent' parameter accepts:
- * - Agent ID (UUID)
- * - Agent alias (e.g., "crm")
- * - Session name (e.g., "23blocks-api-crm") for backward compatibility
- *
- * Also supports 'session' parameter for backward compatibility
+ * The 'agent' parameter accepts: Agent ID (UUID), alias, or session name
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  // Support 'agentId', 'agent', and 'session' parameters (agentId/agent preferred)
-  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
+  const agentIdentifier = searchParams.get('agent')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
   const box = searchParams.get('box') || 'inbox' // 'inbox' or 'sent'
@@ -147,7 +141,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
+  const agentIdentifier = searchParams.get('agent')
   const messageId = searchParams.get('id')
   const action = searchParams.get('action')
 
@@ -189,7 +183,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const agentIdentifier = searchParams.get('agentId') || searchParams.get('agent') || searchParams.get('session')
+  const agentIdentifier = searchParams.get('agent')
   const messageId = searchParams.get('id')
 
   if (!agentIdentifier || !messageId) {

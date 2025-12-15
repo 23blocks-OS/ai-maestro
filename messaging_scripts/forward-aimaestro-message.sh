@@ -73,7 +73,7 @@ if [ "$AGENT_ID" = "$TO_ID" ]; then
 fi
 
 # Fetch original message via API
-RESPONSE=$(api_query "GET" "/api/messages?agentId=${AGENT_ID}&id=${MESSAGE_ID}&box=inbox")
+RESPONSE=$(api_query "GET" "/api/messages?agent=${AGENT_ID}&id=${MESSAGE_ID}&box=inbox")
 
 if [ $? -ne 0 ]; then
   echo -e "${RED}❌ Error: Failed to fetch message${NC}"

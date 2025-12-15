@@ -49,8 +49,8 @@ done
 # Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
 init_messaging || exit 1
 
-# Fetch message via API (uses agentId, not session)
-RESPONSE=$(api_query "GET" "/api/messages?agentId=${AGENT_ID}&id=${MESSAGE_ID}&box=inbox")
+# Fetch message via API
+RESPONSE=$(api_query "GET" "/api/messages?agent=${AGENT_ID}&id=${MESSAGE_ID}&box=inbox")
 
 # Check if curl failed
 if [ $? -ne 0 ]; then

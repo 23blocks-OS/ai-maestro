@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * This avoids CORS issues and network accessibility problems
  * when browser tries to fetch directly from remote hosts
  *
- * Returns: { success, status, url, version? }
+ * Returns: { success, status, url, version?, sessionCount? }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Make request to remote host with timeout
+    // Make request to remote host with timeout - also gets session count
     const result = await makeHealthCheckRequest(parsedUrl, 3000)
 
     if (result.success) {
@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
         success: true,
         status: 'online',
         url: hostUrl,
-        version: versionResult.version || null
+        version: versionResult.version || null,
+        sessionCount: result.sessionCount ?? null
       })
     } else {
       return NextResponse.json({
@@ -72,11 +73,12 @@ export async function GET(request: NextRequest) {
 
 /**
  * Make HTTP/HTTPS health check request with timeout
+ * Also extracts session count from /api/sessions response
  */
 function makeHealthCheckRequest(
   url: URL,
   timeout: number
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; sessionCount?: number }> {
   return new Promise((resolve) => {
     const protocol = url.protocol === 'https:' ? https : http
 
@@ -87,19 +89,36 @@ function makeHealthCheckRequest(
       method: 'GET',
       timeout,
       headers: {
-        'User-Agent': 'AI-Maestro-Health-Check'
+        'User-Agent': 'AI-Maestro-Health-Check',
+        'Accept': 'application/json'
       }
     }
 
     const req = protocol.request(options, (res) => {
-      // Don't need to read the body, just check if we got a response
-      res.resume() // Consume response data to free up memory
+      let data = ''
 
-      if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
-        resolve({ success: true })
-      } else {
-        resolve({ success: false, error: `HTTP ${res.statusCode}` })
-      }
+      res.on('data', (chunk) => {
+        data += chunk
+      })
+
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
+          // Try to parse session count from response
+          let sessionCount: number | undefined
+          try {
+            const json = JSON.parse(data)
+            // Sessions API returns { sessions: [...] }
+            if (json.sessions && Array.isArray(json.sessions)) {
+              sessionCount = json.sessions.length
+            }
+          } catch {
+            // Failed to parse, but host is still online
+          }
+          resolve({ success: true, sessionCount })
+        } else {
+          resolve({ success: false, error: `HTTP ${res.statusCode}` })
+        }
+      })
     })
 
     req.on('timeout', () => {

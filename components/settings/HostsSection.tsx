@@ -30,6 +30,7 @@ export default function HostsSection() {
   const [showWizard, setShowWizard] = useState(false)
   const [healthStatus, setHealthStatus] = useState<Record<string, 'checking' | 'online' | 'offline'>>({})
   const [hostVersions, setHostVersions] = useState<Record<string, string>>({})
+  const [hostSessionCounts, setHostSessionCounts] = useState<Record<string, number>>({})
 
   // Form state
   const [formData, setFormData] = useState<Partial<Host>>({
@@ -53,12 +54,17 @@ export default function HostsSection() {
       hosts.forEach(host => {
         if (host.enabled) {
           if (host.type === 'local') {
-            // For local host, fetch version directly
-            fetch('/api/config')
-              .then(res => res.json())
-              .then(data => {
-                if (data.version) {
-                  setHostVersions(prev => ({ ...prev, [host.id]: data.version }))
+            // For local host, fetch version and sessions directly
+            Promise.all([
+              fetch('/api/config').then(res => res.json()),
+              fetch('/api/sessions').then(res => res.json())
+            ])
+              .then(([configData, sessionsData]) => {
+                if (configData.version) {
+                  setHostVersions(prev => ({ ...prev, [host.id]: configData.version }))
+                }
+                if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
+                  setHostSessionCounts(prev => ({ ...prev, [host.id]: sessionsData.sessions.length }))
                 }
                 setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
               })
@@ -103,6 +109,10 @@ export default function HostsSection() {
         // Store version if available
         if (data.version) {
           setHostVersions(prev => ({ ...prev, [host.id]: data.version }))
+        }
+        // Store session count if available
+        if (typeof data.sessionCount === 'number') {
+          setHostSessionCounts(prev => ({ ...prev, [host.id]: data.sessionCount }))
         }
       } else {
         setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
@@ -323,6 +333,11 @@ export default function HostsSection() {
                           v{hostVersions[host.id]}
                         </span>
                       )
+                    )}
+                    {typeof hostSessionCounts[host.id] === 'number' && (
+                      <span className="px-2 py-0.5 text-xs bg-gray-500/10 border border-gray-500/30 text-gray-400 rounded">
+                        {hostSessionCounts[host.id]} {hostSessionCounts[host.id] === 1 ? 'session' : 'sessions'}
+                      </span>
                     )}
                   </div>
 

@@ -30,6 +30,18 @@ export interface Host {
 
   /** Optional: Description of the host */
   description?: string
+
+  /** When this host was synced (ISO timestamp) */
+  syncedAt?: string
+
+  /** How this host was added (manual, peer-registration, peer-exchange) */
+  syncSource?: string
+
+  /** Last successful sync timestamp */
+  lastSyncSuccess?: string
+
+  /** Last sync error message */
+  lastSyncError?: string
 }
 
 export interface HostsConfig {

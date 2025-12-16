@@ -1,1 +1,7 @@
 - [ ] Create configuration system for app options (e.g., default working directory for new sessions)
+- [ ] Host Sync Phase 3: Retry queue for offline hosts
+  - Queue failed sync attempts when remote hosts are offline
+  - Exponential backoff retry (5min → 15min → 1hr → 4hrs)
+  - Background worker to process pending syncs
+  - Persist queue state across server restarts
+  - See `docs/HOST-SYNC-PLAN.md` for full details

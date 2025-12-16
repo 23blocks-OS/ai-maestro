@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getHosts, saveHosts, addHost, updateHost, deleteHost } from '@/lib/hosts-config'
+import { addHostWithSync } from '@/lib/host-sync'
 import type { Host } from '@/types/host'
 
 // Force this route to be dynamic (not statically generated at build time)
@@ -24,10 +25,16 @@ export async function GET() {
 /**
  * POST /api/hosts
  *
- * Add a new host to the configuration.
+ * Add a new host to the configuration with bidirectional sync.
+ *
+ * Query params:
+ * - sync: boolean (default: true) - Enable bidirectional sync with remote host
  */
 export async function POST(request: Request) {
   try {
+    const url = new URL(request.url)
+    const syncEnabled = url.searchParams.get('sync') !== 'false'
+
     const host: Host = await request.json()
 
     // Validate required fields
@@ -53,13 +60,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
     }
 
-    // Add host
-    const result = addHost(host)
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
-    }
+    // Use sync-enabled add for remote hosts, regular add for local
+    if (syncEnabled && host.type === 'remote') {
+      const syncResult = await addHostWithSync(host)
 
-    return NextResponse.json({ success: true, host })
+      return NextResponse.json({
+        success: syncResult.success,
+        host: syncResult.host,
+        sync: {
+          localAdd: syncResult.localAdd,
+          backRegistered: syncResult.backRegistered,
+          peersExchanged: syncResult.peersExchanged,
+          peersShared: syncResult.peersShared,
+          errors: syncResult.errors,
+        }
+      })
+    } else {
+      // Legacy: local-only add (for local host or when sync disabled)
+      const result = addHost(host)
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        host,
+        sync: { localAdd: true, backRegistered: false, peersExchanged: 0, peersShared: 0, errors: [] }
+      })
+    }
   } catch (error) {
     console.error('[Hosts API] Failed to add host:', error)
     return NextResponse.json({ error: 'Failed to add host' }, { status: 500 })

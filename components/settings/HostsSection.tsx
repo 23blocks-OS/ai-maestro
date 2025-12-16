@@ -1,9 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi } from 'lucide-react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2 } from 'lucide-react'
 import type { Host } from '@/types/host'
 import localVersion from '@/version.json'
+
+interface SyncResult {
+  localAdd: boolean
+  backRegistered: boolean
+  peersExchanged: number
+  peersShared: number
+  errors: string[]
+}
 
 /**
  * Compare two semver-like version strings
@@ -123,7 +131,7 @@ export default function HostsSection() {
     }
   }
 
-  const handleAdd = async (hostData: Partial<Host>) => {
+  const handleAdd = async (hostData: Partial<Host>): Promise<SyncResult | void> => {
     try {
       const response = await fetch('/api/hosts', {
         method: 'POST',
@@ -131,14 +139,18 @@ export default function HostsSection() {
         body: JSON.stringify(hostData),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.error || 'Failed to add host')
       }
 
       await fetchHosts()
-      setShowWizard(false)
-      resetForm()
+
+      // Return sync result if available
+      if (data.sync) {
+        return data.sync as SyncResult
+      }
     } catch (err) {
       throw err
     }
@@ -378,6 +390,33 @@ export default function HostsSection() {
                         <span>Checking...</span>
                       </div>
                     )}
+
+                    {/* Sync Status (for remote hosts with sync info) */}
+                    {host.type === 'remote' && host.syncSource && (
+                      <>
+                        <span className="text-gray-600">•</span>
+                        <div className="flex items-center gap-1.5 text-purple-400">
+                          <Link2 className="w-3.5 h-3.5" />
+                          <span>
+                            {host.syncSource === 'manual' ? 'Manual' :
+                             host.syncSource === 'peer-registration' ? 'Auto-registered' :
+                             host.syncSource?.startsWith('peer-exchange') ? 'Peer discovery' :
+                             'Synced'}
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Last Sync Error */}
+                    {host.type === 'remote' && host.lastSyncError && (
+                      <>
+                        <span className="text-gray-600">•</span>
+                        <div className="flex items-center gap-1.5 text-orange-400" title={host.lastSyncError}>
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Sync warning</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -445,13 +484,14 @@ function AddHostWizard({
   onAdd,
   onClose,
 }: {
-  onAdd: (host: Partial<Host>) => Promise<void>
+  onAdd: (host: Partial<Host>) => Promise<SyncResult | void>
   onClose: () => void
 }) {
   const [step, setStep] = useState<'url' | 'details' | 'success'>('url')
   const [url, setUrl] = useState('')
   const [discovering, setDiscovering] = useState(false)
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [hostData, setHostData] = useState<Partial<Host>>({
     id: '',
     name: '',
@@ -516,9 +556,12 @@ function AddHostWizard({
 
   const handleSave = async () => {
     try {
-      await onAdd(hostData)
+      const result = await onAdd(hostData)
+      if (result) {
+        setSyncResult(result)
+      }
       setStep('success')
-      setTimeout(() => onClose(), 1500)
+      setTimeout(() => onClose(), 3000) // Give more time to read sync results
     } catch (err) {
       setDiscoveryError(err instanceof Error ? err.message : 'Failed to add host')
     }
@@ -695,14 +738,75 @@ function AddHostWizard({
         )}
 
         {step === 'success' && (
-          <div className="text-center py-8">
+          <div className="text-center py-6">
             <div className="w-16 h-16 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Host Added Successfully!</h3>
-            <p className="text-sm text-gray-400">
-              You can now create sessions on this remote host.
-            </p>
+
+            {/* Sync Status Details */}
+            {syncResult && (
+              <div className="mt-4 space-y-2 text-left bg-gray-900/50 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-300 mb-3">Sync Status</h4>
+
+                <div className="flex items-center gap-2 text-sm">
+                  {syncResult.localAdd ? (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-yellow-400" />
+                  )}
+                  <span className="text-gray-400">
+                    {syncResult.localAdd ? 'Added to local registry' : 'Already in local registry'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm">
+                  {syncResult.backRegistered ? (
+                    <Link2 className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-orange-400" />
+                  )}
+                  <span className="text-gray-400">
+                    {syncResult.backRegistered
+                      ? 'Registered with remote host'
+                      : 'Could not register with remote host'}
+                  </span>
+                </div>
+
+                {syncResult.peersExchanged > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="w-4 h-4 text-blue-400" />
+                    <span className="text-gray-400">
+                      Discovered {syncResult.peersExchanged} new peer{syncResult.peersExchanged !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                )}
+
+                {syncResult.peersShared > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <RefreshCw className="w-4 h-4 text-purple-400" />
+                    <span className="text-gray-400">
+                      Shared with {syncResult.peersShared} existing peer{syncResult.peersShared !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                )}
+
+                {syncResult.errors.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-700">
+                    <p className="text-xs text-orange-400 mb-1">Warnings:</p>
+                    {syncResult.errors.map((err, i) => (
+                      <p key={i} className="text-xs text-gray-500">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!syncResult && (
+              <p className="text-sm text-gray-400">
+                You can now create sessions on this remote host.
+              </p>
+            )}
           </div>
         )}
       </div>

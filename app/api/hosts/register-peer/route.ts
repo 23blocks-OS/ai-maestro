@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getHosts, getLocalHost, addHost, getHostById } from '@/lib/hosts-config'
+import { getHosts, getLocalHost, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
+import { getPublicUrl, hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
   PeerRegistrationRequest,
   PeerRegistrationResponse,
   HostIdentity,
 } from '@/types/host-sync'
 import { Host } from '@/types/host'
+
+// Maximum propagation depth to prevent infinite loops
+const MAX_PROPAGATION_DEPTH = 3
 
 /**
  * POST /api/hosts/register-peer
@@ -37,9 +41,41 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       )
     }
 
-    // Prevent self-registration
+    // Check propagation depth to prevent infinite loops
+    const propagationDepth = body.source?.propagationDepth || 0
+    if (propagationDepth > MAX_PROPAGATION_DEPTH) {
+      console.log(`[Host Sync] Max propagation depth (${MAX_PROPAGATION_DEPTH}) reached, rejecting`)
+      return NextResponse.json({
+        success: true,
+        registered: false,
+        alreadyKnown: true,
+        host: getLocalHostIdentity(),
+        knownHosts: [], // Don't send hosts to prevent further propagation
+        error: 'Max propagation depth reached',
+      })
+    }
+
+    // Check if we've already processed this propagation ID
+    const propagationId = body.source?.propagationId
+    if (propagationId && hasProcessedPropagation(propagationId)) {
+      console.log(`[Host Sync] Already processed propagation ${propagationId}, skipping`)
+      return NextResponse.json({
+        success: true,
+        registered: false,
+        alreadyKnown: true,
+        host: getLocalHostIdentity(),
+        knownHosts: [], // Don't send hosts to prevent further propagation
+      })
+    }
+
+    // Mark propagation as processed
+    if (propagationId) {
+      markPropagationProcessed(propagationId)
+    }
+
+    // Prevent self-registration - use ID only (not URL, as URL can vary)
     const localHost = getLocalHost()
-    if (body.host.id === localHost.id || body.host.url === localHost.url) {
+    if (body.host.id === localHost.id) {
       return NextResponse.json(
         {
           success: false,
@@ -53,7 +89,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       )
     }
 
-    // Check if we already know this host
+    // Check if we already know this host by ID
     const existingHost = getHostById(body.host.id)
     if (existingHost) {
       console.log(`[Host Sync] Peer ${body.host.name} (${body.host.id}) already known`)
@@ -62,11 +98,11 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         registered: false,
         alreadyKnown: true,
         host: getLocalHostIdentity(),
-        knownHosts: getKnownHostIdentities(),
+        knownHosts: getKnownHostIdentities(body.host.id),
       })
     }
 
-    // Check if URL already exists (same host, different ID)
+    // Check if URL already exists (same host, different ID) - but allow if ID is same
     const hosts = getHosts()
     const hostWithSameUrl = hosts.find(h => h.url === body.host.url && h.type === 'remote')
     if (hostWithSameUrl) {
@@ -76,9 +112,14 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         registered: false,
         alreadyKnown: true,
         host: getLocalHostIdentity(),
-        knownHosts: getKnownHostIdentities(),
+        knownHosts: getKnownHostIdentities(body.host.id),
       })
     }
+
+    // Sanitize description to remove control characters
+    const sanitizedDescription = (body.host.description || `Peer registered from ${body.source?.initiator || 'unknown'}`)
+      .replace(/[\x00-\x1F\x7F]/g, '')
+      .substring(0, 500)
 
     // Add the new peer
     const newHost: Host = {
@@ -87,12 +128,13 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       url: body.host.url,
       type: 'remote',
       enabled: true,
-      description: body.host.description || `Peer registered from ${body.source?.initiator || 'unknown'}`,
+      description: sanitizedDescription,
       syncedAt: new Date().toISOString(),
       syncSource: body.source?.initiator || 'peer-registration',
     }
 
-    const result = addHost(newHost)
+    // Use async version with lock for concurrent safety
+    const result = await addHostAsync(newHost)
     if (!result.success) {
       return NextResponse.json(
         {
@@ -107,6 +149,9 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       )
     }
 
+    // Clear cache to ensure subsequent reads see the new host
+    clearHostsCache()
+
     console.log(`[Host Sync] Registered new peer: ${body.host.name} (${body.host.id}) from ${body.host.url}`)
 
     return NextResponse.json({
@@ -114,7 +159,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       registered: true,
       alreadyKnown: false,
       host: getLocalHostIdentity(),
-      knownHosts: getKnownHostIdentities(),
+      knownHosts: getKnownHostIdentities(body.host.id),
     })
   } catch (error) {
     console.error('[Host Sync] Error in register-peer:', error)
@@ -134,24 +179,26 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
 
 /**
  * Get local host identity for response
+ * Uses centralized getPublicUrl for consistent URL detection
  */
 function getLocalHostIdentity(): HostIdentity {
   const localHost = getLocalHost()
   return {
     id: localHost.id,
     name: localHost.name,
-    url: localHost.url,
+    url: getPublicUrl(localHost),
     description: localHost.description,
   }
 }
 
 /**
  * Get all known remote hosts as identities for peer exchange
+ * Excludes the requesting host to avoid circular references
  */
-function getKnownHostIdentities(): HostIdentity[] {
+function getKnownHostIdentities(excludeId?: string): HostIdentity[] {
   const hosts = getHosts()
   return hosts
-    .filter(h => h.type === 'remote' && h.enabled)
+    .filter(h => h.type === 'remote' && h.enabled && h.id !== excludeId)
     .map(h => ({
       id: h.id,
       name: h.name,

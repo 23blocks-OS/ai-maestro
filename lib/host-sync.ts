@@ -3,6 +3,11 @@
  *
  * Orchestrates bidirectional host registration and peer exchange
  * to achieve eventual mesh connectivity.
+ *
+ * Key features:
+ * - Circular propagation prevention via propagationId tracking
+ * - Concurrent health checks for performance
+ * - Proper error handling and partial success reporting
  */
 
 import { Host } from '@/types/host'
@@ -14,7 +19,118 @@ import {
   PeerExchangeRequest,
   PeerExchangeResponse,
 } from '@/types/host-sync'
-import { getHosts, getLocalHost, addHost, getHostById } from './hosts-config'
+import { getHosts, getLocalHost, addHost, addHostAsync, getHostById, clearHostsCache } from './hosts-config'
+import os from 'os'
+
+// Track processed propagation IDs to prevent infinite loops
+const processedPropagations = new Set<string>()
+const PROPAGATION_CACHE_TTL = 60000 // 1 minute TTL for propagation IDs
+const MAX_PROPAGATION_DEPTH = 3 // Maximum hops from original initiator
+
+/**
+ * Generate a unique propagation ID
+ */
+function generatePropagationId(): string {
+  return `prop-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+}
+
+/**
+ * Check if we've already processed this propagation
+ */
+export function hasProcessedPropagation(propagationId: string): boolean {
+  return processedPropagations.has(propagationId)
+}
+
+/**
+ * Mark a propagation as processed
+ */
+export function markPropagationProcessed(propagationId: string): void {
+  processedPropagations.add(propagationId)
+  // Clean up after TTL
+  setTimeout(() => {
+    processedPropagations.delete(propagationId)
+  }, PROPAGATION_CACHE_TTL)
+}
+
+/**
+ * Get the public URL for this host
+ * Centralized URL detection logic - detects Tailscale IP if available
+ */
+export function getPublicUrl(host?: Host): string {
+  const port = process.env.PORT || '23000'
+
+  // If host has a non-localhost URL, use it
+  if (host?.url && !host.url.includes('localhost') && !host.url.includes('127.0.0.1')) {
+    return host.url
+  }
+
+  // Try to detect Tailscale IP (100.x.x.x range)
+  try {
+    const networkInterfaces = os.networkInterfaces()
+    for (const interfaces of Object.values(networkInterfaces)) {
+      if (!interfaces) continue
+      for (const iface of interfaces) {
+        if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('100.')) {
+          return `http://${iface.address}:${port}`
+        }
+      }
+    }
+  } catch {
+    // Ignore network interface errors
+  }
+
+  // Fall back to host URL or localhost
+  return host?.url || `http://localhost:${port}`
+}
+
+/**
+ * Check if a host is reachable - with timeout
+ */
+async function checkHostHealth(url: string, timeoutMs: number = 5000): Promise<boolean> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+    const response = await fetch(`${url}/api/config`, {
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check health of multiple hosts concurrently
+ */
+async function checkHostsHealthConcurrent(
+  hosts: HostIdentity[],
+  timeoutMs: number = 5000
+): Promise<Map<string, boolean>> {
+  const results = new Map<string, boolean>()
+
+  const checks = hosts.map(async (host) => {
+    const isHealthy = await checkHostHealth(host.url, timeoutMs)
+    results.set(host.id, isHealthy)
+  })
+
+  await Promise.all(checks)
+  return results
+}
+
+/**
+ * Deduplicate hosts by ID
+ */
+function deduplicateHosts(hosts: HostIdentity[]): HostIdentity[] {
+  const seen = new Set<string>()
+  return hosts.filter(host => {
+    if (seen.has(host.id)) return false
+    seen.add(host.id)
+    return true
+  })
+}
 
 /**
  * Add a host with bidirectional sync
@@ -22,7 +138,7 @@ import { getHosts, getLocalHost, addHost, getHostById } from './hosts-config'
  * 1. Add to local hosts.json
  * 2. Register ourselves with the remote host
  * 3. Exchange known peers
- * 4. Propagate new peers to existing hosts
+ * 4. Propagate new peers to existing hosts (with depth limit)
  */
 export async function addHostWithSync(
   host: Host,
@@ -30,6 +146,8 @@ export async function addHostWithSync(
     skipBackRegistration?: boolean
     skipPeerExchange?: boolean
     skipPropagation?: boolean
+    propagationId?: string
+    propagationDepth?: number
   }
 ): Promise<HostSyncResult> {
   const result: HostSyncResult = {
@@ -42,15 +160,32 @@ export async function addHostWithSync(
   }
 
   const localHost = getLocalHost()
+  const propagationId = options?.propagationId || generatePropagationId()
+  const propagationDepth = options?.propagationDepth || 0
 
-  // Step 1: Add host locally
+  // Check propagation depth to prevent infinite loops
+  if (propagationDepth > MAX_PROPAGATION_DEPTH) {
+    console.log(`[Host Sync] Max propagation depth reached, stopping`)
+    result.errors.push('Max propagation depth reached')
+    return result
+  }
+
+  // Check if we've already processed this propagation
+  if (hasProcessedPropagation(propagationId)) {
+    console.log(`[Host Sync] Already processed propagation ${propagationId}, skipping`)
+    result.errors.push('Already processed this propagation')
+    return result
+  }
+  markPropagationProcessed(propagationId)
+
+  // Step 1: Add host locally (using async version with lock for concurrent safety)
   const existingHost = getHostById(host.id)
   if (existingHost) {
     console.log(`[Host Sync] Host ${host.name} already exists locally`)
     result.host = existingHost
     result.localAdd = false
   } else {
-    const addResult = addHost(host)
+    const addResult = await addHostAsync(host)
     if (!addResult.success) {
       result.errors.push(`Failed to add host locally: ${addResult.error}`)
       return result
@@ -63,7 +198,10 @@ export async function addHostWithSync(
   // Step 2: Register ourselves with the remote host
   if (!options?.skipBackRegistration) {
     try {
-      const registrationResult = await registerWithPeer(host.url, localHost)
+      const registrationResult = await registerWithPeer(host.url, localHost, {
+        propagationId,
+        propagationDepth: propagationDepth + 1,
+      })
       result.backRegistered = registrationResult.success
 
       if (!registrationResult.success) {
@@ -71,12 +209,13 @@ export async function addHostWithSync(
       } else {
         console.log(`[Host Sync] Registered with ${host.name}: ${registrationResult.alreadyKnown ? 'already known' : 'newly registered'}`)
 
-        // Step 3: Exchange peers
+        // Step 3: Exchange peers (concurrent health checks)
         if (!options?.skipPeerExchange && registrationResult.knownHosts.length > 0) {
           const exchangeResult = await processPeerExchange(
             host.url,
             localHost,
-            registrationResult.knownHosts
+            registrationResult.knownHosts,
+            propagationId
           )
           result.peersExchanged = exchangeResult.newlyAdded
           if (exchangeResult.errors.length > 0) {
@@ -91,16 +230,23 @@ export async function addHostWithSync(
     }
   }
 
-  // Step 4: Share the new host with our existing peers
-  if (!options?.skipPropagation && result.localAdd) {
-    const propagationResult = await propagateToExistingPeers(host, localHost)
+  // Step 4: Share the new host with our existing peers (only if we added locally)
+  if (!options?.skipPropagation && result.localAdd && propagationDepth < MAX_PROPAGATION_DEPTH) {
+    const propagationResult = await propagateToExistingPeers(
+      host,
+      localHost,
+      propagationId
+    )
     result.peersShared = propagationResult.shared
     if (propagationResult.errors.length > 0) {
       result.errors.push(...propagationResult.errors)
     }
   }
 
+  // Success requires both local add AND back-registration for remote hosts
+  // If back-registration failed, we still succeed locally but note the partial success
   result.success = result.localAdd || result.host !== undefined
+
   return result
 }
 
@@ -109,7 +255,8 @@ export async function addHostWithSync(
  */
 async function registerWithPeer(
   peerUrl: string,
-  localHost: Host
+  localHost: Host,
+  propagation?: { propagationId: string; propagationDepth: number }
 ): Promise<{
   success: boolean
   alreadyKnown: boolean
@@ -127,6 +274,8 @@ async function registerWithPeer(
       source: {
         initiator: localHost.id,
         timestamp: new Date().toISOString(),
+        propagationId: propagation?.propagationId,
+        propagationDepth: propagation?.propagationDepth,
       },
     }
 
@@ -165,11 +314,13 @@ async function registerWithPeer(
 
 /**
  * Process peer exchange - learn about new hosts from a peer
+ * Uses concurrent health checks for better performance
  */
 async function processPeerExchange(
   peerUrl: string,
   localHost: Host,
-  peerKnownHosts: HostIdentity[]
+  peerKnownHosts: HostIdentity[],
+  propagationId?: string
 ): Promise<{
   newlyAdded: number
   errors: string[]
@@ -177,34 +328,49 @@ async function processPeerExchange(
   const errors: string[] = []
   let newlyAdded = 0
 
-  // Learn from peer's known hosts
-  for (const remoteHost of peerKnownHosts) {
-    // Skip if it's us
-    if (remoteHost.id === localHost.id) continue
+  // Deduplicate incoming hosts
+  const uniqueHosts = deduplicateHosts(peerKnownHosts)
 
-    // Skip if we already know them
-    if (getHostById(remoteHost.id)) continue
+  // Filter out hosts we already know or that are us
+  const hostsToCheck = uniqueHosts.filter(remoteHost => {
+    if (remoteHost.id === localHost.id) return false
+    if (getHostById(remoteHost.id)) return false
+    return true
+  })
 
-    // Health check before adding
-    const isReachable = await checkHostHealth(remoteHost.url)
+  if (hostsToCheck.length === 0) {
+    return { newlyAdded: 0, errors: [] }
+  }
+
+  // Concurrent health checks for all potential hosts
+  const healthResults = await checkHostsHealthConcurrent(hostsToCheck)
+
+  // Add healthy hosts
+  for (const remoteHost of hostsToCheck) {
+    const isReachable = healthResults.get(remoteHost.id)
     if (!isReachable) {
       console.log(`[Host Sync] Peer ${remoteHost.name} is unreachable, skipping`)
       continue
     }
 
-    // Add the host
+    // Sanitize description
+    const sanitizedDescription = (remoteHost.description || 'Discovered via peer exchange')
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .substring(0, 500) // Limit length
+
     const newHost: Host = {
       id: remoteHost.id,
       name: remoteHost.name,
       url: remoteHost.url,
       type: 'remote',
       enabled: true,
-      description: remoteHost.description || 'Discovered via peer exchange',
+      description: sanitizedDescription,
       syncedAt: new Date().toISOString(),
       syncSource: 'peer-exchange',
     }
 
-    const result = addHost(newHost)
+    // Use async version with lock for concurrent safety
+    const result = await addHostAsync(newHost)
     if (result.success) {
       console.log(`[Host Sync] Added peer from exchange: ${remoteHost.name}`)
       newlyAdded++
@@ -213,7 +379,7 @@ async function processPeerExchange(
     }
   }
 
-  // Share our known hosts with the peer
+  // Share our known hosts with the peer (with response checking)
   const ourKnownHosts = getKnownHostIdentities(localHost.id)
   if (ourKnownHosts.length > 0) {
     try {
@@ -224,15 +390,22 @@ async function processPeerExchange(
           url: getPublicUrl(localHost),
         },
         knownHosts: ourKnownHosts,
+        propagationId,
       }
 
-      await fetch(`${peerUrl}/api/hosts/exchange-peers`, {
+      const response = await fetch(`${peerUrl}/api/hosts/exchange-peers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       })
+
+      if (!response.ok) {
+        console.error(`[Host Sync] Peer exchange failed: HTTP ${response.status}`)
+        errors.push(`Peer exchange returned ${response.status}`)
+      }
     } catch (error) {
       console.error(`[Host Sync] Failed to share peers with ${peerUrl}:`, error)
+      errors.push(`Failed to share peers: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -244,7 +417,8 @@ async function processPeerExchange(
  */
 async function propagateToExistingPeers(
   newHost: Host,
-  localHost: Host
+  localHost: Host,
+  propagationId?: string
 ): Promise<{
   shared: number
   errors: string[]
@@ -256,7 +430,8 @@ async function propagateToExistingPeers(
     h => h.type === 'remote' && h.enabled && h.id !== newHost.id
   )
 
-  for (const peer of existingPeers) {
+  // Propagate concurrently to all peers
+  const propagatePromises = existingPeers.map(async (peer) => {
     try {
       const request: PeerExchangeRequest = {
         fromHost: {
@@ -270,6 +445,7 @@ async function propagateToExistingPeers(
           url: newHost.url,
           description: newHost.description,
         }],
+        propagationId,
       }
 
       const response = await fetch(`${peer.url}/api/hosts/exchange-peers`, {
@@ -280,13 +456,30 @@ async function propagateToExistingPeers(
 
       if (response.ok) {
         const data: PeerExchangeResponse = await response.json()
-        if (data.newlyAdded.length > 0) {
+        if (data.newlyAdded && data.newlyAdded.length > 0) {
           console.log(`[Host Sync] Propagated ${newHost.name} to ${peer.name}`)
-          shared++
+          return { success: true, peer: peer.name }
         }
+        return { success: true, peer: peer.name, alreadyKnown: true }
+      } else {
+        return { success: false, peer: peer.name, error: `HTTP ${response.status}` }
       }
     } catch (error) {
-      errors.push(`Failed to propagate to ${peer.name}`)
+      return {
+        success: false,
+        peer: peer.name,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  })
+
+  const results = await Promise.all(propagatePromises)
+
+  for (const result of results) {
+    if (result.success && !result.alreadyKnown) {
+      shared++
+    } else if (!result.success) {
+      errors.push(`Failed to propagate to ${result.peer}: ${result.error}`)
     }
   }
 
@@ -308,53 +501,6 @@ function getKnownHostIdentities(excludeId?: string): HostIdentity[] {
 }
 
 /**
- * Get the public URL for this host (handles Tailscale)
- */
-function getPublicUrl(host: Host): string {
-  // If we have a configured URL that's not localhost, use it
-  if (host.url && !host.url.includes('localhost')) {
-    return host.url
-  }
-
-  // Try to detect Tailscale IP
-  try {
-    const os = require('os')
-    const networkInterfaces = os.networkInterfaces()
-    for (const interfaces of Object.values(networkInterfaces)) {
-      if (!interfaces) continue
-      for (const iface of interfaces as any[]) {
-        if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('100.')) {
-          return `http://${iface.address}:23000`
-        }
-      }
-    }
-  } catch {
-    // Ignore errors
-  }
-
-  return host.url
-}
-
-/**
- * Check if a host is reachable
- */
-async function checkHostHealth(url: string): Promise<boolean> {
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
-
-    const response = await fetch(`${url}/api/config`, {
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-
-    return response.ok
-  } catch {
-    return false
-  }
-}
-
-/**
  * Manually trigger sync with all known peers
  * Useful for recovery or manual mesh rebuild
  */
@@ -367,21 +513,35 @@ export async function syncWithAllPeers(): Promise<{
   const synced: string[] = []
   const failed: string[] = []
 
-  for (const peer of peers) {
+  // Sync concurrently with all peers
+  const syncPromises = peers.map(async (peer) => {
     try {
-      const result = await registerWithPeer(peer.url, localHost)
-      if (result.success) {
-        synced.push(peer.id)
+      const result = await registerWithPeer(peer.url, localHost, {
+        propagationId: generatePropagationId(),
+        propagationDepth: 0,
+      })
 
+      if (result.success) {
         // Exchange peers if we learned about new ones
         if (result.knownHosts.length > 0) {
           await processPeerExchange(peer.url, localHost, result.knownHosts)
         }
+        return { id: peer.id, success: true }
       } else {
-        failed.push(peer.id)
+        return { id: peer.id, success: false }
       }
     } catch {
-      failed.push(peer.id)
+      return { id: peer.id, success: false }
+    }
+  })
+
+  const results = await Promise.all(syncPromises)
+
+  for (const result of results) {
+    if (result.success) {
+      synced.push(result.id)
+    } else {
+      failed.push(result.id)
     }
   }
 

@@ -3,12 +3,80 @@
  *
  * Loads and manages remote worker host configurations for the Manager/Worker pattern.
  * Supports configuration via environment variables or JSON file.
+ *
+ * Features:
+ * - File-based locking to prevent concurrent write race conditions
+ * - Caching with cache invalidation
+ * - Validation of host configuration
  */
 
 import { Host, HostsConfig } from '@/types/host'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+
+// File lock state
+let lockHeld = false
+const lockQueue: Array<{ resolve: () => void; reject: (err: Error) => void }> = []
+const LOCK_TIMEOUT = 5000 // 5 second timeout for acquiring lock
+
+/**
+ * Acquire a lock for file operations
+ * Uses an in-process queue to serialize writes
+ */
+async function acquireLock(): Promise<void> {
+  if (!lockHeld) {
+    lockHeld = true
+    return
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const index = lockQueue.findIndex(item => item.resolve === resolve)
+      if (index !== -1) {
+        lockQueue.splice(index, 1)
+      }
+      reject(new Error('Lock acquisition timeout'))
+    }, LOCK_TIMEOUT)
+
+    lockQueue.push({
+      resolve: () => {
+        clearTimeout(timeout)
+        resolve()
+      },
+      reject: (err: Error) => {
+        clearTimeout(timeout)
+        reject(err)
+      },
+    })
+  })
+}
+
+/**
+ * Release the lock and process next in queue
+ */
+function releaseLock(): void {
+  if (lockQueue.length > 0) {
+    const next = lockQueue.shift()
+    if (next) {
+      next.resolve()
+    }
+  } else {
+    lockHeld = false
+  }
+}
+
+/**
+ * Execute a function with lock protection
+ */
+async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
+  await acquireLock()
+  try {
+    return await fn()
+  } finally {
+    releaseLock()
+  }
+}
 
 /** Get the local host configuration with actual hostname */
 function getDefaultLocalHost(): Host {
@@ -188,8 +256,9 @@ export function createExampleConfig(): HostsConfig {
 }
 
 /**
- * Save hosts configuration to file
+ * Save hosts configuration to file (synchronous version)
  * Returns success status and error message if applicable
+ * Note: For concurrent operations, prefer saveHostsAsync which uses locking
  */
 export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
   try {
@@ -217,8 +286,17 @@ export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
 }
 
 /**
- * Add a new host to the configuration
+ * Save hosts configuration to file with lock protection
+ * This is the recommended method for concurrent operations (e.g., peer sync)
+ */
+export async function saveHostsAsync(hosts: Host[]): Promise<{ success: boolean; error?: string }> {
+  return withLock(() => saveHosts(hosts))
+}
+
+/**
+ * Add a new host to the configuration (synchronous version)
  * Returns success status, the added host, or an error message
+ * Note: For concurrent operations, prefer addHostAsync which uses locking
  */
 export function addHost(host: Host): { success: boolean; host?: Host; error?: string } {
   try {
@@ -250,6 +328,15 @@ export function addHost(host: Host): { success: boolean; host?: Host; error?: st
       error: error instanceof Error ? error.message : 'Failed to add host',
     }
   }
+}
+
+/**
+ * Add a new host to the configuration with lock protection
+ * This is the recommended method for concurrent operations (e.g., peer sync)
+ * The lock ensures that multiple simultaneous addHost calls don't cause race conditions
+ */
+export async function addHostAsync(host: Host): Promise<{ success: boolean; host?: Host; error?: string }> {
+  return withLock(() => addHost(host))
 }
 
 /**

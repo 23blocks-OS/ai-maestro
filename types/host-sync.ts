@@ -36,6 +36,8 @@ export interface PeerRegistrationRequest {
   source: {
     initiator: string    // Host ID that initiated the original registration
     timestamp: string    // ISO timestamp
+    propagationId?: string  // Unique ID to prevent circular propagation
+    propagationDepth?: number  // How many hops from original initiator
   }
 }
 
@@ -57,6 +59,7 @@ export interface PeerRegistrationResponse {
 export interface PeerExchangeRequest {
   fromHost: HostIdentity
   knownHosts: HostIdentity[]
+  propagationId?: string  // To prevent circular propagation
 }
 
 /**

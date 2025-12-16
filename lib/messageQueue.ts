@@ -6,11 +6,11 @@ import { loadAgents, getAgentBySession } from './agent-registry'
 import type { Agent } from '@/types/agent'
 
 /**
- * Get the local host's identifier for messages
+ * Get the local host's name for messages
  * Uses the host name (e.g., 'macbook-pro', 'mac-mini.local') instead of 'local'
  * This ensures recipients on other hosts know where the message came from
  */
-function getLocalHostIdentifier(): string {
+function getLocalHostName(): string {
   try {
     const localHost = getLocalHost()
     // Use the name (hostname) as the identifier, not 'local'
@@ -118,7 +118,7 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   const session = agent.tools?.session || (agent as any).session
   // Use the actual host identifier instead of 'local'
   const hostId = session?.hostId === 'local' || !session?.hostId
-    ? getLocalHostIdentifier()
+    ? getLocalHostName()
     : session.hostId
   const hostUrl = session?.hostUrl || 'http://localhost:23000'
 
@@ -247,8 +247,8 @@ export async function sendMessage(
 
   // Determine host info - use provided values or resolve from local agent
   // Never use 'local' - always use the actual host name for cross-host compatibility
-  const fromHostId = options?.fromHost || fromAgent?.hostId || getLocalHostIdentifier()
-  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || getLocalHostIdentifier()
+  const fromHostId = options?.fromHost || fromAgent?.hostId || getLocalHostName()
+  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || getLocalHostName()
 
   const message: Message = {
     id: generateMessageId(),
@@ -382,8 +382,8 @@ export async function forwardMessage(
   forwardedContent += `--- End of Forwarded Message ---`
 
   // Determine host info for forwarded message
-  const fromHostId = fromResolved.hostId || getLocalHostIdentifier()
-  const toHostId = targetHostId || toResolved.hostId || getLocalHostIdentifier()
+  const fromHostId = fromResolved.hostId || getLocalHostName()
+  const toHostId = targetHostId || toResolved.hostId || getLocalHostName()
 
   // Create forwarded message
   const forwardedMessage: Message = {

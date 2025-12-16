@@ -8,96 +8,62 @@
 API_BASE="${AIMAESTRO_API_BASE:-http://localhost:23000}"
 HOSTS_CONFIG="${HOME}/.aimaestro/hosts.json"
 
-# Load hosts configuration and provide lookup functions
-# Populates HOSTS_LOADED array with host data
-declare -A HOST_URLS
-declare -A HOST_NAMES
+# Hosts config is cached in a simple format (no associative arrays for compatibility)
+_HOSTS_LOADED=""
 
-load_hosts_config() {
-    if [ ! -f "$HOSTS_CONFIG" ]; then
-        # No config file, only local host available
-        HOST_URLS["local"]="http://localhost:23000"
-        HOST_NAMES["local"]="local"
-        return 0
-    fi
-
-    # Parse hosts.json and populate associative arrays
-    local hosts_json
-    hosts_json=$(cat "$HOSTS_CONFIG" 2>/dev/null)
-
-    if [ -z "$hosts_json" ]; then
-        HOST_URLS["local"]="http://localhost:23000"
-        HOST_NAMES["local"]="local"
-        return 0
-    fi
-
-    # Extract each host's id, name, and url
-    local count
-    count=$(echo "$hosts_json" | jq '.hosts | length' 2>/dev/null)
-
-    for ((i=0; i<count; i++)); do
-        local id name url enabled
-        id=$(echo "$hosts_json" | jq -r ".hosts[$i].id" 2>/dev/null)
-        name=$(echo "$hosts_json" | jq -r ".hosts[$i].name" 2>/dev/null)
-        url=$(echo "$hosts_json" | jq -r ".hosts[$i].url" 2>/dev/null)
-        enabled=$(echo "$hosts_json" | jq -r ".hosts[$i].enabled" 2>/dev/null)
-
-        if [ "$enabled" = "true" ] && [ -n "$id" ] && [ -n "$url" ]; then
-            HOST_URLS["$id"]="$url"
-            HOST_NAMES["$id"]="$name"
-            # Also index by name for convenience
-            HOST_URLS["$name"]="$url"
-        fi
-    done
-
-    # Ensure local is always available
-    if [ -z "${HOST_URLS["local"]}" ]; then
-        HOST_URLS["local"]="http://localhost:23000"
-        HOST_NAMES["local"]="local"
-    fi
-}
-
-# Get URL for a host by id or name
+# Get URL for a host by id or name using jq (no associative arrays needed)
 # Usage: get_host_url "mac-mini" or get_host_url "local"
 get_host_url() {
     local host_id="$1"
 
-    # Load config if not already loaded
-    if [ ${#HOST_URLS[@]} -eq 0 ]; then
-        load_hosts_config
+    # Handle "local" specially
+    if [ "$host_id" = "local" ]; then
+        echo "http://localhost:23000"
+        return 0
     fi
 
-    local url="${HOST_URLS[$host_id]}"
-    if [ -n "$url" ]; then
+    # No config file means only local is available
+    if [ ! -f "$HOSTS_CONFIG" ]; then
+        echo "Error: Unknown host '$host_id' (no hosts.json config)" >&2
+        return 1
+    fi
+
+    # Query the hosts.json directly with jq
+    local url
+    url=$(jq -r --arg id "$host_id" '.hosts[] | select(.id == $id and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+
+    # Try matching by name if id didn't work
+    if [ -z "$url" ]; then
+        url=$(jq -r --arg name "$host_id" '.hosts[] | select(.name == $name and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$url" ] && [ "$url" != "null" ]; then
         echo "$url"
         return 0
     fi
 
     echo "Error: Unknown host '$host_id'" >&2
-    echo "Available hosts: ${!HOST_URLS[*]}" >&2
     return 1
 }
 
 # Check if a host exists
 host_exists() {
     local host_id="$1"
-
-    if [ ${#HOST_URLS[@]} -eq 0 ]; then
-        load_hosts_config
-    fi
-
-    [ -n "${HOST_URLS[$host_id]}" ]
+    get_host_url "$host_id" >/dev/null 2>&1
 }
 
 # List all available hosts
 list_hosts() {
-    if [ ${#HOST_URLS[@]} -eq 0 ]; then
-        load_hosts_config
-    fi
+    echo "local: http://localhost:23000"
 
-    for host_id in "${!HOST_NAMES[@]}"; do
-        echo "$host_id: ${HOST_URLS[$host_id]}"
-    done
+    if [ -f "$HOSTS_CONFIG" ]; then
+        jq -r '.hosts[] | select(.enabled == true) | "\(.id): \(.url)"' "$HOSTS_CONFIG" 2>/dev/null
+    fi
+}
+
+# Legacy function for compatibility - now a no-op since we query directly
+load_hosts_config() {
+    _HOSTS_LOADED="1"
 }
 
 # Get the current tmux session name

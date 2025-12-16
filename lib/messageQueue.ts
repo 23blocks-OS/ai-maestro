@@ -1,9 +1,24 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
-import { getHostById } from './hosts-config-server.mjs'
+import { getHostById, getLocalHost } from './hosts-config-server.mjs'
 import { loadAgents, getAgentBySession } from './agent-registry'
 import type { Agent } from '@/types/agent'
+
+/**
+ * Get the local host's identifier for messages
+ * Uses the host name (e.g., 'macbook-pro', 'mac-mini.local') instead of 'local'
+ * This ensures recipients on other hosts know where the message came from
+ */
+function getLocalHostIdentifier(): string {
+  try {
+    const localHost = getLocalHost()
+    // Use the name (hostname) as the identifier, not 'local'
+    return localHost.name || os.hostname() || 'unknown-host'
+  } catch {
+    return os.hostname() || 'unknown-host'
+  }
+}
 
 export interface Message {
   id: string
@@ -101,7 +116,10 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
 
   // Get host info from session or tools
   const session = agent.tools?.session || (agent as any).session
-  const hostId = session?.hostId || 'local'
+  // Use the actual host identifier instead of 'local'
+  const hostId = session?.hostId === 'local' || !session?.hostId
+    ? getLocalHostIdentifier()
+    : session.hostId
   const hostUrl = session?.hostUrl || 'http://localhost:23000'
 
   return {
@@ -228,8 +246,9 @@ export async function sendMessage(
   await ensureAgentDirectories(toAgent.agentId)
 
   // Determine host info - use provided values or resolve from local agent
-  const fromHostId = options?.fromHost || fromAgent?.hostId || 'local'
-  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || 'local'
+  // Never use 'local' - always use the actual host name for cross-host compatibility
+  const fromHostId = options?.fromHost || fromAgent?.hostId || getLocalHostIdentifier()
+  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || getLocalHostIdentifier()
 
   const message: Message = {
     id: generateMessageId(),
@@ -362,15 +381,21 @@ export async function forwardMessage(
   forwardedContent += `${originalMessage.content.message}\n`
   forwardedContent += `--- End of Forwarded Message ---`
 
+  // Determine host info for forwarded message
+  const fromHostId = fromResolved.hostId || getLocalHostIdentifier()
+  const toHostId = targetHostId || toResolved.hostId || getLocalHostIdentifier()
+
   // Create forwarded message
   const forwardedMessage: Message = {
     id: generateMessageId(),
     from: fromResolved.agentId,
     fromAlias: fromResolved.alias,
     fromSession: fromResolved.sessionName,
+    fromHost: fromHostId,
     to: toResolved.agentId,
     toAlias: toResolved.alias,
     toSession: toResolved.sessionName,
+    toHost: toHostId,
     timestamp: new Date().toISOString(),
     subject: `Fwd: ${originalMessage.subject}`,
     priority: originalMessage.priority,

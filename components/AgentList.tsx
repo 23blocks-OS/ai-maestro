@@ -27,6 +27,8 @@ import {
   WifiOff,
   User,
   Upload,
+  Moon,
+  Power,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
@@ -148,6 +150,8 @@ export default function AgentList({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
+  const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
 
   // Host management
   const { hosts } = useHosts()
@@ -331,6 +335,72 @@ export default function AgentList({
     } else {
       // Offline agent - show profile panel
       onShowAgentProfile(agent)
+    }
+  }
+
+  const handleHibernate = async (agent: UnifiedAgent, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (hibernatingAgents.has(agent.id)) return
+
+    setHibernatingAgents(prev => new Set(prev).add(agent.id))
+
+    try {
+      const baseUrl = agent.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/hibernate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to hibernate agent')
+      }
+
+      // Refresh the agent list to show updated status
+      onRefresh?.()
+    } catch (error) {
+      console.error('Failed to hibernate agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to hibernate agent')
+    } finally {
+      setHibernatingAgents(prev => {
+        const next = new Set(prev)
+        next.delete(agent.id)
+        return next
+      })
+    }
+  }
+
+  const handleWake = async (agent: UnifiedAgent, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (wakingAgents.has(agent.id)) return
+
+    setWakingAgents(prev => new Set(prev).add(agent.id))
+
+    try {
+      const baseUrl = agent.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to wake agent')
+      }
+
+      // Refresh the agent list to show updated status
+      onRefresh?.()
+    } catch (error) {
+      console.error('Failed to wake agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+    } finally {
+      setWakingAgents(prev => {
+        const next = new Set(prev)
+        next.delete(agent.id)
+        return next
+      })
     }
   }
 
@@ -710,7 +780,10 @@ export default function AgentList({
                                                 )}
 
                                                 {/* Status indicator */}
-                                                <AgentStatusIndicator isOnline={isOnline} />
+                                                <AgentStatusIndicator
+                                                  isOnline={isOnline}
+                                                  isHibernated={!isOnline && !!agent.tools?.session}
+                                                />
                                               </div>
 
                                               {/* Second row: Remote host indicator (below agent name) */}
@@ -729,6 +802,36 @@ export default function AgentList({
 
                                           {/* Action buttons - show on hover */}
                                           <div className="hidden group-hover/agent:flex items-center gap-1">
+                                            {/* Hibernate button - show when agent is online */}
+                                            {isOnline && (
+                                              <button
+                                                onClick={(e) => handleHibernate(agent, e)}
+                                                disabled={hibernatingAgents.has(agent.id)}
+                                                className="p-1 rounded hover:bg-yellow-500/20 text-gray-400 hover:text-yellow-400 transition-all duration-200 disabled:opacity-50"
+                                                title="Hibernate agent (stop session)"
+                                              >
+                                                {hibernatingAgents.has(agent.id) ? (
+                                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                  <Moon className="w-3 h-3" />
+                                                )}
+                                              </button>
+                                            )}
+                                            {/* Wake button - show when agent is offline and has session config */}
+                                            {!isOnline && agent.tools?.session && (
+                                              <button
+                                                onClick={(e) => handleWake(agent, e)}
+                                                disabled={wakingAgents.has(agent.id)}
+                                                className="p-1 rounded hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-all duration-200 disabled:opacity-50"
+                                                title="Wake agent (start session)"
+                                              >
+                                                {wakingAgents.has(agent.id) ? (
+                                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                  <Power className="w-3 h-3" />
+                                                )}
+                                              </button>
+                                            )}
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation()
@@ -804,12 +907,21 @@ export default function AgentList({
   )
 }
 
-function AgentStatusIndicator({ isOnline }: { isOnline: boolean }) {
+function AgentStatusIndicator({ isOnline, isHibernated }: { isOnline: boolean; isHibernated?: boolean }) {
   if (isOnline) {
     return (
       <div className="flex items-center gap-1.5 flex-shrink-0" title="Online">
         <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30 animate-pulse" />
         <span className="text-xs text-gray-400 hidden lg:inline">Online</span>
+      </div>
+    )
+  }
+
+  if (isHibernated) {
+    return (
+      <div className="flex items-center gap-1.5 flex-shrink-0" title="Hibernated - Click power button to wake">
+        <div className="w-2 h-2 rounded-full bg-yellow-500 ring-2 ring-yellow-500/30" />
+        <span className="text-xs text-yellow-400 hidden lg:inline">Hibernated</span>
       </div>
     )
   }

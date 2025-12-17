@@ -120,6 +120,9 @@ secrets/
 # But allow .env.example files
 !agent-container/.env.example
 
+# Business planning (internal strategy, not open source)
+business_plan/
+
 # Terraform
 *.tfstate
 *.tfstate.*

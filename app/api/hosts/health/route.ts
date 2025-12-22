@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as http from 'http'
-import * as https from 'https'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,8 +6,8 @@ export const dynamic = 'force-dynamic'
  * GET /api/hosts/health?url=<hostUrl>
  * Proxy health check request to remote host
  *
- * This avoids CORS issues and network accessibility problems
- * when browser tries to fetch directly from remote hosts
+ * Uses native fetch (undici) which works correctly with Tailscale/VPN networks.
+ * Note: Node.js http.request module has issues with Tailscale networks.
  *
  * Returns: { success, status, url, version?, sessionCount? }
  */
@@ -25,19 +23,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Parse the URL
+    // Validate URL format
     let parsedUrl: URL
     try {
       parsedUrl = new URL(hostUrl)
-    } catch (err) {
+    } catch {
       return NextResponse.json(
         { error: 'Invalid URL format' },
         { status: 400 }
       )
     }
 
-    // Make request to remote host with timeout - also gets session count
-    const result = await makeHealthCheckRequest(parsedUrl, 3000)
+    // Make health check request using fetch
+    // Note: /api/sessions can take 5+ seconds on remote hosts due to tmux queries
+    const result = await makeHealthCheckRequest(parsedUrl, 10000)
 
     if (result.success) {
       // Also fetch version info from /api/config
@@ -72,116 +71,77 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Make HTTP/HTTPS health check request with timeout
+ * Make health check request using native fetch
  * Also extracts session count from /api/sessions response
  */
-function makeHealthCheckRequest(
+async function makeHealthCheckRequest(
   url: URL,
   timeout: number
 ): Promise<{ success: boolean; error?: string; sessionCount?: number }> {
-  return new Promise((resolve) => {
-    const protocol = url.protocol === 'https:' ? https : http
+  try {
+    const sessionsUrl = `${url.protocol}//${url.host}/api/sessions`
 
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: '/api/sessions',
+    const response = await fetch(sessionsUrl, {
       method: 'GET',
-      timeout,
       headers: {
         'User-Agent': 'AI-Maestro-Health-Check',
         'Accept': 'application/json'
-      }
-    }
+      },
+      signal: AbortSignal.timeout(timeout)
+    })
 
-    const req = protocol.request(options, (res) => {
-      let data = ''
-
-      res.on('data', (chunk) => {
-        data += chunk
-      })
-
-      res.on('end', () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
-          // Try to parse session count from response
-          let sessionCount: number | undefined
-          try {
-            const json = JSON.parse(data)
-            // Sessions API returns { sessions: [...] }
-            if (json.sessions && Array.isArray(json.sessions)) {
-              sessionCount = json.sessions.length
-            }
-          } catch {
-            // Failed to parse, but host is still online
-          }
-          resolve({ success: true, sessionCount })
-        } else {
-          resolve({ success: false, error: `HTTP ${res.statusCode}` })
+    if (response.ok || response.status < 500) {
+      // Try to parse session count from response
+      let sessionCount: number | undefined
+      try {
+        const json = await response.json()
+        // Sessions API returns { sessions: [...] }
+        if (json.sessions && Array.isArray(json.sessions)) {
+          sessionCount = json.sessions.length
         }
-      })
-    })
-
-    req.on('timeout', () => {
-      req.destroy()
-      resolve({ success: false, error: 'Connection timeout' })
-    })
-
-    req.on('error', (err) => {
-      resolve({ success: false, error: err.message })
-    })
-
-    req.end()
-  })
+      } catch {
+        // Failed to parse, but host is still online
+      }
+      return { success: true, sessionCount }
+    } else {
+      return { success: false, error: `HTTP ${response.status}` }
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+        return { success: false, error: 'Connection timeout' }
+      }
+      return { success: false, error: error.message }
+    }
+    return { success: false, error: 'Unknown error' }
+  }
 }
 
 /**
  * Fetch version info from remote host's /api/config endpoint
  */
-function fetchVersionInfo(
+async function fetchVersionInfo(
   url: URL,
   timeout: number
 ): Promise<{ version?: string }> {
-  return new Promise((resolve) => {
-    const protocol = url.protocol === 'https:' ? https : http
+  try {
+    const configUrl = `${url.protocol}//${url.host}/api/config`
 
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: '/api/config',
+    const response = await fetch(configUrl, {
       method: 'GET',
-      timeout,
       headers: {
         'User-Agent': 'AI-Maestro-Health-Check',
         'Accept': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(timeout)
+    })
+
+    if (response.ok) {
+      const config = await response.json()
+      return { version: config.version }
     }
-
-    const req = protocol.request(options, (res) => {
-      let data = ''
-
-      res.on('data', (chunk) => {
-        data += chunk
-      })
-
-      res.on('end', () => {
-        try {
-          const config = JSON.parse(data)
-          resolve({ version: config.version })
-        } catch (err) {
-          resolve({})
-        }
-      })
-    })
-
-    req.on('timeout', () => {
-      req.destroy()
-      resolve({})
-    })
-
-    req.on('error', () => {
-      resolve({})
-    })
-
-    req.end()
-  })
+    return {}
+  } catch {
+    return {}
+  }
 }

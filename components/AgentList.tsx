@@ -329,11 +329,14 @@ export default function AgentList({
   }
 
   const handleAgentClick = (agent: UnifiedAgent) => {
-    if (agent.session?.status === 'online') {
-      // Online agent - select terminal
+    // Check if this is a hibernated agent (offline but has session config)
+    const isHibernated = agent.session?.status !== 'online' && !!agent.tools?.session
+
+    if (agent.session?.status === 'online' || isHibernated) {
+      // Online or hibernated agent - select and show tabs
       onAgentSelect(agent)
     } else {
-      // Offline agent - show profile panel
+      // Truly offline agent (no session config) - show profile panel
       onShowAgentProfile(agent)
     }
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import TerminalViewNew from '@/components/TerminalViewNew'
@@ -18,7 +18,7 @@ import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2 } from 'lucide-react'
 import ImportAgentDialog from '@/components/ImportAgentDialog'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
@@ -57,6 +57,12 @@ export default function DashboardPage() {
 
   // Derive active agent from state
   const activeAgent = agents.find(a => a.id === activeAgentId) || null
+
+  // Compute selectable agents: online + hibernated (offline with session config)
+  const selectableAgents = useMemo(
+    () => agents.filter(a => a.session?.status === 'online' || !!a.tools?.session),
+    [agents]
+  )
 
   // Check for onboarding completion on mount
   useEffect(() => {
@@ -257,6 +263,35 @@ export default function DashboardPage() {
     }
   }
 
+  const [wakingAgentId, setWakingAgentId] = useState<string | null>(null)
+
+  const handleWakeAgent = async (agent: Agent) => {
+    if (wakingAgentId === agent.id) return
+
+    setWakingAgentId(agent.id)
+
+    try {
+      const baseUrl = agent.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to wake agent')
+      }
+
+      // Refresh agents to show updated status
+      refreshAgents()
+    } catch (error) {
+      console.error('Failed to wake agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+    } finally {
+      setWakingAgentId(null)
+    }
+  }
+
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed)
   }
@@ -354,8 +389,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Offline agent selected - show profile prompt */}
-            {activeAgent && activeAgent.session?.status === 'offline' && (
+            {/* Truly offline agent (no session config) - show profile prompt */}
+            {activeAgent && activeAgent.session?.status === 'offline' && !activeAgent.tools?.session && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center max-w-md">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
@@ -379,9 +414,10 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* All Online Agents Mounted as Tabs - toggle visibility with CSS */}
-            {onlineAgents.map(agent => {
+            {/* All Selectable Agents (Online + Hibernated) Mounted as Tabs - toggle visibility with CSS */}
+            {selectableAgents.map(agent => {
               const isActive = agent.id === activeAgentId
+              const isHibernated = agent.session?.status !== 'online' && !!agent.tools?.session
               const session = agentToSession(agent)
 
               return (
@@ -495,11 +531,98 @@ export default function DashboardPage() {
                   {/* Tab Content */}
                   <div className="flex-1 flex overflow-hidden min-h-0">
                     {activeTab === 'terminal' ? (
-                      <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
+                      isHibernated ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-400">
+                          <div className="text-center max-w-md">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
+                              <Moon className="w-10 h-10 text-yellow-500" />
+                            </div>
+                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
+                            <button
+                              onClick={() => handleWakeAgent(agent)}
+                              disabled={wakingAgentId === agent.id}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                            >
+                              {wakingAgentId === agent.id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Waking...
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="w-4 h-4" />
+                                  Wake Agent
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
+                      )
                     ) : activeTab === 'terminal-new' ? (
-                      <TerminalViewNew session={session} isVisible={isActive && activeTab === 'terminal-new'} />
+                      isHibernated ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-400">
+                          <div className="text-center max-w-md">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
+                              <Moon className="w-10 h-10 text-yellow-500" />
+                            </div>
+                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
+                            <button
+                              onClick={() => handleWakeAgent(agent)}
+                              disabled={wakingAgentId === agent.id}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                            >
+                              {wakingAgentId === agent.id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Waking...
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="w-4 h-4" />
+                                  Wake Agent
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <TerminalViewNew session={session} isVisible={isActive && activeTab === 'terminal-new'} />
+                      )
                     ) : activeTab === 'chat' ? (
-                      <ChatView session={session} isVisible={isActive && activeTab === 'chat'} />
+                      isHibernated ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-400">
+                          <div className="text-center max-w-md">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
+                              <Moon className="w-10 h-10 text-yellow-500" />
+                            </div>
+                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-sm mb-4 text-gray-500">Wake this agent to use the chat interface</p>
+                            <button
+                              onClick={() => handleWakeAgent(agent)}
+                              disabled={wakingAgentId === agent.id}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                            >
+                              {wakingAgentId === agent.id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Waking...
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="w-4 h-4" />
+                                  Wake Agent
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <ChatView session={session} isVisible={isActive && activeTab === 'chat'} />
+                      )
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
                         sessionName={session.id}

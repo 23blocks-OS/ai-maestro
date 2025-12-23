@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2025-12-15
-**Current Version:** v0.17.10
+**Current Version:** v0.17.11
 
 ---
 
@@ -2054,7 +2054,7 @@ Current installation requires cloning a repo, running yarn install, building, et
 
 | Phase | Method | Timeline | Status |
 |-------|--------|----------|--------|
-| **1** | `curl \| sh` installer from GitHub raw | 1 day | ✅ Done (v0.17.10) |
+| **1** | `curl \| sh` installer from GitHub raw | 1 day | ✅ Done (v0.17.11) |
 | **2** | Branded URL redirect (`get.23blocks.com/ai-maestro`) | 30 min | Pending |
 | **3** | npm global package (`@23blocks/ai-maestro`) | 1-2 days | Pending |
 | **4** | Homebrew tap (`brew install ai-maestro`) | 1 day | Pending |
@@ -2259,7 +2259,7 @@ Create: `github.com/23blocks/homebrew-tap`
 class AiMaestro < Formula
   desc "Web dashboard for orchestrating multiple AI coding agents"
   homepage "https://github.com/23blocks-OS/ai-maestro"
-  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.10.tar.gz"
+  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.11.tar.gz"
   sha256 "..."
   license "MIT"
 

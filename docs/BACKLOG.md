@@ -2052,17 +2052,29 @@ Current installation requires cloning a repo, running yarn install, building, et
 
 **Conclusion - Recommended Approach:**
 
-| Phase | Method | Timeline |
-|-------|--------|----------|
-| **1** | npm global package (`@23blocks/ai-maestro`) | 1-2 days |
-| **2** | Homebrew tap (`brew install ai-maestro`) | 1 day |
-| **3** | `curl \| sh` installer (calls npm or brew) | 1 day |
-| **4** | Pre-built binaries (GitHub Releases) | Later |
+| Phase | Method | Timeline | Status |
+|-------|--------|----------|--------|
+| **1** | `curl \| sh` installer from GitHub raw | 1 day | ✅ Done (v0.17.10) |
+| **2** | Branded URL redirect (`get.23blocks.com/ai-maestro`) | 30 min | Pending |
+| **3** | npm global package (`@23blocks/ai-maestro`) | 1-2 days | Pending |
+| **4** | Homebrew tap (`brew install ai-maestro`) | 1 day | Pending |
+| **5** | Pre-built binaries (GitHub Releases) | Later | Pending |
+
+**Current (works now):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+**Phase 2 - Branded URL Setup:**
+Options for `get.23blocks.com/ai-maestro` or `get.aimaestro.dev`:
+- Cloudflare redirect rule (if 23blocks.com on Cloudflare)
+- Vercel/Netlify with redirect config (free tier)
+- Simple nginx proxy on 23blocks server
 
 **End Goal:**
 ```bash
 # The sweet one-liner
-curl -fsSL https://get.aimaestro.dev | sh
+curl -fsSL https://get.23blocks.com/ai-maestro | sh
 
 # Or platform-specific
 brew install 23blocks/tap/ai-maestro  # macOS

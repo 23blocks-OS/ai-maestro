@@ -17,6 +17,8 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
   const initRef = useRef(false)
   const [status, setStatus] = useState<'pending' | 'ready' | 'error'>('pending')
 
+  const historyReceivedRef = useRef(false)
+
   const { isConnected, sendMessage } = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,
@@ -26,8 +28,14 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
       if (data.startsWith('{') && data.includes('"type"')) {
         try {
           const parsed = JSON.parse(data)
-          // Skip control messages - don't write to terminal
-          if (parsed.type === 'history-complete' || parsed.type === 'pong') {
+          if (parsed.type === 'history-complete') {
+            historyReceivedRef.current = true
+            // Clear any duplicate history - live PTY will provide current state
+            // This prevents the "split screen" issue where history shows below live content
+            terminalRef.current?.clear()
+            return
+          }
+          if (parsed.type === 'pong') {
             return
           }
         } catch {

@@ -69,7 +69,7 @@ export default function ImmersivePage() {
           foreground: '#a9b1d6',
           cursor: '#c0caf5'
         },
-        scrollback: 10000,
+        scrollback: 10000,  // Reasonable buffer for conversation context
         convertEol: false
       })
 

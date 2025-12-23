@@ -47,7 +47,7 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
           cursorBlink: true,
           fontSize: 16,
           fontFamily: '"SF Mono", Menlo, Monaco, monospace',
-          scrollback: 5000,
+          scrollback: 10000,  // Reasonable buffer for conversation context
           convertEol: false,
           allowProposedApi: true,
           theme: {

@@ -116,7 +116,7 @@ BODY=$(echo "$RESPONSE" | sed '$d')
 if [ "$HTTP_CODE" = "201" ]; then
   # Get human-readable names
   MY_NAME=$(get_my_name)
-  TO_NAME="${RESOLVED_ALIAS:-$TO_AGENT}@${TO_HOST}"
+  TO_NAME="${TO_ALIAS:-$TO_AGENT}@${TO_HOST}"
 
   echo "✅ Message sent"
   echo "   From: $MY_NAME"

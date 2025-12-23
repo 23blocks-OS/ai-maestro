@@ -108,7 +108,7 @@ export default function HostsSection() {
     try {
       // Use proxy endpoint to avoid CORS and network accessibility issues
       const response = await fetch(`/api/hosts/health?url=${encodeURIComponent(host.url)}`, {
-        signal: AbortSignal.timeout(5000), // 5 second timeout
+        signal: AbortSignal.timeout(15000), // 15 second timeout (remote /api/sessions can take 5-10s)
       })
 
       if (response.ok) {
@@ -519,7 +519,7 @@ function AddHostWizard({
 
       // Test connection via proxy endpoint to avoid CORS issues
       const response = await fetch(`/api/hosts/health?url=${encodeURIComponent(testUrl)}`, {
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(15000), // 15 second timeout (remote /api/sessions can take 5-10s)
       })
 
       if (!response.ok) {

@@ -196,7 +196,19 @@ Move your AI agents anywhere. Export, import, transfer, and clone agents across 
 **macOS/Linux - One command installs everything:**
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+**With options:**
+```bash
+# Install to custom directory
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- -d ~/projects/ai-maestro
+
+# Unattended install with auto-start
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --auto-start
+
+# See all options
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --help
 ```
 
 **Windows - Install via WSL2:**
@@ -206,7 +218,7 @@ Move your AI agents anywhere. Export, import, transfer, and clone agents across 
 wsl --install
 
 # 2. Restart Windows, then in Ubuntu terminal:
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 
 # 3. Access from Windows browser: http://localhost:23000
 ```

@@ -22,6 +22,18 @@ export default function TerminalViewNew({ session, isVisible = true }: TerminalV
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
+      // Filter out JSON control messages (history-complete, etc.)
+      if (data.startsWith('{') && data.includes('"type"')) {
+        try {
+          const parsed = JSON.parse(data)
+          // Skip control messages - don't write to terminal
+          if (parsed.type === 'history-complete' || parsed.type === 'pong') {
+            return
+          }
+        } catch {
+          // Not valid JSON, write as terminal output
+        }
+      }
       terminalRef.current?.write(data)
     },
   })

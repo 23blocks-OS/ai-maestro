@@ -22,6 +22,26 @@ ROCKET="🚀"
 TOOLS="🔧"
 PACKAGE="📦"
 
+# Parse command line arguments
+SKIP_TOOLS=false
+NON_INTERACTIVE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-tools)
+            SKIP_TOOLS=true
+            shift
+            ;;
+        --non-interactive|-y)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
@@ -524,25 +544,65 @@ if [ -n "$INSTALL_DIR" ]; then
     fi
 fi
 
-# Install messaging system
-if [ -n "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/install-messaging.sh" ]; then
+# Install agent tools (messaging, memory, graph, docs)
+if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     echo ""
-    print_header "STEP 4: Install Agent Messaging System (Optional)"
+    print_header "STEP 4: Install Agent Tools"
 
-    echo "Enable agent-to-agent communication?"
-    echo "  - Scripts for any AI agent (Aider, Cursor, etc.)"
+    echo "AI Maestro includes powerful tools for agent collaboration and intelligence:"
+    echo ""
+    echo "  📨 Messaging    - Agent-to-agent communication"
+    echo "  🧠 Memory       - Search conversation history for context"
+    echo "  🔗 Graph        - Query code relationships and dependencies"
+    echo "  📚 Docs         - Search auto-generated documentation"
+    echo ""
     if command -v claude &> /dev/null; then
-        echo "  - Claude Code skill for natural language messaging"
+        echo "  Claude Code skills will be installed for natural language access."
     fi
     echo ""
-    read -p "Install messaging system? (y/n): " INSTALL_MESSAGING
 
-    if [[ "$INSTALL_MESSAGING" =~ ^[Yy]$ ]]; then
-        cd "$INSTALL_DIR"
-        ./install-messaging.sh
-    else
-        print_info "Skipping messaging system (you can install later with ./install-messaging.sh)"
+    INSTALL_TOOLS_ANSWER="y"
+    if [ "$NON_INTERACTIVE" != true ]; then
+        read -p "Install agent tools? (y/n): " INSTALL_TOOLS_ANSWER
     fi
+
+    if [[ "$INSTALL_TOOLS_ANSWER" =~ ^[Yy]$ ]]; then
+        cd "$INSTALL_DIR"
+
+        # Install messaging
+        if [ -f "install-messaging.sh" ]; then
+            echo ""
+            print_step "Installing messaging tools..."
+            ./install-messaging.sh
+        fi
+
+        # Install memory tools
+        if [ -f "install-memory-tools.sh" ]; then
+            echo ""
+            print_step "Installing memory tools..."
+            ./install-memory-tools.sh
+        fi
+
+        # Install graph tools
+        if [ -f "install-graph-tools.sh" ]; then
+            echo ""
+            print_step "Installing graph tools..."
+            ./install-graph-tools.sh
+        fi
+
+        # Install doc tools
+        if [ -f "install-doc-tools.sh" ]; then
+            echo ""
+            print_step "Installing doc tools..."
+            ./install-doc-tools.sh
+        fi
+
+        print_success "All agent tools installed"
+    else
+        print_info "Skipping agent tools (you can install later with individual install-*.sh scripts)"
+    fi
+elif [ "$SKIP_TOOLS" = true ]; then
+    print_info "Skipping agent tools (--skip-tools flag set)"
 fi
 
 # Final steps

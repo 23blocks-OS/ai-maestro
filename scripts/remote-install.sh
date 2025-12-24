@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.17.11"
+VERSION="0.17.12"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 
@@ -103,7 +103,7 @@ check_requirements() {
 parse_args() {
     INSTALL_DIR="$DEFAULT_INSTALL_DIR"
     SKIP_PREREQS=false
-    SKIP_MESSAGING=false
+    SKIP_TOOLS=false
     AUTO_START=false
     UNINSTALL=false
 
@@ -117,8 +117,8 @@ parse_args() {
                 SKIP_PREREQS=true
                 shift
                 ;;
-            --skip-messaging)
-                SKIP_MESSAGING=true
+            --skip-tools|--skip-messaging)
+                SKIP_TOOLS=true
                 shift
                 ;;
             --auto-start)
@@ -150,7 +150,7 @@ show_help() {
     echo "Options:"
     echo "  -d, --dir PATH      Install directory (default: ~/ai-maestro)"
     echo "  --skip-prereqs      Skip prerequisite installation prompts"
-    echo "  --skip-messaging    Skip messaging system installation"
+    echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
     echo "  --auto-start        Automatically start after installation"
     echo "  --uninstall         Remove AI Maestro installation"
     echo "  -h, --help          Show this help message"
@@ -177,24 +177,52 @@ uninstall() {
         print_info "Stopped PM2 service"
     fi
 
-    # Remove messaging scripts
+    # Remove all agent tool scripts
     local scripts=(
+        # Messaging scripts
         "check-aimaestro-messages.sh"
         "read-aimaestro-message.sh"
         "send-aimaestro-message.sh"
         "reply-aimaestro-message.sh"
         "list-aimaestro-sent.sh"
         "delete-aimaestro-message.sh"
+        # Memory scripts
+        "memory-search.sh"
+        "memory-helper.sh"
+        # Graph scripts
+        "graph-describe.sh"
+        "graph-find-callers.sh"
+        "graph-find-callees.sh"
+        "graph-find-related.sh"
+        "graph-find-by-type.sh"
+        "graph-find-serializers.sh"
+        "graph-find-associations.sh"
+        "graph-find-path.sh"
+        # Docs scripts
+        "docs-search.sh"
+        "docs-find-by-type.sh"
+        "docs-stats.sh"
+        "docs-index.sh"
+        "docs-index-delta.sh"
+        "docs-list.sh"
+        "docs-get.sh"
     )
 
     for script in "${scripts[@]}"; do
         rm -f "$HOME/.local/bin/$script" 2>/dev/null || true
     done
-    print_info "Removed messaging scripts"
+    print_info "Removed agent tool scripts"
 
-    # Remove Claude skill
+    # Remove Claude skills
     rm -rf "$HOME/.claude/skills/agent-messaging" 2>/dev/null || true
-    print_info "Removed Claude skill"
+    rm -rf "$HOME/.claude/skills/memory-search" 2>/dev/null || true
+    rm -rf "$HOME/.claude/skills/graph-query" 2>/dev/null || true
+    rm -rf "$HOME/.claude/skills/docs-search" 2>/dev/null || true
+    print_info "Removed Claude skills"
+
+    # Remove shell helpers
+    rm -rf "$HOME/.local/share/aimaestro/shell-helpers" 2>/dev/null || true
+    print_info "Removed shell helpers"
 
     # Remove message storage
     echo ""
@@ -276,8 +304,14 @@ install() {
         # Make it executable
         chmod +x install.sh
 
+        # Build installer arguments
+        INSTALLER_ARGS=""
+        if [ "$SKIP_TOOLS" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-tools"
+        fi
+
         # Run installer
-        ./install.sh
+        ./install.sh $INSTALLER_ARGS
     else
         # Fallback: manual installation
         print_info "Installing dependencies..."

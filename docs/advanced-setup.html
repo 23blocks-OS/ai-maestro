@@ -381,10 +381,9 @@
                         <h3 class="text-xl font-semibold mb-2 text-white">Configure Manager Node</h3>
                         <p class="text-slate-400 mb-3">Install AI Maestro on your primary machine. This becomes your control plane - the unified dashboard for all agents across all infrastructure.</p>
                         <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
-                            <div># Install AI Maestro</div>
-                            <div>git clone https://github.com/23blocks-OS/ai-maestro</div>
-                            <div>cd ai-maestro && yarn install</div>
-                            <div>yarn build && pm2 start ecosystem.config.js</div>
+                            <div># One command installs everything</div>
+                            <div>curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</div>
+                            <div class="text-slate-500">// Includes --auto-start option for production</div>
                         </div>
                     </div>
                 </div>

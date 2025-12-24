@@ -86,7 +86,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         brightCyan: '#29b8db',
         brightWhite: '#ffffff',
       },
-      scrollback: 10000,  // Reduced for better mobile performance
+      scrollback: 10000,  // Reasonable buffer for conversation context
       // CRITICAL: Must be false for PTY connections
       // PTY and tmux handle line endings correctly - setting this to true causes
       // Claude Code status updates (using \r) to create new lines instead of overwriting

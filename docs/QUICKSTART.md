@@ -17,7 +17,15 @@ brew install node tmux
 
 ## Installation
 
-### Step 1: Clone and Install
+### Option A: One-Line Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+This handles everything: prerequisites, installation, configuration.
+
+### Option B: Manual Install
 
 ```bash
 # Clone the repository

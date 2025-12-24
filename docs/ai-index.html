@@ -123,15 +123,12 @@
         <section>
             <h2>Installation (Quick Start)</h2>
             <pre>
-# Clone repository
+# One command installs everything
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+
+# Or manually:
 git clone https://github.com/23blocks-OS/ai-maestro.git
-cd ai-maestro
-
-# Install dependencies
-yarn install
-
-# Start dashboard (opens on http://localhost:23000)
-yarn dev
+cd ai-maestro && yarn install && yarn dev
             </pre>
 
             <p><strong>Requirements:</strong></p>

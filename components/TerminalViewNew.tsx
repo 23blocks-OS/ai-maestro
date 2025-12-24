@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
 import type { Session } from '@/types/session'
@@ -11,198 +12,219 @@ interface TerminalViewNewProps {
 }
 
 export default function TerminalViewNew({ session, isVisible = true }: TerminalViewNewProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const terminalRef = useRef<any>(null)
-  const fitAddonRef = useRef<any>(null)
-  const initRef = useRef(false)
-  const [status, setStatus] = useState<'pending' | 'ready' | 'error'>('pending')
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const [isReady, setIsReady] = useState(false)
+  const messageBufferRef = useRef<string[]>([])
+
+  // Use the same useTerminal hook as TerminalView for consistent behavior
+  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
+    sessionId: session.id,
+  })
+
+  // Store terminal in ref for WebSocket callback access
+  const terminalInstanceRef = useRef<typeof terminal>(null)
+
+  useEffect(() => {
+    terminalInstanceRef.current = terminal
+  }, [terminal])
 
   const { isConnected, sendMessage } = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,
     autoConnect: isVisible,
     onMessage: (data) => {
-      terminalRef.current?.write(data)
+      // Check if this is a control message (JSON)
+      try {
+        const parsed = JSON.parse(data)
+
+        // Handle history-complete message
+        if (parsed.type === 'history-complete') {
+          if (terminalInstanceRef.current) {
+            const term = terminalInstanceRef.current
+
+            // Wait for xterm.js to finish processing history
+            setTimeout(() => {
+              // 1. Refit terminal to ensure correct dimensions
+              fitTerminal()
+
+              // 2. Send resize to PTY to sync tmux with correct dimensions
+              const resizeMsg = createResizeMessage(term.cols, term.rows)
+              sendMessage(resizeMsg)
+
+              // 3. Scroll to bottom and focus
+              setTimeout(() => {
+                term.scrollToBottom()
+                term.focus()
+              }, 50)
+            }, 100)
+          }
+          return
+        }
+
+        // Handle pong (heartbeat response)
+        if (parsed.type === 'pong') {
+          return
+        }
+
+        // Handle container connection message
+        if (parsed.type === 'connected') {
+          console.log(`[TerminalNew] Connected to agent: ${parsed.agentId}`)
+          return
+        }
+
+        // Unknown JSON message type - might be terminal data that's valid JSON
+        // Fall through to write it
+      } catch {
+        // Not JSON - it's terminal data
+      }
+
+      // Write data to terminal
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.write(data)
+      } else {
+        // Buffer messages until terminal is ready
+        messageBufferRef.current.push(data)
+      }
     },
   })
 
-  // Initialize terminal
+  // Initialize terminal ONCE on mount with retry logic
   useEffect(() => {
-    // Only init once, only when visible
-    if (!isVisible || initRef.current) return
+    let cleanup: (() => void) | undefined
+    let retryCount = 0
+    const maxRetries = 10
+    const retryDelay = 100
+    let retryTimer: NodeJS.Timeout | null = null
+    let mounted = true
 
-    const container = containerRef.current
-    if (!container) return
+    const tryInit = async () => {
+      if (!mounted) return
 
-    initRef.current = true
-
-    const setup = async () => {
-      try {
-        const { Terminal } = await import('@xterm/xterm')
-        const { FitAddon } = await import('@xterm/addon-fit')
-        const { WebLinksAddon } = await import('@xterm/addon-web-links')
-        const { ClipboardAddon } = await import('@xterm/addon-clipboard')
-
-        const terminal = new Terminal({
-          cursorBlink: true,
-          fontSize: 16,
-          fontFamily: '"SF Mono", Menlo, Monaco, monospace',
-          scrollback: 5000,
-          convertEol: false,
-          allowProposedApi: true,
-          theme: {
-            background: '#0d1117',
-            foreground: '#c9d1d9',
-            cursor: '#58a6ff',
-            selectionBackground: '#264f78',
-          },
-        })
-
-        const fitAddon = new FitAddon()
-        terminal.loadAddon(fitAddon)
-        terminal.loadAddon(new WebLinksAddon())
-        terminal.loadAddon(new ClipboardAddon())
-
-        terminal.open(container)
-
-        terminalRef.current = terminal
-        fitAddonRef.current = fitAddon
-
-        // Input handling
-        terminal.onData((data) => sendMessage(data))
-        terminal.onResize(({ cols, rows }) => sendMessage(createResizeMessage(cols, rows)))
-
-        // Fit after a delay
-        setTimeout(() => {
-          fitAddon.fit()
-          setStatus('ready')
-        }, 100)
-
-        // Resize observer
-        const ro = new ResizeObserver(() => fitAddonRef.current?.fit())
-        ro.observe(container)
-
-        return () => {
-          ro.disconnect()
-          terminal.dispose()
+      // Wait for DOM ref
+      if (!terminalRef.current) {
+        if (retryCount < maxRetries) {
+          retryCount++
+          retryTimer = setTimeout(tryInit, retryDelay)
         }
-      } catch (err) {
-        console.error('Terminal init failed:', err)
-        setStatus('error')
+        return
+      }
+
+      // Check container has valid dimensions
+      const rect = terminalRef.current.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) {
+        if (retryCount < maxRetries) {
+          retryCount++
+          retryTimer = setTimeout(tryInit, retryDelay)
+        }
+        return
+      }
+
+      try {
+        cleanup = await initializeTerminal(terminalRef.current)
+        if (mounted) {
+          setIsReady(true)
+        }
+      } catch (error) {
+        console.error(`[TerminalNew] Failed to initialize:`, error)
       }
     }
 
-    setup()
-  }, [isVisible, sendMessage])
+    tryInit()
 
-  // Refit on visibility change
-  useEffect(() => {
-    if (isVisible && status === 'ready') {
-      setTimeout(() => fitAddonRef.current?.fit(), 50)
+    return () => {
+      mounted = false
+      if (retryTimer) clearTimeout(retryTimer)
+      if (cleanup) cleanup()
+      setIsReady(false)
+      messageBufferRef.current = []
     }
-  }, [isVisible, status])
+  }, [initializeTerminal])
+
+  // Flush buffered messages when terminal becomes ready
+  useEffect(() => {
+    if (terminal && messageBufferRef.current.length > 0) {
+      messageBufferRef.current.forEach((msg) => {
+        terminal.write(msg)
+      })
+      messageBufferRef.current = []
+    }
+  }, [terminal])
+
+  // Handle terminal input
+  useEffect(() => {
+    if (!terminal || !isConnected) return
+
+    const disposable = terminal.onData((data) => {
+      sendMessage(data)
+    })
+
+    return () => disposable.dispose()
+  }, [terminal, isConnected, sendMessage])
+
+  // Handle terminal resize
+  useEffect(() => {
+    if (!terminal || !isConnected) return
+
+    const disposable = terminal.onResize(({ cols, rows }) => {
+      sendMessage(createResizeMessage(cols, rows))
+    })
+
+    return () => disposable.dispose()
+  }, [terminal, isConnected, sendMessage])
+
+  // Copy selection handler
+  const copySelection = useCallback(() => {
+    if (!terminal) return
+    const selection = terminal.getSelection()
+    if (selection) {
+      navigator.clipboard.writeText(selection)
+    }
+  }, [terminal])
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      height: '100%',
-      backgroundColor: '#0d1117'
-    }}>
+    <div className="flex flex-col w-full h-full bg-[#0d1117]">
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '8px 16px',
-        backgroundColor: '#161b22',
-        borderBottom: '1px solid #30363d',
-        flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: isConnected ? '#3fb950' : '#f85149'
-          }} />
-          <span style={{ fontSize: '14px', color: '#c9d1d9' }}>
+      <div className="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-[#30363d] flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isConnected ? 'bg-green-500' : 'bg-red-500'
+            }`}
+          />
+          <span className="text-sm text-[#c9d1d9]">
             {session.name || session.id}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-2">
           <button
-            onClick={() => terminalRef.current?.clear()}
-            style={{
-              padding: '4px 8px',
-              fontSize: '12px',
-              color: '#8b949e',
-              backgroundColor: 'transparent',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Clear
-          </button>
-          <button
-            onClick={() => {
-              const sel = terminalRef.current?.getSelection()
-              if (sel) navigator.clipboard.writeText(sel)
-            }}
-            style={{
-              padding: '4px 8px',
-              fontSize: '12px',
-              color: '#8b949e',
-              backgroundColor: 'transparent',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
+            onClick={copySelection}
+            className="px-2 py-1 text-xs text-[#8b949e] hover:text-white transition-colors"
           >
             Copy
+          </button>
+          <button
+            onClick={() => terminal?.clear()}
+            className="px-2 py-1 text-xs text-[#8b949e] hover:text-white transition-colors"
+          >
+            Clear
           </button>
         </div>
       </div>
 
       {/* Terminal container */}
       <div
-        ref={containerRef}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          width: '100%',
-          overflow: 'hidden'
-        }}
+        ref={terminalRef}
+        className="flex-1 min-h-0 w-full overflow-hidden"
+        onMouseDown={() => terminalInstanceRef.current?.focus()}
       />
 
-      {/* Status messages */}
-      {status === 'pending' && !initRef.current && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0d1117',
-          color: '#8b949e'
-        }}>
-          Click this tab to load terminal
-        </div>
-      )}
-
-      {status === 'error' && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0d1117',
-          color: '#f85149'
-        }}>
-          Failed to initialize terminal
+      {/* Loading state */}
+      {!isReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-400">Initializing terminal...</p>
+          </div>
         </div>
       )}
     </div>

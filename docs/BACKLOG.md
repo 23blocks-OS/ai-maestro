@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2025-12-15
-**Current Version:** v0.17.10
+**Current Version:** v0.17.11
 
 ---
 
@@ -2052,17 +2052,29 @@ Current installation requires cloning a repo, running yarn install, building, et
 
 **Conclusion - Recommended Approach:**
 
-| Phase | Method | Timeline |
-|-------|--------|----------|
-| **1** | npm global package (`@23blocks/ai-maestro`) | 1-2 days |
-| **2** | Homebrew tap (`brew install ai-maestro`) | 1 day |
-| **3** | `curl \| sh` installer (calls npm or brew) | 1 day |
-| **4** | Pre-built binaries (GitHub Releases) | Later |
+| Phase | Method | Timeline | Status |
+|-------|--------|----------|--------|
+| **1** | `curl \| sh` installer from GitHub raw | 1 day | ✅ Done (v0.17.11) |
+| **2** | Branded URL redirect (`get.23blocks.com/ai-maestro`) | 30 min | Pending |
+| **3** | npm global package (`@23blocks/ai-maestro`) | 1-2 days | Pending |
+| **4** | Homebrew tap (`brew install ai-maestro`) | 1 day | Pending |
+| **5** | Pre-built binaries (GitHub Releases) | Later | Pending |
+
+**Current (works now):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+**Phase 2 - Branded URL Setup:**
+Options for `get.23blocks.com/ai-maestro` or `get.aimaestro.dev`:
+- Cloudflare redirect rule (if 23blocks.com on Cloudflare)
+- Vercel/Netlify with redirect config (free tier)
+- Simple nginx proxy on 23blocks server
 
 **End Goal:**
 ```bash
 # The sweet one-liner
-curl -fsSL https://get.aimaestro.dev | sh
+curl -fsSL https://get.23blocks.com/ai-maestro | sh
 
 # Or platform-specific
 brew install 23blocks/tap/ai-maestro  # macOS
@@ -2247,7 +2259,7 @@ Create: `github.com/23blocks/homebrew-tap`
 class AiMaestro < Formula
   desc "Web dashboard for orchestrating multiple AI coding agents"
   homepage "https://github.com/23blocks-OS/ai-maestro"
-  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.10.tar.gz"
+  url "https://github.com/23blocks-OS/ai-maestro/archive/refs/tags/v0.17.11.tar.gz"
   sha256 "..."
   license "MIT"
 
@@ -2339,6 +2351,171 @@ if (commands[cmd]) {
 - [ ] Set up GitHub Actions for multi-platform builds
 - [ ] Host binaries at `get.aimaestro.dev/releases/`
 - [ ] Add binary download to installer script
+
+---
+
+### Installer Security & Verification
+
+**Status:** Planned
+**Priority:** Medium
+**Effort:** Small-Medium (1-3 days depending on approach)
+**Version:** v0.8.0+
+
+**Problem:**
+The `curl | sh` pattern is controversial in security circles. Users downloading and piping scripts directly to shell have no way to verify the script hasn't been tampered with during transit or at source.
+
+**Current State:**
+✅ HTTPS only - `raw.githubusercontent.com` uses TLS, preventing basic MITM attacks
+
+**Proposed Security Enhancements:**
+
+---
+
+**Option 1: Two-Step Install (Easy, Recommended First)**
+
+Document the download-then-inspect workflow:
+
+```bash
+# Download first
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh -o install.sh
+
+# Inspect it
+less install.sh
+
+# Then run
+sh install.sh
+```
+
+**Effort:** 30 minutes (documentation only)
+**Security:** Moderate - users can inspect before running
+
+---
+
+**Option 2: SHA256 Checksum Verification (Medium Effort)**
+
+Publish checksums users can verify:
+
+```bash
+# Download script
+curl -fsSL .../remote-install.sh -o install.sh
+
+# Verify checksum (we publish: SHA256: a1b2c3d4...)
+echo "a1b2c3d4e5f6... install.sh" | sha256sum -c
+
+# Run if valid
+sh install.sh
+```
+
+**Implementation:**
+- Add `scripts/remote-install.sh.sha256` to repo
+- Update checksum on every script change (CI/CD automation)
+- Document verification in README
+
+**Effort:** 1 day
+**Security:** Good - cryptographic verification of integrity
+
+**Downside:** Must update checksum with every script change (can automate in CI)
+
+---
+
+**Option 3: GPG Signature (Most Secure, More Complex)**
+
+Sign the script with a GPG key:
+
+```bash
+# Download script + signature
+curl -fsSL .../remote-install.sh -o install.sh
+curl -fsSL .../remote-install.sh.asc -o install.sh.asc
+
+# Import 23blocks public key (one-time)
+curl -fsSL .../23blocks.gpg | gpg --import
+
+# Verify signature
+gpg --verify install.sh.asc install.sh
+
+# Run if valid
+sh install.sh
+```
+
+**Implementation:**
+- Generate 23blocks GPG key pair
+- Store private key securely (GitHub Secrets, 1Password, etc.)
+- Publish public key at known URL
+- Sign script in CI/CD pipeline on release
+- Document verification process
+
+**Effort:** 2-3 days
+**Security:** Excellent - cryptographic proof of authenticity
+
+**Considerations:**
+- Key management overhead
+- Key rotation procedures
+- What happens if key is compromised
+
+---
+
+**Option 4: Pinned Version (Simple Addition)**
+
+Use commit SHA instead of `main` branch:
+
+```bash
+# Instead of /main/scripts/...
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/abc123def456/scripts/remote-install.sh | sh
+```
+
+**Benefits:**
+- Immutable reference (commit SHA can't change)
+- No surprise updates between download and execution
+- Works well with tagged releases
+
+**Effort:** 30 minutes (documentation)
+**Security:** Moderate - prevents supply chain attacks via branch manipulation
+
+---
+
+**What Popular Tools Do:**
+
+| Tool | Approach |
+|------|----------|
+| Homebrew | HTTPS + checksums for packages |
+| Rust/rustup | HTTPS + GPG signatures |
+| Deno | HTTPS only |
+| Oh My Zsh | HTTPS only |
+| nvm | HTTPS only |
+| Docker | HTTPS + GPG for apt repos |
+
+---
+
+**Recommended Implementation Order:**
+
+| Phase | Approach | Effort | When |
+|-------|----------|--------|------|
+| 1 | Document two-step install | 30 min | v0.17.12 |
+| 2 | Add pinned version docs | 30 min | v0.17.12 |
+| 3 | SHA256 checksums + CI automation | 1 day | v0.18.0 |
+| 4 | GPG signatures (if user demand) | 2-3 days | v0.8.0+ |
+
+---
+
+**Implementation Checklist:**
+
+**Phase 1: Documentation (Quick Win)**
+- [ ] Add two-step install to README
+- [ ] Add pinned version example to docs
+- [ ] Explain security considerations
+
+**Phase 2: Checksums**
+- [ ] Create `scripts/remote-install.sh.sha256`
+- [ ] Add GitHub Action to auto-update checksum on release
+- [ ] Document verification process
+- [ ] Add checksum to release notes
+
+**Phase 3: GPG Signatures (Future)**
+- [ ] Generate 23blocks GPG key pair
+- [ ] Publish public key
+- [ ] Sign releases in CI/CD
+- [ ] Document verification process
+- [ ] Key rotation procedures
 
 ---
 

@@ -129,7 +129,7 @@ yarn --version  # Should show 1.22.x
 
 ```bash
 # Run the official installer
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 ```
 
 The installer will:

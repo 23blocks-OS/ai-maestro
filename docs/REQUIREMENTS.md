@@ -26,9 +26,31 @@ This document outlines all prerequisites and installation steps required to run 
 
 ---
 
-## 2. Required Software
+## 2. Quick Install (Recommended)
 
-### 2.1 Node.js and Yarn
+**One command installs everything:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+This automatically:
+- Detects your OS (macOS, Linux, WSL)
+- Installs missing prerequisites (Node.js, Yarn, tmux)
+- Clones and builds AI Maestro
+- Configures tmux and SSH
+
+**See all options:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --help
+```
+
+---
+
+## 3. Manual Installation
+
+If you prefer manual installation, follow the steps below.
+
+### 3.1 Node.js and Yarn
 
 The dashboard requires Node.js v18.17+ or v20.x and Yarn package manager.
 

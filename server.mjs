@@ -378,11 +378,12 @@ app.prepare().then(() => {
 
         let historyContent = ''
         try {
-          // Capture visible pane content WITHOUT escape sequences (-e flag removed)
+          // Capture scrollback history (up to 5000 lines) WITHOUT escape sequences
           // The -e flag was causing terminal query responses like ">0;276;0c" to appear
+          // The -S -5000 flag captures scrollback history, not just visible pane
           historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p`,
-            { encoding: 'utf8', timeout: 2000 }
+            `tmux capture-pane -t ${sessionName} -p -S -5000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
+            { encoding: 'utf8', timeout: 5000, shell: '/bin/bash' }
           ).toString()
         } catch (historyError) {
           console.error('Failed to capture history:', historyError)

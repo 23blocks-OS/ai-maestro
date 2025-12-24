@@ -2519,6 +2519,251 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/abc123def456
 
 ---
 
+### Native Desktop App Experience
+
+**Status:** Exploration
+**Priority:** Medium-High
+**Effort:** Medium-Large (1-4 weeks depending on approach)
+**Version:** v1.0.0+
+
+**Problem:**
+Current installation requires terminal commands (`curl | sh`), which is still technical for non-developer users. The goal is a "John Doe" experience where users download an app, double-click, and it just works - no terminal, no browser configuration.
+
+**Target Experience:**
+1. Visit ai-maestro.23blocks.com
+2. Click "Download for Mac" button
+3. Drag AI Maestro.app to Applications
+4. Double-click to launch
+5. App installs dependencies in background (with progress)
+6. Dashboard opens automatically
+7. Menubar icon for quick access
+
+No terminal. No browser. Just an app.
+
+---
+
+**Option 1: Native Desktop App (Electron)**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | Downloadable `.dmg` (Mac) / `.exe` (Windows) / `.AppImage` (Linux) |
+| **Bundle size** | ~150-200MB (includes Chromium + Node.js) |
+| **Effort** | 2-3 weeks |
+| **Maintenance** | High (3 separate builds, auto-updater) |
+
+**Pros:**
+- Drag-and-drop install like any app
+- Lives in dock/taskbar
+- Can bundle Node.js, tmux, everything
+- Auto-updates via electron-updater
+- System tray icon for quick access
+- Mature ecosystem (VS Code, Slack, Discord use it)
+
+**Cons:**
+- Large download size (~150MB+)
+- Need to maintain separate builds per OS
+- Code signing costs ($99/yr Apple, ~$200-400/yr Windows)
+- Memory overhead (each Electron app = separate Chromium)
+
+**Tools:** Electron, electron-builder, electron-updater
+
+---
+
+**Option 2: Native Desktop App (Tauri) - RECOMMENDED**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | Same as Electron but uses OS webview instead of bundled Chromium |
+| **Bundle size** | ~10-20MB |
+| **Effort** | 2-3 weeks |
+| **Maintenance** | Medium (Rust backend, single codebase) |
+
+**Pros:**
+- Much smaller than Electron (~10-20MB vs 150MB+)
+- Uses system webview (WebKit on Mac, WebView2 on Windows)
+- Rust backend = better performance, lower memory
+- Native system tray built-in
+- Auto-updater included
+- Cross-platform from single codebase
+- Growing ecosystem, modern tooling
+
+**Cons:**
+- Newer than Electron (less battle-tested)
+- Need Rust knowledge for native features
+- Still need code signing for distribution
+- WebView differences across platforms
+
+**Tools:** Tauri, tauri-plugin-autostart, tauri-plugin-single-instance
+
+**Why Recommended:** Best balance of size, performance, and capability. The web app already exists, so Tauri just wraps it with native capabilities.
+
+---
+
+**Option 3: macOS-only Native App (Swift/SwiftUI)**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | True native Mac app |
+| **Bundle size** | ~5-10MB |
+| **Effort** | 3-4 weeks |
+| **Maintenance** | Low (single platform) |
+
+**Pros:**
+- Tiny size (~5-10MB)
+- Native performance and macOS look/feel
+- Deep OS integration (menu bar, notifications, Handoff)
+- Mac App Store distribution possible
+- No webview overhead
+
+**Cons:**
+- Mac only (excludes Windows/Linux users)
+- Need Swift/SwiftUI skills (or hire)
+- Would need to rebuild UI in SwiftUI (not reuse web app)
+- App Store review process if distributed there
+
+**Best for:** If 90%+ of users are on Mac and you want the most polished experience.
+
+---
+
+**Option 4: PWA (Progressive Web App)**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | User visits website → "Add to Dock" prompt → Opens like native app |
+| **Bundle size** | 0 (web-based) |
+| **Effort** | 1 week |
+| **Maintenance** | Low (just deploy web updates) |
+
+**Pros:**
+- Zero download, instant "install"
+- Already have the web app (minimal changes)
+- Works on all platforms
+- Easy to update (just deploy to web)
+- No app store approval needed
+
+**Cons:**
+- Still needs terminal for initial backend setup (Node, tmux)
+- Can't bundle system dependencies
+- Limited OS integration (no system tray on Mac)
+- Feels less "native" than real app
+- Safari PWA support is limited
+
+**Implementation:**
+```json
+// manifest.json additions
+{
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [...],
+  "shortcuts": [...]
+}
+```
+
+**Best for:** Quick win to test demand before investing in native app.
+
+---
+
+**Option 5: Menubar App + Web Dashboard**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | Tiny native menubar app that manages server + opens web dashboard |
+| **Bundle size** | ~5-10MB |
+| **Effort** | 1-2 weeks |
+| **Maintenance** | Low |
+
+**Pros:**
+- Small download
+- Menubar = always accessible, low footprint
+- Web dashboard = rich UI (reuse existing)
+- Can handle dependency installation
+- Start/stop server from menu
+- Show status (running, agents count)
+
+**Cons:**
+- Two pieces (menubar + browser window)
+- Need native code for menubar (Swift on Mac, C# on Windows)
+
+**Example:** Docker Desktop, Postgres.app, MongoDB Compass
+
+**Implementation (Mac):**
+- Swift menubar app using SwiftUI
+- Runs `pm2 start ai-maestro` on launch
+- "Open Dashboard" menu item opens browser
+- Shows green/red status indicator
+- "Quit" stops server gracefully
+
+---
+
+**Option 6: Enhanced CLI Installer + Desktop Integration**
+
+| Aspect | Details |
+|--------|---------|
+| **How it works** | Enhance existing curl installer to create desktop shortcuts |
+| **Bundle size** | N/A (uses existing install) |
+| **Effort** | 2-3 days |
+| **Maintenance** | Minimal |
+
+**Pros:**
+- Minimal work (enhance existing installer)
+- No new app to maintain
+- Works today with current architecture
+- Creates `.app` on Mac, shortcut on Windows
+
+**Cons:**
+- Still requires terminal once for install
+- Not a "real" app experience
+- No auto-updates
+
+**Implementation:**
+```bash
+# In remote-install.sh, after installation:
+# Create macOS .app bundle
+create_macos_app() {
+  mkdir -p "$HOME/Applications/AI Maestro.app/Contents/MacOS"
+  cat > "$HOME/Applications/AI Maestro.app/Contents/MacOS/AI Maestro" << 'EOF'
+#!/bin/bash
+cd ~/ai-maestro && pm2 start ecosystem.config.cjs 2>/dev/null
+sleep 2
+open http://localhost:23000
+EOF
+  chmod +x "$HOME/Applications/AI Maestro.app/Contents/MacOS/AI Maestro"
+}
+```
+
+**Best for:** Quick win that improves UX without major investment.
+
+---
+
+**Recommendation & Phased Approach:**
+
+| Phase | Approach | Effort | Timeline |
+|-------|----------|--------|----------|
+| **1** | Enhanced installer with desktop shortcut | 2-3 days | v0.18.0 |
+| **2** | PWA support (manifest, icons, install prompt) | 1 week | v0.19.0 |
+| **3** | Tauri desktop app (if demand exists) | 2-3 weeks | v1.0.0 |
+| **4** | Mac App Store distribution (optional) | 1 week | v1.1.0+ |
+
+**Phase 1 delivers 80% of the value with 10% of the effort.** Users get a clickable icon without learning terminal commands for daily use.
+
+**Phase 3 (Tauri) should only happen if:**
+- User feedback requests native app
+- Web-based approach has technical limitations
+- Marketing/distribution benefits justify effort
+
+---
+
+**Decision Checklist:**
+
+Before building a native app, answer:
+- [ ] What % of users are on Mac vs Windows vs Linux?
+- [ ] Is terminal aversion the main friction point?
+- [ ] Would a menubar app solve the problem sufficiently?
+- [ ] Is App Store distribution important for trust/discovery?
+- [ ] Do we have resources to maintain multiple builds?
+
+---
+
 ### 8. Message Scheduling
 
 **Problem:** No way to send messages at a specific time.

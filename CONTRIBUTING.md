@@ -68,10 +68,24 @@ Thank you for your interest in contributing to AI Maestro! This document provide
 
 ## Development Setup
 
+### Quick Setup (Recommended)
+
+The fastest way to get AI Maestro running for testing your changes:
+
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/agents-web.git
-cd agents-web
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+This automatically installs prerequisites, clones, and builds the project.
+
+### Fork-Based Development
+
+For making contributions:
+
+```bash
+# Fork the repo on GitHub first, then:
+git clone https://github.com/YOUR_USERNAME/ai-maestro.git
+cd ai-maestro
 
 # Install dependencies
 yarn install
@@ -79,8 +93,7 @@ yarn install
 # Start development server
 yarn dev
 
-# Test your changes
-# Open http://localhost:3000
+# Test your changes at http://localhost:23000
 ```
 
 ## Coding Standards

@@ -49,6 +49,23 @@ Follow these steps to connect your first remote worker.
 
 ### Step 1: Install AI Maestro on Both Machines
 
+**Recommended: One-Line Installer**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+```
+
+This handles prerequisites, installation, and configuration automatically.
+
+**With auto-start (recommended for workers):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --auto-start
+```
+
+---
+
+**Alternative: Manual Install**
+
 **On Manager (your laptop):**
 ```bash
 # Clone repository

@@ -638,11 +638,17 @@ All manageable from one dashboard</code></pre>
                             <span class="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-sm text-white">1</span>
                             Install AI Maestro on Worker
                         </h3>
-                        <pre class="bg-slate-800 p-4 rounded-lg overflow-x-auto"><code class="text-sm text-white"># SSH into your remote machine
-ssh user@remote-worker
-
-# One command installs everything
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code></pre>
+                        <div class="bg-slate-800 p-4 rounded-lg overflow-x-auto text-sm">
+                            <div class="text-slate-500"># SSH into your remote machine</div>
+                            <div class="text-white mb-3">ssh user@remote-worker</div>
+                            <div class="text-slate-500"># One command installs everything</div>
+                            <div class="flex items-center justify-between gap-2">
+                                <code class="text-cyan-400 install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
+                                <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
+                                    <span class="copy-label">Copy</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -777,6 +783,22 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 
     <!-- Copy for AI functionality -->
     <script src="copy-for-ai.js"></script>
+
+    <!-- Copy command functionality -->
+    <script>
+        function copyCmd(btn) {
+            const code = btn.parentElement.querySelector('.install-cmd');
+            const label = btn.querySelector('.copy-label');
+            navigator.clipboard.writeText(code.textContent).then(() => {
+                label.textContent = 'Copied!';
+                btn.classList.add('border-green-500', 'text-green-400');
+                setTimeout(() => {
+                    label.textContent = 'Copy';
+                    btn.classList.remove('border-green-500', 'text-green-400');
+                }, 2000);
+            });
+        }
+    </script>
 
     <!-- Typing animation -->
     <script>

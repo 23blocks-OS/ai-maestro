@@ -859,9 +859,22 @@
                     </div>
 
                     <!-- One-line installer (Primary) -->
-                    <div class="bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-x-auto mb-4">
+                    <div class="bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-x-auto mb-4 relative group/install">
                         <div class="text-slate-500 mb-2"># One command installs everything</div>
-                        <div class="text-cyan-400">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</div>
+                        <div class="flex items-center justify-between gap-4">
+                            <code id="install-command" class="text-cyan-400 select-all">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
+                            <button
+                                onclick="copyInstallCommand()"
+                                id="copy-btn"
+                                class="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 transition-all duration-200"
+                                title="Copy to clipboard">
+                                <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                <span id="copy-text" class="text-xs font-sans">Copy</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Manual install (Collapsible) -->
@@ -1240,6 +1253,32 @@
                 window.location.href = this.dataset.href;
             });
         });
+    </script>
+
+    <!-- Copy install command functionality -->
+    <script>
+        function copyInstallCommand() {
+            const command = document.getElementById('install-command').textContent;
+            const btn = document.getElementById('copy-btn');
+            const text = document.getElementById('copy-text');
+            const icon = document.getElementById('copy-icon');
+
+            navigator.clipboard.writeText(command).then(() => {
+                // Success feedback
+                text.textContent = 'Copied!';
+                btn.classList.add('border-green-500', 'text-green-400');
+                btn.classList.remove('border-slate-600', 'text-slate-400');
+                icon.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    text.textContent = 'Copy';
+                    btn.classList.remove('border-green-500', 'text-green-400');
+                    btn.classList.add('border-slate-600', 'text-slate-400');
+                    icon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>';
+                }, 2000);
+            });
+        }
     </script>
 
     <!-- Copy for AI functionality -->

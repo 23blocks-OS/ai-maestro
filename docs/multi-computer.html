@@ -458,7 +458,14 @@
                         <span class="text-2xl font-display font-bold text-yellow-600">1</span>
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on Manager</h3>
-                    <pre class="text-left bg-slate-800 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code>curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code></pre>
+                    <div class="relative bg-slate-800 p-4 rounded-lg text-sm mb-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
+                            <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
+                                <span class="copy-label">Copy</span>
+                            </button>
+                        </div>
+                    </div>
                     <p class="text-slate-400 text-sm">
                         Install AI Maestro on your main machine (laptop/desktop). This becomes your manager.
                     </p>
@@ -469,8 +476,15 @@
                         <span class="text-2xl font-display font-bold text-yellow-600">2</span>
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on Workers</h3>
-                    <pre class="text-left bg-slate-800 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code># On each worker machine
-curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code></pre>
+                    <div class="relative bg-slate-800 p-4 rounded-lg text-sm mb-3">
+                        <div class="text-slate-500 text-left mb-1"># On each worker machine</div>
+                        <div class="flex items-center justify-between gap-2">
+                            <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
+                            <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
+                                <span class="copy-label">Copy</span>
+                            </button>
+                        </div>
+                    </div>
                     <p class="text-slate-400 text-sm">
                         Same installer works on all machines.
                     </p>
@@ -937,6 +951,22 @@ workers:
 
     <!-- Copy for AI functionality -->
     <script src="copy-for-ai.js"></script>
+
+    <!-- Copy command functionality -->
+    <script>
+        function copyCmd(btn) {
+            const code = btn.parentElement.querySelector('.install-cmd');
+            const label = btn.querySelector('.copy-label');
+            navigator.clipboard.writeText(code.textContent).then(() => {
+                label.textContent = 'Copied!';
+                btn.classList.add('border-green-500', 'text-green-400');
+                setTimeout(() => {
+                    label.textContent = 'Copy';
+                    btn.classList.remove('border-green-500', 'text-green-400');
+                }, 2000);
+            });
+        }
+    </script>
 
     <!-- Typing animation -->
     <script>

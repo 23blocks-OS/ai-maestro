@@ -88,14 +88,20 @@ export default function MobileHostsList({
   }
 
   // Sort hosts: local first, then alphabetically
+  // Use ALL hosts from useHosts, not just hosts with agents
   const sortedHostIds = useMemo(() => {
-    const hostIds = Object.keys(groupedAgents)
-    return hostIds.sort((a, b) => {
+    // Start with all hosts from the hosts list
+    const hostIds = new Set(hosts.map(h => h.id))
+
+    // Also include any hostIds from agents that might not be in the hosts list
+    Object.keys(groupedAgents).forEach(hostId => hostIds.add(hostId))
+
+    return Array.from(hostIds).sort((a, b) => {
       if (a === 'local') return -1
       if (b === 'local') return 1
       return getHostName(a).localeCompare(getHostName(b))
     })
-  }, [groupedAgents])
+  }, [hosts, groupedAgents])
 
   if (agents.length === 0) {
     return (

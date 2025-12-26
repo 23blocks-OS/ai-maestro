@@ -199,6 +199,20 @@ export default function MobileHostsList({
                           const displayName = getAgentDisplayName(agent)
                           const breadcrumb = getAgentBreadcrumb(agent)
                           const isOnline = agent.session?.status === 'online'
+                          // Hibernated = offline but has session config (can be woken)
+                          const isHibernated = !isOnline && !!agent.tools?.session
+
+                          // Status indicator colors and labels
+                          const statusColor = isOnline
+                            ? 'bg-green-500'
+                            : isHibernated
+                              ? 'bg-yellow-500'
+                              : 'bg-gray-500'
+                          const statusLabel = isOnline
+                            ? 'Online'
+                            : isHibernated
+                              ? 'Hibernated'
+                              : 'Offline'
 
                           return (
                             <button
@@ -227,9 +241,14 @@ export default function MobileHostsList({
                                 )}
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                {/* Online/Offline indicator */}
-                                <div className={`w-2 h-2 rounded-full ${
-                                  isOnline ? 'bg-green-500' : 'bg-gray-500'
+                                {/* Status indicator with label */}
+                                <span className={`text-xs ${
+                                  isOnline ? 'text-green-400' : isHibernated ? 'text-yellow-400' : 'text-gray-500'
+                                }`}>
+                                  {statusLabel}
+                                </span>
+                                <div className={`w-2 h-2 rounded-full ${statusColor} ${
+                                  isOnline ? 'animate-pulse' : ''
                                 }`} />
                                 {isActive && (
                                   <div className="w-2 h-2 rounded-full bg-blue-400" />

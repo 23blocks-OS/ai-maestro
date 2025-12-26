@@ -10,6 +10,7 @@ import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-re
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
+import versionInfo from '@/version.json'
 
 interface MobileDashboardProps {
   agents: Agent[]
@@ -366,7 +367,7 @@ export default function MobileDashboard({
             >
               AI Maestro
             </a>
-            {' '}v0.15.0 •{' '}
+            {' '}v{versionInfo.version} •{' '}
             <a
               href="https://x.com/jkpelaez"
               target="_blank"

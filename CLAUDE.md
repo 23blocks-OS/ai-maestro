@@ -32,6 +32,28 @@ tmux kill-session -t test-session    # Clean up test session
 
 **Port Configuration:** The application is configured to run on port 23000. This is set in the PM2 configuration.
 
+## Version Management
+
+**IMPORTANT:** When bumping the version, ALWAYS use the centralized script:
+
+```bash
+./scripts/bump-version.sh patch    # 0.17.12 -> 0.17.13
+./scripts/bump-version.sh minor    # 0.17.12 -> 0.18.0
+./scripts/bump-version.sh major    # 0.17.12 -> 1.0.0
+./scripts/bump-version.sh 1.0.0    # Set specific version
+```
+
+This script updates ALL version references across the codebase:
+- `version.json` (source of truth)
+- `package.json`
+- `scripts/remote-install.sh`
+- `README.md` (badge)
+- `docs/index.html` (schema + display)
+- `docs/ai-index.html`
+- `docs/BACKLOG.md`
+
+**DO NOT manually edit version numbers in individual files.** Always use the script to ensure consistency.
+
 ## Release & Marketing Workflow
 
 ### Pull Request Protocol

@@ -234,6 +234,34 @@ export const glossary: GlossaryEntry[] = [
     relatedTerms: ['dashboard'],
     category: 'technical'
   },
+  {
+    id: 'wsl2',
+    term: 'WSL2',
+    definition: 'Windows Subsystem for Linux version 2 - Microsoft\'s solution for running Linux tools on Windows. AI Maestro requires WSL2 on Windows because tmux is a Linux tool. Install with "wsl --install" in PowerShell.',
+    relatedTerms: ['tmux', 'terminal'],
+    category: 'technical'
+  },
+  {
+    id: 'tailscale',
+    term: 'Tailscale',
+    definition: 'A free VPN service that creates a secure private network between your devices. Use Tailscale to access AI Maestro from mobile devices, other computers, or when traveling. Works from anywhere with internet.',
+    relatedTerms: ['remote-host', 'host'],
+    category: 'technical'
+  },
+  {
+    id: 'pm2',
+    term: 'PM2',
+    definition: 'A process manager that keeps AI Maestro running in the background. Restart with "pm2 restart ai-maestro", check status with "pm2 status", and view logs with "pm2 logs ai-maestro".',
+    relatedTerms: ['dashboard'],
+    category: 'technical'
+  },
+  {
+    id: 'local-network-privacy',
+    term: 'Local Network Privacy',
+    definition: 'A macOS 15+ security feature that can block apps from accessing other devices on your network. If remote hosts show "connection refused", go to System Settings > Privacy & Security > Local Network and enable access for Terminal.',
+    relatedTerms: ['remote-host', 'host'],
+    category: 'technical'
+  },
 ]
 
 export const glossaryCategories: Record<string, string> = {

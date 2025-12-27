@@ -458,6 +458,130 @@ export const tutorials: Tutorial[] = [
       },
     ],
   },
+  {
+    id: 'macos-network-privacy',
+    title: 'macOS Network Privacy Fix',
+    description: 'Fix "connection refused" errors when connecting remote hosts on macOS 15+',
+    icon: 'Shield',
+    category: 'troubleshooting',
+    estimatedTime: '3 min',
+    steps: [
+      {
+        title: 'The problem',
+        description: 'macOS 15 (Sequoia) introduced Local Network Privacy protection. This can block AI Maestro from connecting to other machines on your network, showing "connection refused" or timeout errors.',
+      },
+      {
+        title: 'Check if this affects you',
+        description: 'If you can access http://localhost:23000 but cannot connect to remote hosts (like http://192.168.1.x:23000), Local Network Privacy may be blocking the connection.',
+      },
+      {
+        title: 'Grant Terminal network access',
+        description: 'Open System Settings > Privacy & Security > Local Network. Find "Terminal" (or your terminal app) and toggle it ON. This allows terminal apps to access devices on your network.',
+      },
+      {
+        title: 'Alternative: Use Tailscale',
+        description: 'Tailscale VPN bypasses Local Network Privacy entirely. Install Tailscale on both machines, and connect using Tailscale IPs (100.x.x.x) instead of local network IPs.',
+      },
+      {
+        title: 'Verify the fix',
+        description: 'Try connecting to your remote host again via Settings > Add Host. If using Tailscale, use the Tailscale IP instead of local IP.',
+      },
+    ],
+  },
+  {
+    id: 'windows-wsl2-basics',
+    title: 'Windows (WSL2) Setup',
+    description: 'Get AI Maestro running on Windows using WSL2',
+    icon: 'Monitor',
+    category: 'advanced',
+    estimatedTime: '5 min',
+    steps: [
+      {
+        title: 'Why WSL2?',
+        description: 'AI Maestro uses tmux, which is a Linux tool. On Windows, we use WSL2 (Windows Subsystem for Linux) to run Linux tools seamlessly. It\'s Microsoft\'s official solution.',
+      },
+      {
+        title: 'Install WSL2',
+        description: 'Open PowerShell as Administrator and run: wsl --install. This installs Ubuntu. After it completes, restart your computer.',
+      },
+      {
+        title: 'Set up Ubuntu',
+        description: 'After restart, Ubuntu launches automatically. Create a username and password when prompted. Then run: sudo apt update && sudo apt install -y tmux nodejs npm git',
+      },
+      {
+        title: 'Install AI Maestro',
+        description: 'In the Ubuntu terminal: curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh',
+      },
+      {
+        title: 'Access from Windows browser',
+        description: 'Open your Windows browser (Chrome, Edge, Firefox) and go to http://localhost:23000. WSL2 automatically forwards the port to Windows.',
+      },
+      {
+        title: 'Common issues',
+        description: 'If localhost doesn\'t work, check Windows Firewall settings. If terminal is slow, work in ~/projects (WSL2 filesystem) instead of /mnt/c/ (Windows filesystem).',
+      },
+    ],
+  },
+  {
+    id: 'mobile-access-tailscale',
+    title: 'Access from Mobile Devices',
+    description: 'View and manage agents from your phone or tablet',
+    icon: 'Smartphone',
+    category: 'advanced',
+    estimatedTime: '4 min',
+    steps: [
+      {
+        title: 'Install Tailscale',
+        description: 'Tailscale is a free VPN that creates a secure network between your devices. Install it on your computer (where AI Maestro runs) and on your phone/tablet.',
+      },
+      {
+        title: 'Sign in to Tailscale',
+        description: 'Open Tailscale on both devices and sign in with the same account. Your devices will automatically connect to your private Tailscale network.',
+      },
+      {
+        title: 'Get your computer\'s Tailscale IP',
+        description: 'On your computer, run "tailscale ip -4" in terminal. You\'ll get an IP like 100.x.x.x. This is your Tailscale IP that works from anywhere.',
+      },
+      {
+        title: 'Access from mobile',
+        description: 'On your phone/tablet browser, go to http://100.x.x.x:23000 (using the Tailscale IP from step 3). You\'ll see the AI Maestro dashboard.',
+      },
+      {
+        title: 'Works from anywhere',
+        description: 'Tailscale works over the internet too. Whether you\'re at home, at a coffee shop, or traveling - if both devices have Tailscale running, you can access your agents.',
+      },
+    ],
+  },
+  {
+    id: 'install-skills',
+    title: 'Install Agent Skills',
+    description: 'Add capabilities like messaging, memory search, and code graph to your agents',
+    icon: 'Puzzle',
+    category: 'advanced',
+    estimatedTime: '3 min',
+    steps: [
+      {
+        title: 'What are skills?',
+        description: 'Skills are add-ons that give your agents new abilities. The messaging skill lets agents send messages to each other. Memory search finds past conversations. Graph query visualizes code.',
+      },
+      {
+        title: 'Run the installer',
+        description: 'In your AI Maestro folder, run: ./install-messaging.sh. This installs all messaging and memory tools automatically.',
+      },
+      {
+        title: 'Verify installation',
+        description: 'In any agent session, try: check-aimaestro-messages.sh. If it runs without "command not found" errors, the skills are installed.',
+      },
+      {
+        title: 'Using skills naturally',
+        description: 'With Claude Code, just say things like "check my messages" or "send a message to backend-api". Claude automatically uses the right skill.',
+      },
+      {
+        title: 'Manual usage',
+        description: 'You can also use skills manually: send-aimaestro-message.sh <agent> "Subject" "Message", or memory-search.sh "query". See the skills README for full documentation.',
+      },
+    ],
+  },
 ]
 
 export const categoryLabels: Record<string, string> = {

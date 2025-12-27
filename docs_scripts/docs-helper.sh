@@ -2,9 +2,16 @@
 # AI Maestro Documentation Helper Functions
 # Sources common utilities and adds docs-specific functions
 
-# Source common helpers
+# Source common helpers - try installed location first, then repo location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh"
+if [ -f "${HOME}/.local/share/aimaestro/shell-helpers/common.sh" ]; then
+    source "${HOME}/.local/share/aimaestro/shell-helpers/common.sh"
+elif [ -f "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh" ]; then
+    source "${SCRIPT_DIR}/../scripts/shell-helpers/common.sh"
+else
+    echo "Error: common.sh not found. Run install-doc-tools.sh to fix." >&2
+    exit 1
+fi
 
 # Make a docs query API call
 docs_query() {

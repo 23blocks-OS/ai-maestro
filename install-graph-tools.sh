@@ -7,6 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/graph-query"
+SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
 echo "AI Maestro Graph Tools Installer"
 echo "================================="
@@ -15,7 +16,15 @@ echo ""
 # Create directories if needed
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$SKILL_DIR"
+mkdir -p "$SHARE_DIR"
 
+# Install common shell helpers first
+echo "Installing common shell helpers to $SHARE_DIR..."
+cp "$SCRIPT_DIR/scripts/shell-helpers/common.sh" "$SHARE_DIR/common.sh"
+chmod +x "$SHARE_DIR/common.sh"
+echo "  Installed: common.sh"
+
+echo ""
 # Install graph scripts
 echo "Installing graph scripts to $INSTALL_DIR..."
 for script in "$SCRIPT_DIR/graph_scripts"/*.sh; do

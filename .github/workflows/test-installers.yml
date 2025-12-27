@@ -7,6 +7,7 @@ on:
       - 'messaging_scripts/**'
       - 'memory_scripts/**'
       - 'docs_scripts/**'
+      - 'graph_scripts/**'
       - 'portable_scripts/**'
       - 'scripts/shell-helpers/**'
       - 'skills/**'
@@ -17,6 +18,7 @@ on:
       - 'messaging_scripts/**'
       - 'memory_scripts/**'
       - 'docs_scripts/**'
+      - 'graph_scripts/**'
       - 'portable_scripts/**'
       - 'scripts/shell-helpers/**'
       - 'skills/**'
@@ -99,6 +101,71 @@ jobs:
           fi
           echo "✓ memory-search skill installed"
 
+      - name: Test install-graph-tools.sh
+        run: |
+          echo "=== Testing install-graph-tools.sh ==="
+
+          ./install-graph-tools.sh
+
+          # Verify common.sh was installed
+          if [ ! -f ~/.local/share/aimaestro/shell-helpers/common.sh ]; then
+            echo "ERROR: common.sh not installed"
+            exit 1
+          fi
+          echo "✓ common.sh installed"
+
+          # Verify graph scripts were installed
+          for script in graph-helper.sh graph-describe.sh graph-find-callers.sh graph-find-callees.sh graph-find-related.sh graph-find-by-type.sh; do
+            if [ ! -x ~/.local/bin/$script ]; then
+              echo "ERROR: $script not installed or not executable"
+              exit 1
+            fi
+            echo "✓ $script installed"
+          done
+
+          # Verify skill was installed
+          if [ ! -f ~/.claude/skills/graph-query/SKILL.md ]; then
+            echo "ERROR: graph-query skill not installed"
+            exit 1
+          fi
+          echo "✓ graph-query skill installed"
+
+      - name: Test install-doc-tools.sh
+        run: |
+          echo "=== Testing install-doc-tools.sh ==="
+
+          ./install-doc-tools.sh
+
+          # Verify common.sh was installed
+          if [ ! -f ~/.local/share/aimaestro/shell-helpers/common.sh ]; then
+            echo "ERROR: common.sh not installed"
+            exit 1
+          fi
+          echo "✓ common.sh installed"
+
+          # Verify docs-helper.sh was installed to share dir
+          if [ ! -f ~/.local/share/aimaestro/shell-helpers/docs-helper.sh ]; then
+            echo "ERROR: docs-helper.sh not installed to share dir"
+            exit 1
+          fi
+          echo "✓ docs-helper.sh installed to share dir"
+
+          # Verify doc scripts were installed
+          for script in docs-search.sh docs-index.sh docs-index-delta.sh docs-stats.sh docs-list.sh docs-get.sh docs-find-by-type.sh; do
+            if [ ! -x ~/.local/bin/$script ]; then
+              echo "ERROR: $script not installed or not executable"
+              exit 1
+            fi
+            echo "✓ $script installed"
+          done
+
+          # Verify skill was installed
+          if [ ! -f ~/.claude/skills/docs-search/SKILL.md ]; then
+            echo "ERROR: docs-search skill not installed"
+            exit 1
+          fi
+          echo "✓ docs-search skill installed"
+
       - name: Test scripts can source common.sh
         run: |
           echo "=== Testing scripts can source dependencies ==="
@@ -111,8 +178,12 @@ jobs:
           bash -n ~/.local/bin/memory-helper.sh
           echo "✓ memory-helper.sh syntax OK"
 
-          # Test that docs-helper.sh can source common.sh
-          bash -n ~/.local/bin/docs-helper.sh
+          # Test that graph-helper.sh can source common.sh
+          bash -n ~/.local/bin/graph-helper.sh
+          echo "✓ graph-helper.sh syntax OK"
+
+          # Test that docs-helper.sh can source common.sh (in share dir)
+          bash -n ~/.local/share/aimaestro/shell-helpers/docs-helper.sh
           echo "✓ docs-helper.sh syntax OK"
 
       - name: Test scripts show help (no tmux session)
@@ -123,6 +194,7 @@ jobs:
           ~/.local/bin/memory-search.sh --help || true
           ~/.local/bin/doc-search.sh --help || true
           ~/.local/bin/send-aimaestro-message.sh --help || true
+          ~/.local/bin/graph-describe.sh --help || true
 
           echo "✓ Scripts handle missing tmux session gracefully"
 
@@ -175,9 +247,15 @@ jobs:
       - name: Summary
         run: |
           echo ""
-          echo "=========================================="
-          echo "  Installation Tests Passed!"
-          echo "=========================================="
+          echo "==========================================="
+          echo "  All 4 Installer Tests Passed!"
+          echo "==========================================="
+          echo ""
+          echo "Tested installers:"
+          echo "  ✓ install-messaging.sh"
+          echo "  ✓ install-memory-tools.sh"
+          echo "  ✓ install-graph-tools.sh"
+          echo "  ✓ install-doc-tools.sh"
           echo ""
           echo "Installed scripts:"
           ls -1 ~/.local/bin/*.sh | wc -l | xargs echo "  Total:"

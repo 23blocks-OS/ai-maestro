@@ -20,6 +20,7 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2 } from 'lucide-react'
 import ImportAgentDialog from '@/components/ImportAgentDialog'
+import HelpPanel from '@/components/HelpPanel'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
 
   // Derive active agent from state
@@ -335,6 +337,7 @@ export default function DashboardPage() {
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
           activeAgentId={activeAgentId}
+          onOpenHelp={() => setIsHelpOpen(true)}
         />
 
         {/* Migration Banner */}
@@ -724,6 +727,12 @@ export default function DashboardPage() {
             setShowImportDialog(false)
             refreshAgents()
           }}
+        />
+
+        {/* Help Panel */}
+        <HelpPanel
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
         />
       </div>
     </TerminalProvider>

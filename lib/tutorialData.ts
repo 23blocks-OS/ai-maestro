@@ -143,6 +143,36 @@ export const tutorials: Tutorial[] = [
     ],
   },
   {
+    id: 'docs-search',
+    title: 'Search Documentation',
+    description: 'Find answers in indexed documentation, READMEs, and API docs',
+    icon: 'FileText',
+    category: 'tools',
+    estimatedTime: '2 min',
+    steps: [
+      {
+        title: 'Ensure docs are indexed',
+        description: 'The docs search skill indexes documentation files in your project. Make sure the skill is installed on your agent.',
+      },
+      {
+        title: 'Ask your agent',
+        description: 'Simply ask your agent questions about documentation. For example: "Search the docs for authentication" or "What does the API say about rate limits?"',
+      },
+      {
+        title: 'Review search results',
+        description: 'The agent will search through indexed documentation and return relevant snippets with source file references.',
+      },
+      {
+        title: 'Supported file types',
+        description: 'Docs search indexes README files, Markdown documentation, API specs, and code comments from your project.',
+      },
+      {
+        title: 'Refine your search',
+        description: 'If results aren\'t what you need, try rephrasing your question or being more specific about the topic.',
+      },
+    ],
+  },
+  {
     id: 'move-agent',
     title: 'Transfer Agent to Another Host',
     description: 'Move agents between machines while preserving their memory',

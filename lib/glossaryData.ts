@@ -72,8 +72,8 @@ export const glossary: GlossaryEntry[] = [
   {
     id: 'docs-search',
     term: 'Docs Search',
-    definition: 'A tool that searches through indexed documentation. Agents can query API docs, README files, and other documentation to understand how to use libraries and frameworks.',
-    relatedTerms: ['documentation', 'search', 'api'],
+    definition: 'A tool that searches through indexed documentation files in your project. Agents can query README files, API docs, Markdown documentation, and code comments to find answers about libraries, frameworks, and project-specific information.',
+    relatedTerms: ['documentation', 'search', 'api', 'readme'],
     category: 'tools'
   },
 

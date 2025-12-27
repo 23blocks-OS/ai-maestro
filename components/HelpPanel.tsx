@@ -34,6 +34,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Server,
   User,
   Moon,
+  FileText,
 }
 
 interface HelpPanelProps {

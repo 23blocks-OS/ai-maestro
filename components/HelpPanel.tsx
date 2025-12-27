@@ -13,7 +13,9 @@ import {
   Server,
   ChevronRight,
   BookOpen,
-  Terminal
+  Terminal,
+  User,
+  Moon
 } from 'lucide-react'
 import { tutorials, categoryLabels, categoryOrder, type Tutorial } from '@/lib/tutorialData'
 
@@ -25,6 +27,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Share2,
   ArrowRightLeft,
   Server,
+  User,
+  Moon,
 }
 
 interface HelpPanelProps {

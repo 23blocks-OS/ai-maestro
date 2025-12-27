@@ -6,13 +6,22 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/memory-search"
+SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
 echo "AI Maestro Memory Tools Installer"
 echo "=================================="
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$SKILL_DIR"
+mkdir -p "$SHARE_DIR"
 
+# Install common shell helpers first
+echo "Installing common shell helpers to $SHARE_DIR..."
+cp "$SCRIPT_DIR/scripts/shell-helpers/common.sh" "$SHARE_DIR/common.sh"
+chmod +x "$SHARE_DIR/common.sh"
+echo "  Installed: common.sh"
+
+echo ""
 echo "Installing memory scripts to $INSTALL_DIR..."
 for script in "$SCRIPT_DIR/memory_scripts"/*.sh; do
     if [ -f "$script" ]; then

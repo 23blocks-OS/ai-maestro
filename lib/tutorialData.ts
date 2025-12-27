@@ -12,7 +12,7 @@ export interface Tutorial {
   title: string
   description: string
   icon: string // lucide icon name
-  category: 'getting-started' | 'communication' | 'tools' | 'advanced'
+  category: 'getting-started' | 'concepts' | 'communication' | 'tools' | 'advanced'
   estimatedTime: string // e.g., "2 min"
   steps: TutorialStep[]
 }
@@ -45,6 +45,70 @@ export const tutorials: Tutorial[] = [
       {
         title: 'Start working',
         description: 'Your new agent appears in the sidebar. Click it to see the terminal view and start interacting with your AI assistant.',
+      },
+    ],
+  },
+  {
+    id: 'distributed-agents',
+    title: 'Distributed AI Agents',
+    description: 'Understanding how AI agents run across multiple machines',
+    icon: 'Globe',
+    category: 'concepts',
+    estimatedTime: '4 min',
+    steps: [
+      {
+        title: 'What are distributed AI agents?',
+        description: 'AI Maestro enables you to run AI coding agents across multiple computers. Each machine (host) can run its own agents, and you can manage them all from a single dashboard. This is distributed AI computing - spreading intelligent work across your infrastructure.',
+      },
+      {
+        title: 'Why distribute agents?',
+        description: 'Different projects may live on different machines. A backend API might be on a server, while frontend code is on your laptop. With distributed agents, each agent works where its code lives, with full local file access and native performance.',
+      },
+      {
+        title: 'The host network',
+        description: 'Each computer running AI Maestro is a "host". Hosts discover and connect to each other automatically on your local network. You can also manually add remote hosts by their URL in Settings.',
+      },
+      {
+        title: 'Agents have memory',
+        description: 'Each agent maintains its own memory - conversation history, indexed code graphs, and learned context. This memory travels with the agent, even when transferred between hosts.',
+      },
+      {
+        title: 'Agent collaboration',
+        description: 'Agents can send messages to each other across hosts. A frontend agent can ask a backend agent about API endpoints. An architect agent can coordinate work between specialized agents.',
+      },
+      {
+        title: 'Transfer and migrate',
+        description: 'Need to move an agent to a more powerful machine? Transfer it. The agent\'s entire state - memory, settings, and indexed data - moves to the new host. Resume exactly where you left off.',
+      },
+    ],
+  },
+  {
+    id: 'agent-architecture',
+    title: 'How Agents Work',
+    description: 'The technical architecture behind AI Maestro agents',
+    icon: 'Cpu',
+    category: 'concepts',
+    estimatedTime: '3 min',
+    steps: [
+      {
+        title: 'Agents run in tmux sessions',
+        description: 'Each agent runs inside a tmux terminal session. This means agents persist even if you close the dashboard. They can run long tasks, and you can reconnect anytime to see their progress.',
+      },
+      {
+        title: 'The subconscious process',
+        description: 'Behind each agent is a "subconscious" - a background process that indexes conversations, builds code graphs, and maintains searchable memory. This runs locally on the same machine as the agent.',
+      },
+      {
+        title: 'Local-first design',
+        description: 'AI Maestro is designed for local-first operation. Your code never leaves your machines. Agents read and write files directly, with no cloud intermediary. This means faster operations and complete privacy.',
+      },
+      {
+        title: 'Skills extend capabilities',
+        description: 'Agents gain abilities through "skills" - modular capabilities like messaging, memory search, graph queries, and documentation search. Install the skills you need for each agent.',
+      },
+      {
+        title: 'The dashboard is a window',
+        description: 'The AI Maestro web dashboard is just a view into your agents. Agents continue running whether you\'re watching or not. The dashboard connects to agents via WebSocket for real-time terminal streaming.',
       },
     ],
   },
@@ -304,9 +368,10 @@ export const tutorials: Tutorial[] = [
 
 export const categoryLabels: Record<string, string> = {
   'getting-started': 'Getting Started',
+  'concepts': 'Concepts',
   'communication': 'Communication',
   'tools': 'Agent Tools',
   'advanced': 'Advanced',
 }
 
-export const categoryOrder = ['getting-started', 'communication', 'tools', 'advanced']
+export const categoryOrder = ['getting-started', 'concepts', 'communication', 'tools', 'advanced']

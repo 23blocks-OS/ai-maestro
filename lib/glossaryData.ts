@@ -12,11 +12,32 @@ export interface GlossaryEntry {
 export const glossary: GlossaryEntry[] = [
   // Core Concepts
   {
+    id: 'distributed-computing',
+    term: 'Distributed AI Computing',
+    definition: 'Running AI coding agents across multiple machines in your infrastructure. Each computer (host) runs its own agents locally, while a central dashboard lets you manage and coordinate them all. Agents work where the code lives, with full local file access.',
+    relatedTerms: ['host', 'agent', 'transfer'],
+    category: 'core'
+  },
+  {
     id: 'agent',
     term: 'Agent',
     definition: 'An AI coding assistant that runs in its own tmux session. Each agent has its own memory, working directory, and can communicate with other agents. Agents persist their state even when hibernated.',
     relatedTerms: ['session', 'tmux', 'hibernation'],
     category: 'core'
+  },
+  {
+    id: 'local-first',
+    term: 'Local-First',
+    definition: 'AI Maestro\'s design philosophy where all code and data stay on your machines. Agents read and write files directly with no cloud intermediary. This ensures privacy, speed, and works offline.',
+    relatedTerms: ['agent', 'host', 'security'],
+    category: 'core'
+  },
+  {
+    id: 'subconscious',
+    term: 'Subconscious',
+    definition: 'A background process that runs alongside each agent. It indexes conversations, builds code graphs, and maintains searchable memory. The subconscious runs locally on the same machine as the agent.',
+    relatedTerms: ['agent', 'memory-search', 'graph-query'],
+    category: 'technical'
   },
   {
     id: 'session',

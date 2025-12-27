@@ -64,7 +64,7 @@ jobs:
           done
 
           # Verify docs scripts were installed
-          for script in doc-search.sh docs-helper.sh; do
+          for script in docs-search.sh docs-helper.sh; do
             if [ ! -x ~/.local/bin/$script ]; then
               echo "ERROR: $script not installed or not executable"
               exit 1
@@ -192,7 +192,7 @@ jobs:
 
           # These should show help or error gracefully (not crash)
           ~/.local/bin/memory-search.sh --help || true
-          ~/.local/bin/doc-search.sh --help || true
+          ~/.local/bin/docs-search.sh --help || true
           ~/.local/bin/send-aimaestro-message.sh --help || true
           ~/.local/bin/graph-describe.sh --help || true
 

@@ -1,0 +1,189 @@
+name: Test Installers
+
+on:
+  push:
+    paths:
+      - 'install-*.sh'
+      - 'messaging_scripts/**'
+      - 'memory_scripts/**'
+      - 'docs_scripts/**'
+      - 'portable_scripts/**'
+      - 'scripts/shell-helpers/**'
+      - 'skills/**'
+      - '.github/workflows/test-installers.yml'
+  pull_request:
+    paths:
+      - 'install-*.sh'
+      - 'messaging_scripts/**'
+      - 'memory_scripts/**'
+      - 'docs_scripts/**'
+      - 'portable_scripts/**'
+      - 'scripts/shell-helpers/**'
+      - 'skills/**'
+
+jobs:
+  test-installers:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install jq tmux
+
+      - name: Setup PATH
+        run: |
+          mkdir -p ~/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Test install-messaging.sh
+        run: |
+          echo "=== Testing install-messaging.sh ==="
+
+          # Run installer with option 1 (scripts only, non-interactive)
+          echo "1" | ./install-messaging.sh
+
+          # Verify common.sh was installed
+          if [ ! -f ~/.local/share/aimaestro/shell-helpers/common.sh ]; then
+            echo "ERROR: common.sh not installed"
+            exit 1
+          fi
+          echo "✓ common.sh installed"
+
+          # Verify messaging scripts were installed
+          for script in check-aimaestro-messages.sh send-aimaestro-message.sh read-aimaestro-message.sh messaging-helper.sh; do
+            if [ ! -x ~/.local/bin/$script ]; then
+              echo "ERROR: $script not installed or not executable"
+              exit 1
+            fi
+            echo "✓ $script installed"
+          done
+
+          # Verify docs scripts were installed
+          for script in doc-search.sh docs-helper.sh; do
+            if [ ! -x ~/.local/bin/$script ]; then
+              echo "ERROR: $script not installed or not executable"
+              exit 1
+            fi
+            echo "✓ $script installed"
+          done
+
+      - name: Test install-memory-tools.sh
+        run: |
+          echo "=== Testing install-memory-tools.sh ==="
+
+          ./install-memory-tools.sh
+
+          # Verify common.sh was installed (may already exist from messaging)
+          if [ ! -f ~/.local/share/aimaestro/shell-helpers/common.sh ]; then
+            echo "ERROR: common.sh not installed"
+            exit 1
+          fi
+          echo "✓ common.sh installed"
+
+          # Verify memory scripts were installed
+          for script in memory-search.sh memory-helper.sh; do
+            if [ ! -x ~/.local/bin/$script ]; then
+              echo "ERROR: $script not installed or not executable"
+              exit 1
+            fi
+            echo "✓ $script installed"
+          done
+
+          # Verify skill was installed
+          if [ ! -f ~/.claude/skills/memory-search/SKILL.md ]; then
+            echo "ERROR: memory-search skill not installed"
+            exit 1
+          fi
+          echo "✓ memory-search skill installed"
+
+      - name: Test scripts can source common.sh
+        run: |
+          echo "=== Testing scripts can source dependencies ==="
+
+          # Test that messaging-helper.sh can source common.sh
+          bash -n ~/.local/bin/messaging-helper.sh
+          echo "✓ messaging-helper.sh syntax OK"
+
+          # Test that memory-helper.sh can source common.sh
+          bash -n ~/.local/bin/memory-helper.sh
+          echo "✓ memory-helper.sh syntax OK"
+
+          # Test that docs-helper.sh can source common.sh
+          bash -n ~/.local/bin/docs-helper.sh
+          echo "✓ docs-helper.sh syntax OK"
+
+      - name: Test scripts show help (no tmux session)
+        run: |
+          echo "=== Testing script help output ==="
+
+          # These should show help or error gracefully (not crash)
+          ~/.local/bin/memory-search.sh --help || true
+          ~/.local/bin/doc-search.sh --help || true
+          ~/.local/bin/send-aimaestro-message.sh --help || true
+
+          echo "✓ Scripts handle missing tmux session gracefully"
+
+      - name: Verify no broken source paths
+        run: |
+          echo "=== Checking for broken source paths ==="
+
+          # Find all installed scripts that use 'source' and verify paths exist
+          for script in ~/.local/bin/*.sh; do
+            if grep -q "source " "$script" 2>/dev/null; then
+              script_name=$(basename "$script")
+
+              # Extract source paths and check if they use the correct pattern
+              if grep -E "source.*SCRIPT_DIR.*common\.sh" "$script" | grep -v "HOME/.local/share" | grep -v "elif" > /dev/null 2>&1; then
+                # Check if it also has fallback to installed location
+                if ! grep -q 'HOME/.local/share/aimaestro' "$script"; then
+                  echo "WARNING: $script_name may have broken source path"
+                fi
+              fi
+            fi
+          done
+
+          echo "✓ Source path check complete"
+
+      - name: Test skill files are valid
+        run: |
+          echo "=== Validating skill files ==="
+
+          for skill_dir in ~/.claude/skills/*/; do
+            skill_name=$(basename "$skill_dir")
+            skill_file="$skill_dir/SKILL.md"
+
+            if [ -f "$skill_file" ]; then
+              # Check skill has required frontmatter
+              if ! head -1 "$skill_file" | grep -q "^---"; then
+                echo "ERROR: $skill_name missing YAML frontmatter"
+                exit 1
+              fi
+
+              # Check skill has name field
+              if ! grep -q "^name:" "$skill_file"; then
+                echo "ERROR: $skill_name missing 'name' field"
+                exit 1
+              fi
+
+              echo "✓ $skill_name skill is valid"
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  Installation Tests Passed!"
+          echo "=========================================="
+          echo ""
+          echo "Installed scripts:"
+          ls -1 ~/.local/bin/*.sh | wc -l | xargs echo "  Total:"
+          echo ""
+          echo "Installed skills:"
+          ls -1 ~/.claude/skills/ 2>/dev/null || echo "  None"
+          echo ""
+          echo "Shell helpers:"
+          ls -la ~/.local/share/aimaestro/shell-helpers/

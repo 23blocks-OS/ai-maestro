@@ -206,6 +206,34 @@ export const glossary: GlossaryEntry[] = [
     relatedTerms: ['messaging', 'agent'],
     category: 'communication'
   },
+  {
+    id: 'alternate-screen',
+    term: 'Alternate Screen',
+    definition: 'A separate display buffer used by full-screen apps like Claude Code. When you scroll but see shell history instead of Claude output, this is why. Use tmux copy mode (Ctrl+B, [) to scroll the alternate screen.',
+    relatedTerms: ['tmux', 'terminal', 'copy-mode'],
+    category: 'technical'
+  },
+  {
+    id: 'copy-mode',
+    term: 'Copy Mode',
+    definition: 'A tmux feature for scrolling and selecting text. Enter with Ctrl+B then [. Use arrow keys or PageUp/Down to scroll. Press q to exit. Essential for viewing history when Claude Code is running.',
+    relatedTerms: ['tmux', 'alternate-screen', 'terminal'],
+    category: 'technical'
+  },
+  {
+    id: 'websocket',
+    term: 'WebSocket',
+    definition: 'The connection technology between your browser and AI Maestro. If you see connection errors, the WebSocket may have dropped. Refresh the page to reconnect. Agents keep running even if the connection drops.',
+    relatedTerms: ['terminal', 'dashboard'],
+    category: 'technical'
+  },
+  {
+    id: 'port',
+    term: 'Port',
+    definition: 'AI Maestro runs on port 23000 by default (http://localhost:23000). If you get "port in use" errors, another app is using that port. Find it with "lsof -i :23000" and close it, or use a different port.',
+    relatedTerms: ['dashboard'],
+    category: 'technical'
+  },
 ]
 
 export const glossaryCategories: Record<string, string> = {

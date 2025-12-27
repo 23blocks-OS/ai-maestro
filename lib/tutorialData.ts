@@ -12,7 +12,7 @@ export interface Tutorial {
   title: string
   description: string
   icon: string // lucide icon name
-  category: 'getting-started' | 'concepts' | 'communication' | 'tools' | 'advanced'
+  category: 'getting-started' | 'concepts' | 'communication' | 'tools' | 'advanced' | 'troubleshooting'
   estimatedTime: string // e.g., "2 min"
   steps: TutorialStep[]
 }
@@ -364,6 +364,100 @@ export const tutorials: Tutorial[] = [
       },
     ],
   },
+  {
+    id: 'common-issues',
+    title: 'Common Issues & Fixes',
+    description: 'Solutions to the most common problems users encounter',
+    icon: 'AlertTriangle',
+    category: 'troubleshooting',
+    estimatedTime: '5 min',
+    steps: [
+      {
+        title: 'Agent not appearing in sidebar',
+        description: 'If your agent doesn\'t show up: 1) Wait 10 seconds for auto-refresh, 2) Click the refresh button in the sidebar, 3) Refresh the browser page. If still missing, verify the agent is running with "tmux list-sessions" in terminal.',
+      },
+      {
+        title: 'WebSocket connection error',
+        description: 'If you see connection errors: 1) Check if AI Maestro is running (should be at http://localhost:23000), 2) Refresh the browser page, 3) Check if port 23000 is in use by another app. Try "lsof -i :23000" to see what\'s using the port.',
+      },
+      {
+        title: 'Terminal shows blank screen',
+        description: 'If the terminal is blank when you click an agent: 1) Click directly in the terminal area to focus it, 2) Refresh the browser page, 3) The agent may have exited - try restarting it from the sidebar menu.',
+      },
+      {
+        title: 'AI Maestro won\'t start',
+        description: 'If the application won\'t start: 1) Check if another process is using port 23000, 2) Run "yarn dev" or check PM2 logs with "pm2 logs ai-maestro", 3) Verify Node.js is installed with "node --version".',
+      },
+      {
+        title: 'Services not working after restart',
+        description: 'After restarting your computer, AI Maestro and tmux don\'t auto-start. You need to: 1) Open Terminal and run "tmux new-session -d" to start tmux, 2) Navigate to AI Maestro folder and run "yarn dev" or "pm2 start ai-maestro".',
+      },
+      {
+        title: 'Getting more help',
+        description: 'If these solutions don\'t work: Check the full troubleshooting guide in the docs folder, or visit GitHub Issues at github.com/23blocks-OS/ai-maestro/issues to report a problem.',
+      },
+    ],
+  },
+  {
+    id: 'terminal-scrolling',
+    title: 'Terminal Scrolling Guide',
+    description: 'How to scroll and navigate in the terminal view',
+    icon: 'MousePointer2',
+    category: 'troubleshooting',
+    estimatedTime: '3 min',
+    steps: [
+      {
+        title: 'Why scrolling seems limited',
+        description: 'When Claude Code is running, it uses an "alternate screen" - a separate display area. This is normal behavior for full-screen terminal apps. Your shell history is still there, just hidden.',
+      },
+      {
+        title: 'Enable mouse scrolling (recommended)',
+        description: 'Run our setup script: "./scripts/setup-tmux.sh" or add "set -g mouse on" to your ~/.tmux.conf file. Then reload with "tmux source-file ~/.tmux.conf". Now mouse wheel scrolling works!',
+      },
+      {
+        title: 'Use keyboard shortcuts',
+        description: 'In the browser terminal: Shift+PageUp/PageDown scrolls by page, Shift+Arrow Up/Down scrolls 5 lines. These work for the visible buffer before Claude enters alternate screen.',
+      },
+      {
+        title: 'Use tmux copy mode',
+        description: 'Press Ctrl+B then [ to enter copy mode. Use arrow keys or PageUp/PageDown to scroll. Press "q" to exit. This accesses the full tmux scrollback history.',
+      },
+      {
+        title: 'Increase scrollback buffer',
+        description: 'Add "set -g history-limit 50000" to your ~/.tmux.conf to save more history. This gives you 50,000 lines of scrollback in tmux copy mode.',
+      },
+    ],
+  },
+  {
+    id: 'git-ssh-issues',
+    title: 'Fix Git & SSH Errors',
+    description: 'Resolve "Permission denied (publickey)" errors in agent sessions',
+    icon: 'KeyRound',
+    category: 'troubleshooting',
+    estimatedTime: '4 min',
+    steps: [
+      {
+        title: 'Why SSH fails in agents',
+        description: 'After restarting your computer, SSH agent sockets change paths. Agent sessions (tmux) don\'t automatically get the new path, so git operations fail with "Permission denied (publickey)".',
+      },
+      {
+        title: 'Quick fix for current session',
+        description: 'In the agent\'s terminal, type: exec $SHELL and press Enter. This restarts the shell and picks up the correct SSH configuration. Then try your git command again.',
+      },
+      {
+        title: 'Set up permanent fix',
+        description: 'Add this to your ~/.zshrc (or ~/.bashrc): if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then mkdir -p ~/.ssh && ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock; fi',
+      },
+      {
+        title: 'Configure tmux for SSH',
+        description: 'Add to ~/.tmux.conf: set-environment -g \'SSH_AUTH_SOCK\' ~/.ssh/ssh_auth_sock. Then run "tmux source-file ~/.tmux.conf" to apply.',
+      },
+      {
+        title: 'Verify it works',
+        description: 'Run "ssh -T git@github.com" or "ssh -T git@gitlab.com" in your agent. If you see a welcome message, SSH is working. If not, check that your SSH keys are loaded with "ssh-add -l".',
+      },
+    ],
+  },
 ]
 
 export const categoryLabels: Record<string, string> = {
@@ -372,6 +466,7 @@ export const categoryLabels: Record<string, string> = {
   'communication': 'Communication',
   'tools': 'Agent Tools',
   'advanced': 'Advanced',
+  'troubleshooting': 'Troubleshooting',
 }
 
-export const categoryOrder = ['getting-started', 'concepts', 'communication', 'tools', 'advanced']
+export const categoryOrder = ['getting-started', 'concepts', 'communication', 'tools', 'advanced', 'troubleshooting']

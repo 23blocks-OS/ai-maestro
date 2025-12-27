@@ -21,7 +21,10 @@ import {
   FileText,
   BookMarked,
   Globe,
-  Cpu
+  Cpu,
+  AlertTriangle,
+  MousePointer2,
+  KeyRound
 } from 'lucide-react'
 import { tutorials, categoryLabels, categoryOrder, type Tutorial } from '@/lib/tutorialData'
 import type { HelpSearchResult } from '@/lib/help-search'
@@ -39,6 +42,9 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   FileText,
   Globe,
   Cpu,
+  AlertTriangle,
+  MousePointer2,
+  KeyRound,
 }
 
 interface HelpPanelProps {

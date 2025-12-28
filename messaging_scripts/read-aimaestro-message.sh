@@ -79,9 +79,11 @@ if [ -n "$ERROR" ]; then
   exit 1
 fi
 
-# Extract message fields
-FROM=$(echo "$RESPONSE" | jq -r '.from')
-TO=$(echo "$RESPONSE" | jq -r '.to')
+# Extract message fields (prefer aliases for display)
+FROM=$(echo "$RESPONSE" | jq -r '.fromAlias // .from')
+FROM_HOST=$(echo "$RESPONSE" | jq -r 'if .fromHost and .fromHost != "local" then "@" + .fromHost else "" end')
+TO=$(echo "$RESPONSE" | jq -r '.toAlias // .to')
+TO_HOST=$(echo "$RESPONSE" | jq -r 'if .toHost and .toHost != "local" then "@" + .toHost else "" end')
 SUBJECT=$(echo "$RESPONSE" | jq -r '.subject')
 TIMESTAMP=$(echo "$RESPONSE" | jq -r '.timestamp')
 PRIORITY=$(echo "$RESPONSE" | jq -r '.priority')
@@ -108,8 +110,8 @@ echo "════════════════════════�
 echo "📧 Message: $SUBJECT"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
-echo "From:     \033[36m$FROM\033[0m"
-echo "To:       \033[36m$TO\033[0m"
+echo "From:     \033[36m$FROM$FROM_HOST\033[0m"
+echo "To:       \033[36m$TO$TO_HOST\033[0m"
 echo "Date:     $FORMATTED_TIME"
 echo "Priority: $PRIORITY_ICON $PRIORITY"
 echo "Type:     $TYPE"

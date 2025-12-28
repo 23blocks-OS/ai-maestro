@@ -40,6 +40,30 @@ done
 # Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
 init_messaging || exit 1
 
+# Get human-readable name for current agent
+MY_DISPLAY_NAME=$(get_my_name)
+
+# Get host name from hosts.json if not local
+get_host_name() {
+    local host_id="$1"
+    if [ "$host_id" = "local" ]; then
+        echo "local"
+        return
+    fi
+
+    if [ -f "$HOSTS_CONFIG" ]; then
+        local name
+        name=$(jq -r --arg id "$host_id" '.hosts[] | select(.id == $id) | .name' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+        if [ -n "$name" ] && [ "$name" != "null" ]; then
+            echo "$name"
+            return
+        fi
+    fi
+    echo "$host_id"
+}
+
+HOST_DISPLAY_NAME=$(get_host_name "$HOST_ID")
+
 # Fetch unread messages via API (uses agentId, not session)
 RESPONSE=$(get_unread_messages)
 
@@ -78,7 +102,7 @@ fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📬 You have $COUNT unread message(s)"
-echo "   Agent: $AGENT_ID (host: $HOST_ID)"
+echo "   Inbox: $MY_DISPLAY_NAME (host: $HOST_DISPLAY_NAME)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -90,7 +114,9 @@ echo "$RESPONSE" | jq -r '.messages[] |
    elif .priority == "high" then "🟠"
    elif .priority == "normal" then "🔵"
    else "⚪" end) +
-  " From: \u001b[36m\(.from)\u001b[0m | \(.timestamp)\n" +
+  " From: \u001b[36m\(.fromAlias // .from)\u001b[0m" +
+  (if .fromHost and .fromHost != "local" then " @\(.fromHost)" else "" end) +
+  " | \(.timestamp)\n" +
   "    Subject: \(.subject)\n" +
   "    Preview: \(.preview)\n"'
 

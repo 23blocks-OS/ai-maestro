@@ -18,6 +18,9 @@ export interface Tutorial {
 }
 
 export const tutorials: Tutorial[] = [
+  // ============================================
+  // GETTING STARTED - First steps for new users
+  // ============================================
   {
     id: 'create-first-agent',
     title: 'Create Your First Agent',
@@ -48,6 +51,70 @@ export const tutorials: Tutorial[] = [
       },
     ],
   },
+  {
+    id: 'view-agent-profile',
+    title: 'View Agent Profile',
+    description: 'See agent details, stats, and configuration options',
+    icon: 'User',
+    category: 'getting-started',
+    estimatedTime: '2 min',
+    steps: [
+      {
+        title: 'Select an agent',
+        description: 'Click on any agent in the left sidebar to select it.',
+      },
+      {
+        title: 'Open the profile',
+        description: 'Click on the agent\'s name at the top of the main panel, or click the gear icon next to it.',
+      },
+      {
+        title: 'View agent information',
+        description: 'The profile shows the agent\'s name, working directory, creation date, and current status.',
+      },
+      {
+        title: 'Check statistics',
+        description: 'See metrics like total conversations, indexed documents, and graph nodes for this agent.',
+      },
+      {
+        title: 'Manage the agent',
+        description: 'From the profile, you can rename the agent, change its working directory, hibernate it, or delete it.',
+      },
+    ],
+  },
+  {
+    id: 'hibernate-wake-agent',
+    title: 'Hibernate & Wake Agents',
+    description: 'Save resources by hibernating inactive agents',
+    icon: 'Moon',
+    category: 'getting-started',
+    estimatedTime: '2 min',
+    steps: [
+      {
+        title: 'Find an active agent',
+        description: 'In the sidebar, look for agents with a green "Online" status indicator.',
+      },
+      {
+        title: 'Open agent profile',
+        description: 'Click the agent\'s name or gear icon to open its profile panel.',
+      },
+      {
+        title: 'Click Hibernate',
+        description: 'In the profile, click the "Hibernate" button. This saves the agent\'s state and closes its tmux session.',
+      },
+      {
+        title: 'Agent shows as Hibernated',
+        description: 'Hibernated agents show a moon icon and "Hibernated" status. They preserve all memory and settings.',
+      },
+      {
+        title: 'Wake the agent',
+        description: 'To resume, click on the hibernated agent and click the "Wake" button. A new session starts with all context restored.',
+      },
+    ],
+  },
+
+  // ============================================
+  // CONCEPTS - Understanding how AI Maestro works
+  // ============================================
   {
     id: 'distributed-agents',
     title: 'Distributed AI Agents',
@@ -104,7 +171,7 @@ export const tutorials: Tutorial[] = [
       },
       {
         title: 'Skills extend capabilities',
-        description: 'Agents gain abilities through "skills" - modular capabilities like messaging, memory search, graph queries, and documentation search. Install the skills you need for each agent.',
+        description: 'Agents gain abilities through "skills" - modular capabilities like messaging, memory search, graph queries, and documentation search. These are installed automatically during setup.',
       },
       {
         title: 'The dashboard is a window',
@@ -112,6 +179,10 @@ export const tutorials: Tutorial[] = [
       },
     ],
   },
+
+  // ============================================
+  // COMMUNICATION - Agent messaging
+  // ============================================
   {
     id: 'send-messages',
     title: 'Send Messages Between Agents',
@@ -138,10 +209,14 @@ export const tutorials: Tutorial[] = [
       },
       {
         title: 'How agents send messages',
-        description: 'Agents send messages through conversation. With the messaging skill installed, an agent can say "send a message to backend-api about the API changes" and it will be delivered.',
+        description: 'Agents send messages through conversation. With the messaging skill, an agent can say "send a message to backend-api about the API changes" and it will be delivered.',
       },
     ],
   },
+
+  // ============================================
+  // TOOLS - Agent capabilities
+  // ============================================
   {
     id: 'memory-search',
     title: 'Search Agent Memory',
@@ -216,7 +291,7 @@ export const tutorials: Tutorial[] = [
     steps: [
       {
         title: 'Ensure docs are indexed',
-        description: 'The docs search skill indexes documentation files in your project. Make sure the skill is installed on your agent.',
+        description: 'The docs search skill indexes documentation files in your project. This happens automatically when an agent works in a project.',
       },
       {
         title: 'Ask your agent',
@@ -236,40 +311,10 @@ export const tutorials: Tutorial[] = [
       },
     ],
   },
-  {
-    id: 'move-agent',
-    title: 'Transfer Agent to Another Host',
-    description: 'Move agents between machines while preserving their memory',
-    icon: 'ArrowRightLeft',
-    category: 'advanced',
-    estimatedTime: '4 min',
-    steps: [
-      {
-        title: 'Ensure remote host is connected',
-        description: 'Before transferring, make sure the destination host is added in Settings > Hosts and shows as "Online".',
-      },
-      {
-        title: 'Open agent profile',
-        description: 'Click on the agent you want to transfer in the sidebar. Then click the agent\'s name or the gear icon to open its profile panel.',
-      },
-      {
-        title: 'Find the Transfer button',
-        description: 'In the agent profile, look for the "Transfer to Another Host" button (arrow icon) near the top of the panel.',
-      },
-      {
-        title: 'Select destination host',
-        description: 'Click the Transfer button to open the dialog. Choose your destination host from the dropdown list.',
-      },
-      {
-        title: 'Confirm and transfer',
-        description: 'Review the transfer details and click "Transfer". The agent\'s memory, graph data, and settings will be packaged and sent.',
-      },
-      {
-        title: 'Activate on new host',
-        description: 'The agent will appear on the destination host. Click "Wake" or create a session to start using it there.',
-      },
-    ],
-  },
+
+  // ============================================
+  // ADVANCED - Multi-host and advanced features
+  // ============================================
   {
     id: 'configure-hosts',
     title: 'Add Remote Hosts',
@@ -305,65 +350,73 @@ export const tutorials: Tutorial[] = [
     ],
   },
   {
-    id: 'view-agent-profile',
-    title: 'View Agent Profile',
-    description: 'See agent details, stats, and configuration options',
-    icon: 'User',
-    category: 'getting-started',
-    estimatedTime: '2 min',
+    id: 'move-agent',
+    title: 'Transfer Agent to Another Host',
+    description: 'Move agents between machines while preserving their memory',
+    icon: 'ArrowRightLeft',
+    category: 'advanced',
+    estimatedTime: '4 min',
     steps: [
       {
-        title: 'Select an agent',
-        description: 'Click on any agent in the left sidebar to select it.',
+        title: 'Ensure remote host is connected',
+        description: 'Before transferring, make sure the destination host is added in Settings > Hosts and shows as "Online". See "Add Remote Hosts" tutorial first.',
       },
       {
-        title: 'Open the profile',
-        description: 'Click on the agent\'s name at the top of the main panel, or click the gear icon next to it.',
+        title: 'Open agent profile',
+        description: 'Click on the agent you want to transfer in the sidebar. Then click the agent\'s name or the gear icon to open its profile panel.',
       },
       {
-        title: 'View agent information',
-        description: 'The profile shows the agent\'s name, working directory, creation date, and current status.',
+        title: 'Find the Transfer button',
+        description: 'In the agent profile, look for the "Transfer to Another Host" button (arrow icon) near the top of the panel.',
       },
       {
-        title: 'Check statistics',
-        description: 'See metrics like total conversations, indexed documents, and graph nodes for this agent.',
+        title: 'Select destination host',
+        description: 'Click the Transfer button to open the dialog. Choose your destination host from the dropdown list.',
       },
       {
-        title: 'Manage the agent',
-        description: 'From the profile, you can rename the agent, change its working directory, hibernate it, or delete it.',
+        title: 'Confirm and transfer',
+        description: 'Review the transfer details and click "Transfer". The agent\'s memory, graph data, and settings will be packaged and sent.',
+      },
+      {
+        title: 'Activate on new host',
+        description: 'The agent will appear on the destination host. Click "Wake" or create a session to start using it there.',
       },
     ],
   },
   {
-    id: 'hibernate-wake-agent',
-    title: 'Hibernate & Wake Agents',
-    description: 'Save resources by hibernating inactive agents',
-    icon: 'Moon',
-    category: 'getting-started',
-    estimatedTime: '2 min',
+    id: 'mobile-access-tailscale',
+    title: 'Access from Mobile Devices',
+    description: 'View and manage agents from your phone or tablet',
+    icon: 'Smartphone',
+    category: 'advanced',
+    estimatedTime: '4 min',
     steps: [
       {
-        title: 'Find an active agent',
-        description: 'In the sidebar, look for agents with a green "Online" status indicator.',
+        title: 'Install Tailscale',
+        description: 'Tailscale is a free VPN that creates a secure network between your devices. Install it on your computer (where AI Maestro runs) and on your phone/tablet.',
       },
       {
-        title: 'Open agent profile',
-        description: 'Click the agent\'s name or gear icon to open its profile panel.',
+        title: 'Sign in to Tailscale',
+        description: 'Open Tailscale on both devices and sign in with the same account. Your devices will automatically connect to your private Tailscale network.',
       },
       {
-        title: 'Click Hibernate',
-        description: 'In the profile, click the "Hibernate" button. This saves the agent\'s state and closes its tmux session.',
+        title: 'Get your computer\'s Tailscale IP',
+        description: 'On your computer, run "tailscale ip -4" in terminal. You\'ll get an IP like 100.x.x.x. This is your Tailscale IP that works from anywhere.',
       },
       {
-        title: 'Agent shows as Hibernated',
-        description: 'Hibernated agents show a moon icon and "Hibernated" status. They preserve all memory and settings.',
+        title: 'Access from mobile',
+        description: 'On your phone/tablet browser, go to http://100.x.x.x:23000 (using the Tailscale IP from step 3). You\'ll see the AI Maestro dashboard.',
       },
       {
-        title: 'Wake the agent',
-        description: 'To resume, click on the hibernated agent and click the "Wake" button. A new session starts with all context restored.',
+        title: 'Works from anywhere',
+        description: 'Tailscale works over the internet too. Whether you\'re at home, at a coffee shop, or traveling - if both devices have Tailscale running, you can access your agents.',
       },
     ],
   },
+
+  // ============================================
+  // TROUBLESHOOTING - Common issues and fixes
+  // ============================================
   {
     id: 'common-issues',
     title: 'Common Issues & Fixes',
@@ -485,100 +538,6 @@ export const tutorials: Tutorial[] = [
       {
         title: 'Verify the fix',
         description: 'Try connecting to your remote host again via Settings > Add Host. If using Tailscale, use the Tailscale IP instead of local IP.',
-      },
-    ],
-  },
-  {
-    id: 'windows-wsl2-basics',
-    title: 'Windows (WSL2) Setup',
-    description: 'Get AI Maestro running on Windows using WSL2',
-    icon: 'Monitor',
-    category: 'advanced',
-    estimatedTime: '5 min',
-    steps: [
-      {
-        title: 'Why WSL2?',
-        description: 'AI Maestro uses tmux, which is a Linux tool. On Windows, we use WSL2 (Windows Subsystem for Linux) to run Linux tools seamlessly. It\'s Microsoft\'s official solution.',
-      },
-      {
-        title: 'Install WSL2',
-        description: 'Open PowerShell as Administrator and run: wsl --install. This installs Ubuntu. After it completes, restart your computer.',
-      },
-      {
-        title: 'Set up Ubuntu',
-        description: 'After restart, Ubuntu launches automatically. Create a username and password when prompted. Then run: sudo apt update && sudo apt install -y tmux nodejs npm git',
-      },
-      {
-        title: 'Install AI Maestro',
-        description: 'In the Ubuntu terminal: curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh',
-      },
-      {
-        title: 'Access from Windows browser',
-        description: 'Open your Windows browser (Chrome, Edge, Firefox) and go to http://localhost:23000. WSL2 automatically forwards the port to Windows.',
-      },
-      {
-        title: 'Common issues',
-        description: 'If localhost doesn\'t work, check Windows Firewall settings. If terminal is slow, work in ~/projects (WSL2 filesystem) instead of /mnt/c/ (Windows filesystem).',
-      },
-    ],
-  },
-  {
-    id: 'mobile-access-tailscale',
-    title: 'Access from Mobile Devices',
-    description: 'View and manage agents from your phone or tablet',
-    icon: 'Smartphone',
-    category: 'advanced',
-    estimatedTime: '4 min',
-    steps: [
-      {
-        title: 'Install Tailscale',
-        description: 'Tailscale is a free VPN that creates a secure network between your devices. Install it on your computer (where AI Maestro runs) and on your phone/tablet.',
-      },
-      {
-        title: 'Sign in to Tailscale',
-        description: 'Open Tailscale on both devices and sign in with the same account. Your devices will automatically connect to your private Tailscale network.',
-      },
-      {
-        title: 'Get your computer\'s Tailscale IP',
-        description: 'On your computer, run "tailscale ip -4" in terminal. You\'ll get an IP like 100.x.x.x. This is your Tailscale IP that works from anywhere.',
-      },
-      {
-        title: 'Access from mobile',
-        description: 'On your phone/tablet browser, go to http://100.x.x.x:23000 (using the Tailscale IP from step 3). You\'ll see the AI Maestro dashboard.',
-      },
-      {
-        title: 'Works from anywhere',
-        description: 'Tailscale works over the internet too. Whether you\'re at home, at a coffee shop, or traveling - if both devices have Tailscale running, you can access your agents.',
-      },
-    ],
-  },
-  {
-    id: 'install-skills',
-    title: 'Install Agent Skills',
-    description: 'Add capabilities like messaging, memory search, and code graph to your agents',
-    icon: 'Puzzle',
-    category: 'advanced',
-    estimatedTime: '3 min',
-    steps: [
-      {
-        title: 'What are skills?',
-        description: 'Skills are add-ons that give your agents new abilities. The messaging skill lets agents send messages to each other. Memory search finds past conversations. Graph query visualizes code.',
-      },
-      {
-        title: 'Run the installer',
-        description: 'In your AI Maestro folder, run: ./install-messaging.sh. This installs all messaging and memory tools automatically.',
-      },
-      {
-        title: 'Verify installation',
-        description: 'In any agent session, try: check-aimaestro-messages.sh. If it runs without "command not found" errors, the skills are installed.',
-      },
-      {
-        title: 'Using skills naturally',
-        description: 'With Claude Code, just say things like "check my messages" or "send a message to backend-api". Claude automatically uses the right skill.',
-      },
-      {
-        title: 'Manual usage',
-        description: 'You can also use skills manually: send-aimaestro-message.sh <agent> "Subject" "Message", or memory-search.sh "query". See the skills README for full documentation.',
       },
     ],
   },

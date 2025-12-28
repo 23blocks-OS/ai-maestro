@@ -26,9 +26,7 @@ import {
   MousePointer2,
   KeyRound,
   Shield,
-  Monitor,
-  Smartphone,
-  Puzzle
+  Smartphone
 } from 'lucide-react'
 import { tutorials, categoryLabels, categoryOrder, type Tutorial } from '@/lib/tutorialData'
 import type { HelpSearchResult } from '@/lib/help-search'
@@ -50,9 +48,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   MousePointer2,
   KeyRound,
   Shield,
-  Monitor,
   Smartphone,
-  Puzzle,
 }
 
 interface HelpPanelProps {

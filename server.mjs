@@ -459,11 +459,17 @@ app.prepare().then(() => {
               sessionState.logStream.end()
             }
 
-            // Kill PTY process
+            // Kill PTY process and its entire process group
             try {
-              sessionState.ptyProcess.kill()
+              // Kill the entire process group (negative PID) to prevent orphaned shells
+              process.kill(-sessionState.ptyProcess.pid, 'SIGTERM')
             } catch (error) {
-              console.error(`Error killing PTY for ${sessionName}:`, error)
+              // Fallback to direct kill if process group kill fails
+              try {
+                sessionState.ptyProcess.kill()
+              } catch (e) {
+                console.error(`Error killing PTY for ${sessionName}:`, e)
+              }
             }
 
             // Remove from sessions map
@@ -514,9 +520,17 @@ app.prepare().then(() => {
       if (state.logStream) {
         state.logStream.end()
       }
-      // Kill PTY process
+      // Kill PTY process and its entire process group
       if (state.ptyProcess) {
-        state.ptyProcess.kill()
+        try {
+          process.kill(-state.ptyProcess.pid, 'SIGTERM')
+        } catch (e) {
+          try {
+            state.ptyProcess.kill()
+          } catch (e2) {
+            console.error('Error killing PTY:', e2)
+          }
+        }
       }
     })
     server.close(() => {

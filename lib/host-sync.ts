@@ -27,6 +27,11 @@ const processedPropagations = new Set<string>()
 const PROPAGATION_CACHE_TTL = 60000 // 1 minute TTL for propagation IDs
 const MAX_PROPAGATION_DEPTH = 3 // Maximum hops from original initiator
 
+// Timeout constants for peer operations
+const PEER_REGISTRATION_TIMEOUT = 10000 // 10 seconds for peer registration
+const PEER_EXCHANGE_TIMEOUT = 15000 // 15 seconds for peer exchange (involves multiple hosts)
+const HEALTH_CHECK_TIMEOUT = 5000 // 5 seconds for health checks
+
 /**
  * Generate a unique propagation ID
  */
@@ -84,9 +89,36 @@ export function getPublicUrl(host?: Host): string {
 }
 
 /**
+ * Fetch with timeout support for peer operations
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s`)
+    }
+    throw error
+  }
+}
+
+/**
  * Check if a host is reachable - with timeout
  */
-async function checkHostHealth(url: string, timeoutMs: number = 5000): Promise<boolean> {
+async function checkHostHealth(url: string, timeoutMs: number = HEALTH_CHECK_TIMEOUT): Promise<boolean> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -279,11 +311,15 @@ async function registerWithPeer(
       },
     }
 
-    const response = await fetch(`${peerUrl}/api/hosts/register-peer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
+    const response = await fetchWithTimeout(
+      `${peerUrl}/api/hosts/register-peer`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      },
+      PEER_REGISTRATION_TIMEOUT
+    )
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -393,19 +429,24 @@ async function processPeerExchange(
         propagationId,
       }
 
-      const response = await fetch(`${peerUrl}/api/hosts/exchange-peers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      })
+      const response = await fetchWithTimeout(
+        `${peerUrl}/api/hosts/exchange-peers`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request),
+        },
+        PEER_EXCHANGE_TIMEOUT
+      )
 
       if (!response.ok) {
         console.error(`[Host Sync] Peer exchange failed: HTTP ${response.status}`)
         errors.push(`Peer exchange returned ${response.status}`)
       }
     } catch (error) {
-      console.error(`[Host Sync] Failed to share peers with ${peerUrl}:`, error)
-      errors.push(`Failed to share peers: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`[Host Sync] Failed to share peers with ${peerUrl}:`, errorMsg)
+      errors.push(`Failed to share peers: ${errorMsg}`)
     }
   }
 
@@ -448,11 +489,15 @@ async function propagateToExistingPeers(
         propagationId,
       }
 
-      const response = await fetch(`${peer.url}/api/hosts/exchange-peers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      })
+      const response = await fetchWithTimeout(
+        `${peer.url}/api/hosts/exchange-peers`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request),
+        },
+        PEER_EXCHANGE_TIMEOUT
+      )
 
       if (response.ok) {
         const data: PeerExchangeResponse = await response.json()

@@ -6,25 +6,33 @@ import {
   Terminal,
   ChevronDown,
   ChevronRight,
-  Plus
+  Plus,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 
 interface MobileHostsListProps {
   agents: Agent[]
+  agentsLoading?: boolean
+  agentsError?: Error | null
   activeAgentId: string | null
   onAgentSelect: (agentId: string) => void
   onCreateAgent?: () => void
+  onRefresh?: () => void
 }
 
 export default function MobileHostsList({
   agents,
+  agentsLoading = false,
+  agentsError = null,
   activeAgentId,
   onAgentSelect,
-  onCreateAgent
+  onCreateAgent,
+  onRefresh
 }: MobileHostsListProps) {
-  const { hosts } = useHosts()
+  const { hosts, loading: hostsLoading, error: hostsError } = useHosts()
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set(['local']))
 
   // Group agents by host
@@ -103,10 +111,69 @@ export default function MobileHostsList({
     })
   }, [hosts, groupedAgents])
 
-  if (agents.length === 0) {
+  // Combined loading state
+  const isLoading = hostsLoading || agentsLoading
+
+  // Combined error state
+  const error = hostsError || agentsError
+
+  // Show loading state
+  if (isLoading && agents.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+        <RefreshCw className="w-12 h-12 text-blue-400 animate-spin mb-4" />
+        <p className="text-sm text-gray-400">Loading hosts and agents...</p>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error && agents.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+        <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+        <p className="text-lg font-medium text-gray-300 mb-2">Connection Error</p>
+        <p className="text-sm text-red-400 mb-4">{error.message}</p>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // Show no hosts state when no hosts are configured
+  if (hosts.length === 0 && agents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
         <Server className="w-16 h-16 text-gray-600 mb-4" />
+        <p className="text-lg font-medium text-gray-300 mb-2">No Hosts</p>
+        <p className="text-sm text-gray-500 mb-4">
+          Configure a host to get started
+        </p>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // Show no agents state when hosts exist but no agents
+  if (agents.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+        <Terminal className="w-16 h-16 text-gray-600 mb-4" />
         <p className="text-lg font-medium text-gray-300 mb-2">No Agents</p>
         <p className="text-sm text-gray-500 mb-4">
           Create a new agent to get started
@@ -132,19 +199,41 @@ export default function MobileHostsList({
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-white">Hosts & Agents</h2>
+            {isLoading && (
+              <RefreshCw className="w-3 h-3 text-gray-500 animate-spin" />
+            )}
           </div>
-          {onCreateAgent && (
-            <button
-              onClick={onCreateAgent}
-              className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-            >
-              <Plus className="w-4 h-4 text-gray-400" />
-            </button>
+          <div className="flex items-center gap-1">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isLoading}
+                className="p-2 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 text-gray-400 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            {onCreateAgent && (
+              <button
+                onClick={onCreateAgent}
+                className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <Plus className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-xs text-gray-500">
+            {sortedHostIds.length} host{sortedHostIds.length !== 1 ? 's' : ''} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
+          </p>
+          {error && (
+            <span className="text-xs text-red-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              Partial data
+            </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          {sortedHostIds.length} host{sortedHostIds.length !== 1 ? 's' : ''} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
-        </p>
       </div>
 
       {/* Scrollable Content */}

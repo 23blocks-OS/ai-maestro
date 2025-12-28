@@ -5,6 +5,36 @@ import { Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward,
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 import type { AgentRecipient } from './MessageCenter'
 
+// Timeout for message API calls - 15 seconds for remote hosts
+const MESSAGE_API_TIMEOUT = 15000
+
+/**
+ * Fetch with timeout support for mobile messaging
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = MESSAGE_API_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s`)
+    }
+    throw error
+  }
+}
+
 interface MobileMessageCenterProps {
   sessionName: string
   agentId?: string  // Primary identifier when available
@@ -50,7 +80,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
+      const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
@@ -61,7 +91,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Fetch sent messages
   const fetchSentMessages = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
+      const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
@@ -72,7 +102,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
+      const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
@@ -83,13 +113,13 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Load message details
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
+      const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       const message = await response.json()
       setSelectedMessage(message)
 
       // Mark as read if unread (inbox only)
       if (box === 'inbox' && message.status === 'unread') {
-        await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
+        await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=read`, {
           method: 'PATCH',
         })
         fetchMessages()
@@ -112,7 +142,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
       if (isForwarding && forwardingOriginalMessage) {
         const forwardNote = composeMessage.split('--- Forwarded Message ---')[0].trim()
 
-        const response = await fetch(`${apiBaseUrl}/api/messages/forward`, {
+        const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages/forward`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -140,7 +170,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
           alert(`Failed to forward message: ${error.error}`)
         }
       } else {
-        const response = await fetch(`${apiBaseUrl}/api/messages`, {
+        const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -180,7 +210,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
     if (!confirm('Are you sure you want to delete this message?')) return
 
     try {
-      await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
+      await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
       })
       setSelectedMessage(null)
@@ -195,7 +225,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Archive message
   const archiveMessage = async (messageId: string) => {
     try {
-      await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
+      await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&action=archive`, {
         method: 'PATCH',
       })
       setSelectedMessage(null)

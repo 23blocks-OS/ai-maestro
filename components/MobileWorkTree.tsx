@@ -16,6 +16,37 @@ import {
 } from 'lucide-react'
 import { useHosts } from '@/hooks/useHosts'
 
+// Timeout constants for mobile - longer to handle slow networks
+const LOCAL_API_TIMEOUT = 10000 // 10 seconds for local
+const REMOTE_API_TIMEOUT = 20000 // 20 seconds for remote hosts
+
+/**
+ * Fetch with timeout support
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s`)
+    }
+    throw error
+  }
+}
+
 interface MobileWorkTreeProps {
   sessionName: string
   agentId?: string
@@ -78,20 +109,20 @@ export default function MobileWorkTree({
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
 
   // Determine which host this agent is on - agent-centric: use hostId prop directly
-  const getHostUrl = (): string => {
+  const getHostConfig = (): { url: string; timeout: number } => {
     // Local agent - use relative URL (works on mobile devices)
     if (!hostId || hostId === 'local') {
-      return ''
+      return { url: '', timeout: LOCAL_API_TIMEOUT }
     }
 
     // Remote agent - find host URL
     const host = hosts.find(h => h.id === hostId)
     if (host) {
-      return host.url
+      return { url: host.url, timeout: REMOTE_API_TIMEOUT }
     }
 
     // Fallback to local - use relative URL (works on mobile devices)
-    return ''
+    return { url: '', timeout: LOCAL_API_TIMEOUT }
   }
 
   const fetchWorkTree = async (forceInitialize = false) => {
@@ -101,18 +132,22 @@ export default function MobileWorkTree({
     try {
       console.log('[MobileWorkTree] Starting fetch with:', { sessionName, agentId, forceInitialize })
 
-      const hostUrl = getHostUrl()
-      console.log('[MobileWorkTree] Host URL:', hostUrl)
+      const { url: hostUrl, timeout } = getHostConfig()
+      console.log('[MobileWorkTree] Host URL:', hostUrl, 'Timeout:', timeout)
 
       let currentAgentId = agentId
 
       if (!currentAgentId) {
         console.log('[MobileWorkTree] No agentId, creating from session:', sessionName)
-        const createResponse = await fetch(`${hostUrl}/api/agents/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionName })
-        })
+        const createResponse = await fetchWithTimeout(
+          `${hostUrl}/api/agents/register`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionName })
+          },
+          timeout
+        )
 
         if (!createResponse.ok) {
           const errorText = await createResponse.text()
@@ -127,15 +162,23 @@ export default function MobileWorkTree({
 
       if (forceInitialize) {
         console.log('[MobileWorkTree] Forcing initialization for agentId:', currentAgentId)
-        await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ populateFromSessions: true })
-        })
+        await fetchWithTimeout(
+          `${hostUrl}/api/agents/${currentAgentId}/memory`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ populateFromSessions: true })
+          },
+          timeout
+        )
       }
 
       console.log('[MobileWorkTree] Fetching work tree for agentId:', currentAgentId)
-      const response = await fetch(`${hostUrl}/api/agents/${currentAgentId}/memory`)
+      const response = await fetchWithTimeout(
+        `${hostUrl}/api/agents/${currentAgentId}/memory`,
+        {},
+        timeout
+      )
 
       if (!response.ok) {
         const errorText = await response.text()

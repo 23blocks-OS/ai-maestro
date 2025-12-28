@@ -126,36 +126,59 @@ export default function DashboardPage() {
       return
     }
 
+    // Timeout for memory initialization - 15s for local, 20s for remote
+    const INIT_TIMEOUT_LOCAL = 15000
+    const INIT_TIMEOUT_REMOTE = 20000
+
     const initializeAgentMemories = async () => {
       console.log(`[Dashboard] Initializing memory for ${agents.length} agents...`)
 
       const initPromises = agents.map(async (agent) => {
+        const baseUrl = agent.hostUrl || ''
+        const timeout = baseUrl ? INIT_TIMEOUT_REMOTE : INIT_TIMEOUT_LOCAL
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
+
         try {
           // Use agent's hostUrl to route to correct host for remote agents
-          const baseUrl = agent.hostUrl || ''
-          const checkResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/memory`)
+          const checkResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/memory`, {
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
           const checkData = await checkResponse.json()
 
           if (!checkData.success || (!checkData.sessions?.length && !checkData.projects?.length)) {
             console.log(`[Dashboard] Initializing memory for agent ${agent.id}`)
+            const initController = new AbortController()
+            const initTimeoutId = setTimeout(() => initController.abort(), timeout)
             await fetch(`${baseUrl}/api/agents/${agent.id}/memory`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ populateFromSessions: true })
+              body: JSON.stringify({ populateFromSessions: true }),
+              signal: initController.signal
             })
+            clearTimeout(initTimeoutId)
           }
+          return { agent: agent.id, success: true }
         } catch (error) {
-          console.error(`[Dashboard] Failed to initialize agent ${agent.id}:`, error)
+          clearTimeout(timeoutId)
+          const errorMsg = error instanceof Error && error.name === 'AbortError'
+            ? `Timed out after ${timeout / 1000}s`
+            : error
+          console.error(`[Dashboard] Failed to initialize agent ${agent.id}:`, errorMsg)
+          return { agent: agent.id, success: false, error: errorMsg }
         }
       })
 
-      await Promise.all(initPromises)
+      // Use Promise.allSettled so one slow/failed agent doesn't block others
+      const results = await Promise.allSettled(initPromises)
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length
+      console.log(`[Dashboard] Agent memory initialization complete: ${successful}/${agents.length} succeeded`)
       sessionStorage.setItem(initKey, now.toString())
-      console.log('[Dashboard] Agent memory initialization complete')
     }
 
     initializeAgentMemories()
-  }, [agents.length])
+  }, [agents])
 
   // Fetch unread message count for active agent
   useEffect(() => {

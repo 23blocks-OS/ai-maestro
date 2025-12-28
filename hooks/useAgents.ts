@@ -7,7 +7,8 @@ import { useHosts } from './useHosts'
 import { cacheRemoteAgents, getCachedAgents } from '@/lib/agent-cache'
 
 const REFRESH_INTERVAL = 10000 // 10 seconds
-const FETCH_TIMEOUT = 5000 // 5 seconds for remote hosts
+const LOCAL_FETCH_TIMEOUT = 8000 // 8 seconds for local host (tmux queries can be slow)
+const REMOTE_FETCH_TIMEOUT = 15000 // 15 seconds for remote hosts (network latency + tmux)
 
 /**
  * Aggregated stats across all hosts
@@ -37,10 +38,11 @@ interface HostFetchResult {
  */
 async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
   const baseUrl = host.type === 'local' ? '' : host.url
+  const timeout = host.type === 'local' ? LOCAL_FETCH_TIMEOUT : REMOTE_FETCH_TIMEOUT
 
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
 
     const response = await fetch(`${baseUrl}/api/agents`, {
       signal: controller.signal

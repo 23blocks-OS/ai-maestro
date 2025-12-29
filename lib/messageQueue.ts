@@ -103,12 +103,13 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
     agent = agents.find(a => a.tools.session?.tmuxSessionName === identifier)
   }
 
-  // 4. Try partial alias match in session name (e.g., "crm" matches "23blocks-api-crm")
+  // 4. Try partial alias match in session name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
+  // Only match on last segment to avoid false positives (e.g., "api" should NOT match "23blocks-api-crm")
   if (!agent) {
     agent = agents.find(a => {
       const sessionName = a.tools.session?.tmuxSessionName || ''
       const segments = sessionName.split(/[-_]/)
-      return segments.includes(identifier.toLowerCase())
+      return segments.length > 0 && segments[segments.length - 1].toLowerCase() === identifier.toLowerCase()
     })
   }
 

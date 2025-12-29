@@ -121,12 +121,14 @@ function matchSessionToAgent(sessionName: string, agents: Agent[]): Agent | null
   })
   if (suffixMatch) return suffixMatch
 
-  // 4. Session name contains agent alias as a segment (e.g., "23blocks-apps-prompthub" matches "prompthub")
+  // 4. Session name's LAST segment matches agent alias (e.g., "23blocks-apps-prompthub" matches "prompthub")
+  // Note: Only match on last segment to avoid false positives (e.g., "23blocks-api-company" should NOT match "api")
   const segmentMatch = agents.find(a => {
     const alias = a.alias.toLowerCase()
     const session = sessionName.toLowerCase()
     const segments = session.split(/[-_]/)
-    return segments.includes(alias)
+    // Only match if the LAST segment equals the alias
+    return segments.length > 0 && segments[segments.length - 1] === alias
   })
   if (segmentMatch) return segmentMatch
 

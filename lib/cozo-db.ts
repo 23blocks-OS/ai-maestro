@@ -182,6 +182,54 @@ export class AgentDatabase {
   }
 
   /**
+   * Get memory statistics (total messages, conversations indexed)
+   */
+  async getMemoryStats(): Promise<{
+    totalMessages: number
+    totalConversations: number
+    totalVectors: number
+    oldestMessage: number | null
+    newestMessage: number | null
+  }> {
+    try {
+      // Count total messages
+      const msgCountResult = await this.run(`?[count(msg_id)] := *messages{msg_id}`)
+      const totalMessages = msgCountResult.rows?.[0]?.[0] || 0
+
+      // Count unique conversation files
+      const convCountResult = await this.run(`?[count_unique(conversation_file)] := *messages{conversation_file}`)
+      const totalConversations = convCountResult.rows?.[0]?.[0] || 0
+
+      // Count vectors
+      const vecCountResult = await this.run(`?[count(msg_id)] := *msg_vec{msg_id}`)
+      const totalVectors = vecCountResult.rows?.[0]?.[0] || 0
+
+      // Get oldest and newest message timestamps
+      const timeResult = await this.run(`?[min(ts), max(ts)] := *messages{ts}`)
+      const oldestMessage = timeResult.rows?.[0]?.[0] || null
+      const newestMessage = timeResult.rows?.[0]?.[1] || null
+
+      return {
+        totalMessages,
+        totalConversations,
+        totalVectors,
+        oldestMessage,
+        newestMessage
+      }
+    } catch (error) {
+      // Tables might not exist yet
+      console.error(`[CozoDB] Failed to get memory stats:`, error)
+      return {
+        totalMessages: 0,
+        totalConversations: 0,
+        totalVectors: 0,
+        oldestMessage: null,
+        newestMessage: null
+      }
+    }
+  }
+
+  /**
    * Close the database connection
    */
   async close(): Promise<void> {

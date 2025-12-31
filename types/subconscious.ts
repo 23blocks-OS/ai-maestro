@@ -38,6 +38,20 @@ export interface SubconsciousProcessStatus {
   lastMessageResult: MessageCheckResult | null
   totalMemoryRuns: number
   totalMessageRuns: number
+  // Cumulative stats (accumulated during this session)
+  cumulativeMessagesIndexed?: number
+  cumulativeConversationsIndexed?: number
+}
+
+/**
+ * Database memory stats (actual data stored)
+ */
+export interface MemoryStats {
+  totalMessages: number
+  totalConversations: number
+  totalVectors: number
+  oldestMessage: number | null
+  newestMessage: number | null
 }
 
 /**
@@ -80,6 +94,14 @@ export interface GlobalSubconsciousStatus {
   lastMessageRun: number | null
   lastMemoryResult: MemoryRunResult | null
   lastMessageResult: MessageCheckResult | null
+  // Cumulative stats aggregated across all agents (this session)
+  cumulativeMessagesIndexed?: number
+  cumulativeConversationsIndexed?: number
+  // Database stats (actual data stored across all agents)
+  databaseStats?: {
+    totalMessages: number
+    totalConversations: number
+  }
   agents: Array<{
     agentId: string
     status: {
@@ -90,6 +112,8 @@ export interface GlobalSubconsciousStatus {
       lastMessageResult: MessageCheckResult | null
       totalMemoryRuns: number
       totalMessageRuns: number
+      cumulativeMessagesIndexed?: number
+      cumulativeConversationsIndexed?: number
     } | null
   }>
 }

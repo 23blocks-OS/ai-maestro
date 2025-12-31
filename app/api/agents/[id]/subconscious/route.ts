@@ -24,6 +24,17 @@ export async function GET(
     const subconscious = agent.getSubconscious()
     const status = subconscious?.getStatus() || null
 
+    // Get database memory stats for cumulative totals
+    let memoryStats = null
+    try {
+      const db = await agent.getDatabase()
+      if (db) {
+        memoryStats = await db.getMemoryStats()
+      }
+    } catch {
+      // Database stats not available
+    }
+
     return NextResponse.json({
       success: true,
       exists: true,
@@ -39,8 +50,11 @@ export async function GET(
         lastMemoryResult: status.lastMemoryResult,
         lastMessageResult: status.lastMessageResult,
         totalMemoryRuns: status.totalMemoryRuns,
-        totalMessageRuns: status.totalMessageRuns
-      } : null
+        totalMessageRuns: status.totalMessageRuns,
+        cumulativeMessagesIndexed: status.cumulativeMessagesIndexed,
+        cumulativeConversationsIndexed: status.cumulativeConversationsIndexed
+      } : null,
+      memoryStats
     })
   } catch (error) {
     console.error('[Agent Subconscious API] Error:', error)

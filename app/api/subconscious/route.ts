@@ -6,10 +6,19 @@ import type {
   MessageCheckResult
 } from '@/types/subconscious'
 
+interface ExtendedAgentStatus extends AgentSubconsciousSummary {
+  memoryStats?: {
+    totalMessages: number
+    totalConversations: number
+  }
+  cumulativeMessagesIndexed?: number
+  cumulativeConversationsIndexed?: number
+}
+
 /**
  * Fetch subconscious status for a single agent
  */
-async function fetchAgentStatus(agentId: string): Promise<AgentSubconsciousSummary | null> {
+async function fetchAgentStatus(agentId: string): Promise<ExtendedAgentStatus | null> {
   try {
     const response = await fetch(`http://localhost:23000/api/agents/${agentId}/subconscious`, {
       cache: 'no-store'
@@ -28,7 +37,10 @@ async function fetchAgentStatus(agentId: string): Promise<AgentSubconsciousSumma
         lastMessageResult: data.status.lastMessageResult,
         totalMemoryRuns: data.status.totalMemoryRuns,
         totalMessageRuns: data.status.totalMessageRuns
-      } : null
+      } : null,
+      memoryStats: data.memoryStats,
+      cumulativeMessagesIndexed: data.status?.cumulativeMessagesIndexed,
+      cumulativeConversationsIndexed: data.status?.cumulativeConversationsIndexed
     }
   } catch {
     return null
@@ -68,20 +80,24 @@ export async function GET() {
     const agentIdsToCheck = discoveredAgentIds.slice(0, 100)
     const statusPromises = agentIdsToCheck.map(fetchAgentStatus)
     const statuses = await Promise.all(statusPromises)
-    const validStatuses = statuses.filter((s): s is AgentSubconsciousSummary => s !== null)
+    const validStatuses = statuses.filter((s): s is ExtendedAgentStatus => s !== null)
 
     // Aggregate stats
     const activeAgents = validStatuses.filter(s => s.initialized).length
     const runningSubconscious = validStatuses.filter(s => s.isRunning).length
     const warmingUpCount = validStatuses.filter(s => s.isWarmingUp).length
 
-    // Find most recent runs
+    // Find most recent runs and aggregate cumulative stats
     let lastMemoryRun: number | null = null
     let lastMessageRun: number | null = null
     let lastMemoryResult: MemoryRunResult | null = null
     let lastMessageResult: MessageCheckResult | null = null
     let totalMemoryRuns = 0
     let totalMessageRuns = 0
+    let cumulativeMessagesIndexed = 0
+    let cumulativeConversationsIndexed = 0
+    let databaseTotalMessages = 0
+    let databaseTotalConversations = 0
 
     for (const s of validStatuses) {
       if (s.status) {
@@ -96,6 +112,16 @@ export async function GET() {
           lastMessageRun = s.status.lastMessageRun
           lastMessageResult = s.status.lastMessageResult
         }
+      }
+
+      // Aggregate cumulative stats from this session
+      cumulativeMessagesIndexed += s.cumulativeMessagesIndexed || 0
+      cumulativeConversationsIndexed += s.cumulativeConversationsIndexed || 0
+
+      // Aggregate database stats (actual data stored)
+      if (s.memoryStats) {
+        databaseTotalMessages += s.memoryStats.totalMessages || 0
+        databaseTotalConversations += s.memoryStats.totalConversations || 0
       }
     }
 
@@ -114,11 +140,19 @@ export async function GET() {
       lastMessageRun,
       lastMemoryResult,
       lastMessageResult,
+      cumulativeMessagesIndexed,
+      cumulativeConversationsIndexed,
+      databaseStats: {
+        totalMessages: databaseTotalMessages,
+        totalConversations: databaseTotalConversations
+      },
       agents: validStatuses.map(s => ({
         agentId: s.agentId,
         status: s.isRunning ? {
           isRunning: s.isRunning,
-          ...s.status
+          ...s.status,
+          cumulativeMessagesIndexed: s.cumulativeMessagesIndexed,
+          cumulativeConversationsIndexed: s.cumulativeConversationsIndexed
         } : null
       }))
     })

@@ -71,6 +71,9 @@ interface SubconsciousStatus {
   } | null
   totalMemoryRuns: number
   totalMessageRuns: number
+  // Cumulative stats (accumulated across this session)
+  cumulativeMessagesIndexed: number
+  cumulativeConversationsIndexed: number
 }
 
 // Static counter for staggering initial runs across all agents
@@ -99,6 +102,9 @@ class AgentSubconscious {
   private lastMessageResult: SubconsciousStatus['lastMessageResult'] = null
   private totalMemoryRuns = 0
   private totalMessageRuns = 0
+  // Cumulative stats (accumulated across this session)
+  private cumulativeMessagesIndexed = 0
+  private cumulativeConversationsIndexed = 0
 
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
@@ -233,14 +239,21 @@ class AgentSubconscious {
       }
 
       const result = await response.json()
+      const messagesProcessed = result.total_messages_processed || 0
+      const conversationsDiscovered = result.new_conversations_discovered || 0
+
+      // Accumulate cumulative totals
+      this.cumulativeMessagesIndexed += messagesProcessed
+      this.cumulativeConversationsIndexed += conversationsDiscovered
+
       this.lastMemoryResult = {
         success: true,
-        messagesProcessed: result.total_messages_processed || 0,
-        conversationsDiscovered: result.new_conversations_discovered || 0
+        messagesProcessed,
+        conversationsDiscovered
       }
 
-      if (result.success && result.total_messages_processed > 0) {
-        console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Indexed ${result.total_messages_processed} new message(s)`)
+      if (result.success && messagesProcessed > 0) {
+        console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Indexed ${messagesProcessed} new message(s) (cumulative: ${this.cumulativeMessagesIndexed})`)
       }
     } catch (error) {
       this.lastMemoryResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -479,7 +492,9 @@ class AgentSubconscious {
       lastMemoryResult: this.lastMemoryResult,
       lastMessageResult: this.lastMessageResult,
       totalMemoryRuns: this.totalMemoryRuns,
-      totalMessageRuns: this.totalMessageRuns
+      totalMessageRuns: this.totalMessageRuns,
+      cumulativeMessagesIndexed: this.cumulativeMessagesIndexed,
+      cumulativeConversationsIndexed: this.cumulativeConversationsIndexed
     }
   }
 }

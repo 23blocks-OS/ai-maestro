@@ -193,14 +193,30 @@ Without searching docs first, you will:
 
 ## Error Handling
 
-If commands fail:
-1. Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
-2. Ensure documentation has been indexed: `docs-stats.sh`
-3. If no docs indexed, run: `docs-index.sh`
+**Script not found:**
+- Check PATH: `which docs-search.sh`
+- Verify scripts installed: `ls -la ~/.local/bin/docs-*.sh`
+- Scripts are installed to `~/.local/bin/` which should be in your PATH
+- If not found, run: `./install-docs-tools.sh`
 
-If documentation is empty:
+**API connection fails:**
+- Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
+- Ensure documentation has been indexed: `docs-stats.sh`
+- If no docs indexed, run: `docs-index.sh`
+
+**Documentation is empty:**
 - Check project has documented code (JSDoc, docstrings, comments)
 - Verify project path is correct
 - Re-index with: `docs-index.sh /path/to/project`
 
-If no results found, inform the user: "No documentation found for X - proceeding with code analysis, but documentation may need to be generated."
+**No results found:**
+- Inform the user: "No documentation found for X - proceeding with code analysis, but documentation may need to be generated."
+
+## Installation
+
+If commands are not found:
+```bash
+./install-docs-tools.sh
+```
+
+This installs scripts to `~/.local/bin/`.

@@ -115,9 +115,16 @@ If no results found, that's valuable information too:
 
 Then search docs as fallback.
 
+**Script not found:**
+- Check PATH: `which memory-search.sh`
+- Verify scripts installed: `ls -la ~/.local/bin/memory-*.sh`
+- Scripts are installed to `~/.local/bin/` which should be in your PATH
+
 ## Installation
 
 If commands are not found:
 ```bash
 ./install-memory-tools.sh
 ```
+
+This installs scripts to `~/.local/bin/`.

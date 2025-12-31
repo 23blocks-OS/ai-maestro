@@ -135,16 +135,25 @@ Use with `graph-find-by-type.sh`:
 
 ## Error Handling
 
-If scripts fail:
-1. Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
-2. Ensure your agent is registered (scripts auto-detect from tmux session)
-3. Check exact component names (case-sensitive)
+**Script not found:**
+- Check PATH: `which graph-describe.sh`
+- Verify scripts installed: `ls -la ~/.local/bin/graph-*.sh`
+- Scripts are installed to `~/.local/bin/` which should be in your PATH
+- If not found, run: `./install-graph-tools.sh`
 
-If graph is unavailable, inform the user: "Graph unavailable, proceeding with manual analysis - increased risk of missing dependencies."
+**API connection fails:**
+- Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
+- Ensure your agent is registered (scripts auto-detect from tmux session)
+- Check exact component names (case-sensitive)
+
+**Graph is unavailable:**
+- Inform the user: "Graph unavailable, proceeding with manual analysis - increased risk of missing dependencies."
 
 ## Installation
 
-If commands are not found, run the installer:
+If commands are not found:
 ```bash
 ./install-graph-tools.sh
 ```
+
+This installs scripts to `~/.local/bin/`.

@@ -2,7 +2,42 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Brain, Clock, Database, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-react'
-import type { AgentSubconsciousStatus } from '@/types/subconscious'
+interface ExtendedAgentSubconsciousStatus {
+  success: boolean
+  exists: boolean
+  initialized: boolean
+  isRunning: boolean
+  isWarmingUp: boolean
+  status: {
+    startedAt: number | null
+    memoryCheckInterval: number
+    messageCheckInterval: number
+    lastMemoryRun: number | null
+    lastMessageRun: number | null
+    lastMemoryResult: {
+      success: boolean
+      messagesProcessed?: number
+      conversationsDiscovered?: number
+      error?: string
+    } | null
+    lastMessageResult: {
+      success: boolean
+      unreadCount?: number
+      error?: string
+    } | null
+    totalMemoryRuns: number
+    totalMessageRuns: number
+    cumulativeMessagesIndexed?: number
+    cumulativeConversationsIndexed?: number
+  } | null
+  memoryStats?: {
+    totalMessages: number
+    totalConversations: number
+    totalVectors: number
+    oldestMessage: number | null
+    newestMessage: number | null
+  }
+}
 
 function formatTimeAgo(timestamp: number | null): string {
   if (!timestamp) return 'Never'
@@ -24,7 +59,7 @@ interface Props {
 export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
   // Base URL for API calls - empty for local, full URL for remote hosts
   const baseUrl = hostUrl || ''
-  const [status, setStatus] = useState<AgentSubconsciousStatus | null>(null)
+  const [status, setStatus] = useState<ExtendedAgentSubconsciousStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showPopover, setShowPopover] = useState(false)
@@ -159,34 +194,53 @@ export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
                 {status.status && (
                   <>
                     <div className="border-t border-gray-700 pt-2 mt-2">
-                      <p className="text-[10px] text-gray-500 mb-1.5">Memory Maintenance</p>
+                      <p className="text-[10px] text-gray-500 mb-1.5">Memory Database</p>
 
-                      <div className="flex items-center justify-between text-xs">
+                      {/* Database Stats - Total Messages */}
+                      {status.memoryStats && (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400 flex items-center gap-1.5">
+                              <Database className="w-3 h-3" />
+                              Total Messages
+                            </span>
+                            <span className="text-purple-400 font-medium">
+                              {status.memoryStats.totalMessages.toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs mt-1">
+                            <span className="text-gray-400 flex items-center gap-1.5">
+                              <MessageSquare className="w-3 h-3" />
+                              Conversations
+                            </span>
+                            <span className="text-gray-200">
+                              {status.memoryStats.totalConversations.toLocaleString()}
+                            </span>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex items-center justify-between text-xs mt-1">
                         <span className="text-gray-400 flex items-center gap-1.5">
                           <Clock className="w-3 h-3" />
-                          Last Run
+                          Last Scan
                         </span>
                         <span className="text-gray-200">
                           {formatTimeAgo(status.status.lastMemoryRun)}
                         </span>
                       </div>
 
-                      {status.status.lastMemoryResult && (
+                      {/* New this session */}
+                      {(status.status.cumulativeMessagesIndexed !== undefined && status.status.cumulativeMessagesIndexed > 0) && (
                         <div className="flex items-center justify-between text-xs mt-1">
-                          <span className="text-gray-400 flex items-center gap-1.5">
-                            <Database className="w-3 h-3" />
-                            Indexed
-                          </span>
-                          <span className={status.status.lastMemoryResult.success ? 'text-green-400' : 'text-red-400'}>
-                            {status.status.lastMemoryResult.success
-                              ? status.status.lastMemoryResult.messagesProcessed || 0
-                              : 'Error'}
-                          </span>
+                          <span className="text-gray-400">New This Session</span>
+                          <span className="text-green-400">+{status.status.cumulativeMessagesIndexed.toLocaleString()}</span>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-gray-400">Total Runs</span>
+                        <span className="text-gray-400">Total Scans</span>
                         <span className="text-gray-200">{status.status.totalMemoryRuns}</span>
                       </div>
                     </div>

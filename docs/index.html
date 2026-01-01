@@ -779,13 +779,13 @@
                         <h4 class="font-bold text-white text-lg mb-2 group-hover:text-purple-400 transition-colors">Conversation History</h4>
                         <p class="text-slate-400 text-sm leading-relaxed">Browse, search, and analyze every agent conversation. Full thinking and tool tracking.</p>
                     </a>
-                    <div class="group bg-slate-900/80 border border-slate-700 rounded-xl p-6 hover:border-purple-500/50 hover:bg-slate-900 transition-all duration-300">
+                    <a href="skills.html" class="group bg-slate-900/80 border border-slate-700 rounded-xl p-6 hover:border-purple-500/50 hover:bg-slate-900 transition-all duration-300 no-underline">
                         <div class="w-12 h-12 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                            <span class="text-2xl">📝</span>
+                            <span class="text-2xl">📚</span>
                         </div>
-                        <h4 class="font-bold text-white text-lg mb-2 group-hover:text-purple-400 transition-colors">Agent Notes</h4>
-                        <p class="text-slate-400 text-sm leading-relaxed">Take notes for each agent. Track decisions, save commands, keep TODOs organized.</p>
-                    </div>
+                        <h4 class="font-bold text-white text-lg mb-2 group-hover:text-purple-400 transition-colors">Docs Search</h4>
+                        <p class="text-slate-400 text-sm leading-relaxed">Auto-generated documentation index. Agents search function signatures and API specs before coding.</p>
+                    </a>
                 </div>
             </div>
 
@@ -1120,6 +1120,17 @@
                     </summary>
                     <div class="px-6 pb-6 text-slate-400">
                         <p>Yes, completely free and open source under the MIT license. No premium tiers, no feature gates, no usage limits. We believe multi-agent orchestration should be accessible to everyone. Star us on GitHub if you find it useful!</p>
+                    </div>
+                </details>
+
+                <!-- FAQ 7 - Skills -->
+                <details class="group bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
+                    <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
+                        <h3 class="font-display text-lg font-bold text-white pr-4">How do the superpowers work under the hood?</h3>
+                        <span class="text-cyan-400 text-2xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-slate-400">
+                        <p>AI Maestro uses <strong class="text-white">Claude Code Skills</strong>—a powerful extension system that gives agents proactive capabilities. Skills are now supported by many AI coding tools and were recently added to the <a href="https://www.anthropic.com/research/building-effective-agents" class="text-cyan-400 hover:underline" target="_blank">Anthropic agents foundation</a>. Our skills automatically trigger memory searches, code graph queries, and documentation lookups without the agent needing to ask. <a href="skills.html" class="text-cyan-400 hover:underline">Learn more about Skills →</a></p>
                     </div>
                 </details>
             </div>

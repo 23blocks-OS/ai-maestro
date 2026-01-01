@@ -383,6 +383,44 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
 }
 
 /**
+ * Update just the working directory for an agent's session
+ * Used when the live tmux pwd differs from the stored workingDirectory
+ */
+export function updateAgentWorkingDirectory(agentId: string, workingDirectory: string): boolean {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return false
+  }
+
+  // Only update if agent has a session
+  if (!agents[index].tools?.session) {
+    return false
+  }
+
+  const oldWd = agents[index].tools.session.workingDirectory
+  if (oldWd === workingDirectory) {
+    return true // No change needed
+  }
+
+  console.log(`[Agent Registry] Updating workingDirectory for ${agentId.substring(0, 8)}:`)
+  console.log(`[Agent Registry]   Old: ${oldWd}`)
+  console.log(`[Agent Registry]   New: ${workingDirectory}`)
+
+  agents[index].tools.session.workingDirectory = workingDirectory
+  agents[index].tools.session.lastActive = new Date().toISOString()
+  agents[index].lastActive = new Date().toISOString()
+
+  // Also update preferences if they exist
+  if (agents[index].preferences) {
+    agents[index].preferences.defaultWorkingDirectory = workingDirectory
+  }
+
+  return saveAgents(agents)
+}
+
+/**
  * Unlink session from agent
  */
 export function unlinkSession(agentId: string): boolean {

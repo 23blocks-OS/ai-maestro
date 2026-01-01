@@ -1,186 +1,354 @@
 # AI Maestro Claude Code Skills
 
-Claude Code skills for AI Maestro features. These skills enable natural language interaction with AI Maestro's systems.
+Claude Code skills that give AI agents superpowers. These skills enable proactive knowledge retrieval, inter-agent communication, and code understanding.
 
-## What are Skills?
+## Why Skills Matter
 
-Skills are Claude Code's way of extending functionality. They're markdown files that teach Claude how to use specific tools and commands. When you ask Claude to do something, it automatically loads the relevant skill if needed.
+Skills transform AI agents from simple code assistants into **knowledge-aware systems** that:
+- **Remember** past conversations and decisions
+- **Understand** codebase structure and relationships
+- **Communicate** with other agents asynchronously
+- **Learn** from auto-generated documentation
 
-## Available Skills
+## Available Skills (4)
 
-### agent-messaging
+| Skill | Purpose | Behavior |
+|-------|---------|----------|
+| [memory-search](#memory-search) | Search conversation history | **PROACTIVE** - Auto-triggers on user instructions |
+| [docs-search](#docs-search) | Search code documentation | **PROACTIVE** - Auto-triggers before implementing |
+| [graph-query](#graph-query) | Query code relationships | **PROACTIVE** - Auto-triggers when reading files |
+| [agent-messaging](#agent-messaging) | Inter-agent communication | On-demand messaging |
 
-Enables agent-to-agent communication using AI Maestro's messaging system.
+---
 
-**Capabilities:**
-- Send messages to other agents
-- Check your agent's inbox
-- Read messages from other agents
-- Send instant tmux notifications
-- Natural language messaging commands
+## memory-search
 
-**Example usage:**
+**Search your conversation history to find previous discussions, decisions, and context.**
+
+This skill enables agents to remember what was discussed before. When a user gives you any instruction, you should FIRST search your memory for relevant context.
+
+### When It Triggers (Automatic)
+
+- User says "continue working on X" → Search for "X"
+- User mentions a previous decision → Search for that topic
+- User references "what we discussed" → Search for context
+- Starting any new task → Search for related history
+
+### Key Commands
+
+```bash
+# Hybrid search (recommended)
+memory-search.sh "authentication flow"
+
+# Semantic search (find related concepts)
+memory-search.sh "error handling" --mode semantic
+
+# Exact term matching
+memory-search.sh "PaymentService" --mode term
+
+# Filter by role
+memory-search.sh "requirements" --role user
 ```
-You: "Send a message to backend-architect asking them to implement POST /api/users"
 
-Claude: I'll send that message to the backend-architect agent.
-[loads agent-messaging skill automatically]
-[runs: send-aimaestro-message.sh backend-architect "Need POST endpoint" "Please implement POST /api/users with validation" high request]
-✅ Message sent to backend-architect
+### Why It Matters
 
-You: "Check my inbox"
+Without memory search:
+- You repeat explanations the user already heard
+- You contradict previous decisions
+- You miss context that changes the approach
+- You start over instead of continuing
 
-Claude: I'll check your inbox for messages.
-[runs: check-and-show-messages.sh]
-Message: msg_1234567890_abc
-From: backend-architect
-To: frontend-dev
-Subject: Re: POST endpoint ready
-...
+**Memory search takes 1 second. Frustrating the user is much worse.**
+
+---
+
+## docs-search
+
+**Search auto-generated documentation for function signatures, class definitions, and API specs.**
+
+This skill helps agents understand the codebase before implementing. When a user asks you to modify or create code, you should FIRST search the documentation.
+
+### When It Triggers (Automatic)
+
+- User says "implement X function" → Search for existing patterns
+- User mentions a class/service → Search for its documentation
+- Before calling unfamiliar functions → Search for signatures
+- Creating new components → Search for existing examples
+
+### Key Commands
+
+```bash
+# Semantic search
+docs-search.sh "authentication flow"
+
+# Keyword search (exact match)
+docs-search.sh --keyword "UserController"
+
+# Find by type
+docs-find-by-type.sh function
+docs-find-by-type.sh class
+docs-find-by-type.sh interface
+
+# Get full document
+docs-get.sh doc-abc123
 ```
+
+### Why It Matters
+
+Without doc search:
+- You use wrong function signatures → runtime errors
+- You miss existing implementations → duplicate code
+- You violate documented patterns → inconsistency
+- You misunderstand APIs → build the wrong thing
+
+**Doc search takes 1 second. Redoing work takes hours.**
+
+---
+
+## graph-query
+
+**Query the code graph database to understand relationships and impact of changes.**
+
+This skill helps agents understand code structure BEFORE making changes. Every time you read a code file, you should IMMEDIATELY query the graph.
+
+### When It Triggers (Automatic)
+
+- After reading ANY code file → Query for dependencies
+- Before modifying a function → Find all callers
+- When changing a model → Find serializers and associations
+- Before refactoring → Understand the impact
+
+### Key Commands
+
+```bash
+# Describe a component
+graph-describe.sh User
+
+# Find callers/callees
+graph-find-callers.sh process_payment
+graph-find-callees.sh authenticate
+
+# Find related components
+graph-find-related.sh PaymentService
+
+# Find model associations
+graph-find-serializers.sh User
+graph-find-associations.sh Order
+
+# Find by type
+graph-find-by-type.sh model
+graph-find-by-type.sh controller
+```
+
+### Why It Matters
+
+Without graph queries:
+- You miss serializers that need updating when you change a model
+- You break callers when you change a function signature
+- You miss child classes that inherit your changes
+- You overlook associations that depend on this model
+
+**The graph query takes 1 second. A broken deployment takes hours to fix.**
+
+---
+
+## agent-messaging
+
+**Send and receive messages between AI agents asynchronously.**
+
+This skill enables multi-agent collaboration. Agents can request work from each other, share updates, and coordinate on complex tasks.
+
+### When To Use
+
+- Need work from another agent → Send a request
+- Completed a task for someone → Send a response
+- Something urgent happened → Send instant notification
+- Checking for requests → Check your inbox
+
+### Key Commands
+
+```bash
+# Check inbox for unread messages
+check-aimaestro-messages.sh
+
+# Read specific message (auto-marks as read)
+read-aimaestro-message.sh msg-1234567890
+
+# Send message to another agent
+send-aimaestro-message.sh backend-architect "Need API endpoint" "Please implement POST /api/users" high request
+
+# Send instant notification
+send-tmux-message.sh backend-architect "Check your inbox!"
+
+# Reply to a message
+reply-aimaestro-message.sh msg-1234567890 "Endpoint ready at routes/users.ts"
+```
+
+### Message Types
+
+| Type | Use When |
+|------|----------|
+| `request` | Need someone to do something |
+| `response` | Answering a request |
+| `notification` | FYI, no action needed |
+| `update` | Progress report |
+
+### Priority Levels
+
+| Priority | Response Time |
+|----------|---------------|
+| `urgent` | < 15 minutes |
+| `high` | < 1 hour |
+| `normal` | < 4 hours |
+| `low` | When available |
+
+---
 
 ## Installation
 
-### For Claude Code Users (Recommended)
-
-Claude Code automatically discovers skills in `~/.claude/skills/`. Simply copy the skill folders there:
+### Quick Install (Recommended)
 
 ```bash
-# Copy all skills to Claude's skills directory
-cp -r agent-messaging ~/.claude/skills/
+# From AI Maestro directory
+./install-skills.sh
+
+# This copies all skills to ~/.claude/skills/
+# and installs required scripts to ~/.local/bin/
+```
+
+### Manual Install
+
+```bash
+# Copy skills to Claude's directory
+cp -r skills/memory-search ~/.claude/skills/
+cp -r skills/docs-search ~/.claude/skills/
+cp -r skills/graph-query ~/.claude/skills/
+cp -r skills/agent-messaging ~/.claude/skills/
 
 # Verify installation
-ls -la ~/.claude/skills/agent-messaging/
-```
-
-That's it! Claude Code will automatically load these skills when needed.
-
-### Manual Installation
-
-If you want to install to a custom location:
-
-```bash
-# Copy skills to custom directory
-cp -r agent-messaging /path/to/custom/skills/
-
-# Tell Claude Code about your custom skills directory
-# Add to your Claude Code configuration
-```
-
-## Skill Structure
-
-Each skill is a folder containing:
-- `SKILL.md` - The skill definition (markdown)
-  - Front matter with metadata (name, description, allowed-tools)
-  - Documentation on when/how to use the skill
-  - Command examples and workflows
-
-Example:
-```
-skills/
-└── agent-messaging/
-    └── SKILL.md  (16KB - comprehensive messaging guide)
-```
-
-## How Skills Work
-
-1. **User makes a request**: "Send a message to backend-architect"
-2. **Claude recognizes intent**: Messaging-related request detected
-3. **Skill auto-loads**: `agent-messaging` skill loads automatically
-4. **Claude executes**: Runs appropriate messaging command
-5. **Confirms result**: "✅ Message sent to backend-architect"
-
-## Requirements
-
-- **Claude Code** with skills support enabled
-- **AI Maestro** running (`http://localhost:23000`)
-- **Messaging scripts** installed in PATH (see `../messaging_scripts/README.md`)
-- **tmux** agent with valid agent name
-
-## Verifying Skills are Loaded
-
-In Claude Code, you can ask:
-
-```
-You: "What skills do you have available?"
-
-Claude: I have access to the following skills:
-- agent-messaging: Send and receive messages between AI agent sessions
-...
-```
-
-Or check the skills directory:
-```bash
 ls -la ~/.claude/skills/
 ```
 
-## Compatibility
+### Verify Skills
 
-**Works with:**
-- ✅ Claude Code (official Anthropic CLI)
-- ✅ Any tmux-based AI agent
+```bash
+# Check all skills are installed
+ls ~/.claude/skills/*/SKILL.md
 
-**Does NOT work with:**
-- ❌ Aider (doesn't support Claude Code skills)
-- ❌ Cursor (different extension system)
-- ❌ Other non-Claude-Code agents
+# Should show:
+# ~/.claude/skills/agent-messaging/SKILL.md
+# ~/.claude/skills/docs-search/SKILL.md
+# ~/.claude/skills/graph-query/SKILL.md
+# ~/.claude/skills/memory-search/SKILL.md
+```
 
-**Note:** For non-Claude-Code agents, use the command-line scripts directly (see `../messaging_scripts/README.md`)
+---
+
+## The Proactive Pattern
+
+Three of the four skills follow a **proactive pattern** - they should trigger automatically without the user asking:
+
+```
+1. User gives instruction
+2. Agent IMMEDIATELY searches/queries relevant sources
+3. Agent now has full context
+4. Agent proceeds with informed implementation
+```
+
+### Example Flow
+
+```
+User: "Fix the authentication bug in UserController"
+
+Agent thinking:
+1. memory-search.sh "authentication bug"     → What did we discuss before?
+2. docs-search.sh "UserController"           → What's the documented behavior?
+3. [Reads the file]
+4. graph-find-callers.sh authenticate        → What depends on this?
+
+Now agent has:
+- Previous context from memory
+- Documentation for the class
+- Understanding of dependencies
+- Ready to fix without breaking things
+```
+
+---
+
+## Script Locations
+
+All scripts are installed to `~/.local/bin/`. If commands aren't found:
+
+```bash
+# Check PATH
+echo $PATH | tr ':' '\n' | grep local
+
+# Verify scripts exist
+ls ~/.local/bin/memory-*.sh
+ls ~/.local/bin/docs-*.sh
+ls ~/.local/bin/graph-*.sh
+ls ~/.local/bin/*-aimaestro-*.sh
+```
+
+---
+
+## Requirements
+
+- **Claude Code** (official Anthropic CLI)
+- **AI Maestro** running on `http://localhost:23000`
+- **tmux** session (for agent identity)
+- Scripts installed in `~/.local/bin/` (via installer)
+
+---
 
 ## Troubleshooting
 
-**Skill not loading:**
-```bash
-# Check skill is in the right location
-ls -la ~/.claude/skills/agent-messaging/SKILL.md
+### Scripts not found
 
-# Verify front matter is valid
-head -6 ~/.claude/skills/agent-messaging/SKILL.md
+```bash
+# Check if ~/.local/bin is in PATH
+which memory-search.sh
+
+# If not found, add to your shell config:
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-**Commands fail:**
-```bash
-# Make sure messaging scripts are installed
-which send-aimaestro-message.sh
+### AI Maestro not running
 
-# Check AI Maestro is running
+```bash
+# Check if running
 curl http://localhost:23000/api/sessions
 
-# Verify you're in a tmux session
-tmux display-message -p '#S'
+# Start it
+pm2 start ai-maestro
 ```
 
-**Skill loads but commands don't work:**
-- See troubleshooting in `../messaging_scripts/README.md`
-- Ensure all messaging scripts are executable and in PATH
+### Skill not loading
 
-## Documentation
+```bash
+# Verify skill file exists
+cat ~/.claude/skills/memory-search/SKILL.md | head -10
 
-- [Agent Messaging Skill Documentation](./agent-messaging/SKILL.md)
-- [Claude Code Configuration Guide](../docs/CLAUDE-CODE-CONFIGURATION.md)
-- [Agent Communication Quickstart](../docs/AGENT-COMMUNICATION-QUICKSTART.md)
-- [Messaging Best Practices](../docs/AGENT-COMMUNICATION-GUIDELINES.md)
-
-## Creating Custom Skills
-
-Want to create your own AI Maestro skills? See the [Claude Code Skills Documentation](https://docs.anthropic.com/claude-code/skills) for the full specification.
-
-Example skill structure:
-```markdown
----
-name: My Custom Skill
-description: What this skill does
-allowed-tools: Bash, Read, Write
----
-
-# Skill Documentation
-
-## When to use
-...
-
-## Available commands
-...
+# Check front matter format
+# Should start with:
+# ---
+# name: ...
+# description: ...
+# allowed-tools: Bash
+# ---
 ```
+
+---
+
+## Skill Documentation
+
+- [Memory Search Skill](./memory-search/SKILL.md) - Full documentation
+- [Docs Search Skill](./docs-search/SKILL.md) - Full documentation
+- [Graph Query Skill](./graph-query/SKILL.md) - Full documentation
+- [Agent Messaging Skill](./agent-messaging/SKILL.md) - Full documentation
+
+---
 
 ## License
 

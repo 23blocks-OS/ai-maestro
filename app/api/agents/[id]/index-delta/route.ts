@@ -3,10 +3,29 @@ import { agentRegistry } from '@/lib/agent'
 import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
-import { getAgent as getRegistryAgent, getAgentBySession } from '@/lib/agent-registry'
+import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory } from '@/lib/agent-registry'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
+
+/**
+ * Get the live working directory from tmux for an agent's session
+ */
+async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(
+      `tmux display-message -t "${sessionName}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+    )
+    const pwd = stdout.trim()
+    return pwd || null
+  } catch {
+    return null
+  }
+}
 
 /**
  * Auto-discover projects from Claude's projects directory
@@ -238,6 +257,26 @@ export async function POST(
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
+    // SYNC WORKING DIRECTORY: Always check live tmux pwd and sync if different
+    // This ensures the agent's workingDirectory stays current even if user navigates
+    let liveTmuxWd: string | null = null
+    let registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
+    if (registryAgent) {
+      const sessionName = registryAgent.tools?.session?.tmuxSessionName
+      const storedWd = registryAgent.tools?.session?.workingDirectory
+      if (sessionName) {
+        liveTmuxWd = await getLiveTmuxWorkingDirectory(sessionName)
+        if (liveTmuxWd && storedWd && liveTmuxWd !== storedWd) {
+          console.log(`[Delta Index API] ⚡ Syncing workingDirectory:`)
+          console.log(`[Delta Index API]   Stored: ${storedWd}`)
+          console.log(`[Delta Index API]   Live:   ${liveTmuxWd}`)
+          updateAgentWorkingDirectory(agentId, liveTmuxWd)
+          // Re-fetch agent to get updated data
+          registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
+        }
+      }
+    }
+
     // Get all projects for this agent (with claude_dir info)
     // Handle case where projects table doesn't exist yet (schema not initialized)
     let projectsResult
@@ -262,23 +301,29 @@ export async function POST(
     if (projectsResult.rows.length === 0) {
       console.log(`[Delta Index API] No projects registered for agent ${agentId} - attempting auto-discovery`)
 
-      // Get agent's known working directories from the file-based registry
-      // The agent's workingDirectory is stored in the registry when the agent is created/session linked
+      // Get agent's known working directories
+      // Use live tmux pwd (already fetched above) as PRIMARY source
       const workingDirectories = new Set<string>()
 
-      // Try to find agent in registry by ID first, then by session name
-      const registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
       if (registryAgent) {
-        // Get workingDirectory from session tools or preferences
-        const sessionWd = registryAgent.tools?.session?.workingDirectory
-        const preferenceWd = registryAgent.preferences?.defaultWorkingDirectory
-        if (sessionWd) {
-          workingDirectories.add(sessionWd)
-          console.log(`[Delta Index API] Found workingDirectory from session: ${sessionWd}`)
+        // Use live tmux pwd if available (already computed above)
+        if (liveTmuxWd) {
+          workingDirectories.add(liveTmuxWd)
+          console.log(`[Delta Index API] Using LIVE workingDirectory: ${liveTmuxWd}`)
         }
-        if (preferenceWd && preferenceWd !== sessionWd) {
+
+        // Also add stored workingDirectory as fallback
+        const storedWd = registryAgent.tools?.session?.workingDirectory
+        if (storedWd && !workingDirectories.has(storedWd)) {
+          workingDirectories.add(storedWd)
+          console.log(`[Delta Index API] Also checking stored workingDirectory: ${storedWd}`)
+        }
+
+        // Also check preferences as fallback
+        const preferenceWd = registryAgent.preferences?.defaultWorkingDirectory
+        if (preferenceWd && !workingDirectories.has(preferenceWd)) {
           workingDirectories.add(preferenceWd)
-          console.log(`[Delta Index API] Found workingDirectory from preferences: ${preferenceWd}`)
+          console.log(`[Delta Index API] Also checking preferences workingDirectory: ${preferenceWd}`)
         }
       } else {
         console.log(`[Delta Index API] Agent ${agentId} not found in registry - will rely on session/path matching`)

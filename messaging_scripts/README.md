@@ -1,6 +1,14 @@
 # AI Maestro Messaging Scripts
 
-Command-line tools for agent-to-agent communication. These scripts work with **any AI agent** (Claude Code, Aider, Cursor, etc.) running in tmux sessions.
+Command-line tools for agent-to-agent communication across local and remote hosts. These scripts work with **any AI agent** (Claude Code, Aider, Cursor, etc.) running in tmux sessions.
+
+## Key Features
+
+- **Multi-Host Messaging**: Send messages to agents on any configured host
+- **Agent Resolution**: Address agents by alias or ID with `@host` syntax
+- **Priority Levels**: Urgent, high, normal, and low priority support
+- **Message Forwarding**: Forward messages between agents
+- **Read/Unread Tracking**: Messages stay unread until explicitly marked
 
 ## Installation
 
@@ -17,119 +25,183 @@ cd /path/to/ai-maestro
 ```bash
 cd /path/to/ai-maestro
 git pull origin main        # Get latest changes
-./update-messaging.sh       # Update scripts and skill
+./install-messaging.sh      # Re-run installer
 # Remember to restart Claude agents after updating
-```
-
-### Manual Installation
-
-#### Option 1: Copy to PATH
-
-```bash
-# Copy all scripts to your local bin directory
-cp *.sh ~/.local/bin/
-
-# Make them executable
-chmod +x ~/.local/bin/*.sh
-
-# Verify installation
-which send-aimaestro-message.sh
-```
-
-#### Option 2: Add to PATH
-
-```bash
-# Add this repo's messaging_scripts folder to your PATH
-echo 'export PATH="$PATH:/path/to/ai-maestro/messaging_scripts"' >> ~/.zshrc
-source ~/.zshrc
-
-# Make scripts executable
-chmod +x *.sh
 ```
 
 ## Available Scripts
 
-### 1. send-aimaestro-message.sh
+### Primary Scripts
 
-Send persistent, structured messages to another agent's inbox.
+| Script | Purpose |
+|--------|---------|
+| `check-aimaestro-messages.sh` | List unread messages in your inbox |
+| `read-aimaestro-message.sh` | Read a specific message (marks as read) |
+| `send-aimaestro-message.sh` | Send a message to another agent |
+| `forward-aimaestro-message.sh` | Forward a message to another agent |
+| `send-tmux-message.sh` | Send instant terminal notification |
 
-**Usage:**
+### Legacy Scripts (Deprecated)
+
+| Script | Replacement |
+|--------|-------------|
+| `check-and-show-messages.sh` | Use `check-aimaestro-messages.sh` |
+| `check-new-messages-arrived.sh` | Use `check-aimaestro-messages.sh` |
+
+---
+
+## Multi-Host Messaging
+
+AI Maestro supports messaging across multiple hosts. Agents can send messages to any agent on any configured host using the `agent@host` syntax.
+
+### Addressing Agents
+
 ```bash
-send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
+# Local agent (default)
+send-aimaestro-message.sh backend-api "Subject" "Message"
+
+# Remote agent with @host syntax
+send-aimaestro-message.sh backend-api@mac-mini "Subject" "Message"
+
+# Using agent ID instead of alias
+send-aimaestro-message.sh abc123@mac-mini "Subject" "Message"
+```
+
+### Host Configuration
+
+Remote hosts are configured in `~/.aimaestro/hosts.json`:
+
+```json
+{
+  "hosts": [
+    {
+      "id": "mac-mini",
+      "name": "Mac Mini Server",
+      "url": "http://192.168.1.100:23000",
+      "enabled": true
+    }
+  ]
+}
+```
+
+The `local` host is always available at `http://localhost:23000`.
+
+---
+
+## Script Reference
+
+### check-aimaestro-messages.sh
+
+Check for unread messages in your inbox.
+
+```bash
+check-aimaestro-messages.sh [--mark-read]
+```
+
+**Options:**
+- `--mark-read` - Mark all messages as read after displaying
+
+**Output:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📬 You have 2 unread message(s)
+   Inbox: my-agent@local (host: local)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[msg-1234567890-abc] 🔴 From: backend-api @mac-mini | 2025-01-18 14:23
+    Subject: API endpoint ready
+    Preview: GET /api/users implemented at...
+```
+
+---
+
+### read-aimaestro-message.sh
+
+Read a specific message and mark it as read.
+
+```bash
+read-aimaestro-message.sh <message-id> [--no-mark-read]
+```
+
+**Options:**
+- `--no-mark-read` - Peek at message without marking as read
+
+**Example:**
+```bash
+# Read and mark as read
+read-aimaestro-message.sh msg-1234567890-abc
+
+# Just peek (don't mark as read)
+read-aimaestro-message.sh msg-1234567890-abc --no-mark-read
+```
+
+---
+
+### send-aimaestro-message.sh
+
+Send a message to another agent's inbox.
+
+```bash
+send-aimaestro-message.sh <to_agent[@host]> <subject> <message> [priority] [type]
 ```
 
 **Parameters:**
-- `to_session` - Target agent's name (required)
-- `subject` - Brief subject line (required)
-- `message` - Message content (required)
-- `priority` - low | normal | high | urgent (optional, default: normal)
-- `type` - request | response | notification | update (optional, default: request)
+- `to_agent` - Target agent (alias, ID, or alias@host)
+- `subject` - Message subject line
+- `message` - Message content
+- `priority` - `low` | `normal` | `high` | `urgent` (default: normal)
+- `type` - `request` | `response` | `notification` | `update` (default: request)
 
 **Examples:**
 ```bash
-# Simple request
+# Simple request to local agent
 send-aimaestro-message.sh backend-api "Need endpoint" "Please implement GET /api/users"
 
-# Urgent notification
-send-aimaestro-message.sh frontend-dev "Build failed" "Tests failing in CI" urgent notification
+# Urgent notification to remote agent
+send-aimaestro-message.sh frontend@mac-mini "Build failed" "CI tests failing" urgent notification
 
-# Response to request
-send-aimaestro-message.sh orchestrator "Task complete" "Feature implemented at src/components/Dashboard.tsx" normal response
+# Response to a request
+send-aimaestro-message.sh orchestrator "Task complete" "Feature ready" normal response
 ```
 
-### 2. check-and-show-messages.sh
+---
 
-Display all messages in your agent's inbox.
+### forward-aimaestro-message.sh
 
-**Usage:**
+Forward a message to another agent.
+
 ```bash
-check-and-show-messages.sh
+forward-aimaestro-message.sh <message-id> <to_agent[@host]> [note]
 ```
 
-**Output:**
-```
-Message: msg_1234567890_abcde
-From: backend-architect
-To: frontend-dev
-Subject: API endpoint ready
-Priority: high
-Type: response
-Status: unread
-Timestamp: 2025-01-18 14:23:45
-Content: GET /api/users implemented at routes/users.ts...
-```
+**Parameters:**
+- `message-id` - The message ID to forward
+- `to_agent` - Target agent (alias, ID, or alias@host)
+- `note` - Optional note to include with forwarded message
 
-### 3. check-new-messages-arrived.sh
-
-Quick check for unread message count.
-
-**Usage:**
+**Example:**
 ```bash
-check-new-messages-arrived.sh
+forward-aimaestro-message.sh msg-1234567890-abc devops "Please review this deployment request"
 ```
 
-**Output:**
-```
-You have 3 new message(s)
-```
+---
 
-### 4. send-tmux-message.sh
+### send-tmux-message.sh
 
-Send instant real-time notifications to another agent's terminal.
+Send an instant notification to another agent's terminal (no inbox storage).
 
-**Usage:**
 ```bash
 send-tmux-message.sh <target_session> <message> [method]
 ```
 
 **Parameters:**
-- `target_session` - Target agent's name (required)
-- `message` - Alert text (required)
-- `method` - display | inject | echo (optional, default: display)
+- `target_session` - Target agent's tmux session name
+- `message` - Alert text
+- `method` - `display` | `inject` | `echo` (default: display)
 
 **Methods:**
-- `display` - Non-intrusive popup (auto-dismisses)
-- `inject` - Inject into terminal history (visible, interrupts)
+- `display` - Non-intrusive popup (auto-dismisses after 5s)
+- `inject` - Inject into terminal history
 - `echo` - Formatted output (most visible)
 
 **Examples:**
@@ -144,81 +216,176 @@ send-tmux-message.sh frontend-dev "Build complete!" inject
 send-tmux-message.sh backend-api "PRODUCTION DOWN!" echo
 ```
 
+---
+
+## Session Naming Convention
+
+AI Maestro uses structured session names in the format `agentId@hostId`:
+
+```
+my-agent@local         # Agent "my-agent" on local host
+backend-api@mac-mini   # Agent "backend-api" on mac-mini host
+```
+
+This format enables:
+- Quick agent resolution without API calls
+- Clear identification of agent location
+- Multi-host addressing
+
+To register and rename a tmux session:
+```bash
+node scripts/register-agent-from-session.mjs
+```
+
+---
+
 ## Common Workflows
 
-### Check inbox on agent start
+### Starting Your Day
+
 ```bash
-# Best practice: Check messages when starting work
-check-and-show-messages.sh
+# Check for unread messages
+check-aimaestro-messages.sh
+
+# Read any urgent messages
+read-aimaestro-message.sh msg-xxx
 ```
 
-### Send urgent alert with details
-```bash
-# 1. Get immediate attention
-send-tmux-message.sh backend-api "🚨 Check inbox NOW!"
+### Requesting Help
 
-# 2. Provide full context
-send-aimaestro-message.sh backend-api \
-  "Production: Database timeout" \
-  "All /api/users endpoints failing. ~200 users affected." \
-  urgent \
-  notification
+```bash
+# Request help from another agent
+send-aimaestro-message.sh backend-architect \
+  "Need API design review" \
+  "Please review the authentication flow in auth-controller.ts" \
+  high request
+
+# Send instant notification for urgent matters
+send-tmux-message.sh backend-architect "Check inbox - urgent review needed!"
 ```
 
-### Respond to a request
+### Responding to Requests
+
 ```bash
-# 1. Check your inbox
-check-and-show-messages.sh
+# Check inbox
+check-aimaestro-messages.sh
 
-# 2. Work on the request
+# Read the request
+read-aimaestro-message.sh msg-xxx
 
-# 3. Send response
+# Send response
 send-aimaestro-message.sh frontend-dev \
-  "Re: API ready" \
-  "Implemented at routes/users.ts:45" \
-  normal \
-  response
+  "Re: API design review" \
+  "Reviewed auth flow. Looks good, ship it!" \
+  normal response
 ```
+
+### Cross-Host Collaboration
+
+```bash
+# Send task to remote agent
+send-aimaestro-message.sh deploy-agent@production \
+  "Deploy request" \
+  "Please deploy v2.0.0 to production" \
+  high request
+
+# Forward message to team lead on another host
+forward-aimaestro-message.sh msg-xxx team-lead@main-server \
+  "FYI - deployment request for approval"
+```
+
+---
+
+## Message Storage
+
+Messages are stored as JSON files:
+
+```
+~/.aimaestro/messages/
+├── inbox/
+│   └── <agent-id>/
+│       ├── msg-1234567890-abc.json
+│       └── msg-1234567891-def.json
+└── sent/
+    └── <agent-id>/
+        └── msg-1234567890-abc.json
+```
+
+Each message contains:
+- `id` - Unique message identifier
+- `from` / `to` - Agent IDs
+- `fromAlias` / `toAlias` - Human-readable names
+- `fromHost` / `toHost` - Host identifiers
+- `subject` - Message subject
+- `timestamp` - ISO 8601 timestamp
+- `priority` - low | normal | high | urgent
+- `status` - unread | read | archived
+- `content.type` - request | response | notification | update
+- `content.message` - Message body
+
+---
 
 ## Requirements
 
-- AI Maestro running on `http://localhost:23000`
+- AI Maestro running (local: `http://localhost:23000`)
 - tmux session with valid agent name
 - `curl` and `jq` installed
+- For remote hosts: hosts.json configured
+
+---
 
 ## Troubleshooting
 
-**Scripts not found:**
-```bash
-# Check PATH
-echo $PATH
+### Scripts not found
 
-# Verify scripts are executable
-ls -la ~/.local/bin/*.sh
+```bash
+# Check PATH includes ~/.local/bin
+echo $PATH | tr ':' '\n' | grep local
+
+# Add to PATH if missing
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-**Can't send messages:**
+### Cannot connect to API
+
 ```bash
 # Check AI Maestro is running
 curl http://localhost:23000/api/sessions
 
-# Verify target agent exists
-tmux list-sessions
-
-# Check you're in a tmux session
-tmux display-message -p '#S'
+# Restart if needed
+pm2 restart ai-maestro
 ```
 
-**No messages found:**
-- This is normal if your inbox is empty
-- Messages are stored in `~/.aimaestro/messages/inbox/YOUR-AGENT-NAME/`
+### Agent not found
 
-## Documentation
+```bash
+# Verify agent exists
+curl http://localhost:23000/api/agents | jq '.agents[].alias'
 
-- [Quickstart Guide](../docs/AGENT-COMMUNICATION-QUICKSTART.md)
-- [Best Practices](../docs/AGENT-COMMUNICATION-GUIDELINES.md)
-- [Complete Reference](../docs/AGENT-MESSAGING-GUIDE.md)
-- [Architecture](../docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+# Check session naming
+tmux display-message -p '#S'
+# Should be: agentId@hostId format
+```
+
+### Remote host unreachable
+
+```bash
+# Check hosts.json config
+cat ~/.aimaestro/hosts.json
+
+# Test remote connection
+curl http://remote-host:23000/api/sessions
+```
+
+---
+
+## Related Documentation
+
+- [Skills README](../skills/README.md) - Claude Code skills including agent-messaging
+- [CLAUDE.md](../CLAUDE.md) - AI Maestro architecture and messaging system details
+
+---
 
 ## License
 

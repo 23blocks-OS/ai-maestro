@@ -188,7 +188,8 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
       }
       if (message.type === 'user' && message.message?.content && !firstUserMessage) {
         const content = message.message.content
-        firstUserMessage = content.substring(0, 100)
+        // Sanitize: take first 100 chars, strip newlines/carriage returns to avoid CozoDB parser issues
+        firstUserMessage = content.substring(0, 100).replace(/[\n\r]/g, ' ').trim()
       }
       if (message.type === 'assistant' && message.message?.model) {
         const model = message.message.model

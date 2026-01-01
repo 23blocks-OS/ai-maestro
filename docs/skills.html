@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Skills: Memory Search, Code Graph, Agent Messaging | AI Maestro</title>
+    <meta name="description" content="Give Claude Code agents superpowers with AI Maestro Skills. Memory search, code graph queries, documentation search, and agent-to-agent messaging. Extend Claude Code with proactive knowledge retrieval.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/skills.html">
+    <meta property="og:title" content="Claude Code Skills - Give Your AI Agents Superpowers">
+    <meta property="og:description" content="Memory search, code graph queries, documentation search, and agent messaging. Skills that make Claude Code agents proactively intelligent.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro Skills - Extend Claude Code">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Claude Code Skills - Give Your AI Agents Superpowers">
+    <meta name="twitter:description" content="Memory search, code graph queries, and agent messaging for Claude Code.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="Claude Code skills, Claude Code plugins, Claude Code extensions, AI agent memory, code graph database, Claude Code memory search, AI agent skills, Claude skills system, extend Claude Code, Claude Code customization, AI coding assistant skills, proactive AI agents">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/skills.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#6366f1">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="msapplication-TileColor" content="#6366f1">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "AI Maestro Skills",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows (WSL2)",
+      "description": "Skills system that gives Claude Code agents superpowers: memory search, code graph queries, documentation search, and agent-to-agent messaging",
+      "featureList": [
+        "Memory Search - Search past conversations and decisions",
+        "Code Graph - Query code relationships and dependencies",
+        "Documentation Search - Find function signatures and API specs",
+        "Agent Messaging - Send messages between AI agents"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "23blocks"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Install Claude Code Skills",
+      "description": "Add AI Maestro skills to Claude Code for memory search, code graph, and agent messaging",
+      "totalTime": "PT2M",
+      "tool": [{
+        "@type": "HowToTool",
+        "name": "Claude Code CLI"
+      },{
+        "@type": "HowToTool",
+        "name": "AI Maestro"
+      }],
+      "step": [{
+        "@type": "HowToStep",
+        "position": 1,
+        "name": "Clone AI Maestro",
+        "text": "git clone https://github.com/23blocks-OS/ai-maestro.git"
+      },{
+        "@type": "HowToStep",
+        "position": 2,
+        "name": "Run Skills Installer",
+        "text": "cd ai-maestro && ./install-skills.sh"
+      },{
+        "@type": "HowToStep",
+        "position": 3,
+        "name": "Start Using Skills",
+        "text": "Skills auto-trigger when Claude Code agents read files or receive instructions"
+      }]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [{
+        "@type": "Question",
+        "name": "What are Claude Code skills?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Claude Code skills are SKILL.md files that teach Claude Code how to use specific tools and workflows. AI Maestro provides 4 skills: memory-search (conversation history), docs-search (code documentation), graph-query (code relationships), and agent-messaging (inter-agent communication)."
+        }
+      },{
+        "@type": "Question",
+        "name": "How do I add skills to Claude Code?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Skills are installed to ~/.claude/skills/. Run the AI Maestro installer: ./install-skills.sh. This copies SKILL.md files and installs the required command-line scripts to ~/.local/bin/."
+        }
+      },{
+        "@type": "Question",
+        "name": "What is the proactive pattern in AI Maestro skills?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The proactive pattern means skills auto-trigger without the user asking. When you give Claude an instruction, it immediately searches memory for context, queries the code graph for dependencies, and checks documentation - all before implementing. This prevents repeating work and breaking changes."
+        }
+      },{
+        "@type": "Question",
+        "name": "Can I use AI Maestro skills with other AI agents?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The skills (SKILL.md files) are specific to Claude Code. However, the underlying command-line scripts (memory-search.sh, graph-describe.sh, etc.) work with any AI agent running in tmux - Aider, Cursor, Copilot, or custom agents."
+        }
+      }]
+    }
+    </script>
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Skill card hover */
+        .skill-card {
+            transition: all 0.3s ease;
+        }
+        .skill-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 212, 255, 0.15);
+        }
+
+        /* Proactive badge pulse */
+        .proactive-badge {
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0); }
+        }
+    </style>
+
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/90 backdrop-blur-lg border-b border-slate-700 z-[100]">
+        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-3 md:py-4">
+                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-display font-bold text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
+                    AI Maestro
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#features" class="text-white no-underline font-medium hover:text-cyan-400 transition-colors duration-200">Features</a>
+                    <a href="index.html#quick-start" class="text-white no-underline font-medium hover:text-cyan-400 transition-colors duration-200">Quick Start</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-white no-underline font-medium hover:text-cyan-400 transition-colors duration-200">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)]" target="_blank">Get Started</a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 text-sm" target="_blank">Get Started</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
+                <a href="index.html#features" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-cyan-400">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-cyan-400">Quick Start</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-cyan-400">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <header class="py-12 md:py-24 text-center px-4 md:px-0 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-mono mb-6">
+                <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+                Claude Code Skills System
+            </div>
+            <h1 class="text-4xl md:text-[3.5rem] font-display font-bold leading-tight md:leading-[1.2] mb-6 max-w-[900px] mx-auto">Give Your AI Agents <span class="gradient-text">Superpowers</span></h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Skills that make Claude Code agents proactively intelligent. Memory search, code graph queries, documentation lookup, and agent-to-agent messaging - all auto-triggered without you asking.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
+                <a href="#skills" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)] text-lg">Explore Skills</a>
+                <a href="#installation" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 border-2 border-cyan-500 hover:bg-cyan-500 hover:text-slate-900 text-lg">Install Now</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- What Are Skills Section -->
+    <section class="py-16 px-8 bg-slate-950">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-3xl md:text-4xl text-center mb-4 font-display font-bold">What Are Claude Code Skills?</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Skills are SKILL.md files that teach Claude Code how to use specific tools and workflows. They're like plugins - but smarter.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/30 to-cyan-600/10 border border-cyan-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">📄</span>
+                    </div>
+                    <h3 class="text-xl font-display font-semibold mb-2 text-white">Simple Files</h3>
+                    <p class="text-slate-400">Just markdown files in <code class="bg-slate-800 px-2 py-1 rounded text-sm">~/.claude/skills/</code>. No compilation, no runtime.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/10 border border-amber-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">🧠</span>
+                    </div>
+                    <h3 class="text-xl font-display font-semibold mb-2 text-white">Context-Aware</h3>
+                    <p class="text-slate-400">Claude reads skills and understands when and how to use them automatically.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/10 border border-emerald-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">⚡</span>
+                    </div>
+                    <h3 class="text-xl font-display font-semibold mb-2 text-white">Proactive</h3>
+                    <p class="text-slate-400">Skills auto-trigger based on context - no need to ask Claude to use them.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The Proactive Pattern Section -->
+    <section class="py-16 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="flex items-center justify-center gap-3 mb-6">
+                <span class="proactive-badge inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 border border-cyan-500/50 rounded-full text-cyan-400 text-sm font-semibold">
+                    <span class="w-2 h-2 bg-cyan-400 rounded-full"></span>
+                    THE PROACTIVE PATTERN
+                </span>
+            </div>
+            <h2 class="text-3xl md:text-4xl text-center mb-4 font-display font-bold">Skills That Act Before You Ask</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Three of our four skills follow a proactive pattern - they trigger automatically without you asking.</p>
+
+            <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 mb-8">
+                <h3 class="text-xl font-display font-semibold mb-6 text-white text-center">Example: You say "Fix the authentication bug in UserController"</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="bg-slate-800 p-4 rounded-xl text-center">
+                        <div class="text-2xl mb-2">1️⃣</div>
+                        <p class="text-cyan-400 font-mono text-sm mb-2">memory-search</p>
+                        <p class="text-slate-400 text-sm">"What did we discuss about authentication?"</p>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl text-center">
+                        <div class="text-2xl mb-2">2️⃣</div>
+                        <p class="text-cyan-400 font-mono text-sm mb-2">docs-search</p>
+                        <p class="text-slate-400 text-sm">"What's the documented behavior?"</p>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl text-center">
+                        <div class="text-2xl mb-2">3️⃣</div>
+                        <p class="text-cyan-400 font-mono text-sm mb-2">Reads file</p>
+                        <p class="text-slate-400 text-sm">Opens UserController.ts</p>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl text-center">
+                        <div class="text-2xl mb-2">4️⃣</div>
+                        <p class="text-cyan-400 font-mono text-sm mb-2">graph-query</p>
+                        <p class="text-slate-400 text-sm">"What depends on this?"</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl">
+                    <p class="text-emerald-400 text-center"><strong>Result:</strong> Claude now has previous context, documentation, code structure, and dependencies - all before writing a single line of code.</p>
+                </div>
+            </div>
+
+            <div class="bg-amber-500/10 border-l-4 border-amber-500 p-6 rounded-r-lg">
+                <p class="text-lg font-semibold text-white mb-2">🎯 Why This Matters</p>
+                <p class="text-slate-400">Without proactive skills, Claude might repeat explanations you've already heard, contradict previous decisions, miss dependencies that break, or start over instead of continuing where you left off.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Grid -->
+    <section id="skills" class="py-16 md:py-24 px-8 bg-slate-950">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">The Four Skills</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Each skill gives Claude Code a specific superpower</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Memory Search -->
+                <div class="skill-card bg-gradient-to-br from-purple-500/10 to-purple-600/5 p-8 rounded-2xl border-2 border-purple-500/50">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-purple-500/20 border border-purple-500/50 flex items-center justify-center">
+                            <span class="text-2xl">🧠</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">memory-search</h3>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 text-xs font-mono">PROACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 mb-4">Search your conversation history to find previous discussions, decisions, and context.</p>
+
+                    <div class="bg-slate-900/50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-slate-400 mb-2">Auto-triggers when:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-slate-200">• User says "continue working on X"</li>
+                            <li class="text-slate-200">• User mentions a previous decision</li>
+                            <li class="text-slate-200">• User references "what we discussed"</li>
+                            <li class="text-slate-200">• Starting any new task</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded font-mono text-sm overflow-x-auto">
+                        <span class="text-slate-500"># Example commands</span><br>
+                        <span class="text-green-400">memory-search.sh</span> <span class="text-amber-300">"authentication flow"</span><br>
+                        <span class="text-green-400">memory-search.sh</span> <span class="text-amber-300">"error handling"</span> <span class="text-slate-400">--mode semantic</span>
+                    </div>
+                </div>
+
+                <!-- Docs Search -->
+                <div class="skill-card bg-gradient-to-br from-blue-500/10 to-blue-600/5 p-8 rounded-2xl border-2 border-blue-500/50">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center">
+                            <span class="text-2xl">📚</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">docs-search</h3>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 text-xs font-mono">PROACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 mb-4">Search auto-generated documentation for function signatures, class definitions, and API specs.</p>
+
+                    <div class="bg-slate-900/50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-slate-400 mb-2">Auto-triggers when:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-slate-200">• User says "implement X function"</li>
+                            <li class="text-slate-200">• User mentions a class/service</li>
+                            <li class="text-slate-200">• Before calling unfamiliar functions</li>
+                            <li class="text-slate-200">• Creating new components</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded font-mono text-sm overflow-x-auto">
+                        <span class="text-slate-500"># Example commands</span><br>
+                        <span class="text-green-400">docs-search.sh</span> <span class="text-amber-300">"UserController"</span><br>
+                        <span class="text-green-400">docs-find-by-type.sh</span> <span class="text-amber-300">function</span>
+                    </div>
+                </div>
+
+                <!-- Graph Query -->
+                <div class="skill-card bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 p-8 rounded-2xl border-2 border-emerald-500/50">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center">
+                            <span class="text-2xl">🔗</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">graph-query</h3>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-emerald-400 text-xs font-mono">PROACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 mb-4">Query the code graph database to understand relationships and impact of changes.</p>
+
+                    <div class="bg-slate-900/50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-slate-400 mb-2">Auto-triggers when:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-slate-200">• After reading ANY code file</li>
+                            <li class="text-slate-200">• Before modifying a function</li>
+                            <li class="text-slate-200">• When changing a model</li>
+                            <li class="text-slate-200">• Before refactoring</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded font-mono text-sm overflow-x-auto">
+                        <span class="text-slate-500"># Example commands</span><br>
+                        <span class="text-green-400">graph-describe.sh</span> <span class="text-amber-300">User</span><br>
+                        <span class="text-green-400">graph-find-callers.sh</span> <span class="text-amber-300">process_payment</span><br>
+                        <span class="text-green-400">graph-find-serializers.sh</span> <span class="text-amber-300">Order</span>
+                    </div>
+                </div>
+
+                <!-- Agent Messaging -->
+                <div class="skill-card bg-gradient-to-br from-amber-500/10 to-amber-600/5 p-8 rounded-2xl border-2 border-amber-500/50">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center">
+                            <span class="text-2xl">💬</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">agent-messaging</h3>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-500/20 border border-slate-500/30 rounded text-slate-400 text-xs font-mono">ON-DEMAND</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 mb-4">Send and receive messages between AI agents asynchronously. Multi-host support included.</p>
+
+                    <div class="bg-slate-900/50 p-4 rounded-lg mb-4">
+                        <p class="text-sm text-slate-400 mb-2">Use when:</p>
+                        <ul class="list-none p-0 space-y-1 text-sm">
+                            <li class="text-slate-200">• Need work from another agent</li>
+                            <li class="text-slate-200">• Completed a task for someone</li>
+                            <li class="text-slate-200">• Something urgent happened</li>
+                            <li class="text-slate-200">• Checking for requests</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded font-mono text-sm overflow-x-auto">
+                        <span class="text-slate-500"># Example commands</span><br>
+                        <span class="text-green-400">check-aimaestro-messages.sh</span><br>
+                        <span class="text-green-400">send-aimaestro-message.sh</span> <span class="text-amber-300">backend-api</span> <span class="text-amber-300">"Need API"</span> <span class="text-amber-300">"..."</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="installation" class="py-16 md:py-24 px-8">
+        <div class="max-w-[900px] mx-auto">
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">Installation</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Get all four skills in under 2 minutes</p>
+
+            <div class="space-y-6">
+                <!-- Step 1 -->
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">1</div>
+                        <h3 class="text-xl font-display font-semibold text-white">Clone AI Maestro</h3>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+                        <span class="text-green-400">git clone</span> https://github.com/23blocks-OS/ai-maestro.git<br>
+                        <span class="text-green-400">cd</span> ai-maestro
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">2</div>
+                        <h3 class="text-xl font-display font-semibold text-white">Run the Skills Installer</h3>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+                        <span class="text-green-400">./install-skills.sh</span><br>
+                        <span class="text-slate-500"># Copies skills to ~/.claude/skills/</span><br>
+                        <span class="text-slate-500"># Installs scripts to ~/.local/bin/</span>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">3</div>
+                        <h3 class="text-xl font-display font-semibold text-white">Start Using Skills</h3>
+                    </div>
+                    <p class="text-slate-400 mb-4">Skills auto-trigger when Claude Code agents read files or receive instructions. Just use Claude normally - the skills work in the background.</p>
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg">
+                        <p class="text-emerald-400"><strong>Tip:</strong> Restart any running Claude Code sessions to load the new skills.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <p class="text-slate-400 mb-4">Skills are installed to:</p>
+                <div class="bg-slate-800 inline-block px-6 py-3 rounded-lg font-mono text-sm">
+                    ~/.claude/skills/<span class="text-cyan-400">{memory-search, docs-search, graph-query, agent-messaging}</span>/SKILL.md
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="py-16 px-8 bg-slate-950">
+        <div class="max-w-[900px] mx-auto">
+            <h2 class="text-3xl md:text-4xl text-center mb-12 font-display font-bold">Frequently Asked Questions</h2>
+
+            <div class="space-y-4">
+                <details class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden group">
+                    <summary class="p-6 cursor-pointer font-semibold text-white flex justify-between items-center hover:bg-slate-800/50 transition-colors">
+                        Can I use these skills with Aider, Cursor, or other AI agents?
+                        <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-slate-400">
+                        The skills (SKILL.md files) are specific to Claude Code. However, the underlying command-line scripts (<code class="bg-slate-800 px-2 py-1 rounded text-sm">memory-search.sh</code>, <code class="bg-slate-800 px-2 py-1 rounded text-sm">graph-describe.sh</code>, etc.) work with any AI agent running in tmux. You can teach other agents to use these scripts directly.
+                    </div>
+                </details>
+
+                <details class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden group">
+                    <summary class="p-6 cursor-pointer font-semibold text-white flex justify-between items-center hover:bg-slate-800/50 transition-colors">
+                        Do I need AI Maestro running for skills to work?
+                        <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-slate-400">
+                        Yes, AI Maestro provides the APIs that skills call. The scripts communicate with AI Maestro's backend at <code class="bg-slate-800 px-2 py-1 rounded text-sm">http://localhost:23000</code> to search memory, query the code graph, and send messages.
+                    </div>
+                </details>
+
+                <details class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden group">
+                    <summary class="p-6 cursor-pointer font-semibold text-white flex justify-between items-center hover:bg-slate-800/50 transition-colors">
+                        How do proactive skills know when to trigger?
+                        <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-slate-400">
+                        The SKILL.md file contains trigger conditions that Claude Code understands. For example, memory-search triggers when you mention "continue" or reference previous work. Claude reads these conditions and automatically invokes the skill before starting work.
+                    </div>
+                </details>
+
+                <details class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden group">
+                    <summary class="p-6 cursor-pointer font-semibold text-white flex justify-between items-center hover:bg-slate-800/50 transition-colors">
+                        Can I create my own skills?
+                        <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="px-6 pb-6 text-slate-400">
+                        Absolutely! Skills are just markdown files. Create a new folder in <code class="bg-slate-800 px-2 py-1 rounded text-sm">~/.claude/skills/your-skill/</code> with a <code class="bg-slate-800 px-2 py-1 rounded text-sm">SKILL.md</code> file. Include frontmatter with name, description, and allowed-tools. Then document when the skill should trigger and what commands to run.
+                    </div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 px-8 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
+        <div class="max-w-[800px] mx-auto text-center">
+            <h2 class="text-3xl md:text-4xl mb-4 font-display font-bold">Ready to Give Your Agents Superpowers?</h2>
+            <p class="text-lg text-slate-400 mb-8">Install AI Maestro Skills and watch Claude Code become proactively intelligent.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <a href="https://github.com/23blocks-OS/ai-maestro" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)] text-lg" target="_blank">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    View on GitHub
+                </a>
+                <a href="messaging.html" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-800 text-white border-2 border-slate-600 hover:border-cyan-500 hover:text-cyan-400 text-lg">
+                    Learn About Messaging →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-8 border-t border-slate-800 px-8">
+        <div class="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2 text-slate-400">
+                <img src="logo-constellation.svg" alt="AI Maestro" class="w-6 h-6">
+                <span>AI Maestro by <a href="https://23blocks.com" target="_blank" class="text-cyan-400 hover:underline">23blocks</a></span>
+            </div>
+            <div class="flex gap-6 text-sm text-slate-400">
+                <a href="index.html" class="hover:text-cyan-400 transition-colors">Home</a>
+                <a href="messaging.html" class="hover:text-cyan-400 transition-colors">Messaging</a>
+                <a href="workers.html" class="hover:text-cyan-400 transition-colors">Workers</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="hover:text-cyan-400 transition-colors">GitHub</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Copy for AI Script -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

@@ -212,10 +212,15 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
   last_indexed_at?: number
   last_indexed_message_count?: number
 }): Promise<void> {
-  // Escape single quotes in strings for CozoDB
+  // Escape special characters in strings for CozoDB
   const escapeString = (str: string | undefined) => {
     if (!str) return 'null'
-    return `'${str.replace(/'/g, "''")}'`
+    return `'${str
+      .replace(/\\/g, '\\\\')  // Backslashes first
+      .replace(/'/g, "''")     // Single quotes
+      .replace(/\n/g, '\\n')   // Newlines
+      .replace(/\r/g, '\\r')   // Carriage returns
+    }'`
   }
 
   await agentDb.run(`

@@ -9,6 +9,7 @@
  */
 
 import { AgentDatabase } from './cozo-db'
+import { escapeForCozo } from './cozo-utils'
 
 /**
  * Initialize all tracking tables in the agent database
@@ -194,16 +195,16 @@ export async function upsertAgent(agentDb: AgentDatabase, agent: {
 }): Promise<void> {
   const now = Date.now()
 
-  // Build the data row with proper null handling
+  // Build the data row with proper escaping
   const dataRow = [
-    `'${agent.agent_id}'`,
-    `'${agent.name}'`,
-    `'${agent.type}'`,
-    `'active'`,
-    `'${agent.model || 'sonnet'}'`,
-    agent.working_directory ? `'${agent.working_directory}'` : 'null',
-    agent.config_file ? `'${agent.config_file}'` : 'null',
-    agent.metadata_file ? `'${agent.metadata_file}'` : 'null',
+    escapeForCozo(agent.agent_id),
+    escapeForCozo(agent.name),
+    escapeForCozo(agent.type),
+    escapeForCozo('active'),
+    escapeForCozo(agent.model || 'sonnet'),
+    escapeForCozo(agent.working_directory),
+    escapeForCozo(agent.config_file),
+    escapeForCozo(agent.metadata_file),
     `${now}`,
     `${now}`,
     `${now}`,
@@ -237,12 +238,12 @@ export async function createSession(agentDb: AgentDatabase, session: {
 }): Promise<void> {
   const now = Date.now()
 
-  // Build the data row with proper null handling
+  // Build the data row with proper escaping
   const dataRow = [
-    `'${session.session_id}'`,
-    `'${session.agent_id}'`,
-    `'${session.session_name}'`,
-    `'active'`,
+    escapeForCozo(session.session_id),
+    escapeForCozo(session.agent_id),
+    escapeForCozo(session.session_name),
+    escapeForCozo('active'),
     'null', // log_file
     'null', // notes_file
     'null', // project_path
@@ -268,7 +269,7 @@ export async function createSession(agentDb: AgentDatabase, session: {
   // Update agent's current session
   await agentDb.run(`
     ?[agent_id, current_session_id, updated_at, last_active_at, total_sessions] <- [
-      ['${session.agent_id}', '${session.session_id}', ${now}, ${now}, 1]
+      [${escapeForCozo(session.agent_id)}, ${escapeForCozo(session.session_id)}, ${now}, ${now}, 1]
     ]
     :update agents
   `)
@@ -290,18 +291,18 @@ export async function upsertProject(agentDb: AgentDatabase, project: {
 }): Promise<void> {
   const now = Date.now()
 
-  // Build the data row with proper null handling
+  // Build the data row with proper escaping
   const dataRow = [
-    `'${project.project_id}'`,
-    `'${project.agent_id}'`,
-    `'${project.project_path}'`,
-    `'${project.project_name}'`,
-    project.claude_config_dir ? `'${project.claude_config_dir}'` : 'null',
-    project.claude_settings ? `'${project.claude_settings}'` : 'null',
-    project.claude_md ? `'${project.claude_md}'` : 'null',
+    escapeForCozo(project.project_id),
+    escapeForCozo(project.agent_id),
+    escapeForCozo(project.project_path),
+    escapeForCozo(project.project_name),
+    escapeForCozo(project.claude_config_dir),
+    escapeForCozo(project.claude_settings),
+    escapeForCozo(project.claude_md),
     'true', // is_active
-    project.language ? `'${project.language}'` : 'null',
-    project.framework ? `'${project.framework}'` : 'null',
+    escapeForCozo(project.language),
+    escapeForCozo(project.framework),
     `${now}`,
     `${now}`,
     'null', // last_modified (nullable)
@@ -334,16 +335,16 @@ export async function createClaudeSession(agentDb: AgentDatabase, session: {
 }): Promise<void> {
   const now = Date.now()
 
-  // Build the data row with proper null handling
+  // Build the data row with proper escaping
   const dataRow = [
-    `'${session.claude_session_id}'`,
-    `'${session.agent_id}'`,
-    session.ai_maestro_session_id ? `'${session.ai_maestro_session_id}'` : 'null',
-    `'${session.project_id}'`,
-    `'${session.jsonl_file}'`,
+    escapeForCozo(session.claude_session_id),
+    escapeForCozo(session.agent_id),
+    escapeForCozo(session.ai_maestro_session_id),
+    escapeForCozo(session.project_id),
+    escapeForCozo(session.jsonl_file),
     'null', // sidechain_files
-    `'${session.session_type}'`,
-    `'active'`,
+    escapeForCozo(session.session_type),
+    escapeForCozo('active'),
     'null', // first_message_at
     'null', // last_message_at
     '0', // message_count
@@ -377,7 +378,7 @@ export async function getAgentFullContext(agentDb: AgentDatabase, agentId: strin
           total_sessions, total_projects] :=
       *agents{agent_id, name, working_directory, current_session_id, current_project_path,
              total_sessions, total_projects},
-      agent_id = '${agentId}'
+      agent_id = ${escapeForCozo(agentId)}
 
     # Get current session
     current_session[session_id, session_name, project_path, started_at] :=
@@ -420,7 +421,7 @@ export async function getProjectClaudeSessions(agentDb: AgentDatabase, projectId
         claude_session_id, project_id, jsonl_file, session_type, status,
         message_count, first_message_at, last_message_at, total_tokens
       },
-      project_id = '${projectId}'
+      project_id = ${escapeForCozo(projectId)}
 
     :order -last_message_at
   `
@@ -440,7 +441,7 @@ export async function getAgentWorkHistory(agentDb: AgentDatabase, agentId: strin
         session_id, agent_id: sess_agent_id, session_name, project_path,
         started_at, ended_at, status, total_messages
       },
-      sess_agent_id = '${agentId}',
+      sess_agent_id = ${escapeForCozo(agentId)},
       *projects{project_id, project_path, project_name},
       *claude_sessions{
         project_id, ai_maestro_session_id: session_id

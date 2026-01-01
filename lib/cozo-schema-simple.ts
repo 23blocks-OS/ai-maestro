@@ -6,6 +6,7 @@
  */
 
 import { AgentDatabase } from './cozo-db'
+import { escapeForCozo } from './cozo-utils'
 
 /**
  * Initialize minimal tracking schema
@@ -114,16 +115,16 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
           for (const row of existing.rows) {
             await agentDb.run(`
               ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
-                '${row[0]}',
-                '${row[1]}',
-                ${row[2] ? `'${row[2]}'` : 'null'},
+                ${escapeForCozo(row[0] as string)},
+                ${escapeForCozo(row[1] as string)},
+                ${escapeForCozo(row[2] as string | undefined)},
                 ${row[3] || 'null'},
                 ${row[4] || 'null'},
                 ${row[5] || 0},
-                ${row[6] ? `'${String(row[6]).replace(/'/g, "''")}'` : 'null'},
-                ${row[7] ? `'${String(row[7]).replace(/'/g, "''")}'` : 'null'},
-                ${row[8] ? `'${String(row[8]).replace(/'/g, "''")}'` : 'null'},
-                ${row[9] ? `'${String(row[9]).replace(/'/g, "''")}'` : 'null'},
+                ${escapeForCozo(row[6] as string | undefined)},
+                ${escapeForCozo(row[7] as string | undefined)},
+                ${escapeForCozo(row[8] as string | undefined)},
+                ${escapeForCozo(row[9] as string | undefined)},
                 null,
                 0
               ]]
@@ -161,13 +162,13 @@ export async function recordSession(agentDb: AgentDatabase, session: {
 }): Promise<void> {
   await agentDb.run(`
     ?[session_id, session_name, agent_id, working_directory, started_at, ended_at, status] <- [[
-      '${session.session_id}',
-      '${session.session_name}',
-      '${session.agent_id}',
-      ${session.working_directory ? `'${session.working_directory}'` : 'null'},
+      ${escapeForCozo(session.session_id)},
+      ${escapeForCozo(session.session_name)},
+      ${escapeForCozo(session.agent_id)},
+      ${escapeForCozo(session.working_directory)},
       ${session.started_at},
       null,
-      '${session.status || 'active'}'
+      ${escapeForCozo(session.status || 'active')}
     ]]
     :put sessions
   `)
@@ -185,9 +186,9 @@ export async function recordProject(agentDb: AgentDatabase, project: {
 
   await agentDb.run(`
     ?[project_path, project_name, claude_dir, first_seen, last_seen] <- [[
-      '${project.project_path}',
-      '${project.project_name}',
-      ${project.claude_dir ? `'${project.claude_dir}'` : 'null'},
+      ${escapeForCozo(project.project_path)},
+      ${escapeForCozo(project.project_name)},
+      ${escapeForCozo(project.claude_dir)},
       ${now},
       ${now}
     ]]
@@ -212,24 +213,18 @@ export async function recordConversation(agentDb: AgentDatabase, conversation: {
   last_indexed_at?: number
   last_indexed_message_count?: number
 }): Promise<void> {
-  // Escape single quotes in strings for CozoDB
-  const escapeString = (str: string | undefined) => {
-    if (!str) return 'null'
-    return `'${str.replace(/'/g, "''")}'`
-  }
-
   await agentDb.run(`
     ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
-      '${conversation.jsonl_file}',
-      '${conversation.project_path}',
-      ${conversation.session_id ? `'${conversation.session_id}'` : 'null'},
+      ${escapeForCozo(conversation.jsonl_file)},
+      ${escapeForCozo(conversation.project_path)},
+      ${escapeForCozo(conversation.session_id)},
       ${conversation.first_message_at || 'null'},
       ${conversation.last_message_at || 'null'},
       ${conversation.message_count || 0},
-      ${escapeString(conversation.first_user_message)},
-      ${escapeString(conversation.model_names)},
-      ${escapeString(conversation.git_branch)},
-      ${escapeString(conversation.claude_version)},
+      ${escapeForCozo(conversation.first_user_message)},
+      ${escapeForCozo(conversation.model_names)},
+      ${escapeForCozo(conversation.git_branch)},
+      ${escapeForCozo(conversation.claude_version)},
       ${conversation.last_indexed_at || 'null'},
       ${conversation.last_indexed_message_count || 0}
     ]]
@@ -244,7 +239,7 @@ export async function getSessions(agentDb: AgentDatabase, agentId: string) {
   return await agentDb.run(`
     ?[session_id, session_name, working_directory, started_at, ended_at, status] :=
       *sessions{session_id, session_name, agent_id, working_directory, started_at, ended_at, status},
-      agent_id = '${agentId}'
+      agent_id = ${escapeForCozo(agentId)}
 
     :order -started_at
   `)
@@ -279,7 +274,7 @@ export async function getConversations(agentDb: AgentDatabase, projectPath: stri
           first_user_message, model_names, git_branch, claude_version,
           last_indexed_at, last_indexed_message_count
         },
-        project_path = '${projectPath}'
+        project_path = ${escapeForCozo(projectPath)}
 
       :order -last_message_at
     `)

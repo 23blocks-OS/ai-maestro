@@ -10,6 +10,7 @@
  */
 
 import { AgentDatabase } from './cozo-db'
+import { escapeForCozo } from './cozo-utils'
 
 /**
  * Initialize RAG extensions to the existing agent memory schema
@@ -810,18 +811,6 @@ export async function upsertMessage(
   terms?: string[],
   symbols?: string[]
 ): Promise<void> {
-  // CozoDB string escaping: Use single quotes with backslash escaping
-  // Based on CozoDB syntax reference: \' for quotes, \n for newlines, \\ for backslash
-  const escapeForCozo = (s: string) => {
-    return "'" + s
-      .replace(/\\/g, '\\\\')  // Escape backslashes first
-      .replace(/'/g, "\\'")    // Then escape single quotes
-      .replace(/\n/g, '\\n')   // Then escape newlines
-      .replace(/\r/g, '\\r')   // Then escape carriage returns
-      .replace(/\t/g, '\\t')   // Then escape tabs
-      + "'"
-  }
-
   const query = `?[msg_id, conversation_file, role, ts, text] <- [[${escapeForCozo(message.msg_id)}, ${escapeForCozo(message.conversation_file)}, ${escapeForCozo(message.role)}, ${message.ts}, ${escapeForCozo(message.text)}]] :put messages`
 
   try {

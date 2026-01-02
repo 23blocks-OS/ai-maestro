@@ -63,6 +63,7 @@ interface MemoryStats {
 interface MemoryViewerProps {
   agentId: string
   hostUrl?: string
+  isVisible?: boolean
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -90,12 +91,13 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
   supersedes: '#f59e0b'   // amber
 }
 
-export default function MemoryViewer({ agentId, hostUrl = '' }: MemoryViewerProps) {
+export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }: MemoryViewerProps) {
   const [view, setView] = useState<'list' | 'graph'>('list')
   const [memories, setMemories] = useState<Memory[]>([])
   const [stats, setStats] = useState<MemoryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [hasInitialized, setHasInitialized] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [consolidating, setConsolidating] = useState(false)
@@ -201,16 +203,20 @@ export default function MemoryViewer({ agentId, hostUrl = '' }: MemoryViewerProp
     }
   }
 
+  // Only fetch when visible and not already initialized
   useEffect(() => {
-    fetchMemories()
-    fetchStats()
-  }, [fetchMemories, fetchStats])
+    if (isVisible && !hasInitialized) {
+      setHasInitialized(true)
+      fetchMemories()
+      fetchStats()
+    }
+  }, [isVisible, hasInitialized, fetchMemories, fetchStats])
 
   useEffect(() => {
-    if (view === 'graph') {
+    if (isVisible && view === 'graph') {
       fetchGraph()
     }
-  }, [view, fetchGraph])
+  }, [isVisible, view, fetchGraph])
 
   // Handle edit
   const startEdit = (memory: Memory) => {

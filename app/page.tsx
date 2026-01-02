@@ -8,6 +8,7 @@ import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
 import WorkTree from '@/components/WorkTree'
 import AgentGraph from '@/components/AgentGraph'
+import MemoryViewer from '@/components/MemoryViewer'
 import DocumentationPanel from '@/components/DocumentationPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
@@ -18,7 +19,7 @@ import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2 } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain } from 'lucide-react'
 import ImportAgentDialog from '@/components/ImportAgentDialog'
 import HelpPanel from '@/components/HelpPanel'
 import type { Agent } from '@/types/agent'
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'docs'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
@@ -530,6 +531,17 @@ export default function DashboardPage() {
                       Graph
                     </button>
                     <button
+                      onClick={() => setActiveTab('memory')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'memory'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Brain className="w-4 h-4" />
+                      Memory
+                    </button>
+                    <button
                       onClick={() => setActiveTab('docs')}
                       className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'docs'
@@ -677,6 +689,12 @@ export default function DashboardPage() {
                         isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                      />
+                    ) : activeTab === 'memory' ? (
+                      <MemoryViewer
+                        agentId={agent.id}
+                        hostUrl={agent.hostUrl}
+                        isVisible={isActive && activeTab === 'memory'}
                       />
                     ) : (
                       <DocumentationPanel

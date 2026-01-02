@@ -32,8 +32,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@types/pg": "^8.15.6",
-    "@xenova/transformers": "^2.17.2",
     "@xterm/addon-clipboard": "^0.1.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",

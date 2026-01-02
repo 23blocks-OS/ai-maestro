@@ -84,55 +84,72 @@ export async function initializeSimpleSchema(agentDb: AgentDatabase): Promise<vo
 
       // Try to migrate old schema by adding missing columns
       try {
-        // Read existing conversations
-        const existing = await agentDb.run(`?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] := *conversations{jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version}`)
+        // First, try to read WITH the new columns to check if they exist
+        let hasNewColumns = false
+        let existingWithNewCols: { rows: unknown[][] } | null = null
 
-        // If this query succeeded, we have the old schema - need to migrate
-        if (existing.rows && existing.rows.length > 0) {
-          console.log('[SCHEMA] ℹ Migrating old conversations schema...')
+        try {
+          existingWithNewCols = await agentDb.run(`?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] := *conversations{jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count}`)
+          hasNewColumns = true
+          console.log('[SCHEMA] ℹ conversations table already has new columns - no migration needed')
+        } catch {
+          // New columns don't exist, need migration
+          hasNewColumns = false
+        }
 
-          // Drop and recreate with new schema
-          await agentDb.run(`:remove conversations`)
-          await agentDb.run(`
-            :create conversations {
-              jsonl_file: String
-              =>
-              project_path: String,
-              session_id: String?,
-              first_message_at: Int?,
-              last_message_at: Int?,
-              message_count: Int,
-              first_user_message: String?,
-              model_names: String?,
-              git_branch: String?,
-              claude_version: String?,
-              last_indexed_at: Int?,
-              last_indexed_message_count: Int?
-            }
-          `)
+        if (!hasNewColumns) {
+          // Read existing conversations with old schema
+          const existing = await agentDb.run(`?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version] := *conversations{jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version}`)
 
-          // Re-insert old data with null values for new fields
-          for (const row of existing.rows) {
+          // If this query succeeded, we have the old schema - need to migrate
+          if (existing.rows && existing.rows.length > 0) {
+            console.log('[SCHEMA] ℹ Migrating old conversations schema...')
+
+            // Drop and recreate with new schema
+            await agentDb.run(`:remove conversations`)
             await agentDb.run(`
-              ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
-                ${escapeForCozo(row[0] as string)},
-                ${escapeForCozo(row[1] as string)},
-                ${escapeForCozo(row[2] as string | undefined)},
-                ${row[3] || 'null'},
-                ${row[4] || 'null'},
-                ${row[5] || 0},
-                ${escapeForCozo(row[6] as string | undefined)},
-                ${escapeForCozo(row[7] as string | undefined)},
-                ${escapeForCozo(row[8] as string | undefined)},
-                ${escapeForCozo(row[9] as string | undefined)},
-                null,
-                0
-              ]]
-              :put conversations
+              :create conversations {
+                jsonl_file: String
+                =>
+                project_path: String,
+                session_id: String?,
+                first_message_at: Int?,
+                last_message_at: Int?,
+                message_count: Int,
+                first_user_message: String?,
+                model_names: String?,
+                git_branch: String?,
+                claude_version: String?,
+                last_indexed_at: Int?,
+                last_indexed_message_count: Int?
+              }
             `)
-          }
 
-          console.log(`[SCHEMA] ✓ Migrated ${existing.rows.length} conversations to new schema`)
+            // Re-insert old data - set last_indexed_message_count to message_count
+            // to avoid re-indexing already existing messages
+            for (const row of existing.rows) {
+              const messageCount = row[5] || 0
+              await agentDb.run(`
+                ?[jsonl_file, project_path, session_id, first_message_at, last_message_at, message_count, first_user_message, model_names, git_branch, claude_version, last_indexed_at, last_indexed_message_count] <- [[
+                  ${escapeForCozo(row[0] as string)},
+                  ${escapeForCozo(row[1] as string)},
+                  ${escapeForCozo(row[2] as string | undefined)},
+                  ${row[3] || 'null'},
+                  ${row[4] || 'null'},
+                  ${messageCount},
+                  ${escapeForCozo(row[6] as string | undefined)},
+                  ${escapeForCozo(row[7] as string | undefined)},
+                  ${escapeForCozo(row[8] as string | undefined)},
+                  ${escapeForCozo(row[9] as string | undefined)},
+                  ${Date.now()},
+                  ${messageCount}
+                ]]
+                :put conversations
+              `)
+            }
+
+            console.log(`[SCHEMA] ✓ Migrated ${existing.rows.length} conversations to new schema (preserved index state)`)
+          }
         }
       } catch (migrationError: any) {
         // If migration fails or table already has new schema, continue

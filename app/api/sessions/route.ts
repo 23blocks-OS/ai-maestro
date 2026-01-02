@@ -12,6 +12,15 @@ import { getHosts, getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
+// ============================================================================
+// CACHING & DEDUPLICATION: Prevent API overload from multiple rapid requests
+// ============================================================================
+const CACHE_TTL_MS = 3000  // Cache results for 3 seconds
+
+let cachedSessions: Session[] | null = null
+let cacheTimestamp = 0
+let pendingRequest: Promise<Session[]> | null = null
+
 // Read version from package.json
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8')
@@ -219,36 +228,73 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
 }
 
 /**
+ * Internal function to actually fetch sessions from all hosts
+ */
+async function fetchAllSessions(): Promise<Session[]> {
+  const hosts = getHosts()
+
+  console.log(`[Sessions] Fetching from ${hosts.length} host(s)...`)
+
+  // Fetch sessions from all hosts in parallel
+  const sessionPromises = hosts.map(async (host) => {
+    if (host.type === 'local') {
+      return fetchLocalSessions(host.id)
+    } else {
+      return fetchRemoteSessions(host.url, host.id)
+    }
+  })
+
+  const allSessionArrays = await Promise.all(sessionPromises)
+
+  // Flatten arrays and combine
+  const allSessions = allSessionArrays.flat()
+
+  console.log(`[Sessions] Found ${allSessions.length} total session(s) across all hosts`)
+
+  return allSessions
+}
+
+/**
  * GET /api/sessions
  * Fetches sessions from all configured hosts (local + remote workers)
+ *
+ * Uses caching + request deduplication to prevent overload:
+ * - Results are cached for 3 seconds
+ * - Concurrent requests share the same pending promise
  */
 export async function GET() {
   try {
-    // Get all configured hosts
-    const hosts = getHosts()
-    const localHost = getLocalHost()
+    const now = Date.now()
 
-    console.log(`[Sessions] Fetching from ${hosts.length} host(s)...`)
+    // Return cached result if still valid
+    if (cachedSessions && (now - cacheTimestamp) < CACHE_TTL_MS) {
+      return NextResponse.json({ sessions: cachedSessions, fromCache: true })
+    }
 
-    // Fetch sessions from all hosts in parallel
-    const sessionPromises = hosts.map(async (host) => {
-      if (host.type === 'local') {
-        return fetchLocalSessions(host.id)
-      } else {
-        return fetchRemoteSessions(host.url, host.id)
-      }
-    })
+    // If there's already a request in flight, wait for it (deduplication)
+    if (pendingRequest) {
+      const sessions = await pendingRequest
+      return NextResponse.json({ sessions, fromCache: false })
+    }
 
-    const allSessionArrays = await Promise.all(sessionPromises)
+    // Start a new request
+    pendingRequest = fetchAllSessions()
 
-    // Flatten arrays and combine
-    const allSessions = allSessionArrays.flat()
+    try {
+      const sessions = await pendingRequest
 
-    console.log(`[Sessions] Found ${allSessions.length} total session(s) across all hosts`)
+      // Update cache
+      cachedSessions = sessions
+      cacheTimestamp = Date.now()
 
-    return NextResponse.json({ sessions: allSessions })
+      return NextResponse.json({ sessions, fromCache: false })
+    } finally {
+      // Clear pending request
+      pendingRequest = null
+    }
   } catch (error) {
     console.error('[Sessions] Failed to fetch sessions:', error)
+    pendingRequest = null  // Clear on error too
     return NextResponse.json(
       { error: 'Failed to fetch sessions', sessions: [] },
       { status: 500 }

@@ -7,12 +7,14 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
 import DeleteAgentDialog from './DeleteAgentDialog'
+import MemoryViewer from './MemoryViewer'
+import SkillsSection from './SkillsSection'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -50,6 +52,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     work: true,
     deployment: true,
     repositories: true,
+    memory: false,
+    skills: true,
     metrics: true,
     documentation: false,
     customMetadata: false,
@@ -692,6 +696,46 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </>
                     )}
                   </div>
+                )}
+              </section>
+
+              {/* Long-Term Memory Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('memory')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.memory ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Brain className="w-4 h-4" />
+                  Long-Term Memory
+                </button>
+
+                {expandedSections.memory && (
+                  <MemoryViewer agentId={agent.id} hostUrl={hostUrl} />
+                )}
+              </section>
+
+              {/* Skills Settings Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('skills')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.skills ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Cpu className="w-4 h-4" />
+                  Skills
+                </button>
+
+                {expandedSections.skills && (
+                  <SkillsSection agentId={agent.id} hostUrl={hostUrl} />
                 )}
               </section>
 

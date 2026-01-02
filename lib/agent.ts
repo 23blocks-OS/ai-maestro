@@ -24,6 +24,8 @@ interface AgentConfig {
 interface SubconsciousConfig {
   memoryCheckInterval?: number  // How often to check for new conversations (default: 5 minutes)
   messageCheckInterval?: number // How often to check for messages (default: 2 minutes)
+  consolidationEnabled?: boolean // Enable long-term memory consolidation (default: true)
+  consolidationHour?: number    // Hour of day to run consolidation (default: 2 = 2 AM)
 }
 
 // Activity-based interval configuration
@@ -74,6 +76,24 @@ interface SubconsciousStatus {
   // Cumulative stats (accumulated across this session)
   cumulativeMessagesIndexed: number
   cumulativeConversationsIndexed: number
+  // Long-term memory consolidation
+  consolidation: {
+    enabled: boolean
+    scheduledHour: number
+    lastRun: number | null
+    nextRun: number | null
+    lastResult: {
+      success: boolean
+      memoriesCreated?: number
+      memoriesReinforced?: number
+      memoriesLinked?: number
+      conversationsProcessed?: number
+      durationMs?: number
+      providerUsed?: string
+      error?: string
+    } | null
+    totalRuns: number
+  }
 }
 
 // Static counter for staggering initial runs across all agents
@@ -84,6 +104,7 @@ class AgentSubconscious {
   private agent: Agent
   private memoryTimer: NodeJS.Timeout | null = null
   private messageTimer: NodeJS.Timeout | null = null
+  private consolidationTimer: NodeJS.Timeout | null = null
   private initialDelayTimer: NodeJS.Timeout | null = null
   private isRunning = false
   private memoryCheckInterval: number
@@ -106,12 +127,23 @@ class AgentSubconscious {
   private cumulativeMessagesIndexed = 0
   private cumulativeConversationsIndexed = 0
 
+  // Long-term memory consolidation
+  private consolidationEnabled: boolean
+  private consolidationHour: number
+  private lastConsolidationRun: number | null = null
+  private nextConsolidationRun: number | null = null
+  private lastConsolidationResult: SubconsciousStatus['consolidation']['lastResult'] = null
+  private totalConsolidationRuns = 0
+
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
     this.agent = agent
     // Default interval (will be adjusted based on activity)
     this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
     this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes
+    // Long-term memory consolidation config
+    this.consolidationEnabled = config.consolidationEnabled !== false  // Default: enabled
+    this.consolidationHour = config.consolidationHour ?? 2  // Default: 2 AM
     // Assign instance number for staggering initial runs
     this.instanceNumber = subconsciousInstanceCount++
     // Calculate stagger offset based on agentId hash (consistent across restarts)
@@ -187,7 +219,111 @@ class AgentSubconscious {
       console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hints not available - running autonomously`)
     }
 
+    // Schedule long-term memory consolidation
+    if (this.consolidationEnabled) {
+      this.scheduleConsolidation()
+    }
+
     console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running (first memory check in ${Math.round(this.staggerOffset / 1000)}s)`)
+  }
+
+  /**
+   * Schedule next consolidation run
+   */
+  private scheduleConsolidation() {
+    // Calculate time until next scheduled consolidation
+    const now = new Date()
+    const nextRun = new Date(now)
+    nextRun.setHours(this.consolidationHour, 0, 0, 0)
+
+    // If we've already passed the scheduled hour today, schedule for tomorrow
+    if (now >= nextRun) {
+      nextRun.setDate(nextRun.getDate() + 1)
+    }
+
+    // Add stagger offset to prevent all agents from running at once
+    const staggerMinutes = Math.abs(this.agentId.split('').reduce(
+      (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0
+    )) % 30  // Spread across 30 minutes
+    nextRun.setMinutes(staggerMinutes)
+
+    const timeUntilRun = nextRun.getTime() - now.getTime()
+    this.nextConsolidationRun = nextRun.getTime()
+
+    console.log(`[Agent ${this.agentId.substring(0, 8)}] 📚 Consolidation scheduled for ${nextRun.toLocaleTimeString()} (in ${Math.round(timeUntilRun / 60000)} min)`)
+
+    // Clear existing timer
+    if (this.consolidationTimer) {
+      clearTimeout(this.consolidationTimer)
+    }
+
+    // Set timer for consolidation
+    this.consolidationTimer = setTimeout(() => {
+      this.runConsolidation().catch(err => {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed:`, err)
+      }).finally(() => {
+        // Schedule next run after this one completes
+        if (this.isRunning && this.consolidationEnabled) {
+          this.scheduleConsolidation()
+        }
+      })
+    }, timeUntilRun)
+  }
+
+  /**
+   * Run memory consolidation
+   * Extracts long-term memories from recent conversations
+   */
+  private async runConsolidation() {
+    this.totalConsolidationRuns++
+    this.lastConsolidationRun = Date.now()
+    const startTime = Date.now()
+
+    console.log(`[Agent ${this.agentId.substring(0, 8)}] 📚 Running memory consolidation...`)
+
+    try {
+      // Call the consolidation API endpoint
+      const response = await fetch(`http://localhost:23000/api/agents/${this.agentId}/memory/consolidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        this.lastConsolidationResult = { success: false, error: `HTTP ${response.status}` }
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed: ${response.status}`)
+        return
+      }
+
+      const result = await response.json()
+
+      this.lastConsolidationResult = {
+        success: result.status !== 'failed',
+        memoriesCreated: result.memories_created || 0,
+        memoriesReinforced: result.memories_reinforced || 0,
+        memoriesLinked: result.memories_linked || 0,
+        conversationsProcessed: result.conversations_processed || 0,
+        durationMs: Date.now() - startTime,
+        providerUsed: result.provider_used || 'unknown',
+        error: result.errors?.length > 0 ? result.errors.join('; ') : undefined
+      }
+
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Consolidation complete: ${result.memories_created} created, ${result.memories_reinforced} reinforced (${result.provider_used})`)
+    } catch (error) {
+      this.lastConsolidationResult = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: Date.now() - startTime
+      }
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation error:`, error)
+    }
+  }
+
+  /**
+   * Manually trigger consolidation (for testing or on-demand)
+   */
+  async triggerConsolidation(): Promise<SubconsciousStatus['consolidation']['lastResult']> {
+    await this.runConsolidation()
+    return this.lastConsolidationResult
   }
 
   /**
@@ -201,6 +337,10 @@ class AgentSubconscious {
     if (this.messageTimer) {
       clearInterval(this.messageTimer)
       this.messageTimer = null
+    }
+    if (this.consolidationTimer) {
+      clearTimeout(this.consolidationTimer)
+      this.consolidationTimer = null
     }
     if (this.initialDelayTimer) {
       clearTimeout(this.initialDelayTimer)
@@ -494,7 +634,15 @@ class AgentSubconscious {
       totalMemoryRuns: this.totalMemoryRuns,
       totalMessageRuns: this.totalMessageRuns,
       cumulativeMessagesIndexed: this.cumulativeMessagesIndexed,
-      cumulativeConversationsIndexed: this.cumulativeConversationsIndexed
+      cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
+      consolidation: {
+        enabled: this.consolidationEnabled,
+        scheduledHour: this.consolidationHour,
+        lastRun: this.lastConsolidationRun,
+        nextRun: this.nextConsolidationRun,
+        lastResult: this.lastConsolidationResult,
+        totalRuns: this.totalConsolidationRuns
+      }
     }
   }
 }

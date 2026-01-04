@@ -2,7 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import type { Agent, AgentSummary, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
+import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
+import { parseSessionName, computeSessionName } from '@/types/agent'
 import { getLocalHost } from '@/lib/hosts-config'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -65,19 +66,33 @@ export function getAgent(id: string): Agent | null {
 }
 
 /**
- * Get agent by alias
+ * Get agent by name (the primary identity)
  */
-export function getAgentByAlias(alias: string): Agent | null {
+export function getAgentByName(name: string): Agent | null {
   const agents = loadAgents()
-  return agents.find(a => a.alias.toLowerCase() === alias.toLowerCase()) || null
+  return agents.find(a => a.name?.toLowerCase() === name.toLowerCase()) || null
 }
 
 /**
- * Get agent by session name
+ * Get agent by alias (DEPRECATED - use getAgentByName)
+ * Kept for backward compatibility during migration
+ */
+export function getAgentByAlias(alias: string): Agent | null {
+  const agents = loadAgents()
+  // Try name first, then deprecated alias field
+  return agents.find(a =>
+    a.name?.toLowerCase() === alias.toLowerCase() ||
+    a.alias?.toLowerCase() === alias.toLowerCase()
+  ) || null
+}
+
+/**
+ * Get agent by tmux session name
+ * Uses parseSessionName to extract agent name from session (e.g., "website_1" → "website")
  */
 export function getAgentBySession(sessionName: string): Agent | null {
-  const agents = loadAgents()
-  return agents.find(a => a.tools.session?.tmuxSessionName === sessionName) || null
+  const { agentName } = parseSessionName(sessionName)
+  return getAgentByName(agentName)
 }
 
 /**
@@ -86,10 +101,16 @@ export function getAgentBySession(sessionName: string): Agent | null {
 export function createAgent(request: CreateAgentRequest): Agent {
   const agents = loadAgents()
 
-  // Check if alias already exists
-  const existing = getAgentByAlias(request.alias)
+  // Support both new 'name' and deprecated 'alias'
+  const agentName = request.name || request.alias
+  if (!agentName) {
+    throw new Error('Agent name is required')
+  }
+
+  // Check if name already exists
+  const existing = getAgentByName(agentName)
   if (existing) {
-    throw new Error(`Agent with alias "${request.alias}" already exists`)
+    throw new Error(`Agent with name "${agentName}" already exists`)
   }
 
   // Determine deployment type
@@ -101,12 +122,26 @@ export function createAgent(request: CreateAgentRequest): Agent {
   const hostName = localHost?.name || os.hostname()
   const hostUrl = localHost?.url || 'http://localhost:23000'
 
-  // Create agent
+  // Create initial sessions array
+  const sessions: AgentSession[] = []
+  if (request.createSession) {
+    const sessionIndex = request.sessionIndex || 0
+    sessions.push({
+      index: sessionIndex,
+      status: 'offline',
+      workingDirectory: request.workingDirectory,
+      createdAt: new Date().toISOString(),
+    })
+  }
+
+  // Create agent with new schema
   const agent: Agent = {
     id: uuidv4(),
-    alias: request.alias,
-    displayName: request.displayName,
+    name: agentName,
+    label: request.label || request.displayName,
     avatar: request.avatar,
+    workingDirectory: request.workingDirectory || process.cwd(),
+    sessions,
     hostId,
     hostName,
     hostUrl,
@@ -129,7 +164,6 @@ export function createAgent(request: CreateAgentRequest): Agent {
       })
     },
     metrics: {
-      // Initialize metrics with zeros
       totalSessions: 0,
       totalMessages: 0,
       totalTasksCompleted: 0,
@@ -140,15 +174,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
       lastCostUpdate: new Date().toISOString(),
     },
     tools: {
-      // Session tool (if requested)
-      ...(request.createSession && {
-        session: {
-          tmuxSessionName: generateSessionName(request.alias, request.tags),
-          workingDirectory: request.workingDirectory || process.cwd(),
-          status: 'stopped',
-          createdAt: new Date().toISOString(),
-        }
-      })
+      // Keep tools object for backward compatibility with other tools
+      // Session is now in agent.sessions array
     },
     status: 'offline',
     createdAt: new Date().toISOString(),
@@ -175,11 +202,15 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     return null
   }
 
-  // Check alias uniqueness if being updated
-  if (updates.alias && updates.alias !== agents[index].alias) {
-    const existing = getAgentByAlias(updates.alias)
+  // Support both new 'name' and deprecated 'alias'
+  const newName = updates.name || updates.alias
+  const currentName = agents[index].name || agents[index].alias
+
+  // Check name uniqueness if being updated
+  if (newName && newName !== currentName) {
+    const existing = getAgentByName(newName)
     if (existing) {
-      throw new Error(`Agent with alias "${updates.alias}" already exists`)
+      throw new Error(`Agent with name "${newName}" already exists`)
     }
   }
 
@@ -188,10 +219,22 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     updates.tags = normalizeTags(updates.tags)
   }
 
+  // Build update object
+  const updateData: Partial<Agent> = {
+    ...updates,
+    // Map deprecated fields to new fields
+    ...(newName && { name: newName }),
+    ...(updates.label || updates.displayName ? { label: updates.label || updates.displayName } : {}),
+  }
+
+  // Remove deprecated fields from update
+  delete (updateData as any).alias
+  delete (updateData as any).displayName
+
   // Update agent
   agents[index] = {
     ...agents[index],
-    ...updates,
+    ...updateData,
     documentation: {
       ...agents[index].documentation,
       ...updates.documentation
@@ -264,7 +307,7 @@ export function incrementAgentMetric(
 
 /**
  * Delete an agent and clean up associated data
- * Also kills the tmux session if running
+ * Also kills any tmux sessions belonging to this agent
  */
 export function deleteAgent(id: string): boolean {
   const agents = loadAgents()
@@ -274,17 +317,33 @@ export function deleteAgent(id: string): boolean {
     return false // Agent not found
   }
 
-  // Kill tmux session if the agent has one
-  const tmuxSessionName = agentToDelete.tools.session?.tmuxSessionName || agentToDelete.alias
-  if (tmuxSessionName) {
-    try {
-      const { execSync } = require('child_process')
-      // Check if session exists and kill it
-      execSync(`tmux kill-session -t "${tmuxSessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
-      console.log(`[Agent Registry] Killed tmux session: ${tmuxSessionName}`)
-    } catch (error) {
-      // Session might not exist, that's okay
-      console.log(`[Agent Registry] Could not kill tmux session ${tmuxSessionName} (may not exist)`)
+  // Get agent name (use new name field, fallback to deprecated alias)
+  const agentName = agentToDelete.name || agentToDelete.alias
+
+  // Kill all tmux sessions belonging to this agent
+  if (agentName) {
+    const { execSync } = require('child_process')
+
+    // Kill sessions for all indices in the sessions array
+    const sessions = agentToDelete.sessions || []
+    for (const session of sessions) {
+      const sessionName = computeSessionName(agentName, session.index)
+      try {
+        execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+        console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
+      } catch (error) {
+        console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
+      }
+    }
+
+    // Also try to kill the base session name (in case sessions array is empty)
+    if (sessions.length === 0) {
+      try {
+        execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+        console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
+      } catch (error) {
+        console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
+      }
     }
   }
 
@@ -326,18 +385,38 @@ export function deleteAgent(id: string): boolean {
 export function listAgents(): AgentSummary[] {
   const agents = loadAgents()
 
-  return agents.map(a => ({
-    id: a.id,
-    alias: a.alias,
-    displayName: a.displayName,
-    avatar: a.avatar,
-    hostId: a.hostId || 'local',
-    hostUrl: a.hostUrl,
-    status: a.status,
-    lastActive: a.lastActive,
-    currentSession: a.tools.session?.tmuxSessionName,
-    deployment: a.deployment
-  }))
+  return agents.map(a => {
+    // Get agent name (new field, fallback to deprecated alias)
+    const agentName = a.name || a.alias || 'unknown'
+    // Get sessions (new field, fallback to tools.session)
+    const sessions: AgentSession[] = a.sessions || (a.tools?.session ? [{
+      index: 0,
+      status: a.tools.session.status === 'running' ? 'online' : 'offline',
+      workingDirectory: a.tools.session.workingDirectory,
+      createdAt: a.tools.session.createdAt,
+      lastActive: a.tools.session.lastActive,
+    }] : [])
+
+    // Find first online session for deprecated currentSession field
+    const onlineSession = sessions.find(s => s.status === 'online')
+    const currentSession = onlineSession ? computeSessionName(agentName, onlineSession.index) : undefined
+
+    return {
+      id: a.id,
+      name: agentName,
+      label: a.label,
+      avatar: a.avatar,
+      hostId: a.hostId || 'local',
+      hostUrl: a.hostUrl,
+      status: a.status,
+      lastActive: a.lastActive,
+      sessions,
+      deployment: a.deployment,
+      // DEPRECATED: for backward compatibility
+      alias: agentName,
+      currentSession,
+    }
+  })
 }
 
 /**
@@ -359,6 +438,7 @@ export function updateAgentStatus(id: string, status: Agent['status']): boolean 
 
 /**
  * Link a session to an agent
+ * Uses parseSessionName to determine session index from tmux session name
  */
 export function linkSession(agentId: string, sessionName: string, workingDirectory: string): boolean {
   const agents = loadAgents()
@@ -368,12 +448,33 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
     return false
   }
 
-  agents[index].tools.session = {
-    tmuxSessionName: sessionName,
+  // Parse session name to get index
+  const { index: sessionIndex } = parseSessionName(sessionName)
+
+  // Initialize sessions array if needed
+  if (!agents[index].sessions) {
+    agents[index].sessions = []
+  }
+
+  // Find or create session entry
+  const existingSessionIdx = agents[index].sessions.findIndex(s => s.index === sessionIndex)
+  const sessionData: AgentSession = {
+    index: sessionIndex,
+    status: 'online',
     workingDirectory,
-    status: 'running',
     createdAt: new Date().toISOString(),
-    lastActive: new Date().toISOString()
+    lastActive: new Date().toISOString(),
+  }
+
+  if (existingSessionIdx >= 0) {
+    agents[index].sessions[existingSessionIdx] = sessionData
+  } else {
+    agents[index].sessions.push(sessionData)
+  }
+
+  // Update agent-level working directory if not set
+  if (!agents[index].workingDirectory) {
+    agents[index].workingDirectory = workingDirectory
   }
 
   agents[index].status = 'active'
@@ -386,7 +487,7 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
  * Update just the working directory for an agent's session
  * Used when the live tmux pwd differs from the stored workingDirectory
  */
-export function updateAgentWorkingDirectory(agentId: string, workingDirectory: string): boolean {
+export function updateAgentWorkingDirectory(agentId: string, workingDirectory: string, sessionIndex: number = 0): boolean {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -394,12 +495,7 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
     return false
   }
 
-  // Only update if agent has a session
-  if (!agents[index].tools?.session) {
-    return false
-  }
-
-  const oldWd = agents[index].tools.session.workingDirectory
+  const oldWd = agents[index].workingDirectory
   if (oldWd === workingDirectory) {
     return true // No change needed
   }
@@ -408,9 +504,18 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
   console.log(`[Agent Registry]   Old: ${oldWd}`)
   console.log(`[Agent Registry]   New: ${workingDirectory}`)
 
-  agents[index].tools.session.workingDirectory = workingDirectory
-  agents[index].tools.session.lastActive = new Date().toISOString()
+  // Update agent-level working directory
+  agents[index].workingDirectory = workingDirectory
   agents[index].lastActive = new Date().toISOString()
+
+  // Also update specific session if it exists
+  if (agents[index].sessions) {
+    const sessionIdx = agents[index].sessions.findIndex(s => s.index === sessionIndex)
+    if (sessionIdx >= 0) {
+      agents[index].sessions[sessionIdx].workingDirectory = workingDirectory
+      agents[index].sessions[sessionIdx].lastActive = new Date().toISOString()
+    }
+  }
 
   // Also update preferences if they exist
   if (agents[index].preferences) {
@@ -421,9 +526,11 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
 }
 
 /**
- * Unlink session from agent
+ * Unlink session from agent (mark as offline)
+ * If sessionIndex provided, only marks that session offline
+ * If no sessionIndex, marks all sessions offline
  */
-export function unlinkSession(agentId: string): boolean {
+export function unlinkSession(agentId: string, sessionIndex?: number): boolean {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -431,11 +538,27 @@ export function unlinkSession(agentId: string): boolean {
     return false
   }
 
-  if (agents[index].tools.session) {
-    agents[index].tools.session.status = 'stopped'
+  // Update sessions array
+  if (agents[index].sessions) {
+    if (sessionIndex !== undefined) {
+      // Mark specific session offline
+      const sessionIdx = agents[index].sessions.findIndex(s => s.index === sessionIndex)
+      if (sessionIdx >= 0) {
+        agents[index].sessions[sessionIdx].status = 'offline'
+        agents[index].sessions[sessionIdx].lastActive = new Date().toISOString()
+      }
+    } else {
+      // Mark all sessions offline
+      agents[index].sessions.forEach(s => {
+        s.status = 'offline'
+        s.lastActive = new Date().toISOString()
+      })
+    }
   }
 
-  agents[index].status = 'offline'
+  // Check if any sessions are still online
+  const hasOnlineSession = agents[index].sessions?.some(s => s.status === 'online') ?? false
+  agents[index].status = hasOnlineSession ? 'active' : 'offline'
   agents[index].lastActive = new Date().toISOString()
 
   return saveAgents(agents)
@@ -450,70 +573,174 @@ function normalizeTags(tags?: string[]): string[] {
 }
 
 /**
- * Search agents by query (alias, displayName, taskDescription, tags)
+ * Search agents by query (name, label, taskDescription, tags)
  */
 export function searchAgents(query: string): Agent[] {
   const agents = loadAgents()
   const lowerQuery = query.toLowerCase()
 
-  return agents.filter(a =>
-    a.alias.toLowerCase().includes(lowerQuery) ||
-    a.displayName?.toLowerCase().includes(lowerQuery) ||
-    a.taskDescription.toLowerCase().includes(lowerQuery) ||
-    a.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
-  )
+  return agents.filter(a => {
+    const agentName = a.name || a.alias || ''
+    const agentLabel = a.label || ''
+    return (
+      agentName.toLowerCase().includes(lowerQuery) ||
+      agentLabel.toLowerCase().includes(lowerQuery) ||
+      a.taskDescription?.toLowerCase().includes(lowerQuery) ||
+      a.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
+    )
+  })
 }
 
 /**
- * Generate session name from alias and tags
- * Examples:
- *   alias: "ProngHub", tags: ["23blocks", "apps"] → "23blocks-apps-pronghub"
- *   alias: "BackendAPI", tags: [] → "backendapi"
+ * Resolve name/alias to agent ID
+ * Used for messaging and other operations that reference agents by name
  */
-function generateSessionName(alias: string, tags?: string[]): string {
-  const parts = [...(tags || []), alias]
-  return parts.map(p => p.toLowerCase().replace(/[^a-z0-9]/g, '')).join('-')
-}
-
-/**
- * Resolve alias to agent ID
- * Used for messaging and other operations that reference agents by alias
- */
-export function resolveAlias(aliasOrId: string): string | null {
-  const agent = getAgentByAlias(aliasOrId) || getAgent(aliasOrId)
+export function resolveAlias(nameOrId: string): string | null {
+  // Try by name first, then by ID
+  const agent = getAgentByName(nameOrId) || getAgent(nameOrId)
   return agent?.id || null
 }
 
 /**
- * Rename agent's session name
- * Updates the tmuxSessionName in registry when a session is renamed
+ * Rename agent
+ * Updates the agent name (which affects all derived session names)
  */
-export function renameAgentSession(oldSessionName: string, newSessionName: string): boolean {
+export function renameAgent(agentId: string, newName: string): boolean {
   const agents = loadAgents()
-  const index = agents.findIndex(a => a.tools.session?.tmuxSessionName === oldSessionName)
+  const index = agents.findIndex(a => a.id === agentId)
 
   if (index === -1) {
-    return false // Agent not found
+    return false
   }
 
-  if (agents[index].tools.session) {
-    agents[index].tools.session.tmuxSessionName = newSessionName
-    agents[index].lastActive = new Date().toISOString()
+  // Check if new name already exists
+  const existing = getAgentByName(newName)
+  if (existing && existing.id !== agentId) {
+    console.error(`[Agent Registry] Cannot rename: agent with name "${newName}" already exists`)
+    return false
   }
+
+  const oldName = agents[index].name || agents[index].alias
+  console.log(`[Agent Registry] Renaming agent from "${oldName}" to "${newName}"`)
+
+  agents[index].name = newName
+  // Clear deprecated alias
+  delete agents[index].alias
+  agents[index].lastActive = new Date().toISOString()
 
   return saveAgents(agents)
 }
 
 /**
+ * @deprecated Use renameAgent instead
+ * Kept for backward compatibility
+ */
+export function renameAgentSession(oldSessionName: string, newSessionName: string): boolean {
+  // Parse old session name to find agent
+  const { agentName: oldAgentName } = parseSessionName(oldSessionName)
+  const { agentName: newAgentName } = parseSessionName(newSessionName)
+
+  const agent = getAgentByName(oldAgentName)
+  if (!agent) {
+    return false
+  }
+
+  // If agent name changed, rename the agent
+  if (oldAgentName !== newAgentName) {
+    return renameAgent(agent.id, newAgentName)
+  }
+
+  return true // Same agent name, nothing to do
+}
+
+/**
  * Delete agent by session name
- * Removes the agent from registry when its session is deleted
+ * Parses session name to find agent, then deletes it
  */
 export function deleteAgentBySession(sessionName: string): boolean {
   const agent = getAgentBySession(sessionName)
   if (!agent) {
-    return false // Agent not found
+    return false
   }
 
-  // Use deleteAgent to properly clean up messages and data directories
   return deleteAgent(agent.id)
+}
+
+/**
+ * Add a session to an existing agent (for multi-session support)
+ * Returns the new session index
+ */
+export function addSessionToAgent(agentId: string, workingDirectory?: string, role?: string): number | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  // Initialize sessions array if needed
+  if (!agents[index].sessions) {
+    agents[index].sessions = []
+  }
+
+  // Find next available index
+  const existingIndices = agents[index].sessions.map(s => s.index)
+  let nextIndex = 0
+  while (existingIndices.includes(nextIndex)) {
+    nextIndex++
+  }
+
+  // Add new session
+  agents[index].sessions.push({
+    index: nextIndex,
+    status: 'offline',
+    workingDirectory: workingDirectory || agents[index].workingDirectory,
+    role,
+    createdAt: new Date().toISOString(),
+  })
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return nextIndex
+}
+
+/**
+ * Remove a session from an agent
+ */
+export function removeSessionFromAgent(agentId: string, sessionIndex: number): boolean {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return false
+  }
+
+  if (!agents[index].sessions) {
+    return false
+  }
+
+  const sessionIdx = agents[index].sessions.findIndex(s => s.index === sessionIndex)
+  if (sessionIdx === -1) {
+    return false
+  }
+
+  // Kill the tmux session first
+  const agentName = agents[index].name || agents[index].alias
+  if (agentName) {
+    const sessionName = computeSessionName(agentName, sessionIndex)
+    try {
+      const { execSync } = require('child_process')
+      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+      console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
+    } catch (error) {
+      // Session might not exist
+    }
+  }
+
+  // Remove from array
+  agents[index].sessions.splice(sessionIdx, 1)
+  agents[index].lastActive = new Date().toISOString()
+
+  return saveAgents(agents)
 }

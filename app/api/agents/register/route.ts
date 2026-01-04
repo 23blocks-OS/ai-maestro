@@ -50,16 +50,17 @@ export async function POST(request: Request) {
         registryAgent = existingAgent
       } else {
         // Create new registry entry with minimal info
-        // Extract alias from session name (last part after dashes)
+        // Extract display name from session name (last part after dashes)
         const parts = sessionName.split('-')
-        const alias = parts[parts.length - 1] || sessionName
+        const shortName = parts[parts.length - 1] || sessionName
         // Normalize tags to lowercase for case-insensitive handling
         const tags = parts.slice(0, -1).map((t: string) => t.toLowerCase())
 
         try {
+          // Use full sessionName as the agent name (identity)
           registryAgent = createAgent({
-            alias,
-            displayName: sessionName,
+            name: sessionName,
+            label: shortName !== sessionName ? shortName : undefined,
             program: 'claude-code',
             model: 'claude-sonnet-4-5',
             taskDescription: `Agent for ${sessionName}`,
@@ -69,22 +70,7 @@ export async function POST(request: Request) {
             workingDirectory: workingDirectory || process.cwd()
           })
         } catch (createError) {
-          // If alias already exists, try with full session name as alias
-          try {
-            registryAgent = createAgent({
-              alias: sessionName,
-              displayName: sessionName,
-              program: 'claude-code',
-              model: 'claude-sonnet-4-5',
-              taskDescription: `Agent for ${sessionName}`,
-              tags: [],
-              owner: os.userInfo().username,
-              createSession: true,
-              workingDirectory: workingDirectory || process.cwd()
-            })
-          } catch (retryError) {
-            console.warn(`[Register] Could not create registry entry for ${sessionName}:`, retryError)
-          }
+          console.warn(`[Register] Could not create registry entry for ${sessionName}:`, createError)
         }
       }
     } else {
@@ -115,7 +101,7 @@ export async function POST(request: Request) {
       message: `Agent ${agentId} registered successfully`,
       agentId,
       agent: agentConfig,
-      registryAgent: registryAgent ? { id: registryAgent.id, alias: registryAgent.alias } : null
+      registryAgent: registryAgent ? { id: registryAgent.id, name: registryAgent.name || registryAgent.alias } : null
     })
   } catch (error) {
     console.error('Failed to register agent:', error)

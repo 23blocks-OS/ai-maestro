@@ -89,45 +89,57 @@ const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
  */
 function resolveAgent(identifier: string): ResolvedAgent | null {
   const agents = loadAgents()
+  const { parseSessionName, computeSessionName } = require('@/types/agent')
 
   // 1. Try exact ID match
   let agent = agents.find(a => a.id === identifier)
 
-  // 2. Try exact alias match (case-insensitive)
-  if (!agent) {
-    agent = agents.find(a => a.alias.toLowerCase() === identifier.toLowerCase())
-  }
-
-  // 3. Try tmux session name match
-  if (!agent) {
-    agent = agents.find(a => a.tools.session?.tmuxSessionName === identifier)
-  }
-
-  // 4. Try partial alias match in session name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
-  // Only match on last segment to avoid false positives (e.g., "api" should NOT match "23blocks-api-crm")
+  // 2. Try exact name match (case-insensitive)
   if (!agent) {
     agent = agents.find(a => {
-      const sessionName = a.tools.session?.tmuxSessionName || ''
-      const segments = sessionName.split(/[-_]/)
+      const agentName = a.name || a.alias || ''
+      return agentName.toLowerCase() === identifier.toLowerCase()
+    })
+  }
+
+  // 3. Try session name match (parse identifier as potential session name)
+  if (!agent) {
+    const { agentName } = parseSessionName(identifier)
+    agent = agents.find(a => {
+      const name = a.name || a.alias || ''
+      return name.toLowerCase() === agentName.toLowerCase()
+    })
+  }
+
+  // 4. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
+  if (!agent) {
+    agent = agents.find(a => {
+      const agentName = a.name || a.alias || ''
+      const segments = agentName.split(/[-_]/)
       return segments.length > 0 && segments[segments.length - 1].toLowerCase() === identifier.toLowerCase()
     })
   }
 
   if (!agent) return null
 
-  // Get host info from session or tools
-  const session = agent.tools?.session || (agent as any).session
+  // Get agent name and first online session name
+  const agentName = agent.name || agent.alias || ''
+  const onlineSession = agent.sessions?.find(s => s.status === 'online')
+  const sessionName = onlineSession
+    ? computeSessionName(agentName, onlineSession.index)
+    : agentName
+
   // Use the actual host identifier instead of 'local'
-  const hostId = session?.hostId === 'local' || !session?.hostId
+  const hostId = agent.hostId === 'local' || !agent.hostId
     ? getLocalHostName()
-    : session.hostId
-  const hostUrl = session?.hostUrl || 'http://localhost:23000'
+    : agent.hostId
+  const hostUrl = agent.hostUrl || 'http://localhost:23000'
 
   return {
     agentId: agent.id,
-    alias: agent.alias,
-    displayName: agent.displayName,
-    sessionName: session?.tmuxSessionName,
+    alias: agentName,
+    displayName: agent.label,
+    sessionName,
     hostId,
     hostUrl
   }

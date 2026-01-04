@@ -154,8 +154,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          alias: agent.alias,
-          displayName: agent.displayName,
+          name: agent.name || agent.alias,
+          label: agent.label,
           avatar: agent.avatar,
           owner: agent.owner,
           team: agent.team,
@@ -385,17 +385,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </div>
                       <div className="flex-1 space-y-3">
                         <EditableField
-                          label="Alias"
-                          value={agent.alias}
-                          onChange={(value) => updateField('alias', value)}
+                          label="Name"
+                          value={agent.name || agent.alias || ''}
+                          onChange={(value) => updateField('name', value)}
                           icon={<User className="w-4 h-4" />}
                         />
                         <EditableField
-                          label="Display Name"
-                          value={agent.displayName || ''}
-                          onChange={(value) => updateField('displayName', value)}
+                          label="Label"
+                          value={agent.label || ''}
+                          onChange={(value) => updateField('label', value)}
                           icon={<Users className="w-4 h-4" />}
-                          placeholder="Optional full name"
+                          placeholder="Optional display label"
                         />
                       </div>
                     </div>
@@ -952,8 +952,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
       {showTransferDialog && agent && (
         <TransferAgentDialog
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
           currentHostId={agent.deployment?.local?.hostname === 'localhost' ? 'local' : undefined}
           onClose={() => setShowTransferDialog(false)}
           onTransferComplete={(result) => {
@@ -973,8 +973,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           isOpen={showExportDialog}
           onClose={() => setShowExportDialog(false)}
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
           hostUrl={hostUrl}
         />
       )}
@@ -990,8 +990,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             }
           }}
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
         />
       )}
     </>

@@ -84,7 +84,7 @@ export default function MobileHostsList({
 
   // Get display name for an agent
   const getAgentDisplayName = (agent: Agent) => {
-    return agent.displayName || agent.alias || agent.id
+    return agent.label || agent.name || agent.alias || agent.id
   }
 
   // Get breadcrumb from tags

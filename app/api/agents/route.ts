@@ -3,8 +3,9 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import type { Agent, UnifiedAgent, AgentSessionStatus, CreateAgentRequest } from '@/types/agent'
-import { loadAgents, saveAgents, createAgent, searchAgents } from '@/lib/agent-registry'
+import type { Agent, AgentSession, AgentSessionStatus, CreateAgentRequest } from '@/types/agent'
+import { parseSessionName, parseNameForDisplay, computeSessionName } from '@/types/agent'
+import { loadAgents, saveAgents, createAgent, searchAgents, getAgentByName } from '@/lib/agent-registry'
 import { getLocalHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
@@ -99,74 +100,33 @@ async function discoverLocalSessions(): Promise<DiscoveredSession[]> {
 }
 
 /**
- * Match a session to an agent using various patterns
- * Returns the agent if found, null otherwise
- */
-function matchSessionToAgent(sessionName: string, agents: Agent[]): Agent | null {
-  // 1. Exact match on tmuxSessionName
-  const exactMatch = agents.find(a => a.tools.session?.tmuxSessionName === sessionName)
-  if (exactMatch) return exactMatch
-
-  // 2. Match by alias (case-insensitive)
-  const aliasMatch = agents.find(a =>
-    a.alias.toLowerCase() === sessionName.toLowerCase()
-  )
-  if (aliasMatch) return aliasMatch
-
-  // 3. Session name ends with agent alias (e.g., "23blocks-api-authentication" matches "authentication")
-  const suffixMatch = agents.find(a => {
-    const alias = a.alias.toLowerCase()
-    const session = sessionName.toLowerCase()
-    return session.endsWith(`-${alias}`) || session.endsWith(`_${alias}`)
-  })
-  if (suffixMatch) return suffixMatch
-
-  // 4. Session name's LAST segment matches agent alias (e.g., "23blocks-apps-prompthub" matches "prompthub")
-  // Note: Only match on last segment to avoid false positives (e.g., "23blocks-api-company" should NOT match "api")
-  const segmentMatch = agents.find(a => {
-    const alias = a.alias.toLowerCase()
-    const session = sessionName.toLowerCase()
-    const segments = session.split(/[-_]/)
-    // Only match if the LAST segment equals the alias
-    return segments.length > 0 && segments[segments.length - 1] === alias
-  })
-  if (segmentMatch) return segmentMatch
-
-  return null
-}
-
-/**
- * Parse session name into tags
- * e.g., "23blocks-api-authentication" → tags: ['23blocks', 'api'], alias: 'authentication'
- */
-function parseSessionNameToTags(sessionName: string): { tags: string[], alias: string } {
-  const segments = sessionName.split(/[-_]/).filter(s => s.length > 0)
-
-  if (segments.length === 1) {
-    return { tags: [], alias: segments[0] }
-  }
-
-  // Last segment is the alias, rest are tags
-  const alias = segments[segments.length - 1]
-  const tags = segments.slice(0, -1)
-
-  return { tags, alias }
-}
-
-/**
  * Auto-create an agent for an orphan session
+ * Uses parseSessionName to extract agent name from tmux session name
  */
 function createOrphanAgent(session: DiscoveredSession, hostId: string, hostName: string, hostUrl: string): Agent {
-  const { tags, alias } = parseSessionNameToTags(session.name)
+  // Parse session name to get agent name and index
+  const { agentName, index } = parseSessionName(session.name)
+  // Parse agent name to get display hierarchy
+  const { tags } = parseNameForDisplay(agentName)
+
+  const agentSession: AgentSession = {
+    index,
+    status: 'online',
+    workingDirectory: session.workingDirectory || process.cwd(),
+    createdAt: session.createdAt,
+    lastActive: session.lastActivity,
+  }
 
   const agent: Agent = {
     id: uuidv4(),
-    alias,
-    displayName: session.name, // Use full session name as display name
-    hostId,                    // Set host directly on agent
+    name: agentName,
+    label: undefined, // No label for auto-registered agents
+    workingDirectory: session.workingDirectory || process.cwd(),
+    sessions: [agentSession],
+    hostId,
     hostName,
     hostUrl,
-    program: 'claude-code', // Assume Claude Code
+    program: 'claude-code',
     taskDescription: 'Auto-registered from orphan tmux session',
     tags,
     capabilities: [],
@@ -177,15 +137,7 @@ function createOrphanAgent(session: DiscoveredSession, hostId: string, hostName:
         platform: os.platform(),
       }
     },
-    tools: {
-      session: {
-        tmuxSessionName: session.name,
-        workingDirectory: session.workingDirectory || process.cwd(),
-        status: 'running',
-        createdAt: session.createdAt,
-        lastActive: session.lastActivity,
-      }
-    },
+    tools: {},
     status: 'active',
     createdAt: session.createdAt,
     lastActive: session.lastActivity,
@@ -224,15 +176,20 @@ function mergeAgentWithSession(
  * Returns all agents registered on THIS host with their live session status.
  * Frontend is responsible for aggregating across multiple hosts.
  *
+ * AGENT-FIRST ARCHITECTURE:
+ * - No pattern matching - agents own their name, sessions derive from it
+ * - Session names follow pattern: {agent.name} or {agent.name}_{index}
+ * - Orphan sessions are parsed to find agent name, then auto-registered
+ *
  * Query params:
- *   - q: Search query (searches alias, displayName, taskDescription, tags)
+ *   - q: Search query (searches name, label, taskDescription, tags)
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')
 
-    // If search query provided, return simple search results (backward compatibility)
+    // If search query provided, return simple search results
     if (query) {
       const agents = searchAgents(query)
       return NextResponse.json({ agents })
@@ -247,98 +204,128 @@ export async function GET(request: Request) {
     // 1. Load all registered agents from this host's registry
     let agents = loadAgents()
 
-    // 2. Discover local tmux sessions only (no remote fetching)
+    // 2. Discover local tmux sessions
     const discoveredSessions = await discoverLocalSessions()
 
     console.log(`[Agents] Found ${discoveredSessions.length} local tmux session(s)`)
 
-    // 3. Create a map of session names for quick lookup
-    const sessionMap = new Map<string, DiscoveredSession>()
+    // 3. Group discovered sessions by agent name
+    const sessionsByAgentName = new Map<string, DiscoveredSession[]>()
     for (const session of discoveredSessions) {
-      sessionMap.set(session.name, session)
+      const { agentName } = parseSessionName(session.name)
+      if (!sessionsByAgentName.has(agentName)) {
+        sessionsByAgentName.set(agentName, [])
+      }
+      sessionsByAgentName.get(agentName)!.push(session)
     }
 
-    // 4. Track which sessions have been matched
-    const matchedSessionNames = new Set<string>()
+    // 4. Process agents and update their session status
     const resultAgents: Agent[] = []
     const newOrphanAgents: Agent[] = []
-
-    // 5. Process each registered agent
-    const agentsToUpdate: Agent[] = [] // Track agents that need registry update
+    const processedAgentNames = new Set<string>()
 
     for (const agent of agents) {
-      const tmuxSessionName = agent.tools.session?.tmuxSessionName
+      // Get agent name (new field, fallback to deprecated alias)
+      const agentName = agent.name || agent.alias
+      if (!agentName) continue
 
-      // Try to find matching session
-      let matchedSession: DiscoveredSession | null = null
-      let sessionNameChanged = false
+      processedAgentNames.add(agentName)
 
-      if (tmuxSessionName && sessionMap.has(tmuxSessionName)) {
-        // Exact match by tmuxSessionName
-        matchedSession = sessionMap.get(tmuxSessionName)!
-        matchedSessionNames.add(tmuxSessionName)
-      } else {
-        // Try pattern matching
-        for (const session of discoveredSessions) {
-          if (!matchedSessionNames.has(session.name)) {
-            const matched = matchSessionToAgent(session.name, [agent])
-            if (matched) {
-              matchedSession = session
-              matchedSessionNames.add(session.name)
-              // Session name is different from registry - flag for update
-              if (tmuxSessionName !== session.name) {
-                sessionNameChanged = true
-                console.log(`[Agents] Session name changed for ${agent.alias}: ${tmuxSessionName} → ${session.name}`)
-              }
-              break
-            }
-          }
+      // Find all sessions for this agent
+      const agentSessions = sessionsByAgentName.get(agentName) || []
+
+      // Build updated sessions array from discovered tmux sessions
+      const updatedSessions: AgentSession[] = []
+      for (const session of agentSessions) {
+        const { index } = parseSessionName(session.name)
+        updatedSessions.push({
+          index,
+          status: 'online',
+          workingDirectory: session.workingDirectory,
+          createdAt: session.createdAt,
+          lastActive: session.lastActivity,
+        })
+      }
+
+      // Add offline sessions from registry that weren't discovered
+      const existingSessions = agent.sessions || []
+      for (const existingSession of existingSessions) {
+        const alreadyUpdated = updatedSessions.some(s => s.index === existingSession.index)
+        if (!alreadyUpdated) {
+          updatedSessions.push({
+            ...existingSession,
+            status: 'offline',
+          })
         }
       }
 
-      // Update registry if session name changed (prevents hibernate from using stale name)
-      if (sessionNameChanged && matchedSession) {
-        const agentIndex = agents.findIndex(a => a.id === agent.id)
-        if (agentIndex !== -1 && agents[agentIndex].tools.session) {
-          agents[agentIndex].tools.session.tmuxSessionName = matchedSession.name
-          agents[agentIndex].tools.session.workingDirectory = matchedSession.workingDirectory || agents[agentIndex].tools.session.workingDirectory
-          agentsToUpdate.push(agents[agentIndex])
-        }
-      }
+      // Sort sessions by index
+      updatedSessions.sort((a, b) => a.index - b.index)
 
-      // Create session status (runtime tmux state only, no host info)
-      const sessionStatus: AgentSessionStatus = matchedSession
+      // Determine agent status based on sessions
+      const hasOnlineSession = updatedSessions.some(s => s.status === 'online')
+
+      // Create session status for API response (backward compatibility)
+      const primarySession = updatedSessions.find(s => s.index === 0) || updatedSessions[0]
+      const onlineSession = updatedSessions.find(s => s.status === 'online')
+      const sessionStatus: AgentSessionStatus = onlineSession
         ? {
             status: 'online',
-            tmuxSessionName: matchedSession.name,
-            workingDirectory: matchedSession.workingDirectory,
-            lastActivity: matchedSession.lastActivity,
-            windows: matchedSession.windows
+            tmuxSessionName: computeSessionName(agentName, onlineSession.index),
+            workingDirectory: onlineSession.workingDirectory,
+            lastActivity: onlineSession.lastActive,
           }
         : {
             status: 'offline',
-            workingDirectory: agent.tools.session?.workingDirectory
+            workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
           }
 
-      resultAgents.push(mergeAgentWithSession(agent, sessionStatus, hostId, hostName, hostUrl, false))
+      // Update agent with new sessions
+      const updatedAgent: Agent = {
+        ...agent,
+        name: agentName,
+        sessions: updatedSessions,
+        status: hasOnlineSession ? 'active' : 'offline',
+        lastActive: hasOnlineSession ? new Date().toISOString() : agent.lastActive,
+      }
+
+      resultAgents.push(mergeAgentWithSession(updatedAgent, sessionStatus, hostId, hostName, hostUrl, false))
     }
 
-    // 6. Process orphan sessions (sessions without matching agents)
-    for (const session of discoveredSessions) {
-      if (!matchedSessionNames.has(session.name)) {
-        // This is an orphan session - auto-register it
-        const orphanAgent = createOrphanAgent(session, hostId, hostName, hostUrl)
+    // 5. Process orphan sessions (sessions without matching agents)
+    for (const [agentName, sessions] of sessionsByAgentName.entries()) {
+      if (!processedAgentNames.has(agentName)) {
+        // This is an orphan - auto-register it
+        // Use the first session to create the agent
+        const primarySession = sessions.find(s => {
+          const { index } = parseSessionName(s.name)
+          return index === 0
+        }) || sessions[0]
+
+        const orphanAgent = createOrphanAgent(primarySession, hostId, hostName, hostUrl)
+
+        // Add all sessions for this agent
+        orphanAgent.sessions = sessions.map(session => {
+          const { index } = parseSessionName(session.name)
+          return {
+            index,
+            status: 'online' as const,
+            workingDirectory: session.workingDirectory,
+            createdAt: session.createdAt,
+            lastActive: session.lastActivity,
+          }
+        }).sort((a, b) => a.index - b.index)
+
         newOrphanAgents.push(orphanAgent)
 
         const sessionStatus: AgentSessionStatus = {
           status: 'online',
-          tmuxSessionName: session.name,
-          workingDirectory: session.workingDirectory,
-          lastActivity: session.lastActivity,
-          windows: session.windows
+          tmuxSessionName: primarySession.name,
+          workingDirectory: primarySession.workingDirectory,
+          lastActivity: primarySession.lastActivity,
+          windows: primarySession.windows
         }
 
-        // orphanAgent already has hostId set, just add session status
         resultAgents.push({
           ...orphanAgent,
           session: sessionStatus,
@@ -347,26 +334,23 @@ export async function GET(request: Request) {
       }
     }
 
-    // 7. Save registry updates (orphan agents + session name corrections)
-    if (newOrphanAgents.length > 0 || agentsToUpdate.length > 0) {
+    // 6. Save registry updates (orphan agents)
+    if (newOrphanAgents.length > 0) {
       const updatedAgents = [...agents, ...newOrphanAgents]
       saveAgents(updatedAgents)
-      if (newOrphanAgents.length > 0) {
-        console.log(`[Agents] Auto-registered ${newOrphanAgents.length} orphan session(s) as agents`)
-      }
-      if (agentsToUpdate.length > 0) {
-        console.log(`[Agents] Updated session names for ${agentsToUpdate.length} agent(s)`)
-      }
+      console.log(`[Agents] Auto-registered ${newOrphanAgents.length} orphan session(s) as agents`)
     }
 
-    // 8. Sort: online agents first, then alphabetically by alias
+    // 7. Sort: online agents first, then alphabetically by name
     resultAgents.sort((a, b) => {
       // Online first
       if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
       if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
 
-      // Then alphabetically by alias (case-insensitive)
-      return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase())
+      // Then alphabetically by name (case-insensitive)
+      const nameA = a.name || a.alias || ''
+      const nameB = b.name || b.alias || ''
+      return nameA.toLowerCase().localeCompare(nameB.toLowerCase())
     })
 
     return NextResponse.json({

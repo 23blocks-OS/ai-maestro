@@ -23,7 +23,7 @@ interface MobileDashboardProps {
 function agentToSession(agent: Agent): Session {
   return {
     id: agent.session?.tmuxSessionName || agent.id,
-    name: agent.displayName || agent.alias,
+    name: agent.label || agent.name || agent.alias || '',
     workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
     status: 'active' as const,
     createdAt: agent.createdAt,
@@ -101,7 +101,7 @@ export default function MobileDashboard({
 
   // Get display name for an agent
   const getAgentDisplayName = (agent: Agent) => {
-    return agent.displayName || agent.alias || agent.id
+    return agent.label || agent.name || agent.alias || agent.id
   }
 
   // Format display as agent@host
@@ -210,7 +210,7 @@ export default function MobileDashboard({
                   agentId={agent.id}
                   allAgents={onlineAgents.map(a => ({
                     id: a.id,
-                    alias: a.displayName || a.alias || a.id,
+                    alias: a.label || a.name || a.alias || a.id,
                     tmuxSessionName: a.session?.tmuxSessionName,
                     hostId: a.hostId
                   }))}

@@ -152,8 +152,10 @@ function aggregateResults(results: HostFetchResult[]): {
     if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
     if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
 
-    // Then alphabetically by alias (case-insensitive)
-    return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase())
+    // Then alphabetically by name (case-insensitive)
+    const nameA = (a.name || a.alias || '').toLowerCase()
+    const nameB = (b.name || b.alias || '').toLowerCase()
+    return nameA.localeCompare(nameB)
   })
 
   const stats: AggregatedStats = {
@@ -276,12 +278,14 @@ export function useAgents() {
       groups[group].push(agent)
     }
 
-    // Sort agents within each group by status (online first), then by alias
+    // Sort agents within each group by status (online first), then by name
     for (const group in groups) {
       groups[group].sort((a, b) => {
         if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
         if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
-        return a.alias.localeCompare(b.alias)
+        const nameA = a.name || a.alias || ''
+        const nameB = b.name || b.alias || ''
+        return nameA.localeCompare(nameB)
       })
     }
 

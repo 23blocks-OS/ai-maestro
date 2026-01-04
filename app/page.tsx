@@ -29,7 +29,7 @@ import type { Session } from '@/types/session'
 function agentToSession(agent: Agent): Session {
   return {
     id: agent.session?.tmuxSessionName || agent.id,
-    name: agent.displayName || agent.alias,
+    name: agent.label || agent.name || agent.alias || '',
     workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
     status: 'active' as const,
     createdAt: agent.createdAt,
@@ -423,7 +423,7 @@ export default function DashboardPage() {
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
                     <User className="w-10 h-10 text-gray-500" />
                   </div>
-                  <p className="text-xl mb-2 text-gray-300">{activeAgent.displayName || activeAgent.alias}</p>
+                  <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
                   <p className="text-sm mb-4 text-gray-500">This agent is offline</p>
                   <button
                     onClick={() => handleStartSession(activeAgent)}
@@ -575,7 +575,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -606,7 +606,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -637,7 +637,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">Wake this agent to use the chat interface</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -667,7 +667,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         allAgents={onlineAgents.map(a => ({
                           id: a.id,
-                          alias: a.displayName || a.alias || a.id,
+                          alias: a.label || a.name || a.alias || a.id,
                           tmuxSessionName: a.session?.tmuxSessionName,
                           hostId: a.hostId
                         }))}

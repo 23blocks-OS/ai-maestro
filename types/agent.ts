@@ -3,14 +3,100 @@
  *
  * An Agent represents a persistent AI worker with identity, tools, and capabilities.
  * Sessions, messages, and other resources belong to agents.
+ *
+ * AGENT-FIRST ARCHITECTURE:
+ * - Agent is the primary entity; sessions derive from agents
+ * - Session names follow pattern: {agent.name} or {agent.name}_{index}
+ * - An agent can have multiple sessions (multi-brain support)
  */
+
+// ============================================================================
+// Session Name Helpers
+// ============================================================================
+
+/**
+ * Parse tmux session name to extract agent name and session index
+ * Examples:
+ *   "website" → { agentName: "website", index: 0 }
+ *   "website_0" → { agentName: "website", index: 0 }
+ *   "website_1" → { agentName: "website", index: 1 }
+ *   "23blocks-apps-backend" → { agentName: "23blocks-apps-backend", index: 0 }
+ *   "23blocks-apps-backend_2" → { agentName: "23blocks-apps-backend", index: 2 }
+ */
+export function parseSessionName(tmuxName: string): { agentName: string; index: number } {
+  const match = tmuxName.match(/^(.+)_(\d+)$/)
+  if (match) {
+    return { agentName: match[1], index: parseInt(match[2], 10) }
+  }
+  return { agentName: tmuxName, index: 0 }
+}
+
+/**
+ * Compute tmux session name from agent name and session index
+ * Examples:
+ *   ("website", 0) → "website"
+ *   ("website", 1) → "website_1"
+ *   ("23blocks-apps-backend", 0) → "23blocks-apps-backend"
+ *   ("23blocks-apps-backend", 2) → "23blocks-apps-backend_2"
+ */
+export function computeSessionName(agentName: string, index: number): string {
+  return index === 0 ? agentName : `${agentName}_${index}`
+}
+
+/**
+ * Derive display info from agent name for UI hierarchy
+ * Splits on hyphens to create tags + shortName
+ * Examples:
+ *   "website" → { tags: [], shortName: "website" }
+ *   "23blocks-apps-website" → { tags: ["23blocks", "apps"], shortName: "website" }
+ */
+export function parseNameForDisplay(name: string): { tags: string[]; shortName: string } {
+  const segments = name.split(/-/).filter(s => s.length > 0)
+  if (segments.length === 1) {
+    return { tags: [], shortName: segments[0] }
+  }
+  return {
+    tags: segments.slice(0, -1),
+    shortName: segments[segments.length - 1]
+  }
+}
+
+// ============================================================================
+// Agent Session (Multi-Brain Support)
+// ============================================================================
+
+/**
+ * A single session belonging to an agent
+ * Agents can have multiple sessions acting as specialized "brains"
+ */
+export interface AgentSession {
+  index: number                     // 0, 1, 2... (0 = primary/coordinator)
+  status: 'online' | 'offline'      // Runtime: is tmux session alive?
+  workingDirectory?: string         // Override agent's default working directory
+  role?: string                     // Future: "coordinator", "backend", "frontend"
+  createdAt?: string                // When session was created
+  lastActive?: string               // Last activity timestamp
+}
+
+// ============================================================================
+// Agent Interface
+// ============================================================================
 
 export interface Agent {
   // Identity
-  id: string                    // Unique identifier (UUID or slug)
-  alias: string                 // Short memorable name (e.g., "ProngHub")
-  displayName?: string          // Optional full name (e.g., "ProngHub Notification Agent")
+  id: string                    // Unique identifier (UUID)
+  name: string                  // Agent identity (e.g., "23blocks-apps-website")
+  label?: string                // Optional display override (rarely used)
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
+
+  // Working Directory (agent-level default)
+  workingDirectory?: string     // Default working directory for sessions
+
+  // Sessions (zero or more, Phase 1: max 1)
+  sessions: AgentSession[]      // Active/historical sessions for this agent
+
+  // DEPRECATED: alias - use 'name' instead (kept temporarily for migration)
+  alias?: string
 
   // Host (where the agent lives)
   hostId: string                // Host identifier (e.g., "local", "mac-mini")
@@ -182,23 +268,27 @@ export type AgentStatus = 'active' | 'idle' | 'offline'
  */
 export interface AgentSummary {
   id: string
-  alias: string
-  displayName?: string
+  name: string                  // Agent identity (was alias)
+  label?: string                // Optional display override (was displayName)
   avatar?: string               // Avatar URL or emoji
   hostId: string                // Host where agent lives
   hostUrl?: string              // Host URL for API calls
   status: AgentStatus
   lastActive: string
-  currentSession?: string       // Current tmux session name if running
+  sessions: AgentSession[]      // Session(s) with their status
   deployment?: AgentDeployment  // Deployment configuration (needed for icon display)
+  // DEPRECATED: for backward compatibility during migration
+  alias?: string
+  displayName?: string
+  currentSession?: string       // First online session name (deprecated, use sessions[0])
 }
 
 /**
  * Agent creation request
  */
 export interface CreateAgentRequest {
-  alias: string
-  displayName?: string
+  name: string                  // Agent identity (was alias)
+  label?: string                // Optional display override (was displayName)
   avatar?: string
   program: string
   model?: string
@@ -206,29 +296,37 @@ export interface CreateAgentRequest {
   tags?: string[]
   workingDirectory?: string
   createSession?: boolean       // Auto-create tmux session
+  sessionIndex?: number         // Session index to create (default 0)
   deploymentType?: DeploymentType // Where to deploy (local or cloud)
   hostId?: string               // Target host for agent creation (defaults to 'local')
   owner?: string
   team?: string
   documentation?: AgentDocumentation
   metadata?: Record<string, any>
+  // DEPRECATED: for backward compatibility
+  alias?: string
+  displayName?: string
 }
 
 /**
  * Agent update request
  */
 export interface UpdateAgentRequest {
-  alias?: string
-  displayName?: string
+  name?: string                 // Update agent identity (was alias)
+  label?: string                // Update display override (was displayName)
   avatar?: string
   model?: string
   taskDescription?: string
   tags?: string[]
   owner?: string
   team?: string
+  workingDirectory?: string     // Update default working directory
   documentation?: Partial<AgentDocumentation>
   metadata?: Record<string, any>
   preferences?: Partial<AgentPreferences>
+  // DEPRECATED: for backward compatibility
+  alias?: string
+  displayName?: string
 }
 
 /**

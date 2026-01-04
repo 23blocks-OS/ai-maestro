@@ -698,7 +698,7 @@ export default function AgentList({
                             {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
                                 {[...agentsList]
-                                  .sort((a, b) => (a.displayName || a.alias).toLowerCase().localeCompare((b.displayName || b.alias).toLowerCase()))
+                                  .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
                                   const isOnline = agent.session?.status === 'online'
@@ -749,7 +749,7 @@ export default function AgentList({
                                                     color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
                                                   }}
                                                 >
-                                                  {agent.displayName || agent.alias}
+                                                  {agent.label || agent.name || agent.alias}
                                                 </span>
 
                                                 {/* Cached indicator */}

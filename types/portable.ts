@@ -18,8 +18,11 @@ export interface AgentExportManifest {
   }
   agent: {
     id: string                 // Original agent ID
-    alias: string              // Agent alias
-    displayName?: string       // Display name
+    name: string               // Agent name (primary identifier)
+    label?: string             // Optional display label
+    // Deprecated fields for backwards compatibility
+    alias?: string             // DEPRECATED: Use name instead
+    displayName?: string       // DEPRECATED: Use label instead
   }
   contents: {
     hasRegistry: boolean       // Has registry.json (agent metadata)
@@ -51,10 +54,11 @@ export interface PortableRepository {
  * Import options when importing an agent
  */
 export interface AgentImportOptions {
-  newAlias?: string            // Override the agent alias
+  newName?: string             // Override the agent name
+  newAlias?: string            // DEPRECATED: Use newName instead
   newId?: boolean              // Generate a new ID instead of keeping original
   skipMessages?: boolean       // Don't import messages
-  overwrite?: boolean          // Overwrite existing agent with same alias
+  overwrite?: boolean          // Overwrite existing agent with same name
 
   // Repository handling
   cloneRepositories?: boolean  // Whether to clone repos on import

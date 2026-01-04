@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { loadAgents, saveAgents, getAgentByAlias } from '@/lib/agent-registry'
+import { loadAgents, saveAgents, getAgentByAlias, getAgentByName } from '@/lib/agent-registry'
 import yauzl from 'yauzl'
 import fs from 'fs'
 import path from 'path'
@@ -242,12 +242,22 @@ export async function POST(request: Request) {
       fs.readFileSync(registryPath, 'utf-8')
     )
 
-    // Check for alias conflict
-    const existingAgent = getAgentByAlias(options.newAlias || importedAgent.alias)
+    // Get agent name (new field, fallback to deprecated alias)
+    const importedAgentName = importedAgent.name || importedAgent.alias
+    if (!importedAgentName) {
+      return NextResponse.json(
+        { error: 'Invalid agent export: agent has no name' },
+        { status: 400 }
+      )
+    }
+
+    // Check for name conflict (check both new name field and deprecated alias)
+    const newAgentName = options.newName || options.newAlias || importedAgentName
+    const existingAgent = getAgentByName(newAgentName) || getAgentByAlias(newAgentName)
     if (existingAgent && !options.overwrite) {
       return NextResponse.json(
         {
-          error: `Agent with alias "${options.newAlias || importedAgent.alias}" already exists. Use overwrite option to replace.`,
+          error: `Agent with name "${newAgentName}" already exists. Use overwrite option to replace.`,
           existingAgentId: existingAgent.id
         },
         { status: 409 }
@@ -256,16 +266,14 @@ export async function POST(request: Request) {
 
     // Prepare the agent for import
     const newAgentId = options.newId ? uuidv4() : importedAgent.id
-    const newAlias = options.newAlias || importedAgent.alias
-
-    // Determine session name (for messages)
-    const newSessionName = newAlias
 
     // Update agent with new values and local deployment info
     const agentToImport: Agent = {
       ...importedAgent,
       id: newAgentId,
-      alias: newAlias,
+      name: newAgentName,
+      alias: newAgentName, // Keep for backwards compatibility
+      workingDirectory: importedAgent.workingDirectory,
       deployment: {
         type: 'local',
         local: {
@@ -273,14 +281,11 @@ export async function POST(request: Request) {
           platform: os.platform()
         }
       },
-      tools: {
-        ...importedAgent.tools,
-        session: importedAgent.tools.session ? {
-          ...importedAgent.tools.session,
-          tmuxSessionName: newSessionName,
-          status: 'stopped'
-        } : undefined
-      },
+      // Reset sessions to offline - will be recreated when woken
+      sessions: (importedAgent.sessions || []).map(s => ({
+        ...s,
+        status: 'offline' as const
+      })),
       status: 'offline',
       lastActive: new Date().toISOString()
     }
@@ -293,7 +298,7 @@ export async function POST(request: Request) {
       const filteredAgents = agents.filter(a => a.id !== existingAgent.id)
       filteredAgents.push(agentToImport)
       saveAgents(filteredAgents)
-      warnings.push(`Overwrote existing agent with alias "${newAlias}"`)
+      warnings.push(`Overwrote existing agent with name "${newAgentName}"`)
     } else {
       // Check if ID already exists
       const existingById = agents.find(a => a.id === newAgentId)
@@ -329,7 +334,7 @@ export async function POST(request: Request) {
         // Import inbox
         const inboxSrc = path.join(messagesDir, 'inbox')
         if (fs.existsSync(inboxSrc)) {
-          const inboxDest = path.join(MESSAGES_DIR, 'inbox', newSessionName)
+          const inboxDest = path.join(MESSAGES_DIR, 'inbox', newAgentName)
           ensureDir(inboxDest)
 
           const files = fs.readdirSync(inboxSrc).filter(f => f.endsWith('.json'))
@@ -342,7 +347,7 @@ export async function POST(request: Request) {
         // Import sent
         const sentSrc = path.join(messagesDir, 'sent')
         if (fs.existsSync(sentSrc)) {
-          const sentDest = path.join(MESSAGES_DIR, 'sent', newSessionName)
+          const sentDest = path.join(MESSAGES_DIR, 'sent', newAgentName)
           ensureDir(sentDest)
 
           const files = fs.readdirSync(sentSrc).filter(f => f.endsWith('.json'))
@@ -355,7 +360,7 @@ export async function POST(request: Request) {
         // Import archived
         const archivedSrc = path.join(messagesDir, 'archived')
         if (fs.existsSync(archivedSrc)) {
-          const archivedDest = path.join(MESSAGES_DIR, 'archived', newSessionName)
+          const archivedDest = path.join(MESSAGES_DIR, 'archived', newAgentName)
           ensureDir(archivedDest)
 
           const files = fs.readdirSync(archivedSrc).filter(f => f.endsWith('.json'))
@@ -432,10 +437,8 @@ export async function POST(request: Request) {
           agents[agentIndex].tools.repositories = clonedRepos
           // Update working directory to primary repo if agent doesn't have one
           const primaryRepo = clonedRepos.find(r => r.isPrimary) || clonedRepos[0]
-          if (primaryRepo && !agents[agentIndex].tools.session?.workingDirectory) {
-            if (agents[agentIndex].tools.session) {
-              agents[agentIndex].tools.session.workingDirectory = primaryRepo.localPath
-            }
+          if (primaryRepo && !agents[agentIndex].workingDirectory) {
+            agents[agentIndex].workingDirectory = primaryRepo.localPath
             if (!agents[agentIndex].preferences) {
               agents[agentIndex].preferences = {}
             }

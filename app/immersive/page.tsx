@@ -212,7 +212,7 @@ export default function ImmersivePage() {
 
   // Get display name for an agent
   const getAgentDisplayName = (agent: UnifiedAgent) => {
-    return agent.displayName || agent.alias || agent.id
+    return agent.label || agent.name || agent.alias || agent.id
   }
 
   return (

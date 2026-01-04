@@ -823,13 +823,53 @@ export class Agent {
 }
 
 /**
- * Agent Registry - Manages agent lifecycle
+ * Agent Registry - Manages agent lifecycle with LRU eviction
  *
- * This singleton keeps track of all active agents and ensures
- * proper initialization/shutdown
+ * This singleton keeps track of active agents with a maximum limit.
+ * When the limit is reached, least recently used agents are evicted
+ * (properly shutdown including CozoDB) to prevent memory bloat.
+ *
+ * Default: max 10 agents in memory at once
  */
 class AgentRegistry {
   private agents = new Map<string, Agent>()
+  private accessOrder: string[] = []  // Most recently accessed at the end
+  private maxAgents: number
+
+  constructor(maxAgents = 10) {
+    this.maxAgents = maxAgents
+    console.log(`[AgentRegistry] Initialized with max ${maxAgents} agents (LRU eviction enabled)`)
+  }
+
+  /**
+   * Update access order (move to end = most recently used)
+   */
+  private touch(agentId: string): void {
+    const index = this.accessOrder.indexOf(agentId)
+    if (index !== -1) {
+      this.accessOrder.splice(index, 1)
+    }
+    this.accessOrder.push(agentId)
+  }
+
+  /**
+   * Evict least recently used agent if at capacity
+   */
+  private async evictIfNeeded(): Promise<void> {
+    while (this.agents.size >= this.maxAgents && this.accessOrder.length > 0) {
+      const lruAgentId = this.accessOrder.shift()!
+      const agent = this.agents.get(lruAgentId)
+      if (agent) {
+        console.log(`[AgentRegistry] Evicting LRU agent ${lruAgentId.substring(0, 8)} (${this.agents.size}/${this.maxAgents})`)
+        try {
+          await agent.shutdown()
+        } catch (err) {
+          console.error(`[AgentRegistry] Error shutting down evicted agent:`, err)
+        }
+        this.agents.delete(lruAgentId)
+      }
+    }
+  }
 
   /**
    * Get or create an agent
@@ -837,24 +877,38 @@ class AgentRegistry {
   async getAgent(agentId: string, config?: AgentConfig): Promise<Agent> {
     let agent = this.agents.get(agentId)
 
-    if (!agent) {
-      // Create new agent
-      agent = new Agent({
-        agentId,
-        workingDirectory: config?.workingDirectory
-      })
-      await agent.initialize()
-      this.agents.set(agentId, agent)
+    if (agent) {
+      // Update access order (touch = mark as recently used)
+      this.touch(agentId)
+      return agent
     }
+
+    // Evict LRU agent if at capacity before creating new one
+    await this.evictIfNeeded()
+
+    // Create new agent
+    console.log(`[AgentRegistry] Loading agent ${agentId.substring(0, 8)} (${this.agents.size + 1}/${this.maxAgents})`)
+    agent = new Agent({
+      agentId,
+      workingDirectory: config?.workingDirectory
+    })
+    await agent.initialize()
+    this.agents.set(agentId, agent)
+    this.touch(agentId)
 
     return agent
   }
 
   /**
    * Get an existing agent (without creating)
+   * Also updates access order
    */
   getExistingAgent(agentId: string): Agent | undefined {
-    return this.agents.get(agentId)
+    const agent = this.agents.get(agentId)
+    if (agent) {
+      this.touch(agentId)
+    }
+    return agent
   }
 
   /**
@@ -865,6 +919,10 @@ class AgentRegistry {
     if (agent) {
       await agent.shutdown()
       this.agents.delete(agentId)
+      const index = this.accessOrder.indexOf(agentId)
+      if (index !== -1) {
+        this.accessOrder.splice(index, 1)
+      }
     }
   }
 
@@ -876,11 +934,12 @@ class AgentRegistry {
     const shutdownPromises = Array.from(this.agents.values()).map(agent => agent.shutdown())
     await Promise.all(shutdownPromises)
     this.agents.clear()
+    this.accessOrder = []
     console.log('[AgentRegistry] ✓ All agents shutdown')
   }
 
   /**
-   * Get all active agents
+   * Get all active agents (currently in memory)
    */
   getAllAgents(): Agent[] {
     return Array.from(this.agents.values())
@@ -892,6 +951,7 @@ class AgentRegistry {
   getStatus() {
     return {
       activeAgents: this.agents.size,
+      maxAgents: this.maxAgents,
       agents: Array.from(this.agents.values()).map(agent => agent.getStatus())
     }
   }

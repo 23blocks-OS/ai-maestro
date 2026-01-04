@@ -7,7 +7,9 @@
  * 2. Extract embeddings (transformers.js)
  * 3. Extract keywords and symbols
  * 4. Store in CozoDB (messages, embeddings, terms, symbols)
- * 5. Update BM25 in-memory index
+ *
+ * Note: BM25 global index was removed - each agent stores terms in CozoDB
+ * for per-agent, portable full-text search.
  */
 
 import * as fs from 'fs'
@@ -16,7 +18,6 @@ import { AgentDatabase } from '@/lib/cozo-db'
 import { upsertMessage } from '@/lib/cozo-schema-rag'
 import { embedTexts, vectorToBuffer } from './embeddings'
 import { extractTerms, extractCodeSymbols } from './keywords'
-import { bm25Add, bm25Count, Bm25Document } from './bm25'
 import { msgId } from './id'
 
 /**
@@ -199,7 +200,7 @@ export async function ingestConversation(
       // Convert embedding to buffer
       const embeddingBuffer = vectorToBuffer(embedding)
 
-      // Store in CozoDB
+      // Store in CozoDB (includes vectors, terms, symbols - all per-agent)
       await upsertMessage(
         agentDb,
         {
@@ -213,17 +214,6 @@ export async function ingestConversation(
         terms,
         symbols
       )
-
-      // Add to BM25 index
-      const bm25Doc: Bm25Document = {
-        id: messageId,
-        thread_id: msg.sessionId || 'unknown',
-        role: msg.type,
-        ts: timestamp,
-        text: text,
-        symbols: symbols,
-      }
-      bm25Add([bm25Doc])
 
       stats.processedMessages++
 
@@ -241,7 +231,6 @@ export async function ingestConversation(
 
   console.log(`[Ingest] ✅ Completed in ${stats.durationMs}ms`)
   console.log(`[Ingest] Stats:`, stats)
-  console.log(`[Ingest] BM25 index size: ${bm25Count()} documents`)
 
   return stats
 }
@@ -504,7 +493,7 @@ export async function indexConversationDelta(
       // Convert embedding to buffer
       const embeddingBuffer = vectorToBuffer(embedding)
 
-      // Upsert message to CozoDB
+      // Upsert message to CozoDB (includes vectors, terms, symbols - all per-agent)
       await upsertMessage(
         agentDb,
         {
@@ -518,17 +507,6 @@ export async function indexConversationDelta(
         terms,
         symbols
       )
-
-      // Add to BM25 index
-      const bm25Doc: Bm25Document = {
-        id,
-        text,
-        symbols,
-        thread_id: conversationFile,
-        role: msg.type,
-        ts,
-      }
-      bm25Add([bm25Doc])
 
       stats.processedMessages++
     }

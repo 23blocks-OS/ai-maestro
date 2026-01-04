@@ -264,11 +264,14 @@ export async function GET(request: Request) {
     const newOrphanAgents: Agent[] = []
 
     // 5. Process each registered agent
+    const agentsToUpdate: Agent[] = [] // Track agents that need registry update
+
     for (const agent of agents) {
       const tmuxSessionName = agent.tools.session?.tmuxSessionName
 
       // Try to find matching session
       let matchedSession: DiscoveredSession | null = null
+      let sessionNameChanged = false
 
       if (tmuxSessionName && sessionMap.has(tmuxSessionName)) {
         // Exact match by tmuxSessionName
@@ -282,9 +285,24 @@ export async function GET(request: Request) {
             if (matched) {
               matchedSession = session
               matchedSessionNames.add(session.name)
+              // Session name is different from registry - flag for update
+              if (tmuxSessionName !== session.name) {
+                sessionNameChanged = true
+                console.log(`[Agents] Session name changed for ${agent.alias}: ${tmuxSessionName} → ${session.name}`)
+              }
               break
             }
           }
+        }
+      }
+
+      // Update registry if session name changed (prevents hibernate from using stale name)
+      if (sessionNameChanged && matchedSession) {
+        const agentIndex = agents.findIndex(a => a.id === agent.id)
+        if (agentIndex !== -1 && agents[agentIndex].tools.session) {
+          agents[agentIndex].tools.session.tmuxSessionName = matchedSession.name
+          agents[agentIndex].tools.session.workingDirectory = matchedSession.workingDirectory || agents[agentIndex].tools.session.workingDirectory
+          agentsToUpdate.push(agents[agentIndex])
         }
       }
 
@@ -329,11 +347,16 @@ export async function GET(request: Request) {
       }
     }
 
-    // 7. Save new orphan agents to registry
-    if (newOrphanAgents.length > 0) {
+    // 7. Save registry updates (orphan agents + session name corrections)
+    if (newOrphanAgents.length > 0 || agentsToUpdate.length > 0) {
       const updatedAgents = [...agents, ...newOrphanAgents]
       saveAgents(updatedAgents)
-      console.log(`[Agents] Auto-registered ${newOrphanAgents.length} orphan session(s) as agents`)
+      if (newOrphanAgents.length > 0) {
+        console.log(`[Agents] Auto-registered ${newOrphanAgents.length} orphan session(s) as agents`)
+      }
+      if (agentsToUpdate.length > 0) {
+        console.log(`[Agents] Updated session names for ${agentsToUpdate.length} agent(s)`)
+      }
     }
 
     // 8. Sort: online agents first, then alphabetically by alias

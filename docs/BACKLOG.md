@@ -2,7 +2,7 @@
 
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
-**Last Updated:** 2025-12-15
+**Last Updated:** 2026-01-03
 **Current Version:** v0.17.19
 
 ---
@@ -2886,6 +2886,114 @@ messageEvents.on('message:urgent', (msg) => {
 - Permission levels
 
 **Major architectural change - Phase 3 feature.**
+
+---
+
+### 14. Super Agent with Global Memory
+
+**Status:** Idea
+**Priority:** Medium
+**Effort:** Large (2-3 weeks)
+**Version:** v1.0.0+
+
+**Problem:**
+Currently, each agent has its own isolated memory (CozoDB per-agent). There's no shared knowledge base or supervisory agent that can:
+- See across all agents' activities
+- Maintain organization-level decisions and patterns
+- Coordinate complex multi-agent workflows
+- Remember cross-project insights and learnings
+
+**Proposed Solution:**
+Create a "Super Agent" (or Supervisor Agent) with a global memory layer that sits above individual agents:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      SUPER AGENT                                 │
+│  Global Memory (shared knowledge, decisions, patterns)          │
+│  - Cross-agent coordination                                      │
+│  - Organization-level insights                                   │
+│  - Multi-project patterns                                        │
+│  - Team preferences and standards                                │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ Supervises / Coordinates
+        ┌───────────────────┼───────────────────┐
+        ↓                   ↓                   ↓
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│   Agent A     │   │   Agent B     │   │   Agent C     │
+│ (per-agent    │   │ (per-agent    │   │ (per-agent    │
+│  memory)      │   │  memory)      │   │  memory)      │
+└───────────────┘   └───────────────┘   └───────────────┘
+```
+
+**Architecture:**
+
+**1. Global Memory Store**
+- Separate CozoDB database for super agent
+- Stores: decisions, patterns, standards, cross-agent insights
+- Accessible by all agents (read) but primarily written by super agent
+
+**2. Super Agent Capabilities**
+- Monitor all agent activities (via messaging system)
+- Consolidate learnings from individual agents
+- Distribute important decisions to relevant agents
+- Coordinate multi-agent tasks
+- Maintain team/org-level context
+
+**3. Memory Categories (Global)**
+- `org_decision`: Organization-wide decisions ("We use TypeScript everywhere")
+- `org_pattern`: Cross-project patterns ("API error handling standard")
+- `org_standard`: Coding standards, conventions
+- `cross_project_insight`: Learnings applicable to multiple projects
+- `agent_capability`: What each agent specializes in
+
+**Use Cases:**
+
+**1. Knowledge Distribution**
+```
+Super Agent notices: Agent-A solved a tricky async issue
+Super Agent action: Stores pattern in global memory
+Later: Agent-B has similar issue → retrieves solution from global memory
+```
+
+**2. Multi-Agent Coordination**
+```
+User to Super Agent: "Deploy the new feature across all services"
+Super Agent: Coordinates backend, frontend, devops agents
+Super Agent: Tracks progress, handles dependencies
+```
+
+**3. Onboarding New Agents**
+```
+New agent joins: "What are the team standards?"
+Super Agent: Provides org-level context from global memory
+New agent: Immediately knows conventions, patterns, decisions
+```
+
+**4. Conflict Resolution**
+```
+Agent-A: "Let's use Redis for caching"
+Agent-B: "Let's use Memcached"
+Super Agent: Checks global memory for prior decision
+Super Agent: "We decided on Redis in project X because..."
+```
+
+**Implementation Considerations:**
+
+- **Not a replacement** for per-agent memory (agents stay autonomous)
+- **Opt-in coordination** - agents can work independently
+- **Promotion mechanism** - important per-agent learnings promoted to global
+- **Access control** - what can agents read/write to global memory
+- **Sync strategy** - how global memory propagates to agents
+
+**Related to:**
+- Agent Long-Term Memory System (Feature #2)
+- Message Broadcasting (Feature #5)
+- Agent Status/Presence (Feature #9)
+
+**Inspiration:**
+- Removed global BM25 index was a bad example of "global" (memory leak, wrong scope)
+- This is different: intentional shared knowledge, not duplicate data
+- Think: team wiki vs individual notes
 
 ---
 

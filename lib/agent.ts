@@ -15,6 +15,9 @@
 
 import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
 import { hostHints } from './host-hints'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 
 interface AgentConfig {
   agentId: string
@@ -225,6 +228,9 @@ class AgentSubconscious {
     }
 
     console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running (first memory check in ${Math.round(this.staggerOffset / 1000)}s)`)
+
+    // Write initial status file
+    this.writeStatusFile()
   }
 
   /**
@@ -316,6 +322,9 @@ class AgentSubconscious {
       }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation error:`, error)
     }
+
+    // Update status file after consolidation
+    this.writeStatusFile()
   }
 
   /**
@@ -356,6 +365,9 @@ class AgentSubconscious {
 
     this.isRunning = false
     console.log(`[Agent ${this.agentId.substring(0, 8)}] Subconscious stopped`)
+
+    // Write final status file (marks as not running)
+    this.writeStatusFile()
   }
 
   /**
@@ -399,6 +411,9 @@ class AgentSubconscious {
       this.lastMemoryResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance error:`, error)
     }
+
+    // Update status file after memory run
+    this.writeStatusFile()
   }
 
   /**
@@ -442,6 +457,9 @@ class AgentSubconscious {
       this.lastMessageResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check error:`, error)
     }
+
+    // Update status file after message check
+    this.writeStatusFile()
   }
 
   /**
@@ -643,6 +661,53 @@ class AgentSubconscious {
         lastResult: this.lastConsolidationResult,
         totalRuns: this.totalConsolidationRuns
       }
+    }
+  }
+
+  /**
+   * Write subconscious status to a file for dashboard to read
+   * This decouples the dashboard from loading agents into memory
+   */
+  private writeStatusFile(): void {
+    try {
+      const statusDir = path.join(os.homedir(), '.aimaestro', 'agents', this.agentId)
+      const statusPath = path.join(statusDir, 'status.json')
+
+      // Ensure directory exists
+      if (!fs.existsSync(statusDir)) {
+        fs.mkdirSync(statusDir, { recursive: true })
+      }
+
+      const status = {
+        agentId: this.agentId,
+        lastUpdated: Date.now(),
+        isRunning: this.isRunning,
+        activityState: this.activityState,
+        startedAt: this.startedAt,
+        memoryCheckInterval: this.memoryCheckInterval,
+        messageCheckInterval: this.messageCheckInterval,
+        lastMemoryRun: this.lastMemoryRun,
+        lastMessageRun: this.lastMessageRun,
+        lastMemoryResult: this.lastMemoryResult,
+        lastMessageResult: this.lastMessageResult,
+        totalMemoryRuns: this.totalMemoryRuns,
+        totalMessageRuns: this.totalMessageRuns,
+        cumulativeMessagesIndexed: this.cumulativeMessagesIndexed,
+        cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
+        consolidation: {
+          enabled: this.consolidationEnabled,
+          scheduledHour: this.consolidationHour,
+          lastRun: this.lastConsolidationRun,
+          nextRun: this.nextConsolidationRun,
+          lastResult: this.lastConsolidationResult,
+          totalRuns: this.totalConsolidationRuns
+        }
+      }
+
+      fs.writeFileSync(statusPath, JSON.stringify(status, null, 2))
+    } catch (error) {
+      // Silently fail - status file is convenience, not critical
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Failed to write status file:`, error)
     }
   }
 }

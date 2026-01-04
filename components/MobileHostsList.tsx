@@ -289,7 +289,7 @@ export default function MobileHostsList({
                           const breadcrumb = getAgentBreadcrumb(agent)
                           const isOnline = agent.session?.status === 'online'
                           // Hibernated = offline but has session config (can be woken)
-                          const isHibernated = !isOnline && !!agent.tools?.session
+                          const isHibernated = !isOnline && (agent.sessions && agent.sessions.length > 0)
 
                           // Status indicator colors and labels
                           const statusColor = isOnline

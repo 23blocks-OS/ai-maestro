@@ -184,12 +184,13 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
           const agentData = JSON.parse(fs.readFileSync(path.join(agentsDir, file), 'utf8'))
 
           // Only add cloud agents that aren't already in the tmux session list
-          if (agentData.deployment?.type === 'cloud' && agentData.tools?.session?.tmuxSessionName) {
-            const sessionName = agentData.tools.session.tmuxSessionName
+          const hasSession = agentData.sessions && agentData.sessions.length > 0
+          if (agentData.deployment?.type === 'cloud' && hasSession) {
+            const agentName = agentData.name || agentData.alias
 
             // Check if already in list from tmux
-            if (!sessions.find(s => s.name === sessionName)) {
-              const activityTimestamp = (global as any).sessionActivity?.get(sessionName)
+            if (agentName && !sessions.find(s => s.name === agentName)) {
+              const activityTimestamp = (global as any).sessionActivity?.get(agentName)
               let status: 'active' | 'idle' | 'disconnected' = 'disconnected'
               let lastActivity = agentData.lastActive || agentData.createdAt
 
@@ -199,10 +200,14 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                 status = secondsSinceActivity > 3 ? 'idle' : 'active'
               }
 
+              const workingDirectory = agentData.workingDirectory ||
+                                       agentData.sessions?.[0]?.workingDirectory ||
+                                       '/workspace'
+
               sessions.push({
-                id: sessionName,
-                name: sessionName,
-                workingDirectory: agentData.tools.session.workingDirectory || '/workspace',
+                id: agentName,
+                name: agentName,
+                workingDirectory,
                 status,
                 createdAt: agentData.createdAt,
                 lastActivity,

@@ -4,6 +4,7 @@ import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
 import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory } from '@/lib/agent-registry'
+import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -321,8 +322,10 @@ export async function POST(
     let liveTmuxWd: string | null = null
     let registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
     if (registryAgent) {
-      const sessionName = registryAgent.tools?.session?.tmuxSessionName
-      const storedWd = registryAgent.tools?.session?.workingDirectory
+      const agentName = registryAgent.name || registryAgent.alias
+      const sessionName = agentName ? computeSessionName(agentName, 0) : undefined
+      const storedWd = registryAgent.workingDirectory ||
+                       registryAgent.sessions?.[0]?.workingDirectory
       if (sessionName) {
         liveTmuxWd = await getLiveTmuxWorkingDirectory(sessionName)
         if (liveTmuxWd && storedWd && liveTmuxWd !== storedWd) {
@@ -373,7 +376,8 @@ export async function POST(
         }
 
         // Also add stored workingDirectory as fallback
-        const storedWd = registryAgent.tools?.session?.workingDirectory
+        const storedWd = registryAgent.workingDirectory ||
+                         registryAgent.sessions?.[0]?.workingDirectory
         if (storedWd && !workingDirectories.has(storedWd)) {
           workingDirectories.add(storedWd)
           console.log(`[Delta Index API] Also checking stored workingDirectory: ${storedWd}`)

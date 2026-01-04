@@ -386,16 +386,8 @@ export function listAgents(): AgentSummary[] {
   const agents = loadAgents()
 
   return agents.map(a => {
-    // Get agent name (new field, fallback to deprecated alias)
     const agentName = a.name || a.alias || 'unknown'
-    // Get sessions (new field, fallback to tools.session)
-    const sessions: AgentSession[] = a.sessions || (a.tools?.session ? [{
-      index: 0,
-      status: a.tools.session.status === 'running' ? 'online' : 'offline',
-      workingDirectory: a.tools.session.workingDirectory,
-      createdAt: a.tools.session.createdAt,
-      lastActive: a.tools.session.lastActive,
-    }] : [])
+    const sessions: AgentSession[] = a.sessions || []
 
     // Find first online session for deprecated currentSession field
     const onlineSession = sessions.find(s => s.status === 'online')

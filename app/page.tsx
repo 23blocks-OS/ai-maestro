@@ -63,7 +63,7 @@ export default function DashboardPage() {
 
   // Compute selectable agents: online + hibernated (offline with session config)
   const selectableAgents = useMemo(
-    () => agents.filter(a => a.session?.status === 'online' || !!a.tools?.session),
+    () => agents.filter(a => a.session?.status === 'online' || (a.sessions && a.sessions.length > 0)),
     [agents]
   )
 
@@ -212,12 +212,16 @@ export default function DashboardPage() {
   }
 
   const handleShowAgentProfile = (agent: Agent) => {
+    // Also set active agent so main view reflects the selection
+    setActiveAgentId(agent.id)
     setProfileAgent(agent)
     setProfileScrollToDangerZone(false)
     setIsProfileOpen(true)
   }
 
   const handleShowAgentProfileDangerZone = (agent: Agent) => {
+    // Also set active agent so main view reflects the selection
+    setActiveAgentId(agent.id)
     setProfileAgent(agent)
     setProfileScrollToDangerZone(true)
     setIsProfileOpen(true)
@@ -417,7 +421,7 @@ export default function DashboardPage() {
             )}
 
             {/* Truly offline agent (no session config) - show profile prompt */}
-            {activeAgent && activeAgent.session?.status === 'offline' && !activeAgent.tools?.session && (
+            {activeAgent && activeAgent.session?.status === 'offline' && !(activeAgent.sessions && activeAgent.sessions.length > 0) && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center max-w-md">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
@@ -444,7 +448,7 @@ export default function DashboardPage() {
             {/* All Selectable Agents (Online + Hibernated) Mounted as Tabs - toggle visibility with CSS */}
             {selectableAgents.map(agent => {
               const isActive = agent.id === activeAgentId
-              const isHibernated = agent.session?.status !== 'online' && !!agent.tools?.session
+              const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
 
               return (

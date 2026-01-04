@@ -142,7 +142,7 @@ When you need agent metadata (workingDirectory, etc.), use the file-based regist
 ```typescript
 import { getAgent, getAgentBySession } from '@/lib/agent-registry'
 const agent = getAgent(agentId) || getAgentBySession(sessionName)
-const workingDir = agent?.tools?.session?.workingDirectory
+const workingDir = agent?.workingDirectory || agent?.sessions?.[0]?.workingDirectory
 ```
 
 **DO NOT:**

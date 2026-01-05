@@ -263,8 +263,9 @@ export default function DashboardPage() {
 
   const handleStartSession = async (agent: Agent) => {
     try {
-      const sessionName = agent.tools.session?.tmuxSessionName || `${(agent.tags || []).join('-')}-${agent.alias}`.replace(/^-/, '')
-      const workingDirectory = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+      // Use agent name as session name (new schema)
+      const sessionName = agent.name || agent.alias || `${(agent.tags || []).join('-')}-unnamed`.replace(/^-/, '')
+      const workingDirectory = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.preferences?.defaultWorkingDirectory
 
       const response = await fetch('/api/sessions/create', {
         method: 'POST',

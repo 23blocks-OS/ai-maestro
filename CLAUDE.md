@@ -119,12 +119,13 @@ When modifying `server.mjs`:
 ```
 Agent (core entity)
 ├── id (UUID)
-├── alias
+├── name (agent identity, used as session name)
+├── label (optional display override)
 ├── workingDirectory (stored property, NOT derived from tmux)
-├── tools.session (OPTIONAL)
-│   ├── tmuxSessionName
-│   ├── workingDirectory
-│   └── status
+├── sessions[] (array of AgentSession, typically 0 or 1)
+│   ├── index (0 for primary session)
+│   ├── status ('online' | 'offline')
+│   └── workingDirectory (optional override)
 └── preferences.defaultWorkingDirectory
 ```
 

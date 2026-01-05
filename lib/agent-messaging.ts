@@ -268,7 +268,8 @@ export function getSessionNameForAgent(agent: string): string | null {
     return null
   }
 
-  return agentObj.tools.session?.tmuxSessionName || null
+  // Use agent name as session name (new schema)
+  return agentObj.name || agentObj.alias || null
 }
 
 // Re-export types for convenience

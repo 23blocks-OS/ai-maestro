@@ -54,10 +54,81 @@ export async function GET(
         cumulativeMessagesIndexed: status.cumulativeMessagesIndexed,
         cumulativeConversationsIndexed: status.cumulativeConversationsIndexed
       } : null,
+      // Long-term memory consolidation status
+      consolidation: status?.consolidation || null,
       memoryStats
     })
   } catch (error) {
     console.error('[Agent Subconscious API] Error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/agents/[id]/subconscious
+ * Trigger subconscious actions
+ *
+ * Actions:
+ * - consolidate: Trigger memory consolidation (extract long-term memories from conversations)
+ * - index: Trigger immediate memory indexing (index new messages)
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: agentId } = await params
+    const body = await request.json()
+    const action = body.action as string
+
+    const agent = await agentRegistry.getAgent(agentId)
+    const subconscious = agent.getSubconscious()
+
+    if (!subconscious) {
+      return NextResponse.json(
+        { success: false, error: 'Subconscious not initialized' },
+        { status: 400 }
+      )
+    }
+
+    switch (action) {
+      case 'consolidate': {
+        console.log(`[Agent ${agentId.substring(0, 8)}] Manual consolidation triggered`)
+        const result = await subconscious.triggerConsolidation()
+        return NextResponse.json({
+          success: result?.success ?? false,
+          action: 'consolidate',
+          result
+        })
+      }
+
+      case 'index': {
+        // Trigger immediate memory indexing
+        console.log(`[Agent ${agentId.substring(0, 8)}] Manual indexing triggered`)
+        // The subconscious will pick this up on next interval
+        // For immediate indexing, we'd need to call checkMemory directly
+        // which isn't currently exposed, so this just confirms the action
+        return NextResponse.json({
+          success: true,
+          action: 'index',
+          message: 'Indexing will run on next interval'
+        })
+      }
+
+      default:
+        return NextResponse.json(
+          { success: false, error: `Unknown action: ${action}` },
+          { status: 400 }
+        )
+    }
+  } catch (error) {
+    console.error('[Agent Subconscious API] POST Error:', error)
     return NextResponse.json(
       {
         success: false,

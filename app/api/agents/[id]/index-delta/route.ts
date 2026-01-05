@@ -4,6 +4,7 @@ import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
 import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory } from '@/lib/agent-registry'
+import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -11,6 +12,60 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
+
+// ============================================================================
+// THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
+// ============================================================================
+const MAX_CONCURRENT_INDEX = 1  // Maximum simultaneous indexing operations (reduced to prevent CPU overload)
+let activeIndexCount = 0
+const indexQueue: Array<{
+  resolve: () => void
+  agentId: string
+  timestamp: number
+}> = []
+
+/**
+ * Acquire a slot for indexing. Returns a release function.
+ * If at capacity, waits in queue until a slot is available.
+ */
+async function acquireIndexSlot(agentId: string): Promise<() => void> {
+  if (activeIndexCount < MAX_CONCURRENT_INDEX) {
+    activeIndexCount++
+    console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
+    return () => releaseIndexSlot(agentId)
+  }
+
+  // Wait in queue
+  console.log(`[Delta Index Throttle] ${agentId.substring(0, 8)} queued (${indexQueue.length + 1} waiting)`)
+
+  return new Promise((resolve) => {
+    indexQueue.push({
+      resolve: () => {
+        activeIndexCount++
+        console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
+        resolve(() => releaseIndexSlot(agentId))
+      },
+      agentId,
+      timestamp: Date.now()
+    })
+  })
+}
+
+/**
+ * Release an indexing slot and process next in queue
+ */
+function releaseIndexSlot(agentId: string) {
+  activeIndexCount--
+  console.log(`[Delta Index Throttle] Released slot for ${agentId.substring(0, 8)} (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active, ${indexQueue.length} queued)`)
+
+  // Process next in queue
+  if (indexQueue.length > 0) {
+    const next = indexQueue.shift()!
+    const waitTime = Date.now() - next.timestamp
+    console.log(`[Delta Index Throttle] Processing queued ${next.agentId.substring(0, 8)} (waited ${waitTime}ms)`)
+    next.resolve()
+  }
+}
 
 /**
  * Get the live working directory from tmux for an agent's session
@@ -245,8 +300,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: agentId } = await params
+
+  // Acquire throttle slot (waits if at capacity)
+  const releaseSlot = await acquireIndexSlot(agentId)
+
   try {
-    const { id: agentId } = await params
     const searchParams = request.nextUrl.searchParams
 
     const dryRun = searchParams.get('dryRun') === 'true'
@@ -263,8 +322,10 @@ export async function POST(
     let liveTmuxWd: string | null = null
     let registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
     if (registryAgent) {
-      const sessionName = registryAgent.tools?.session?.tmuxSessionName
-      const storedWd = registryAgent.tools?.session?.workingDirectory
+      const agentName = registryAgent.name || registryAgent.alias
+      const sessionName = agentName ? computeSessionName(agentName, 0) : undefined
+      const storedWd = registryAgent.workingDirectory ||
+                       registryAgent.sessions?.[0]?.workingDirectory
       if (sessionName) {
         liveTmuxWd = await getLiveTmuxWorkingDirectory(sessionName)
         if (liveTmuxWd && storedWd && liveTmuxWd !== storedWd) {
@@ -286,6 +347,7 @@ export async function POST(
     } catch (error: any) {
       if (error.code === 'query::relation_not_found' || error.message?.includes('relation_not_found')) {
         console.log(`[Delta Index API] Schema not initialized for agent ${agentId} - skipping (will retry later)`)
+        releaseSlot()
         return NextResponse.json({
           success: true,
           agent_id: agentId,
@@ -314,7 +376,8 @@ export async function POST(
         }
 
         // Also add stored workingDirectory as fallback
-        const storedWd = registryAgent.tools?.session?.workingDirectory
+        const storedWd = registryAgent.workingDirectory ||
+                         registryAgent.sessions?.[0]?.workingDirectory
         if (storedWd && !workingDirectories.has(storedWd)) {
           workingDirectories.add(storedWd)
           console.log(`[Delta Index API] Also checking stored workingDirectory: ${storedWd}`)
@@ -338,6 +401,7 @@ export async function POST(
         console.log(`[Delta Index API] ✓ Auto-discovered ${autoDiscoveredCount} project(s), now have ${projectsResult.rows.length} total`)
       } else {
         console.log(`[Delta Index API] No projects could be auto-discovered for agent ${agentId}`)
+        releaseSlot()
         return NextResponse.json({
           success: true,
           agent_id: agentId,
@@ -481,6 +545,7 @@ export async function POST(
 
       // NOTE: Don't close agentDb - it's owned by the agent and stays open
 
+      releaseSlot()
       return NextResponse.json({
         success: true,
         dry_run: true,
@@ -540,6 +605,9 @@ export async function POST(
 
     console.log(`\n[Delta Index API] ✅ Complete: ${totalProcessed} messages in ${totalDuration}ms`)
 
+    // Release throttle slot
+    releaseSlot()
+
     return NextResponse.json({
       success: true,
       agent_id: agentId,
@@ -550,6 +618,9 @@ export async function POST(
       results,
     })
   } catch (error) {
+    // Release throttle slot on error
+    releaseSlot()
+
     console.error('[Delta Index API] Error:', error)
     return NextResponse.json(
       {

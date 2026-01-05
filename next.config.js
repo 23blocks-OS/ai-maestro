@@ -28,7 +28,7 @@ const nextConfig = {
       config.externals.push({
         'node-pty': 'commonjs node-pty',
         'cozo-node': 'commonjs cozo-node',
-        // Don't externalize @xenova/transformers - it's ESM-only and needs webpack bundling
+        // Don't externalize @huggingface/transformers - it's ESM-only and needs webpack bundling
         'onnxruntime-node': 'commonjs onnxruntime-node',
         'sharp': 'commonjs sharp',
         'pg': 'commonjs pg',

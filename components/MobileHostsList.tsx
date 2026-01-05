@@ -84,7 +84,7 @@ export default function MobileHostsList({
 
   // Get display name for an agent
   const getAgentDisplayName = (agent: Agent) => {
-    return agent.displayName || agent.alias || agent.id
+    return agent.label || agent.name || agent.alias || agent.id
   }
 
   // Get breadcrumb from tags
@@ -289,7 +289,7 @@ export default function MobileHostsList({
                           const breadcrumb = getAgentBreadcrumb(agent)
                           const isOnline = agent.session?.status === 'online'
                           // Hibernated = offline but has session config (can be woken)
-                          const isHibernated = !isOnline && !!agent.tools?.session
+                          const isHibernated = !isOnline && (agent.sessions && agent.sessions.length > 0)
 
                           // Status indicator colors and labels
                           const statusColor = isOnline

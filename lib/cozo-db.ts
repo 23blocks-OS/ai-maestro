@@ -58,6 +58,9 @@ export class AgentDatabase {
 
       // Auto-migrate: Initialize RAG schema if not present
       await this.ensureRagSchema()
+
+      // Auto-migrate: Initialize Memory schema if not present
+      await this.ensureMemorySchema()
     } catch (error) {
       console.error(`[CozoDB] Failed to initialize database:`, error)
       throw error
@@ -75,6 +78,20 @@ export class AgentDatabase {
     } catch (error) {
       console.error(`[CozoDB] Failed to ensure RAG schema:`, error)
       // Don't throw - allow database to work without RAG features
+    }
+  }
+
+  /**
+   * Ensure Long-Term Memory schema tables exist (auto-migration)
+   */
+  private async ensureMemorySchema(): Promise<void> {
+    try {
+      const { initializeMemorySchema } = await import('./cozo-schema-memory')
+      await initializeMemorySchema(this)
+      console.log(`[CozoDB] Memory schema migration complete`)
+    } catch (error) {
+      console.error(`[CozoDB] Failed to ensure Memory schema:`, error)
+      // Don't throw - allow database to work without Memory features
     }
   }
 

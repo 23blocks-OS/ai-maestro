@@ -15,6 +15,9 @@
 
 import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
 import { hostHints } from './host-hints'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 
 interface AgentConfig {
   agentId: string
@@ -24,6 +27,8 @@ interface AgentConfig {
 interface SubconsciousConfig {
   memoryCheckInterval?: number  // How often to check for new conversations (default: 5 minutes)
   messageCheckInterval?: number // How often to check for messages (default: 2 minutes)
+  consolidationEnabled?: boolean // Enable long-term memory consolidation (default: true)
+  consolidationHour?: number    // Hour of day to run consolidation (default: 2 = 2 AM)
 }
 
 // Activity-based interval configuration
@@ -74,6 +79,24 @@ interface SubconsciousStatus {
   // Cumulative stats (accumulated across this session)
   cumulativeMessagesIndexed: number
   cumulativeConversationsIndexed: number
+  // Long-term memory consolidation
+  consolidation: {
+    enabled: boolean
+    scheduledHour: number
+    lastRun: number | null
+    nextRun: number | null
+    lastResult: {
+      success: boolean
+      memoriesCreated?: number
+      memoriesReinforced?: number
+      memoriesLinked?: number
+      conversationsProcessed?: number
+      durationMs?: number
+      providerUsed?: string
+      error?: string
+    } | null
+    totalRuns: number
+  }
 }
 
 // Static counter for staggering initial runs across all agents
@@ -84,6 +107,7 @@ class AgentSubconscious {
   private agent: Agent
   private memoryTimer: NodeJS.Timeout | null = null
   private messageTimer: NodeJS.Timeout | null = null
+  private consolidationTimer: NodeJS.Timeout | null = null
   private initialDelayTimer: NodeJS.Timeout | null = null
   private isRunning = false
   private memoryCheckInterval: number
@@ -106,12 +130,23 @@ class AgentSubconscious {
   private cumulativeMessagesIndexed = 0
   private cumulativeConversationsIndexed = 0
 
+  // Long-term memory consolidation
+  private consolidationEnabled: boolean
+  private consolidationHour: number
+  private lastConsolidationRun: number | null = null
+  private nextConsolidationRun: number | null = null
+  private lastConsolidationResult: SubconsciousStatus['consolidation']['lastResult'] = null
+  private totalConsolidationRuns = 0
+
   constructor(agentId: string, agent: Agent, config: SubconsciousConfig = {}) {
     this.agentId = agentId
     this.agent = agent
     // Default interval (will be adjusted based on activity)
     this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
     this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes
+    // Long-term memory consolidation config
+    this.consolidationEnabled = config.consolidationEnabled !== false  // Default: enabled
+    this.consolidationHour = config.consolidationHour ?? 2  // Default: 2 AM
     // Assign instance number for staggering initial runs
     this.instanceNumber = subconsciousInstanceCount++
     // Calculate stagger offset based on agentId hash (consistent across restarts)
@@ -187,7 +222,117 @@ class AgentSubconscious {
       console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hints not available - running autonomously`)
     }
 
+    // Schedule long-term memory consolidation
+    if (this.consolidationEnabled) {
+      this.scheduleConsolidation()
+    }
+
     console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Subconscious running (first memory check in ${Math.round(this.staggerOffset / 1000)}s)`)
+
+    // Write initial status file
+    this.writeStatusFile()
+  }
+
+  /**
+   * Schedule next consolidation run
+   */
+  private scheduleConsolidation() {
+    // Calculate time until next scheduled consolidation
+    const now = new Date()
+    const nextRun = new Date(now)
+    nextRun.setHours(this.consolidationHour, 0, 0, 0)
+
+    // If we've already passed the scheduled hour today, schedule for tomorrow
+    if (now >= nextRun) {
+      nextRun.setDate(nextRun.getDate() + 1)
+    }
+
+    // Add stagger offset to prevent all agents from running at once
+    const staggerMinutes = Math.abs(this.agentId.split('').reduce(
+      (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0
+    )) % 30  // Spread across 30 minutes
+    nextRun.setMinutes(staggerMinutes)
+
+    const timeUntilRun = nextRun.getTime() - now.getTime()
+    this.nextConsolidationRun = nextRun.getTime()
+
+    console.log(`[Agent ${this.agentId.substring(0, 8)}] 📚 Consolidation scheduled for ${nextRun.toLocaleTimeString()} (in ${Math.round(timeUntilRun / 60000)} min)`)
+
+    // Clear existing timer
+    if (this.consolidationTimer) {
+      clearTimeout(this.consolidationTimer)
+    }
+
+    // Set timer for consolidation
+    this.consolidationTimer = setTimeout(() => {
+      this.runConsolidation().catch(err => {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed:`, err)
+      }).finally(() => {
+        // Schedule next run after this one completes
+        if (this.isRunning && this.consolidationEnabled) {
+          this.scheduleConsolidation()
+        }
+      })
+    }, timeUntilRun)
+  }
+
+  /**
+   * Run memory consolidation
+   * Extracts long-term memories from recent conversations
+   */
+  private async runConsolidation() {
+    this.totalConsolidationRuns++
+    this.lastConsolidationRun = Date.now()
+    const startTime = Date.now()
+
+    console.log(`[Agent ${this.agentId.substring(0, 8)}] 📚 Running memory consolidation...`)
+
+    try {
+      // Call the consolidation API endpoint
+      const response = await fetch(`http://localhost:23000/api/agents/${this.agentId}/memory/consolidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        this.lastConsolidationResult = { success: false, error: `HTTP ${response.status}` }
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation failed: ${response.status}`)
+        return
+      }
+
+      const result = await response.json()
+
+      this.lastConsolidationResult = {
+        success: result.status !== 'failed',
+        memoriesCreated: result.memories_created || 0,
+        memoriesReinforced: result.memories_reinforced || 0,
+        memoriesLinked: result.memories_linked || 0,
+        conversationsProcessed: result.conversations_processed || 0,
+        durationMs: Date.now() - startTime,
+        providerUsed: result.provider_used || 'unknown',
+        error: result.errors?.length > 0 ? result.errors.join('; ') : undefined
+      }
+
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Consolidation complete: ${result.memories_created} created, ${result.memories_reinforced} reinforced (${result.provider_used})`)
+    } catch (error) {
+      this.lastConsolidationResult = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: Date.now() - startTime
+      }
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Consolidation error:`, error)
+    }
+
+    // Update status file after consolidation
+    this.writeStatusFile()
+  }
+
+  /**
+   * Manually trigger consolidation (for testing or on-demand)
+   */
+  async triggerConsolidation(): Promise<SubconsciousStatus['consolidation']['lastResult']> {
+    await this.runConsolidation()
+    return this.lastConsolidationResult
   }
 
   /**
@@ -201,6 +346,10 @@ class AgentSubconscious {
     if (this.messageTimer) {
       clearInterval(this.messageTimer)
       this.messageTimer = null
+    }
+    if (this.consolidationTimer) {
+      clearTimeout(this.consolidationTimer)
+      this.consolidationTimer = null
     }
     if (this.initialDelayTimer) {
       clearTimeout(this.initialDelayTimer)
@@ -216,6 +365,9 @@ class AgentSubconscious {
 
     this.isRunning = false
     console.log(`[Agent ${this.agentId.substring(0, 8)}] Subconscious stopped`)
+
+    // Write final status file (marks as not running)
+    this.writeStatusFile()
   }
 
   /**
@@ -259,6 +411,9 @@ class AgentSubconscious {
       this.lastMemoryResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance error:`, error)
     }
+
+    // Update status file after memory run
+    this.writeStatusFile()
   }
 
   /**
@@ -302,6 +457,9 @@ class AgentSubconscious {
       this.lastMessageResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check error:`, error)
     }
+
+    // Update status file after message check
+    this.writeStatusFile()
   }
 
   /**
@@ -494,7 +652,62 @@ class AgentSubconscious {
       totalMemoryRuns: this.totalMemoryRuns,
       totalMessageRuns: this.totalMessageRuns,
       cumulativeMessagesIndexed: this.cumulativeMessagesIndexed,
-      cumulativeConversationsIndexed: this.cumulativeConversationsIndexed
+      cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
+      consolidation: {
+        enabled: this.consolidationEnabled,
+        scheduledHour: this.consolidationHour,
+        lastRun: this.lastConsolidationRun,
+        nextRun: this.nextConsolidationRun,
+        lastResult: this.lastConsolidationResult,
+        totalRuns: this.totalConsolidationRuns
+      }
+    }
+  }
+
+  /**
+   * Write subconscious status to a file for dashboard to read
+   * This decouples the dashboard from loading agents into memory
+   */
+  private writeStatusFile(): void {
+    try {
+      const statusDir = path.join(os.homedir(), '.aimaestro', 'agents', this.agentId)
+      const statusPath = path.join(statusDir, 'status.json')
+
+      // Ensure directory exists
+      if (!fs.existsSync(statusDir)) {
+        fs.mkdirSync(statusDir, { recursive: true })
+      }
+
+      const status = {
+        agentId: this.agentId,
+        lastUpdated: Date.now(),
+        isRunning: this.isRunning,
+        activityState: this.activityState,
+        startedAt: this.startedAt,
+        memoryCheckInterval: this.memoryCheckInterval,
+        messageCheckInterval: this.messageCheckInterval,
+        lastMemoryRun: this.lastMemoryRun,
+        lastMessageRun: this.lastMessageRun,
+        lastMemoryResult: this.lastMemoryResult,
+        lastMessageResult: this.lastMessageResult,
+        totalMemoryRuns: this.totalMemoryRuns,
+        totalMessageRuns: this.totalMessageRuns,
+        cumulativeMessagesIndexed: this.cumulativeMessagesIndexed,
+        cumulativeConversationsIndexed: this.cumulativeConversationsIndexed,
+        consolidation: {
+          enabled: this.consolidationEnabled,
+          scheduledHour: this.consolidationHour,
+          lastRun: this.lastConsolidationRun,
+          nextRun: this.nextConsolidationRun,
+          lastResult: this.lastConsolidationResult,
+          totalRuns: this.totalConsolidationRuns
+        }
+      }
+
+      fs.writeFileSync(statusPath, JSON.stringify(status, null, 2))
+    } catch (error) {
+      // Silently fail - status file is convenience, not critical
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Failed to write status file:`, error)
     }
   }
 }
@@ -610,13 +823,53 @@ export class Agent {
 }
 
 /**
- * Agent Registry - Manages agent lifecycle
+ * Agent Registry - Manages agent lifecycle with LRU eviction
  *
- * This singleton keeps track of all active agents and ensures
- * proper initialization/shutdown
+ * This singleton keeps track of active agents with a maximum limit.
+ * When the limit is reached, least recently used agents are evicted
+ * (properly shutdown including CozoDB) to prevent memory bloat.
+ *
+ * Default: max 10 agents in memory at once
  */
 class AgentRegistry {
   private agents = new Map<string, Agent>()
+  private accessOrder: string[] = []  // Most recently accessed at the end
+  private maxAgents: number
+
+  constructor(maxAgents = 10) {
+    this.maxAgents = maxAgents
+    console.log(`[AgentRegistry] Initialized with max ${maxAgents} agents (LRU eviction enabled)`)
+  }
+
+  /**
+   * Update access order (move to end = most recently used)
+   */
+  private touch(agentId: string): void {
+    const index = this.accessOrder.indexOf(agentId)
+    if (index !== -1) {
+      this.accessOrder.splice(index, 1)
+    }
+    this.accessOrder.push(agentId)
+  }
+
+  /**
+   * Evict least recently used agent if at capacity
+   */
+  private async evictIfNeeded(): Promise<void> {
+    while (this.agents.size >= this.maxAgents && this.accessOrder.length > 0) {
+      const lruAgentId = this.accessOrder.shift()!
+      const agent = this.agents.get(lruAgentId)
+      if (agent) {
+        console.log(`[AgentRegistry] Evicting LRU agent ${lruAgentId.substring(0, 8)} (${this.agents.size}/${this.maxAgents})`)
+        try {
+          await agent.shutdown()
+        } catch (err) {
+          console.error(`[AgentRegistry] Error shutting down evicted agent:`, err)
+        }
+        this.agents.delete(lruAgentId)
+      }
+    }
+  }
 
   /**
    * Get or create an agent
@@ -624,24 +877,38 @@ class AgentRegistry {
   async getAgent(agentId: string, config?: AgentConfig): Promise<Agent> {
     let agent = this.agents.get(agentId)
 
-    if (!agent) {
-      // Create new agent
-      agent = new Agent({
-        agentId,
-        workingDirectory: config?.workingDirectory
-      })
-      await agent.initialize()
-      this.agents.set(agentId, agent)
+    if (agent) {
+      // Update access order (touch = mark as recently used)
+      this.touch(agentId)
+      return agent
     }
+
+    // Evict LRU agent if at capacity before creating new one
+    await this.evictIfNeeded()
+
+    // Create new agent
+    console.log(`[AgentRegistry] Loading agent ${agentId.substring(0, 8)} (${this.agents.size + 1}/${this.maxAgents})`)
+    agent = new Agent({
+      agentId,
+      workingDirectory: config?.workingDirectory
+    })
+    await agent.initialize()
+    this.agents.set(agentId, agent)
+    this.touch(agentId)
 
     return agent
   }
 
   /**
    * Get an existing agent (without creating)
+   * Also updates access order
    */
   getExistingAgent(agentId: string): Agent | undefined {
-    return this.agents.get(agentId)
+    const agent = this.agents.get(agentId)
+    if (agent) {
+      this.touch(agentId)
+    }
+    return agent
   }
 
   /**
@@ -652,6 +919,10 @@ class AgentRegistry {
     if (agent) {
       await agent.shutdown()
       this.agents.delete(agentId)
+      const index = this.accessOrder.indexOf(agentId)
+      if (index !== -1) {
+        this.accessOrder.splice(index, 1)
+      }
     }
   }
 
@@ -663,11 +934,12 @@ class AgentRegistry {
     const shutdownPromises = Array.from(this.agents.values()).map(agent => agent.shutdown())
     await Promise.all(shutdownPromises)
     this.agents.clear()
+    this.accessOrder = []
     console.log('[AgentRegistry] ✓ All agents shutdown')
   }
 
   /**
-   * Get all active agents
+   * Get all active agents (currently in memory)
    */
   getAllAgents(): Agent[] {
     return Array.from(this.agents.values())
@@ -679,6 +951,7 @@ class AgentRegistry {
   getStatus() {
     return {
       activeAgents: this.agents.size,
+      maxAgents: this.maxAgents,
       agents: Array.from(this.agents.values()).map(agent => agent.getStatus())
     }
   }

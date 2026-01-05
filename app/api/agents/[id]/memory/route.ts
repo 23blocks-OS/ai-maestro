@@ -150,11 +150,12 @@ export async function POST(
       // This ensures we match conversations even when no active session exists
       const registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
       if (registryAgent) {
-        const sessionWd = registryAgent.tools?.session?.workingDirectory
+        const sessionWd = registryAgent.workingDirectory ||
+                          registryAgent.sessions?.[0]?.workingDirectory
         const preferenceWd = registryAgent.preferences?.defaultWorkingDirectory
         if (sessionWd) {
           projectPaths.add(sessionWd)
-          console.log(`[Memory API] Added workingDirectory from registry session: ${sessionWd}`)
+          console.log(`[Memory API] Added workingDirectory from registry: ${sessionWd}`)
         }
         if (preferenceWd && preferenceWd !== sessionWd) {
           projectPaths.add(preferenceWd)

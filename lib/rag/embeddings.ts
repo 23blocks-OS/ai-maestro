@@ -1,33 +1,54 @@
 /**
  * Local Embeddings Module
- * Uses @xenova/transformers for CPU-friendly, TypeScript-native embeddings
+ * Uses @huggingface/transformers v3 for TypeScript-native embeddings
  * Model: bge-small-en-v1.5 (384-dimensional, English, optimized for retrieval)
+ *
+ * v3 includes onnxruntime-node for native CPU performance (faster than WASM)
  */
 
-import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
+import { pipeline, FeatureExtractionPipeline, env } from '@huggingface/transformers';
+
+// Configure for Node.js environment
+env.allowLocalModels = false;  // Use HuggingFace Hub
+env.useBrowserCache = false;   // Use filesystem cache in Node.js
 
 // Fast, local, CPU-friendly English embedding model
 const MODEL = 'Xenova/bge-small-en-v1.5';
 
 let extractor: FeatureExtractionPipeline | null = null;
+let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 
 /**
- * Get or initialize the embedding model (singleton pattern)
+ * Get or initialize the embedding model (singleton pattern with race protection)
  */
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
-  if (!extractor) {
+  if (extractor) return extractor;
+
+  // Prevent multiple simultaneous initializations
+  if (extractorPromise) return extractorPromise;
+
+  extractorPromise = (async () => {
     console.log('[Embeddings] Loading model:', MODEL);
-    extractor = await pipeline('feature-extraction', MODEL, {
-      quantized: true, // Faster and smaller, with minimal quality loss
+    const startTime = Date.now();
+
+    const ext = await pipeline('feature-extraction', MODEL, {
+      dtype: 'q8',  // Quantized for speed (was: quantized: true)
+      device: 'auto',  // Let it choose best available (CPU in Node.js)
       progress_callback: (progress: any) => {
-        if (progress.status === 'progress') {
+        if (progress.status === 'progress' && progress.progress) {
           console.log(`[Embeddings] Loading... ${Math.round(progress.progress)}%`);
         }
       },
     });
-    console.log('[Embeddings] Model loaded successfully');
-  }
-  return extractor;
+
+    const loadTime = Date.now() - startTime;
+    console.log(`[Embeddings] Model loaded successfully in ${loadTime}ms`);
+
+    extractor = ext;
+    return ext;
+  })();
+
+  return extractorPromise;
 }
 
 /**
@@ -74,10 +95,22 @@ export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
   // We need to extract each row as a separate embedding
   const results: Float32Array[] = [];
 
-  // Get the raw data and dimensions
+  // v3 uses .tolist() or direct data access
   let data: Float32Array | number[];
   let dims: number[];
 
+  // Handle v3 Tensor API
+  if (typeof output.tolist === 'function') {
+    // v3 style - use tolist() for clean array access
+    const list = output.tolist() as number[][];
+    for (const row of list) {
+      const vec = Float32Array.from(row);
+      results.push(l2Normalize(vec));
+    }
+    return results;
+  }
+
+  // Fallback to data/dims access
   if (output.data instanceof Float32Array) {
     data = output.data;
     dims = output.dims || [validTexts.length, 384];
@@ -95,6 +128,7 @@ export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
       hasData: 'data' in output,
       dataType: output.data ? typeof output.data : 'no data',
       hasDims: 'dims' in output,
+      hasTolist: typeof output.tolist,
     });
     throw new Error('[Embeddings] Cannot parse model output');
   }

@@ -114,7 +114,7 @@ export async function GET(
     const configuredRepos = agent.tools.repositories || []
 
     // Detect repo from working directory if not already configured
-    const workingDir = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+    const workingDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.preferences?.defaultWorkingDirectory
     let detectedRepo: Repository | null = null
 
     if (workingDir && fs.existsSync(workingDir)) {
@@ -172,7 +172,7 @@ export async function POST(
 
     // If detectFromWorkingDir is true, auto-detect repos
     if (detectFromWorkingDir) {
-      const workingDir = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+      const workingDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.preferences?.defaultWorkingDirectory
       if (workingDir && fs.existsSync(workingDir)) {
         const detected = getGitRepoInfo(workingDir)
         if (detected) {

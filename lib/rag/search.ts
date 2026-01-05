@@ -1,18 +1,19 @@
 /**
  * Hybrid Search with Reciprocal Rank Fusion (RRF)
- * Combines BM25 (lexical), embeddings (semantic), and keywords (filtering)
+ * Combines lexical (CozoDB terms) and semantic (embeddings) search
  *
  * Search Strategy:
- * 1. BM25 search for exact term matches (fast prefilter)
+ * 1. Term search in CozoDB (per-agent, portable)
  * 2. Embedding similarity search (semantic understanding)
  * 3. Merge results using RRF (Reciprocal Rank Fusion)
  * 4. Filter by keywords/symbols/time range
+ *
+ * Note: Global BM25 was removed - terms are stored per-agent in CozoDB
  */
 
 import { AgentDatabase } from '@/lib/cozo-db'
 import { getMessageVectors, getMessagesByIds, searchMessagesByTerm, searchMessagesBySymbol } from '@/lib/cozo-schema-rag'
 import { embedTexts, bufferToVector, cosine } from './embeddings'
-import { bm25Search } from './bm25'
 import { extractTerms } from './keywords'
 
 export interface SearchResult {
@@ -22,7 +23,7 @@ export interface SearchResult {
   role: string
   ts: number
   text: string
-  matchType: 'bm25' | 'semantic' | 'hybrid'
+  matchType: 'lexical' | 'semantic' | 'hybrid'
 }
 
 export interface SearchOptions {
@@ -30,19 +31,21 @@ export interface SearchOptions {
   minScore?: number // Minimum score threshold (default: 0.0)
   useRrf?: boolean // Use Reciprocal Rank Fusion (default: true)
   rrfK?: number // RRF constant (default: 60)
-  bm25Weight?: number // Weight for BM25 results (default: 0.4)
+  lexicalWeight?: number // Weight for lexical/term results (default: 0.4)
   semanticWeight?: number // Weight for semantic results (default: 0.6)
   roleFilter?: 'user' | 'assistant' | 'system' // Filter by message role
   conversationFile?: string // Filter by specific conversation file path
   timeRange?: { start: number; end: number } // Filter by timestamp range
+  // Legacy alias for backwards compatibility
+  bm25Weight?: number
 }
 
-const DEFAULT_OPTIONS: Required<SearchOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<SearchOptions, 'bm25Weight'>> = {
   limit: 10,
   minScore: 0.0,
   useRrf: true,
   rrfK: 60,
-  bm25Weight: 0.4,
+  lexicalWeight: 0.4,
   semanticWeight: 0.6,
   roleFilter: undefined as any,
   conversationFile: undefined as any,
@@ -102,7 +105,9 @@ export async function hybridSearch(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearchResult[]> {
-  const opts = { ...DEFAULT_OPTIONS, ...options }
+  // Handle legacy bm25Weight option
+  const lexicalWeight = options.lexicalWeight ?? options.bm25Weight ?? DEFAULT_OPTIONS.lexicalWeight
+  const opts = { ...DEFAULT_OPTIONS, ...options, lexicalWeight }
 
   console.log(`[Search] Query: "${query}"`)
   console.log(`[Search] Options:`, opts)
@@ -110,12 +115,37 @@ export async function hybridSearch(
   const startTime = Date.now()
 
   // ============================================================================
-  // 1. BM25 Lexical Search
+  // 1. Lexical Term Search (per-agent, stored in CozoDB)
   // ============================================================================
-  console.log(`[Search] Running BM25 search...`)
-  const bm25Results = bm25Search(query, 100) // Get top 100 from BM25
-  const bm25Ids = bm25Results.map((r) => r.id)
-  console.log(`[Search] BM25 found ${bm25Results.length} results`)
+  console.log(`[Search] Running lexical term search...`)
+
+  // Extract terms from query
+  const queryTerms = extractTerms(query)
+  console.log(`[Search] Extracted ${queryTerms.length} terms from query`)
+
+  // Search for each term and collect results with frequency scoring
+  const termResults = new Map<string, number>() // msg_id -> count of matching terms
+
+  for (const term of queryTerms) {
+    try {
+      const matches = await searchMessagesByTerm(agentDb, term.toLowerCase())
+      for (const match of matches) {
+        const count = termResults.get(match.msg_id) || 0
+        termResults.set(match.msg_id, count + 1)
+      }
+    } catch (e) {
+      // Term not found is not an error
+    }
+  }
+
+  // Sort by number of matching terms (more matches = higher score)
+  const lexicalResults = Array.from(termResults.entries())
+    .map(([id, count]) => ({ id, score: count / queryTerms.length }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 100)
+
+  const lexicalIds = lexicalResults.map((r) => r.id)
+  console.log(`[Search] Lexical search found ${lexicalResults.length} results`)
 
   // ============================================================================
   // 2. Semantic Embedding Search
@@ -152,7 +182,7 @@ export async function hybridSearch(
     console.log(`[Search] Merging with RRF (k=${opts.rrfK})...`)
     mergedResults = reciprocalRankFusion(
       [
-        bm25Results.map((r) => ({ id: r.id })),
+        lexicalResults.map((r) => ({ id: r.id })),
         semanticScores.slice(0, 100).map((r) => ({ id: r.id })),
       ],
       opts.rrfK
@@ -160,7 +190,7 @@ export async function hybridSearch(
   } else {
     console.log(`[Search] Merging with weighted fusion...`)
     mergedResults = weightedScoreFusion([
-      bm25Results.map((r) => ({ id: r.id, score: r.score, weight: opts.bm25Weight })),
+      lexicalResults.map((r) => ({ id: r.id, score: r.score, weight: opts.lexicalWeight })),
       semanticScores.slice(0, 100).map((r) => ({ id: r.id, score: r.score, weight: opts.semanticWeight })),
     ])
   }
@@ -192,11 +222,11 @@ export async function hybridSearch(
     role: msg.role,
     ts: msg.ts,
     text: msg.text,
-    matchType: (bm25Ids.includes(msg.msg_id) && semanticIds.includes(msg.msg_id)
+    matchType: (lexicalIds.includes(msg.msg_id) && semanticIds.includes(msg.msg_id)
       ? 'hybrid'
-      : bm25Ids.includes(msg.msg_id)
-      ? 'bm25'
-      : 'semantic') as 'bm25' | 'semantic' | 'hybrid',
+      : lexicalIds.includes(msg.msg_id)
+      ? 'lexical'
+      : 'semantic') as 'lexical' | 'semantic' | 'hybrid',
   }))
 
   // Role filter
@@ -262,7 +292,7 @@ export async function searchByTerm(
     role: msg.role,
     ts: msg.ts,
     text: msg.text,
-    matchType: 'bm25' as const,
+    matchType: 'lexical' as const,
   }))
 }
 
@@ -298,12 +328,12 @@ export async function searchBySymbol(
     role: msg.role,
     ts: msg.ts,
     text: msg.text,
-    matchType: 'bm25' as const,
+    matchType: 'lexical' as const,
   }))
 }
 
 /**
- * Semantic-only search (no BM25)
+ * Semantic-only search (no lexical)
  */
 export async function semanticSearch(
   agentDb: AgentDatabase,

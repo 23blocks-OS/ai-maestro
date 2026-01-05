@@ -330,7 +330,7 @@ export default function AgentList({
 
   const handleAgentClick = (agent: UnifiedAgent) => {
     // Check if this is a hibernated agent (offline but has session config)
-    const isHibernated = agent.session?.status !== 'online' && !!agent.tools?.session
+    const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
 
     if (agent.session?.status === 'online' || isHibernated) {
       // Online or hibernated agent - select and show tabs
@@ -698,7 +698,7 @@ export default function AgentList({
                             {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
                                 {[...agentsList]
-                                  .sort((a, b) => (a.displayName || a.alias).toLowerCase().localeCompare((b.displayName || b.alias).toLowerCase()))
+                                  .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
                                   const isOnline = agent.session?.status === 'online'
@@ -749,7 +749,7 @@ export default function AgentList({
                                                     color: isActive ? colors.activeText : 'rgb(229, 231, 235)',
                                                   }}
                                                 >
-                                                  {agent.displayName || agent.alias}
+                                                  {agent.label || agent.name || agent.alias}
                                                 </span>
 
                                                 {/* Cached indicator */}
@@ -785,7 +785,7 @@ export default function AgentList({
                                                 {/* Status indicator */}
                                                 <AgentStatusIndicator
                                                   isOnline={isOnline}
-                                                  isHibernated={!isOnline && !!agent.tools?.session}
+                                                  isHibernated={!isOnline && (agent.sessions && agent.sessions.length > 0)}
                                                 />
                                               </div>
 
@@ -821,7 +821,7 @@ export default function AgentList({
                                               </button>
                                             )}
                                             {/* Wake button - show when agent is offline and has session config */}
-                                            {!isOnline && agent.tools?.session && (
+                                            {!isOnline && (agent.sessions && agent.sessions.length > 0) && (
                                               <button
                                                 onClick={(e) => handleWake(agent, e)}
                                                 disabled={wakingAgents.has(agent.id)}

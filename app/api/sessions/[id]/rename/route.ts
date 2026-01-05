@@ -57,8 +57,8 @@ export async function PATCH(
       // Read, update, and save cloud agent configuration
       const agentConfig = JSON.parse(fs.readFileSync(oldAgentFilePath, 'utf8'))
       agentConfig.id = newName
-      agentConfig.alias = newName
-      agentConfig.tools.session.tmuxSessionName = newName
+      agentConfig.name = newName
+      agentConfig.alias = newName  // Keep for backwards compat
 
       // Save with new name and delete old file
       fs.writeFileSync(newAgentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')

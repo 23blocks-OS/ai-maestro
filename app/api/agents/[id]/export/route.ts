@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAgent, getAgentByAlias } from '@/lib/agent-registry'
+import { getAgent, getAgentByAlias, getAgentByName } from '@/lib/agent-registry'
 import archiver from 'archiver'
 import fs from 'fs'
 import path from 'path'
@@ -121,8 +121,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Try to find agent by ID first, then by alias
+    // Try to find agent by ID first, then by name, then by alias (deprecated)
     let agent = getAgent(params.id)
+    if (!agent) {
+      agent = getAgentByName(params.id)
+    }
     if (!agent) {
       agent = getAgentByAlias(params.id)
     }
@@ -131,15 +134,18 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    // Determine the session name for messages (could be tmux session name)
-    const sessionName = agent.tools.session?.tmuxSessionName || agent.alias
+    // Get the agent name (new field, fallback to deprecated alias)
+    const agentName = agent.name || agent.alias
+    if (!agentName) {
+      return NextResponse.json({ error: 'Agent has no name configured' }, { status: 400 })
+    }
 
-    // Paths to agent data
+    // Paths to agent data - messages use agent name as directory
     const agentDbDir = path.join(AGENTS_DIR, agent.id)
     const agentDbFile = path.join(agentDbDir, 'agent.db')
-    const inboxDir = path.join(MESSAGES_DIR, 'inbox', sessionName)
-    const sentDir = path.join(MESSAGES_DIR, 'sent', sessionName)
-    const archivedDir = path.join(MESSAGES_DIR, 'archived', sessionName)
+    const inboxDir = path.join(MESSAGES_DIR, 'inbox', agentName)
+    const sentDir = path.join(MESSAGES_DIR, 'sent', agentName)
+    const archivedDir = path.join(MESSAGES_DIR, 'archived', agentName)
 
     // Check what data exists
     const hasDatabase = fs.existsSync(agentDbFile)
@@ -157,7 +163,7 @@ export async function GET(
     const repositories: PortableRepository[] = []
 
     // First, check working directory for git repo
-    const workingDir = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+    const workingDir = agent.workingDirectory || agent.preferences?.defaultWorkingDirectory
     if (workingDir && fs.existsSync(workingDir)) {
       const detectedRepo = detectGitRepo(workingDir)
       if (detectedRepo) {
@@ -193,8 +199,10 @@ export async function GET(
       },
       agent: {
         id: agent.id,
-        alias: agent.alias,
-        displayName: agent.displayName
+        name: agentName,
+        label: agent.label,
+        // Deprecated fields for backwards compatibility
+        alias: agent.alias
       },
       contents: {
         hasRegistry: true,
@@ -214,20 +222,20 @@ export async function GET(
     // Remove sensitive/machine-specific data that shouldn't be exported
     const exportableAgent = {
       ...agent,
+      // Use canonical name
+      name: agentName,
       // Reset deployment to neutral state - will be set on import
       deployment: {
         type: 'local' as const
         // Remove local/cloud specific details
       },
-      // Clear session info - will be recreated on import
-      tools: {
-        ...agent.tools,
-        session: agent.tools.session ? {
-          ...agent.tools.session,
-          status: 'stopped' as const,
-          // Keep workingDirectory as a hint for the new machine
-        } : undefined
-      },
+      // Reset all sessions to offline - will be recreated on import
+      sessions: (agent.sessions || []).map(s => ({
+        ...s,
+        status: 'offline' as const
+      })),
+      // Keep workingDirectory as a hint for the new machine
+      workingDirectory: agent.workingDirectory,
       // Reset status
       status: 'offline' as const,
       // Keep metrics but note they're historical
@@ -289,7 +297,7 @@ export async function GET(
 
     // Generate filename
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const filename = `${agent.alias}-export-${timestamp}.zip`
+    const filename = `${agentName}-export-${timestamp}.zip`
 
     // Return ZIP file as download
     return new Response(zipBuffer, {
@@ -299,7 +307,7 @@ export async function GET(
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': zipBuffer.length.toString(),
         'X-Agent-Id': agent.id,
-        'X-Agent-Alias': agent.alias,
+        'X-Agent-Name': agentName,
         'X-Export-Version': '1.0.0'
       }
     })

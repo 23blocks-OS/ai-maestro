@@ -199,7 +199,8 @@ export async function POST(
       }
 
       // Try to get working directory from various sources in registry data
-      projectPath = registryAgent.tools?.session?.workingDirectory ||
+      projectPath = registryAgent.workingDirectory ||
+                    registryAgent.sessions?.[0]?.workingDirectory ||
                     registryAgent.preferences?.defaultWorkingDirectory
 
       if (!projectPath) {

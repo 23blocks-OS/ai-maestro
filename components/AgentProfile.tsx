@@ -7,12 +7,14 @@ import {
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
 import ExportAgentDialog from './ExportAgentDialog'
 import DeleteAgentDialog from './DeleteAgentDialog'
+import MemoryViewer from './MemoryViewer'
+import SkillsSection from './SkillsSection'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -50,6 +52,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     work: true,
     deployment: true,
     repositories: true,
+    memory: true,
+    skills: true,
     metrics: true,
     documentation: false,
     customMetadata: false,
@@ -150,8 +154,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          alias: agent.alias,
-          displayName: agent.displayName,
+          name: agent.name || agent.alias,
+          label: agent.label,
           avatar: agent.avatar,
           owner: agent.owner,
           team: agent.team,
@@ -381,17 +385,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </div>
                       <div className="flex-1 space-y-3">
                         <EditableField
-                          label="Alias"
-                          value={agent.alias}
-                          onChange={(value) => updateField('alias', value)}
+                          label="Name"
+                          value={agent.name || agent.alias || ''}
+                          onChange={(value) => updateField('name', value)}
                           icon={<User className="w-4 h-4" />}
                         />
                         <EditableField
-                          label="Display Name"
-                          value={agent.displayName || ''}
-                          onChange={(value) => updateField('displayName', value)}
+                          label="Label"
+                          value={agent.label || ''}
+                          onChange={(value) => updateField('label', value)}
                           icon={<Users className="w-4 h-4" />}
-                          placeholder="Optional full name"
+                          placeholder="Optional display label"
                         />
                       </div>
                     </div>
@@ -695,6 +699,46 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
+              {/* Long-Term Memory Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('memory')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.memory ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Brain className="w-4 h-4" />
+                  Long-Term Memory
+                </button>
+
+                {expandedSections.memory && (
+                  <MemoryViewer agentId={agent.id} hostUrl={hostUrl} />
+                )}
+              </section>
+
+              {/* Skills Settings Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('skills')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.skills ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Cpu className="w-4 h-4" />
+                  Skills
+                </button>
+
+                {expandedSections.skills && (
+                  <SkillsSection agentId={agent.id} hostUrl={hostUrl} />
+                )}
+              </section>
+
               {/* Metrics Section */}
               <section>
                 <button
@@ -908,8 +952,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
       {showTransferDialog && agent && (
         <TransferAgentDialog
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
           currentHostId={agent.deployment?.local?.hostname === 'localhost' ? 'local' : undefined}
           onClose={() => setShowTransferDialog(false)}
           onTransferComplete={(result) => {
@@ -929,8 +973,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           isOpen={showExportDialog}
           onClose={() => setShowExportDialog(false)}
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
           hostUrl={hostUrl}
         />
       )}
@@ -946,8 +990,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
             }
           }}
           agentId={agent.id}
-          agentAlias={agent.alias}
-          agentDisplayName={agent.displayName}
+          agentAlias={agent.name || agent.alias || ''}
+          agentDisplayName={agent.label}
         />
       )}
     </>

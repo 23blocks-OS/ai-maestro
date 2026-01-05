@@ -115,8 +115,8 @@ export async function POST(
           fs.rmSync(agentDir, { recursive: true })
         }
 
-        // Delete messages
-        const sessionName = agent.tools.session?.tmuxSessionName || agent.alias
+        // Delete messages - use agent name as session name
+        const sessionName = agent.name || agent.alias
         if (sessionName) {
           const inboxDir = path.join(MESSAGES_DIR, 'inbox', sessionName)
           const sentDir = path.join(MESSAGES_DIR, 'sent', sessionName)

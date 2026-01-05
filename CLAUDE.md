@@ -119,12 +119,13 @@ When modifying `server.mjs`:
 ```
 Agent (core entity)
 ├── id (UUID)
-├── alias
+├── name (agent identity, used as session name)
+├── label (optional display override)
 ├── workingDirectory (stored property, NOT derived from tmux)
-├── tools.session (OPTIONAL)
-│   ├── tmuxSessionName
-│   ├── workingDirectory
-│   └── status
+├── sessions[] (array of AgentSession, typically 0 or 1)
+│   ├── index (0 for primary session)
+│   ├── status ('online' | 'offline')
+│   └── workingDirectory (optional override)
 └── preferences.defaultWorkingDirectory
 ```
 
@@ -142,7 +143,7 @@ When you need agent metadata (workingDirectory, etc.), use the file-based regist
 ```typescript
 import { getAgent, getAgentBySession } from '@/lib/agent-registry'
 const agent = getAgent(agentId) || getAgentBySession(sessionName)
-const workingDir = agent?.tools?.session?.workingDirectory
+const workingDir = agent?.workingDirectory || agent?.sessions?.[0]?.workingDirectory
 ```
 
 **DO NOT:**

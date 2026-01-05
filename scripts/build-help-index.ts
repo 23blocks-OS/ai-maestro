@@ -12,7 +12,10 @@
  * so the search index is ready at application startup.
  */
 
-import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers'
+import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createPipeline = pipeline as any
 import { tutorials } from '../lib/tutorialData'
 import { glossary } from '../lib/glossaryData'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
@@ -48,8 +51,10 @@ let extractor: FeatureExtractionPipeline | null = null
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
   if (!extractor) {
     console.log('[Build] Loading embedding model:', MODEL)
-    extractor = await pipeline('feature-extraction', MODEL, {
-      quantized: true,
+    // v3 API: dtype replaces quantized, device: 'auto' for best available
+    extractor = await createPipeline('feature-extraction', MODEL, {
+      dtype: 'q8',
+      device: 'auto',
       progress_callback: (progress: { status: string; progress?: number }) => {
         if (progress.status === 'progress' && progress.progress !== undefined) {
           process.stdout.write(`\r[Build] Loading model... ${Math.round(progress.progress)}%`)
@@ -58,7 +63,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
     })
     console.log('\n[Build] Model loaded successfully')
   }
-  return extractor
+  return extractor!
 }
 
 async function embedText(text: string): Promise<number[]> {

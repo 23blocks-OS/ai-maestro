@@ -1,49 +1,110 @@
 import { NextResponse } from 'next/server'
 import { discoverAgentDatabases } from '@/lib/agent-startup'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 import type {
-  AgentSubconsciousSummary,
   MemoryRunResult,
   MessageCheckResult
 } from '@/types/subconscious'
 
-interface ExtendedAgentStatus extends AgentSubconsciousSummary {
-  memoryStats?: {
-    totalMessages: number
-    totalConversations: number
+interface StatusFileContent {
+  agentId: string
+  lastUpdated: number
+  isRunning: boolean
+  activityState: 'active' | 'idle' | 'disconnected'
+  startedAt: number | null
+  memoryCheckInterval: number
+  messageCheckInterval: number
+  lastMemoryRun: number | null
+  lastMessageRun: number | null
+  lastMemoryResult: MemoryRunResult | null
+  lastMessageResult: MessageCheckResult | null
+  totalMemoryRuns: number
+  totalMessageRuns: number
+  cumulativeMessagesIndexed: number
+  cumulativeConversationsIndexed: number
+  consolidation?: {
+    enabled: boolean
+    scheduledHour: number
+    lastRun: number | null
+    nextRun: number | null
+    lastResult: unknown | null
+    totalRuns: number
   }
-  cumulativeMessagesIndexed?: number
-  cumulativeConversationsIndexed?: number
+}
+
+interface AgentStatus {
+  agentId: string
+  isRunning: boolean
+  initialized: boolean
+  hasStatusFile: boolean
+  lastUpdated: number | null
+  status: {
+    lastMemoryRun: number | null
+    lastMessageRun: number | null
+    lastMemoryResult: MemoryRunResult | null
+    lastMessageResult: MessageCheckResult | null
+    totalMemoryRuns: number
+    totalMessageRuns: number
+  } | null
+  cumulativeMessagesIndexed: number
+  cumulativeConversationsIndexed: number
 }
 
 /**
- * Fetch subconscious status for a single agent
+ * Read subconscious status from file (no agent loading!)
+ * This is the key change - we read static files instead of loading agents into memory
  */
-async function fetchAgentStatus(agentId: string): Promise<ExtendedAgentStatus | null> {
+function readAgentStatusFile(agentId: string): AgentStatus {
+  const statusPath = path.join(os.homedir(), '.aimaestro', 'agents', agentId, 'status.json')
+
+  // Default status for agents without a status file (hibernated/never started)
+  const defaultStatus: AgentStatus = {
+    agentId,
+    isRunning: false,
+    initialized: false,
+    hasStatusFile: false,
+    lastUpdated: null,
+    status: null,
+    cumulativeMessagesIndexed: 0,
+    cumulativeConversationsIndexed: 0
+  }
+
   try {
-    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/subconscious`, {
-      cache: 'no-store'
-    })
-    if (!response.ok) return null
-    const data = await response.json()
+    if (!fs.existsSync(statusPath)) {
+      return defaultStatus
+    }
+
+    const content = fs.readFileSync(statusPath, 'utf-8')
+    const data = JSON.parse(content) as StatusFileContent
+
+    // Check if status file is stale (older than 10 minutes = agent likely stopped)
+    const staleThreshold = 10 * 60 * 1000 // 10 minutes
+    const isStale = data.lastUpdated && (Date.now() - data.lastUpdated) > staleThreshold
+    const isRunning = data.isRunning && !isStale
+
     return {
       agentId,
-      isRunning: data.isRunning || false,
-      initialized: data.initialized || false,
-      isWarmingUp: data.isWarmingUp || false,
-      status: data.status ? {
-        lastMemoryRun: data.status.lastMemoryRun,
-        lastMessageRun: data.status.lastMessageRun,
-        lastMemoryResult: data.status.lastMemoryResult,
-        lastMessageResult: data.status.lastMessageResult,
-        totalMemoryRuns: data.status.totalMemoryRuns,
-        totalMessageRuns: data.status.totalMessageRuns
-      } : null,
-      memoryStats: data.memoryStats,
-      cumulativeMessagesIndexed: data.status?.cumulativeMessagesIndexed,
-      cumulativeConversationsIndexed: data.status?.cumulativeConversationsIndexed
+      isRunning,
+      initialized: true, // Has status file = was initialized at some point
+      hasStatusFile: true,
+      lastUpdated: data.lastUpdated,
+      status: {
+        lastMemoryRun: data.lastMemoryRun,
+        lastMessageRun: data.lastMessageRun,
+        lastMemoryResult: data.lastMemoryResult,
+        lastMessageResult: data.lastMessageResult,
+        totalMemoryRuns: data.totalMemoryRuns || 0,
+        totalMessageRuns: data.totalMessageRuns || 0
+      },
+      cumulativeMessagesIndexed: data.cumulativeMessagesIndexed || 0,
+      cumulativeConversationsIndexed: data.cumulativeConversationsIndexed || 0
     }
-  } catch {
-    return null
+  } catch (error) {
+    // File read error - treat as no status
+    console.error(`[Subconscious API] Error reading status for ${agentId}:`, error)
+    return defaultStatus
   }
 }
 
@@ -51,8 +112,9 @@ async function fetchAgentStatus(agentId: string): Promise<ExtendedAgentStatus | 
  * GET /api/subconscious
  * Get the global subconscious status across all agents
  *
- * This API aggregates status from per-agent subconscious endpoints
- * to work around Next.js module isolation issues.
+ * IMPORTANT: This API now reads from status FILES instead of loading agents.
+ * This prevents memory bloat from loading 68+ agents into memory just to check status.
+ * Agents write their own status files when their subconscious runs.
  */
 export async function GET() {
   try {
@@ -76,16 +138,12 @@ export async function GET() {
       })
     }
 
-    // Fetch status for all agents in parallel (limit to 100 for performance)
-    const agentIdsToCheck = discoveredAgentIds.slice(0, 100)
-    const statusPromises = agentIdsToCheck.map(fetchAgentStatus)
-    const statuses = await Promise.all(statusPromises)
-    const validStatuses = statuses.filter((s): s is ExtendedAgentStatus => s !== null)
+    // Read status from files (NO agent loading! This is fast and memory-efficient)
+    const statuses = discoveredAgentIds.map(readAgentStatusFile)
 
     // Aggregate stats
-    const activeAgents = validStatuses.filter(s => s.initialized).length
-    const runningSubconscious = validStatuses.filter(s => s.isRunning).length
-    const warmingUpCount = validStatuses.filter(s => s.isWarmingUp).length
+    const activeAgents = statuses.filter(s => s.initialized).length
+    const runningSubconscious = statuses.filter(s => s.isRunning).length
 
     // Find most recent runs and aggregate cumulative stats
     let lastMemoryRun: number | null = null
@@ -96,10 +154,8 @@ export async function GET() {
     let totalMessageRuns = 0
     let cumulativeMessagesIndexed = 0
     let cumulativeConversationsIndexed = 0
-    let databaseTotalMessages = 0
-    let databaseTotalConversations = 0
 
-    for (const s of validStatuses) {
+    for (const s of statuses) {
       if (s.status) {
         totalMemoryRuns += s.status.totalMemoryRuns || 0
         totalMessageRuns += s.status.totalMessageRuns || 0
@@ -117,12 +173,6 @@ export async function GET() {
       // Aggregate cumulative stats from this session
       cumulativeMessagesIndexed += s.cumulativeMessagesIndexed || 0
       cumulativeConversationsIndexed += s.cumulativeConversationsIndexed || 0
-
-      // Aggregate database stats (actual data stored)
-      if (s.memoryStats) {
-        databaseTotalMessages += s.memoryStats.totalMessages || 0
-        databaseTotalConversations += s.memoryStats.totalConversations || 0
-      }
     }
 
     // Determine if warming up: we have discovered agents but none are running
@@ -142,12 +192,10 @@ export async function GET() {
       lastMessageResult,
       cumulativeMessagesIndexed,
       cumulativeConversationsIndexed,
-      databaseStats: {
-        totalMessages: databaseTotalMessages,
-        totalConversations: databaseTotalConversations
-      },
-      agents: validStatuses.map(s => ({
+      agents: statuses.map(s => ({
         agentId: s.agentId,
+        hasStatusFile: s.hasStatusFile,
+        lastUpdated: s.lastUpdated,
         status: s.isRunning ? {
           isRunning: s.isRunning,
           ...s.status,

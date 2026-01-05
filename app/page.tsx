@@ -8,6 +8,7 @@ import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
 import WorkTree from '@/components/WorkTree'
 import AgentGraph from '@/components/AgentGraph'
+import MemoryViewer from '@/components/MemoryViewer'
 import DocumentationPanel from '@/components/DocumentationPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
@@ -18,7 +19,7 @@ import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2 } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain } from 'lucide-react'
 import ImportAgentDialog from '@/components/ImportAgentDialog'
 import HelpPanel from '@/components/HelpPanel'
 import type { Agent } from '@/types/agent'
@@ -28,7 +29,7 @@ import type { Session } from '@/types/session'
 function agentToSession(agent: Agent): Session {
   return {
     id: agent.session?.tmuxSessionName || agent.id,
-    name: agent.displayName || agent.alias,
+    name: agent.label || agent.name || agent.alias || '',
     workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
     status: 'active' as const,
     createdAt: agent.createdAt,
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'docs'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
@@ -62,7 +63,7 @@ export default function DashboardPage() {
 
   // Compute selectable agents: online + hibernated (offline with session config)
   const selectableAgents = useMemo(
-    () => agents.filter(a => a.session?.status === 'online' || !!a.tools?.session),
+    () => agents.filter(a => a.session?.status === 'online' || (a.sessions && a.sessions.length > 0)),
     [agents]
   )
 
@@ -211,12 +212,16 @@ export default function DashboardPage() {
   }
 
   const handleShowAgentProfile = (agent: Agent) => {
+    // Also set active agent so main view reflects the selection
+    setActiveAgentId(agent.id)
     setProfileAgent(agent)
     setProfileScrollToDangerZone(false)
     setIsProfileOpen(true)
   }
 
   const handleShowAgentProfileDangerZone = (agent: Agent) => {
+    // Also set active agent so main view reflects the selection
+    setActiveAgentId(agent.id)
     setProfileAgent(agent)
     setProfileScrollToDangerZone(true)
     setIsProfileOpen(true)
@@ -258,8 +263,9 @@ export default function DashboardPage() {
 
   const handleStartSession = async (agent: Agent) => {
     try {
-      const sessionName = agent.tools.session?.tmuxSessionName || `${(agent.tags || []).join('-')}-${agent.alias}`.replace(/^-/, '')
-      const workingDirectory = agent.tools.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory
+      // Use agent name as session name (new schema)
+      const sessionName = agent.name || agent.alias || `${(agent.tags || []).join('-')}-unnamed`.replace(/^-/, '')
+      const workingDirectory = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory || agent.preferences?.defaultWorkingDirectory
 
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
@@ -416,13 +422,13 @@ export default function DashboardPage() {
             )}
 
             {/* Truly offline agent (no session config) - show profile prompt */}
-            {activeAgent && activeAgent.session?.status === 'offline' && !activeAgent.tools?.session && (
+            {activeAgent && activeAgent.session?.status === 'offline' && !(activeAgent.sessions && activeAgent.sessions.length > 0) && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center max-w-md">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
                     <User className="w-10 h-10 text-gray-500" />
                   </div>
-                  <p className="text-xl mb-2 text-gray-300">{activeAgent.displayName || activeAgent.alias}</p>
+                  <p className="text-xl mb-2 text-gray-300">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
                   <p className="text-sm mb-4 text-gray-500">This agent is offline</p>
                   <button
                     onClick={() => handleStartSession(activeAgent)}
@@ -443,7 +449,7 @@ export default function DashboardPage() {
             {/* All Selectable Agents (Online + Hibernated) Mounted as Tabs - toggle visibility with CSS */}
             {selectableAgents.map(agent => {
               const isActive = agent.id === activeAgentId
-              const isHibernated = agent.session?.status !== 'online' && !!agent.tools?.session
+              const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
 
               return (
@@ -530,6 +536,17 @@ export default function DashboardPage() {
                       Graph
                     </button>
                     <button
+                      onClick={() => setActiveTab('memory')}
+                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'memory'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                    >
+                      <Brain className="w-4 h-4" />
+                      Memory
+                    </button>
+                    <button
                       onClick={() => setActiveTab('docs')}
                       className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'docs'
@@ -563,7 +580,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -594,7 +611,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -625,7 +642,7 @@ export default function DashboardPage() {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
                               <Moon className="w-10 h-10 text-yellow-500" />
                             </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.displayName || agent.alias}</p>
+                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
                             <p className="text-sm mb-4 text-gray-500">Wake this agent to use the chat interface</p>
                             <button
                               onClick={() => handleWakeAgent(agent)}
@@ -655,7 +672,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         allAgents={onlineAgents.map(a => ({
                           id: a.id,
-                          alias: a.displayName || a.alias || a.id,
+                          alias: a.label || a.name || a.alias || a.id,
                           tmuxSessionName: a.session?.tmuxSessionName,
                           hostId: a.hostId
                         }))}
@@ -677,6 +694,12 @@ export default function DashboardPage() {
                         isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                      />
+                    ) : activeTab === 'memory' ? (
+                      <MemoryViewer
+                        agentId={agent.id}
+                        hostUrl={agent.hostUrl}
+                        isVisible={isActive && activeTab === 'memory'}
                       />
                     ) : (
                       <DocumentationPanel

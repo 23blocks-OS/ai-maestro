@@ -131,10 +131,11 @@ export async function PATCH(
       )
     }
 
-    const sessionName = agent.tools.session?.tmuxSessionName
+    // Use agent name as session name (new schema)
+    const sessionName = agent.name || agent.alias
     if (!sessionName) {
       return NextResponse.json(
-        { success: false, error: 'Agent has no linked session' },
+        { success: false, error: 'Agent has no name configured' },
         { status: 400 }
       )
     }
@@ -219,7 +220,8 @@ export async function GET(
       )
     }
 
-    const sessionName = agent.tools.session?.tmuxSessionName
+    // Use agent name as session name (new schema)
+    const sessionName = agent.name || agent.alias
     if (!sessionName) {
       return NextResponse.json({
         success: true,
@@ -285,7 +287,8 @@ export async function DELETE(
       )
     }
 
-    const sessionName = agent.tools.session?.tmuxSessionName
+    // Use agent name as session name (new schema)
+    const sessionName = agent.name || agent.alias
 
     // If deleting the agent
     if (shouldDeleteAgent) {

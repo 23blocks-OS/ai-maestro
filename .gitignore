@@ -137,3 +137,5 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+# Help build success marker (build artifact)
+data/.help-build-success

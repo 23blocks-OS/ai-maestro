@@ -186,6 +186,17 @@ async function buildIndex(): Promise<void> {
 // Run the build
 buildIndex()
   .then(() => {
+    // Cleanup: nullify the extractor to help with garbage collection
+    extractor = null
+
+    console.log('[Build] Exiting...')
+
+    // Write a success marker file before exiting
+    // This lets the build wrapper know we succeeded even if cleanup crashes
+    const markerPath = join(__dirname, '../data/.help-build-success')
+    writeFileSync(markerPath, new Date().toISOString())
+
+    // Exit normally - if ONNX cleanup crashes, the marker file proves we succeeded
     process.exit(0)
   })
   .catch((error) => {

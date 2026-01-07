@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "dev": "node server.mjs",
-    "prebuild": "npx tsx scripts/build-help-index.ts",
+    "prebuild": "npx tsx scripts/build-help-index.ts || test -f data/.help-build-success",
     "build": "next build",
     "start": "NODE_ENV=production node server.mjs",
     "lint": "next lint"

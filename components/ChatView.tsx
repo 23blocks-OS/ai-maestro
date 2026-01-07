@@ -458,24 +458,6 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
           )
         })}
 
-        {/* Pending messages (sent via Chat but not yet in JSONL) */}
-        {pendingMessages.map((pending, idx) => (
-          <div key={`pending-${idx}`} className="flex justify-end">
-            <div className="max-w-[85%]">
-              <div className="rounded-2xl px-4 py-3 bg-blue-600/70 text-white border border-blue-500/50">
-                <div className="flex items-center gap-2 mb-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="text-xs opacity-70">Sending...</span>
-                  <span className="text-xs opacity-50 ml-auto">
-                    {formatTimestamp(pending.timestamp)}
-                  </span>
-                </div>
-                <div className="text-sm">{pending.text}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-
         {/* Hook state - permission request or waiting for input */}
         {hookState && (hookState.status === 'permission_request' || hookState.status === 'waiting_for_input') && (() => {
           // Check if this is a permission prompt (either by status or notificationType)
@@ -554,6 +536,24 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
           </div>
           )
         })()}
+
+        {/* Pending messages (sent via Chat but not yet in JSONL) - shown after the prompt */}
+        {pendingMessages.map((pending, idx) => (
+          <div key={`pending-${idx}`} className="flex justify-end">
+            <div className="max-w-[85%]">
+              <div className="rounded-2xl px-4 py-3 bg-blue-600/70 text-white border border-blue-500/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="text-xs opacity-70">Sending...</span>
+                  <span className="text-xs opacity-50 ml-auto">
+                    {formatTimestamp(pending.timestamp)}
+                  </span>
+                </div>
+                <div className="text-sm">{pending.text}</div>
+              </div>
+            </div>
+          </div>
+        ))}
 
         {/* Terminal prompt fallback - only show if no hook state */}
         {!hookState && terminalPrompt && (

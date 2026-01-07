@@ -37,6 +37,7 @@ interface ContentBlock {
 
 export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -62,6 +63,7 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
       rule?: string;
     }>;
     notificationType?: string;
+    updatedAt?: string;
   } | null>(null)
   const [terminalPrompt, setTerminalPrompt] = useState<string | null>(null)
   const [promptType, setPromptType] = useState<'permission' | 'input' | null>(null)
@@ -73,6 +75,8 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
   const hasLoadedRef = useRef(false)
   // Track previous message count for scroll behavior
   const prevMessageCountRef = useRef(0)
+  // Track previous hookState for change detection
+  const prevHookStateRef = useRef<string | null>(null)
 
   // Fetch messages from the JSONL-based API
   const fetchMessages = useCallback(async (showLoading = false) => {
@@ -100,9 +104,22 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
 
         if (hasChanges || !hasLoadedRef.current) {
           setMessages(newMessages)
+          // Clear pending messages when we get new activity
+          if (hasChanges && pendingMessages.length > 0) {
+            setPendingMessages([])
+          }
         }
         setLastModified(data.lastModified)
-        setHookState(data.hookState || null)
+
+        // Clear pending messages if hookState changed (message was processed)
+        const newHookState = data.hookState || null
+        const newHookStateKey = newHookState ? `${newHookState.status}-${newHookState.updatedAt}` : null
+        if (prevHookStateRef.current !== newHookStateKey) {
+          prevHookStateRef.current = newHookStateKey
+          setPendingMessages([])
+        }
+        setHookState(newHookState)
+
         setTerminalPrompt(data.terminalPrompt || null)
         setPromptType(data.promptType || null)
         hasLoadedRef.current = true
@@ -113,7 +130,7 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [agent?.id, agent?.hostUrl, messages.length, messages])
+  }, [agent?.id, agent?.hostUrl, messages.length, messages, pendingMessages.length])
 
   // Start polling when visible, but don't clear messages on tab switch
   useEffect(() => {
@@ -172,6 +189,10 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
     setInput('')
     setIsSending(true)
 
+    // Add to pending messages immediately for instant feedback
+    const pendingMsg = { text: messageToSend, timestamp: new Date().toISOString() }
+    setPendingMessages(prev => [...prev, pendingMsg])
+
     try {
       const hostUrl = agent.hostUrl || ''
       const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat`, {
@@ -186,12 +207,19 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
         throw new Error(data.error || 'Failed to send message')
       }
 
+      // Clear pending message after a delay (it was sent successfully)
+      // The hookState should change, indicating the message was processed
+      setTimeout(() => {
+        setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
+      }, 3000)
+
       // Fetch updated messages after a short delay
       setTimeout(() => fetchMessages(false), 500)
     } catch (err) {
       console.error('[ChatView] Error sending message:', err)
       setError(err instanceof Error ? err.message : 'Failed to send message')
-      // Restore input on error
+      // Remove from pending and restore input on error
+      setPendingMessages(prev => prev.filter(p => p.timestamp !== pendingMsg.timestamp))
       setInput(messageToSend)
     } finally {
       setIsSending(false)
@@ -429,6 +457,24 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
             </div>
           )
         })}
+
+        {/* Pending messages (sent via Chat but not yet in JSONL) */}
+        {pendingMessages.map((pending, idx) => (
+          <div key={`pending-${idx}`} className="flex justify-end">
+            <div className="max-w-[85%]">
+              <div className="rounded-2xl px-4 py-3 bg-blue-600/70 text-white border border-blue-500/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="text-xs opacity-70">Sending...</span>
+                  <span className="text-xs opacity-50 ml-auto">
+                    {formatTimestamp(pending.timestamp)}
+                  </span>
+                </div>
+                <div className="text-sm">{pending.text}</div>
+              </div>
+            </div>
+          </div>
+        ))}
 
         {/* Hook state - permission request or waiting for input */}
         {hookState && (hookState.status === 'permission_request' || hookState.status === 'waiting_for_input') && (() => {

@@ -49,7 +49,18 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
     message?: string;
     description?: string;
     toolName?: string;
-    toolInput?: any;
+    toolInput?: {
+      command?: string;
+      file_path?: string;
+      path?: string;
+      [key: string]: any;
+    };
+    options?: Array<{
+      key: string;
+      label: string;
+      action: string;
+      rule?: string;
+    }>;
     notificationType?: string;
   } | null>(null)
   const [terminalPrompt, setTerminalPrompt] = useState<string | null>(null)
@@ -441,13 +452,55 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
                   }`}>
                     {isPermission ? 'Permission Required' : 'Waiting for your input'}
                   </span>
+                  {isPermission && hookState.toolName && (
+                    <span className="text-xs bg-amber-700/50 px-2 py-0.5 rounded">
+                      {hookState.toolName}
+                    </span>
+                  )}
                 </div>
-                <div className="text-sm whitespace-pre-wrap break-words">
-                  {hookState.description || hookState.message || 'Waiting for your response...'}
-                </div>
-                {hookState.toolName && (
-                  <div className="mt-2 text-xs opacity-70">
-                    Tool: {hookState.toolName}
+
+                {/* Show "Do you want to proceed?" like terminal */}
+                {isPermission && (
+                  <div className="text-sm font-medium mb-2">Do you want to proceed?</div>
+                )}
+
+                {/* Show command preview for Bash permissions */}
+                {isPermission && hookState.toolName === 'Bash' && hookState.toolInput?.command && (
+                  <div className="mb-3 text-xs bg-gray-950/50 p-2 rounded font-mono overflow-x-auto max-h-24 overflow-y-auto">
+                    {hookState.toolInput.command}
+                  </div>
+                )}
+
+                {/* Show file path for Read/Edit/Write/Grep permissions */}
+                {isPermission && (hookState.toolName === 'Read' || hookState.toolName === 'Edit' || hookState.toolName === 'Write' || hookState.toolName === 'Grep') && (hookState.toolInput?.file_path || hookState.toolInput?.path) && (
+                  <div className="mb-3 text-xs opacity-80 font-mono bg-gray-950/30 px-2 py-1 rounded">
+                    {hookState.toolInput.file_path || hookState.toolInput.path}
+                  </div>
+                )}
+
+                {/* Show options like terminal */}
+                {isPermission && hookState.options && hookState.options.length > 0 && (
+                  <div className="space-y-1.5 text-sm">
+                    {hookState.options.map((option, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        <span className="text-amber-400 font-medium w-4">{option.key}.</span>
+                        <span className="opacity-90">{option.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Fallback if no options */}
+                {isPermission && (!hookState.options || hookState.options.length === 0) && (
+                  <div className="mt-2 text-xs opacity-60">
+                    Reply with &quot;y&quot; to approve or &quot;n&quot; to deny
+                  </div>
+                )}
+
+                {/* Non-permission waiting state */}
+                {!isPermission && (
+                  <div className="text-sm whitespace-pre-wrap break-words">
+                    {hookState.message || 'Waiting for your response...'}
                   </div>
                 )}
               </div>

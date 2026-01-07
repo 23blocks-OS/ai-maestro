@@ -664,7 +664,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <ChatView session={session} isVisible={isActive && activeTab === 'chat'} />
+                        <ChatView agent={agent} isVisible={isActive && activeTab === 'chat'} />
                       )
                     ) : activeTab === 'messages' ? (
                       <MessageCenter

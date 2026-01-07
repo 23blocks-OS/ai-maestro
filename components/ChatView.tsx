@@ -1,88 +1,191 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { useWebSocket } from '@/hooks/useWebSocket'
-import type { Session } from '@/types/session'
+import { useEffect, useRef, useState, useCallback, type KeyboardEvent } from 'react'
+import { User, Bot, Wrench, Loader2, Send, RefreshCw, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react'
+import type { Agent } from '@/types/agent'
 
 interface ChatViewProps {
-  session: Session
+  agent: Agent
   isVisible?: boolean
 }
 
-export default function ChatView({ session, isVisible = true }: ChatViewProps) {
-  const [output, setOutput] = useState('')
+interface Message {
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'thinking' | 'summary' | 'queue-operation'
+  timestamp?: string
+  uuid?: string
+  message?: {
+    content?: string | ContentBlock[]
+    model?: string
+  }
+  thinking?: string
+  summary?: string
+  toolName?: string
+  toolInput?: any
+  // For queue-operation type
+  operation?: 'enqueue' | 'dequeue'
+  content?: string
+}
+
+interface ContentBlock {
+  type: string
+  text?: string
+  name?: string
+  input?: any
+  id?: string
+  [key: string]: any
+}
+
+export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const outputRef = useRef<HTMLPreElement>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastModified, setLastModified] = useState<string | null>(null)
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [hookState, setHookState] = useState<{
+    status: string;
+    message?: string;
+    description?: string;
+    toolName?: string;
+    toolInput?: any;
+    notificationType?: string;
+  } | null>(null)
+  const [terminalPrompt, setTerminalPrompt] = useState<string | null>(null)
+  const [promptType, setPromptType] = useState<'permission' | 'input' | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const { isConnected, sendMessage} = useWebSocket({
-    sessionId: session.id,
-    hostId: session.hostId,
-    autoConnect: isVisible,
-    onMessage: (data) => {
-      // Strip ANSI codes
-      let cleaned = stripAnsi(data)
+  // Track if we've done initial load
+  const hasLoadedRef = useRef(false)
+  // Track previous message count for scroll behavior
+  const prevMessageCountRef = useRef(0)
 
-      // Skip JSON control messages
-      if (cleaned.trim().startsWith('{') && cleaned.trim().endsWith('}')) {
-        try {
-          JSON.parse(cleaned.trim())
-          return // Skip JSON messages
-        } catch {
-          // Not JSON, continue
-        }
+  // Fetch messages from the JSONL-based API
+  const fetchMessages = useCallback(async (showLoading = false) => {
+    if (!agent?.id) return
+
+    // Only show loading on very first load, not on tab switches
+    if (showLoading && !hasLoadedRef.current) setIsLoading(true)
+    setError(null)
+
+    try {
+      const hostUrl = agent.hostUrl || ''
+      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat?limit=200`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch messages')
       }
 
-      // Handle carriage returns properly:
-      // When there's a \r, it means "return to start of line and overwrite"
-      // So we keep only the last part after the final \r
-      if (cleaned.includes('\r')) {
-        // Split by \r and only keep the final state
-        const parts = cleaned.split('\r')
-        cleaned = parts[parts.length - 1]
+      if (data.success) {
+        // Only update if messages actually changed (compare length and last timestamp)
+        const newMessages = data.messages || []
+        const hasChanges = newMessages.length !== messages.length ||
+          (newMessages.length > 0 && messages.length > 0 &&
+           newMessages[newMessages.length - 1]?.timestamp !== messages[messages.length - 1]?.timestamp)
 
-        // If it's just a progress update with no newline, skip it
-        // (these are intermediate states that will be overwritten)
-        if (!cleaned.includes('\n')) {
-          return
+        if (hasChanges || !hasLoadedRef.current) {
+          setMessages(newMessages)
         }
+        setLastModified(data.lastModified)
+        setHookState(data.hookState || null)
+        setTerminalPrompt(data.terminalPrompt || null)
+        setPromptType(data.promptType || null)
+        hasLoadedRef.current = true
       }
-
-      setOutput(prev => prev + cleaned)
-    },
-  })
-
-  // Auto-scroll to bottom when new output arrives
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    } catch (err) {
+      console.error('[ChatView] Error fetching messages:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load messages')
+    } finally {
+      setIsLoading(false)
     }
-  }, [output])
+  }, [agent?.id, agent?.hostUrl, messages.length, messages])
 
-  // Focus input when tab becomes visible
+  // Start polling when visible, but don't clear messages on tab switch
   useEffect(() => {
-    if (isVisible && isConnected) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus()
-      }, 100)
+    if (isVisible && agent?.id) {
+      // Only fetch with loading indicator if we haven't loaded yet
+      if (!hasLoadedRef.current) {
+        fetchMessages(true)
+      }
+
+      // Poll every 2 seconds for new messages
+      pollIntervalRef.current = setInterval(() => {
+        fetchMessages(false)
+      }, 2000)
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [isVisible, agent?.id, fetchMessages])
+
+  // Auto-scroll to bottom ONLY when new messages arrive (not on tab switch)
+  useEffect(() => {
+    // Only scroll when new messages arrive while visible
+    if (!isVisible || messages.length === 0) return
+
+    const hasNewMessages = messages.length > prevMessageCountRef.current
+    const isInitialLoad = prevMessageCountRef.current === 0
+
+    prevMessageCountRef.current = messages.length
+
+    // Scroll on initial load (instant) or new messages (smooth)
+    if (isInitialLoad) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+    } else if (hasNewMessages) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    // Tab switch: do nothing, let browser preserve scroll position
+  }, [messages, isVisible])
+
+  // Focus input when visible
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 100)
       return () => clearTimeout(timer)
     }
-  }, [isVisible, isConnected])
+  }, [isVisible])
 
-  const handleSend = () => {
-    if (!input.trim() || !isConnected) return
+  // Send message via API
+  const handleSend = async () => {
+    if (!input.trim() || isSending) return
 
-    // Add user input to output display
-    setOutput(prev => prev + '\n> ' + input + '\n')
-
-    // Send to terminal (with carriage return to execute)
-    sendMessage(input + '\r')
-
-    // Clear input
+    const messageToSend = input.trim()
     setInput('')
+    setIsSending(true)
 
-    // Re-focus input
-    setTimeout(() => inputRef.current?.focus(), 50)
+    try {
+      const hostUrl = agent.hostUrl || ''
+      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageToSend })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+
+      // Fetch updated messages after a short delay
+      setTimeout(() => fetchMessages(false), 500)
+    } catch (err) {
+      console.error('[ChatView] Error sending message:', err)
+      setError(err instanceof Error ? err.message : 'Failed to send message')
+      // Restore input on error
+      setInput(messageToSend)
+    } finally {
+      setIsSending(false)
+      inputRef.current?.focus()
+    }
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -92,83 +195,333 @@ export default function ChatView({ session, isVisible = true }: ChatViewProps) {
     }
   }
 
-  const handleClearOutput = () => {
-    setOutput('')
+  const toggleTool = (toolId: string) => {
+    setExpandedTools(prev => {
+      const next = new Set(prev)
+      if (next.has(toolId)) {
+        next.delete(toolId)
+      } else {
+        next.add(toolId)
+      }
+      return next
+    })
   }
+
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const formatTimestamp = (timestamp?: string) => {
+    if (!timestamp) return ''
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const getMessageContent = (message: Message): string => {
+    if (message.thinking) return message.thinking
+    if (message.summary) return message.summary
+
+    // Handle queue-operation (enqueued user messages)
+    if (message.type === 'queue-operation' && message.content) {
+      return message.content
+    }
+
+    const content = message.message?.content
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      return content
+        .filter(block => block.type === 'text' && block.text)
+        .map(block => block.text)
+        .join('\n\n')
+    }
+    return ''
+  }
+
+  const getToolsFromMessage = (message: Message): ContentBlock[] => {
+    const content = message.message?.content
+    if (!Array.isArray(content)) return []
+    return content.filter(block => block.type === 'tool_use')
+  }
+
+  const isOnline = agent.sessions?.some(s => s.status === 'online')
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between flex-shrink-0">
         <div>
-          <h3 className="text-sm font-medium text-gray-200">Plain Text Output</h3>
+          <h3 className="text-sm font-medium text-gray-200">Chat</h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {isConnected ? '🟢 Connected' : '🔴 Disconnected'} • Raw WebSocket stream
+            {isOnline ? '🟢 Online' : '🔴 Offline'} •
+            {messages.length} messages
+            {lastModified && ` • Updated ${formatTimestamp(lastModified)}`}
           </p>
         </div>
         <button
-          onClick={handleClearOutput}
-          className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
-          title="Clear all output"
+          onClick={() => fetchMessages(true)}
+          disabled={isLoading}
+          className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+          title="Refresh messages"
         >
-          Clear
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* Output Area - Plain Text */}
-      <pre
-        ref={outputRef}
-        className="flex-1 overflow-auto px-4 py-3 m-0 text-xs text-gray-200 font-mono bg-black/30"
-        style={{ minHeight: 0 }}
-      >
-        {output || '(No output yet - send a message to start)'}
-      </pre>
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
+        {isLoading && messages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-red-900/20 border border-red-800 rounded-lg text-sm text-red-400">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {!isLoading && messages.length === 0 && !error && (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <Bot className="w-12 h-12 mb-3 opacity-50" />
+            <p className="text-sm">No messages yet</p>
+            <p className="text-xs mt-1">Send a message to start the conversation</p>
+          </div>
+        )}
+
+        {messages.map((message, index) => {
+          const isUser = message.type === 'user'
+          const isQueued = message.type === 'queue-operation' && message.operation === 'enqueue'
+          const isThinking = message.type === 'thinking'
+          const content = getMessageContent(message)
+          const tools = getToolsFromMessage(message)
+
+          // Skip empty messages and dequeue operations
+          if (!content && tools.length === 0) return null
+          if (message.type === 'queue-operation' && message.operation !== 'enqueue') return null
+
+          return (
+            <div
+              key={message.uuid || index}
+              className={`flex ${(isUser || isQueued) ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`max-w-[85%] ${(isUser || isQueued) ? 'order-1' : ''}`}>
+                {/* Message bubble */}
+                <div
+                  className={`rounded-2xl px-4 py-3 ${
+                    isQueued
+                      ? 'bg-yellow-600/80 text-white border border-yellow-500'
+                      : isUser
+                      ? 'bg-blue-600 text-white'
+                      : isThinking
+                      ? 'bg-purple-900/30 border border-purple-700/50 text-purple-200'
+                      : 'bg-gray-800 text-gray-200'
+                  }`}
+                >
+                  {/* Header with icon */}
+                  <div className="flex items-center gap-2 mb-1">
+                    {isQueued ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : isUser ? (
+                      <User className="w-3.5 h-3.5" />
+                    ) : isThinking ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Bot className="w-3.5 h-3.5" />
+                    )}
+                    <span className="text-xs opacity-70">
+                      {isQueued ? 'Queued' : isUser ? 'You' : isThinking ? 'Thinking...' : 'Claude'}
+                    </span>
+                    {message.timestamp && (
+                      <span className="text-xs opacity-50 ml-auto">
+                        {formatTimestamp(message.timestamp)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  {content && (
+                    <div className={`text-sm whitespace-pre-wrap break-words ${isThinking ? 'italic' : ''}`}>
+                      {content}
+                    </div>
+                  )}
+
+                  {/* Tools */}
+                  {tools.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {tools.map((tool, toolIdx) => {
+                        const toolId = `${index}-${toolIdx}`
+                        const isExpanded = expandedTools.has(toolId)
+
+                        return (
+                          <div
+                            key={toolId}
+                            className="bg-orange-900/30 rounded-lg border border-orange-800/50"
+                          >
+                            <button
+                              onClick={() => toggleTool(toolId)}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-900/20 transition-colors rounded-lg"
+                            >
+                              <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                              <span className="text-xs text-orange-300 font-medium flex-1">
+                                {tool.name || 'Tool'}
+                              </span>
+                              {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-orange-400" />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-orange-400" />
+                              )}
+                            </button>
+
+                            {isExpanded && tool.input && (
+                              <div className="px-3 pb-3">
+                                <pre className="text-xs bg-gray-950/50 p-2 rounded overflow-x-auto text-gray-300">
+                                  {JSON.stringify(tool.input, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Copy button */}
+                {content && (
+                  <button
+                    onClick={() => copyToClipboard(content, index)}
+                    className={`mt-1 p-1 rounded text-xs transition-colors ${
+                      isUser
+                        ? 'text-blue-300 hover:text-white'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                    title="Copy message"
+                  >
+                    {copiedIndex === index ? (
+                      <Check className="w-3 h-3" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Hook state - permission request or waiting for input */}
+        {hookState && (hookState.status === 'permission_request' || hookState.status === 'waiting_for_input') && (() => {
+          // Check if this is a permission prompt (either by status or notificationType)
+          const isPermission = hookState.status === 'permission_request' ||
+                               hookState.notificationType === 'permission_prompt'
+          return (
+          <div className="flex justify-start">
+            <div className="max-w-[85%]">
+              <div className={`rounded-2xl px-4 py-3 ${
+                isPermission
+                  ? 'bg-amber-900/40 border border-amber-600/50 text-amber-200'
+                  : 'bg-green-900/40 border border-green-600/50 text-green-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${
+                    isPermission ? 'bg-amber-400' : 'bg-green-400'
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    isPermission ? 'text-amber-400' : 'text-green-400'
+                  }`}>
+                    {isPermission ? 'Permission Required' : 'Waiting for your input'}
+                  </span>
+                </div>
+                <div className="text-sm whitespace-pre-wrap break-words">
+                  {hookState.description || hookState.message || 'Waiting for your response...'}
+                </div>
+                {hookState.toolName && (
+                  <div className="mt-2 text-xs opacity-70">
+                    Tool: {hookState.toolName}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          )
+        })()}
+
+        {/* Terminal prompt fallback - only show if no hook state */}
+        {!hookState && terminalPrompt && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%]">
+              <div className={`rounded-2xl px-4 py-3 ${
+                promptType === 'permission'
+                  ? 'bg-amber-900/40 border border-amber-600/50 text-amber-200'
+                  : 'bg-green-900/40 border border-green-600/50 text-green-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${
+                    promptType === 'permission' ? 'bg-amber-400' : 'bg-green-400'
+                  }`} />
+                  <span className={`text-xs font-medium ${
+                    promptType === 'permission' ? 'text-amber-400' : 'text-green-400'
+                  }`}>
+                    {promptType === 'permission' ? 'Permission Required' : 'Ready for input'}
+                  </span>
+                </div>
+                <div className="text-sm whitespace-pre-wrap break-words font-mono">
+                  {terminalPrompt}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
 
       {/* Input Area */}
       <div className="border-t border-gray-700 bg-gray-800 p-4 flex-shrink-0">
-        {!isConnected && (
-          <div className="mb-3 px-3 py-2 bg-red-900/20 border border-red-800 rounded text-xs text-red-400">
-            ⚠️ Not connected to session. Waiting for connection...
+        {!isOnline && (
+          <div className="mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-800 rounded-lg text-xs text-yellow-400">
+            ⚠️ Agent is offline. Wake the session to send messages.
           </div>
         )}
+
         <div className="flex items-end gap-3">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-            className="flex-1 bg-gray-900 text-gray-200 text-sm rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700"
-            rows={3}
-            disabled={!isConnected}
+            placeholder={isOnline ? "Type your message... (Enter to send)" : "Agent is offline"}
+            className="flex-1 bg-gray-900 text-gray-200 text-sm rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700 disabled:opacity-50"
+            rows={2}
+            disabled={!isOnline || isSending}
           />
           <button
             onClick={handleSend}
-            disabled={!isConnected || !input.trim()}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+            disabled={!isOnline || isSending || !input.trim()}
+            className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
           >
-            Send
+            {isSending ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Send className="w-5 h-5" />
+            )}
           </button>
         </div>
+
         <div className="mt-2 text-xs text-gray-500">
-          <span className="inline-block mr-4">Enter = Send</span>
-          <span className="inline-block mr-4">Shift+Enter = New Line</span>
-          <span className="inline-block">Cmd+K/Ctrl+K = Clear (coming soon)</span>
+          Enter = Send • Shift+Enter = New Line
         </div>
       </div>
     </div>
   )
-}
-
-// Comprehensive ANSI and terminal control code stripper
-function stripAnsi(text: string): string {
-  return text
-    // Remove ANSI escape codes
-    .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
-    // Remove other escape sequences
-    .replace(/\x1B[@-_][0-?]*[ -/]*[@-~]/g, '')
-    // Remove OSC (Operating System Command) sequences
-    .replace(/\x1B\][^\x07]*\x07/g, '')
-    // Remove control characters except newlines and tabs
-    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
 }

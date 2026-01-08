@@ -78,6 +78,79 @@ function debugLog(data) {
     fs.appendFileSync(debugFile, line);
 }
 
+// Check for unread messages for this agent
+async function checkUnreadMessages(cwd) {
+    try {
+        // Find agent by working directory
+        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        if (!agentsResponse.ok) return null;
+
+        const agentsData = await agentsResponse.json();
+        const agents = agentsData.agents || [];
+
+        // Find agent matching this working directory
+        // Check exact match first, then check if cwd is within the agent's directory or vice versa
+        const agent = agents.find(a => {
+            const agentWd = a.workingDirectory || a.session?.workingDirectory;
+            if (!agentWd) return false;
+
+            // Exact match
+            if (agentWd === cwd) return true;
+
+            // cwd is subdirectory of agent's working directory
+            if (cwd.startsWith(agentWd + '/')) return true;
+
+            // Agent's working directory is subdirectory of cwd
+            if (agentWd.startsWith(cwd + '/')) return true;
+
+            return false;
+        });
+
+        if (!agent) {
+            debugLog({ event: 'no_agent_for_cwd', cwd });
+            return null;
+        }
+
+        // Check for unread messages
+        const messagesResponse = await fetch(
+            `http://localhost:23000/api/messages?agent=${encodeURIComponent(agent.id)}&box=inbox&status=unread`
+        );
+        if (!messagesResponse.ok) return null;
+
+        const messagesData = await messagesResponse.json();
+        const messages = messagesData.messages || [];
+
+        if (messages.length === 0) return null;
+
+        debugLog({ event: 'unread_messages_found', agentId: agent.id, count: messages.length });
+
+        // Format message notification
+        const formatSender = (msg) => {
+            const name = msg.fromAlias || (msg.from ? msg.from.substring(0, 8) : 'unknown');
+            const host = msg.fromHost ? ` (${msg.fromHost})` : '';
+            return `${name}${host}`;
+        };
+
+        if (messages.length === 1) {
+            const msg = messages[0];
+            const fromInfo = formatSender(msg);
+            const subjectInfo = msg.subject ? ` about "${msg.subject}"` : '';
+            const urgentFlag = msg.priority === 'urgent' ? '[URGENT] ' : '';
+            return `${urgentFlag}You have a new message from ${fromInfo}${subjectInfo}. Please check your inbox using the agent-messaging skill.`;
+        } else {
+            const urgentCount = messages.filter(m => m.priority === 'urgent').length;
+            const senderInfos = messages.map(m => formatSender(m));
+            const uniqueSenders = [...new Set(senderInfos)].slice(0, 3);
+            const sendersInfo = uniqueSenders.join(', ');
+            const urgentFlag = urgentCount > 0 ? `[${urgentCount} URGENT] ` : '';
+            return `${urgentFlag}You have ${messages.length} new messages from ${sendersInfo}. Please check your inbox using the agent-messaging skill.`;
+        }
+    } catch (err) {
+        debugLog({ event: 'message_check_error', error: err.message });
+        return null;
+    }
+}
+
 // Main
 async function main() {
     const input = await readStdin();
@@ -166,7 +239,7 @@ async function main() {
             const notificationType = input.notification_type || input.type;
 
             if (notificationType === 'idle_prompt') {
-                // Claude is waiting for regular input
+                // Claude is waiting for regular input - perfect time to check messages!
                 writeState(cwd, {
                     status: 'waiting_for_input',
                     message: input.message || 'Waiting for your input...',
@@ -174,6 +247,48 @@ async function main() {
                     sessionId,
                     transcriptPath
                 });
+
+                // Check for unread messages and notify the agent
+                const messagePrompt = await checkUnreadMessages(cwd);
+                if (messagePrompt) {
+                    debugLog({ event: 'sending_message_notification', cwd, prompt: messagePrompt });
+
+                    // Find the tmux session for this working directory and send the prompt
+                    try {
+                        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+                        if (agentsResponse.ok) {
+                            const agentsData = await agentsResponse.json();
+                            const agent = (agentsData.agents || []).find(a => {
+                                const agentWd = a.workingDirectory || a.session?.workingDirectory;
+                                if (!agentWd) return false;
+                                if (agentWd === cwd) return true;
+                                if (cwd.startsWith(agentWd + '/')) return true;
+                                if (agentWd.startsWith(cwd + '/')) return true;
+                                return false;
+                            });
+
+                            if (agent && agent.session?.tmuxSessionName) {
+                                // Send via AI Maestro API (requireIdle: false since we KNOW it's idle from the hook)
+                                const response = await fetch(
+                                    `http://localhost:23000/api/sessions/${encodeURIComponent(agent.session.tmuxSessionName)}/command`,
+                                    {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            command: messagePrompt,
+                                            requireIdle: false,  // We know it's idle - hook just fired!
+                                            addNewline: true
+                                        })
+                                    }
+                                );
+                                const result = await response.json();
+                                debugLog({ event: 'message_notification_sent', success: result.success, session: agent.session.tmuxSessionName });
+                            }
+                        }
+                    } catch (err) {
+                        debugLog({ event: 'message_notification_error', error: err.message });
+                    }
+                }
             } else if (notificationType === 'permission_prompt') {
                 // For permission prompts, preserve existing tool info if we have it
                 const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');

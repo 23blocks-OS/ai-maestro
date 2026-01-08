@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import os from 'os'
 import { persistSession } from '@/lib/session-persistence'
 import { getHostById, getLocalHost } from '@/lib/hosts-config'
+import { getAgentByName, createAgent } from '@/lib/agent-registry'
+import { parseNameForDisplay } from '@/types/agent'
 
 const execAsync = promisify(exec)
 
@@ -143,16 +146,47 @@ export async function POST(request: Request) {
     const cwd = workingDirectory || process.cwd()
     await execAsync(`tmux new-session -d -s "${actualSessionName}" -c "${cwd}"`)
 
-    // Persist session metadata
+    // Register agent in registry if not already exists
+    // The session name (without @host suffix) is the agent name
+    const agentName = name // Use the original name, not actualSessionName
+    let registeredAgent = getAgentByName(agentName)
+
+    if (!registeredAgent) {
+      try {
+        // Parse agent name for display hierarchy
+        const { tags } = parseNameForDisplay(agentName)
+
+        registeredAgent = createAgent({
+          name: agentName,
+          program: 'claude-code',
+          taskDescription: `Agent for ${agentName}`,
+          tags,
+          owner: os.userInfo().username,
+          createSession: true,
+          workingDirectory: cwd
+        })
+        console.log(`[Sessions] Registered new agent: ${agentName} (${registeredAgent.id})`)
+      } catch (createError) {
+        // Agent creation failed (e.g., already exists with different name)
+        console.warn(`[Sessions] Could not register agent ${agentName}:`, createError)
+      }
+    }
+
+    // Persist session metadata (legacy)
     persistSession({
       id: actualSessionName,
       name: actualSessionName,
       workingDirectory: cwd,
       createdAt: new Date().toISOString(),
-      ...(agentId && { agentId })
+      ...(agentId && { agentId }),
+      ...(registeredAgent && { agentId: registeredAgent.id })
     })
 
-    return NextResponse.json({ success: true, name: actualSessionName })
+    return NextResponse.json({
+      success: true,
+      name: actualSessionName,
+      agentId: registeredAgent?.id
+    })
   } catch (error) {
     console.error('Failed to create session:', error)
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })

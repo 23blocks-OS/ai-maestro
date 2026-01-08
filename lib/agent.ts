@@ -15,6 +15,8 @@
 
 import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
 import { hostHints } from './host-hints'
+import { getAgent as getAgentFromRegistry } from './agent-registry'
+import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -418,23 +420,16 @@ class AgentSubconscious {
 
   /**
    * Check for incoming messages from other agents
+   * Agent-first: Always query by agent ID, not session name
    */
   private async checkMessages() {
     this.totalMessageRuns++
     this.lastMessageRun = Date.now()
 
     try {
-      // First, find the session name - messages are organized by session name, not agentId
-      const sessionName = await this.findSessionName()
-      if (!sessionName) {
-        // No active session, skip message check
-        this.lastMessageResult = { success: true, unreadCount: 0 }
-        return
-      }
-
-      // Get unread messages for this session
+      // Query messages directly by agent ID (agent-first architecture)
       const messagesResponse = await fetch(
-        `http://localhost:23000/api/messages?agent=${encodeURIComponent(sessionName)}&box=inbox&status=unread`
+        `http://localhost:23000/api/messages?agent=${encodeURIComponent(this.agentId)}&box=inbox&status=unread`
       )
 
       if (messagesResponse.ok) {
@@ -464,26 +459,57 @@ class AgentSubconscious {
 
   /**
    * Find the tmux session name associated with this agent
+   * Agent-first: Use the registry agent.name + sessions array to compute session name
    */
   private async findSessionName(): Promise<string | null> {
     try {
+      // Agent-first: Get agent from registry
+      const registryAgent = getAgentFromRegistry(this.agentId)
+      if (!registryAgent) {
+        return null
+      }
+
+      // Get the agent name (primary identity)
+      const agentName = registryAgent.name || (registryAgent as any).alias
+      if (!agentName) {
+        return null
+      }
+
+      // Get list of active tmux sessions
       const sessionsResponse = await fetch('http://localhost:23000/api/sessions')
       if (!sessionsResponse.ok) return null
 
       const data = await sessionsResponse.json()
-      const sessions = data.sessions || []
+      const activeSessions = data.sessions || []
 
-      // First, try to find session where agentId matches
-      let session = sessions.find((s: { agentId?: string }) => s.agentId === this.agentId)
+      // Check registry sessions to find an active one
+      const registrySessions = registryAgent.sessions || []
 
-      // If not found, try matching by session name/id (for agents whose ID is the session name)
-      if (!session) {
-        session = sessions.find((s: { id?: string; name?: string }) =>
-          s.id === this.agentId || s.name === this.agentId
+      for (const regSession of registrySessions) {
+        // Compute what the tmux session name should be
+        const expectedSessionName = computeSessionName(agentName, regSession.index)
+
+        // Check if this session is active in tmux
+        const isActive = activeSessions.some((s: { id?: string; name?: string }) =>
+          s.id === expectedSessionName || s.name === expectedSessionName
         )
+
+        if (isActive) {
+          return expectedSessionName
+        }
       }
 
-      return session?.id || null
+      // If no registry sessions, try the base agent name directly
+      // This handles agents that may have been created without explicit sessions
+      const directMatch = activeSessions.find((s: { id?: string; name?: string }) =>
+        s.id === agentName || s.name === agentName
+      )
+
+      if (directMatch) {
+        return directMatch.id || directMatch.name
+      }
+
+      return null
     } catch {
       return null
     }
@@ -493,7 +519,13 @@ class AgentSubconscious {
    * Trigger message notification in Claude Code's prompt
    * Sends a natural language prompt that Claude will understand and act on
    */
-  private async triggerMessageCheck(messages: Array<{ from?: string; subject?: string; priority?: string }>) {
+  private async triggerMessageCheck(messages: Array<{
+    from?: string
+    fromAlias?: string
+    fromHost?: string
+    subject?: string
+    priority?: string
+  }>) {
     try {
       // Find the session name for this agent
       const sessionName = await this.findSessionName()
@@ -502,21 +534,31 @@ class AgentSubconscious {
         return
       }
 
+      // Helper to format sender info (prefer alias, include host)
+      const formatSender = (msg: { from?: string; fromAlias?: string; fromHost?: string }) => {
+        const name = msg.fromAlias || msg.from?.substring(0, 8) || 'unknown'
+        const host = msg.fromHost ? ` (${msg.fromHost})` : ''
+        return `${name}${host}`
+      }
+
       // Craft a natural language prompt for Claude Code
       const unreadCount = messages.length
       let prompt: string
 
       if (unreadCount === 1) {
         const msg = messages[0]
-        const fromInfo = msg.from ? ` from ${msg.from}` : ''
+        const fromInfo = ` from ${formatSender(msg)}`
         const subjectInfo = msg.subject ? ` about "${msg.subject}"` : ''
         const urgentFlag = msg.priority === 'urgent' ? ' [URGENT]' : ''
         prompt = `${urgentFlag}You have a new message${fromInfo}${subjectInfo}. Please check your inbox.`
       } else {
-        // Multiple messages - summarize
+        // Multiple messages - summarize with sender names and hosts
         const urgentCount = messages.filter(m => m.priority === 'urgent').length
-        const senders = [...new Set(messages.map(m => m.from).filter(Boolean))].slice(0, 3)
-        const sendersInfo = senders.length > 0 ? ` from ${senders.join(', ')}${senders.length < messages.length ? ' and others' : ''}` : ''
+        const senderInfos = messages.map(m => formatSender(m))
+        const uniqueSenders = [...new Set(senderInfos)].slice(0, 3)
+        const sendersInfo = uniqueSenders.length > 0
+          ? ` from ${uniqueSenders.join(', ')}${uniqueSenders.length < messages.length ? ' and others' : ''}`
+          : ''
         const urgentFlag = urgentCount > 0 ? ` [${urgentCount} URGENT]` : ''
         prompt = `${urgentFlag}You have ${unreadCount} new messages${sendersInfo}. Please check your inbox.`
       }

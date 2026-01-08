@@ -144,7 +144,16 @@ init_common() {
     check_jq || return 1
 
     SESSION=$(get_session) || return 1
-    AGENT_ID=$(get_agent_id "$SESSION") || return 1
+
+    # Try parsing structured format first (agent@host) - sets AGENT_ID and HOST_ID directly
+    if parse_session_name "$SESSION"; then
+        # Structured format parsed successfully
+        :
+    else
+        # Legacy format - need API lookup
+        AGENT_ID=$(get_agent_id "$SESSION") || return 1
+        HOST_ID="local"  # Legacy sessions are always local
+    fi
 
     export SESSION
     export AGENT_ID

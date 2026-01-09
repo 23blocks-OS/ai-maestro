@@ -137,6 +137,13 @@ export class AgentDatabase {
   }
 
   /**
+   * Check if database is initialized
+   */
+  isInitialized(): boolean {
+    return this.db !== null
+  }
+
+  /**
    * Execute a CozoDB query (Datalog or special commands)
    * @param query - CozoDB query string
    * @returns Query result
@@ -208,6 +215,17 @@ export class AgentDatabase {
     oldestMessage: number | null
     newestMessage: number | null
   }> {
+    // Return defaults if database is not initialized (avoid log spam)
+    if (!this.isInitialized()) {
+      return {
+        totalMessages: 0,
+        totalConversations: 0,
+        totalVectors: 0,
+        oldestMessage: null,
+        newestMessage: null
+      }
+    }
+
     try {
       // Count total messages
       const msgCountResult = await this.run(`?[count(msg_id)] := *messages{msg_id}`)
@@ -233,9 +251,8 @@ export class AgentDatabase {
         oldestMessage,
         newestMessage
       }
-    } catch (error) {
-      // Tables might not exist yet
-      console.error(`[CozoDB] Failed to get memory stats:`, error)
+    } catch {
+      // Tables might not exist yet - return defaults silently
       return {
         totalMessages: 0,
         totalConversations: 0,

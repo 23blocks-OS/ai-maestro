@@ -77,12 +77,23 @@ if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
     fi
 fi
 
+# Determine the 'to' field value:
+# - For remote hosts: use alias (remote host can resolve it locally)
+# - For local host: use agent ID (more reliable)
+if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
+    # Remote host - use alias so remote can resolve it
+    TO_FIELD="${TO_ALIAS:-$TO_AGENT}"
+else
+    # Local host - use agent ID
+    TO_FIELD="$TO_ID"
+fi
+
 # Build JSON payload with agentId and aliases for cross-host display
 JSON_PAYLOAD=$(jq -n \
   --arg from "$AGENT_ID" \
   --arg fromAlias "$SENDER_ALIAS" \
   --arg fromHost "$HOST_ID" \
-  --arg to "$TO_ID" \
+  --arg to "$TO_FIELD" \
   --arg toAlias "$TO_ALIAS" \
   --arg toHost "$TO_HOST" \
   --arg subject "$SUBJECT" \

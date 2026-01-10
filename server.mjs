@@ -99,9 +99,32 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
+// Status WebSocket subscribers (for real-time status updates)
+const statusSubscribers = new Set()
+
+// Broadcast status update to all subscribers
+function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType) {
+  const message = JSON.stringify({
+    type: 'status_update',
+    sessionName,
+    status,
+    hookStatus,
+    notificationType,
+    timestamp: new Date().toISOString()
+  })
+
+  statusSubscribers.forEach(ws => {
+    if (ws.readyState === 1) { // WebSocket.OPEN
+      ws.send(message)
+    }
+  })
+}
+
 // Expose session state globally for API routes
 global.sessionActivity = sessionActivity
 global.terminalSessions = sessions  // PTY processes per session
+global.statusSubscribers = statusSubscribers
+global.broadcastStatusUpdate = broadcastStatusUpdate
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
@@ -199,12 +222,52 @@ app.prepare().then(() => {
   // NOTE: Container agent handling removed - not yet implemented
   // Future: Add handleContainerAgent() when cloud deployment is supported
 
+  // WebSocket server for status updates
+  const statusWss = new WebSocketServer({ noServer: true })
+
+  statusWss.on('connection', async (ws) => {
+    console.log('[STATUS-WS] Client connected')
+    statusSubscribers.add(ws)
+
+    // Send current status to new subscriber (including hook states)
+    try {
+      const response = await fetch(`http://localhost:${port}/api/sessions/activity`)
+      const data = await response.json()
+      ws.send(JSON.stringify({ type: 'initial_status', activity: data.activity || {} }))
+    } catch (err) {
+      console.error('[STATUS-WS] Failed to fetch initial status:', err)
+      // Fallback to basic activity
+      const currentStatus = {}
+      sessionActivity.forEach((timestamp, sessionName) => {
+        currentStatus[sessionName] = {
+          lastActivity: new Date(timestamp).toISOString(),
+          status: (Date.now() - timestamp) / 1000 > 3 ? 'idle' : 'active'
+        }
+      })
+      ws.send(JSON.stringify({ type: 'initial_status', activity: currentStatus }))
+    }
+
+    ws.on('close', () => {
+      console.log('[STATUS-WS] Client disconnected')
+      statusSubscribers.delete(ws)
+    })
+
+    ws.on('error', (err) => {
+      console.error('[STATUS-WS] Error:', err)
+      statusSubscribers.delete(ws)
+    })
+  })
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
     if (pathname === '/term') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request, query)
+      })
+    } else if (pathname === '/status') {
+      statusWss.handleUpgrade(request, socket, head, (ws) => {
+        statusWss.emit('connection', ws)
       })
     } else {
       socket.destroy()

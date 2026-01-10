@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 
 interface MobileHostsListProps {
   agents: Agent[]
@@ -33,6 +34,7 @@ export default function MobileHostsList({
   onRefresh
 }: MobileHostsListProps) {
   const { hosts, loading: hostsLoading, error: hostsError } = useHosts()
+  const { getSessionActivity } = useSessionActivity()
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set(['local']))
 
   // Group agents by host
@@ -291,17 +293,30 @@ export default function MobileHostsList({
                           // Hibernated = offline but has session config (can be woken)
                           const isHibernated = !isOnline && (agent.sessions && agent.sessions.length > 0)
 
+                          // Get activity status for online agents
+                          const sessionName = agent.name || agent.session?.tmuxSessionName
+                          const activityInfo = sessionName ? getSessionActivity(sessionName) : null
+                          const activityStatus = activityInfo?.status
+
                           // Status indicator colors and labels
-                          const statusColor = isOnline
-                            ? 'bg-green-500'
-                            : isHibernated
-                              ? 'bg-yellow-500'
-                              : 'bg-gray-500'
-                          const statusLabel = isOnline
-                            ? 'Online'
-                            : isHibernated
-                              ? 'Hibernated'
-                              : 'Offline'
+                          let statusColor = 'bg-gray-500'
+                          let statusLabel = 'Offline'
+
+                          if (isOnline) {
+                            if (activityStatus === 'waiting') {
+                              statusColor = 'bg-amber-500'
+                              statusLabel = 'Waiting'
+                            } else if (activityStatus === 'active') {
+                              statusColor = 'bg-green-500'
+                              statusLabel = 'Active'
+                            } else {
+                              statusColor = 'bg-green-500'
+                              statusLabel = 'Idle'
+                            }
+                          } else if (isHibernated) {
+                            statusColor = 'bg-yellow-500'
+                            statusLabel = 'Hibernated'
+                          }
 
                           return (
                             <button

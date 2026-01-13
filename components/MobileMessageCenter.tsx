@@ -340,7 +340,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
       if (agent.id === agentId) return false
       const aliasMatch = agent.alias.toLowerCase().includes(searchTerm)
       const hostMatch = agent.hostId?.toLowerCase().includes(searchTerm)
-      const fullMatch = `${agent.alias}@${agent.hostId || 'local'}`.toLowerCase().includes(searchTerm)
+      const fullMatch = `${agent.alias}@${agent.hostId || 'unknown-host'}`.toLowerCase().includes(searchTerm)
       return aliasMatch || hostMatch || fullMatch
     })
 
@@ -367,8 +367,9 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
 
   // Select an agent from suggestions
   const selectAgent = (agent: AgentRecipient) => {
-    const isRemote = agent.hostId && agent.hostId !== 'local'
-    const value = isRemote ? `${agent.alias}@${agent.hostId}` : agent.alias
+    // Always include host in qualified name for cross-host compatibility
+    const hostId = agent.hostId || 'unknown-host'
+    const value = `${agent.alias}@${hostId}`
     setComposeTo(value)
     setShowAgentSuggestions(false)
     setSelectedSuggestionIndex(-1)
@@ -376,18 +377,18 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
 
   // Format agent display with host indicator
   const formatAgentDisplay = (agent: AgentRecipient) => {
-    const isRemote = agent.hostId && agent.hostId !== 'local'
+    const hostId = agent.hostId || 'unknown-host'
     return {
       primary: agent.alias,
-      secondary: isRemote ? `@${agent.hostId}` : '@local',
-      isRemote
+      secondary: `@${hostId}`,
+      hasHost: !!agent.hostId
     }
   }
 
   // Format agent display name - prefer alias over UUID, always include host
   const formatAgentName = (agentId: string, alias?: string, host?: string) => {
     const displayName = alias || agentId
-    const hostName = host || 'local'
+    const hostName = host || 'unknown-host'
     return `${displayName}@${hostName}`
   }
 
@@ -739,7 +740,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
                             {display.secondary}
                           </span>
                         </div>
-                        {display.isRemote && (
+                        {display.hasHost && (
                           <Server className={`w-3 h-3 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`} />
                         )}
                       </div>

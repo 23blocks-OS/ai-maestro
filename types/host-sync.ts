@@ -22,9 +22,9 @@ export interface HostIdentity {
  */
 export interface HostIdentityResponse {
   host: HostIdentity & {
-    type: 'local'
     version: string
     tailscale: boolean
+    isSelf: true  // Always true - this is the host serving the API
   }
 }
 

@@ -19,7 +19,7 @@ import {
   PeerExchangeRequest,
   PeerExchangeResponse,
 } from '@/types/host-sync'
-import { getHosts, getLocalHost, addHost, addHostAsync, getHostById, clearHostsCache } from './hosts-config'
+import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache } from './hosts-config'
 import os from 'os'
 
 // Track processed propagation IDs to prevent infinite loops
@@ -191,7 +191,7 @@ export async function addHostWithSync(
     errors: [],
   }
 
-  const localHost = getLocalHost()
+  const selfHost = getSelfHost()
   const propagationId = options?.propagationId || generatePropagationId()
   const propagationDepth = options?.propagationDepth || 0
 
@@ -230,7 +230,7 @@ export async function addHostWithSync(
   // Step 2: Register ourselves with the remote host
   if (!options?.skipBackRegistration) {
     try {
-      const registrationResult = await registerWithPeer(host.url, localHost, {
+      const registrationResult = await registerWithPeer(host.url, selfHost, {
         propagationId,
         propagationDepth: propagationDepth + 1,
       })
@@ -245,7 +245,7 @@ export async function addHostWithSync(
         if (!options?.skipPeerExchange && registrationResult.knownHosts.length > 0) {
           const exchangeResult = await processPeerExchange(
             host.url,
-            localHost,
+            selfHost,
             registrationResult.knownHosts,
             propagationId
           )
@@ -266,7 +266,7 @@ export async function addHostWithSync(
   if (!options?.skipPropagation && result.localAdd && propagationDepth < MAX_PROPAGATION_DEPTH) {
     const propagationResult = await propagateToExistingPeers(
       host,
-      localHost,
+      selfHost,
       propagationId
     )
     result.peersShared = propagationResult.shared
@@ -553,15 +553,16 @@ export async function syncWithAllPeers(): Promise<{
   synced: string[]
   failed: string[]
 }> {
-  const localHost = getLocalHost()
-  const peers = getHosts().filter(h => h.type === 'remote' && h.enabled)
+  const selfHost = getSelfHost()
+  // Filter for peer hosts (not self) that are enabled
+  const peers = getHosts().filter(h => h.id !== selfHost.id && h.enabled)
   const synced: string[] = []
   const failed: string[] = []
 
   // Sync concurrently with all peers
   const syncPromises = peers.map(async (peer) => {
     try {
-      const result = await registerWithPeer(peer.url, localHost, {
+      const result = await registerWithPeer(peer.url, selfHost, {
         propagationId: generatePropagationId(),
         propagationDepth: 0,
       })
@@ -569,7 +570,7 @@ export async function syncWithAllPeers(): Promise<{
       if (result.success) {
         // Exchange peers if we learned about new ones
         if (result.knownHosts.length > 0) {
-          await processPeerExchange(peer.url, localHost, result.knownHosts)
+          await processPeerExchange(peer.url, selfHost, result.knownHosts)
         }
         return { id: peer.id, success: true }
       } else {

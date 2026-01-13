@@ -108,9 +108,8 @@ export default function MobileDashboard({
   const getAgentHostDisplay = () => {
     if (!activeAgent) return 'No Agent Selected'
     const agentName = getAgentDisplayName(activeAgent)
-    const hostName = activeAgent.hostId === 'local'
-      ? 'local'
-      : (hosts.find(h => h.id === activeAgent.hostId)?.name || activeAgent.hostId || 'local')
+    // Find host display name, fallback to hostId, then 'unknown-host'
+    const hostName = hosts.find(h => h.id === activeAgent.hostId)?.name || activeAgent.hostId || 'unknown-host'
     return `${agentName}@${hostName}`
   }
 

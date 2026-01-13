@@ -55,7 +55,7 @@ export async function DELETE(
     // Also delete from registry (if agent exists there)
     deleteAgentBySession(sessionName)
 
-    return NextResponse.json({ success: true, name: sessionName, type: 'local' })
+    return NextResponse.json({ success: true, name: sessionName })
   } catch (error) {
     console.error('Failed to delete session:', error)
     return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })

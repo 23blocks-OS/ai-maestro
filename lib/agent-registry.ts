@@ -4,7 +4,7 @@ import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
 import { parseSessionName, computeSessionName } from '@/types/agent'
-import { getLocalHost } from '@/lib/hosts-config'
+import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -117,10 +117,12 @@ export function createAgent(request: CreateAgentRequest): Agent {
   const deploymentType: DeploymentType = request.deploymentType || 'local'
 
   // Get host information
-  const localHost = getLocalHost()
-  const hostId = request.hostId || localHost?.id || 'local'
-  const hostName = localHost?.name || os.hostname()
-  const hostUrl = localHost?.url || 'http://localhost:23000'
+  // Use hostname as hostId for cross-host compatibility
+  const selfHost = getSelfHost()
+  const selfHostIdValue = getSelfHostId()
+  const hostId = request.hostId || selfHost?.id || selfHostIdValue
+  const hostName = selfHost?.name || selfHostIdValue
+  const hostUrl = selfHost?.url || 'http://localhost:23000'
 
   // Create initial sessions array
   const sessions: AgentSession[] = []
@@ -398,7 +400,7 @@ export function listAgents(): AgentSummary[] {
       name: agentName,
       label: a.label,
       avatar: a.avatar,
-      hostId: a.hostId || 'local',
+      hostId: a.hostId || getSelfHostId(),
       hostUrl: a.hostUrl,
       status: a.status,
       lastActive: a.lastActive,

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getHosts, getLocalHost, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, isSelf, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
 import { hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
   PeerExchangeRequest,
@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
       markPropagationProcessed(propagationId)
     }
 
-    const localHost = getLocalHost()
+    const selfHost = getSelfHost()
     const newlyAdded: string[] = []
     const alreadyKnown: string[] = []
     const unreachable: string[] = []
@@ -77,8 +77,8 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
     // Filter hosts that need processing
     const hostsToProcess: HostIdentity[] = []
     for (const peerHost of uniqueHosts) {
-      // Skip if it's us (by ID only - URL can vary)
-      if (peerHost.id === localHost.id) {
+      // Skip if it's us (by ID or isSelf check - URL can vary)
+      if (peerHost.id === selfHost.id || isSelf(peerHost.id)) {
         continue
       }
 
@@ -96,7 +96,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
 
       // Check if URL already exists
       const hosts = getHosts()
-      const hostWithSameUrl = hosts.find(h => h.url === peerHost.url && h.type === 'remote')
+      const hostWithSameUrl = hosts.find(h => h.url === peerHost.url && !isSelf(h.id))
       if (hostWithSameUrl) {
         alreadyKnown.push(peerHost.id)
         continue
@@ -127,7 +127,6 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
           id: peerHost.id,
           name: peerHost.name,
           url: peerHost.url,
-          type: 'remote',
           enabled: true,
           description: sanitizedDescription,
           syncedAt: new Date().toISOString(),

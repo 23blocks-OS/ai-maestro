@@ -80,12 +80,21 @@ fi
 # Determine the 'to' field value:
 # - For remote hosts: use alias (remote host can resolve it locally)
 # - For local host: use agent ID (more reliable)
-if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
-    # Remote host - use alias so remote can resolve it
-    TO_FIELD="${TO_ALIAS:-$TO_AGENT}"
-else
+# GAP2 FIX: Compare against 'local', HOST_ID, and actual hostname for local detection
+LOCAL_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
+IS_TARGET_LOCAL=false
+if [ -z "$TO_HOST" ] || [ "$TO_HOST" = "local" ] || [ "$TO_HOST" = "$HOST_ID" ]; then
+    IS_TARGET_LOCAL=true
+elif [ "$(echo "$TO_HOST" | tr '[:upper:]' '[:lower:]')" = "$(echo "$LOCAL_HOSTNAME" | tr '[:upper:]' '[:lower:]')" ]; then
+    IS_TARGET_LOCAL=true
+fi
+
+if [ "$IS_TARGET_LOCAL" = "true" ]; then
     # Local host - use agent ID
     TO_FIELD="$TO_ID"
+else
+    # Remote host - use alias so remote can resolve it
+    TO_FIELD="${TO_ALIAS:-$TO_AGENT}"
 fi
 
 # Build JSON payload with agentId and aliases for cross-host display

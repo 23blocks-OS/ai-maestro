@@ -13,6 +13,7 @@ import { Host } from '@/types/host'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { getAgentBySession } from '@/lib/agent-registry'
+import { isSelf } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
@@ -157,10 +158,10 @@ export async function discoverRemoteSessions(host: Host): Promise<Session[]> {
 }
 
 /**
- * Discover sessions from a single host (local or remote)
+ * Discover sessions from a single host (self or peer)
  */
 export async function discoverSessionsFromHost(host: Host): Promise<Session[]> {
-  if (host.type === 'local') {
+  if (isSelf(host.id)) {
     return discoverLocalSessions(host)
   } else {
     return discoverRemoteSessions(host)

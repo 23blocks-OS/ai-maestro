@@ -16,10 +16,18 @@
 import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
 import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
+import { getSelfHost } from './hosts-config'
 import { computeSessionName } from '@/types/agent'
+
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+
+// Get this host's API base URL from configuration
+function getSelfApiBase(): string {
+  const selfHost = getSelfHost()
+  return selfHost?.url || 'http://localhost:23000'
+}
 
 interface AgentConfig {
   agentId: string
@@ -291,7 +299,7 @@ class AgentSubconscious {
 
     try {
       // Call the consolidation API endpoint
-      const response = await fetch(`http://localhost:23000/api/agents/${this.agentId}/memory/consolidate`, {
+      const response = await fetch(`${getSelfApiBase()}/api/agents/${this.agentId}/memory/consolidate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -381,7 +389,7 @@ class AgentSubconscious {
 
     try {
       // Call the index-delta API - it handles checking if indexing is needed
-      const response = await fetch(`http://localhost:23000/api/agents/${this.agentId}/index-delta`, {
+      const response = await fetch(`${getSelfApiBase()}/api/agents/${this.agentId}/index-delta`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -429,7 +437,7 @@ class AgentSubconscious {
     try {
       // Query messages directly by agent ID (agent-first architecture)
       const messagesResponse = await fetch(
-        `http://localhost:23000/api/messages?agent=${encodeURIComponent(this.agentId)}&box=inbox&status=unread`
+        `${getSelfApiBase()}/api/messages?agent=${encodeURIComponent(this.agentId)}&box=inbox&status=unread`
       )
 
       if (messagesResponse.ok) {
@@ -476,7 +484,7 @@ class AgentSubconscious {
       }
 
       // Get list of active tmux sessions
-      const sessionsResponse = await fetch('http://localhost:23000/api/sessions')
+      const sessionsResponse = await fetch(`${getSelfApiBase()}/api/sessions`)
       if (!sessionsResponse.ok) return null
 
       const data = await sessionsResponse.json()
@@ -565,7 +573,7 @@ class AgentSubconscious {
 
       // Send the natural language prompt to Claude Code
       const commandResponse = await fetch(
-        `http://localhost:23000/api/sessions/${encodeURIComponent(sessionName)}/command`,
+        `${getSelfApiBase()}/api/sessions/${encodeURIComponent(sessionName)}/command`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -95,7 +95,7 @@ export async function PATCH(
     // Also update the registry (if agent exists there)
     renameAgentSession(oldName, newName)
 
-    return NextResponse.json({ success: true, oldName, newName, type: 'local' })
+    return NextResponse.json({ success: true, oldName, newName })
   } catch (error) {
     console.error('Failed to rename session:', error)
     return NextResponse.json({ error: 'Failed to rename session' }, { status: 500 })

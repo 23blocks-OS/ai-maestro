@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getLocalHost } from '@/lib/hosts-config'
+import { getSelfHost } from '@/lib/hosts-config'
 import { getPublicUrl } from '@/lib/host-sync'
 import { HostIdentityResponse } from '@/types/host-sync'
 import os from 'os'
@@ -16,10 +16,10 @@ const packageJson = require('@/package.json')
  * Uses centralized getPublicUrl() for consistent URL detection.
  */
 export async function GET(request: Request): Promise<NextResponse<HostIdentityResponse>> {
-  const localHost = getLocalHost()
+  const selfHost = getSelfHost()
 
   // Use centralized URL detection
-  const publicUrl = getPublicUrl(localHost)
+  const publicUrl = getPublicUrl(selfHost)
 
   // Detect if running on Tailscale (IPs start with 100.)
   let tailscale = false
@@ -54,13 +54,13 @@ export async function GET(request: Request): Promise<NextResponse<HostIdentityRe
 
   return NextResponse.json({
     host: {
-      id: localHost.id,
-      name: localHost.name,
+      id: selfHost.id,
+      name: selfHost.name,
       url: finalUrl,
-      description: localHost.description,
-      type: 'local',
+      description: selfHost.description,
       version: packageJson.version || '0.0.0',
       tailscale,
+      isSelf: true,  // Always true - this is the host serving the API
     }
   })
 }

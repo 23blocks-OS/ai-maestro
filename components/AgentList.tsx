@@ -524,7 +524,8 @@ export default function AgentList({
               {hosts.map((host) => {
                 const count = agents.filter((a) => a.hostId === host.id).length
                 const isSelected = selectedHostFilter === host.id
-                const isLocal = host.type === 'local'
+                // Check if this is the self host by URL pattern (client-side detection)
+                const isSelf = !host.url || host.url.includes('localhost') || host.url.includes('127.0.0.1')
 
                 return (
                   <button
@@ -537,7 +538,7 @@ export default function AgentList({
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
-                      {isLocal ? (
+                      {isSelf ? (
                         <Terminal className="w-3.5 h-3.5" />
                       ) : (
                         <Network className="w-3.5 h-3.5" />

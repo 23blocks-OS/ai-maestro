@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
-import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgent } from './agent-registry'
+import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgent } from './agent-registry'
 import type { Agent } from '@/types/agent'
 
 /**
@@ -127,10 +127,8 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   // 0. Check for name@host format first (explicit host targeting)
   if (identifier.includes('@')) {
     const [name, hostId] = identifier.split('@')
-    agent = getAgentByName(name, hostId) || null
-    if (agent) {
-      // Found agent on specified host
-    }
+    // Try name first, then alias (alias searches both name and alias fields)
+    agent = getAgentByName(name, hostId) || getAgentByAlias(name, hostId) || null
   }
 
   // 1. Try exact UUID match (globally unique)
@@ -143,9 +141,19 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
     agent = getAgentByName(identifier) || null  // Defaults to self host
   }
 
+  // 2.5. Try alias match on SELF HOST (searches both name and alias fields)
+  if (!agent) {
+    agent = getAgentByAlias(identifier) || null
+  }
+
   // 3. Try exact name match on ANY HOST (for backward compat)
   if (!agent) {
     agent = getAgentByNameAnyHost(identifier)
+  }
+
+  // 3.5. Try alias match on ANY HOST
+  if (!agent) {
+    agent = getAgentByAliasAnyHost(identifier)
   }
 
   // 4. Try session name match (parse identifier as potential session name)

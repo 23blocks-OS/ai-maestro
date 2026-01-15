@@ -43,6 +43,46 @@ function hashCwd(cwd) {
     return crypto.createHash('md5').update(cwd || '').digest('hex').substring(0, 16);
 }
 
+// Broadcast status update via WebSocket (non-blocking)
+async function broadcastStatusUpdate(cwd, state) {
+    try {
+        // Find the session name for this working directory
+        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        if (!agentsResponse.ok) return;
+
+        const agentsData = await agentsResponse.json();
+        const agent = (agentsData.agents || []).find(a => {
+            const agentWd = a.workingDirectory || a.session?.workingDirectory;
+            if (!agentWd) return false;
+            if (agentWd === cwd) return true;
+            if (cwd.startsWith(agentWd + '/')) return true;
+            if (agentWd.startsWith(cwd + '/')) return true;
+            return false;
+        });
+
+        if (!agent) return;
+
+        const sessionName = agent.name || agent.alias || agent.session?.tmuxSessionName;
+        if (!sessionName) return;
+
+        // Broadcast the status update
+        await fetch('http://localhost:23000/api/sessions/activity/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionName,
+                status: state.status,
+                hookStatus: state.status,
+                notificationType: state.notificationType
+            })
+        });
+
+        debugLog({ event: 'status_broadcast', sessionName, status: state.status });
+    } catch (err) {
+        debugLog({ event: 'status_broadcast_error', error: err.message });
+    }
+}
+
 // Write state to file
 function writeState(cwd, state) {
     const stateDir = path.join(os.homedir(), '.aimaestro', 'chat-state');
@@ -68,6 +108,9 @@ function writeState(cwd, state) {
     } catch (e) {}
     index[cwd] = cwdHash;
     fs.writeFileSync(indexFile, JSON.stringify(index, null, 2));
+
+    // Broadcast status update via WebSocket (fire and forget)
+    broadcastStatusUpdate(cwd, state).catch(() => {});
 }
 
 // Log to debug file

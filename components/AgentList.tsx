@@ -33,6 +33,7 @@ import {
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
 import { useHosts } from '@/hooks/useHosts'
+import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
 
 interface AgentListProps {
@@ -157,6 +158,9 @@ export default function AgentList({
   const { hosts } = useHosts()
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
   const [hostsExpanded, setHostsExpanded] = useState(true)
+
+  // Session activity tracking (for waiting/active/idle status)
+  const { getSessionActivity } = useSessionActivity()
 
   // State for accordion panels - load from localStorage
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
@@ -704,6 +708,11 @@ export default function AgentList({
                                   const isOnline = agent.session?.status === 'online'
                                   const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
 
+                                  // Get activity status for online agents
+                                  const sessionName = agent.name || agent.session?.tmuxSessionName
+                                  const activityInfo = sessionName ? getSessionActivity(sessionName) : null
+                                  const activityStatus = activityInfo?.status
+
                                   return (
                                     <li key={agent.id} className="group/agent relative">
                                       <div
@@ -786,6 +795,7 @@ export default function AgentList({
                                                 <AgentStatusIndicator
                                                   isOnline={isOnline}
                                                   isHibernated={!isOnline && (agent.sessions && agent.sessions.length > 0)}
+                                                  activityStatus={activityStatus}
                                                 />
                                               </div>
 
@@ -910,12 +920,40 @@ export default function AgentList({
   )
 }
 
-function AgentStatusIndicator({ isOnline, isHibernated }: { isOnline: boolean; isHibernated?: boolean }) {
+function AgentStatusIndicator({
+  isOnline,
+  isHibernated,
+  activityStatus
+}: {
+  isOnline: boolean
+  isHibernated?: boolean
+  activityStatus?: SessionActivityStatus
+}) {
   if (isOnline) {
+    // Online states: waiting, active, or idle
+    if (activityStatus === 'waiting') {
+      return (
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="Waiting for input">
+          <div className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30 animate-pulse" />
+          <span className="text-xs text-amber-400 hidden lg:inline">Waiting</span>
+        </div>
+      )
+    }
+
+    if (activityStatus === 'active') {
+      return (
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="Processing">
+          <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30 animate-pulse" />
+          <span className="text-xs text-green-400 hidden lg:inline">Active</span>
+        </div>
+      )
+    }
+
+    // Idle or unknown activity status - show as online/idle
     return (
-      <div className="flex items-center gap-1.5 flex-shrink-0" title="Online">
-        <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30 animate-pulse" />
-        <span className="text-xs text-gray-400 hidden lg:inline">Online</span>
+      <div className="flex items-center gap-1.5 flex-shrink-0" title="Online - Idle">
+        <div className="w-2 h-2 rounded-full bg-green-500 ring-2 ring-green-500/30" />
+        <span className="text-xs text-gray-400 hidden lg:inline">Idle</span>
       </div>
     )
   }

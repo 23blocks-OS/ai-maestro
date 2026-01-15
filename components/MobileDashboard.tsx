@@ -209,7 +209,8 @@ export default function MobileDashboard({
                   agentId={agent.id}
                   allAgents={onlineAgents.map(a => ({
                     id: a.id,
-                    alias: a.label || a.name || a.alias || a.id,
+                    name: a.name || a.alias || a.id,  // Technical name for lookups
+                    alias: a.label || a.name || a.alias || a.id,  // Display name for UI
                     tmuxSessionName: a.session?.tmuxSessionName,
                     hostId: a.hostId
                   }))}

@@ -367,9 +367,9 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
 
   // Select an agent from suggestions
   const selectAgent = (agent: AgentRecipient) => {
-    // Always include host in qualified name for cross-host compatibility
+    // Use technical name for messaging, include host for cross-host compatibility
     const hostId = agent.hostId || 'unknown-host'
-    const value = `${agent.alias}@${hostId}`
+    const value = `${agent.name}@${hostId}`
     setComposeTo(value)
     setShowAgentSuggestions(false)
     setSelectedSuggestionIndex(-1)

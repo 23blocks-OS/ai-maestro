@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
-import { loadAgents, getAgentBySession } from './agent-registry'
+import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgent } from './agent-registry'
 import type { Agent } from '@/types/agent'
 
 /**
@@ -110,40 +110,62 @@ export function getLegacyAccessStats(): Record<string, number> {
 }
 
 /**
- * Resolve an agent identifier (alias, ID, or session name) to full agent info
- * Priority: 1) exact ID match, 2) exact alias match, 3) session name match
+ * Resolve an agent identifier (alias, ID, session name, or name@host) to full agent info
+ * Supports formats:
+ *   - "name@host" → resolve name on specific host
+ *   - "uuid" → exact ID match (globally unique)
+ *   - "name" → resolve on self host, then any host
+ *   - "session_name" → parse and resolve
+ *
+ * Priority: 1) name@host, 2) exact ID match, 3) name on self host, 4) session name, 5) partial match
  */
 function resolveAgent(identifier: string): ResolvedAgent | null {
   const agents = loadAgents()
   const { parseSessionName, computeSessionName } = require('@/types/agent')
+  let agent: Agent | null = null
 
-  // 1. Try exact ID match
-  let agent = agents.find(a => a.id === identifier)
-
-  // 2. Try exact name match (case-insensitive)
-  if (!agent) {
-    agent = agents.find(a => {
-      const agentName = a.name || a.alias || ''
-      return agentName.toLowerCase() === identifier.toLowerCase()
-    })
+  // 0. Check for name@host format first (explicit host targeting)
+  if (identifier.includes('@')) {
+    const [name, hostId] = identifier.split('@')
+    agent = getAgentByName(name, hostId) || null
+    if (agent) {
+      // Found agent on specified host
+    }
   }
 
-  // 3. Try session name match (parse identifier as potential session name)
+  // 1. Try exact UUID match (globally unique)
+  if (!agent) {
+    agent = getAgent(identifier)
+  }
+
+  // 2. Try exact name match on SELF HOST first (case-insensitive)
+  if (!agent) {
+    agent = getAgentByName(identifier) || null  // Defaults to self host
+  }
+
+  // 3. Try exact name match on ANY HOST (for backward compat)
+  if (!agent) {
+    agent = getAgentByNameAnyHost(identifier)
+  }
+
+  // 4. Try session name match (parse identifier as potential session name)
   if (!agent) {
     const { agentName } = parseSessionName(identifier)
-    agent = agents.find(a => {
-      const name = a.name || a.alias || ''
-      return name.toLowerCase() === agentName.toLowerCase()
-    })
+    // Try on self host first
+    agent = getAgentByName(agentName) || null
+    // Then any host
+    if (!agent) {
+      agent = getAgentByNameAnyHost(agentName)
+    }
   }
 
-  // 4. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
+  // 5. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
   if (!agent) {
     agent = agents.find(a => {
       const agentName = a.name || a.alias || ''
       const segments = agentName.split(/[-_]/)
       return segments.length > 0 && segments[segments.length - 1].toLowerCase() === identifier.toLowerCase()
-    })
+    }) || null
   }
 
   if (!agent) return null

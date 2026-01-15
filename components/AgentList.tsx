@@ -154,6 +154,10 @@ export default function AgentList({
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
 
+  // Drag-and-drop state
+  const [draggedAgent, setDraggedAgent] = useState<UnifiedAgent | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null) // Format: "level1" or "level1-level2"
+
   // Host management
   const { hosts } = useHosts()
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
@@ -411,6 +415,85 @@ export default function AgentList({
     }
   }
 
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, agent: UnifiedAgent) => {
+    setDraggedAgent(agent)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', agent.id)
+    // Add drag image styling
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5'
+    }
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggedAgent(null)
+    setDropTarget(null)
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent, target: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dropTarget !== target) {
+      setDropTarget(target)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear drop target if we're leaving the actual element
+    // (not just moving to a child element)
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (!e.currentTarget.contains(relatedTarget)) {
+      setDropTarget(null)
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent, level1: string, level2?: string) => {
+    e.preventDefault()
+    setDropTarget(null)
+
+    if (!draggedAgent) return
+
+    // Calculate new tags
+    const newTags = level2 && level2 !== 'default' ? [level1, level2] : [level1]
+
+    // Check if tags actually changed
+    const currentTags = draggedAgent.tags || []
+    const currentLevel1 = currentTags[0] || 'ungrouped'
+    const currentLevel2 = currentTags[1] || 'default'
+
+    if (currentLevel1 === level1 && currentLevel2 === (level2 || 'default')) {
+      setDraggedAgent(null)
+      return // No change
+    }
+
+    try {
+      // Use agent's hostUrl for remote agents
+      const baseUrl = draggedAgent.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${draggedAgent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to move agent')
+      }
+
+      // Refresh the agent list to show updated position
+      onRefresh?.()
+    } catch (error) {
+      console.error('Failed to move agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to move agent')
+    } finally {
+      setDraggedAgent(null)
+    }
+  }
+
   const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string): Promise<boolean> => {
     setActionLoading(true)
 
@@ -606,12 +689,17 @@ export default function AgentList({
 
               return (
                 <div key={level1} className="mb-1">
-                  {/* Level 1 Header */}
+                  {/* Level 1 Header - Drop target */}
                   <button
                     onClick={() => toggleLevel1(level1)}
-                    className="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-sidebar-hover transition-all duration-200 group rounded-lg mx-1"
+                    onDragOver={(e) => handleDragOver(e, level1)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, level1)}
+                    className={`w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-sidebar-hover transition-all duration-200 group rounded-lg mx-1 ${
+                      dropTarget === level1 ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900' : ''
+                    }`}
                     style={{
-                      backgroundColor: isExpanded ? colors.bg : 'transparent',
+                      backgroundColor: dropTarget === level1 ? colors.active : (isExpanded ? colors.bg : 'transparent'),
                     }}
                   >
                     <div
@@ -662,11 +750,16 @@ export default function AgentList({
 
                         return (
                           <div key={level2Key}>
-                            {/* Level 2 Header (hide if it's "default") */}
+                            {/* Level 2 Header (hide if it's "default") - Drop target */}
                             {level2 !== 'default' && (
                               <button
                                 onClick={() => toggleLevel2(level1, level2)}
-                                className="w-full px-3 py-2 pl-10 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-all duration-200 rounded-lg group"
+                                onDragOver={(e) => handleDragOver(e, level2Key)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, level1, level2)}
+                                className={`w-full px-3 py-2 pl-10 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-all duration-200 rounded-lg group ${
+                                  dropTarget === level2Key ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-gray-900' : ''
+                                }`}
                               >
                                 <div className="flex-shrink-0">
                                   {isLevel2Expanded ? (
@@ -717,12 +810,17 @@ export default function AgentList({
                                   return (
                                     <li key={agent.id} className="group/agent relative">
                                       <div
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, agent)}
+                                        onDragEnd={handleDragEnd}
                                         onClick={() => handleAgentClick(agent)}
                                         className={`w-full py-2.5 px-3 ${indentClass} text-left transition-all duration-200 cursor-pointer rounded-lg relative overflow-hidden ${
                                           isActive
                                             ? 'shadow-sm'
                                             : 'hover:bg-sidebar-hover'
-                                        } ${!isOnline ? 'opacity-70' : ''}`}
+                                        } ${!isOnline ? 'opacity-70' : ''} ${
+                                          draggedAgent?.id === agent.id ? 'opacity-50 scale-95' : ''
+                                        }`}
                                         style={{
                                           backgroundColor: isActive ? colors.active : 'transparent',
                                         }}

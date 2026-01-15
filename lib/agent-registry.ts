@@ -214,6 +214,25 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     if (existing) {
       throw new Error(`Agent with name "${newName}" already exists`)
     }
+
+    // Also rename the tmux session if it exists
+    if (currentName) {
+      try {
+        const { execSync } = require('child_process')
+        // Check if tmux session exists
+        try {
+          execSync(`tmux has-session -t "${currentName}" 2>/dev/null`)
+          // Session exists, rename it
+          execSync(`tmux rename-session -t "${currentName}" "${newName}"`)
+          console.log(`[Agent Registry] Renamed tmux session: ${currentName} -> ${newName}`)
+        } catch {
+          // Session doesn't exist, that's fine
+        }
+      } catch (err) {
+        console.error(`[Agent Registry] Failed to rename tmux session:`, err)
+        // Don't fail the agent update if tmux rename fails
+      }
+    }
   }
 
   // Normalize tags if being updated

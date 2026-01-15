@@ -38,7 +38,6 @@ export async function POST(request: Request) {
         sessionName,
         workingDirectory: workingDirectory || process.cwd(),
         createdAt: Date.now(),
-        type: 'local'
       }
 
       // Also create/update registry entry

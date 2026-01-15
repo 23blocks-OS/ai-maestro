@@ -8,7 +8,7 @@ import path from 'path'
 import os from 'os'
 import type { Session } from '@/types/session'
 import { getAgentBySession } from '@/lib/agent-registry'
-import { getHosts, getLocalHost } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, isSelf } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
@@ -242,7 +242,7 @@ async function fetchAllSessions(): Promise<Session[]> {
 
   // Fetch sessions from all hosts in parallel
   const sessionPromises = hosts.map(async (host) => {
-    if (host.type === 'local') {
+    if (isSelf(host.id)) {
       return fetchLocalSessions(host.id)
     } else {
       return fetchRemoteSessions(host.url, host.id)

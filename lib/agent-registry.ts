@@ -4,7 +4,7 @@ import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
 import { parseSessionName, computeSessionName } from '@/types/agent'
-import { getLocalHost } from '@/lib/hosts-config'
+import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -67,8 +67,36 @@ export function getAgent(id: string): Agent | null {
 
 /**
  * Get agent by name (the primary identity)
+ * Names are unique per-host, like email addresses (auth@macbook-pro ≠ auth@mac-mini)
+ *
+ * @param name - Agent name (case-insensitive)
+ * @param hostId - Optional host ID. If provided, searches on that host. If not, searches on self host.
  */
-export function getAgentByName(name: string): Agent | null {
+export function getAgentByName(name: string, hostId?: string): Agent | null {
+  const agents = loadAgents()
+  const normalizedName = name.toLowerCase()
+
+  if (hostId) {
+    // Scoped to specific host
+    return agents.find(a =>
+      a.name?.toLowerCase() === normalizedName &&
+      a.hostId?.toLowerCase() === hostId.toLowerCase()
+    ) || null
+  }
+
+  // Default: search on self host only
+  const selfHostId = getSelfHostId().toLowerCase()
+  return agents.find(a =>
+    a.name?.toLowerCase() === normalizedName &&
+    a.hostId?.toLowerCase() === selfHostId
+  ) || null
+}
+
+/**
+ * Get agent by name from ANY host (global search)
+ * Use sparingly - prefer getAgentByName(name, hostId) for per-host lookups
+ */
+export function getAgentByNameAnyHost(name: string): Agent | null {
   const agents = loadAgents()
   return agents.find(a => a.name?.toLowerCase() === name.toLowerCase()) || null
 }
@@ -76,23 +104,48 @@ export function getAgentByName(name: string): Agent | null {
 /**
  * Get agent by alias (DEPRECATED - use getAgentByName)
  * Kept for backward compatibility during migration
+ *
+ * @param alias - Agent alias or name (case-insensitive)
+ * @param hostId - Optional host ID for per-host lookup
  */
-export function getAgentByAlias(alias: string): Agent | null {
+export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
   const agents = loadAgents()
-  // Try name first, then deprecated alias field
+  const normalizedAlias = alias.toLowerCase()
+
+  // Determine which host to search on
+  const targetHostId = hostId?.toLowerCase() || getSelfHostId().toLowerCase()
+
+  // Try name first (on specific host), then deprecated alias field
   return agents.find(a =>
-    a.name?.toLowerCase() === alias.toLowerCase() ||
-    a.alias?.toLowerCase() === alias.toLowerCase()
+    (a.name?.toLowerCase() === normalizedAlias ||
+     a.alias?.toLowerCase() === normalizedAlias) &&
+    a.hostId?.toLowerCase() === targetHostId
+  ) || null
+}
+
+/**
+ * Get agent by alias from ANY host (global search)
+ * DEPRECATED - use getAgentByAlias(alias, hostId) for per-host lookups
+ */
+export function getAgentByAliasAnyHost(alias: string): Agent | null {
+  const agents = loadAgents()
+  const normalizedAlias = alias.toLowerCase()
+  return agents.find(a =>
+    a.name?.toLowerCase() === normalizedAlias ||
+    a.alias?.toLowerCase() === normalizedAlias
   ) || null
 }
 
 /**
  * Get agent by tmux session name
  * Uses parseSessionName to extract agent name from session (e.g., "website_1" → "website")
+ *
+ * @param sessionName - tmux session name
+ * @param hostId - Optional host ID for per-host lookup
  */
-export function getAgentBySession(sessionName: string): Agent | null {
+export function getAgentBySession(sessionName: string, hostId?: string): Agent | null {
   const { agentName } = parseSessionName(sessionName)
-  return getAgentByName(agentName)
+  return getAgentByName(agentName, hostId)
 }
 
 /**
@@ -107,20 +160,22 @@ export function createAgent(request: CreateAgentRequest): Agent {
     throw new Error('Agent name is required')
   }
 
-  // Check if name already exists
-  const existing = getAgentByName(agentName)
-  if (existing) {
-    throw new Error(`Agent with name "${agentName}" already exists`)
-  }
-
   // Determine deployment type
   const deploymentType: DeploymentType = request.deploymentType || 'local'
 
-  // Get host information
-  const localHost = getLocalHost()
-  const hostId = request.hostId || localHost?.id || 'local'
-  const hostName = localHost?.name || os.hostname()
-  const hostUrl = localHost?.url || 'http://localhost:23000'
+  // Get host information FIRST (needed for uniqueness check)
+  // Use hostname as hostId for cross-host compatibility
+  const selfHost = getSelfHost()
+  const selfHostIdValue = getSelfHostId()
+  const hostId = request.hostId || selfHost?.id || selfHostIdValue
+  const hostName = selfHost?.name || selfHostIdValue
+  const hostUrl = selfHost?.url || 'http://localhost:23000'
+
+  // Check if name already exists ON THIS HOST (like email: auth@host1 ≠ auth@host2)
+  const existing = getAgentByName(agentName, hostId)
+  if (existing) {
+    throw new Error(`Agent "${agentName}" already exists on host "${hostId}"`)
+  }
 
   // Create initial sessions array
   const sessions: AgentSession[] = []
@@ -205,12 +260,13 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   // Support both new 'name' and deprecated 'alias'
   const newName = updates.name || updates.alias
   const currentName = agents[index].name || agents[index].alias
+  const agentHostId = agents[index].hostId || getSelfHostId()
 
-  // Check name uniqueness if being updated
-  if (newName && newName !== currentName) {
-    const existing = getAgentByName(newName)
-    if (existing) {
-      throw new Error(`Agent with name "${newName}" already exists`)
+  // Check name uniqueness ON THIS HOST if being updated
+  if (newName && newName.toLowerCase() !== currentName?.toLowerCase()) {
+    const existing = getAgentByName(newName, agentHostId)
+    if (existing && existing.id !== id) {
+      throw new Error(`Agent "${newName}" already exists on host "${agentHostId}"`)
     }
 
     // Also rename the tmux session if it exists
@@ -417,7 +473,7 @@ export function listAgents(): AgentSummary[] {
       name: agentName,
       label: a.label,
       avatar: a.avatar,
-      hostId: a.hostId || 'local',
+      hostId: a.hostId || getSelfHostId(),
       hostUrl: a.hostUrl,
       status: a.status,
       lastActive: a.lastActive,
@@ -604,11 +660,29 @@ export function searchAgents(query: string): Agent[] {
 
 /**
  * Resolve name/alias to agent ID
+ * Supports formats: "name", "name@host", "uuid"
  * Used for messaging and other operations that reference agents by name
+ *
+ * @param nameOrId - Agent name, name@host, or UUID
+ * @param defaultHostId - Optional default host if not specified in nameOrId
  */
-export function resolveAlias(nameOrId: string): string | null {
-  // Try by name first, then by ID
-  const agent = getAgentByName(nameOrId) || getAgent(nameOrId)
+export function resolveAlias(nameOrId: string, defaultHostId?: string): string | null {
+  // Check for name@host format
+  if (nameOrId.includes('@')) {
+    const [name, hostId] = nameOrId.split('@')
+    const agent = getAgentByName(name, hostId)
+    return agent?.id || null
+  }
+
+  // Try by UUID first (globally unique)
+  const byId = getAgent(nameOrId)
+  if (byId) {
+    return byId.id
+  }
+
+  // Try by name on specified or self host
+  const hostId = defaultHostId || getSelfHostId()
+  const agent = getAgentByName(nameOrId, hostId)
   return agent?.id || null
 }
 
@@ -624,10 +698,13 @@ export function renameAgent(agentId: string, newName: string): boolean {
     return false
   }
 
-  // Check if new name already exists
-  const existing = getAgentByName(newName)
+  // Get agent's host for per-host uniqueness check
+  const agentHostId = agents[index].hostId || getSelfHostId()
+
+  // Check if new name already exists ON THIS HOST
+  const existing = getAgentByName(newName, agentHostId)
   if (existing && existing.id !== agentId) {
-    console.error(`[Agent Registry] Cannot rename: agent with name "${newName}" already exists`)
+    console.error(`[Agent Registry] Cannot rename: agent "${newName}" already exists on host "${agentHostId}"`)
     return false
   }
 

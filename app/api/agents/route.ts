@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSession, AgentSessionStatus, CreateAgentRequest } from '@/types/agent'
 import { parseSessionName, parseNameForDisplay, computeSessionName } from '@/types/agent'
 import { loadAgents, saveAgents, createAgent, searchAgents, getAgentByName } from '@/lib/agent-registry'
-import { getLocalHost } from '@/lib/hosts-config'
+import { getSelfHost } from '@/lib/hosts-config'
 
 const execAsync = promisify(exec)
 
@@ -195,11 +195,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ agents })
     }
 
-    // Get local host info for response
-    const localHost = getLocalHost()
-    const hostId = localHost?.id || 'local'
-    const hostName = localHost?.name || os.hostname()
-    const hostUrl = localHost?.url || `http://localhost:23000`
+    // Get this host's info for response
+    const selfHost = getSelfHost()
+    const hostName = selfHost?.name || os.hostname()
+    const hostId = selfHost?.id || hostName
+    const hostUrl = selfHost?.url || `http://localhost:23000`
 
     // 1. Load all registered agents from this host's registry
     let agents = loadAgents()
@@ -274,10 +274,16 @@ export async function GET(request: Request) {
             tmuxSessionName: computeSessionName(agentName, onlineSession.index),
             workingDirectory: onlineSession.workingDirectory,
             lastActivity: onlineSession.lastActive,
+            // GAP6 FIX: Include host context in session status
+            hostId,
+            hostName,
           }
         : {
             status: 'offline',
             workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
+            // GAP6 FIX: Include host context in session status
+            hostId,
+            hostName,
           }
 
       // Update agent with new sessions
@@ -323,7 +329,10 @@ export async function GET(request: Request) {
           tmuxSessionName: primarySession.name,
           workingDirectory: primarySession.workingDirectory,
           lastActivity: primarySession.lastActivity,
-          windows: primarySession.windows
+          windows: primarySession.windows,
+          // GAP6 FIX: Include host context in session status
+          hostId,
+          hostName,
         }
 
         resultAgents.push({
@@ -366,7 +375,7 @@ export async function GET(request: Request) {
         id: hostId,
         name: hostName,
         url: hostUrl,
-        type: 'local' as const
+        isSelf: true,  // This host is serving the API
       }
     })
   } catch (error) {

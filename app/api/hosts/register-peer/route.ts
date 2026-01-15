@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getHosts, getLocalHost, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, isSelf, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
 import { getPublicUrl, hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
   PeerRegistrationRequest,
@@ -74,8 +74,8 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
     }
 
     // Prevent self-registration - use ID only (not URL, as URL can vary)
-    const localHost = getLocalHost()
-    if (body.host.id === localHost.id) {
+    const selfHost = getSelfHost()
+    if (body.host.id === selfHost.id || isSelf(body.host.id)) {
       return NextResponse.json(
         {
           success: false,
@@ -104,7 +104,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
 
     // Check if URL already exists (same host, different ID) - but allow if ID is same
     const hosts = getHosts()
-    const hostWithSameUrl = hosts.find(h => h.url === body.host.url && h.type === 'remote')
+    const hostWithSameUrl = hosts.find(h => h.url === body.host.url && !isSelf(h.id))
     if (hostWithSameUrl) {
       console.log(`[Host Sync] Host with URL ${body.host.url} already exists as ${hostWithSameUrl.id}`)
       return NextResponse.json({
@@ -126,7 +126,6 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       id: body.host.id,
       name: body.host.name,
       url: body.host.url,
-      type: 'remote',
       enabled: true,
       description: sanitizedDescription,
       syncedAt: new Date().toISOString(),
@@ -178,27 +177,27 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
 }
 
 /**
- * Get local host identity for response
+ * Get self host identity for response
  * Uses centralized getPublicUrl for consistent URL detection
  */
 function getLocalHostIdentity(): HostIdentity {
-  const localHost = getLocalHost()
+  const selfHost = getSelfHost()
   return {
-    id: localHost.id,
-    name: localHost.name,
-    url: getPublicUrl(localHost),
-    description: localHost.description,
+    id: selfHost.id,
+    name: selfHost.name,
+    url: getPublicUrl(selfHost),
+    description: selfHost.description,
   }
 }
 
 /**
- * Get all known remote hosts as identities for peer exchange
+ * Get all known peer hosts as identities for peer exchange
  * Excludes the requesting host to avoid circular references
  */
 function getKnownHostIdentities(excludeId?: string): HostIdentity[] {
   const hosts = getHosts()
   return hosts
-    .filter(h => h.type === 'remote' && h.enabled && h.id !== excludeId)
+    .filter(h => !isSelf(h.id) && h.enabled && h.id !== excludeId)
     .map(h => ({
       id: h.id,
       name: h.name,

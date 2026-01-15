@@ -354,6 +354,9 @@ export interface AgentSessionStatus {
   workingDirectory?: string       // Current working directory
   lastActivity?: string           // Last activity timestamp (ISO)
   windows?: number                // Number of tmux windows
+  // GAP6 FIX: Include host context for distributed agents
+  hostId?: string                 // Host ID where session runs (e.g., 'local', 'mac-mini')
+  hostName?: string               // Human-readable host name
 }
 
 /**
@@ -379,8 +382,9 @@ export interface AgentStats {
 export interface AgentHostInfo {
   id: string
   name: string
-  url: string
-  type: 'local' | 'remote'
+  url?: string
+  /** True if this is the host serving the dashboard */
+  isSelf?: boolean
 }
 
 /**

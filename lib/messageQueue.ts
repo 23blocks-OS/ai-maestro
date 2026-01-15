@@ -1,22 +1,20 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
-import { getHostById, getLocalHost } from './hosts-config-server.mjs'
-import { loadAgents, getAgentBySession } from './agent-registry'
+import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
+import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgent } from './agent-registry'
 import type { Agent } from '@/types/agent'
 
 /**
- * Get the local host's name for messages
- * Uses the host name (e.g., 'macbook-pro', 'mac-mini.local') instead of 'local'
- * This ensures recipients on other hosts know where the message came from
+ * Get this host's name for messages
+ * Uses the hostname (e.g., 'macbook-pro', 'mac-mini') for cross-host compatibility
  */
-function getLocalHostName(): string {
+function getSelfHostName(): string {
   try {
-    const localHost = getLocalHost()
-    // Use the name (hostname) as the identifier, not 'local'
-    return localHost.name || os.hostname() || 'unknown-host'
+    const selfHost = getSelfHost()
+    return selfHost.name || getSelfHostId() || 'unknown-host'
   } catch {
-    return os.hostname() || 'unknown-host'
+    return getSelfHostId() || 'unknown-host'
   }
 }
 
@@ -25,7 +23,7 @@ export interface Message {
   from: string           // Agent ID (or session name for backward compat)
   fromAlias?: string     // Agent alias for display
   fromSession?: string   // Actual session name (for delivery)
-  fromHost?: string      // Host ID where sender resides (e.g., 'local', 'mac-mini')
+  fromHost?: string      // Host ID where sender resides (e.g., 'macbook-pro', 'mac-mini')
   to: string             // Agent ID (or session name for backward compat)
   toAlias?: string       // Agent alias for display
   toSession?: string     // Actual session name (for delivery)
@@ -77,47 +75,97 @@ interface ResolvedAgent {
   alias: string
   displayName?: string
   sessionName?: string  // Current tmux session (may be null if offline)
-  hostId?: string       // Host ID (e.g., 'local' or remote host ID)
+  hostId?: string       // Host ID (e.g., 'macbook-pro', 'mac-mini')
   hostUrl?: string      // Full URL to reach this agent's host (e.g., 'http://localhost:23000')
 }
 
 const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
 
 /**
- * Resolve an agent identifier (alias, ID, or session name) to full agent info
- * Priority: 1) exact ID match, 2) exact alias match, 3) session name match
+ * GAP8 FIX: Track legacy location access for deprecation monitoring
+ * This helps identify when legacy fallbacks are still being used
+ */
+const legacyAccessLog = new Map<string, number>()
+
+function logLegacyAccess(location: string, operation: string): void {
+  const key = `${operation}:${location}`
+  const count = legacyAccessLog.get(key) || 0
+  legacyAccessLog.set(key, count + 1)
+
+  // Log every 10th access to avoid log spam
+  if ((count + 1) % 10 === 1) {
+    console.log(`[MessageQueue] GAP8 DEPRECATION: Legacy location access - ${operation} from "${location}" (access #${count + 1})`)
+  }
+}
+
+/**
+ * GAP8 FIX: Get legacy access statistics for monitoring
+ */
+export function getLegacyAccessStats(): Record<string, number> {
+  const stats: Record<string, number> = {}
+  legacyAccessLog.forEach((count, key) => {
+    stats[key] = count
+  })
+  return stats
+}
+
+/**
+ * Resolve an agent identifier (alias, ID, session name, or name@host) to full agent info
+ * Supports formats:
+ *   - "name@host" → resolve name on specific host
+ *   - "uuid" → exact ID match (globally unique)
+ *   - "name" → resolve on self host, then any host
+ *   - "session_name" → parse and resolve
+ *
+ * Priority: 1) name@host, 2) exact ID match, 3) name on self host, 4) session name, 5) partial match
  */
 function resolveAgent(identifier: string): ResolvedAgent | null {
   const agents = loadAgents()
   const { parseSessionName, computeSessionName } = require('@/types/agent')
+  let agent: Agent | null = null
 
-  // 1. Try exact ID match
-  let agent = agents.find(a => a.id === identifier)
-
-  // 2. Try exact name match (case-insensitive)
-  if (!agent) {
-    agent = agents.find(a => {
-      const agentName = a.name || a.alias || ''
-      return agentName.toLowerCase() === identifier.toLowerCase()
-    })
+  // 0. Check for name@host format first (explicit host targeting)
+  if (identifier.includes('@')) {
+    const [name, hostId] = identifier.split('@')
+    agent = getAgentByName(name, hostId) || null
+    if (agent) {
+      // Found agent on specified host
+    }
   }
 
-  // 3. Try session name match (parse identifier as potential session name)
+  // 1. Try exact UUID match (globally unique)
+  if (!agent) {
+    agent = getAgent(identifier)
+  }
+
+  // 2. Try exact name match on SELF HOST first (case-insensitive)
+  if (!agent) {
+    agent = getAgentByName(identifier) || null  // Defaults to self host
+  }
+
+  // 3. Try exact name match on ANY HOST (for backward compat)
+  if (!agent) {
+    agent = getAgentByNameAnyHost(identifier)
+  }
+
+  // 4. Try session name match (parse identifier as potential session name)
   if (!agent) {
     const { agentName } = parseSessionName(identifier)
-    agent = agents.find(a => {
-      const name = a.name || a.alias || ''
-      return name.toLowerCase() === agentName.toLowerCase()
-    })
+    // Try on self host first
+    agent = getAgentByName(agentName) || null
+    // Then any host
+    if (!agent) {
+      agent = getAgentByNameAnyHost(agentName)
+    }
   }
 
-  // 4. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
+  // 5. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
   if (!agent) {
     agent = agents.find(a => {
       const agentName = a.name || a.alias || ''
       const segments = agentName.split(/[-_]/)
       return segments.length > 0 && segments[segments.length - 1].toLowerCase() === identifier.toLowerCase()
-    })
+    }) || null
   }
 
   if (!agent) return null
@@ -129,9 +177,9 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
     ? computeSessionName(agentName, onlineSession.index)
     : agentName
 
-  // Use the actual host identifier instead of 'local'
-  const hostId = agent.hostId === 'local' || !agent.hostId
-    ? getLocalHostName()
+  // Use this host's name if agent has no hostId or legacy 'local'
+  const hostId = !agent.hostId || isSelf(agent.hostId)
+    ? getSelfHostName()
     : agent.hostId
   const hostUrl = agent.hostUrl || 'http://localhost:23000'
 
@@ -162,6 +210,104 @@ function parseQualifiedName(qualifiedName: string): { identifier: string; hostId
     return { identifier: parts[0], hostId: parts[1] }
   }
   return { identifier: qualifiedName, hostId: null }
+}
+
+/**
+ * GAP8 FIX: Migrate messages from legacy locations to agent-ID folders
+ * This function consolidates messages that may exist in session-name based folders
+ * to the canonical agent-ID folder format.
+ *
+ * @param dryRun - If true, only report what would be migrated without making changes
+ * @returns Migration report with counts and details
+ */
+export async function migrateMessagesToAgentIdFolders(dryRun: boolean = false): Promise<{
+  scanned: number
+  migrated: number
+  errors: string[]
+  details: Array<{ from: string; to: string; messageId: string }>
+}> {
+  const report = {
+    scanned: 0,
+    migrated: 0,
+    errors: [] as string[],
+    details: [] as Array<{ from: string; to: string; messageId: string }>
+  }
+
+  await ensureMessageDirectories()
+  const agents = loadAgents()
+
+  for (const agent of agents) {
+    const agentId = agent.id
+    const agentName = agent.name || agent.alias || ''
+
+    if (!agentId || !agentName) continue
+
+    // Check if session-name based folder exists with messages that should be in agent-ID folder
+    for (const boxType of ['inbox', 'sent', 'archived'] as const) {
+      const legacyDir = path.join(MESSAGE_DIR, boxType, agentName)
+      const canonicalDir = path.join(MESSAGE_DIR, boxType, agentId)
+
+      if (legacyDir === canonicalDir) continue // Same folder, skip
+
+      try {
+        const files = await fs.readdir(legacyDir)
+
+        for (const file of files) {
+          if (!file.endsWith('.json')) continue
+          report.scanned++
+
+          const legacyPath = path.join(legacyDir, file)
+          const canonicalPath = path.join(canonicalDir, file)
+
+          // Check if file already exists in canonical location
+          try {
+            await fs.access(canonicalPath)
+            // Already migrated, skip (but don't delete legacy to be safe)
+            continue
+          } catch {
+            // Canonical doesn't exist, should migrate
+          }
+
+          if (dryRun) {
+            report.details.push({
+              from: legacyPath,
+              to: canonicalPath,
+              messageId: file.replace('.json', '')
+            })
+            report.migrated++
+          } else {
+            try {
+              // Ensure canonical directory exists
+              await fs.mkdir(canonicalDir, { recursive: true })
+
+              // Copy message to canonical location (copy, don't move, for safety)
+              const content = await fs.readFile(legacyPath, 'utf-8')
+              await fs.writeFile(canonicalPath, content)
+
+              report.details.push({
+                from: legacyPath,
+                to: canonicalPath,
+                messageId: file.replace('.json', '')
+              })
+              report.migrated++
+
+              console.log(`[MessageQueue] GAP8 MIGRATION: Copied ${file} from ${agentName}/${boxType} to ${agentId}/${boxType}`)
+            } catch (error) {
+              report.errors.push(`Failed to migrate ${legacyPath}: ${error}`)
+            }
+          }
+        }
+      } catch {
+        // Legacy directory doesn't exist, nothing to migrate
+      }
+    }
+  }
+
+  if (report.migrated > 0) {
+    console.log(`[MessageQueue] GAP8 MIGRATION: ${dryRun ? 'Would migrate' : 'Migrated'} ${report.migrated} messages`)
+  }
+
+  return report
 }
 
 /**
@@ -246,22 +392,40 @@ export async function sendMessage(
   // Resolve sender agent (may fail for remote senders - that's ok, use provided info)
   const fromAgent = resolveAgent(from)
 
+  // Determine if target is on this host BEFORE resolution
+  const selfHost = getSelfHost()
+  const selfHostId = selfHost?.id || getSelfHostId()
+  const isTargetLocal = !targetHostId || isSelf(targetHostId)
+
   // Resolve recipient agent
+  // GAP4 FIX: For remote targets, allow sending without local resolution
   const toAgent = resolveAgent(toIdentifier)
-  if (!toAgent) {
+  if (!toAgent && isTargetLocal) {
+    // Local agent MUST be resolvable
     throw new Error(`Unknown recipient: ${to}. Please ensure the agent is registered.`)
+  }
+
+  // For remote targets without local resolution, create minimal resolved info
+  const toResolved: ResolvedAgent = toAgent || {
+    agentId: toIdentifier,
+    alias: options?.toAlias || toIdentifier,
+    hostId: targetHostId || undefined,
+    hostUrl: undefined
   }
 
   // For local sender, ensure directories exist
   if (fromAgent) {
     await ensureAgentDirectories(fromAgent.agentId)
   }
-  await ensureAgentDirectories(toAgent.agentId)
+  // Only create local directories for local recipients
+  if (isTargetLocal && toResolved.agentId) {
+    await ensureAgentDirectories(toResolved.agentId)
+  }
 
-  // Determine host info - use provided values or resolve from local agent
-  // Never use 'local' - always use the actual host name for cross-host compatibility
-  const fromHostId = options?.fromHost || fromAgent?.hostId || getLocalHostName()
-  const toHostId = options?.toHost || targetHostId || toAgent?.hostId || getLocalHostName()
+  // Determine host info - use provided values or resolve from agent
+  // Always use the actual hostname for cross-host compatibility
+  const fromHostId = options?.fromHost || fromAgent?.hostId || getSelfHostName()
+  const toHostId = options?.toHost || targetHostId || toResolved?.hostId || getSelfHostName()
 
   const message: Message = {
     id: generateMessageId(),
@@ -269,9 +433,9 @@ export async function sendMessage(
     fromAlias: options?.fromAlias || fromAgent?.alias,
     fromSession: fromAgent?.sessionName,
     fromHost: fromHostId,
-    to: toAgent.agentId,
-    toAlias: options?.toAlias || toAgent.alias,
-    toSession: toAgent.sessionName,
+    to: toResolved.agentId,
+    toAlias: options?.toAlias || toResolved.alias,
+    toSession: toResolved.sessionName,
     toHost: toHostId,
     timestamp: new Date().toISOString(),
     subject,
@@ -281,22 +445,24 @@ export async function sendMessage(
     inReplyTo: options?.inReplyTo,
   }
 
-  // Determine if recipient is on a remote host
-  // Note: hostId comes from qualified name (e.g., "crm@remote-host")
+  // Determine if recipient is on a remote host (reuse isTargetLocal computed above)
   let recipientIsRemote = false
   let remoteHostUrl: string | null = null
 
-  if (targetHostId && targetHostId !== 'local') {
+  if (targetHostId && !isTargetLocal) {
+    // Target is explicitly on a remote host - look it up
     const remoteHost = getHostById(targetHostId)
-    if (remoteHost) {
-      recipientIsRemote = true
-      remoteHostUrl = remoteHost.url
+    if (!remoteHost) {
+      // CRITICAL: Don't silently fall back to local delivery
+      throw new Error(`Target host '${targetHostId}' not found. Ensure the host is registered in ~/.aimaestro/hosts.json`)
     }
+    recipientIsRemote = true
+    remoteHostUrl = remoteHost.url
   }
 
   if (recipientIsRemote && remoteHostUrl) {
     // Send message to remote host via HTTP
-    console.log(`[MessageQueue] Sending message to remote agent ${toAgent.alias} at ${remoteHostUrl}`)
+    console.log(`[MessageQueue] Sending message to remote agent ${toResolved.alias}@${targetHostId} at ${remoteHostUrl}`)
 
     try {
       const remoteResponse = await fetch(`${remoteHostUrl}/api/messages`, {
@@ -327,7 +493,7 @@ export async function sendMessage(
     }
   } else {
     // Local recipient - write to filesystem using agent ID
-    const inboxPath = path.join(getInboxDir(toAgent.agentId), `${message.id}.json`)
+    const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
     await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
   }
 
@@ -354,15 +520,29 @@ export async function forwardMessage(
   // Parse qualified name
   const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(toAgent)
 
-  // Resolve agents
+  // Determine if target is on this host BEFORE resolution (GAP4 FIX)
+  const selfHost = getSelfHost()
+  const isTargetLocal = !targetHostId || isSelf(targetHostId)
+
+  // Resolve sender agent
   const fromResolved = resolveAgent(fromAgent)
   if (!fromResolved) {
     throw new Error(`Unknown sender: ${fromAgent}`)
   }
 
-  const toResolved = resolveAgent(toIdentifier)
-  if (!toResolved) {
+  // Resolve recipient agent
+  // GAP4 FIX: For remote targets, allow forwarding without local resolution
+  const toResolvedLocal = resolveAgent(toIdentifier)
+  if (!toResolvedLocal && isTargetLocal) {
     throw new Error(`Unknown recipient: ${toAgent}`)
+  }
+
+  // For remote targets without local resolution, create minimal resolved info
+  const toResolved: ResolvedAgent = toResolvedLocal || {
+    agentId: toIdentifier,
+    alias: toIdentifier,
+    hostId: targetHostId || undefined,
+    hostUrl: undefined
   }
 
   // Get the original message
@@ -379,7 +559,10 @@ export async function forwardMessage(
 
   await ensureMessageDirectories()
   await ensureAgentDirectories(fromResolved.agentId)
-  await ensureAgentDirectories(toResolved.agentId)
+  // Only create local directories for local recipients
+  if (isTargetLocal && toResolved.agentId) {
+    await ensureAgentDirectories(toResolved.agentId)
+  }
 
   // Build forwarded content
   let forwardedContent = ''
@@ -395,8 +578,8 @@ export async function forwardMessage(
   forwardedContent += `--- End of Forwarded Message ---`
 
   // Determine host info for forwarded message
-  const fromHostId = fromResolved.hostId || getLocalHostName()
-  const toHostId = targetHostId || toResolved.hostId || getLocalHostName()
+  const fromHostId = fromResolved.hostId || getSelfHostName()
+  const toHostId = targetHostId || toResolved.hostId || getSelfHostName()
 
   // Create forwarded message
   const forwardedMessage: Message = {
@@ -428,21 +611,23 @@ export async function forwardMessage(
     },
   }
 
-  // Determine if recipient is on a remote host
-  // Note: hostId comes from qualified name (e.g., "crm@remote-host")
+  // Determine if recipient is on a remote host (reuse isTargetLocal computed above)
   let recipientIsRemote = false
   let remoteHostUrl: string | null = null
 
-  if (targetHostId && targetHostId !== 'local') {
+  if (targetHostId && !isTargetLocal) {
+    // Target is explicitly on a remote host - look it up
     const remoteHost = getHostById(targetHostId)
-    if (remoteHost) {
-      recipientIsRemote = true
-      remoteHostUrl = remoteHost.url
+    if (!remoteHost) {
+      // CRITICAL: Don't silently fall back to local delivery
+      throw new Error(`Target host '${targetHostId}' not found. Ensure the host is registered in ~/.aimaestro/hosts.json`)
     }
+    recipientIsRemote = true
+    remoteHostUrl = remoteHost.url
   }
 
   if (recipientIsRemote && remoteHostUrl) {
-    console.log(`[MessageQueue] Forwarding message to remote agent ${toResolved.alias} at ${remoteHostUrl}`)
+    console.log(`[MessageQueue] Forwarding message to remote agent ${toResolved.alias}@${targetHostId} at ${remoteHostUrl}`)
 
     try {
       const remoteResponse = await fetch(`${remoteHostUrl}/api/messages/forward`, {
@@ -497,30 +682,32 @@ export async function listInboxMessages(
   // Resolve agent
   const agent = resolveAgent(agentIdentifier)
   if (!agent) {
-    // Fallback: try as direct folder name (backward compat)
+    // Fallback: try as direct folder name (LEGACY)
+    logLegacyAccess(agentIdentifier, 'listInboxFallback')
     return listInboxMessagesByFolder(agentIdentifier, filter)
   }
 
   await ensureAgentDirectories(agent.agentId)
 
   // Collect messages from multiple possible locations
+  // GAP8 FIX: Legacy locations are now tracked for deprecation monitoring
   const allMessages: MessageSummary[] = []
   const seenIds = new Set<string>()
 
-  // Location 1: Agent ID folder (new format)
+  // Location 1: Agent ID folder (new/canonical format)
   const agentIdDir = getInboxDir(agent.agentId)
-  await collectMessagesFromDir(agentIdDir, filter, allMessages, seenIds)
+  await collectMessagesFromDir(agentIdDir, filter, allMessages, seenIds, false)
 
-  // Location 2: Session name folder (legacy - may be symlink to old UUID)
+  // Location 2: Session name folder (LEGACY - will be deprecated)
   if (agent.sessionName && agent.sessionName !== agent.agentId) {
     const sessionDir = path.join(MESSAGE_DIR, 'inbox', agent.sessionName)
-    await collectMessagesFromDir(sessionDir, filter, allMessages, seenIds)
+    await collectMessagesFromDir(sessionDir, filter, allMessages, seenIds, true)
   }
 
-  // Location 3: Original identifier if different (fallback)
+  // Location 3: Original identifier if different (LEGACY fallback)
   if (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName) {
     const identifierDir = path.join(MESSAGE_DIR, 'inbox', agentIdentifier)
-    await collectMessagesFromDir(identifierDir, filter, allMessages, seenIds)
+    await collectMessagesFromDir(identifierDir, filter, allMessages, seenIds, true)
   }
 
   // Sort by timestamp (newest first)
@@ -531,6 +718,7 @@ export async function listInboxMessages(
 
 /**
  * Helper to collect messages from a directory into the results array
+ * GAP8 FIX: Now tracks when legacy locations are accessed for deprecation monitoring
  */
 async function collectMessagesFromDir(
   dirPath: string,
@@ -540,13 +728,19 @@ async function collectMessagesFromDir(
     from?: string
   } | undefined,
   results: MessageSummary[],
-  seenIds: Set<string>
+  seenIds: Set<string>,
+  isLegacyLocation: boolean = false
 ): Promise<void> {
   let files: string[]
   try {
     files = await fs.readdir(dirPath)
   } catch (error) {
     return // Directory doesn't exist, skip
+  }
+
+  // GAP8 FIX: Log legacy location access if messages are found
+  if (isLegacyLocation && files.some(f => f.endsWith('.json'))) {
+    logLegacyAccess(dirPath, 'collectInbox')
   }
 
   for (const file of files) {
@@ -652,7 +846,7 @@ async function listInboxMessagesByFolder(
 
 /**
  * List messages in an agent's sent folder
- * Checks multiple locations for backward compatibility
+ * GAP8 FIX: Checks multiple locations with legacy access tracking
  */
 export async function listSentMessages(
   agentIdentifier: string,
@@ -663,30 +857,32 @@ export async function listSentMessages(
 ): Promise<MessageSummary[]> {
   const agent = resolveAgent(agentIdentifier)
   if (!agent) {
-    // Fallback to direct folder
+    // Fallback to direct folder (LEGACY)
+    logLegacyAccess(agentIdentifier, 'listSentFallback')
     return listSentMessagesByFolder(agentIdentifier, filter)
   }
 
   await ensureAgentDirectories(agent.agentId)
 
   // Collect messages from multiple possible locations
+  // GAP8 FIX: Legacy locations are now tracked for deprecation monitoring
   const allMessages: MessageSummary[] = []
   const seenIds = new Set<string>()
 
-  // Location 1: Agent ID folder (new format)
+  // Location 1: Agent ID folder (new/canonical format)
   const agentIdDir = getSentDir(agent.agentId)
-  await collectSentMessagesFromDir(agentIdDir, filter, allMessages, seenIds)
+  await collectSentMessagesFromDir(agentIdDir, filter, allMessages, seenIds, false)
 
-  // Location 2: Session name folder (legacy - may be symlink to old UUID)
+  // Location 2: Session name folder (LEGACY - will be deprecated)
   if (agent.sessionName && agent.sessionName !== agent.agentId) {
     const sessionDir = path.join(MESSAGE_DIR, 'sent', agent.sessionName)
-    await collectSentMessagesFromDir(sessionDir, filter, allMessages, seenIds)
+    await collectSentMessagesFromDir(sessionDir, filter, allMessages, seenIds, true)
   }
 
-  // Location 3: Original identifier if different (fallback)
+  // Location 3: Original identifier if different (LEGACY fallback)
   if (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName) {
     const identifierDir = path.join(MESSAGE_DIR, 'sent', agentIdentifier)
-    await collectSentMessagesFromDir(identifierDir, filter, allMessages, seenIds)
+    await collectSentMessagesFromDir(identifierDir, filter, allMessages, seenIds, true)
   }
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -695,6 +891,7 @@ export async function listSentMessages(
 
 /**
  * Helper to collect sent messages from a directory
+ * GAP8 FIX: Now tracks when legacy locations are accessed
  */
 async function collectSentMessagesFromDir(
   dirPath: string,
@@ -703,13 +900,19 @@ async function collectSentMessagesFromDir(
     to?: string
   } | undefined,
   results: MessageSummary[],
-  seenIds: Set<string>
+  seenIds: Set<string>,
+  isLegacyLocation: boolean = false
 ): Promise<void> {
   let files: string[]
   try {
     files = await fs.readdir(dirPath)
   } catch (error) {
     return // Directory doesn't exist, skip
+  }
+
+  // GAP8 FIX: Log legacy location access if messages are found
+  if (isLegacyLocation && files.some(f => f.endsWith('.json'))) {
+    logLegacyAccess(dirPath, 'collectSent')
   }
 
   for (const file of files) {
@@ -819,7 +1022,7 @@ export async function getSentCount(agentIdentifier: string): Promise<number> {
 
 /**
  * Get a specific message by ID
- * Checks multiple locations for backward compatibility
+ * GAP8 FIX: Checks multiple locations with legacy access tracking
  */
 export async function getMessage(
   agentIdentifier: string,
@@ -829,29 +1032,36 @@ export async function getMessage(
   const agent = resolveAgent(agentIdentifier)
   const boxDir = box === 'sent' ? 'sent' : 'inbox'
 
-  // Build list of directories to check
-  const dirsToCheck: string[] = []
+  // Build list of directories to check with legacy flag
+  // GAP8 FIX: Track which locations are legacy for deprecation monitoring
+  const dirsToCheck: Array<{ path: string; isLegacy: boolean }> = []
 
-  // 1. Agent ID folder (if resolved)
+  // 1. Agent ID folder - canonical location (if resolved)
   if (agent) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.agentId))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agent.agentId), isLegacy: false })
   }
 
-  // 2. Session name folder (may be symlink to old UUID)
+  // 2. Session name folder (LEGACY - may be symlink to old UUID)
   if (agent?.sessionName && agent.sessionName !== agent.agentId) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.sessionName))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agent.sessionName), isLegacy: true })
   }
 
-  // 3. Original identifier as fallback
+  // 3. Original identifier as fallback (LEGACY)
   if (!agent || (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName)) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agentIdentifier))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agentIdentifier), isLegacy: true })
   }
 
   // Try each directory
-  for (const dir of dirsToCheck) {
+  for (const { path: dir, isLegacy } of dirsToCheck) {
     const messagePath = path.join(dir, `${messageId}.json`)
     try {
       const content = await fs.readFile(messagePath, 'utf-8')
+
+      // GAP8 FIX: Log if message was found in legacy location
+      if (isLegacy) {
+        logLegacyAccess(dir, 'getMessage')
+      }
+
       return JSON.parse(content)
     } catch (error) {
       // Continue to next location
@@ -885,6 +1095,7 @@ export async function markMessageAsRead(agentIdentifier: string, messageId: stri
 
 /**
  * Helper to find the actual path of a message file
+ * GAP8 FIX: Tracks legacy location access for deprecation monitoring
  */
 async function findMessagePath(
   agentIdentifier: string,
@@ -894,26 +1105,33 @@ async function findMessagePath(
   const agent = resolveAgent(agentIdentifier)
   const boxDir = box === 'sent' ? 'sent' : 'inbox'
 
-  // Build list of directories to check
-  const dirsToCheck: string[] = []
+  // Build list of directories to check with legacy flag
+  // GAP8 FIX: Track which locations are legacy
+  const dirsToCheck: Array<{ path: string; isLegacy: boolean }> = []
 
   if (agent) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.agentId))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agent.agentId), isLegacy: false })
   }
 
   if (agent?.sessionName && agent.sessionName !== agent.agentId) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agent.sessionName))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agent.sessionName), isLegacy: true })
   }
 
   if (!agent || (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName)) {
-    dirsToCheck.push(path.join(MESSAGE_DIR, boxDir, agentIdentifier))
+    dirsToCheck.push({ path: path.join(MESSAGE_DIR, boxDir, agentIdentifier), isLegacy: true })
   }
 
   // Try each directory
-  for (const dir of dirsToCheck) {
+  for (const { path: dir, isLegacy } of dirsToCheck) {
     const messagePath = path.join(dir, `${messageId}.json`)
     try {
       await fs.access(messagePath)
+
+      // GAP8 FIX: Log if message was found in legacy location
+      if (isLegacy) {
+        logLegacyAccess(dir, 'findMessagePath')
+      }
+
       return messagePath
     } catch (error) {
       // Continue to next location

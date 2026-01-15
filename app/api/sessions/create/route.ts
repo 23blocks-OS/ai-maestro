@@ -3,7 +3,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import os from 'os'
 import { persistSession } from '@/lib/session-persistence'
-import { getHostById, getLocalHost } from '@/lib/hosts-config'
+import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { getAgentByName, createAgent } from '@/lib/agent-registry'
 import { parseNameForDisplay } from '@/types/agent'
 
@@ -64,12 +64,12 @@ export async function POST(request: Request) {
     }
 
     // Determine target host
-    const localHost = getLocalHost()
-    const targetHost = hostId ? getHostById(hostId) : localHost
-    const isRemote = targetHost && targetHost.type === 'remote'
+    const selfHost = getSelfHost()
+    const targetHost = hostId ? getHostById(hostId) : selfHost
+    const isRemoteTarget = targetHost && !isSelf(targetHost.id)
 
     // If remote host, forward request to worker
-    if (isRemote && targetHost) {
+    if (isRemoteTarget && targetHost) {
       try {
         const remoteUrl = `${targetHost.url}/api/sessions/create`
         console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
@@ -129,8 +129,8 @@ export async function POST(request: Request) {
     // Determine the actual session name
     // If agentId is provided, use structured format: agentId@hostId (like email)
     // Otherwise use the provided name (legacy support)
-    const localHostId = 'local'
-    const actualSessionName = agentId ? `${agentId}@${localHostId}` : name
+    const selfHostId = getSelfHostId()
+    const actualSessionName = agentId ? `${agentId}@${selfHostId}` : name
 
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(

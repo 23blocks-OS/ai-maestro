@@ -7,8 +7,18 @@ import { useHosts } from './useHosts'
 import { cacheRemoteAgents, getCachedAgents } from '@/lib/agent-cache'
 
 const REFRESH_INTERVAL = 10000 // 10 seconds
-const LOCAL_FETCH_TIMEOUT = 8000 // 8 seconds for local host (tmux queries can be slow)
-const REMOTE_FETCH_TIMEOUT = 15000 // 15 seconds for remote hosts (network latency + tmux)
+const SELF_FETCH_TIMEOUT = 8000 // 8 seconds for self host (tmux queries can be slow)
+const PEER_FETCH_TIMEOUT = 15000 // 15 seconds for peer hosts (network latency + tmux)
+
+/**
+ * Check if a host URL points to localhost (the machine running this dashboard)
+ * Used client-side since os.hostname() isn't available in browser
+ */
+function isLocalhostUrl(url: string | undefined): boolean {
+  if (!url) return true
+  const lowered = url.toLowerCase()
+  return lowered.includes('localhost') || lowered.includes('127.0.0.1')
+}
 
 /**
  * Aggregated stats across all hosts
@@ -37,8 +47,9 @@ interface HostFetchResult {
  * Fetch agents from a specific host
  */
 async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
-  const baseUrl = host.type === 'local' ? '' : host.url
-  const timeout = host.type === 'local' ? LOCAL_FETCH_TIMEOUT : REMOTE_FETCH_TIMEOUT
+  const isSelf = isLocalhostUrl(host.url)
+  const baseUrl = isSelf ? '' : host.url
+  const timeout = isSelf ? SELF_FETCH_TIMEOUT : PEER_FETCH_TIMEOUT
 
   try {
     const controller = new AbortController()
@@ -64,8 +75,8 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
       hostUrl: host.url
     }))
 
-    // Cache remote host agents for offline access
-    if (host.type === 'remote') {
+    // Cache peer host agents for offline access (not self host)
+    if (!isSelf) {
       cacheRemoteAgents(host.id, agents)
     }
 
@@ -79,15 +90,15 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
           ...data.hostInfo,
           id: host.id,
           name: host.name,
-          type: host.type
+          isSelf,
         }
       }
     }
   } catch (error) {
     console.error(`[useAgents] Failed to fetch from ${host.name} (${host.url}):`, error)
 
-    // Try to use cached data for remote hosts
-    if (host.type === 'remote') {
+    // Try to use cached data for peer hosts (not self)
+    if (!isSelf) {
       const cachedAgents = getCachedAgents(host.id)
       if (cachedAgents && cachedAgents.length > 0) {
         console.log(`[useAgents] Using cached data for ${host.name}`)
@@ -108,7 +119,7 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
               id: host.id,
               name: host.name,
               url: host.url,
-              type: 'remote'
+              isSelf: false,
             }
           }
         }
@@ -297,7 +308,7 @@ export function useAgents() {
     const byHost: Record<string, Agent[]> = {}
 
     for (const agent of agents) {
-      const hostId = agent.hostId || 'local'
+      const hostId = agent.hostId || 'unknown-host'
       if (!byHost[hostId]) {
         byHost[hostId] = []
       }

@@ -1,13 +1,14 @@
 /**
  * Host Configuration Manager
  *
- * Loads and manages remote worker host configurations for the Manager/Worker pattern.
- * Supports configuration via environment variables or JSON file.
+ * In a mesh network, every host is identified by its hostname.
+ * There is no "local" vs "remote" - just hosts with URLs.
  *
- * Features:
- * - File-based locking to prevent concurrent write race conditions
- * - Caching with cache invalidation
- * - Validation of host configuration
+ * Key functions:
+ * - isSelf(hostId): Check if hostId refers to this machine
+ * - getSelfHostId(): Get this machine's hostname
+ * - getSelfHost(): Get this machine's host config
+ * - getPeerHosts(): Get all other hosts
  */
 
 import { Host, HostsConfig } from '@/types/host'
@@ -22,7 +23,6 @@ const LOCK_TIMEOUT = 5000 // 5 second timeout for acquiring lock
 
 /**
  * Acquire a lock for file operations
- * Uses an in-process queue to serialize writes
  */
 async function acquireLock(): Promise<void> {
   if (!lockHeld) {
@@ -78,52 +78,94 @@ async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
   }
 }
 
-/** Get the local host configuration with actual hostname */
-function getDefaultLocalHost(): Host {
-  const hostname = os.hostname()
+// ============================================================================
+// CORE IDENTITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Get this machine's hostname - the canonical host ID
+ */
+export function getSelfHostId(): string {
+  return os.hostname()
+}
+
+/**
+ * Check if a hostId refers to this machine
+ * This is the ONLY place where self-detection should happen
+ */
+export function isSelf(hostId: string): boolean {
+  if (!hostId) return false
+  const selfId = getSelfHostId()
+  // Case-insensitive comparison, also handle legacy 'local' value
+  return hostId.toLowerCase() === selfId.toLowerCase() ||
+         hostId === 'local'  // DEPRECATED: backward compat, will be removed
+}
+
+/**
+ * Get the default host configuration for this machine
+ */
+function getDefaultSelfHost(): Host {
+  const hostname = getSelfHostId()
   return {
-    id: 'local',
-    name: hostname || 'Local Host',
+    id: hostname,  // NOT 'local' - use actual hostname
+    name: hostname,
     url: 'http://localhost:23000',
-    type: 'local',
     enabled: true,
-    description: 'This machine (local tmux sessions)',
+    description: 'This machine',
   }
 }
 
-/** Environment variable name for hosts configuration */
-const HOSTS_ENV_VAR = 'AIMAESTRO_HOSTS'
+// ============================================================================
+// CONFIGURATION LOADING
+// ============================================================================
 
-/** Path to hosts configuration file */
+const HOSTS_ENV_VAR = 'AIMAESTRO_HOSTS'
 const HOSTS_CONFIG_PATH = path.join(process.cwd(), '.aimaestro', 'hosts.json')
 
 let cachedHosts: Host[] | null = null
 
 /**
+ * Migrate legacy host config (convert id:'local' to hostname)
+ */
+function migrateHost(host: Host): Host {
+  const selfId = getSelfHostId()
+
+  // Migrate id:'local' to actual hostname
+  if (host.id === 'local') {
+    return {
+      ...host,
+      id: selfId,
+      name: host.name || selfId,
+    }
+  }
+
+  return host
+}
+
+/**
  * Load hosts configuration from environment variable or file
- * Priority: AIMAESTRO_HOSTS env var > .aimaestro/hosts.json > default (local only)
+ * Priority: AIMAESTRO_HOSTS env var > .aimaestro/hosts.json > default self host
  */
 export function loadHostsConfig(): Host[] {
-  // Return cached config if available
   if (cachedHosts !== null) {
     return cachedHosts
   }
 
   let hosts: Host[] = []
 
-  // Try loading from environment variable first
+  // Try environment variable first
   const envHosts = process.env[HOSTS_ENV_VAR]
   if (envHosts) {
     try {
       const parsed = JSON.parse(envHosts) as Host[]
       hosts = validateHosts(parsed)
-      console.log(`[Hosts] Loaded ${hosts.length} host(s) from ${HOSTS_ENV_VAR} environment variable`)
+      console.log(`[Hosts] Loaded ${hosts.length} host(s) from ${HOSTS_ENV_VAR}`)
     } catch (error) {
       console.error(`[Hosts] Failed to parse ${HOSTS_ENV_VAR}:`, error)
     }
   }
 
-  // If no env config, try loading from file
+  // Try file
   if (hosts.length === 0 && fs.existsSync(HOSTS_CONFIG_PATH)) {
     try {
       const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
@@ -135,46 +177,50 @@ export function loadHostsConfig(): Host[] {
     }
   }
 
-  // Default to local host only if no configuration found
+  // Default to self host only
   if (hosts.length === 0) {
-    hosts = [getDefaultLocalHost()]
-    console.log('[Hosts] No configuration found, using local host only')
+    hosts = [getDefaultSelfHost()]
+    console.log('[Hosts] No configuration found, using self host only')
   }
 
-  // Cache the result
   cachedHosts = hosts
-
   return hosts
 }
 
 /**
  * Validate and filter hosts configuration
+ * - Migrates legacy 'local' IDs to hostname
  * - Filters out disabled hosts
  * - Validates required fields
- * - Ensures local host exists
+ * - Ensures self host exists
  */
 function validateHosts(hosts: Host[]): Host[] {
-  // Filter enabled hosts
-  const enabledHosts = hosts.filter(host => host.enabled !== false)
+  // Migrate and filter
+  const migratedHosts = hosts.map(migrateHost)
+  const enabledHosts = migratedHosts.filter(host => host.enabled !== false)
 
-  // Validate required fields
+  // Validate required fields (type is no longer required)
   const validHosts = enabledHosts.filter(host => {
-    if (!host.id || !host.name || !host.url || !host.type) {
+    if (!host.id || !host.name || !host.url) {
       console.warn(`[Hosts] Skipping invalid host config:`, host)
       return false
     }
     return true
   })
 
-  // Ensure we have at least one local host
-  const hasLocalHost = validHosts.some(host => host.type === 'local')
-  if (!hasLocalHost) {
-    validHosts.unshift(getDefaultLocalHost())
-    console.log('[Hosts] Added default local host')
+  // Ensure self host exists
+  const hasSelfHost = validHosts.some(host => isSelf(host.id))
+  if (!hasSelfHost) {
+    validHosts.unshift(getDefaultSelfHost())
+    console.log('[Hosts] Added default self host')
   }
 
   return validHosts
 }
+
+// ============================================================================
+// HOST ACCESSORS
+// ============================================================================
 
 /**
  * Get all configured hosts
@@ -188,29 +234,42 @@ export function getHosts(): Host[] {
  */
 export function getHostById(hostId: string): Host | undefined {
   const hosts = getHosts()
-  return hosts.find(host => host.id === hostId)
+  // Also check for legacy 'local' ID
+  if (hostId === 'local') {
+    return hosts.find(host => isSelf(host.id))
+  }
+  return hosts.find(host => host.id === hostId || host.id.toLowerCase() === hostId.toLowerCase())
 }
 
 /**
- * Get the local host configuration
+ * Get this machine's host configuration
  */
+export function getSelfHost(): Host {
+  const hosts = getHosts()
+  const selfHost = hosts.find(host => isSelf(host.id))
+  return selfHost || getDefaultSelfHost()
+}
+
+/**
+ * Get all peer hosts (hosts that are not this machine)
+ */
+export function getPeerHosts(): Host[] {
+  const hosts = getHosts()
+  return hosts.filter(host => !isSelf(host.id))
+}
+
+// DEPRECATED: Use getSelfHost() instead
 export function getLocalHost(): Host {
-  const hosts = getHosts()
-  const localHost = hosts.find(host => host.type === 'local')
-  return localHost || getDefaultLocalHost()
+  return getSelfHost()
 }
 
-/**
- * Get all remote hosts
- */
+// DEPRECATED: Use getPeerHosts() instead
 export function getRemoteHosts(): Host[] {
-  const hosts = getHosts()
-  return hosts.filter(host => host.type === 'remote')
+  return getPeerHosts()
 }
 
 /**
  * Clear the cached hosts configuration
- * Useful for testing or when configuration changes at runtime
  */
 export function clearHostsCache(): void {
   cachedHosts = null
@@ -218,24 +277,22 @@ export function clearHostsCache(): void {
 
 /**
  * Create example configuration file
- * This is a helper for users to generate a template
  */
 export function createExampleConfig(): HostsConfig {
+  const selfId = getSelfHostId()
   return {
     hosts: [
       {
-        id: 'local',
-        name: 'Local Machine',
+        id: selfId,
+        name: selfId,
         url: 'http://localhost:23000',
-        type: 'local',
         enabled: true,
-        description: 'This machine (local tmux sessions)',
+        description: 'This machine',
       },
       {
         id: 'mac-mini',
         name: 'Mac Mini',
         url: 'http://100.80.12.6:23000',
-        type: 'remote',
         enabled: true,
         tailscale: true,
         tags: ['homelab', 'development'],
@@ -245,7 +302,6 @@ export function createExampleConfig(): HostsConfig {
         id: 'cloud-server-1',
         name: 'Cloud Server 1',
         url: 'http://100.123.45.67:23000',
-        type: 'remote',
         enabled: false,
         tailscale: true,
         tags: ['cloud', 'production'],
@@ -255,24 +311,22 @@ export function createExampleConfig(): HostsConfig {
   }
 }
 
+// ============================================================================
+// HOST MANAGEMENT
+// ============================================================================
+
 /**
- * Save hosts configuration to file (synchronous version)
- * Returns success status and error message if applicable
- * Note: For concurrent operations, prefer saveHostsAsync which uses locking
+ * Save hosts configuration to file
  */
 export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
   try {
-    // Ensure .aimaestro directory exists
     const configDir = path.dirname(HOSTS_CONFIG_PATH)
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, { recursive: true })
     }
 
-    // Write configuration to file
     const config: HostsConfig = { hosts }
     fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
-
-    // Clear cache to force reload on next access
     clearHostsCache()
 
     return { success: true }
@@ -286,23 +340,19 @@ export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
 }
 
 /**
- * Save hosts configuration to file with lock protection
- * This is the recommended method for concurrent operations (e.g., peer sync)
+ * Save hosts configuration with lock protection
  */
 export async function saveHostsAsync(hosts: Host[]): Promise<{ success: boolean; error?: string }> {
   return withLock(() => saveHosts(hosts))
 }
 
 /**
- * Add a new host to the configuration (synchronous version)
- * Returns success status, the added host, or an error message
- * Note: For concurrent operations, prefer addHostAsync which uses locking
+ * Add a new host
  */
 export function addHost(host: Host): { success: boolean; host?: Host; error?: string } {
   try {
     const currentHosts = getHosts()
 
-    // Check if host ID already exists
     const existingHost = currentHosts.find(h => h.id === host.id)
     if (existingHost) {
       return {
@@ -311,10 +361,7 @@ export function addHost(host: Host): { success: boolean; host?: Host; error?: st
       }
     }
 
-    // Add new host
     const updatedHosts = [...currentHosts, host]
-
-    // Save to file
     const result = saveHosts(updatedHosts)
     if (!result.success) {
       return result
@@ -331,17 +378,14 @@ export function addHost(host: Host): { success: boolean; host?: Host; error?: st
 }
 
 /**
- * Add a new host to the configuration with lock protection
- * This is the recommended method for concurrent operations (e.g., peer sync)
- * The lock ensures that multiple simultaneous addHost calls don't cause race conditions
+ * Add a new host with lock protection
  */
 export async function addHostAsync(host: Host): Promise<{ success: boolean; host?: Host; error?: string }> {
   return withLock(() => addHost(host))
 }
 
 /**
- * Update an existing host in the configuration
- * Returns success status, the updated host, or an error message
+ * Update an existing host
  */
 export function updateHost(
   hostId: string,
@@ -350,7 +394,6 @@ export function updateHost(
   try {
     const currentHosts = getHosts()
 
-    // Find the host to update
     const hostIndex = currentHosts.findIndex(h => h.id === hostId)
     if (hostIndex === -1) {
       return {
@@ -359,7 +402,6 @@ export function updateHost(
       }
     }
 
-    // Prevent changing host ID
     if (updates.id && updates.id !== hostId) {
       return {
         success: false,
@@ -367,21 +409,19 @@ export function updateHost(
       }
     }
 
-    // Prevent disabling or deleting local host
+    // Prevent disabling self host
     const existingHost = currentHosts[hostIndex]
-    if (existingHost.type === 'local' && updates.enabled === false) {
+    if (isSelf(existingHost.id) && updates.enabled === false) {
       return {
         success: false,
-        error: 'Cannot disable local host',
+        error: 'Cannot disable self host',
       }
     }
 
-    // Update the host
     const updatedHost = { ...existingHost, ...updates, id: hostId }
     const updatedHosts = [...currentHosts]
     updatedHosts[hostIndex] = updatedHost
 
-    // Save to file
     const result = saveHosts(updatedHosts)
     if (!result.success) {
       return result
@@ -398,14 +438,12 @@ export function updateHost(
 }
 
 /**
- * Delete a host from the configuration
- * Returns success status or an error message
+ * Delete a host
  */
 export function deleteHost(hostId: string): { success: boolean; error?: string } {
   try {
     const currentHosts = getHosts()
 
-    // Find the host to delete
     const host = currentHosts.find(h => h.id === hostId)
     if (!host) {
       return {
@@ -414,18 +452,15 @@ export function deleteHost(hostId: string): { success: boolean; error?: string }
       }
     }
 
-    // Prevent deleting local host
-    if (host.type === 'local') {
+    // Prevent deleting self host
+    if (isSelf(host.id)) {
       return {
         success: false,
-        error: 'Cannot delete local host',
+        error: 'Cannot delete self host',
       }
     }
 
-    // Remove the host
     const updatedHosts = currentHosts.filter(h => h.id !== hostId)
-
-    // Save to file
     const result = saveHosts(updatedHosts)
     if (!result.success) {
       return result

@@ -8,8 +8,9 @@ import type { Message, MessageSummary } from '@/lib/messageQueue'
  * Agent recipient info for messaging
  */
 export interface AgentRecipient {
-  id: string              // Agent ID (used for messaging)
-  alias: string           // Display name
+  id: string              // Agent ID (UUID)
+  name: string            // Technical name for lookups (e.g., "23blocks-api-crm")
+  alias: string           // Display name for UI (e.g., "CRM")
   tmuxSessionName?: string // Tmux session name (for backward compatibility)
   hostId?: string         // Host ID for cross-host messaging (e.g., 'macbook-pro', 'mac-mini')
 }
@@ -427,9 +428,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
 
   // Select an agent from suggestions
   const selectAgent = (agent: AgentRecipient) => {
-    // Always include host in qualified name for cross-host compatibility
+    // Use technical name for messaging, include host for cross-host compatibility
     const hostId = agent.hostId || 'unknown-host'
-    const value = `${agent.alias}@${hostId}`
+    const value = `${agent.name}@${hostId}`
     setComposeTo(value)
     setShowAgentSuggestions(false)
     setSelectedSuggestionIndex(-1)

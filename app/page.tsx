@@ -1,29 +1,68 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import TerminalViewNew from '@/components/TerminalViewNew'
 import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
 import WorkTree from '@/components/WorkTree'
-import AgentGraph from '@/components/AgentGraph'
-import MemoryViewer from '@/components/MemoryViewer'
-import DocumentationPanel from '@/components/DocumentationPanel'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
-import AgentProfile from '@/components/AgentProfile'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
-import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain } from 'lucide-react'
-import ImportAgentDialog from '@/components/ImportAgentDialog'
-import HelpPanel from '@/components/HelpPanel'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
+
+// Dynamic imports for heavy components that are conditionally rendered
+// This reduces initial bundle size by ~100KB+
+
+// Only shown for first-time users
+const OnboardingFlow = dynamic(
+  () => import('@/components/onboarding/OnboardingFlow'),
+  { ssr: false }
+)
+
+// Only shown when help button is clicked
+const HelpPanel = dynamic(
+  () => import('@/components/HelpPanel'),
+  { ssr: false }
+)
+
+// Only shown when import button is clicked
+const ImportAgentDialog = dynamic(
+  () => import('@/components/ImportAgentDialog'),
+  { ssr: false }
+)
+
+// Only shown when profile is opened
+const AgentProfile = dynamic(
+  () => import('@/components/AgentProfile'),
+  { ssr: false }
+)
+
+// Heavy component with canvas/graph - only shown on memory tab
+const MemoryViewer = dynamic(
+  () => import('@/components/MemoryViewer'),
+  { ssr: false }
+)
+
+// Heavy component using cytoscape - only shown on graph tab
+const AgentGraph = dynamic(
+  () => import('@/components/AgentGraph'),
+  { ssr: false }
+)
+
+// Only shown on docs tab
+const DocumentationPanel = dynamic(
+  () => import('@/components/DocumentationPanel'),
+  { ssr: false }
+)
 
 // Helper: Convert agent to session-like object for TerminalView compatibility
 function agentToSession(agent: Agent): Session {
@@ -108,11 +147,15 @@ export default function DashboardPage() {
   }, [])
 
   // Auto-select first online agent when agents load
+  // Optimized: use derived primitives instead of full array dependency
+  const firstOnlineAgentId = onlineAgents[0]?.id
+  const hasOnlineAgents = onlineAgents.length > 0
+
   useEffect(() => {
-    if (onlineAgents.length > 0 && !activeAgentId) {
-      setActiveAgentId(onlineAgents[0].id)
+    if (hasOnlineAgents && !activeAgentId && firstOnlineAgentId) {
+      setActiveAgentId(firstOnlineAgentId)
     }
-  }, [onlineAgents, activeAgentId])
+  }, [hasOnlineAgents, activeAgentId, firstOnlineAgentId])
 
   // Initialize agent memories for all agents on load
   useEffect(() => {

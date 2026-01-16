@@ -10,6 +10,17 @@ import type { Session } from '@/types/session'
 const BRACKETED_PASTE_START = '\u001b[200~'
 const BRACKETED_PASTE_END = '\u001b[201~'
 
+// PERFORMANCE: Hoist static JSX to avoid recreation on every render
+const LoadingSpinner = (
+  <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">
+    <div className="text-center">
+      {/* Wrap in div for hardware-accelerated animation */}
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2" />
+      <p className="text-sm text-gray-400">Initializing terminal...</p>
+    </div>
+  </div>
+)
+
 interface TerminalViewProps {
   session: Session
   isVisible?: boolean
@@ -644,14 +655,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             WebkitUserSelect: 'none',
           }}
         />
-        {!isReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-terminal-bg">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-400">Initializing terminal...</p>
-            </div>
-          </div>
-        )}
+        {/* Use hoisted static JSX for loading state */}
+        {!isReady && LoadingSpinner}
       </div>
 
       {/* Notes / Prompt Builder Footer */}

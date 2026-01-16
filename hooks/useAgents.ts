@@ -157,8 +157,9 @@ function aggregateResults(results: HostFetchResult[]): {
     }
   }
 
+  // OPTIMIZED: Use toSorted() for immutability instead of sort() which mutates
   // Sort: online first, then alphabetically by alias
-  allAgents.sort((a, b) => {
+  const sortedAgents = allAgents.toSorted((a, b) => {
     // Online first
     if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
     if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
@@ -169,17 +170,28 @@ function aggregateResults(results: HostFetchResult[]): {
     return nameA.localeCompare(nameB)
   })
 
+  // OPTIMIZED: Calculate stats in a single loop instead of multiple filter() calls
+  // Reduces from 4 array iterations (3 filter + 1 length) to 1 iteration
+  let online = 0
+  let offline = 0
+  let orphans = 0
+  for (const agent of sortedAgents) {
+    if (agent.session?.status === 'online') online++
+    if (agent.session?.status === 'offline') offline++
+    if (agent.isOrphan) orphans++
+  }
+
   const stats: AggregatedStats = {
-    total: allAgents.length,
-    online: allAgents.filter(a => a.session?.status === 'online').length,
-    offline: allAgents.filter(a => a.session?.status === 'offline').length,
-    orphans: allAgents.filter(a => a.isOrphan).length,
+    total: sortedAgents.length,
+    online,
+    offline,
+    orphans,
     newlyRegistered: results.reduce((sum, r) =>
       sum + (r.response?.stats.newlyRegistered || 0), 0),
     cached: cachedCount
   }
 
-  return { agents: allAgents, stats, hostErrors }
+  return { agents: sortedAgents, stats, hostErrors }
 }
 
 /**
@@ -289,9 +301,10 @@ export function useAgents() {
       groups[group].push(agent)
     }
 
+    // OPTIMIZED: Use toSorted() for immutability instead of sort() which mutates
     // Sort agents within each group by status (online first), then by name
     for (const group in groups) {
-      groups[group].sort((a, b) => {
+      groups[group] = groups[group].toSorted((a, b) => {
         if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
         if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
         const nameA = a.name || a.alias || ''

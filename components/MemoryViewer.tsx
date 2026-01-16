@@ -204,11 +204,11 @@ export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }
   }
 
   // Only fetch when visible and not already initialized
+  // OPTIMIZED: Use Promise.all for parallel fetching
   useEffect(() => {
     if (isVisible && !hasInitialized) {
       setHasInitialized(true)
-      fetchMemories()
-      fetchStats()
+      Promise.all([fetchMemories(), fetchStats()])
     }
   }, [isVisible, hasInitialized, fetchMemories, fetchStats])
 
@@ -300,7 +300,10 @@ export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }
         >
           {consolidating ? (
             <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
+              {/* Wrap SVG in div for hardware-accelerated animation */}
+              <div className="animate-spin">
+                <RefreshCw className="w-4 h-4" />
+              </div>
               Consolidating...
             </>
           ) : (
@@ -529,7 +532,10 @@ export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }
               >
                 {saving ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    {/* Wrap SVG in div for hardware-accelerated animation */}
+                    <div className="animate-spin">
+                      <RefreshCw className="w-4 h-4" />
+                    </div>
                     Saving...
                   </>
                 ) : (
@@ -562,7 +568,10 @@ function MemoryList({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+        {/* Wrap SVG in div for hardware-accelerated animation */}
+        <div className="animate-spin">
+          <RefreshCw className="w-6 h-6 text-gray-400" />
+        </div>
       </div>
     )
   }
@@ -713,6 +722,7 @@ function MemoryGraph({
   }, [data])
 
   // Force simulation
+  // OPTIMIZED: Build index map for O(1) lookups instead of O(n) find() calls
   useEffect(() => {
     if (!data || nodes.length === 0) return
 
@@ -724,6 +734,9 @@ function MemoryGraph({
     const simulate = () => {
       setNodes(prevNodes => {
         const newNodes = prevNodes.map(node => ({ ...node }))
+
+        // Build index map for O(1) lookups (instead of O(n) find calls per link)
+        const nodeById = new Map(newNodes.map(n => [n.id, n]))
 
         // Apply forces
         for (let i = 0; i < newNodes.length; i++) {
@@ -748,10 +761,10 @@ function MemoryGraph({
           }
         }
 
-        // Link attraction
+        // Link attraction - O(1) lookups using index map
         for (const link of data.links) {
-          const source = newNodes.find(n => n.id === link.source)
-          const target = newNodes.find(n => n.id === link.target)
+          const source = nodeById.get(link.source)
+          const target = nodeById.get(link.target)
           if (!source || !target) continue
 
           const dx = target.x! - source.x!
@@ -800,6 +813,7 @@ function MemoryGraph({
   }, [data, nodes.length > 0])
 
   // Draw graph
+  // OPTIMIZED: Build index map for O(1) lookups instead of O(n) find() calls
   useEffect(() => {
     if (!canvasRef.current || !data || nodes.length === 0) return
 
@@ -807,14 +821,17 @@ function MemoryGraph({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Build index map for O(1) lookups
+    const nodeById = new Map(nodes.map(n => [n.id, n]))
+
     // Clear
     ctx.fillStyle = '#111827'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Draw links
+    // Draw links - O(1) lookups using index map
     for (const link of data.links) {
-      const source = nodes.find(n => n.id === link.source)
-      const target = nodes.find(n => n.id === link.target)
+      const source = nodeById.get(link.source)
+      const target = nodeById.get(link.target)
       if (!source || !target || !source.x || !target.x) continue
 
       ctx.beginPath()
@@ -876,7 +893,10 @@ function MemoryGraph({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 bg-gray-800/30 rounded-lg border border-gray-700">
-        <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+        {/* Wrap SVG in div for hardware-accelerated animation */}
+        <div className="animate-spin">
+          <RefreshCw className="w-6 h-6 text-gray-400" />
+        </div>
       </div>
     )
   }

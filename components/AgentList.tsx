@@ -260,22 +260,30 @@ export default function AgentList({
   }, [expandedLevel2])
 
   // Fetch unread message counts for all agents (using agent ID for storage)
+  // OPTIMIZED: Use Promise.all for parallel fetching instead of sequential loop
   useEffect(() => {
     const fetchUnreadCounts = async () => {
-      const counts: Record<string, number> = {}
-
-      // Fetch for all agents (not just online ones) since messages persist
-      for (const agent of agents) {
-        try {
-          // Use agent's hostUrl to route to the correct host for remote agents
-          const baseUrl = agent.hostUrl || ''
-          const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
-          const data = await response.json()
-          if (data.count > 0) {
-            counts[agent.id] = data.count
+      // Fetch for all agents in parallel (not just online ones) since messages persist
+      const results = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            // Use agent's hostUrl to route to the correct host for remote agents
+            const baseUrl = agent.hostUrl || ''
+            const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
+            const data = await response.json()
+            return { agentId: agent.id, count: data.count || 0 }
+          } catch {
+            // Silently fail - return 0 count
+            return { agentId: agent.id, count: 0 }
           }
-        } catch (error) {
-          // Silently fail
+        })
+      )
+
+      // Build counts object from parallel results
+      const counts: Record<string, number> = {}
+      for (const { agentId, count } of results) {
+        if (count > 0) {
+          counts[agentId] = count
         }
       }
 
@@ -569,7 +577,10 @@ export default function AgentList({
               className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 disabled:opacity-50 hover:scale-110"
               aria-label="Refresh agents"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {/* Wrap SVG in div for hardware-accelerated animation */}
+              <div className={loading ? 'animate-spin' : ''}>
+                <RefreshCw className="w-4 h-4" />
+              </div>
             </button>
           </div>
         </div>

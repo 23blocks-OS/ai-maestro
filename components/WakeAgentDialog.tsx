@@ -62,6 +62,14 @@ export default function WakeAgentDialog({
     setMounted(true)
   }, [])
 
+  // Reset isWaking state when dialog closes or opens
+  useEffect(() => {
+    if (!isOpen) {
+      setIsWaking(false)
+      setSelectedProgram('claude')
+    }
+  }, [isOpen])
+
   const handleConfirm = () => {
     setIsWaking(true)
     onConfirm(selectedProgram)
@@ -69,10 +77,8 @@ export default function WakeAgentDialog({
   }
 
   const handleClose = () => {
-    if (!isWaking) {
-      setSelectedProgram('claude')
-      onClose()
-    }
+    // Always allow closing - state will be reset by the useEffect above
+    onClose()
   }
 
   // Don't render anything on server or before mount

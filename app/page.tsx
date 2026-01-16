@@ -357,6 +357,9 @@ export default function DashboardPage() {
     if (!wakeDialogAgent) return
 
     const agent = wakeDialogAgent
+
+    // Close dialog immediately so UI isn't blocked
+    setWakeDialogAgent(null)
     setWakingAgentId(agent.id)
 
     try {
@@ -372,12 +375,13 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to wake agent')
       }
 
-      // Close dialog and refresh agents
-      setWakeDialogAgent(null)
       refreshAgents()
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      // Use setTimeout to ensure state updates happen first
+      setTimeout(() => {
+        alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      }, 0)
     } finally {
       setWakingAgentId(null)
     }

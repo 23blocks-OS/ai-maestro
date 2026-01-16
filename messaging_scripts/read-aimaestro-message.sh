@@ -71,11 +71,16 @@ ERROR=$(echo "$RESPONSE" | jq -r '.error // empty' 2>/dev/null)
 if [ -n "$ERROR" ]; then
   echo "❌ Error: $ERROR"
   echo ""
+  # Get human-readable name for display
+  MY_DISPLAY_NAME=$(get_my_name 2>/dev/null)
+  if [ -z "$MY_DISPLAY_NAME" ] || [ "$MY_DISPLAY_NAME" = "@" ]; then
+    MY_DISPLAY_NAME="${AGENT_ID}@${HOST_ID:-local}"
+  fi
   echo "💡 Troubleshooting:"
   echo "   - Check that the message ID is correct (full ID, not truncated)"
   echo "   - Verify the message exists: check-aimaestro-messages.sh"
   echo "   - Make sure you're in the correct tmux session"
-  echo "   - Current agent: $AGENT_ID (host: $HOST_ID)"
+  echo "   - Current agent: $MY_DISPLAY_NAME"
   exit 1
 fi
 

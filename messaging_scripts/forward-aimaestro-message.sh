@@ -87,9 +87,11 @@ if [ -n "$ERROR" ]; then
   exit 1
 fi
 
-# Extract original message details
-ORIGINAL_FROM=$(echo "$RESPONSE" | jq -r '.from')
-ORIGINAL_TO=$(echo "$RESPONSE" | jq -r '.to')
+# Extract original message details (prefer aliases for display)
+ORIGINAL_FROM=$(echo "$RESPONSE" | jq -r '.fromAlias // .from')
+ORIGINAL_FROM_HOST=$(echo "$RESPONSE" | jq -r 'if .fromHost and .fromHost != "local" then "@" + .fromHost else "" end')
+ORIGINAL_TO=$(echo "$RESPONSE" | jq -r '.toAlias // .to')
+ORIGINAL_TO_HOST=$(echo "$RESPONSE" | jq -r 'if .toHost and .toHost != "local" then "@" + .toHost else "" end')
 ORIGINAL_SUBJECT=$(echo "$RESPONSE" | jq -r '.subject')
 ORIGINAL_MESSAGE=$(echo "$RESPONSE" | jq -r '.content.message')
 ORIGINAL_TIMESTAMP=$(echo "$RESPONSE" | jq -r '.timestamp')
@@ -107,8 +109,8 @@ if [ -n "$FORWARD_NOTE" ]; then
 fi
 
 FORWARDED_CONTENT+="--- Forwarded Message ---
-From: $ORIGINAL_FROM
-To: $ORIGINAL_TO
+From: ${ORIGINAL_FROM}${ORIGINAL_FROM_HOST}
+To: ${ORIGINAL_TO}${ORIGINAL_TO_HOST}
 Sent: $FORMATTED_TIME
 Subject: $ORIGINAL_SUBJECT
 
@@ -163,7 +165,7 @@ if [ "$HTTP_CODE" = "201" ]; then
   NEW_ID=$(echo "$BODY" | jq -r '.id // "unknown"')
   echo -e "${GREEN}✅ Message forwarded successfully${NC}"
   echo -e "${BLUE}📨 Original: $ORIGINAL_SUBJECT${NC}"
-  echo -e "${BLUE}📬 To: $TO_ID (host: $TO_HOST)${NC}"
+  echo -e "${BLUE}📬 To: ${TO_ALIAS:-$TO_ID}@${TO_HOST}${NC}"
   echo -e "${BLUE}🆔 Forwarded Message ID: $NEW_ID${NC}"
 
   if [ -n "$FORWARD_NOTE" ]; then

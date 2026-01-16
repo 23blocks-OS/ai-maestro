@@ -9,6 +9,12 @@ source "${SCRIPT_DIR}/messaging-helper.sh" 2>/dev/null || exit 0
 # Initialize messaging (gets SESSION, AGENT_ID, HOST_ID)
 init_messaging 2>/dev/null || exit 0
 
+# Get human-readable name for display
+MY_DISPLAY_NAME=$(get_my_name 2>/dev/null)
+if [ -z "$MY_DISPLAY_NAME" ] || [ "$MY_DISPLAY_NAME" = "@" ]; then
+  MY_DISPLAY_NAME="${AGENT_ID}@${HOST_ID:-local}"
+fi
+
 # Fetch unread messages via API (uses agentId)
 RESPONSE=$(get_unread_messages 2>/dev/null)
 
@@ -28,7 +34,7 @@ fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo "📬 AI MAESTRO INBOX: $COUNT unread message(s)" >&2
-echo "   Agent: $AGENT_ID (host: $HOST_ID)" >&2
+echo "   Inbox: $MY_DISPLAY_NAME" >&2
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 echo "" >&2
 
@@ -50,7 +56,7 @@ fi
 # Show all messages
 echo "$RESPONSE" | jq -r '.messages[] |
   "───────────────────────────────────────\n" +
-  "📧 From: \(.from)\n" +
+  "📧 From: \(.fromAlias // .from)" + (if .fromHost and .fromHost != "local" then "@\(.fromHost)" else "" end) + "\n" +
   "📌 Subject: \(.subject)\n" +
   "⏰ Time: \(.timestamp | split("T")[0] + " " + (.timestamp | split("T")[1] | split(".")[0]))\n" +
   "🎯 Priority: \(.priority | ascii_upcase)\n" +

@@ -50,7 +50,7 @@ fi
 # Show all messages
 echo "$RESPONSE" | jq -r '.messages[] |
   "───────────────────────────────────────\n" +
-  "📧 From: \(.from)\n" +
+  "📧 From: \(.fromAlias // .from)" + (if .fromHost and .fromHost != "local" then "@\(.fromHost)" else "" end) + "\n" +
   "📌 Subject: \(.subject)\n" +
   "⏰ Time: \(.timestamp | split("T")[0] + " " + (.timestamp | split("T")[1] | split(".")[0]))\n" +
   "🎯 Priority: \(.priority | ascii_upcase)\n" +

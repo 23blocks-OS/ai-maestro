@@ -32,7 +32,11 @@ METHOD="${3:-display}"
 
 # Initialize messaging to get current session info
 init_messaging 2>/dev/null
-FROM_SESSION="${SESSION:-unknown}"
+# Get human-readable name for display (alias@host format)
+FROM_DISPLAY=$(get_my_name 2>/dev/null)
+if [ -z "$FROM_DISPLAY" ] || [ "$FROM_DISPLAY" = "@" ]; then
+  FROM_DISPLAY="${SESSION:-unknown}"
+fi
 
 # Function to resolve target to tmux session name
 resolve_target() {
@@ -101,14 +105,14 @@ case "$METHOD" in
   display)
     # Show popup notification (non-intrusive, disappears after a few seconds)
     # tmux display-message is safe - it doesn't execute shell commands
-    tmux display-message -t "$TARGET_SESSION" "📬 Message from $FROM_SESSION: $MESSAGE"
+    tmux display-message -t "$TARGET_SESSION" "📬 Message from $FROM_DISPLAY: $MESSAGE"
     echo "✅ Display message sent to $TARGET_SESSION"
     ;;
 
   inject)
     # Inject as a comment (appears in terminal history)
     # Use printf %q to safely escape the message for shell
-    ESCAPED_FROM=$(printf '%q' "$FROM_SESSION")
+    ESCAPED_FROM=$(printf '%q' "$FROM_DISPLAY")
     ESCAPED_MSG=$(printf '%q' "$MESSAGE")
     FULL_MESSAGE="echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'; echo '📬 MESSAGE FROM $ESCAPED_FROM'; echo $ESCAPED_MSG; echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'"
     tmux send-keys -t "$TARGET_SESSION" "$FULL_MESSAGE" Enter
@@ -118,7 +122,7 @@ case "$METHOD" in
   echo)
     # Echo to terminal output (visible but doesn't interrupt)
     # Use printf %q to safely escape the message for shell
-    ESCAPED_FROM=$(printf '%q' "$FROM_SESSION")
+    ESCAPED_FROM=$(printf '%q' "$FROM_DISPLAY")
     ESCAPED_MSG=$(printf '%q' "$MESSAGE")
     tmux send-keys -t "$TARGET_SESSION" "" # Focus the pane
     tmux send-keys -t "$TARGET_SESSION" "echo ''" Enter

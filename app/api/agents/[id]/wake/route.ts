@@ -30,6 +30,7 @@ async function tmuxSessionExists(sessionName: string): Promise<boolean> {
  * Optional body parameters:
  * - startProgram: boolean - Whether to start Claude Code automatically (default: true)
  * - sessionIndex: number - Which session to wake (default: 0)
+ * - program: string - Override the program to start (claude, codex, aider, cursor)
  */
 export async function POST(
   request: NextRequest,
@@ -41,6 +42,7 @@ export async function POST(
     // Parse optional body
     let startProgram = true
     let sessionIndex = 0
+    let programOverride: string | undefined
     try {
       const body = await request.json()
       if (body.startProgram === false) {
@@ -48,6 +50,9 @@ export async function POST(
       }
       if (typeof body.sessionIndex === 'number') {
         sessionIndex = body.sessionIndex
+      }
+      if (typeof body.program === 'string') {
+        programOverride = body.program.toLowerCase()
       }
     } catch {
       // No body or invalid JSON, use defaults
@@ -142,12 +147,14 @@ export async function POST(
 
     // Start the AI program if requested
     if (startProgram) {
-      // Determine which program to start based on agent.program
-      const program = agent.program?.toLowerCase() || 'claude code'
+      // Determine which program to start - use override if provided, else use agent.program
+      const program = programOverride || agent.program?.toLowerCase() || 'claude code'
 
       let startCommand = ''
       if (program.includes('claude') || program.includes('claude code')) {
         startCommand = 'claude'
+      } else if (program.includes('codex')) {
+        startCommand = 'codex'
       } else if (program.includes('aider')) {
         startCommand = 'aider'
       } else if (program.includes('cursor')) {

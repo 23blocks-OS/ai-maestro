@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
+import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
@@ -153,6 +154,7 @@ export default function AgentList({
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
+  const [wakeDialogAgent, setWakeDialogAgent] = useState<UnifiedAgent | null>(null)
 
   // Drag-and-drop state
   const [draggedAgent, setDraggedAgent] = useState<UnifiedAgent | null>(null)
@@ -390,11 +392,17 @@ export default function AgentList({
     }
   }
 
-  const handleWake = async (agent: UnifiedAgent, e: React.MouseEvent) => {
+  const handleWake = (agent: UnifiedAgent, e: React.MouseEvent) => {
     e.stopPropagation()
-
     if (wakingAgents.has(agent.id)) return
+    // Open the dialog to select which CLI to use
+    setWakeDialogAgent(agent)
+  }
 
+  const handleWakeConfirm = async (program: string) => {
+    if (!wakeDialogAgent) return
+
+    const agent = wakeDialogAgent
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {
@@ -402,6 +410,7 @@ export default function AgentList({
       const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program }),
       })
 
       if (!response.ok) {
@@ -409,7 +418,8 @@ export default function AgentList({
         throw new Error(data.error || 'Failed to wake agent')
       }
 
-      // Refresh the agent list to show updated status
+      // Close dialog and refresh the agent list
+      setWakeDialogAgent(null)
       onRefresh?.()
     } catch (error) {
       console.error('Failed to wake agent:', error)
@@ -1026,6 +1036,15 @@ export default function AgentList({
           loading={actionLoading}
         />
       )}
+
+      {/* Wake Agent Dialog */}
+      <WakeAgentDialog
+        isOpen={wakeDialogAgent !== null}
+        onClose={() => setWakeDialogAgent(null)}
+        onConfirm={handleWakeConfirm}
+        agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
+        agentAlias={wakeDialogAgent?.alias}
+      />
     </div>
   )
 }

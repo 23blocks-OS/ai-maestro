@@ -571,34 +571,64 @@ app.prepare().then(() => {
     console.log('[AgentStartup] Startup indexing disabled - agents will initialize on-demand')
   })
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('[Server] Shutting down gracefully...')
+  // Graceful shutdown - kill PTYs FIRST before closing server
+  const gracefulShutdown = (signal) => {
+    console.log(`[Server] Received ${signal}, shutting down gracefully...`)
 
-    // NOTE: Agents are managed by Next.js API routes
-    // They will be garbage collected when the process exits
+    // Kill all PTY processes FIRST and synchronously
+    const sessionCount = sessions.size
+    console.log(`[Server] Cleaning up ${sessionCount} PTY sessions...`)
 
-    sessions.forEach((state) => {
+    sessions.forEach((state, sessionName) => {
       // Close log stream
       if (state.logStream) {
-        state.logStream.end()
+        try {
+          state.logStream.end()
+        } catch (e) {
+          // Ignore
+        }
       }
       // Kill PTY process and its entire process group
-      if (state.ptyProcess) {
+      if (state.ptyProcess && state.ptyProcess.pid) {
+        const pid = state.ptyProcess.pid
+        console.log(`[Server] Killing PTY for ${sessionName} (pid: ${pid})`)
         try {
-          process.kill(-state.ptyProcess.pid, 'SIGTERM')
+          // Kill the entire process group (negative PID)
+          process.kill(-pid, 'SIGKILL')
         } catch (e) {
           try {
-            state.ptyProcess.kill()
+            // Fallback to SIGTERM on direct process
+            process.kill(pid, 'SIGKILL')
           } catch (e2) {
-            console.error('Error killing PTY:', e2)
+            try {
+              // Last resort: use node-pty's kill
+              state.ptyProcess.kill()
+            } catch (e3) {
+              console.error(`[Server] Failed to kill PTY ${sessionName}:`, e3.message)
+            }
           }
         }
       }
     })
+
+    // Clear the sessions map
+    sessions.clear()
+    console.log(`[Server] PTY cleanup complete`)
+
+    // Now close the server
     server.close(() => {
       console.log('[Server] Shutdown complete')
       process.exit(0)
     })
-  })
+
+    // Force exit after 5 seconds if server.close() hangs
+    setTimeout(() => {
+      console.log('[Server] Forced exit after timeout')
+      process.exit(0)
+    }, 5000)
+  }
+
+  // Handle both SIGTERM and SIGINT
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 })

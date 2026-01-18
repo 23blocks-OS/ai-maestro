@@ -533,13 +533,6 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-"@isaacs/fs-minipass@^4.0.0":
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz#2d59ae3ab4b38fb4270bfa23d30f8e2e86c7fe32"
-  integrity sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==
-  dependencies:
-    minipass "^7.0.4"
-
 "@jridgewell/gen-mapping@^0.3.2":
   version "0.3.13"
   resolved "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz"
@@ -1107,6 +1100,11 @@ acorn@^8.9.0:
   resolved "https://registry.npmjs.org/acorn/-/acorn-8.15.0.tgz"
   integrity sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==
 
+adm-zip@^0.5.16:
+  version "0.5.16"
+  resolved "https://registry.yarnpkg.com/adm-zip/-/adm-zip-0.5.16.tgz#0b5e4c779f07dedea5805cdccb1147071d94a909"
+  integrity sha512-TGw5yVi4saajsSEgz25grObGHEUaDrniwvA2qwSC060KfqGPdglhvPMA2lPIoxs3PQIItj2iag35fONcQqgUaQ==
+
 agent-base@6:
   version "6.0.2"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-6.0.2.tgz#49fff58577cfee3f37176feab4c22e00f86d7f77"
@@ -1603,11 +1601,6 @@ chownr@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/chownr/-/chownr-2.0.0.tgz#15bfbe53d2eab4cf70f18a8cd68ebe5b3cb1dece"
   integrity sha512-bIomtDF5KGpdogkLd9VspvFzk9KfpyyGlS8YFVZl7TGPBHL5snIOnxeshwVgPteQ9b4Eydl+pVbIyE1DcvCWgQ==
-
-chownr@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/chownr/-/chownr-3.0.0.tgz#9855e64ecd240a9cc4267ce8a4aa5d24a1da15e4"
-  integrity sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==
 
 client-only@0.0.1:
   version "0.0.1"
@@ -3440,7 +3433,7 @@ minipass@^5.0.0:
   resolved "https://registry.yarnpkg.com/minipass/-/minipass-5.0.0.tgz#3e9788ffb90b694a5d0ec94479a45b5d8738133d"
   integrity sha512-3FnjYuehv9k6ovOEbyOswadCDPX1piCfhV8ncmYtHOjuPwylVWsghTLo7rabjC3Rx5xD4HDx8Wm1xnMF7S5qFQ==
 
-"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.0.4, minipass@^7.1.2:
+"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.1.2:
   version "7.1.2"
   resolved "https://registry.npmjs.org/minipass/-/minipass-7.1.2.tgz"
   integrity sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==
@@ -3457,13 +3450,6 @@ minizlib@^2.1.1:
   dependencies:
     minipass "^3.0.0"
     yallist "^4.0.0"
-
-minizlib@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/minizlib/-/minizlib-3.1.0.tgz#6ad76c3a8f10227c9b51d1c9ac8e30b27f5a251c"
-  integrity sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==
-  dependencies:
-    minipass "^7.1.2"
 
 mkdirp@0.5.1:
   version "0.5.1"
@@ -3675,24 +3661,24 @@ once@^1.3.0:
   dependencies:
     wrappy "1"
 
-onnxruntime-common@1.21.0:
-  version "1.21.0"
-  resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.21.0.tgz#a81d4191d418acbbff2546a954cc2cc23eeb09f8"
-  integrity sha512-Q632iLLrtCAVOTO65dh2+mNbQir/QNTVBG3h/QdZBpns7mZ0RYbLRBgGABPbpU9351AgYy7SJf1WaeVwMrBFPQ==
-
 onnxruntime-common@1.22.0-dev.20250409-89f8206ba4:
   version "1.22.0-dev.20250409-89f8206ba4"
   resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.22.0-dev.20250409-89f8206ba4.tgz#3d4a39563b93db3d0428b5527cba58a3c8f826c2"
   integrity sha512-vDJMkfCfb0b1A836rgHj+ORuZf4B4+cc2bASQtpeoJLueuFc5DuYwjIZUBrSvx/fO5IrLjLz+oTrB3pcGlhovQ==
 
-onnxruntime-node@1.21.0:
-  version "1.21.0"
-  resolved "https://registry.yarnpkg.com/onnxruntime-node/-/onnxruntime-node-1.21.0.tgz#7f4f59455baf851181e207fc8401288ac2eb10d1"
-  integrity sha512-NeaCX6WW2L8cRCSqy3bInlo5ojjQqu2fD3D+9W5qb5irwxhEyWKXeH2vZ8W9r6VxaMPUan+4/7NDwZMtouZxEw==
+onnxruntime-common@1.23.2:
+  version "1.23.2"
+  resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.23.2.tgz#669892f8d2b7de273ac60a76151781a97d01ab49"
+  integrity sha512-5LFsC9Dukzp2WV6kNHYLNzp8sT6V02IubLCbzw2Xd6X5GOlr65gAX6xiJwyi2URJol/s71gaQLC5F2C25AAR2w==
+
+onnxruntime-node@1.21.0, onnxruntime-node@1.23.2:
+  version "1.23.2"
+  resolved "https://registry.yarnpkg.com/onnxruntime-node/-/onnxruntime-node-1.23.2.tgz#6e205a32111bf6657ac469f8fc7fb35b765324a5"
+  integrity sha512-OBTsG0W8ddBVOeVVVychpVBS87A9YV5sa2hJ6lc025T97Le+J4v++PwSC4XFs1C62SWyNdof0Mh4KvnZgtt4aw==
   dependencies:
+    adm-zip "^0.5.16"
     global-agent "^3.0.0"
-    onnxruntime-common "1.21.0"
-    tar "^7.0.1"
+    onnxruntime-common "1.23.2"
 
 onnxruntime-web@1.22.0-dev.20250409-89f8206ba4:
   version "1.22.0-dev.20250409-89f8206ba4"
@@ -4848,17 +4834,6 @@ tar@^6.1.11:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
-tar@^7.0.1:
-  version "7.5.2"
-  resolved "https://registry.yarnpkg.com/tar/-/tar-7.5.2.tgz#115c061495ec51ff3c6745ff8f6d0871c5b1dedc"
-  integrity sha512-7NyxrTE4Anh8km8iEy7o0QYPs+0JKBTj5ZaqHg6B39erLg0qYXN3BijtShwbsNSvQ+LN75+KV+C4QR/f6Gwnpg==
-  dependencies:
-    "@isaacs/fs-minipass" "^4.0.0"
-    chownr "^3.0.0"
-    minipass "^7.1.2"
-    minizlib "^3.1.0"
-    yallist "^5.0.0"
-
 text-decoder@^1.1.0:
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/text-decoder/-/text-decoder-1.2.3.tgz#b19da364d981b2326d5f43099c310cc80d770c65"
@@ -5299,11 +5274,6 @@ yallist@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/yallist/-/yallist-4.0.0.tgz#9bb92790d9c0effec63be73519e11a35019a3a72"
   integrity sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
-
-yallist@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/yallist/-/yallist-5.0.0.tgz#00e2de443639ed0d78fd87de0d27469fbcffb533"
-  integrity sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==
 
 yauzl@^3.2.0:
   version "3.2.0"

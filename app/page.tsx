@@ -58,6 +58,12 @@ const AgentGraph = dynamic(
   { ssr: false }
 )
 
+// Only shown when waking an agent
+const WakeAgentDialog = dynamic(
+  () => import('@/components/WakeAgentDialog'),
+  { ssr: false }
+)
+
 // Only shown on docs tab
 const DocumentationPanel = dynamic(
   () => import('@/components/DocumentationPanel'),
@@ -338,10 +344,22 @@ export default function DashboardPage() {
   }
 
   const [wakingAgentId, setWakingAgentId] = useState<string | null>(null)
+  const [wakeDialogAgent, setWakeDialogAgent] = useState<Agent | null>(null)
 
-  const handleWakeAgent = async (agent: Agent) => {
+  // Opens the wake dialog to select CLI
+  const handleWakeAgent = (agent: Agent) => {
     if (wakingAgentId === agent.id) return
+    setWakeDialogAgent(agent)
+  }
 
+  // Performs the actual wake with selected program
+  const handleWakeConfirm = async (program: string) => {
+    if (!wakeDialogAgent) return
+
+    const agent = wakeDialogAgent
+
+    // Close dialog immediately so UI isn't blocked
+    setWakeDialogAgent(null)
     setWakingAgentId(agent.id)
 
     try {
@@ -349,6 +367,7 @@ export default function DashboardPage() {
       const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program }),
       })
 
       if (!response.ok) {
@@ -356,11 +375,13 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to wake agent')
       }
 
-      // Refresh agents to show updated status
       refreshAgents()
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      // Use setTimeout to ensure state updates happen first
+      setTimeout(() => {
+        alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      }, 0)
     } finally {
       setWakingAgentId(null)
     }
@@ -817,6 +838,15 @@ export default function DashboardPage() {
             setShowImportDialog(false)
             refreshAgents()
           }}
+        />
+
+        {/* Wake Agent Dialog */}
+        <WakeAgentDialog
+          isOpen={wakeDialogAgent !== null}
+          onClose={() => setWakeDialogAgent(null)}
+          onConfirm={handleWakeConfirm}
+          agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
+          agentAlias={wakeDialogAgent?.alias}
         />
 
         {/* Help Panel */}

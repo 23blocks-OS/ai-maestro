@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  X, User, Users, Building2, Briefcase, Code2, Cpu, Tag,
+  X, User, Building2, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
-  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain
+  GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
+  FolderTree
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
@@ -384,20 +385,55 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         {agent.avatar || '🤖'}
                       </div>
                       <div className="flex-1 space-y-3">
-                        <EditableField
-                          label="Name"
-                          value={agent.name || agent.alias || ''}
-                          onChange={(value) => updateField('name', value)}
-                          icon={<User className="w-4 h-4" />}
-                        />
-                        <EditableField
-                          label="Label"
-                          value={agent.label || ''}
-                          onChange={(value) => updateField('label', value)}
-                          icon={<Users className="w-4 h-4" />}
-                          placeholder="Optional display label"
-                        />
+                        {/* Agent Name - Primary identifier */}
+                        <div>
+                          <EditableField
+                            label="Agent Name"
+                            value={agent.name || agent.alias || ''}
+                            onChange={(value) => updateField('name', value)}
+                            icon={<User className="w-4 h-4" />}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Used for tmux session. Changing this will require restarting the agent.
+                          </p>
+                        </div>
+                        {/* Display Label - Optional override */}
+                        <div>
+                          <EditableField
+                            label="Display Label"
+                            value={agent.label || ''}
+                            onChange={(value) => updateField('label', value)}
+                            icon={<Tag className="w-4 h-4" />}
+                            placeholder={agent.name || agent.alias || 'Same as agent name'}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Optional friendly name shown in the sidebar instead of agent name.
+                          </p>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Host Information - Read only */}
+                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <div className="flex items-center gap-2 text-xs font-medium text-gray-400 mb-2">
+                        <Server className="w-4 h-4" />
+                        Host
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-200">
+                          {agent.hostId === 'local' || !agent.hostId
+                            ? 'Local Machine'
+                            : agent.hostId}
+                        </span>
+                        {(agent.hostId === 'local' || !agent.hostId) ? (
+                          <Monitor className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Cloud className="w-4 h-4 text-blue-400" />
+                        )}
+                      </div>
+                      {agent.hostUrl && agent.hostUrl !== '' && (
+                        <p className="text-xs text-gray-500 mt-1">{agent.hostUrl}</p>
+                      )}
                     </div>
 
                     {/* Owner and Team */}
@@ -461,31 +497,65 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       multiline
                     />
 
-                    {/* Tags */}
-                    <div>
-                      <label className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
-                        <Tag className="w-4 h-4" />
-                        Tags
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {agent.tags?.map(tag => (
-                          <span
-                            key={tag}
-                            className="px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full text-sm flex items-center gap-2 hover:bg-blue-500/30 transition-all group"
+                    {/* Tags - Control sidebar tree position */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
+                          <Tag className="w-4 h-4" />
+                          Sidebar Organization (Tags)
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Tags determine where the agent appears in the sidebar tree. First tag = folder, second tag = subfolder.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {agent.tags?.map((tag, index) => (
+                            <span
+                              key={tag}
+                              className={`px-3 py-1 border rounded-full text-sm flex items-center gap-2 transition-all group ${
+                                index === 0
+                                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/30 hover:bg-purple-500/30'
+                                  : index === 1
+                                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                                  : 'bg-gray-500/20 text-gray-300 border-gray-500/30 hover:bg-gray-500/30'
+                              }`}
+                            >
+                              <span className="text-[10px] opacity-60">{index === 0 ? 'folder' : index === 1 ? 'subfolder' : 'tag'}</span>
+                              {tag}
+                              <X
+                                className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => removeTag(tag)}
+                              />
+                            </span>
+                          ))}
+                          <button
+                            onClick={() => setShowTagDialog(true)}
+                            className="px-3 py-1 border border-dashed border-gray-600 rounded-full text-sm text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-all"
                           >
-                            {tag}
-                            <X
-                              className="w-3 h-3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => removeTag(tag)}
-                            />
-                          </span>
-                        ))}
-                        <button
-                          onClick={() => setShowTagDialog(true)}
-                          className="px-3 py-1 border border-dashed border-gray-600 rounded-full text-sm text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-all"
-                        >
-                          + Add Tag
-                        </button>
+                            + Add Tag
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tree Location Preview */}
+                      <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+                        <div className="flex items-center gap-2 text-xs font-medium text-gray-400 mb-2">
+                          <FolderTree className="w-4 h-4" />
+                          Sidebar Location Preview
+                        </div>
+                        <div className="font-mono text-sm text-gray-300 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Folder className="w-4 h-4 text-purple-400" />
+                            <span className="text-purple-300">{agent.tags?.[0] || 'ungrouped'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pl-4">
+                            <Folder className="w-4 h-4 text-blue-400" />
+                            <span className="text-blue-300">{agent.tags?.[1] || 'default'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pl-8">
+                            <span className="text-green-400">{'>'}</span>
+                            <span className="text-green-300 font-semibold">{agent.label || agent.name || agent.alias}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

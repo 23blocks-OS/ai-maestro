@@ -122,7 +122,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     } catch {}
   }, [])
 
-  const { isConnected, sendMessage, connectionError, errorHint } = useWebSocket({
+  const { isConnected, sendMessage, connectionError, errorHint, connectionMessage } = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,  // Pass host ID for remote session routing
     autoConnect: isVisible,  // Only auto-connect when visible
@@ -604,6 +604,15 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           )}
         </div>
       </div>
+      )}
+
+      {/* Connection Status (retry messages for remote connections) */}
+      {connectionMessage && !connectionError && (
+        <div className="px-4 py-2 bg-yellow-900/20 border-b border-yellow-800">
+          <p className="text-sm text-yellow-400">
+            🔄 {connectionMessage}
+          </p>
+        </div>
       )}
 
       {/* Connection Error */}

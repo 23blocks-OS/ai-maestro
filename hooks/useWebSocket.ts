@@ -29,6 +29,7 @@ export function useWebSocket({
   const [connectionError, setConnectionError] = useState<Error | null>(null)
   const [errorHint, setErrorHint] = useState<string | null>(null)
   const [status, setStatus] = useState<WebSocketStatus>('disconnected')
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
@@ -83,13 +84,21 @@ export function useWebSocket({
       }
 
       ws.onmessage = (event) => {
-        // Try to parse as JSON for error messages
+        // Try to parse as JSON for error/status messages
         try {
           const parsed = JSON.parse(event.data)
           if (parsed.type === 'error') {
             setConnectionError(new Error(parsed.message))
             if (parsed.hint) {
               setErrorHint(parsed.hint)
+            }
+            return
+          }
+          if (parsed.type === 'status') {
+            // Status message from server (e.g., retry status for remote connections)
+            setConnectionMessage(parsed.message)
+            if (parsed.statusType === 'success') {
+              setConnectionMessage(null) // Clear on success
             }
             return
           }
@@ -107,12 +116,19 @@ export function useWebSocket({
         onError?.(error)
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false)
         setStatus('disconnected')
         onClose?.()
 
-        // Attempt reconnection
+        // Close code 4000 = permanent failure, don't retry (e.g., remote host unreachable after retries)
+        if (event.code === 4000) {
+          console.log('WebSocket closed with permanent failure code, not retrying')
+          setConnectionError(new Error(event.reason || 'Connection failed permanently'))
+          return
+        }
+
+        // Attempt reconnection for transient failures
         if (reconnectAttemptsRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
           reconnectAttemptsRef.current++
 
@@ -166,6 +182,7 @@ export function useWebSocket({
     isConnected,
     connectionError,
     errorHint,
+    connectionMessage,
     status,
     sendMessage,
     connect,

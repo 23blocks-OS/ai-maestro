@@ -142,81 +142,156 @@ app.prepare().then(() => {
   const wss = new WebSocketServer({ noServer: true })
 
   // Handle remote worker connections (proxy WebSocket to remote host)
+  // With retry logic for flaky networks
   function handleRemoteWorker(clientWs, sessionName, workerUrl) {
-    console.log(`🌐 [REMOTE] Connecting to remote worker: ${workerUrl}`)
+    const MAX_RETRIES = 5
+    const RETRY_DELAYS = [500, 1000, 2000, 3000, 5000] // Exponential backoff
+    let retryCount = 0
+    let workerWs = null
+    let clientClosed = false
 
     // Build WebSocket URL for remote worker
     const workerWsUrl = `${workerUrl}/term?name=${encodeURIComponent(sessionName)}`
       .replace(/^http:/, 'ws:')
       .replace(/^https:/, 'wss:')
 
-    // Connect to remote worker's WebSocket
-    const workerWs = new WebSocket(workerWsUrl)
-
-    workerWs.on('open', () => {
-      console.log(`🌐 [REMOTE] Connected to ${sessionName} at ${workerUrl}`)
-
-      // Track activity for remote sessions
-      sessionActivity.set(sessionName, Date.now())
-
-      // Proxy messages: browser → remote worker
-      clientWs.on('message', (data) => {
-        if (workerWs.readyState === WebSocket.OPEN) {
-          workerWs.send(data)
+    // Send status message to client
+    function sendStatus(message, type = 'info') {
+      if (clientWs.readyState === 1) {
+        try {
+          clientWs.send(JSON.stringify({ type: 'status', message, statusType: type }))
+        } catch (e) {
+          // Ignore send errors
         }
-      })
+      }
+    }
 
-      // Proxy messages: remote worker → browser
-      workerWs.on('message', (data) => {
-        // Convert Buffer to string if needed
-        const dataStr = typeof data === 'string' ? data : data.toString('utf8')
+    // Attempt connection with retry
+    function attemptConnection() {
+      if (clientClosed) {
+        console.log(`🌐 [REMOTE] Client closed, aborting connection to ${sessionName}`)
+        return
+      }
 
-        if (clientWs.readyState === 1) { // WebSocket.OPEN
-          // Send as string (browser expects string)
-          clientWs.send(dataStr)
+      if (retryCount > 0) {
+        console.log(`🌐 [REMOTE] Retry ${retryCount}/${MAX_RETRIES} connecting to ${workerUrl}`)
+        sendStatus(`Retrying connection (${retryCount}/${MAX_RETRIES})...`, 'warning')
+      } else {
+        console.log(`🌐 [REMOTE] Connecting to remote worker: ${workerUrl}`)
+        sendStatus('Connecting to remote host...', 'info')
+      }
 
-          // Track activity when worker sends data
-          if (dataStr.length >= 3) {
-            sessionActivity.set(sessionName, Date.now())
+      workerWs = new WebSocket(workerWsUrl)
+
+      // Set connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (workerWs.readyState === WebSocket.CONNECTING) {
+          console.log(`🌐 [REMOTE] Connection timeout for ${sessionName}`)
+          workerWs.terminate()
+        }
+      }, 10000) // 10 second timeout
+
+      workerWs.on('open', () => {
+        clearTimeout(connectionTimeout)
+        console.log(`🌐 [REMOTE] Connected to ${sessionName} at ${workerUrl}`)
+        sendStatus('Connected to remote host', 'success')
+
+        // Reset retry count on successful connection
+        retryCount = 0
+
+        // Track activity for remote sessions
+        sessionActivity.set(sessionName, Date.now())
+
+        // Proxy messages: browser → remote worker
+        clientWs.on('message', (data) => {
+          if (workerWs.readyState === WebSocket.OPEN) {
+            workerWs.send(data)
           }
-        }
-      })
+        })
 
-      // Handle remote worker disconnection
-      workerWs.on('close', (code, reason) => {
-        console.log(`🌐 [REMOTE] Worker disconnected: ${sessionName} (${code}: ${reason})`)
-        if (clientWs.readyState === 1) {
-          clientWs.close(1000, 'Remote worker disconnected')
-        }
+        // Proxy messages: remote worker → browser
+        workerWs.on('message', (data) => {
+          // Convert Buffer to string if needed
+          const dataStr = typeof data === 'string' ? data : data.toString('utf8')
+
+          if (clientWs.readyState === 1) { // WebSocket.OPEN
+            // Send as string (browser expects string)
+            clientWs.send(dataStr)
+
+            // Track activity when worker sends data
+            if (dataStr.length >= 3) {
+              sessionActivity.set(sessionName, Date.now())
+            }
+          }
+        })
+
+        // Handle remote worker disconnection
+        workerWs.on('close', (code, reason) => {
+          console.log(`🌐 [REMOTE] Worker disconnected: ${sessionName} (${code}: ${reason})`)
+          if (clientWs.readyState === 1) {
+            clientWs.close(1000, 'Remote worker disconnected')
+          }
+        })
+
+        workerWs.on('error', (error) => {
+          console.error(`🌐 [REMOTE] Error from ${sessionName}:`, error.message)
+          if (clientWs.readyState === 1) {
+            clientWs.close(1011, 'Remote worker error')
+          }
+        })
+
+        // Handle client disconnection
+        clientWs.on('close', () => {
+          clientClosed = true
+          console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
+          if (workerWs.readyState === WebSocket.OPEN) {
+            workerWs.close()
+          }
+        })
+
+        clientWs.on('error', (error) => {
+          clientClosed = true
+          console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
+          if (workerWs.readyState === WebSocket.OPEN) {
+            workerWs.close()
+          }
+        })
       })
 
       workerWs.on('error', (error) => {
-        console.error(`🌐 [REMOTE] Error from ${sessionName}:`, error.message)
-        if (clientWs.readyState === 1) {
-          clientWs.close(1011, 'Remote worker error')
-        }
-      })
+        clearTimeout(connectionTimeout)
+        console.error(`🌐 [REMOTE] Failed to connect to ${workerUrl}:`, error.message)
 
-      // Handle client disconnection
-      clientWs.on('close', () => {
-        console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
-        if (workerWs.readyState === WebSocket.OPEN) {
-          workerWs.close()
+        // Retry if we haven't exceeded max retries
+        if (retryCount < MAX_RETRIES && !clientClosed) {
+          const delay = RETRY_DELAYS[retryCount] || RETRY_DELAYS[RETRY_DELAYS.length - 1]
+          retryCount++
+          sendStatus(`Connection failed, retrying in ${delay / 1000}s...`, 'warning')
+          setTimeout(attemptConnection, delay)
+        } else {
+          const errorMsg = retryCount >= MAX_RETRIES
+            ? `Cannot connect after ${MAX_RETRIES} retries - network may be unstable`
+            : `Cannot connect to remote worker: ${error.message}`
+          console.error(`🌐 [REMOTE] Giving up on ${sessionName}: ${errorMsg}`)
+          sendStatus(errorMsg, 'error')
+          if (clientWs.readyState === 1) {
+            // Use code 4000 to signal permanent failure - client should NOT retry
+            clientWs.close(4000, errorMsg)
+          }
         }
       })
+    }
 
-      clientWs.on('error', (error) => {
-        console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
-        if (workerWs.readyState === WebSocket.OPEN) {
-          workerWs.close()
-        }
-      })
+    // Handle early client disconnection
+    clientWs.on('close', () => {
+      clientClosed = true
+      if (workerWs && workerWs.readyState === WebSocket.CONNECTING) {
+        workerWs.terminate()
+      }
     })
 
-    workerWs.on('error', (error) => {
-      console.error(`🌐 [REMOTE] Failed to connect to ${workerUrl}:`, error.message)
-      clientWs.close(1011, `Cannot connect to remote worker: ${error.message}`)
-    })
+    // Start connection attempt
+    attemptConnection()
   }
 
   // NOTE: Container agent handling removed - not yet implemented
@@ -563,6 +638,47 @@ app.prepare().then(() => {
     } catch (error) {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
+
+    // Sync with remote hosts on startup (register ourselves with known peers)
+    setTimeout(async () => {
+      try {
+        const hostsResponse = await fetch(`http://localhost:${port}/api/hosts`)
+        const hostsData = await hostsResponse.json()
+        const remoteHosts = (hostsData.hosts || []).filter(h => h.type === 'remote' && h.enabled)
+
+        if (remoteHosts.length > 0) {
+          console.log(`[Host Sync] Registering with ${remoteHosts.length} remote host(s) on startup...`)
+
+          const selfResponse = await fetch(`http://localhost:${port}/api/hosts/identity`)
+          const selfData = await selfResponse.json()
+
+          for (const host of remoteHosts) {
+            try {
+              const response = await fetch(`${host.url}/api/hosts/register-peer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  host: selfData.host,
+                  source: { initiator: selfData.host.id, timestamp: new Date().toISOString() }
+                }),
+                signal: AbortSignal.timeout(10000)
+              })
+
+              if (response.ok) {
+                const result = await response.json()
+                console.log(`[Host Sync] Registered with ${host.name}: ${result.alreadyKnown ? 'already known' : 'newly registered'}`)
+              } else {
+                console.log(`[Host Sync] Failed to register with ${host.name}: HTTP ${response.status}`)
+              }
+            } catch (error) {
+              console.log(`[Host Sync] Could not reach ${host.name}: ${error.message}`)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Host Sync] Startup peer sync failed:', error.message)
+      }
+    }, 5000) // Wait 5 seconds for server to fully initialize
 
     // Agent initialization on startup is DISABLED to avoid CPU spike
     // Agents will be initialized on-demand when accessed via API

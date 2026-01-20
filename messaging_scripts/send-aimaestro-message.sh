@@ -55,6 +55,7 @@ fi
 TO_ID="$RESOLVED_AGENT_ID"
 TO_HOST="$RESOLVED_HOST_ID"
 TO_ALIAS="$RESOLVED_ALIAS"
+TO_HOST_URL="$RESOLVED_HOST_URL"  # Save before it gets overwritten
 
 # Resolve sender's alias for display on remote host
 SENDER_ALIAS=""
@@ -67,7 +68,7 @@ fi
 TARGET_API="$API_BASE"
 if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
     # Message is for a remote host - get its URL
-    TARGET_API="$RESOLVED_HOST_URL"
+    TARGET_API="$TO_HOST_URL"  # Use saved value, not RESOLVED_HOST_URL (which may be overwritten)
     if [ -z "$TARGET_API" ]; then
         TARGET_API=$(get_host_url "$TO_HOST" 2>/dev/null)
     fi

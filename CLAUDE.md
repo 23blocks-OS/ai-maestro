@@ -61,12 +61,13 @@ This script updates ALL version references across the codebase:
 **IMPORTANT:** Every time you create a Pull Request to main, also draft an X (Twitter) post to announce the release.
 
 **PR Creation Checklist:**
-1. Create PR with comprehensive description (summary, features, bug fixes, breaking changes)
-2. Draft X post highlighting key features and improvements
-3. Include release notes or link to PR in the post
-4. Use relevant hashtags: #AIcoding #DevTools #OpenSource
-5. Consider adding screenshots/GIFs for visual features
-6. Post during peak hours (9-11am or 1-3pm EST)
+1. **BUMP VERSION FIRST** - Run `./scripts/bump-version.sh patch` (or minor/major) BEFORE creating the PR. This is mandatory for every PR to main.
+2. Create PR with comprehensive description (summary, features, bug fixes, breaking changes)
+3. Draft X post highlighting key features and improvements
+4. Include release notes or link to PR in the post
+5. Use relevant hashtags: #AIcoding #DevTools #OpenSource
+6. Consider adding screenshots/GIFs for visual features
+7. Post during peak hours (9-11am or 1-3pm EST)
 
 **X Post Template:**
 ```

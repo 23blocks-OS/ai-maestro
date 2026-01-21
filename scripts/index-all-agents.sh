@@ -3,7 +3,25 @@
 # This script iterates through all tmux sessions with registered agents
 # and triggers the graph indexing API for each one
 
-API_BASE="http://localhost:23000"
+# Source common helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/shell-helpers/common.sh" ]; then
+    source "${SCRIPT_DIR}/shell-helpers/common.sh"
+elif [ -f "${HOME}/.local/share/aimaestro/shell-helpers/common.sh" ]; then
+    source "${HOME}/.local/share/aimaestro/shell-helpers/common.sh"
+else
+    # Fallback: detect API URL manually (no common.sh available)
+    API_BASE=$(curl -s --max-time 5 "http://127.0.0.1:23000/api/hosts/identity" | jq -r '.host.url // empty' 2>/dev/null)
+    if [ -z "$API_BASE" ]; then
+        API_BASE="http://$(hostname | tr '[:upper:]' '[:lower:]'):23000"
+    fi
+fi
+
+# If we have common.sh, use the function
+if command -v get_api_base &> /dev/null; then
+    API_BASE=$(get_api_base)
+fi
+
 TIMEOUT=300  # 5 minutes timeout per project
 
 echo "=========================================="
@@ -11,17 +29,17 @@ echo "🔍 Indexing All Agent Projects"
 echo "=========================================="
 echo ""
 
-# Get all sessions with agents as JSON array
-sessions_json=$(curl -s "$API_BASE/api/sessions" | jq -c '[.sessions[] | select(.agentId) | {agentId, workingDirectory, name}]')
+# Get all agents from registry as JSON array
+agents_json=$(curl -s "$API_BASE/api/agents" | jq -c '[.agents[] | {agentId: .id, workingDirectory, name: (.alias // .name // .id)}]')
 
-if [ -z "$sessions_json" ] || [ "$sessions_json" = "[]" ]; then
-    echo "❌ No sessions with agents found"
+if [ -z "$agents_json" ] || [ "$agents_json" = "[]" ]; then
+    echo "❌ No agents found in registry"
     exit 1
 fi
 
 # Count total
-total=$(echo "$sessions_json" | jq 'length')
-echo "Found $total agent sessions to index"
+total=$(echo "$agents_json" | jq 'length')
+echo "Found $total agents to index"
 echo ""
 
 # Track results
@@ -31,11 +49,11 @@ skipped=0
 
 # Process each session by index to avoid subshell issues
 for ((i=0; i<$total; i++)); do
-    session=$(echo "$sessions_json" | jq -c ".[$i]")
+    agent=$(echo "$agents_json" | jq -c ".[$i]")
 
-    agentId=$(echo "$session" | jq -r '.agentId')
-    workingDir=$(echo "$session" | jq -r '.workingDirectory')
-    name=$(echo "$session" | jq -r '.name')
+    agentId=$(echo "$agent" | jq -r '.agentId')
+    workingDir=$(echo "$agent" | jq -r '.workingDirectory')
+    name=$(echo "$agent" | jq -r '.name')
 
     echo "----------------------------------------"
     echo "[$((i+1))/$total] $name"

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
+import { getSelfHost } from '@/lib/hosts-config'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -57,8 +58,9 @@ export async function POST(
     normalizedUrl = normalizedUrl.replace(/\/+$/, '')
 
     // Step 1: Export the agent
-    // Instead of calling our own API, we'll call the export function directly
-    const exportResponse = await fetch(`http://localhost:23000/api/agents/${agent.id}/export`)
+    // Call our own export API - use self host URL, never localhost
+    const selfHost = getSelfHost()
+    const exportResponse = await fetch(`${selfHost.url}/api/agents/${agent.id}/export`)
 
     if (!exportResponse.ok) {
       const errorText = await exportResponse.text()

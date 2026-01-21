@@ -65,7 +65,7 @@ echo ""
 
 # Test network access
 echo "Testing connection to 10.0.0.18:23000..."
-if curl -s -m 5 http://10.0.0.18:23000/api/sessions > /dev/null; then
+if curl -s -m 5 http://10.0.0.18:23000/api/hosts/identity > /dev/null; then
     echo "✅ Remote host is reachable!"
 else
     echo "⚠️  Remote host not reachable - may need to wait or restart"

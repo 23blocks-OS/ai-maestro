@@ -27,7 +27,7 @@ get_sent_dir() {
 }
 
 # Parse agent@host syntax
-# Usage: parse_agent_host "agent@host" or "agent" (defaults to local)
+# Usage: parse_agent_host "agent@host" or "agent" (defaults to this machine's host)
 # Sets: PARSED_AGENT, PARSED_HOST
 parse_agent_host() {
     local input="$1"
@@ -37,7 +37,8 @@ parse_agent_host() {
         PARSED_HOST="${input#*@}"
     else
         PARSED_AGENT="$input"
-        PARSED_HOST="local"
+        # Default to this machine's host ID, not "local"
+        PARSED_HOST=$(get_self_host_id)
     fi
 }
 
@@ -98,10 +99,11 @@ resolve_agent() {
 # Get current agent's display name (agent@host format)
 get_my_name() {
     resolve_agent "$AGENT_ID" 2>/dev/null
+    local my_host="${HOST_ID:-$(get_self_host_id)}"
     if [ -n "$RESOLVED_ALIAS" ] && [ "$RESOLVED_ALIAS" != "null" ]; then
-        echo "${RESOLVED_ALIAS}@${HOST_ID:-local}"
+        echo "${RESOLVED_ALIAS}@${my_host}"
     else
-        echo "${AGENT_ID}@${HOST_ID:-local}"
+        echo "${AGENT_ID}@${my_host}"
     fi
 }
 

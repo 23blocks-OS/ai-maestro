@@ -7,7 +7,7 @@ import pty from 'node-pty'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { getHostById } from './lib/hosts-config-server.mjs'
+import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 
 const dev = process.env.NODE_ENV !== 'production'
@@ -362,16 +362,20 @@ app.prepare().then(() => {
       try {
         const host = getHostById(query.host)
 
-        if (host && host.type !== 'local') {
-          console.log(`🌐 [REMOTE] Routing ${sessionName} to host ${host.id} (${host.url})`)
-          handleRemoteWorker(ws, sessionName, host.url)
-          return
-        } else if (!host) {
+        if (!host) {
           console.error(`🌐 [REMOTE] Host not found: ${query.host}`)
           ws.close(1008, `Host not found: ${query.host}`)
           return
         }
-        // If host.type === 'local', fall through to local tmux handling
+
+        // Use isSelf() to determine if this is a local or remote host
+        // This is more reliable than checking host.type which may be undefined
+        if (!isSelf(host.id)) {
+          console.log(`🌐 [REMOTE] Routing ${sessionName} to host ${host.id} (${host.url})`)
+          handleRemoteWorker(ws, sessionName, host.url)
+          return
+        }
+        // If isSelf(host.id) is true, fall through to local tmux handling
       } catch (error) {
         console.error(`🌐 [REMOTE] Error routing to remote host:`, error)
         ws.close(1011, 'Remote host routing error')

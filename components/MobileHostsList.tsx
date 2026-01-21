@@ -35,14 +35,20 @@ export default function MobileHostsList({
 }: MobileHostsListProps) {
   const { hosts, loading: hostsLoading, error: hostsError } = useHosts()
   const { getSessionActivity } = useSessionActivity()
-  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set(['local']))
+
+  // Find the local host (type === 'local') to use as default
+  const localHost = useMemo(() => hosts.find(h => h.type === 'local'), [hosts])
+  const localHostId = localHost?.id || ''
+
+  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set([localHostId]))
 
   // Group agents by host
   const groupedAgents = useMemo(() => {
     const groups: { [hostId: string]: Agent[] } = {}
 
     agents.forEach((agent) => {
-      const hostId = agent.hostId || 'local'
+      // Use agent's hostId, or fall back to local host ID
+      const hostId = agent.hostId || localHostId
       if (!groups[hostId]) {
         groups[hostId] = []
       }
@@ -50,7 +56,7 @@ export default function MobileHostsList({
     })
 
     return groups
-  }, [agents])
+  }, [agents, localHostId])
 
   const toggleHost = (hostId: string) => {
     const newExpanded = new Set(expandedHosts)
@@ -67,20 +73,20 @@ export default function MobileHostsList({
     return host?.name || hostId
   }
 
-  const getHostIcon = (hostId: string) => {
-    if (hostId === 'local') return Server
+  const getHostIcon = (_hostId: string) => {
+    // All hosts use same icon for now
     return Server
   }
 
   const getHostUrl = (hostId: string) => {
-    if (hostId === 'local') {
+    const host = hosts.find((h) => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
+    if (host?.type === 'local') {
       // Show the actual host being accessed (works on mobile)
       if (typeof window !== 'undefined') {
         return window.location.host
       }
-      return 'localhost:23000'
+      return host.url ? new URL(host.url).host : 'this machine'
     }
-    const host = hosts.find((h) => h.id === hostId)
     return host?.url ? new URL(host.url).host : 'Unknown'
   }
 
@@ -107,8 +113,12 @@ export default function MobileHostsList({
     Object.keys(groupedAgents).forEach(hostId => hostIds.add(hostId))
 
     return Array.from(hostIds).sort((a, b) => {
-      if (a === 'local') return -1
-      if (b === 'local') return 1
+      // Find hosts to check their type
+      const hostA = hosts.find(h => h.id === a)
+      const hostB = hosts.find(h => h.id === b)
+      // Local host comes first
+      if (hostA?.type === 'local') return -1
+      if (hostB?.type === 'local') return 1
       return getHostName(a).localeCompare(getHostName(b))
     })
   }, [hosts, groupedAgents])
@@ -259,7 +269,7 @@ export default function MobileHostsList({
                     <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   )}
                   <HostIcon className={`w-5 h-5 flex-shrink-0 ${
-                    hostId === 'local' ? 'text-blue-400' : 'text-purple-400'
+                    hosts.find(h => h.id === hostId)?.type === 'local' ? 'text-blue-400' : 'text-purple-400'
                   }`} />
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium text-white truncate">

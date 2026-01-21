@@ -170,7 +170,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
   const selfHostIdValue = getSelfHostId()
   const hostId = request.hostId || selfHost?.id || selfHostIdValue
   const hostName = selfHost?.name || selfHostIdValue
-  const hostUrl = selfHost?.url || 'http://localhost:23000'
+  // NEVER use localhost - use actual IP from selfHost or hostname
+  const hostUrl = selfHost?.url || `http://${selfHostIdValue}:23000`
 
   // Check if name already exists ON THIS HOST (like email: auth@host1 ≠ auth@host2)
   const existing = getAgentByName(agentName, hostId)

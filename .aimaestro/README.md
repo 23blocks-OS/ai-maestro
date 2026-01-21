@@ -90,7 +90,7 @@ env: {
 
 1. Install AI Maestro
 2. Start with pm2: `pm2 start ecosystem.config.js`
-3. Verify it's accessible: `curl http://localhost:23000/api/sessions`
+3. Verify it's accessible: `curl http://127.0.0.1:23000/api/hosts/identity`
 
 **On MacBook (Manager):**
 
@@ -111,11 +111,11 @@ env: {
 
 ### Troubleshooting
 
-**Sessions not appearing from remote host:**
+**Agents not appearing from remote host:**
 
 1. Check host is enabled in config
 2. Verify AI Maestro is running on remote host: `pm2 status` (on remote)
-3. Test connectivity: `curl http://<remote-ip>:23000/api/sessions`
+3. Test connectivity: `curl http://<remote-ip>:23000/api/hosts/identity`
 4. Check AI Maestro logs: `pm2 logs ai-maestro`
 
 **Connection timeout:**

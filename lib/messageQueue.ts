@@ -189,7 +189,9 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   const hostId = !agent.hostId || isSelf(agent.hostId)
     ? getSelfHostName()
     : agent.hostId
-  const hostUrl = agent.hostUrl || 'http://localhost:23000'
+  // NEVER use localhost - get URL from selfHost or use hostname
+  const selfHost = getSelfHost()
+  const hostUrl = agent.hostUrl || selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
 
   return {
     agentId: agent.id,

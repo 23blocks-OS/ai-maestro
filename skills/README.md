@@ -295,7 +295,7 @@ ls ~/.local/bin/*-aimaestro-*.sh
 ## Requirements
 
 - **Claude Code** (official Anthropic CLI)
-- **AI Maestro** running on `http://localhost:23000`
+- **AI Maestro** running (default port 23000)
 - **tmux** session (for agent identity)
 - Scripts installed in `~/.local/bin/` (via installer)
 
@@ -317,8 +317,8 @@ source ~/.zshrc
 ### AI Maestro not running
 
 ```bash
-# Check if running
-curl http://localhost:23000/api/sessions
+# Check if running (identity endpoint returns host info)
+curl http://127.0.0.1:23000/api/hosts/identity
 
 # Start it
 pm2 start ai-maestro

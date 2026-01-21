@@ -65,8 +65,21 @@ fi
 
 # Determine which API to send to (local or remote)
 # If target is on a different host, send directly to that host's API
-TARGET_API="$API_BASE"
-if [ "$TO_HOST" != "local" ] && [ "$TO_HOST" != "$HOST_ID" ]; then
+SELF_HOST_ID=$(get_self_host_id)
+SELF_HOST_URL=$(get_self_host_url)
+TARGET_API="$SELF_HOST_URL"
+
+# Check if target host is this machine (case-insensitive)
+TO_HOST_LOWER=$(echo "$TO_HOST" | tr '[:upper:]' '[:lower:]')
+SELF_HOST_LOWER=$(echo "$SELF_HOST_ID" | tr '[:upper:]' '[:lower:]')
+HOST_ID_LOWER=$(echo "$HOST_ID" | tr '[:upper:]' '[:lower:]')
+
+IS_TARGET_LOCAL=false
+if [ -z "$TO_HOST" ] || [ "$TO_HOST_LOWER" = "$SELF_HOST_LOWER" ] || [ "$TO_HOST_LOWER" = "$HOST_ID_LOWER" ]; then
+    IS_TARGET_LOCAL=true
+fi
+
+if [ "$IS_TARGET_LOCAL" = "false" ]; then
     # Message is for a remote host - get its URL
     TARGET_API="$TO_HOST_URL"  # Use saved value, not RESOLVED_HOST_URL (which may be overwritten)
     if [ -z "$TARGET_API" ]; then
@@ -81,14 +94,6 @@ fi
 # Determine the 'to' field value:
 # - For remote hosts: use alias (remote host can resolve it locally)
 # - For local host: use agent ID (more reliable)
-# GAP2 FIX: Compare against 'local', HOST_ID, and actual hostname for local detection
-LOCAL_HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
-IS_TARGET_LOCAL=false
-if [ -z "$TO_HOST" ] || [ "$TO_HOST" = "local" ] || [ "$TO_HOST" = "$HOST_ID" ]; then
-    IS_TARGET_LOCAL=true
-elif [ "$(echo "$TO_HOST" | tr '[:upper:]' '[:lower:]')" = "$(echo "$LOCAL_HOSTNAME" | tr '[:upper:]' '[:lower:]')" ]; then
-    IS_TARGET_LOCAL=true
-fi
 
 if [ "$IS_TARGET_LOCAL" = "true" ]; then
     # Local host - use agent ID

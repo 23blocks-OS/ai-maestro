@@ -60,6 +60,7 @@ export function markPropagationProcessed(propagationId: string): void {
 /**
  * Get the public URL for this host
  * Centralized URL detection logic - detects Tailscale IP if available
+ * NEVER returns localhost - uses hostname as absolute last resort
  */
 export function getPublicUrl(host?: Host): string {
   const port = process.env.PORT || '23000'
@@ -80,12 +81,24 @@ export function getPublicUrl(host?: Host): string {
         }
       }
     }
+
+    // Try any non-internal IPv4 (LAN IP)
+    for (const interfaces of Object.values(networkInterfaces)) {
+      if (!interfaces) continue
+      for (const iface of interfaces) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return `http://${iface.address}:${port}`
+        }
+      }
+    }
   } catch {
     // Ignore network interface errors
   }
 
-  // Fall back to host URL or localhost
-  return host?.url || `http://localhost:${port}`
+  // NEVER return localhost - use hostname as last resort
+  // localhost is useless in a mesh network
+  const hostname = os.hostname().toLowerCase()
+  return `http://${hostname}:${port}`
 }
 
 /**
@@ -399,10 +412,10 @@ async function processPeerExchange(
       .substring(0, 500) // Limit length
 
     const newHost: Host = {
-      id: remoteHost.id,
+      id: remoteHost.id.toLowerCase(),  // Normalize to lowercase
       name: remoteHost.name,
       url: remoteHost.url,
-      type: 'remote',
+      type: 'remote',  // CRITICAL: Mark as remote for routing decisions
       enabled: true,
       description: sanitizedDescription,
       syncedAt: new Date().toISOString(),

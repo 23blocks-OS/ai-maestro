@@ -143,6 +143,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       id: body.host.id,
       name: body.host.name,
       url: body.host.url,
+      type: 'remote',  // CRITICAL: Mark as remote for routing decisions
       aliases: body.host.aliases || [],
       enabled: true,
       description: sanitizedDescription,

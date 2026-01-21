@@ -468,12 +468,15 @@ export function clearHostsCache(): void {
  */
 export function createExampleConfig(): HostsConfig {
   const selfId = getSelfHostId()
+  // Get actual URL for self host - never localhost
+  const selfHost = getSelfHost()
   return {
     hosts: [
       {
         id: selfId,
         name: selfId,
-        url: 'http://localhost:23000',
+        url: selfHost.url,
+        type: 'local',
         enabled: true,
         description: 'This machine',
       },

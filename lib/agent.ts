@@ -24,9 +24,17 @@ import * as path from 'path'
 import * as os from 'os'
 
 // Get this host's API base URL from configuration
+// NEVER returns localhost - getSelfHost() already handles IP detection
 function getSelfApiBase(): string {
   const selfHost = getSelfHost()
-  return selfHost?.url || 'http://localhost:23000'
+  // selfHost.url should always be a real IP from hosts-config
+  // If somehow undefined, use hostname (never localhost)
+  if (selfHost?.url) {
+    return selfHost.url
+  }
+  // Absolute fallback - use hostname, never localhost
+  const hostname = require('os').hostname().toLowerCase()
+  return `http://${hostname}:23000`
 }
 
 interface AgentConfig {

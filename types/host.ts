@@ -18,8 +18,15 @@ export interface Host {
   /** Human-readable display name */
   name: string
 
-  /** Base URL for the AI Maestro API (e.g., "http://localhost:23000") */
+  /** Base URL for the AI Maestro API (e.g., "http://10.0.0.5:23000") */
   url: string
+
+  /**
+   * All known ways to reach this host (IPs, hostnames, URLs)
+   * Used for duplicate detection and fallback connections
+   * Examples: ['10.0.0.5', '100.104.178.57', 'macbook-pro.local', 'http://10.0.0.5:23000']
+   */
+  aliases?: string[]
 
   /** Whether this host is enabled */
   enabled?: boolean

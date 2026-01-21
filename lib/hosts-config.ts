@@ -84,32 +84,141 @@ async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
 
 /**
  * Get this machine's hostname - the canonical host ID
+ * Always returns lowercase for case-insensitive consistency
  */
 export function getSelfHostId(): string {
-  return os.hostname()
+  return os.hostname().toLowerCase()
+}
+
+/**
+ * Get all local IP addresses for this machine
+ * Returns IPs from all network interfaces (excluding loopback)
+ * Prioritizes: Tailscale IPs (100.x.x.x) > LAN IPs (10.x, 192.168.x, 172.16-31.x) > others
+ */
+export function getLocalIPs(): { ip: string; family: string; internal: boolean; interface: string }[] {
+  const interfaces = os.networkInterfaces()
+  const ips: { ip: string; family: string; internal: boolean; interface: string }[] = []
+
+  for (const [name, addrs] of Object.entries(interfaces)) {
+    if (!addrs) continue
+    for (const addr of addrs) {
+      // Skip loopback and internal addresses
+      if (addr.internal) continue
+      // Only IPv4 for now (more compatible)
+      if (addr.family === 'IPv4') {
+        ips.push({
+          ip: addr.address,
+          family: addr.family,
+          internal: addr.internal,
+          interface: name,
+        })
+      }
+    }
+  }
+
+  return ips
+}
+
+/**
+ * Get the preferred IP address for external communication
+ * Priority: Tailscale (100.x) > LAN (10.x, 192.168.x) > other
+ * NEVER returns localhost or 127.0.0.1
+ */
+export function getPreferredIP(): string | null {
+  const ips = getLocalIPs()
+
+  // Priority 1: Tailscale IPs (100.x.x.x range used by Tailscale)
+  const tailscaleIP = ips.find(i => i.ip.startsWith('100.'))
+  if (tailscaleIP) return tailscaleIP.ip
+
+  // Priority 2: Private LAN IPs
+  const lanIP = ips.find(i =>
+    i.ip.startsWith('10.') ||
+    i.ip.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(i.ip)
+  )
+  if (lanIP) return lanIP.ip
+
+  // Priority 3: Any other non-internal IP
+  if (ips.length > 0) return ips[0].ip
+
+  // Fallback: null (caller should handle this)
+  return null
+}
+
+/**
+ * Get all aliases for this host (all IPs, hostname, etc.)
+ * Used for duplicate detection in mesh network
+ * All aliases are lowercase for case-insensitive consistency
+ */
+export function getSelfAliases(): string[] {
+  const hostname = getSelfHostId() // Already lowercase
+  const ips = getLocalIPs().map(i => i.ip)
+
+  // Include hostname variations and all IPs (all lowercase)
+  const aliases = new Set<string>([
+    hostname,
+    ...ips,
+    // Also include URL forms for matching
+    ...ips.map(ip => `http://${ip}:23000`),
+  ])
+
+  return Array.from(aliases)
 }
 
 /**
  * Check if a hostId refers to this machine
  * This is the ONLY place where self-detection should happen
+ * Checks against hostname and all known IPs/aliases
  */
 export function isSelf(hostId: string): boolean {
   if (!hostId) return false
+
   const selfId = getSelfHostId()
-  // Case-insensitive comparison, also handle legacy 'local' value
-  return hostId.toLowerCase() === selfId.toLowerCase() ||
-         hostId === 'local'  // DEPRECATED: backward compat, will be removed
+  const hostIdLower = hostId.toLowerCase()
+
+  // Direct hostname match
+  if (hostIdLower === selfId.toLowerCase()) return true
+
+  // Legacy 'local' value (DEPRECATED)
+  if (hostId === 'local') return true
+
+  // Check against all our IPs
+  const selfIPs = getLocalIPs().map(i => i.ip.toLowerCase())
+  if (selfIPs.includes(hostIdLower)) return true
+
+  // Check if it's a URL pointing to one of our IPs
+  try {
+    const url = new URL(hostId)
+    const urlHost = url.hostname.toLowerCase()
+    if (urlHost === selfId.toLowerCase() || selfIPs.includes(urlHost)) return true
+  } catch {
+    // Not a URL, that's fine
+  }
+
+  return false
 }
 
 /**
  * Get the default host configuration for this machine
+ * Uses actual IP address, NEVER localhost
  */
 function getDefaultSelfHost(): Host {
   const hostname = getSelfHostId()
+  const preferredIP = getPreferredIP()
+  const aliases = getSelfAliases()
+
+  // Use actual IP for URL, fallback to hostname if no IP found
+  // NEVER use localhost - it's useless in a mesh network
+  const url = preferredIP
+    ? `http://${preferredIP}:23000`
+    : `http://${hostname}:23000`
+
   return {
-    id: hostname,  // NOT 'local' - use actual hostname
+    id: hostname,
     name: hostname,
-    url: 'http://localhost:23000',
+    url,
+    aliases,
     enabled: true,
     description: 'This machine',
   }
@@ -120,15 +229,18 @@ function getDefaultSelfHost(): Host {
 // ============================================================================
 
 const HOSTS_ENV_VAR = 'AIMAESTRO_HOSTS'
-const HOSTS_CONFIG_PATH = path.join(process.cwd(), '.aimaestro', 'hosts.json')
+// Use user's home directory for hosts.json - shared across all projects
+const HOSTS_CONFIG_PATH = path.join(os.homedir(), '.aimaestro', 'hosts.json')
 
 let cachedHosts: Host[] | null = null
 
 /**
- * Migrate legacy host config (convert id:'local' to hostname)
+ * Migrate and normalize host config
+ * - Convert id:'local' to hostname
+ * - Normalize host ID to lowercase
  */
 function migrateHost(host: Host): Host {
-  const selfId = getSelfHostId()
+  const selfId = getSelfHostId() // Already lowercase
 
   // Migrate id:'local' to actual hostname
   if (host.id === 'local') {
@@ -139,7 +251,11 @@ function migrateHost(host: Host): Host {
     }
   }
 
-  return host
+  // Normalize host ID to lowercase for case-insensitive consistency
+  return {
+    ...host,
+    id: host.id.toLowerCase(),
+  }
 }
 
 /**
@@ -239,6 +355,78 @@ export function getHostById(hostId: string): Host | undefined {
     return hosts.find(host => isSelf(host.id))
   }
   return hosts.find(host => host.id === hostId || host.id.toLowerCase() === hostId.toLowerCase())
+}
+
+/**
+ * Find a host by any of its known identifiers (ID, URL, IP, or aliases)
+ * Used for duplicate detection in mesh network
+ *
+ * @param identifier - Can be hostname, IP address, URL, or any alias
+ * @returns The matching host, or undefined if not found
+ */
+export function findHostByAnyIdentifier(identifier: string): Host | undefined {
+  if (!identifier) return undefined
+
+  const hosts = getHosts()
+  const identifierLower = identifier.toLowerCase()
+
+  // Extract IP/hostname from URL if it's a URL
+  let identifierHost = identifierLower
+  try {
+    const url = new URL(identifier)
+    identifierHost = url.hostname.toLowerCase()
+  } catch {
+    // Not a URL, use as-is
+  }
+
+  for (const host of hosts) {
+    // Check ID
+    if (host.id.toLowerCase() === identifierLower) return host
+    if (host.id.toLowerCase() === identifierHost) return host
+
+    // Check URL
+    if (host.url) {
+      try {
+        const hostUrl = new URL(host.url)
+        if (hostUrl.hostname.toLowerCase() === identifierHost) return host
+      } catch {
+        // Invalid URL in host config
+      }
+    }
+
+    // Check aliases
+    if (host.aliases) {
+      for (const alias of host.aliases) {
+        const aliasLower = alias.toLowerCase()
+        if (aliasLower === identifierLower) return host
+        if (aliasLower === identifierHost) return host
+
+        // Also check URL hostname in alias
+        try {
+          const aliasUrl = new URL(alias)
+          if (aliasUrl.hostname.toLowerCase() === identifierHost) return host
+        } catch {
+          // Not a URL alias
+        }
+      }
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Check if a host with any of the given identifiers already exists
+ * Returns the matching host if found, undefined otherwise
+ *
+ * @param identifiers - Array of IPs, hostnames, URLs to check
+ */
+export function findExistingHostByIdentifiers(identifiers: string[]): Host | undefined {
+  for (const identifier of identifiers) {
+    const existing = findHostByAnyIdentifier(identifier)
+    if (existing) return existing
+  }
+  return undefined
 }
 
 /**

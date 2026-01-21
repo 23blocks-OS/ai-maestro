@@ -15,6 +15,8 @@ export interface HostIdentity {
   name: string
   url: string
   description?: string
+  /** All known IPs, hostnames, URLs for duplicate detection */
+  aliases?: string[]
 }
 
 /**

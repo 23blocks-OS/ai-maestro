@@ -19,7 +19,7 @@ import {
   PeerExchangeRequest,
   PeerExchangeResponse,
 } from '@/types/host-sync'
-import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache } from './hosts-config'
+import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache, getSelfAliases } from './hosts-config'
 import os from 'os'
 
 // Track processed propagation IDs to prevent infinite loops
@@ -296,12 +296,16 @@ async function registerWithPeer(
   error?: string
 }> {
   try {
+    // Include all aliases for duplicate detection on remote host
+    const aliases = getSelfAliases()
+
     const request: PeerRegistrationRequest = {
       host: {
         id: localHost.id,
         name: localHost.name,
         url: getPublicUrl(localHost),
         description: localHost.description,
+        aliases,
       },
       source: {
         initiator: localHost.id,

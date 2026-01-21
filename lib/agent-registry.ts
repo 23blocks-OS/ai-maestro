@@ -155,7 +155,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
   const agents = loadAgents()
 
   // Support both new 'name' and deprecated 'alias'
-  const agentName = request.name || request.alias
+  // Normalize to lowercase for case-insensitive consistency
+  const agentName = (request.name || request.alias)?.toLowerCase()
   if (!agentName) {
     throw new Error('Agent name is required')
   }
@@ -258,7 +259,8 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   }
 
   // Support both new 'name' and deprecated 'alias'
-  const newName = updates.name || updates.alias
+  // Normalize to lowercase for case-insensitive consistency
+  const newName = (updates.name || updates.alias)?.toLowerCase()
   const currentName = agents[index].name || agents[index].alias
   const agentHostId = agents[index].hostId || getSelfHostId()
 
@@ -701,17 +703,20 @@ export function renameAgent(agentId: string, newName: string): boolean {
   // Get agent's host for per-host uniqueness check
   const agentHostId = agents[index].hostId || getSelfHostId()
 
+  // Normalize to lowercase for case-insensitive consistency
+  const normalizedNewName = newName.toLowerCase()
+
   // Check if new name already exists ON THIS HOST
-  const existing = getAgentByName(newName, agentHostId)
+  const existing = getAgentByName(normalizedNewName, agentHostId)
   if (existing && existing.id !== agentId) {
-    console.error(`[Agent Registry] Cannot rename: agent "${newName}" already exists on host "${agentHostId}"`)
+    console.error(`[Agent Registry] Cannot rename: agent "${normalizedNewName}" already exists on host "${agentHostId}"`)
     return false
   }
 
   const oldName = agents[index].name || agents[index].alias
-  console.log(`[Agent Registry] Renaming agent from "${oldName}" to "${newName}"`)
+  console.log(`[Agent Registry] Renaming agent from "${oldName}" to "${normalizedNewName}"`)
 
-  agents[index].name = newName
+  agents[index].name = normalizedNewName
   // Clear deprecated alias
   delete agents[index].alias
   agents[index].lastActive = new Date().toISOString()

@@ -187,22 +187,43 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
             print_success "Created: ~/.aimaestro/hosts.json (from example)"
             print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
         else
-            # Create a minimal default config
-            cat > "$HOME/.aimaestro/hosts.json" << 'EOF'
+            # Detect this machine's hostname and IP for proper mesh network config
+            local self_hostname
+            self_hostname=$(hostname | tr '[:upper:]' '[:lower:]')
+
+            # Try to get a proper network IP (prefer Tailscale, then LAN)
+            local self_ip=""
+            # Try Tailscale IP first (100.x.x.x)
+            self_ip=$(ifconfig 2>/dev/null | grep -A1 'utun' | grep 'inet 100\.' | awk '{print $2}' | head -1)
+            # Fallback to any non-localhost IP
+            if [ -z "$self_ip" ]; then
+                self_ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
+            fi
+            # Last resort: use hostname
+            if [ -z "$self_ip" ]; then
+                self_ip="$self_hostname"
+            fi
+
+            local self_url="http://${self_ip}:23000"
+
+            # Create a minimal default config with detected values
+            cat > "$HOME/.aimaestro/hosts.json" << EOF
 {
   "hosts": [
     {
-      "id": "local",
-      "name": "local",
-      "url": "http://localhost:23000",
+      "id": "${self_hostname}",
+      "name": "${self_hostname}",
+      "url": "${self_url}",
       "type": "local",
       "enabled": true,
-      "description": "This machine (local tmux sessions)"
+      "description": "This machine"
     }
   ]
 }
 EOF
             print_success "Created: ~/.aimaestro/hosts.json (default)"
+            print_info "Host ID: ${self_hostname}"
+            print_info "Host URL: ${self_url}"
             print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
         fi
     else

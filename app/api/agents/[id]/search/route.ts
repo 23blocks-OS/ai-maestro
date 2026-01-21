@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
 import { hybridSearch, semanticSearch, searchByTerm, searchBySymbol } from '@/lib/rag/search'
+import { getSelfHost } from '@/lib/hosts-config'
 
 /**
  * GET /api/agents/:id/search
@@ -188,7 +189,9 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
   console.log(`[Search API] Triggering background delta indexing for agent ${agentId}`)
 
   try {
-    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/index-delta`, {
+    // Use self host URL, never localhost
+    const selfHost = getSelfHost()
+    const response = await fetch(`${selfHost.url}/api/agents/${agentId}/index-delta`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

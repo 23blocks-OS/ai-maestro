@@ -84,7 +84,7 @@ Remote hosts are configured in `~/.aimaestro/hosts.json`:
 }
 ```
 
-The `local` host is always available at `http://localhost:23000`.
+Your local host is automatically detected from your machine's hostname. The scripts use the identity API to determine the correct host ID and URL.
 
 ---
 
@@ -105,7 +105,7 @@ check-aimaestro-messages.sh [--mark-read]
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📬 You have 2 unread message(s)
-   Inbox: my-agent@local (host: local)
+   Inbox: my-agent@macbook-pro (host: macbook-pro)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [msg-1234567890-abc] 🔴 From: backend-api @mac-mini | 2025-01-18 14:23
@@ -223,7 +223,7 @@ send-tmux-message.sh backend-api "PRODUCTION DOWN!" echo
 AI Maestro uses structured session names in the format `agentId@hostId`:
 
 ```
-my-agent@local         # Agent "my-agent" on local host
+my-agent@macbook-pro   # Agent "my-agent" on macbook-pro host
 backend-api@mac-mini   # Agent "backend-api" on mac-mini host
 ```
 
@@ -327,7 +327,7 @@ Each message contains:
 
 ## Requirements
 
-- AI Maestro running (local: `http://localhost:23000`)
+- AI Maestro running on this machine (default port: 23000)
 - tmux session with valid agent name
 - `curl` and `jq` installed
 - For remote hosts: hosts.json configured
@@ -350,8 +350,8 @@ source ~/.zshrc
 ### Cannot connect to API
 
 ```bash
-# Check AI Maestro is running
-curl http://localhost:23000/api/sessions
+# Check AI Maestro is running (get host identity)
+curl http://127.0.0.1:23000/api/hosts/identity
 
 # Restart if needed
 pm2 restart ai-maestro
@@ -360,8 +360,9 @@ pm2 restart ai-maestro
 ### Agent not found
 
 ```bash
-# Verify agent exists
-curl http://localhost:23000/api/agents | jq '.agents[].alias'
+# Verify agent exists (use identity API to get host URL first)
+API_URL=$(curl -s http://127.0.0.1:23000/api/hosts/identity | jq -r '.host.url')
+curl "$API_URL/api/agents" | jq '.agents[].alias'
 
 # Check session naming
 tmux display-message -p '#S'
@@ -375,7 +376,7 @@ tmux display-message -p '#S'
 cat ~/.aimaestro/hosts.json
 
 # Test remote connection
-curl http://remote-host:23000/api/sessions
+curl http://remote-host:23000/api/hosts/identity
 ```
 
 ---

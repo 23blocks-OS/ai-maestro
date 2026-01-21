@@ -127,6 +127,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
           id: peerHost.id,
           name: peerHost.name,
           url: peerHost.url,
+          type: 'remote',  // CRITICAL: Mark as remote for routing decisions
           enabled: true,
           description: sanitizedDescription,
           syncedAt: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentRegistry } from '@/lib/agent'
 import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
+import { getSelfHost } from '@/lib/hosts-config'
 import {
   indexDocumentation,
   indexDocsDelta,
@@ -317,7 +318,8 @@ async function triggerBackgroundDocsDeltaIndexing(agentId: string, projectPath?:
       body.projectPath = projectPath
     }
 
-    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/docs`, {
+    const selfHost = getSelfHost()
+    const response = await fetch(`${selfHost.url}/api/agents/${agentId}/docs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

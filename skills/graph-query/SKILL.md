@@ -142,7 +142,7 @@ Use with `graph-find-by-type.sh`:
 - If not found, run: `./install-graph-tools.sh`
 
 **API connection fails:**
-- Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
+- Ensure AI Maestro is running: `curl http://127.0.0.1:23000/api/hosts/identity`
 - Ensure your agent is registered (scripts auto-detect from tmux session)
 - Check exact component names (case-sensitive)
 

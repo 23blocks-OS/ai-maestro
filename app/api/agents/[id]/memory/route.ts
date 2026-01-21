@@ -11,6 +11,7 @@ import {
 } from '@/lib/cozo-schema-simple'
 import { initializeRagSchema } from '@/lib/cozo-schema-rag'
 import { getAgent as getRegistryAgent, getAgentBySession } from '@/lib/agent-registry'
+import { getSelfHost } from '@/lib/hosts-config'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -72,8 +73,9 @@ async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
   console.log(`[Memory API] Triggering background delta indexing for agent ${agentId}`)
 
   try {
-    // Call the delta indexing endpoint
-    const response = await fetch(`http://localhost:23000/api/agents/${agentId}/index-delta`, {
+    // Call the delta indexing endpoint - use self host URL, never localhost
+    const selfHost = getSelfHost()
+    const response = await fetch(`${selfHost.url}/api/agents/${agentId}/index-delta`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,8 +140,9 @@ export async function POST(
 
       console.log('[Memory API] Populating from tmux sessions and historical conversations...')
 
-      // Fetch current sessions
-      const sessionsResponse = await fetch('http://localhost:23000/api/sessions')
+      // Fetch current sessions - use self host URL, never localhost
+      const selfHost = getSelfHost()
+      const sessionsResponse = await fetch(`${selfHost.url}/api/sessions`)
       const sessionsData = await sessionsResponse.json()
 
       // Track which sessions belong to this agent

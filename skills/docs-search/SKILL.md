@@ -200,7 +200,7 @@ Without searching docs first, you will:
 - If not found, run: `./install-docs-tools.sh`
 
 **API connection fails:**
-- Ensure AI Maestro is running: `curl http://localhost:23000/api/agents`
+- Ensure AI Maestro is running: `curl http://127.0.0.1:23000/api/hosts/identity`
 - Ensure documentation has been indexed: `docs-stats.sh`
 - If no docs indexed, run: `docs-index.sh`
 

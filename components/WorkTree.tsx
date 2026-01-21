@@ -72,20 +72,21 @@ export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isV
 
   // Determine which host this agent is on - agent-centric: use hostId prop directly
   const getHostUrl = (): string => {
-    // Local agent - use relative URL (works on mobile devices)
-    if (!hostId || hostId === 'local') {
+    // No hostId means local agent
+    if (!hostId) {
       return ''
     }
 
-    // Remote agent - find host URL
-    const host = hosts.find(h => h.id === hostId)
-    if (host) {
+    // Find host in hosts list
+    const host = hosts.find(h => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
+
+    // If host found and it's remote (type !== 'local'), use its URL
+    if (host && host.type === 'remote') {
       console.log(`[WorkTree] Agent ${agentId} is on remote host ${host.id} (${host.url})`)
       return host.url
     }
 
-    // Fallback to local - use relative URL (works on mobile devices)
-    console.warn(`[WorkTree] Could not find host for agent ${agentId}, using local`)
+    // Local host or not found - use relative URL (works on mobile devices)
     return ''
   }
 

@@ -421,11 +421,12 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-200">
-                          {agent.hostId === 'local' || !agent.hostId
-                            ? 'Local Machine'
-                            : agent.hostId}
+                          {/* If no hostUrl prop, agent is on this machine (local) */}
+                          {!hostUrl
+                            ? 'This Machine'
+                            : agent.hostName || agent.hostId || 'Remote'}
                         </span>
-                        {(agent.hostId === 'local' || !agent.hostId) ? (
+                        {!hostUrl ? (
                           <Monitor className="w-4 h-4 text-green-400" />
                         ) : (
                           <Cloud className="w-4 h-4 text-blue-400" />
@@ -1024,7 +1025,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentId={agent.id}
           agentAlias={agent.name || agent.alias || ''}
           agentDisplayName={agent.label}
-          currentHostId={agent.deployment?.local?.hostname === 'localhost' ? 'local' : undefined}
+          currentHostId={agent.hostId}
           onClose={() => setShowTransferDialog(false)}
           onTransferComplete={(result) => {
             if (result.success && result.mode === 'move') {

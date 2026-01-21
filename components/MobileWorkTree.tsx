@@ -110,18 +110,20 @@ export default function MobileWorkTree({
 
   // Determine which host this agent is on - agent-centric: use hostId prop directly
   const getHostConfig = (): { url: string; timeout: number } => {
-    // Local agent - use relative URL (works on mobile devices)
-    if (!hostId || hostId === 'local') {
+    // No hostId means local agent
+    if (!hostId) {
       return { url: '', timeout: LOCAL_API_TIMEOUT }
     }
 
-    // Remote agent - find host URL
-    const host = hosts.find(h => h.id === hostId)
-    if (host) {
+    // Find host in hosts list
+    const host = hosts.find(h => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase())
+
+    // If host found and it's remote (type !== 'local'), use its URL with remote timeout
+    if (host && host.type === 'remote') {
       return { url: host.url, timeout: REMOTE_API_TIMEOUT }
     }
 
-    // Fallback to local - use relative URL (works on mobile devices)
+    // Local host or not found - use relative URL (works on mobile devices)
     return { url: '', timeout: LOCAL_API_TIMEOUT }
   }
 

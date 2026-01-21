@@ -43,17 +43,23 @@ init_messaging || exit 1
 # Get human-readable name for current agent
 MY_DISPLAY_NAME=$(get_my_name)
 
-# Get host name from hosts.json if not local
+# Get host display name from hosts.json
 get_host_name() {
     local host_id="$1"
-    if [ "$host_id" = "local" ]; then
-        echo "local"
+
+    # Check if it's this machine (case-insensitive)
+    local self_id
+    self_id=$(get_self_host_id)
+    local host_lower=$(echo "$host_id" | tr '[:upper:]' '[:lower:]')
+    local self_lower=$(echo "$self_id" | tr '[:upper:]' '[:lower:]')
+    if [ "$host_lower" = "$self_lower" ]; then
+        echo "$host_id (this machine)"
         return
     fi
 
     if [ -f "$HOSTS_CONFIG" ]; then
         local name
-        name=$(jq -r --arg id "$host_id" '.hosts[] | select(.id == $id) | .name' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+        name=$(jq -r --arg id "$host_lower" '.hosts[] | select((.id | ascii_downcase) == $id) | .name' "$HOSTS_CONFIG" 2>/dev/null | head -1)
         if [ -n "$name" ] && [ "$name" != "null" ]; then
             echo "$name"
             return

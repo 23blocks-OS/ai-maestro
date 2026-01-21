@@ -199,7 +199,8 @@ export async function GET(request: Request) {
     const selfHost = getSelfHost()
     const hostName = selfHost?.name || os.hostname()
     const hostId = selfHost?.id || hostName
-    const hostUrl = selfHost?.url || `http://localhost:23000`
+    // NEVER use localhost - use actual IP or hostname
+    const hostUrl = selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
 
     // 1. Load all registered agents from this host's registry
     let agents = loadAgents()

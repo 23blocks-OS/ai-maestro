@@ -5,36 +5,99 @@
 # Usage: source "$(dirname "$0")/../scripts/shell-helpers/common.sh"
 # Or for installed scripts: source ~/.local/share/aimaestro/shell-helpers/common.sh
 
-API_BASE="${AIMAESTRO_API_BASE:-http://localhost:23000}"
 HOSTS_CONFIG="${HOME}/.aimaestro/hosts.json"
 
 # Hosts config is cached in a simple format (no associative arrays for compatibility)
 _HOSTS_LOADED=""
+_SELF_HOST_ID=""
+_SELF_HOST_URL=""
 
-# Get URL for a host by id or name using jq (no associative arrays needed)
-# Usage: get_host_url "mac-mini" or get_host_url "local"
-get_host_url() {
-    local host_id="$1"
-
-    # Handle "local" specially
-    if [ "$host_id" = "local" ]; then
-        echo "http://localhost:23000"
+# Get this machine's host ID and URL from the identity API or hosts.json
+# Sets: _SELF_HOST_ID, _SELF_HOST_URL
+_init_self_host() {
+    # Already initialized
+    if [ -n "$_SELF_HOST_ID" ]; then
         return 0
     fi
 
-    # No config file means only local is available
+    # Try identity API first (most reliable)
+    local identity
+    identity=$(curl -s --max-time 5 "http://127.0.0.1:23000/api/hosts/identity" 2>/dev/null)
+    if [ -n "$identity" ]; then
+        _SELF_HOST_ID=$(echo "$identity" | jq -r '.host.id // empty' 2>/dev/null)
+        _SELF_HOST_URL=$(echo "$identity" | jq -r '.host.url // empty' 2>/dev/null)
+        if [ -n "$_SELF_HOST_ID" ] && [ -n "$_SELF_HOST_URL" ]; then
+            return 0
+        fi
+    fi
+
+    # Fallback: Find local host in hosts.json
+    if [ -f "$HOSTS_CONFIG" ]; then
+        local local_host
+        local_host=$(jq -r '.hosts[] | select(.type == "local") | "\(.id)|\(.url)"' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+        if [ -n "$local_host" ]; then
+            _SELF_HOST_ID="${local_host%%|*}"
+            _SELF_HOST_URL="${local_host#*|}"
+            return 0
+        fi
+    fi
+
+    # Last resort: Use hostname
+    _SELF_HOST_ID=$(hostname | tr '[:upper:]' '[:lower:]')
+    _SELF_HOST_URL="http://${_SELF_HOST_ID}:23000"
+}
+
+# Get self host ID (this machine)
+get_self_host_id() {
+    _init_self_host
+    echo "$_SELF_HOST_ID"
+}
+
+# Get self host URL (this machine)
+get_self_host_url() {
+    _init_self_host
+    echo "$_SELF_HOST_URL"
+}
+
+# API_BASE - dynamically determined, never localhost
+get_api_base() {
+    if [ -n "$AIMAESTRO_API_BASE" ]; then
+        echo "$AIMAESTRO_API_BASE"
+    else
+        get_self_host_url
+    fi
+}
+
+# For backwards compatibility - use function instead
+API_BASE="${AIMAESTRO_API_BASE:-}"
+
+# Get URL for a host by id or name using jq (no associative arrays needed)
+# Usage: get_host_url "mac-mini" or get_host_url "juans-mbp"
+get_host_url() {
+    local host_id="$1"
+    _init_self_host
+
+    # Check if this is the self host (case-insensitive)
+    local host_id_lower=$(echo "$host_id" | tr '[:upper:]' '[:lower:]')
+    local self_id_lower=$(echo "$_SELF_HOST_ID" | tr '[:upper:]' '[:lower:]')
+    if [ "$host_id_lower" = "$self_id_lower" ]; then
+        echo "$_SELF_HOST_URL"
+        return 0
+    fi
+
+    # No config file means only self is available
     if [ ! -f "$HOSTS_CONFIG" ]; then
         echo "Error: Unknown host '$host_id' (no hosts.json config)" >&2
         return 1
     fi
 
-    # Query the hosts.json directly with jq
+    # Query the hosts.json directly with jq (case-insensitive)
     local url
-    url=$(jq -r --arg id "$host_id" '.hosts[] | select(.id == $id and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+    url=$(jq -r --arg id "$host_id_lower" '.hosts[] | select((.id | ascii_downcase) == $id and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
 
     # Try matching by name if id didn't work
-    if [ -z "$url" ]; then
-        url=$(jq -r --arg name "$host_id" '.hosts[] | select(.name == $name and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
+    if [ -z "$url" ] || [ "$url" = "null" ]; then
+        url=$(jq -r --arg name "$host_id" '.hosts[] | select((.name | ascii_downcase) == ($name | ascii_downcase) and .enabled == true) | .url' "$HOSTS_CONFIG" 2>/dev/null | head -1)
     fi
 
     if [ -n "$url" ] && [ "$url" != "null" ]; then
@@ -54,10 +117,12 @@ host_exists() {
 
 # List all available hosts
 list_hosts() {
-    echo "local: http://localhost:23000"
+    _init_self_host
+    echo "${_SELF_HOST_ID}: ${_SELF_HOST_URL} (this machine)"
 
     if [ -f "$HOSTS_CONFIG" ]; then
-        jq -r '.hosts[] | select(.enabled == true) | "\(.id): \(.url)"' "$HOSTS_CONFIG" 2>/dev/null
+        # List remote hosts only (not the local one)
+        jq -r --arg self "$_SELF_HOST_ID" '.hosts[] | select(.enabled == true and (.id | ascii_downcase) != ($self | ascii_downcase)) | "\(.id): \(.url)"' "$HOSTS_CONFIG" 2>/dev/null
     fi
 }
 
@@ -108,10 +173,12 @@ get_agent_id() {
     # Fallback: API lookup for legacy session names
     local response
     local agent_id
+    local api_url
+    api_url=$(get_api_base)
 
-    response=$(curl -s "${API_BASE}/api/agents" 2>/dev/null)
+    response=$(curl -s "${api_url}/api/agents" 2>/dev/null)
     if [ -z "$response" ]; then
-        echo "Error: Cannot connect to AI Maestro at ${API_BASE}" >&2
+        echo "Error: Cannot connect to AI Maestro at ${api_url}" >&2
         return 1
     fi
 
@@ -119,13 +186,13 @@ get_agent_id() {
 
     if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
         echo "Error: No agent found for session '$session'" >&2
-        echo "Session format should be: agentId@hostId (e.g., my-agent@local)" >&2
+        echo "Session format should be: agentId@hostId (e.g., my-agent@my-hostname)" >&2
         echo "Run 'register-agent-from-session.mjs' to register and rename this session" >&2
         return 1
     fi
 
     AGENT_ID="$agent_id"
-    HOST_ID="local"
+    HOST_ID=$(get_self_host_id)
     echo "$agent_id"
 }
 
@@ -152,7 +219,7 @@ init_common() {
     else
         # Legacy format - need API lookup
         AGENT_ID=$(get_agent_id "$SESSION") || return 1
-        HOST_ID="local"  # Legacy sessions are always local
+        HOST_ID=$(get_self_host_id)  # Legacy sessions are on this machine
     fi
 
     export SESSION
@@ -168,7 +235,9 @@ api_query() {
     shift 2
     local extra_args=("$@")
 
-    local url="${API_BASE}${endpoint}"
+    local api_base
+    api_base=$(get_api_base)
+    local url="${api_base}${endpoint}"
     local response
 
     response=$(curl -s --max-time 30 -X "$method" "${extra_args[@]}" "$url" 2>/dev/null)

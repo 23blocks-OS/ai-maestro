@@ -57,7 +57,11 @@ resolve_target() {
 
     if [ -n "$agent_id" ] && [ "$agent_id" != "null" ]; then
       # Check for structured session name: agentId@hostId
-      local host_id=$(echo "$response" | jq -r '.resolved.hostId // "local"' 2>/dev/null)
+      local host_id=$(echo "$response" | jq -r '.resolved.hostId // empty' 2>/dev/null)
+      # If no hostId from API, use this machine's hostname
+      if [ -z "$host_id" ]; then
+        host_id=$(hostname | tr '[:upper:]' '[:lower:]')
+      fi
       local structured_session="${agent_id}@${host_id}"
 
       if tmux has-session -t "$structured_session" 2>/dev/null; then

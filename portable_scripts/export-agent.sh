@@ -12,8 +12,15 @@
 
 set -e
 
-# Configuration
-AIMAESTRO_API="${AIMAESTRO_API:-http://localhost:23000}"
+# Configuration - detect API URL if not set
+if [ -z "$AIMAESTRO_API" ]; then
+    # Try identity API first
+    AIMAESTRO_API=$(curl -s --max-time 5 "http://127.0.0.1:23000/api/hosts/identity" | jq -r '.host.url // empty' 2>/dev/null)
+    if [ -z "$AIMAESTRO_API" ]; then
+        # Fallback to hostname
+        AIMAESTRO_API="http://$(hostname | tr '[:upper:]' '[:lower:]'):23000"
+    fi
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -38,7 +45,7 @@ show_usage() {
     echo "  export-agent.sh 633f6cdc-4404-431a-a95c-80f66a520401"
     echo ""
     echo "Environment Variables:"
-    echo "  AIMAESTRO_API  API endpoint (default: http://localhost:23000)"
+    echo "  AIMAESTRO_API  API endpoint (auto-detected from running instance)"
 }
 
 # Check arguments

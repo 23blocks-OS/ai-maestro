@@ -61,8 +61,8 @@ export default function HostsSection() {
     if (hosts.length > 0) {
       hosts.forEach(host => {
         if (host.enabled) {
-          if (host.type === 'local') {
-            // For local host, fetch version and sessions directly
+          if (host.isSelf) {
+            // For this machine, fetch version and sessions directly (no proxy needed)
             Promise.all([
               fetch('/api/config').then(res => res.json()),
               fetch('/api/sessions').then(res => res.json())

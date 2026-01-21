@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getHosts, getSelfHost, isSelf, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
+import {
+  getHosts,
+  getSelfHost,
+  isSelf,
+  addHostAsync,
+  getHostById,
+  clearHostsCache,
+  findHostByAnyIdentifier,
+  getSelfAliases,
+} from '@/lib/hosts-config'
 import { getPublicUrl, hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
   PeerRegistrationRequest,
@@ -89,10 +98,17 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       )
     }
 
-    // Check if we already know this host by ID
-    const existingHost = getHostById(body.host.id)
-    if (existingHost) {
-      console.log(`[Host Sync] Peer ${body.host.name} (${body.host.id}) already known`)
+    // Build list of all identifiers to check for duplicates
+    const incomingIdentifiers: string[] = [
+      body.host.id,
+      body.host.url,
+      ...(body.host.aliases || []),
+    ].filter(Boolean)
+
+    // Check if we already know this host by any identifier (ID, URL, IP, or alias)
+    const existingHostById = getHostById(body.host.id)
+    if (existingHostById) {
+      console.log(`[Host Sync] Peer ${body.host.name} (${body.host.id}) already known by ID`)
       return NextResponse.json({
         success: true,
         registered: false,
@@ -102,18 +118,19 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       })
     }
 
-    // Check if URL already exists (same host, different ID) - but allow if ID is same
-    const hosts = getHosts()
-    const hostWithSameUrl = hosts.find(h => h.url === body.host.url && !isSelf(h.id))
-    if (hostWithSameUrl) {
-      console.log(`[Host Sync] Host with URL ${body.host.url} already exists as ${hostWithSameUrl.id}`)
-      return NextResponse.json({
-        success: true,
-        registered: false,
-        alreadyKnown: true,
-        host: getLocalHostIdentity(),
-        knownHosts: getKnownHostIdentities(body.host.id),
-      })
+    // Check against all incoming identifiers (URL, aliases, IPs)
+    for (const identifier of incomingIdentifiers) {
+      const existingHost = findHostByAnyIdentifier(identifier)
+      if (existingHost && !isSelf(existingHost.id)) {
+        console.log(`[Host Sync] Host with identifier "${identifier}" already exists as ${existingHost.id}`)
+        return NextResponse.json({
+          success: true,
+          registered: false,
+          alreadyKnown: true,
+          host: getLocalHostIdentity(),
+          knownHosts: getKnownHostIdentities(body.host.id),
+        })
+      }
     }
 
     // Sanitize description to remove control characters
@@ -121,11 +138,12 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       .replace(/[\x00-\x1F\x7F]/g, '')
       .substring(0, 500)
 
-    // Add the new peer
+    // Add the new peer (include aliases for future duplicate detection)
     const newHost: Host = {
       id: body.host.id,
       name: body.host.name,
       url: body.host.url,
+      aliases: body.host.aliases || [],
       enabled: true,
       description: sanitizedDescription,
       syncedAt: new Date().toISOString(),
@@ -179,14 +197,17 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
 /**
  * Get self host identity for response
  * Uses centralized getPublicUrl for consistent URL detection
+ * Includes all aliases for duplicate detection on remote hosts
  */
 function getLocalHostIdentity(): HostIdentity {
   const selfHost = getSelfHost()
+  const aliases = getSelfAliases()
   return {
     id: selfHost.id,
     name: selfHost.name,
     url: getPublicUrl(selfHost),
     description: selfHost.description,
+    aliases,
   }
 }
 

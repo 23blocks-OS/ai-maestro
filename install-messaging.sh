@@ -180,40 +180,83 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Setting up hosts configuration for cross-host messaging..."
     mkdir -p ~/.aimaestro
 
-    # Copy example hosts.json if user doesn't have one yet
-    if [ ! -f "$HOME/.aimaestro/hosts.json" ]; then
+    # Detect this machine's hostname and IP for proper mesh network config
+    SELF_HOSTNAME=$(hostname | tr '[:upper:]' '[:lower:]')
+
+    # Try to get a proper network IP (prefer Tailscale, then LAN)
+    SELF_IP=""
+    # Try Tailscale IP first (100.x.x.x)
+    SELF_IP=$(ifconfig 2>/dev/null | grep -A1 'utun' | grep 'inet 100\.' | awk '{print $2}' | head -1)
+    # Fallback to any non-localhost IP
+    if [ -z "$SELF_IP" ]; then
+        SELF_IP=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
+    fi
+    # Last resort: use hostname
+    if [ -z "$SELF_IP" ]; then
+        SELF_IP="$SELF_HOSTNAME"
+    fi
+
+    SELF_URL="http://${SELF_IP}:23000"
+
+    # Check if hosts.json exists and needs migration
+    if [ -f "$HOME/.aimaestro/hosts.json" ]; then
+        # Check if it has "id": "local" which needs migration
+        if grep -q '"id"[[:space:]]*:[[:space:]]*"local"' "$HOME/.aimaestro/hosts.json" 2>/dev/null; then
+            print_warning "Found legacy hosts.json with 'local' as host ID"
+            print_info "Mesh network requires actual hostname as host ID"
+            echo ""
+            echo "  Current: \"id\": \"local\""
+            echo "  New:     \"id\": \"${SELF_HOSTNAME}\""
+            echo ""
+            read -p "Migrate hosts.json to use hostname? (recommended) [Y/n]: " MIGRATE_CHOICE
+            MIGRATE_CHOICE=${MIGRATE_CHOICE:-Y}
+
+            if [[ "$MIGRATE_CHOICE" =~ ^[Yy]$ ]]; then
+                # Backup existing file
+                cp "$HOME/.aimaestro/hosts.json" "$HOME/.aimaestro/hosts.json.backup"
+                print_info "Backed up to: ~/.aimaestro/hosts.json.backup"
+
+                # Migrate using jq if available, otherwise sed
+                if command -v jq &> /dev/null; then
+                    # Use jq for safe JSON manipulation
+                    jq --arg hostname "$SELF_HOSTNAME" --arg url "$SELF_URL" '
+                        .hosts = [.hosts[] |
+                            if .id == "local" or .type == "local" then
+                                .id = $hostname |
+                                .url = $url
+                            else . end
+                        ]
+                    ' "$HOME/.aimaestro/hosts.json.backup" > "$HOME/.aimaestro/hosts.json"
+                    print_success "Migrated hosts.json using jq"
+                else
+                    # Fallback to sed (less safe but works)
+                    sed -i.bak "s/\"id\"[[:space:]]*:[[:space:]]*\"local\"/\"id\": \"${SELF_HOSTNAME}\"/g" "$HOME/.aimaestro/hosts.json"
+                    print_success "Migrated hosts.json using sed"
+                fi
+                print_info "New host ID: ${SELF_HOSTNAME}"
+                print_info "New host URL: ${SELF_URL}"
+            else
+                print_warning "Keeping legacy hosts.json - some mesh features may not work correctly"
+                print_info "You can manually edit ~/.aimaestro/hosts.json to change 'local' to your hostname"
+            fi
+        else
+            print_info "Keeping existing: ~/.aimaestro/hosts.json (already using proper host ID)"
+        fi
+    else
+        # Create new hosts.json
         if [ -f ".aimaestro/hosts.example.json" ]; then
             cp ".aimaestro/hosts.example.json" "$HOME/.aimaestro/hosts.json"
             print_success "Created: ~/.aimaestro/hosts.json (from example)"
             print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
         else
-            # Detect this machine's hostname and IP for proper mesh network config
-            local self_hostname
-            self_hostname=$(hostname | tr '[:upper:]' '[:lower:]')
-
-            # Try to get a proper network IP (prefer Tailscale, then LAN)
-            local self_ip=""
-            # Try Tailscale IP first (100.x.x.x)
-            self_ip=$(ifconfig 2>/dev/null | grep -A1 'utun' | grep 'inet 100\.' | awk '{print $2}' | head -1)
-            # Fallback to any non-localhost IP
-            if [ -z "$self_ip" ]; then
-                self_ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
-            fi
-            # Last resort: use hostname
-            if [ -z "$self_ip" ]; then
-                self_ip="$self_hostname"
-            fi
-
-            local self_url="http://${self_ip}:23000"
-
             # Create a minimal default config with detected values
             cat > "$HOME/.aimaestro/hosts.json" << EOF
 {
   "hosts": [
     {
-      "id": "${self_hostname}",
-      "name": "${self_hostname}",
-      "url": "${self_url}",
+      "id": "${SELF_HOSTNAME}",
+      "name": "${SELF_HOSTNAME}",
+      "url": "${SELF_URL}",
       "type": "local",
       "enabled": true,
       "description": "This machine"
@@ -222,12 +265,10 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
 }
 EOF
             print_success "Created: ~/.aimaestro/hosts.json (default)"
-            print_info "Host ID: ${self_hostname}"
-            print_info "Host URL: ${self_url}"
+            print_info "Host ID: ${SELF_HOSTNAME}"
+            print_info "Host URL: ${SELF_URL}"
             print_warning "Edit ~/.aimaestro/hosts.json to add your remote hosts"
         fi
-    else
-        print_info "Keeping existing: ~/.aimaestro/hosts.json"
     fi
 
     echo ""

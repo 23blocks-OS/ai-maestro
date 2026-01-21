@@ -1,12 +1,12 @@
 {
   "hosts": [
     {
-      "id": "local",
-      "name": "Local Machine",
-      "url": "http://localhost:23000",
+      "id": "YOUR-HOSTNAME-HERE",
+      "name": "This Machine",
+      "url": "http://YOUR-IP-OR-HOSTNAME:23000",
       "type": "local",
       "enabled": true,
-      "description": "This machine (local tmux sessions)"
+      "description": "This machine - replace YOUR-HOSTNAME-HERE with your actual hostname (run: hostname)"
     },
     {
       "id": "mac-mini",

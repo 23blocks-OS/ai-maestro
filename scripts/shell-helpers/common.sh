@@ -80,6 +80,13 @@ get_host_url() {
     # Check if this is the self host (case-insensitive)
     local host_id_lower=$(echo "$host_id" | tr '[:upper:]' '[:lower:]')
     local self_id_lower=$(echo "$_SELF_HOST_ID" | tr '[:upper:]' '[:lower:]')
+
+    # BACKWARDS COMPATIBILITY: "local" always means this machine
+    if [ "$host_id_lower" = "local" ]; then
+        echo "$_SELF_HOST_URL"
+        return 0
+    fi
+
     if [ "$host_id_lower" = "$self_id_lower" ]; then
         echo "$_SELF_HOST_URL"
         return 0
@@ -115,14 +122,35 @@ host_exists() {
     get_host_url "$host_id" >/dev/null 2>&1
 }
 
+# Check if a host ID refers to this machine (handles "local" for backwards compatibility)
+is_self_host() {
+    local host_id="$1"
+    _init_self_host
+
+    local host_id_lower=$(echo "$host_id" | tr '[:upper:]' '[:lower:]')
+    local self_id_lower=$(echo "$_SELF_HOST_ID" | tr '[:upper:]' '[:lower:]')
+
+    # BACKWARDS COMPATIBILITY: "local" always means this machine
+    if [ "$host_id_lower" = "local" ]; then
+        return 0
+    fi
+
+    # Check against actual self host ID
+    if [ "$host_id_lower" = "$self_id_lower" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
 # List all available hosts
 list_hosts() {
     _init_self_host
     echo "${_SELF_HOST_ID}: ${_SELF_HOST_URL} (this machine)"
 
     if [ -f "$HOSTS_CONFIG" ]; then
-        # List remote hosts only (not the local one)
-        jq -r --arg self "$_SELF_HOST_ID" '.hosts[] | select(.enabled == true and (.id | ascii_downcase) != ($self | ascii_downcase)) | "\(.id): \(.url)"' "$HOSTS_CONFIG" 2>/dev/null
+        # List remote hosts only (not the local one, and not legacy "local" entries)
+        jq -r --arg self "$_SELF_HOST_ID" '.hosts[] | select(.enabled == true and (.id | ascii_downcase) != ($self | ascii_downcase) and (.id | ascii_downcase) != "local" and .type != "local") | "\(.id): \(.url)"' "$HOSTS_CONFIG" 2>/dev/null
     fi
 }
 

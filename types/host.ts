@@ -53,9 +53,12 @@ export interface Host {
   lastSyncError?: string
 
   // DEPRECATED: type field is no longer meaningful
-  // In a mesh network, all hosts are equal. Use isSelf(host.id) for self-detection.
+  // In a mesh network, all hosts are equal. Use isSelf for self-detection.
   // Kept for backward compatibility during migration - will be removed.
   type?: 'local' | 'remote'
+
+  /** Whether this host is the current machine (set by API, not stored) */
+  isSelf?: boolean
 }
 
 export interface HostsConfig {

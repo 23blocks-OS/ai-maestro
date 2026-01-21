@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getHosts, saveHosts, addHost, updateHost, deleteHost } from '@/lib/hosts-config'
+import { getHosts, saveHosts, addHost, updateHost, deleteHost, isSelf } from '@/lib/hosts-config'
 import { addHostWithSync } from '@/lib/host-sync'
 import type { Host } from '@/types/host'
 
@@ -11,11 +11,17 @@ export const dynamic = 'force-dynamic'
  *
  * Returns the list of configured hosts (local and remote).
  * Used by the UI to display host information and for session creation.
+ * Adds `isSelf` flag to identify which host is this machine.
  */
 export async function GET() {
   try {
     const hosts = getHosts()
-    return NextResponse.json({ hosts })
+    // Add isSelf flag to each host so UI can identify the local machine
+    const hostsWithSelf = hosts.map(host => ({
+      ...host,
+      isSelf: isSelf(host.id),
+    }))
+    return NextResponse.json({ hosts: hostsWithSelf })
   } catch (error) {
     console.error('[Hosts API] Failed to fetch hosts:', error)
     return NextResponse.json({ error: 'Failed to fetch hosts', hosts: [] }, { status: 500 })

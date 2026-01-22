@@ -182,20 +182,26 @@ export default function AgentBadge({
           </div>
         )}
 
-        {/* Status dot - larger with glow effect */}
-        <div className="relative flex items-center justify-center" title={statusInfo.label}>
-          {statusInfo.pulse && (
-            <span className={`absolute w-4 h-4 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
-          )}
-          <span
-            className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-slate-800`}
-            style={{
-              boxShadow: statusInfo.pulse
-                ? `0 0 8px 2px ${statusInfo.color === 'bg-green-400' ? '#4ade80' : statusInfo.color === 'bg-amber-400' ? '#fbbf24' : '#64748b'}`
-                : 'none'
-            }}
-          />
-        </div>
+        {/* Status indicator - dot for online/offline, Power icon for hibernated */}
+        {isHibernated ? (
+          <div className="flex items-center" title="Hibernated - Click to wake">
+            <Power className="w-4 h-4 text-slate-500" />
+          </div>
+        ) : (
+          <div className="relative flex items-center justify-center" title={statusInfo.label}>
+            {statusInfo.pulse && (
+              <span className={`absolute w-4 h-4 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
+            )}
+            <span
+              className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-slate-800`}
+              style={{
+                boxShadow: statusInfo.pulse
+                  ? `0 0 8px 2px ${statusInfo.color === 'bg-green-400' ? '#4ade80' : statusInfo.color === 'bg-amber-400' ? '#fbbf24' : '#64748b'}`
+                  : 'none'
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Actions menu - top left */}

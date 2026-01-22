@@ -29,6 +29,8 @@ import {
   Upload,
   Moon,
   Power,
+  LayoutGrid,
+  List,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
@@ -36,6 +38,7 @@ import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
+import AgentBadge from './AgentBadge'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -152,6 +155,10 @@ export default function AgentList({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    if (typeof window === 'undefined') return 'list'
+    return (localStorage.getItem('agent-sidebar-view-mode') as 'list' | 'grid') || 'list'
+  })
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
   const [wakeDialogAgent, setWakeDialogAgent] = useState<UnifiedAgent | null>(null)
@@ -194,15 +201,16 @@ export default function AgentList({
     return new Set()
   })
 
+  // Filter agents by selected host
+  const filteredAgents = useMemo(() =>
+    selectedHostFilter === 'all'
+      ? agents
+      : agents.filter((a) => a.hostId === selectedHostFilter)
+  , [agents, selectedHostFilter])
+
   // Group agents by tags (level1 = first tag, level2 = second tag)
   const groupedAgents = useMemo(() => {
     const groups: Record<string, Record<string, UnifiedAgent[]>> = {}
-
-    // Filter agents by selected host
-    const filteredAgents =
-      selectedHostFilter === 'all'
-        ? agents
-        : agents.filter((a) => a.hostId === selectedHostFilter)
 
     filteredAgents.forEach((agent) => {
       const tags = agent.tags || []
@@ -216,7 +224,7 @@ export default function AgentList({
     })
 
     return groups
-  }, [agents, selectedHostFilter])
+  }, [filteredAgents])
 
   // Initialize NEW panels as open on first mount
   const initializedRef = useRef(false)
@@ -296,6 +304,11 @@ export default function AgentList({
     const interval = setInterval(fetchUnreadCounts, 10000)
     return () => clearInterval(interval)
   }, [agents])
+
+  // Persist view mode
+  useEffect(() => {
+    localStorage.setItem('agent-sidebar-view-mode', viewMode)
+  }, [viewMode])
 
   const toggleLevel1 = (level1: string) => {
     setExpandedLevel1((prev) => {
@@ -512,14 +525,14 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string): Promise<boolean> => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string): Promise<boolean> => {
     setActionLoading(true)
 
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory, hostId }),
+        body: JSON.stringify({ name, workingDirectory, hostId, label }),
       })
 
       if (!response.ok) {
@@ -570,6 +583,19 @@ export default function AgentList({
               title="Create new agent"
             >
               <Plus className="w-4 h-4" />
+            </button>
+            {/* View mode toggle */}
+            <button
+              onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+              className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-gray-400 hover:text-gray-200 hover:scale-110"
+              aria-label={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
+              title={viewMode === 'list' ? 'Grid view' : 'List view'}
+            >
+              {viewMode === 'list' ? (
+                <LayoutGrid className="w-4 h-4" />
+              ) : (
+                <List className="w-4 h-4" />
+              )}
             </button>
             {onImportAgent && (
               <button
@@ -698,7 +724,121 @@ export default function AgentList({
               Create your first agent
             </button>
           </div>
+        ) : viewMode === 'grid' ? (
+          /* Grid View - Corporate Badge Layout with Collapsible Tag Groups */
+          <div className="p-3 space-y-3">
+            {Object.entries(groupedAgents)
+              .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+              .map(([level1, level2Groups]) => {
+                const colors = getCategoryColor(level1)
+                const agentCount = countAgentsInCategory(level1)
+                const isExpanded = expandedLevel1.has(level1)
+
+                return (
+                  <div key={level1} className="rounded-lg overflow-hidden border border-slate-700/50">
+                    {/* Level 1 Header - Collapsible */}
+                    <button
+                      onClick={() => toggleLevel1(level1)}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-700/30 transition-colors"
+                      style={{ backgroundColor: colors.bg }}
+                    >
+                      <ChevronRight
+                        className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                        style={{ color: colors.icon }}
+                      />
+                      <span
+                        className="font-bold uppercase text-xs tracking-wider flex-1 text-left"
+                        style={{ color: colors.icon }}
+                      >
+                        {level1}
+                      </span>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: colors.active, color: colors.activeText }}
+                      >
+                        {agentCount}
+                      </span>
+                    </button>
+
+                    {/* Level 1 Content */}
+                    {isExpanded && (
+                      <div className="p-2 space-y-3 bg-slate-900/30">
+                        {Object.entries(level2Groups)
+                          .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+                          .map(([level2, agentsList]) => {
+                            const level2Key = `${level1}-${level2}`
+                            const isLevel2Expanded = expandedLevel2.has(level2Key)
+
+                            return (
+                              <div key={level2Key}>
+                                {/* Level 2 Header - Collapsible (skip if "default") */}
+                                {level2 !== 'default' && (
+                                  <button
+                                    onClick={() => toggleLevel2(level1, level2)}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 mb-2 rounded-md hover:bg-slate-700/30 transition-colors"
+                                  >
+                                    <ChevronRight
+                                      className={`w-3 h-3 transition-transform duration-200 text-slate-400 ${isLevel2Expanded ? 'rotate-90' : ''}`}
+                                    />
+                                    <Folder className="w-3.5 h-3.5" style={{ color: colors.icon }} />
+                                    <span className="text-xs text-slate-300 capitalize flex-1 text-left">
+                                      {level2}
+                                    </span>
+                                    <span
+                                      className="text-[10px] px-1.5 py-0.5 rounded-full"
+                                      style={{ backgroundColor: colors.bg, color: colors.icon }}
+                                    >
+                                      {agentsList.length}
+                                    </span>
+                                  </button>
+                                )}
+
+                                {/* Agent Grid */}
+                                {(level2 === 'default' || isLevel2Expanded) && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[...agentsList]
+                                      .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
+                                      .map((agent) => {
+                                        const session = agent.sessions?.[0]
+                                        const isOnline = session?.status === 'online'
+                                        const sessionName = agent.name
+                                        const activityInfo = sessionName ? getSessionActivity(sessionName) : null
+                                        const selfHost = hosts.find(h => h.isSelf)
+                                        const isLocal = !agent.hostId || agent.hostId === selfHost?.id
+
+                                        return (
+                                          <AgentBadge
+                                            key={agent.id}
+                                            agent={agent}
+                                            isSelected={activeAgentId === agent.id}
+                                            isLocal={isLocal}
+                                            activityStatus={activityInfo?.status}
+                                            onSelect={handleAgentClick}
+                                            onRename={() => onShowAgentProfile(agent)}
+                                            onDelete={() => onShowAgentProfileDangerZone?.(agent)}
+                                            onHibernate={isOnline ? () => {
+                                              handleHibernate(agent, { stopPropagation: () => {} } as React.MouseEvent)
+                                            } : undefined}
+                                            onWake={!isOnline ? () => setWakeDialogAgent(agent) : undefined}
+                                            onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
+                                            onSendMessage={() => {/* TODO: Implement send message dialog */}}
+                                            onCopyId={() => navigator.clipboard.writeText(agent.id)}
+                                          />
+                                        )
+                                      })}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+          </div>
         ) : (
+          /* List View - Hierarchical Layout */
           <div className="py-2">
             {Object.entries(groupedAgents)
               .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
@@ -1112,7 +1252,7 @@ function CreateAgentModal({
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string) => Promise<boolean>
+  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string) => Promise<boolean>
   onComplete: () => void
   loading: boolean
 }) {
@@ -1125,19 +1265,31 @@ function CreateAgentModal({
   const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
   const [showButton, setShowButton] = useState(false)  // Show "Let's Go!" button
 
-  // Fun AI-themed aliases - names ending in AI or IA (Spanish for AI)
-  const AI_ALIASES = [
+  // Fun AI-themed aliases - split by gender to match avatar photos
+  // IA names are feminine (Spanish style), AI names are masculine
+  const FEMALE_ALIASES = [
     'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
+    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
+  ]
+  const MALE_ALIASES = [
     'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
-    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI', 'DataIA',
-    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA',
-    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI', 'UgAI',
+    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
+    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
   ]
 
-  // Get a random alias based on the agent name (deterministic)
+  // Get a gender-matched alias based on the agent name
+  // Uses same hash logic as AgentBadge avatar selection for consistency
   const getRandomAlias = (agentName: string): string => {
-    const hash = agentName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    return AI_ALIASES[hash % AI_ALIASES.length]
+    let hash = 0
+    for (let i = 0; i < agentName.length; i++) {
+      const char = agentName.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    // Same gender logic as avatar - ensures name matches photo gender
+    const isMale = (Math.abs(hash >> 8) % 2 === 0)
+    const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
+    return aliases[Math.abs(hash) % aliases.length]
   }
 
   // Animate through phases when creating - spread over 10 seconds for a delightful experience
@@ -1231,7 +1383,9 @@ function CreateAgentModal({
     e.preventDefault()
     if (name.trim()) {
       setIsCreating(true)
-      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined)
+      // Generate persona name (like "NatalIA") and pass it to be saved
+      const personaName = getRandomAlias(name.trim())
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, undefined, personaName)
       if (success) {
         setCreationSuccess(true)
         // Animation continues, user will click "Let's Go!" to close

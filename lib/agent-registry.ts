@@ -10,6 +10,40 @@ const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 const REGISTRY_FILE = path.join(AGENTS_DIR, 'registry.json')
 
+// Real names containing "IA" (feminine) or "AI" (masculine) to match avatar gender
+const FEMALE_NAMES = [
+  'Maria', 'Sofia', 'Lucia', 'Julia', 'Natalia', 'Olivia', 'Victoria', 'Valeria',
+  'Cecilia', 'Emilia', 'Amelia', 'Patricia', 'Sylvia', 'Lydia', 'Gloria',
+  'Virginia', 'Eugenia', 'Aurelia', 'Daria', 'Flavia', 'Livia', 'Nadia', 'Ophelia',
+  'Saskia', 'Talia', 'Alicia', 'Anastasia', 'Antonia', 'Dahlia', 'Giulia', 'Octavia',
+  'Tatiana', 'Xenia', 'Aria', 'Mia', 'Kaia', 'Gia', 'Laetitia', 'Cynthia',
+  'Titania', 'Acacia', 'Cassia', 'Cordelia', 'Fuchsia', 'Honoria', 'Lavinia', 'Luciana',
+]
+const MALE_NAMES = [
+  'Kai', 'Nikolai', 'Malachi', 'Cain', 'Blaine', 'Zain', 'Aidan', 'Rainer',
+  'Gaius', 'Caius', 'Daire', 'Jairus', 'Zaire', 'Jair', 'Malakai', 'Raiden',
+  'Craig', 'Aiken', 'Kaine', 'Zaiden', 'Caiden', 'Faisal', 'Naim', 'Chaim',
+  'Blaise', 'Raimundo', 'Kairo', 'Saif', 'Raine', 'Dailey', 'Aindrea', 'Laird',
+  'Rais', 'Aime', 'Baird', 'Cais', 'Daimhin', 'Ephraim', 'Germain', 'Haim',
+]
+
+/**
+ * Generate a persona name that matches the avatar gender
+ * Uses the same hash logic as AgentBadge.tsx for avatar selection
+ */
+function generatePersonaName(agentId: string): string {
+  let hash = 0
+  for (let i = 0; i < agentId.length; i++) {
+    const char = agentId.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  // Same gender logic as avatar selection in AgentBadge.tsx
+  const isMale = (Math.abs(hash >> 8) % 2 === 0)
+  const names = isMale ? MALE_NAMES : FEMALE_NAMES
+  return names[Math.abs(hash) % names.length]
+}
+
 /**
  * Ensure agents directory exists
  */
@@ -191,11 +225,20 @@ export function createAgent(request: CreateAgentRequest): Agent {
     })
   }
 
+  // Generate ID first so we can use it for gender-matched persona name
+  const agentId = uuidv4()
+
+  // Auto-generate persona name if not provided, matching avatar gender
+  let label = request.label || request.displayName
+  if (!label) {
+    label = generatePersonaName(agentId)
+  }
+
   // Create agent with new schema
   const agent: Agent = {
-    id: uuidv4(),
+    id: agentId,
     name: agentName,
-    label: request.label || request.displayName,
+    label,
     avatar: request.avatar,
     workingDirectory: request.workingDirectory || process.cwd(),
     sessions,

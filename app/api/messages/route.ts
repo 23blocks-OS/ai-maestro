@@ -13,6 +13,8 @@ import {
   listAgentsWithMessages,
   resolveAgentIdentifier,
 } from '@/lib/messageQueue'
+import { searchAgents } from '@/lib/agent-registry'
+import { getSelfHostId, getSelfHost } from '@/lib/hosts-config-server.mjs'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -27,13 +29,38 @@ export async function GET(request: NextRequest) {
   const action = searchParams.get('action')
   const box = searchParams.get('box') || 'inbox' // 'inbox' or 'sent'
 
-  // Resolve agent info
+  // Resolve agent info (exact match)
   if (action === 'resolve' && agentIdentifier) {
     const resolved = resolveAgentIdentifier(agentIdentifier)
     if (!resolved) {
       return NextResponse.json({ error: 'Agent not found', resolved: null }, { status: 404 })
     }
     return NextResponse.json({ resolved })
+  }
+
+  // Search agents (partial/fuzzy match)
+  // Returns all agents whose name, alias, or label contains the query string
+  if (action === 'search' && agentIdentifier) {
+    const matches = searchAgents(agentIdentifier)
+    const selfHostId = getSelfHostId()
+    const selfHost = getSelfHost()
+
+    // Map to simplified format for CLI
+    const results = matches.map(agent => ({
+      agentId: agent.id,
+      alias: agent.alias || agent.name,
+      name: agent.name,
+      label: agent.label,
+      displayName: agent.label || agent.alias || agent.name,
+      hostId: selfHostId,
+      hostUrl: selfHost?.url || `http://localhost:23000`,
+    }))
+
+    return NextResponse.json({
+      query: agentIdentifier,
+      count: results.length,
+      results
+    })
   }
 
   // Get specific message

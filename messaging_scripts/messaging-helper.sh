@@ -43,15 +43,16 @@ parse_agent_host() {
 }
 
 # Search for an agent across all enabled hosts
-# Returns JSON array of matches: [{"hostId": "...", "hostUrl": "...", "agentId": "...", "alias": "...", "name": "..."}]
+# First tries exact match, then falls back to fuzzy/partial search
 # Usage: search_agent_all_hosts "agent-alias-or-id"
-# Sets: SEARCH_RESULTS (JSON array), SEARCH_COUNT (number of matches)
+# Sets: SEARCH_RESULTS (JSON array), SEARCH_COUNT (number of matches), SEARCH_IS_FUZZY (0=exact, 1=fuzzy)
 search_agent_all_hosts() {
     local agent_query="$1"
     local hosts_config="${HOME}/.aimaestro/hosts.json"
 
     SEARCH_RESULTS="[]"
     SEARCH_COUNT=0
+    SEARCH_IS_FUZZY=0
 
     # Get list of all enabled hosts
     local hosts_json
@@ -71,18 +72,18 @@ search_agent_all_hosts() {
         return 1
     fi
 
-    # Query each host for the agent
     local results="[]"
     local host_count
     host_count=$(echo "$hosts_json" | jq 'length')
 
+    # Phase 1: Try exact match on all hosts
     for i in $(seq 0 $((host_count - 1))); do
         local host_id
         local host_url
         host_id=$(echo "$hosts_json" | jq -r ".[$i].id")
         host_url=$(echo "$hosts_json" | jq -r ".[$i].url")
 
-        # Query this host's resolve endpoint
+        # Query this host's resolve endpoint (exact match)
         local response
         response=$(curl -s --max-time 5 "${host_url}/api/messages?action=resolve&agent=${agent_query}" 2>/dev/null)
 
@@ -91,18 +92,54 @@ search_agent_all_hosts() {
             resolved=$(echo "$response" | jq -r '.resolved // empty' 2>/dev/null)
 
             if [ -n "$resolved" ] && [ "$resolved" != "null" ]; then
-                # Found a match on this host
-                local agent_id
-                local alias
-                local name
+                # Found exact match on this host
+                local agent_id alias name
                 agent_id=$(echo "$response" | jq -r '.resolved.agentId // ""')
                 alias=$(echo "$response" | jq -r '.resolved.alias // ""')
                 name=$(echo "$response" | jq -r '.resolved.displayName // .resolved.alias // ""')
 
-                # Add to results
                 results=$(echo "$results" | jq --arg hid "$host_id" --arg hurl "$host_url" \
                     --arg aid "$agent_id" --arg alias "$alias" --arg name "$name" \
-                    '. + [{"hostId": $hid, "hostUrl": $hurl, "agentId": $aid, "alias": $alias, "name": $name}]')
+                    '. + [{"hostId": $hid, "hostUrl": $hurl, "agentId": $aid, "alias": $alias, "name": $name, "matchType": "exact"}]')
+            fi
+        fi
+    done
+
+    # Check if we found exact matches
+    local exact_count
+    exact_count=$(echo "$results" | jq 'length')
+    if [ "$exact_count" -gt 0 ]; then
+        SEARCH_RESULTS="$results"
+        SEARCH_COUNT="$exact_count"
+        SEARCH_IS_FUZZY=0
+        return 0
+    fi
+
+    # Phase 2: No exact match - try fuzzy search on all hosts
+    SEARCH_IS_FUZZY=1
+    for i in $(seq 0 $((host_count - 1))); do
+        local host_id
+        local host_url
+        host_id=$(echo "$hosts_json" | jq -r ".[$i].id")
+        host_url=$(echo "$hosts_json" | jq -r ".[$i].url")
+
+        # Query this host's search endpoint (fuzzy match)
+        local response
+        response=$(curl -s --max-time 5 "${host_url}/api/messages?action=search&agent=${agent_query}" 2>/dev/null)
+
+        if [ -n "$response" ]; then
+            local search_count
+            search_count=$(echo "$response" | jq -r '.count // 0' 2>/dev/null)
+
+            if [ "$search_count" -gt 0 ]; then
+                # Add all matches from this host
+                local host_results
+                host_results=$(echo "$response" | jq -c --arg hid "$host_id" --arg hurl "$host_url" \
+                    '[.results[] | {hostId: $hid, hostUrl: $hurl, agentId: .agentId, alias: .alias, name: (.displayName // .alias // .name), matchType: "fuzzy"}]' 2>/dev/null)
+
+                if [ -n "$host_results" ] && [ "$host_results" != "[]" ]; then
+                    results=$(echo "$results" "$host_results" | jq -s 'add')
+                fi
             fi
         fi
     done
@@ -149,16 +186,25 @@ resolve_agent() {
             echo "   list-agents.sh [host-id]" >&2
             return 1
         elif [ "$SEARCH_COUNT" -eq 1 ]; then
-            # Found exactly one match - use it
+            # Found exactly one match
             RESOLVED_AGENT_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].agentId')
             RESOLVED_HOST_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostId')
             RESOLVED_HOST_URL=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostUrl')
             RESOLVED_ALIAS=$(echo "$SEARCH_RESULTS" | jq -r '.[0].alias')
             RESOLVED_NAME=$(echo "$SEARCH_RESULTS" | jq -r '.[0].name')
+
+            # If fuzzy match, show what we found (for transparency)
+            if [ "$SEARCH_IS_FUZZY" -eq 1 ]; then
+                echo "🔍 Found partial match: ${RESOLVED_ALIAS}@${RESOLVED_HOST_ID}" >&2
+            fi
             return 0
         else
-            # Multiple matches - ask for clarification
-            echo "❌ Agent '${agent_part}' found on multiple hosts. Please specify which one:" >&2
+            # Multiple matches - show them all and ask for clarification
+            if [ "$SEARCH_IS_FUZZY" -eq 1 ]; then
+                echo "🔍 Found ${SEARCH_COUNT} partial matches for '${agent_part}':" >&2
+            else
+                echo "❌ Agent '${agent_part}' found on multiple hosts:" >&2
+            fi
             echo "" >&2
             local i=0
             while [ $i -lt "$SEARCH_COUNT" ]; do
@@ -170,7 +216,8 @@ resolve_agent() {
                 i=$((i + 1))
             done
             echo "" >&2
-            echo "Usage: send-aimaestro-message.sh ${agent_part}@<host-id> ..." >&2
+            echo "Please specify the full agent name:" >&2
+            echo "   send-aimaestro-message.sh <agent-alias>@<host-id> ..." >&2
             return 1
         fi
     fi

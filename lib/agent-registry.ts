@@ -28,20 +28,99 @@ const MALE_NAMES = [
 ]
 
 /**
- * Generate a persona name that matches the avatar gender
- * Uses the same hash logic as AgentBadge.tsx for avatar selection
+ * Compute hash from string (same algorithm as AgentBadge.tsx)
  */
-function generatePersonaName(agentId: string): string {
+function computeHash(str: string): number {
   let hash = 0
-  for (let i = 0; i < agentId.length; i++) {
-    const char = agentId.charCodeAt(i)
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
     hash = ((hash << 5) - hash) + char
     hash = hash & hash
   }
-  // Same gender logic as avatar selection in AgentBadge.tsx
-  const isMale = (Math.abs(hash >> 8) % 2 === 0)
+  return hash
+}
+
+/**
+ * Determine gender from agent ID (same logic as avatar selection)
+ */
+function getGenderFromId(agentId: string): 'male' | 'female' {
+  const hash = computeHash(agentId)
+  return (Math.abs(hash >> 8) % 2 === 0) ? 'male' : 'female'
+}
+
+/**
+ * Generate avatar URL from agent ID (same as AgentBadge.tsx)
+ * RandomUser.me has 100 men + 100 women = 200 unique portraits
+ */
+function generateAvatarUrl(agentId: string): string {
+  const hash = computeHash(agentId)
+  const index = Math.abs(hash) % 100
+  const gender = getGenderFromId(agentId) === 'male' ? 'men' : 'women'
+  return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+}
+
+/**
+ * Get all used labels and avatars for a specific host
+ */
+function getUsedLabelsAndAvatars(hostId: string): { labels: Set<string>, avatars: Set<string> } {
+  const agents = loadAgents()
+  const labels = new Set<string>()
+  const avatars = new Set<string>()
+
+  for (const agent of agents) {
+    if (agent.hostId === hostId) {
+      if (agent.label) labels.add(agent.label)
+      if (agent.avatar) avatars.add(agent.avatar)
+    }
+  }
+
+  return { labels, avatars }
+}
+
+/**
+ * Generate a unique persona name that matches the avatar gender
+ * Ensures no duplicate names on the same host
+ */
+function generateUniquePersonaName(agentId: string, usedLabels: Set<string>): string {
+  const hash = computeHash(agentId)
+  const isMale = getGenderFromId(agentId) === 'male'
   const names = isMale ? MALE_NAMES : FEMALE_NAMES
-  return names[Math.abs(hash) % names.length]
+
+  // Start with hash-based index, find next available
+  let index = Math.abs(hash) % names.length
+  let attempts = 0
+
+  while (usedLabels.has(names[index]) && attempts < names.length) {
+    index = (index + 1) % names.length
+    attempts++
+  }
+
+  return names[index]
+}
+
+/**
+ * Generate a unique avatar URL
+ * Ensures no duplicate avatars on the same host
+ */
+function generateUniqueAvatarUrl(agentId: string, usedAvatars: Set<string>): string {
+  const hash = computeHash(agentId)
+  const gender = getGenderFromId(agentId) === 'male' ? 'men' : 'women'
+
+  // Start with hash-based index, find next available
+  let index = Math.abs(hash) % 100
+  let attempts = 0
+
+  while (attempts < 100) {
+    const url = `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+    if (!usedAvatars.has(url)) {
+      return url
+    }
+    index = (index + 1) % 100
+    attempts++
+  }
+
+  // Fallback if all 100 are used (unlikely)
+  return `https://randomuser.me/api/portraits/${gender}/${Math.abs(hash) % 100}.jpg`
 }
 
 /**
@@ -225,13 +304,22 @@ export function createAgent(request: CreateAgentRequest): Agent {
     })
   }
 
-  // Generate ID first so we can use it for gender-matched persona name
+  // Generate ID first so we can use it for gender-matched persona name and avatar
   const agentId = uuidv4()
 
-  // Auto-generate persona name if not provided, matching avatar gender
+  // Get already used labels and avatars on this host
+  const { labels: usedLabels, avatars: usedAvatars } = getUsedLabelsAndAvatars(hostId)
+
+  // Auto-generate unique persona name if not provided, matching avatar gender
   let label = request.label || request.displayName
   if (!label) {
-    label = generatePersonaName(agentId)
+    label = generateUniquePersonaName(agentId, usedLabels)
+  }
+
+  // Auto-generate unique avatar URL if not provided
+  let avatar = request.avatar
+  if (!avatar) {
+    avatar = generateUniqueAvatarUrl(agentId, usedAvatars)
   }
 
   // Create agent with new schema
@@ -239,7 +327,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     id: agentId,
     name: agentName,
     label,
-    avatar: request.avatar,
+    avatar,
     workingDirectory: request.workingDirectory || process.cwd(),
     sessions,
     hostId,

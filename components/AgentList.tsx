@@ -31,6 +31,9 @@ import {
   Power,
   LayoutGrid,
   List,
+  Search,
+  X,
+  Brain,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation from './CreateAgentAnimation'
@@ -57,6 +60,7 @@ interface AgentListProps {
     orphans: number
   } | null
   subconsciousRefreshTrigger?: number  // Increment to force subconscious status refresh
+  sidebarWidth?: number  // Current sidebar width for responsive grid
 }
 
 /**
@@ -151,6 +155,7 @@ export default function AgentList({
   onRefresh,
   stats,
   subconsciousRefreshTrigger,
+  sidebarWidth = 320,
 }: AgentListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -169,8 +174,25 @@ export default function AgentList({
 
   // Host management
   const { hosts } = useHosts()
-  const [selectedHostFilter, setSelectedHostFilter] = useState<string>('all')
-  const [hostsExpanded, setHostsExpanded] = useState(true)
+  const [selectedHostFilter, setSelectedHostFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all'
+    return localStorage.getItem('agent-sidebar-host-filter') || 'all'
+  })
+  const [hostsExpanded, setHostsExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem('agent-sidebar-hosts-expanded')
+    return saved !== 'false'
+  })
+
+  // Footer accordion state
+  const [footerExpanded, setFooterExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem('agent-sidebar-footer-expanded')
+    return saved !== 'false'
+  })
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Session activity tracking (for waiting/active/idle status)
   const { getSessionActivity } = useSessionActivity()
@@ -201,12 +223,25 @@ export default function AgentList({
     return new Set()
   })
 
-  // Filter agents by selected host
-  const filteredAgents = useMemo(() =>
-    selectedHostFilter === 'all'
+  // Filter agents by selected host and search query
+  const filteredAgents = useMemo(() => {
+    let result = selectedHostFilter === 'all'
       ? agents
       : agents.filter((a) => a.hostId === selectedHostFilter)
-  , [agents, selectedHostFilter])
+
+    // Apply search filter (name, label, or host)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      result = result.filter((a) =>
+        a.name?.toLowerCase().includes(query) ||
+        a.label?.toLowerCase().includes(query) ||
+        a.hostId?.toLowerCase().includes(query) ||
+        a.hostName?.toLowerCase().includes(query)
+      )
+    }
+
+    return result
+  }, [agents, selectedHostFilter, searchQuery])
 
   // Group agents by tags (level1 = first tag, level2 = second tag)
   const groupedAgents = useMemo(() => {
@@ -225,6 +260,14 @@ export default function AgentList({
 
     return groups
   }, [filteredAgents])
+
+  // Calculate grid columns based on sidebar width
+  // 320px = 1 col, 480px = 2 cols, 640px+ = 3 cols
+  const gridColumns = useMemo(() => {
+    if (sidebarWidth >= 640) return 3
+    if (sidebarWidth >= 480) return 2
+    return 1
+  }, [sidebarWidth])
 
   // Initialize NEW panels as open on first mount
   const initializedRef = useRef(false)
@@ -309,6 +352,21 @@ export default function AgentList({
   useEffect(() => {
     localStorage.setItem('agent-sidebar-view-mode', viewMode)
   }, [viewMode])
+
+  // Persist footer expanded state
+  useEffect(() => {
+    localStorage.setItem('agent-sidebar-footer-expanded', footerExpanded.toString())
+  }, [footerExpanded])
+
+  // Persist hosts expanded state
+  useEffect(() => {
+    localStorage.setItem('agent-sidebar-hosts-expanded', hostsExpanded.toString())
+  }, [hostsExpanded])
+
+  // Persist selected host filter
+  useEffect(() => {
+    localStorage.setItem('agent-sidebar-host-filter', selectedHostFilter)
+  }, [selectedHostFilter])
 
   const toggleLevel1 = (level1: string) => {
     setExpandedLevel1((prev) => {
@@ -621,19 +679,44 @@ export default function AgentList({
           </div>
         </div>
 
+        {/* Search Input */}
+        <div className="mt-3 px-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search by name, label, host..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 text-sm bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <div className="mt-1 text-xs text-gray-500">
+              {filteredAgents.length} result{filteredAgents.length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+
         {/* Host List - Collapsible */}
         <div className="mt-3">
           <button
             onClick={() => setHostsExpanded(!hostsExpanded)}
-            className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-all"
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-all"
           >
-            <span className="flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5" />
-              <span className="font-medium">Hosts</span>
-            </span>
             <ChevronRight
               className={`w-4 h-4 transition-transform ${hostsExpanded ? 'rotate-90' : ''}`}
             />
+            <Server className="w-3.5 h-3.5" />
+            <span className="font-medium">Hosts</span>
           </button>
 
           {hostsExpanded && (
@@ -795,31 +878,33 @@ export default function AgentList({
 
                                 {/* Agent Grid */}
                                 {(level2 === 'default' || isLevel2Expanded) && (
-                                  <div className="grid grid-cols-2 gap-2">
+                                  <div
+                                    className="grid gap-2"
+                                    style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
+                                  >
                                     {[...agentsList]
                                       .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
                                       .map((agent) => {
                                         const session = agent.sessions?.[0]
                                         const isOnline = session?.status === 'online'
+                                        const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                         const sessionName = agent.name
                                         const activityInfo = sessionName ? getSessionActivity(sessionName) : null
-                                        const selfHost = hosts.find(h => h.isSelf)
-                                        const isLocal = !agent.hostId || agent.hostId === selfHost?.id
 
                                         return (
                                           <AgentBadge
                                             key={agent.id}
                                             agent={agent}
                                             isSelected={activeAgentId === agent.id}
-                                            isLocal={isLocal}
                                             activityStatus={activityInfo?.status}
+                                            unreadCount={unreadCounts[agent.id]}
                                             onSelect={handleAgentClick}
                                             onRename={() => onShowAgentProfile(agent)}
                                             onDelete={() => onShowAgentProfileDangerZone?.(agent)}
                                             onHibernate={isOnline ? () => {
                                               handleHibernate(agent, { stopPropagation: () => {} } as React.MouseEvent)
                                             } : undefined}
-                                            onWake={!isOnline ? () => setWakeDialogAgent(agent) : undefined}
+                                            onWake={isHibernated ? () => setWakeDialogAgent(agent) : undefined}
                                             onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
                                             onSendMessage={() => {/* TODO: Implement send message dialog */}}
                                             onCopyId={() => navigator.clipboard.writeText(agent.id)}
@@ -960,11 +1045,13 @@ export default function AgentList({
                                   .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
-                                  const isOnline = agent.session?.status === 'online'
+                                  const session = agent.sessions?.[0]
+                                  const isOnline = session?.status === 'online'
+                                  const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                   const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
 
                                   // Get activity status for online agents
-                                  const sessionName = agent.name || agent.session?.tmuxSessionName
+                                  const sessionName = agent.name
                                   const activityInfo = sessionName ? getSessionActivity(sessionName) : null
                                   const activityStatus = activityInfo?.status
 
@@ -995,13 +1082,19 @@ export default function AgentList({
                                         )}
 
                                         <div className="flex items-center justify-between gap-2">
-                                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                                          <div className="flex-1 min-w-0 flex items-center gap-3">
                                             {/* Avatar or Icon */}
-                                            {agent.avatar ? (
-                                              <span className="text-sm flex-shrink-0">{agent.avatar}</span>
+                                            {agent.avatar && agent.avatar.startsWith('http') ? (
+                                              <img
+                                                src={agent.avatar}
+                                                alt=""
+                                                className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
+                                              />
+                                            ) : agent.avatar ? (
+                                              <span className="text-3xl flex-shrink-0">{agent.avatar}</span>
                                             ) : (
                                               <User
-                                                className="w-3.5 h-3.5 flex-shrink-0"
+                                                className="w-10 h-10 flex-shrink-0"
                                                 style={{ color: isActive ? colors.activeText : colors.icon }}
                                               />
                                             )}
@@ -1054,12 +1147,24 @@ export default function AgentList({
                                                 {/* Status indicator */}
                                                 <AgentStatusIndicator
                                                   isOnline={isOnline}
-                                                  isHibernated={!isOnline && (agent.sessions && agent.sessions.length > 0)}
+                                                  isHibernated={isHibernated}
                                                   activityStatus={activityStatus}
                                                 />
                                               </div>
 
-                                              {/* Second row: Remote host indicator (below agent name) */}
+                                              {/* Second row: Agent name (when label is shown) */}
+                                              {agent.label && agent.name && (
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                  <span
+                                                    className="text-[10px] text-gray-500 truncate"
+                                                    title={agent.name}
+                                                  >
+                                                    {agent.name}
+                                                  </span>
+                                                </div>
+                                              )}
+
+                                              {/* Third row: Remote host indicator */}
                                               {agent.hostId && agent.hostId !== 'local' && (
                                                 <div className="flex items-center gap-1 mt-0.5">
                                                   <span
@@ -1090,8 +1195,8 @@ export default function AgentList({
                                                 )}
                                               </button>
                                             )}
-                                            {/* Wake button - show when agent is offline and has session config */}
-                                            {!isOnline && (agent.sessions && agent.sessions.length > 0) && (
+                                            {/* Wake button - show when agent is hibernated */}
+                                            {isHibernated && (
                                               <button
                                                 onClick={(e) => handleWake(agent, e)}
                                                 disabled={wakingAgents.has(agent.id)}
@@ -1150,21 +1255,58 @@ export default function AgentList({
         )}
       </div>
 
-      {/* Footer */}
-      <div className="border-t border-sidebar-border px-3 py-3 mt-auto space-y-1">
-        <SubconsciousStatus refreshTrigger={subconsciousRefreshTrigger} />
+      {/* Footer - Collapsible */}
+      <div className="border-t border-sidebar-border mt-auto">
+        {/* Footer Header */}
+        <div className="flex items-center justify-between px-4 py-2">
+          <button
+            onClick={() => setFooterExpanded(!footerExpanded)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-300 transition-all"
+          >
+            <ChevronRight
+              className={`w-4 h-4 transition-transform ${footerExpanded ? 'rotate-90' : ''}`}
+            />
+            <span className="font-medium">System</span>
+          </button>
 
-        <Link
-          href="/settings"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 group"
-        >
-          <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-gray-800 border border-gray-700 group-hover:bg-gray-700 group-hover:border-gray-600 transition-all duration-200">
-            <Settings className="w-4 h-4 text-gray-400 group-hover:text-gray-300" />
+          {/* Icons shown in header when collapsed */}
+          {!footerExpanded && (
+            <div className="flex items-center gap-2">
+              <div
+                className="p-1.5 rounded-md hover:bg-gray-700 transition-all cursor-pointer"
+                title="Subconscious Status"
+              >
+                <Brain className="w-4 h-4 text-purple-400" />
+              </div>
+              <Link
+                href="/settings"
+                className="p-1.5 rounded-md hover:bg-gray-700 transition-all"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4 text-gray-400 hover:text-gray-300" />
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Expanded content */}
+        {footerExpanded && (
+          <div className="px-3 pb-3 space-y-1">
+            <SubconsciousStatus refreshTrigger={subconsciousRefreshTrigger} />
+
+            <Link
+              href="/settings"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 group"
+            >
+              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-gray-800 border border-gray-700 group-hover:bg-gray-700 group-hover:border-gray-600 transition-all duration-200">
+                <Settings className="w-4 h-4 text-gray-400 group-hover:text-gray-300" />
+              </div>
+              <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">
+                Settings
+              </span>
+            </Link>
           </div>
-          <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">
-            Settings
-          </span>
-        </Link>
+        )}
       </div>
 
       {/* Create Agent Modal */}
@@ -1229,9 +1371,8 @@ function AgentStatusIndicator({
 
   if (isHibernated) {
     return (
-      <div className="flex items-center gap-1.5 flex-shrink-0" title="Hibernated - Click power button to wake">
-        <div className="w-2 h-2 rounded-full bg-yellow-500 ring-2 ring-yellow-500/30" />
-        <span className="text-xs text-yellow-400 hidden lg:inline">Hibernated</span>
+      <div className="flex items-center flex-shrink-0" title="Hibernated - Click to wake">
+        <Power className="w-3.5 h-3.5 text-gray-500" />
       </div>
     )
   }

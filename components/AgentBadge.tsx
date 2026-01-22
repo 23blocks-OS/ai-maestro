@@ -8,10 +8,9 @@ import {
   Edit3,
   MessageSquare,
   Moon,
-  Sun,
-  ExternalLink,
+  Power,
   Copy,
-  Wifi,
+  Mail,
 } from 'lucide-react'
 import { Agent, AgentSession } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -19,8 +18,8 @@ import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 interface AgentBadgeProps {
   agent: Agent
   isSelected: boolean
-  isLocal: boolean
   activityStatus?: SessionActivityStatus
+  unreadCount?: number
   onSelect: (agent: Agent) => void
   onRename?: (agent: Agent) => void
   onDelete?: (agent: Agent) => void
@@ -75,9 +74,13 @@ function stringToRingColor(str: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-// Check if string is an emoji
+// Check if string is an emoji (not a URL or other text)
+// Note: \p{Emoji} matches digits, so we need a stricter check
 function isEmoji(str: string): boolean {
-  return /\p{Emoji}/u.test(str)
+  // Emojis are short (1-8 chars with modifiers) and don't start with http
+  if (!str || str.length > 8 || str.startsWith('http')) return false
+  // Match actual emoji presentations, not just emoji components like digits
+  return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
 // Get status info from agent state
@@ -108,8 +111,8 @@ function getStatusInfo(
 export default function AgentBadge({
   agent,
   isSelected,
-  isLocal,
   activityStatus,
+  unreadCount,
   onSelect,
   onRename,
   onDelete,
@@ -130,8 +133,11 @@ export default function AgentBadge({
 
   const statusInfo = getStatusInfo(session, isHibernated, activityStatus)
   const ringColor = stringToRingColor(agent.name)
-  const avatarUrl = getAvatarUrl(agent.id)
+
+  // Avatar priority: stored URL > stored emoji > computed from ID
   const hasEmojiAvatar = agent.avatar ? isEmoji(agent.avatar) : false
+  const hasStoredAvatarUrl = agent.avatar && !hasEmojiAvatar && agent.avatar.startsWith('http')
+  const avatarUrl = hasStoredAvatarUrl ? agent.avatar : getAvatarUrl(agent.id)
   const [imageError, setImageError] = React.useState(false)
 
   // Close menu when clicking outside
@@ -168,11 +174,12 @@ export default function AgentBadge({
     >
       {/* Status indicator - top right corner */}
       <div className="absolute top-2 right-2 flex items-center gap-1.5">
-        {/* Connection indicator */}
-        {isLocal ? (
-          <Wifi className="w-3 h-3 text-slate-500" />
-        ) : (
-          <ExternalLink className="w-3 h-3 text-slate-500" />
+        {/* Unread messages counter */}
+        {unreadCount && unreadCount > 0 && (
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-600/50" title={`${unreadCount} unread message${unreadCount > 1 ? 's' : ''}`}>
+            <Mail className="w-3 h-3 text-slate-200" />
+            <span className="text-[10px] font-bold text-slate-200">{unreadCount}</span>
+          </div>
         )}
 
         {/* Status dot - larger with glow effect */}
@@ -252,9 +259,9 @@ export default function AgentBadge({
                     e.stopPropagation()
                     handleMenuAction(() => onWake(agent))
                   }}
-                  className="w-full px-3 py-1.5 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
+                  className="w-full px-3 py-1.5 text-left text-sm text-slate-300 hover:bg-green-500/10 hover:text-green-400 flex items-center gap-2"
                 >
-                  <Sun className="w-3.5 h-3.5" />
+                  <Power className="w-3.5 h-3.5" />
                   Wake Agent
                 </button>
               )}
@@ -306,7 +313,7 @@ export default function AgentBadge({
       )}
 
       {/* Badge content */}
-      <div className="p-3 pt-8 flex flex-col items-center text-center">
+      <div className="p-3 pt-10 flex flex-col items-center text-center">
         {/* Avatar - Photo or Emoji */}
         <div
           className={`

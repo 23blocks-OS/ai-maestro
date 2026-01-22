@@ -269,6 +269,16 @@ export default function AgentList({
     return 1
   }, [sidebarWidth])
 
+  // Auto-switch view mode based on sidebar width
+  // Wide sidebar (>= 480px) → grid view, narrow sidebar → list view
+  useEffect(() => {
+    if (sidebarWidth >= 480 && viewMode === 'list') {
+      setViewMode('grid')
+    } else if (sidebarWidth < 480 && viewMode === 'grid') {
+      setViewMode('list')
+    }
+  }, [sidebarWidth, viewMode])
+
   // Initialize NEW panels as open on first mount
   const initializedRef = useRef(false)
   useEffect(() => {
@@ -883,7 +893,15 @@ export default function AgentList({
                                     style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
                                   >
                                     {[...agentsList]
-                                      .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
+                                      .sort((a, b) => {
+                                        // Sort by status first (online > hibernated > offline), then by alias
+                                        const aSession = a.sessions?.[0]
+                                        const bSession = b.sessions?.[0]
+                                        const aOnline = aSession?.status === 'online' ? 2 : (a.sessions?.length ? 1 : 0)
+                                        const bOnline = bSession?.status === 'online' ? 2 : (b.sessions?.length ? 1 : 0)
+                                        if (aOnline !== bOnline) return bOnline - aOnline
+                                        return (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase())
+                                      })
                                       .map((agent) => {
                                         const session = agent.sessions?.[0]
                                         const isOnline = session?.status === 'online'
@@ -1042,7 +1060,15 @@ export default function AgentList({
                             {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
                                 {[...agentsList]
-                                  .sort((a, b) => (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase()))
+                                  .sort((a, b) => {
+                                    // Sort by status first (online > hibernated > offline), then by alias
+                                    const aSession = a.sessions?.[0]
+                                    const bSession = b.sessions?.[0]
+                                    const aOnline = aSession?.status === 'online' ? 2 : (a.sessions?.length ? 1 : 0)
+                                    const bOnline = bSession?.status === 'online' ? 2 : (b.sessions?.length ? 1 : 0)
+                                    if (aOnline !== bOnline) return bOnline - aOnline
+                                    return (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase())
+                                  })
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
                                   const session = agent.sessions?.[0]

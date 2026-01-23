@@ -19,7 +19,7 @@ See how developers and teams are using AI Maestro's distributed architecture to 
 **Scenario:** Sarah is a freelance developer juggling 3 client projects simultaneously.
 
 **Setup:**
-- **MacBook Pro** (Manager + Local Worker)
+- **MacBook Pro** (Local Peer)
   - `clients-acme-frontend` - React app for Acme Corp
   - `clients-acme-backend` - API development
   - `clients-beta-mobile` - Flutter app for Beta Inc
@@ -44,11 +44,11 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Mike runs resource-intensive AI coding agents that slow down his laptop.
 
 **Setup:**
-- **MacBook Air M2** (Manager - 8GB RAM)
+- **MacBook Air M2** (Peer - 8GB RAM)
   - `personal-blog` - Lightweight documentation agent
   - `learning-tutorials` - Study companion
 
-- **Mac Mini M2 Pro** (Worker - 32GB RAM)
+- **Mac Mini M2 Pro** (Peer - 32GB RAM)
   - `work-monorepo` - Large codebase analysis (high RAM usage)
   - `work-build-agent` - Docker builds (CPU intensive)
   - `work-ml-preprocessing` - Data processing (memory intensive)
@@ -70,14 +70,14 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Alex needs to test code on multiple operating systems.
 
 **Setup:**
-- **MacBook Pro** (Manager)
+- **MacBook Pro** (Peer)
   - `macos-native` - macOS-specific development
 
-- **Ubuntu Desktop** (Worker - via Tailscale)
+- **Ubuntu Desktop** (Peer - via Tailscale)
   - `linux-build` - Linux builds and testing
   - `docker-containers` - Container development
 
-- **AWS EC2 (Ubuntu)** (Worker - via Tailscale)
+- **AWS EC2 (Ubuntu)** (Peer - via Tailscale)
   - `cloud-deploy` - Deployment testing
   - `integration-tests` - Integration test suite
 
@@ -97,9 +97,9 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** A startup team shares one powerful GPU machine for ML/AI workloads.
 
 **Setup:**
-- **Team Members** (4 developers, each with Manager on laptop)
+- **Team Members** (4 developers, each with AI Maestro on laptop)
 
-- **Shared GPU Server** (Worker)
+- **Shared GPU Server** (Peer)
   - `ml-alice-training` - Alice's model training
   - `ml-bob-inference` - Bob's inference testing
   - `ml-carol-preprocessing` - Carol's data preprocessing
@@ -107,7 +107,7 @@ Without AI Maestro, Sarah would need to:
 
 **Workflow:**
 1. Each developer has AI Maestro on their laptop
-2. All add GPU server as remote worker (same IP, different ports or user isolation)
+2. All connect to GPU server as peer (same IP, different ports or user isolation)
 3. Each can see only their agents (OS-level user separation)
 4. Team channel posts when GPU is free
 
@@ -123,11 +123,11 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Digital agency with developers in different locations working on shared projects.
 
 **Setup:**
-- **Office Mac Mini** (Shared Worker - Tailscale)
+- **Office Mac Mini** (Shared Peer - Tailscale)
   - Powerful build machine for iOS apps
   - Always online
 
-- **Developer Laptops** (Managers)
+- **Developer Laptops** (Peers)
   - Each dev connects to office Mac Mini
   - Each dev has their own agents on the shared machine
 
@@ -147,9 +147,9 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Long-running agents that need to stay active overnight.
 
 **Setup:**
-- **Laptop** (Manager - close lid and go home)
+- **Laptop** (Peer - close lid and go home)
 
-- **Home Server / NUC** (Worker - runs 24/7)
+- **Home Server / NUC** (Peer - runs 24/7)
   - `cron-data-sync` - Syncs data every 6 hours
   - `monitor-alerts` - Watches for error patterns
   - `documentation-builder` - Regenerates docs nightly
@@ -172,10 +172,10 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Occasional need for lots of compute (end-of-sprint, release prep).
 
 **Setup:**
-- **Local Machine** (Manager)
+- **Local Machine** (Peer)
   - Day-to-day development
 
-- **Cloud VM** (Worker - spin up/down)
+- **Cloud VM** (Peer - spin up/down)
   - `release-build-ios` - iOS release builds
   - `release-build-android` - Android release builds
   - `release-tests` - Full test suite
@@ -204,11 +204,11 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** iOS/Android developer needs Mac for Xcode, Linux for Android tooling.
 
 **Setup:**
-- **MacBook Pro** (Manager + Worker)
+- **MacBook Pro** (Peer)
   - `ios-app` - Xcode/iOS development
   - `ios-ui-tests` - UI testing
 
-- **Linux Desktop** (Worker)
+- **Linux Desktop** (Peer)
   - `android-app` - Android development
   - `android-emulators` - Emulator testing
   - `fastlane-ci` - CI/CD pipeline
@@ -224,10 +224,10 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Developer working with sensitive client data.
 
 **Setup:**
-- **Personal MacBook** (Manager)
+- **Personal MacBook** (Peer)
   - Personal projects, open-source work
 
-- **Isolated Work Machine** (Worker - air-gapped network)
+- **Isolated Work Machine** (Peer - air-gapped network)
   - `client-confidential` - Sensitive client work
   - `client-compliance` - Compliance-critical code
 
@@ -244,9 +244,9 @@ Without AI Maestro, Sarah would need to:
 **Scenario:** Instructor managing student coding environments.
 
 **Setup:**
-- **Instructor Laptop** (Manager)
+- **Instructor Laptop** (Peer)
 
-- **Lab Machines** (10× Workers)
+- **Lab Machines** (10× Peers)
   - `student-alice-lab1` - Alice's coding environment
   - `student-bob-lab1` - Bob's coding environment
   - ... (one per student)
@@ -270,21 +270,21 @@ Without AI Maestro, Sarah would need to:
 - **Cost:** $0 additional
 
 **Stage 2: Growing Workload**
-- 1× MacBook Air M2 8GB (Manager)
-- 1× Mac Mini M2 Pro 32GB (Worker)
+- 1× MacBook Air M2 8GB (Peer)
+- 1× Mac Mini M2 Pro 32GB (Peer)
 - **Cost:** ~$800 one-time
 - **Capacity:** 40GB total RAM, 16 cores total
 
 **Stage 3: Scaling Up**
-- 1× MacBook Air M2 8GB (Manager)
-- 1× Mac Mini M2 Pro 32GB (Worker - local)
-- 1× Cloud VM 16-core (Worker - on-demand)
+- 1× MacBook Air M2 8GB (Peer)
+- 1× Mac Mini M2 Pro 32GB (Peer - local)
+- 1× Cloud VM 16-core (Peer - on-demand)
 - **Cost:** ~$800 + $4-20/month cloud
 - **Capacity:** 40GB + 32GB cloud, 16 + 16 cores
 
 **Stage 4: Team/Business**
-- Multiple developers (each with Manager)
-- Shared Mac Mini + Cloud workers
+- Multiple developers (each running AI Maestro)
+- Shared Mac Mini + Cloud peers
 - **Cost:** $800 + $50-200/month cloud (split across team)
 
 ### Alternative: Single Machine Approach
@@ -348,11 +348,11 @@ Different machines for different workload types.
 
 1. **Identify your bottleneck:** RAM? CPU? Platform needs?
 2. **Choose your pattern:** Satellite? Swarm? Tiered?
-3. **Start small:** Add one worker, learn the workflow
-4. **Scale gradually:** Add workers as needs grow
+3. **Start small:** Add one peer, learn the workflow
+4. **Scale gradually:** Add peers as needs grow
 5. **Optimize costs:** Use cloud for bursts, local for steady-state
 
 **Next Steps:**
-- [Setup Tutorial](./SETUP-TUTORIAL.md) - Configure your first remote worker
-- [Concepts Guide](./CONCEPTS.md) - Deep dive on architecture
+- [Setup Tutorial](./SETUP-TUTORIAL.md) - Connect your first peer
+- [Concepts Guide](./CONCEPTS.md) - Deep dive on peer mesh architecture
 - [Network Access](./NETWORK-ACCESS.md) - Secure networking setup

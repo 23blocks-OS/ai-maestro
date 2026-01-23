@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.17.33-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.18.3-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -36,41 +36,47 @@ Your agents become a coordinated team, not isolated tools.
 ### One Dashboard, Unlimited Machines
 
 ```
-Your Browser (localhost:23000)
-  ├─ MacBook Pro (Manager)
-  │   ├─ project-manager
-  │   └─ code-reviewer
-  │
-  ├─ Mac Mini (Worker - Tailscale)
-  │   ├─ ios-build-agent
-  │   └─ backend-heavy-lifting
-  │
-  └─ AWS Server (Worker - Tailscale)
-      ├─ docker-deployments
-      └─ integration-tests
+Your Browser (any node at :23000)
+         ┌──────────────────────┐
+         │                      │
+    ┌────┴────┐           ┌────┴────┐
+    │ MacBook │◄─────────►│Mac Mini │
+    │  Pro    │           │         │
+    └────┬────┘           └────┬────┘
+         │                      │
+         └──────────┬──────────┘
+                    │
+              ┌─────┴─────┐
+              │AWS Server │
+              └───────────┘
+
+Every node is equal - no central server required
 ```
 
 **Benefits:**
+- ✅ **Peer mesh network** - all nodes connected as equals
 - ✅ Distribute workload across multiple machines
 - ✅ Leverage machine-specific capabilities (Mac for iOS, Linux for Docker)
 - ✅ Scale horizontally - add more machines as needed
 - ✅ Work from anywhere (Tailscale VPN)
 - ✅ One click to switch between any agent on any machine
+- ✅ Access dashboard from any connected node
 
 ---
 
 ## ✨ Features
 
-### 🌐 Manager/Worker Architecture (New in v0.8.0!)
-Distribute your AI agents across **unlimited machines** - all managed from one browser dashboard.
+### 🌐 Peer Mesh Network (New in v0.8.0!)
+Distribute your AI agents across **unlimited machines** - all connected as equals in a decentralized mesh.
 
-> **⚠️ macOS 15+ Users:** If setting up distributed workers, you MUST run `./scripts/fix-pm2-daemon.sh` first to fix Local Network Privacy blocking. [See Known Issues](#️-known-issues) for details.
+> **⚠️ macOS 15+ Users:** If setting up peer connections, you MUST run `./scripts/fix-pm2-daemon.sh` first to fix Local Network Privacy blocking. [See Known Issues](#️-known-issues) for details.
 
-- **Smart Discovery Wizard**: Just enter a URL, AI Maestro auto-discovers and tests the connection
-- **Real-time Health Monitoring**: Green/red/yellow indicators show worker status at a glance
+- **Decentralized Architecture**: No central server - every node is equal
+- **Automatic Peer Discovery**: Add a host once, both sides auto-discover each other
+- **Real-time Health Monitoring**: Green/red/yellow indicators show peer status at a glance
 - **Seamless Experience**: Remote agents work exactly like local ones (transparent WebSocket proxying)
-- **Secure by Default**: Tailscale VPN integration for encrypted remote access
-- **Zero Configuration**: Works out-of-the-box with local network or Tailscale IPs
+- **Secure by Default**: Tailscale VPN integration for encrypted peer connections
+- **Eventually Consistent**: All nodes converge to the same peer list automatically
 
 **Example Setup:**
 - **Laptop (8GB RAM):** Lightweight tasks, project management
@@ -735,7 +741,7 @@ Every agent has persistent memory powered by CozoDB. They learn your codebase an
 Direct agent-to-agent messaging. Your frontend agent can request APIs from backend agent without you playing messenger. Built-in inbox/outbox with priority levels.
 
 ### 🌐 Agents Everywhere
-Run agents on your laptop, remote servers, Docker containers, or cloud VMs. Manage them all from one dashboard with the Manager/Worker architecture.
+Run agents on your laptop, remote servers, Docker containers, or cloud VMs. All connected via a decentralized peer mesh network - access from any node.
 
 ### 🗺️ Agents That Understand
 Code Graph visualization shows your entire codebase structure. Agents know what files relate to what before they even start. Delta indexing keeps everything current (~100ms updates).
@@ -792,11 +798,11 @@ Built with modern, battle-tested tools:
 
 ### Getting Started
 - **[Quick Start Guide](./docs/QUICKSTART.md)** - Get AI Maestro running in 5 minutes ⚡
-- **[Core Concepts](./docs/CONCEPTS.md)** - Understand localhost, hosts, and Manager/Worker pattern
+- **[Core Concepts](./docs/CONCEPTS.md)** - Understand localhost, hosts, and peer mesh network
 - **[Use Cases](./docs/USE-CASES.md)** - Real-world scenarios and benefits
 
-### Manager/Worker (Distributed Setup)
-- **[Setup Tutorial](./docs/SETUP-TUTORIAL.md)** - Configure your first remote worker (step-by-step)
+### Peer Mesh Network (Multi-Machine Setup)
+- **[Setup Tutorial](./docs/SETUP-TUTORIAL.md)** - Connect your first peer (step-by-step)
 - **[Network Access Guide](./docs/NETWORK-ACCESS.md)** - Tailscale, local network, and security
 - **[Remote Sessions Architecture](./docs/REMOTE-SESSIONS-ARCHITECTURE.md)** - Technical deep-dive
 
@@ -837,9 +843,9 @@ Built with modern, battle-tested tools:
 - ✅ Mobile-optimized interface
 
 ### Phase 3 ✅ Complete (v0.8.0)
-- ✅ Manager/Worker distributed architecture
+- ✅ Peer mesh network architecture (decentralized)
 - ✅ Remote host management via Settings UI
-- ✅ Smart host discovery wizard
+- ✅ Smart peer discovery wizard
 - ✅ WebSocket proxy for remote agents
 - ✅ Tailscale VPN integration
 
@@ -1024,15 +1030,15 @@ ENABLE_LOGGING=false
 
 ### ⚠️ Known Issues
 
-#### macOS Local Network Privacy Blocking Distributed Setup (macOS 15+)
+#### macOS Local Network Privacy Blocking Peer Connections (macOS 15+)
 
-**If you're setting up Manager/Worker architecture on macOS 15+ (Sequoia) or macOS 26+ (Tahoe), you MUST apply this fix.**
+**If you're setting up peer mesh connections on macOS 15+ (Sequoia) or macOS 26+ (Tahoe), you MUST apply this fix.**
 
 **Symptoms:**
 - ✅ Local agents work fine
-- ❌ Remote agents don't appear
+- ❌ Remote peer agents don't appear
 - ❌ `EHOSTUNREACH` errors in PM2 logs
-- ✅ `curl` to remote workers works from terminal
+- ✅ `curl` to remote peers works from terminal
 
 **Root Cause:** macOS Local Network Privacy restricts PM2 (user-level process) from accessing local network IPs. This is a macOS security feature introduced in macOS 15.
 
@@ -1045,17 +1051,17 @@ ENABLE_LOGGING=false
 # Step 2: Complete the transition
 ./scripts/transition-to-daemon.sh
 
-# Step 3: Verify remote connections work
+# Step 3: Verify peer connections work
 curl http://localhost:23000/api/sessions | jq '.sessions | group_by(.hostId)'
 ```
 
 **What this does:**
 - ✅ Keeps all PM2 functionality (`pm2 logs`, `pm2 restart`, etc.)
-- ✅ Fixes network access to remote workers
+- ✅ Fixes network access to peer nodes
 - ✅ Auto-starts on boot
 - ✅ No workflow changes
 
-**Alternative:** Use [Tailscale](./docs/NETWORK-ACCESS.md) to connect workers (may bypass restriction).
+**Alternative:** Use [Tailscale](./docs/NETWORK-ACCESS.md) to connect peers (may bypass restriction).
 
 **Full documentation:** See [GitHub Issue #24](https://github.com/23blocks-OS/ai-maestro/issues/24) for complete technical details and troubleshooting.
 

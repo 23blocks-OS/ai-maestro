@@ -149,7 +149,7 @@ export default function AboutSection() {
           <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <Globe className="w-4 h-4 text-blue-400" />
-              <span className="text-sm font-medium text-gray-400">Manager/Worker</span>
+              <span className="text-sm font-medium text-gray-400">Peer Mesh</span>
             </div>
             <p className="text-lg font-semibold text-white">Phase 4</p>
           </div>

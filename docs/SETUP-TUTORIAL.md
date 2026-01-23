@@ -1,6 +1,6 @@
-# AI Maestro: Manager/Worker Setup Tutorial
+# AI Maestro: Peer Mesh Setup Tutorial
 
-Step-by-step guide to configure AI Maestro's distributed architecture for managing agents across multiple machines.
+Step-by-step guide to configure AI Maestro's peer mesh network for managing agents across multiple machines.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ Step-by-step guide to configure AI Maestro's distributed architecture for managi
 
 ## Prerequisites
 
-### On Every Machine (Manager + Workers)
+### On Every Machine (All Peers)
 
 **Required:**
 - ✅ macOS 12.0+ (Monterey or later)
@@ -37,7 +37,7 @@ brew install node tmux git
 # Install pm2 globally
 npm install -g pm2
 
-# Install Tailscale (recommended for remote workers)
+# Install Tailscale (recommended for remote peers)
 brew install --cask tailscale
 ```
 
@@ -45,7 +45,7 @@ brew install --cask tailscale
 
 ## Quick Start (5 Minutes)
 
-Follow these steps to connect your first remote worker.
+Follow these steps to connect your first peer.
 
 ### Step 1: Install AI Maestro on Both Machines
 
@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 
 This handles prerequisites, installation, and configuration automatically.
 
-**With auto-start (recommended for workers):**
+**With auto-start (recommended):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- --auto-start
 ```
@@ -66,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 
 **Alternative: Manual Install**
 
-**On Manager (your laptop):**
+**On Each Machine (same steps everywhere):**
 ```bash
 # Clone repository
 git clone https://github.com/23blocks-OS/ai-maestro.git
@@ -84,56 +84,46 @@ pm2 save
 pm2 startup  # Follow instructions to enable auto-start
 ```
 
-**On Worker (remote machine):**
-```bash
-# Same steps as Manager
-git clone https://github.com/23blocks-OS/ai-maestro.git
-cd ai-maestro
-yarn install
-yarn build
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### Step 2: Get Worker's IP Address
+### Step 2: Get Peer IP Address
 
 **Option A: Using Tailscale (Recommended)**
 ```bash
-# On Worker machine
+# On the remote machine
 tailscale ip -4
 # Example output: 100.80.12.6
 ```
 
 **Option B: Using Local Network**
 ```bash
-# On Worker machine
+# On the remote machine
 ifconfig | grep "inet " | grep -v 127.0.0.1
 # Example output: 192.168.1.100
 ```
 
-### Step 3: Add Worker in AI Maestro Settings
+### Step 3: Connect Peers in AI Maestro Settings
 
-**On Manager (in browser):**
+**From any node in your browser:**
 1. Open http://localhost:23000
 2. Click **Settings** (bottom of sidebar)
 3. Click **Add Host**
-4. Enter worker URL: `http://100.80.12.6:23000` (or `http://192.168.1.100:23000`)
+4. Enter peer URL: `http://100.80.12.6:23000` (or `http://192.168.1.100:23000`)
 5. Click **Discover Host**
    - ✅ If successful: See green checkmark
    - ❌ If failed: See [Troubleshooting](#troubleshooting)
 6. Customize name: "Mac Mini" or "Cloud Server"
 7. Click **Add Host**
 
-### Step 4: Create Agent on Remote Worker
+**🔄 Automatic Bidirectional Sync!** Add once from any node - both sides discover each other automatically. New peers propagate to all connected nodes.
+
+### Step 4: Create Agent on Remote Peer
 
 1. Go back to Dashboard (click "Back to Dashboard")
 2. Click **+** (Create New Agent)
-3. Select host: Choose your new worker from dropdown
+3. Select host: Choose your new peer from dropdown
 4. Enter agent name: `test-remote-agent`
 5. Click **Create Agent**
 
-🎉 **Done!** You should see your agent appear with a blue "Worker Name" badge.
+🎉 **Done!** You should see your agent appear with a badge showing the peer name. You can now access the dashboard from any connected node!
 
 ---
 
@@ -141,12 +131,12 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 
 ### Scenario 1: Laptop + Desktop (Tailscale)
 
-**Goal:** Access desktop from anywhere via encrypted VPN.
+**Goal:** Connect machines via encrypted VPN - access from anywhere.
 
 **Step 1: Setup Tailscale on Both Machines**
 
 ```bash
-# On both Manager and Worker
+# On both machines
 brew install --cask tailscale
 
 # Start Tailscale
@@ -159,11 +149,11 @@ open /Applications/Tailscale.app
 **Step 2: Note IP Addresses**
 
 ```bash
-# On Worker (desktop)
+# On remote machine (desktop)
 tailscale ip -4
 # Example: 100.80.12.6
 
-# On Manager (laptop)
+# On local machine (laptop)
 tailscale ip -4
 # Example: 100.95.23.10
 ```
@@ -171,20 +161,21 @@ tailscale ip -4
 **Step 3: Test Connectivity**
 
 ```bash
-# On Manager (laptop)
+# From laptop
 curl http://100.80.12.6:23000/api/sessions
 # Should return: {"sessions":[...]}
 ```
 
-**Step 4: Add Worker via Settings UI**
+**Step 4: Connect Peer via Settings UI**
 
-See [Quick Start Step 3](#step-3-add-worker-in-ai-maestro-settings)
+See [Quick Start Step 3](#step-3-connect-peers-in-ai-maestro-settings)
 
 **Benefits:**
 - ✅ Works from anywhere (home, coffee shop, vacation)
 - ✅ Encrypted WireGuard tunnel
 - ✅ No port forwarding needed
 - ✅ No firewall configuration
+- ✅ Access dashboard from either machine
 
 **Use Case:** Remote access to home desktop from laptop
 
@@ -208,7 +199,7 @@ ifconfig en0 | grep "inet "
 **Step 2: Test Connectivity**
 
 ```bash
-# On Manager
+# From any machine
 curl http://192.168.1.100:23000/api/sessions
 ```
 
@@ -221,11 +212,11 @@ macOS supports Bonjour/mDNS for `.local` domains:
 hostname
 # Example: Mac-Mini.local
 
-# Test from Manager
+# Test from another machine
 curl http://Mac-Mini.local:23000/api/sessions
 ```
 
-**Step 4: Add Workers via Settings UI**
+**Step 4: Connect Peers via Settings UI**
 
 Use local IPs or `.local` domains in the Add Host wizard.
 
@@ -244,7 +235,7 @@ Use local IPs or `.local` domains in the Add Host wizard.
 
 ### Scenario 3: Cloud Server (Tailscale)
 
-**Goal:** Add AWS/DigitalOcean/Hetzner server as worker.
+**Goal:** Add AWS/DigitalOcean/Hetzner server as a peer.
 
 **Step 1: Install AI Maestro on Cloud Server**
 
@@ -289,7 +280,7 @@ tailscale ip -4
 # Example: 100.123.45.67
 ```
 
-**Step 3: Add Cloud Worker via Settings UI**
+**Step 3: Connect Cloud Peer via Settings UI**
 
 Use Tailscale IP: `http://100.123.45.67:23000`
 
@@ -297,10 +288,11 @@ Use Tailscale IP: `http://100.123.45.67:23000`
 - ✅ Secure access over internet
 - ✅ No need to expose port 23000 publicly
 - ✅ Same workflow as local machines
+- ✅ Access dashboard from any connected node
 
 **Cost Optimization:**
 ```bash
-# Stop worker when not needed
+# Stop services when not needed
 pm2 stop ai-maestro
 
 # Restart when needed
@@ -320,7 +312,7 @@ pm2 start ai-maestro
 | **Port Forwarding** | ⚠️⚠️ Exposed port | ✅✅ Fast | ⚠️ Complex | ✅ Yes | Free |
 | **VPN (OpenVPN)** | ✅✅✅ Encrypted | ✅ Moderate | ⚠️⚠️ Hard | ✅ Yes | Varies |
 
-**Recommendation:** Use Tailscale for remote workers, local network for trusted home/office.
+**Recommendation:** Use Tailscale for remote peers, local network for trusted home/office.
 
 ---
 
@@ -328,13 +320,13 @@ pm2 start ai-maestro
 
 ### Running Different Ports
 
-If you need to run multiple workers on the same machine (not common):
+If you need to run multiple instances on the same machine (not common):
 
 ```javascript
-// ecosystem.config.js on Worker #2
+// ecosystem.config.js on second instance
 module.exports = {
   apps: [{
-    name: 'ai-maestro-worker2',
+    name: 'ai-maestro-instance2',
     script: './server.mjs',
     env: {
       NODE_ENV: 'production',
@@ -362,9 +354,9 @@ sudo ufw allow from 100.0.0.0/8 to any port 23000
 
 ### Health Monitoring
 
-Test worker health:
+Test peer health:
 ```bash
-# Check if worker is responding
+# Check if peer is responding
 curl http://100.80.12.6:23000/api/sessions
 
 # Check pm2 status
@@ -378,29 +370,29 @@ pm2 logs ai-maestro
 
 ## Troubleshooting
 
-### Worker Discovery Fails
+### Peer Discovery Fails
 
 **Symptom:** "Connection timeout - host is not reachable"
 
 **Solutions:**
 
-1. **Check if AI Maestro is running on worker:**
+1. **Check if AI Maestro is running on the peer:**
    ```bash
-   # On worker machine
+   # On peer machine
    pm2 status
    # Should show: ai-maestro | online
    ```
 
 2. **Test connectivity:**
    ```bash
-   # On manager machine
-   curl http://WORKER_IP:23000/api/sessions
+   # From your machine
+   curl http://PEER_IP:23000/api/sessions
    # Should return JSON with sessions
    ```
 
 3. **Check firewall:**
    ```bash
-   # On worker machine (macOS)
+   # On peer machine (macOS)
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
    # If enabled, add Node.js to allowed apps
    ```
@@ -421,14 +413,14 @@ pm2 logs ai-maestro
 
 ### Agents Not Appearing
 
-**Symptom:** Worker added successfully, but agents don't show
+**Symptom:** Peer added successfully, but agents don't show
 
 **Solutions:**
 
-1. **Create a test agent on worker:**
+1. **Create a test agent on peer:**
    ```bash
-   # SSH into worker or access its terminal
-   tmux new-session -s test-worker-session
+   # SSH into peer or access its terminal
+   tmux new-session -s test-session
    # Detach: Ctrl+B, then D
    ```
 
@@ -436,9 +428,9 @@ pm2 logs ai-maestro
    - Click refresh button in sidebar
    - Or reload browser (Cmd+R)
 
-3. **Check worker logs:**
+3. **Check peer logs:**
    ```bash
-   # On worker
+   # On peer
    pm2 logs ai-maestro
    # Look for errors
    ```
@@ -449,9 +441,9 @@ pm2 logs ai-maestro
 
 **Solutions:**
 
-1. **Check session exists on worker:**
+1. **Check session exists on peer:**
    ```bash
-   # On worker
+   # On peer
    tmux ls
    # Should list the session
    ```
@@ -462,10 +454,10 @@ pm2 logs ai-maestro
    Look for: "WebSocket connection failed"
    ```
 
-3. **Verify Manager can reach worker:**
+3. **Verify connectivity to peer:**
    ```bash
-   # On manager
-   curl http://WORKER_IP:23000/api/sessions
+   # From your machine
+   curl http://PEER_IP:23000/api/sessions
    ```
 
 4. **Check for proxy/firewall blocking WebSockets:**
@@ -474,20 +466,20 @@ pm2 logs ai-maestro
 
 ### Permission Denied
 
-**Symptom:** Can't create agents on worker
+**Symptom:** Can't create agents on peer
 
 **Solutions:**
 
 1. **Check file permissions:**
    ```bash
-   # On worker
+   # On peer
    ls -la ~/.aimaestro/
    # Should be owned by your user
    ```
 
 2. **Check tmux permissions:**
    ```bash
-   # On worker
+   # On peer
    tmux new-session -s permission-test
    # If this fails, tmux has issues
    ```
@@ -498,7 +490,7 @@ pm2 logs ai-maestro
 
 ### Security
 
-- ✅ Use Tailscale for remote workers
+- ✅ Use Tailscale for remote peers
 - ✅ Use strong Tailscale account password + 2FA
 - ✅ Don't expose port 23000 to public internet
 - ✅ Use OS user accounts to isolate users
@@ -506,23 +498,23 @@ pm2 logs ai-maestro
 
 ### Performance
 
-- ✅ Use local network for workers in same location
-- ✅ Use Tailscale "exit nodes" for regional cloud workers
-- ✅ Monitor worker resource usage (pm2 monit)
+- ✅ Use local network for peers in same location
+- ✅ Use Tailscale "exit nodes" for regional cloud peers
+- ✅ Monitor peer resource usage (pm2 monit)
 - ✅ Close unused agents to free resources
 
 ### Reliability
 
 - ✅ Use pm2 auto-restart: `pm2 startup`
-- ✅ Monitor workers with health checks (Settings → Hosts → test icon)
-- ✅ Keep workers on stable power (UPS for critical machines)
-- ✅ Use cloud workers as backup for critical tasks
+- ✅ Monitor peers with health checks (Settings → Hosts → test icon)
+- ✅ Keep peers on stable power (UPS for critical machines)
+- ✅ Use cloud peers as backup for critical tasks
 
 ---
 
 ## Next Steps
 
-- [Concepts Guide](./CONCEPTS.md) - Understand the architecture
+- [Concepts Guide](./CONCEPTS.md) - Understand the peer mesh architecture
 - [Use Cases](./USE-CASES.md) - See real-world examples
 - [Network Access](./NETWORK-ACCESS.md) - Detailed networking guide
 - [GitHub Issues](https://github.com/23blocks-OS/ai-maestro/issues) - Get help or report bugs

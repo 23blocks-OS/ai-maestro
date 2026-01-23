@@ -484,9 +484,14 @@ async function propagateToExistingPeers(
   const errors: string[] = []
   let shared = 0
 
-  const existingPeers = getHosts().filter(
+  const allHosts = getHosts()
+  console.log(`[Host Sync] Propagation check - All hosts (${allHosts.length}):`, allHosts.map(h => `${h.name} (type=${h.type}, enabled=${h.enabled}, id=${h.id})`))
+
+  const existingPeers = allHosts.filter(
     h => h.type === 'remote' && h.enabled && h.id !== newHost.id
   )
+
+  console.log(`[Host Sync] Will propagate ${newHost.name} to ${existingPeers.length} existing peers:`, existingPeers.map(p => p.name))
 
   // Propagate concurrently to all peers
   const propagatePromises = existingPeers.map(async (peer) => {

@@ -6,7 +6,7 @@ Understanding AI Maestro's architecture will help you maximize its potential for
 
 - [What is AI Maestro?](#what-is-ai-maestro)
 - [Localhost vs Remote Hosts](#localhost-vs-remote-hosts)
-- [The Manager/Worker Pattern](#the-managerworker-pattern)
+- [The Peer Mesh Network](#the-peer-mesh-network)
 - [Agents and tmux Sessions](#agents-and-tmux-sessions)
 - [Security Model](#security-model)
 
@@ -24,7 +24,7 @@ When working with Claude Code, you might:
 - Need to check on agent progress without switching tmux windows
 - Want to manage agents across different machines (local MacBook, remote Mac Mini, cloud servers)
 
-AI Maestro centralizes all of this in one clean web interface.
+AI Maestro centralizes all of this in one clean web interface accessible from any connected node.
 
 ---
 
@@ -55,23 +55,26 @@ Your MacBook Pro running AI Maestro
 - Getting started with AI Maestro
 - Limited network access scenarios
 
-### Remote Host (Worker)
+### Remote Host (Peer)
 
-A **remote host** is another computer running AI Maestro that your local instance can manage.
+A **remote host** is another computer running AI Maestro that is connected to your mesh network.
 
 **Characteristics:**
 - ✅ Distributes workload across multiple machines
 - ✅ Leverage different machine capabilities (Mac Mini for iOS builds, Linux server for Docker)
 - ✅ Scale horizontally (add more machines as needed)
+- ✅ Access dashboard from any connected peer
 - ⚠️ Requires network connectivity
 - ⚠️ Requires AI Maestro installed on each machine
 
 **Example:**
 ```
-Your MacBook Pro (Manager)
-  ├─ Local agents: project-manager, code-reviewer
-  ├─ Mac Mini (Worker) → ios-build-agent, ui-tester
-  └─ Cloud Server (Worker) → database-migrations, deployment-agent
+Peer Mesh Network (All Connected as Equals)
+  ├─ MacBook Pro → project-manager, code-reviewer
+  ├─ Mac Mini → ios-build-agent, ui-tester
+  └─ Cloud Server → database-migrations, deployment-agent
+
+Access from any node - all see the same agents!
 ```
 
 **When to use:**
@@ -82,43 +85,31 @@ Your MacBook Pro (Manager)
 
 ---
 
-## The Manager/Worker Pattern
+## The Peer Mesh Network
 
-AI Maestro uses a **Manager/Worker architecture** - one instance acts as the control center, others as workers.
+AI Maestro uses a **peer mesh architecture** - all instances are equals, there's no central server.
 
-### Manager Instance
+### Decentralized Design
 
-The **Manager** is the AI Maestro instance you interact with in your browser.
+Every AI Maestro instance is both a participant and a potential access point in the mesh.
 
-**Responsibilities:**
-- Display all agents (local + remote) in one unified dashboard
-- Route WebSocket connections to the appropriate machine
-- Provide the Settings UI for managing workers
-- Aggregate agent data from all workers
+**Key Principles:**
+- **No hierarchy** - Every node can discover and connect to other nodes
+- **Bidirectional sync** - Add a peer once, both sides auto-discover each other
+- **Eventually consistent** - All nodes converge to the same peer list
+- **Access anywhere** - Open the dashboard from any connected node
 
-**Analogy:** The manager is like an air traffic controller - it doesn't fly the planes, but it coordinates all of them.
+**Analogy:** Like BitTorrent or a decentralized network - no single point of failure.
 
-### Worker Instance
-
-A **Worker** is an AI Maestro instance running on a remote machine that the Manager can control.
-
-**Responsibilities:**
-- Run local agents (in tmux sessions with Claude Code)
-- Report agent status to Manager (when requested)
-- Accept WebSocket connections proxied from Manager
-- Execute agent creation/deletion commands
-
-**Analogy:** Workers are like planes - they do the actual work, but take instructions from the tower.
-
-### How They Communicate
+### How Peers Communicate
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Your Browser (http://localhost:23000)                          │
+│  Your Browser (any node at :23000)                              │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │ Agent List                      Terminal View            │   │
 │  │ ┌───────────────────┐          ┌────────────────────┐   │   │
-│  │ │ LOCAL             │          │ $ claude            │   │   │
+│  │ │ MACBOOK-PRO       │          │ $ claude            │   │   │
 │  │ │ ├─ project-mgr ●  │          │ > analyzing code... │   │   │
 │  │ │ └─ code-review ●  │          │                     │   │   │
 │  │ │                   │          │                     │   │   │
@@ -131,24 +122,24 @@ A **Worker** is an AI Maestro instance running on a remote machine that the Mana
                            │ WebSocket
                            ▼
             ┌──────────────────────────────┐
-            │  Manager (MacBook Pro)       │
+            │  Node A (MacBook Pro)        │
             │  Port 23000                  │
             │                              │
             │  ┌────────────────────────┐  │
             │  │ WebSocket Router       │  │
             │  │ - Local sessions       │  │
-            │  │ - Proxy remote sessions│  │
+            │  │ - Proxy peer sessions  │  │
             │  └────────────────────────┘  │
             └──────┬────────────────┬──────┘
                    │                │
          ┌─────────▼─────┐   ┌─────▼──────────┐
-         │ Local tmux    │   │ Worker Proxy   │
+         │ Local tmux    │   │ Peer Proxy     │
          │ sessions      │   │ (Mac Mini)     │
          └───────────────┘   └────────┬───────┘
                                       │ HTTP/WebSocket
                                       │ (Tailscale VPN)
                              ┌────────▼──────────┐
-                             │ Worker (Mac Mini) │
+                             │ Node B (Mac Mini) │
                              │ Port 23000        │
                              │                   │
                              │ ┌───────────────┐ │
@@ -160,17 +151,36 @@ A **Worker** is an AI Maestro instance running on a remote machine that the Mana
 ```
 
 **Flow for Local Session:**
-1. Browser connects via WebSocket to Manager
-2. Manager creates PTY directly to local tmux
-3. Terminal I/O flows: Browser ↔ Manager ↔ Local tmux
+1. Browser connects via WebSocket to the node
+2. Node creates PTY directly to local tmux
+3. Terminal I/O flows: Browser ↔ Node ↔ Local tmux
 
-**Flow for Remote Session:**
-1. Browser connects via WebSocket to Manager
-2. Manager creates WebSocket to Worker
-3. Worker creates PTY to remote tmux
-4. Terminal I/O flows: Browser ↔ Manager ↔ Worker ↔ Remote tmux
+**Flow for Remote Peer Session:**
+1. Browser connects via WebSocket to current node
+2. Node creates WebSocket to peer node
+3. Peer creates PTY to its local tmux
+4. Terminal I/O flows: Browser ↔ Node A ↔ Node B ↔ Remote tmux
 
 **Key Benefit:** From the browser's perspective, all agents look the same - it doesn't care where they're running!
+
+### Automatic Peer Discovery
+
+When you add a peer from any node:
+
+```
+Node A adds Node B
+  │
+  ├─► Node A calls: POST /api/hosts/register-peer to Node B
+  │   (tells Node B about Node A)
+  │
+  ├─► Node A calls: POST /api/hosts/exchange-peers with Node B
+  │   (shares peer lists)
+  │
+  └─► Both nodes now know about each other!
+      New peers propagate to all connected nodes.
+```
+
+**You only add once** - the mesh takes care of the rest.
 
 ---
 
@@ -243,11 +253,10 @@ server.listen(23000, '0.0.0.0', () => { ... })
 - Trusted network with firewall
 - No sensitive credentials in sessions
 
-### Tailscale VPN Mode (Recommended for Remote)
+### Tailscale VPN Mode (Recommended for Peers)
 
 **Configuration:**
-- Manager listens on `0.0.0.0:23000`
-- Workers listen on `0.0.0.0:23000`
+- All nodes listen on `0.0.0.0:23000`
 - Communication via Tailscale IPs (100.x.x.x)
 
 **Security Characteristics:**
@@ -260,7 +269,7 @@ server.listen(23000, '0.0.0.0', () => { ... })
 **Setup:**
 1. Install Tailscale on all machines
 2. Note Tailscale IPs (`tailscale ip`)
-3. Add workers using Tailscale IPs in Settings
+3. Add peers using Tailscale IPs in Settings
 
 **When to use:**
 - Remote machines (cloud servers, home lab)
@@ -270,7 +279,7 @@ server.listen(23000, '0.0.0.0', () => { ... })
 ### Local Network Mode
 
 **Configuration:**
-- Workers accessible via LAN IP (192.168.x.x)
+- Peers accessible via LAN IP (192.168.x.x)
 - Optional: `.local` domain (Bonjour/mDNS)
 
 **Security Characteristics:**
@@ -302,13 +311,14 @@ AI Maestro assumes OS-level security:
 
 ## Key Takeaways
 
-1. **Localhost** = this machine, **Remote Host** = other machines
-2. **Manager** coordinates, **Workers** execute
-3. **Agents** are automatically organized by naming convention (tmux sessions are the underlying tool)
-4. Security relies on OS users + network isolation (Tailscale recommended)
-5. One browser dashboard can manage unlimited machines and agents
+1. **Localhost** = this machine, **Remote Host** = other machines in the mesh
+2. **Peer mesh** = all nodes are equal, no central server required
+3. **Add once** = bidirectional discovery syncs peers automatically
+4. **Agents** are automatically organized by naming convention (tmux sessions are the underlying tool)
+5. Security relies on OS users + network isolation (Tailscale recommended)
+6. Access the dashboard from any connected node - they all show the same agents
 
 **Next Steps:**
 - [Use Cases](./USE-CASES.md) - See real-world scenarios
-- [Setup Tutorial](./SETUP-TUTORIAL.md) - Configure your first remote worker
+- [Setup Tutorial](./SETUP-TUTORIAL.md) - Connect your first peer
 - [Network Access Guide](./NETWORK-ACCESS.md) - Detailed networking setup

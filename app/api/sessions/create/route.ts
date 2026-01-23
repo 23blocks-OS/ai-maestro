@@ -49,7 +49,7 @@ async function httpPost(url: string, body: any, timeout: number = 10000): Promis
 
 export async function POST(request: Request) {
   try {
-    const { name, workingDirectory, agentId, hostId } = await request.json()
+    const { name, workingDirectory, agentId, hostId, label } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Session name is required' }, { status: 400 })
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         const remoteUrl = `${targetHost.url}/api/sessions/create`
         console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
 
-        const data = await httpPost(remoteUrl, { name, workingDirectory, agentId })
+        const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label })
 
         console.log(`[Sessions] Successfully created session "${name}" on ${targetHost.name}`)
         return NextResponse.json(data)
@@ -158,6 +158,7 @@ export async function POST(request: Request) {
 
         registeredAgent = createAgent({
           name: agentName,
+          label,  // Persona name like "NatalIA"
           program: 'claude-code',
           taskDescription: `Agent for ${agentName}`,
           tags,

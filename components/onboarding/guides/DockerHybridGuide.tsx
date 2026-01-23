@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Check, Cloud, Package, Server, Play, Book, DollarSign } from 'lucide-react'
+import { ArrowLeft, Check, Cloud, Package, Server, Play, Book, DollarSign, Network } from 'lucide-react'
 
 interface DockerHybridGuideProps {
   onBack: () => void
@@ -18,7 +18,7 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Perfect! You&apos;ll run AI agents in Docker containers both locally and on cloud infrastructure, all managed from one dashboard.
+            Run AI agents in Docker containers both locally and on cloud infrastructure, all interconnected in a peer mesh network.
           </p>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
@@ -66,18 +66,18 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-center flex-shrink-0">
-                  <Server className="w-4 h-4 text-green-400" />
+                  <Network className="w-4 h-4 text-green-400" />
                 </div>
                 <div>
-                  <p className="font-medium text-white">AI Maestro Manager</p>
-                  <p className="text-gray-400">Unified dashboard for all containers (local + cloud)</p>
+                  <p className="font-medium text-white">Peer Mesh Network</p>
+                  <p className="text-gray-400">All instances connected - view everything from any dashboard</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-            <p className="text-sm text-yellow-400 font-medium mb-1">💰 Cost Consideration:</p>
+            <p className="text-sm text-yellow-400 font-medium mb-1">Cost Consideration:</p>
             <p className="text-sm text-gray-300">
               Cloud resources cost money. Start small, monitor usage, and scale as needed. Most cloud providers offer free tiers for testing.
             </p>
@@ -185,21 +185,21 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
               <li>Create a cloud VM/instance (Ubuntu 22.04+ recommended)</li>
               <li>Install Docker: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">curl -fsSL https://get.docker.com | sh</code></li>
               <li>Install tmux: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">apt-get install tmux</code></li>
-              <li>Deploy AI Maestro Worker (same as multi-computer setup)</li>
-              <li>Run Docker containers on that Worker</li>
-              <li>Connect Manager to Worker via Tailscale</li>
+              <li>Install AI Maestro (same steps as any other computer)</li>
+              <li>Run Docker containers on that machine</li>
+              <li>Connect peers via Tailscale</li>
             </ol>
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">💡 Pro Tip:</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Pro Tip:</p>
             <p className="text-sm text-gray-300">
-              Use Tailscale to securely connect your local Manager to cloud Workers. This avoids exposing ports publicly and provides encrypted connections.
+              Use Tailscale to securely connect all your AI Maestro instances. This avoids exposing ports publicly and provides encrypted peer-to-peer connections.
             </p>
           </div>
 
           <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-            <p className="text-sm text-yellow-400 font-medium mb-1">💰 Cost Tips:</p>
+            <p className="text-sm text-yellow-400 font-medium mb-1">Cost Tips:</p>
             <ul className="space-y-1 text-xs text-gray-300">
               <li>• Start with small instances (1-2 vCPU, 2-4GB RAM)</li>
               <li>• Use spot/preemptible instances for non-critical workloads</li>
@@ -216,7 +216,7 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Bring it all together: local containers, cloud containers, all in one AI Maestro dashboard.
+            Bring it all together: local containers, cloud containers, all connected in one peer mesh network.
           </p>
 
           <div className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg">
@@ -226,41 +226,44 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
               <div className="p-3 bg-gray-900/50 rounded-lg">
                 <h4 className="text-sm font-medium text-blue-400 mb-2">1. Setup Tailscale VPN</h4>
                 <p className="text-sm text-gray-300">
-                  Install on Manager (local) and all cloud Workers. This creates secure mesh network.
+                  Install Tailscale on all machines (local and cloud). This creates a secure mesh network.
                 </p>
               </div>
 
               <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">2. Deploy Workers to Cloud</h4>
+                <h4 className="text-sm font-medium text-blue-400 mb-2">2. Install AI Maestro on Cloud VMs</h4>
                 <p className="text-sm text-gray-300 mb-2">
-                  On each cloud VM, run AI Maestro in Worker mode:
+                  On each cloud VM, install and start AI Maestro:
                 </p>
                 <code className="block bg-gray-900 px-3 py-2 rounded text-xs text-blue-400">
-                  DEPLOYMENT_TYPE=worker PORT=3001 yarn start
+                  yarn install && yarn build && yarn start
                 </code>
               </div>
 
               <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">3. Add Workers to Manager</h4>
+                <h4 className="text-sm font-medium text-blue-400 mb-2">3. Connect Peers</h4>
                 <p className="text-sm text-gray-300 mb-2">
-                  In AI Maestro Settings → Hosts, add each cloud Worker:
+                  From any AI Maestro instance, go to Settings → Hosts and add peers:
                 </p>
                 <code className="block bg-gray-900 px-3 py-2 rounded text-xs text-blue-400">
-                  http://[tailscale-ip]:3001
+                  http://[tailscale-ip]:23000
                 </code>
+                <p className="text-xs text-gray-400 mt-1">
+                  Add once from any node - both sides auto-discover each other
+                </p>
               </div>
 
               <div className="p-3 bg-gray-900/50 rounded-lg">
                 <h4 className="text-sm font-medium text-blue-400 mb-2">4. Deploy Docker Containers</h4>
                 <p className="text-sm text-gray-300">
-                  Run containers locally AND on cloud Workers. All sessions appear in sidebar.
+                  Run containers on any connected peer. All agents appear in every dashboard with host badges.
                 </p>
               </div>
 
-              <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">5. Manage from Dashboard</h4>
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <h4 className="text-sm font-medium text-green-400 mb-2">5. Manage from Anywhere</h4>
                 <p className="text-sm text-gray-300">
-                  View all agents (local + cloud) in one unified interface. Host badges show location.
+                  Open any AI Maestro dashboard to see all agents across all peers. No central server needed.
                 </p>
               </div>
             </div>
@@ -285,10 +288,10 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">📚 Further Reading:</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Further Reading:</p>
             <ul className="space-y-1 text-sm text-gray-300">
               <li>
-                • <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SETUP-TUTORIAL.md" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Manager/Worker Setup Guide</a>
+                • <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SETUP-TUTORIAL.md" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Multi-Computer Setup Guide</a>
               </li>
               <li>
                 • <a href="https://docs.docker.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Docker Documentation</a>
@@ -338,7 +341,7 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Docker Hybrid Setup</h1>
-                <p className="text-sm text-gray-400">Local + cloud containerized agents</p>
+                <p className="text-sm text-gray-400">Local + cloud containerized agents in a peer mesh</p>
               </div>
             </div>
 

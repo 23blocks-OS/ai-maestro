@@ -76,20 +76,25 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
 
     // Filter hosts that need processing
     const hostsToProcess: HostIdentity[] = []
+    console.log(`[Host Sync] Processing ${uniqueHosts.length} unique hosts from ${body.fromHost.name}`)
+
     for (const peerHost of uniqueHosts) {
       // Skip if it's us (by ID or isSelf check - URL can vary)
       if (peerHost.id === selfHost.id || isSelf(peerHost.id)) {
+        console.log(`[Host Sync] Skipping ${peerHost.name} (${peerHost.id}): is self`)
         continue
       }
 
       // Skip if it's the sender (we already know them from register-peer)
       if (peerHost.id === body.fromHost.id) {
+        console.log(`[Host Sync] Skipping ${peerHost.name} (${peerHost.id}): is sender`)
         continue
       }
 
       // Check if we already know this host by ID
       const existing = getHostById(peerHost.id)
       if (existing) {
+        console.log(`[Host Sync] Skipping ${peerHost.name} (${peerHost.id}): already known by ID`)
         alreadyKnown.push(peerHost.id)
         continue
       }
@@ -98,21 +103,30 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
       const hosts = getHosts()
       const hostWithSameUrl = hosts.find(h => h.url === peerHost.url && !isSelf(h.id))
       if (hostWithSameUrl) {
+        console.log(`[Host Sync] Skipping ${peerHost.name} (${peerHost.id}): URL ${peerHost.url} already exists as ${hostWithSameUrl.id}`)
         alreadyKnown.push(peerHost.id)
         continue
       }
 
+      console.log(`[Host Sync] Will process ${peerHost.name} (${peerHost.id}) at ${peerHost.url}`)
       hostsToProcess.push(peerHost)
     }
 
     // Concurrent health checks for all hosts to process
     if (hostsToProcess.length > 0) {
+      console.log(`[Host Sync] Running health checks for ${hostsToProcess.length} hosts...`)
       const healthResults = await checkHostsHealthConcurrent(hostsToProcess)
+
+      // Log all health check results
+      for (const [hostId, isHealthy] of healthResults.entries()) {
+        const host = hostsToProcess.find(h => h.id === hostId)
+        console.log(`[Host Sync] Health check ${host?.name} (${host?.url}): ${isHealthy ? 'REACHABLE' : 'UNREACHABLE'}`)
+      }
 
       for (const peerHost of hostsToProcess) {
         const isReachable = healthResults.get(peerHost.id)
         if (!isReachable) {
-          console.log(`[Host Sync] Peer ${peerHost.name} (${peerHost.url}) is unreachable, skipping`)
+          console.log(`[Host Sync] ❌ Peer ${peerHost.name} (${peerHost.url}) is UNREACHABLE from this host, skipping`)
           unreachable.push(peerHost.id)
           continue
         }

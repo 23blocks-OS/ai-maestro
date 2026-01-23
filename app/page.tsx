@@ -92,6 +92,12 @@ export default function DashboardPage() {
   // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === 'undefined') return 320
+    const saved = localStorage.getItem('sidebar-width')
+    return saved ? parseInt(saved, 10) : 320
+  })
+  const [isResizing, setIsResizing] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
@@ -151,6 +157,38 @@ export default function DashboardPage() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Sidebar resize handler
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const minWidth = 320
+      const maxWidth = Math.floor(window.innerWidth / 2)
+      const newWidth = Math.min(Math.max(e.clientX, minWidth), maxWidth)
+      setSidebarWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false)
+        localStorage.setItem('sidebar-width', sidebarWidth.toString())
+      }
+    }
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing, sidebarWidth])
 
   // Auto-select first online agent when agents load
   // Optimized: use derived primitives instead of full array dependency
@@ -439,10 +477,14 @@ export default function DashboardPage() {
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden relative">
           {/* Sidebar - Always AgentList now */}
-          <aside className={`
-            border-r border-sidebar-border bg-sidebar-bg transition-all duration-300 overflow-hidden relative
-            ${sidebarCollapsed ? 'w-0' : 'w-80'}
-          `}>
+          <aside
+            className={`
+              border-r border-sidebar-border bg-sidebar-bg overflow-hidden relative flex-shrink-0
+              ${sidebarCollapsed ? 'w-0' : ''}
+              ${isResizing ? '' : 'transition-all duration-300'}
+            `}
+            style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
+          >
             <AgentList
               agents={agents}
               activeAgentId={activeAgentId}
@@ -455,8 +497,21 @@ export default function DashboardPage() {
               onRefresh={refreshAgents}
               stats={agentStats}
               subconsciousRefreshTrigger={subconsciousRefreshTrigger}
+              sidebarWidth={sidebarWidth}
             />
           </aside>
+
+          {/* Resize Handle */}
+          {!sidebarCollapsed && (
+            <div
+              className={`
+                w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors flex-shrink-0
+                ${isResizing ? 'bg-blue-500' : 'bg-transparent hover:bg-blue-500/30'}
+              `}
+              onMouseDown={() => setIsResizing(true)}
+              title="Drag to resize sidebar"
+            />
+          )}
 
           {/* Main Content */}
           <main className="flex-1 flex flex-col relative">

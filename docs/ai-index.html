@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Zero-configuration terminal multiplexer with agent-to-agent communication.",
-      "softwareVersion": "0.17.33",
+      "softwareVersion": "0.18.3",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -51,7 +51,7 @@
         "Real-time WebSocket terminal streaming",
         "Hierarchical session organization (3-level categorization)",
         "Mobile remote access via Tailscale VPN",
-        "Distributed workers across multiple machines",
+        "Distributed peers across multiple machines",
         "Docker containerized agents (local and cloud)",
         "Portable agents (export, import, clone, transfer between hosts)",
         "Conversation history with full-text search",
@@ -110,7 +110,7 @@
                 <li><strong>Hierarchical Organization:</strong> 3-level categorization using hyphens (project-category-agent)</li>
                 <li><strong>Real-Time Terminals:</strong> WebSocket streaming with full ANSI support</li>
                 <li><strong>Session Management:</strong> Create, rename, delete sessions from UI</li>
-                <li><strong>Distributed Workers:</strong> Control agents across multiple machines (Manager/Worker pattern)</li>
+                <li><strong>Peer Mesh Network:</strong> Control agents across multiple machines (decentralized peer architecture)</li>
                 <li><strong>Mobile Access:</strong> Touch-optimized interface for remote monitoring</li>
                 <li><strong>Conversation History:</strong> Browse, search, and analyze all agent conversations</li>
                 <li><strong>Docker Support:</strong> Containerized agents (local and hybrid cloud)</li>
@@ -147,7 +147,7 @@ cd ai-maestro && yarn install && yarn dev
             <p><strong>Use case:</strong> Developer wants to run Claude Code for backend, Aider for frontend, all on their MacBook</p>
 
             <h3>2. Multiple Computers (Intermediate - 15 min setup)</h3>
-            <p>Distribute AI agent workloads across laptop, desktop, and servers using Manager/Worker pattern.</p>
+            <p>Distribute AI agent workloads across laptop, desktop, and servers using peer mesh network.</p>
             <p><strong>Use case:</strong> Use laptop for light coding, offload heavy builds to Mac Mini with 32GB RAM</p>
 
             <h3>3. Docker Local (Intermediate - 10 min setup)</h3>
@@ -185,7 +185,7 @@ cd ai-maestro && yarn install && yarn dev
             <h3>For Distributed Systems</h3>
             <ul>
                 <li>Run agents on platform-specific machines (Mac for iOS builds, Linux for Docker)</li>
-                <li>Scale horizontally by adding more worker machines</li>
+                <li>Scale horizontally by adding more peer machines</li>
                 <li>Leverage cloud GPUs for compute-intensive AI tasks</li>
             </ul>
         </section>
@@ -277,7 +277,7 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Zero Config:</strong> Auto-discovers tmux sessions, no manual setup</li>
                 <li><strong>Agent Communication:</strong> Built-in messaging system for autonomous coordination</li>
                 <li><strong>Mobile Support:</strong> Yes, via touch-optimized interface</li>
-                <li><strong>Distributed:</strong> Yes, Manager/Worker pattern for multiple machines</li>
+                <li><strong>Distributed:</strong> Yes, peer mesh network for multiple machines</li>
                 <li><strong>Docker:</strong> Yes, supports containerized agents</li>
                 <li><strong>Open Source:</strong> Yes, GitHub stars welcome</li>
             </ul>

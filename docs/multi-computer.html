@@ -15,8 +15,8 @@
       "@context": "https://schema.org",
       "@type": "TechArticle",
       "name": "Multiple Computers Setup: Distributed AI Agent Architecture | AI Maestro",
-      "description": "Scale your AI agents across multiple computers with manager/worker architecture. Distribute workload, access cloud resources, and collaborate with teams.",
-      "keywords": "distributed AI agents, multi-computer AI, SSH AI setup, remote AI workers, cloud AI resources, team collaboration AI, AI agent scaling",
+      "description": "Scale your AI agents across multiple computers with peer mesh architecture. Distribute workload, access cloud resources, and collaborate with teams.",
+      "keywords": "distributed AI agents, multi-computer AI, peer mesh network, remote AI peers, cloud AI resources, team collaboration AI, AI agent scaling",
       "isPartOf": {
         "@type": "SoftwareApplication",
         "name": "AI Maestro",
@@ -33,7 +33,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiple Computers Setup: Distributed AI Agent Architecture | AI Maestro</title>
-    <meta name="description" content="Scale your AI agents across multiple computers with manager/worker architecture. Distribute workload, access cloud resources, and collaborate with teams.">
+    <meta name="description" content="Scale your AI agents across multiple computers with peer mesh architecture. Distribute workload, access cloud resources, and collaborate with teams.">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -55,7 +55,7 @@
     <meta name="twitter:creator" content="@jkpelaez">
 
     <!-- Additional SEO -->
-    <meta name="keywords" content="distributed AI agents, multi-computer AI, SSH AI setup, remote AI workers, cloud AI resources, team collaboration AI, AI agent scaling">
+    <meta name="keywords" content="distributed AI agents, multi-computer AI, peer mesh network, remote AI peers, cloud AI resources, team collaboration AI, AI agent scaling">
     <link rel="canonical" href="https://ai-maestro.23blocks.com/multi-computer.html">
 
     <!-- Favicon & Icons -->
@@ -368,7 +368,7 @@
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Team Collaboration</h3>
                     <p class="text-slate-400">
-                        Share worker machines with team members. Everyone sees the same dashboard, same agents, same real-time terminals. Perfect for remote teams.
+                        Share peer machines with team members. Everyone sees the same dashboard, same agents, same real-time terminals. Perfect for remote teams.
                     </p>
                 </div>
 
@@ -380,7 +380,7 @@
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Resource Monitoring</h3>
                     <p class="text-slate-400">
-                        See CPU, memory, and network usage across all worker machines from one dashboard. Optimize agent placement based on real-time metrics.
+                        See CPU, memory, and network usage across all peer machines from one dashboard. Optimize agent placement based on real-time metrics.
                     </p>
                 </div>
 
@@ -404,7 +404,7 @@
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Auto-Discovery</h3>
                     <p class="text-slate-400">
-                        Configure SSH hosts once. AI Maestro automatically discovers tmux sessions on all worker machines and displays them in your dashboard.
+                        Configure hosts once. AI Maestro automatically discovers tmux sessions on all peer machines and displays them in your dashboard.
                     </p>
                 </div>
             </div>
@@ -416,39 +416,35 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-display font-bold mb-4 gradient-text">How It Works</h2>
-                <p class="text-xl text-slate-400">Manager/Worker architecture powered by SSH</p>
+                <p class="text-xl text-slate-400">Peer mesh network powered by secure connections</p>
             </div>
 
             <!-- Architecture Diagram -->
             <div class="mb-16 bg-slate-800 rounded-xl p-8">
-                <pre class="text-sm overflow-x-auto"><code>┌─────────────────────────────────────────────────────────────────┐
-│                     MANAGER MACHINE (Your Laptop)               │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │              AI Maestro Dashboard                       │  │
-│  │          http://localhost:23000                         │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│                           │                                    │
-│                           │ SSH Auto-Discovery                 │
-│                           ▼                                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │ Local Agents │  │ Worker 1     │  │ Worker 2     │        │
-│  │ (localhost)  │  │ (desktop)    │  │ (cloud)      │        │
-│  └──────────────┘  └──────────────┘  └──────────────┘        │
-└─────────────────────────────────────────────────────────────────┘
-                           │                 │
-                           │                 │
-          ┌────────────────┴─────┬───────────┴─────────────┐
-          │                      │                         │
-          ▼                      ▼                         ▼
+                <pre class="text-sm overflow-x-auto"><code>                    YOUR BROWSER (any node at :23000)
+                              ┌──────────────────────┐
+                              │                      │
+                         ┌────┴────┐           ┌────┴────┐
+                         │ Laptop  │◄─────────►│Mac Mini │
+                         │ (Peer)  │           │ (Peer)  │
+                         └────┬────┘           └────┬────┘
+                              │                      │
+                              └──────────┬──────────┘
+                                         │
+                                   ┌─────┴─────┐
+                                   │AWS Server │
+                                   │  (Peer)   │
+                                   └───────────┘
+                      Every node is equal - no central server
+
 ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
-│ WORKER 1         │   │ WORKER 2         │   │ WORKER 3         │
-│ Desktop (Linux)  │   │ Cloud (AWS EC2)  │   │ Team Machine     │
+│ PEER 1           │   │ PEER 2           │   │ PEER 3           │
+│ Laptop (macOS)   │   │ Desktop (Linux)  │   │ Cloud (AWS EC2)  │
 │                  │   │                  │   │                  │
 │ tmux sessions:   │   │ tmux sessions:   │   │ tmux sessions:   │
-│ • backend-api    │   │ • ml-training    │   │ • integration    │
-│ • database       │   │ • data-proc      │   │ • e2e-tests      │
-│ • redis          │   │ • gpu-tasks      │   │ • perf-tests     │
+│ • frontend-ui    │   │ • backend-api    │   │ • ml-training    │
+│ • docs-agent     │   │ • database       │   │ • gpu-tasks      │
+│ • testing        │   │ • redis          │   │ • data-proc      │
 └──────────────────┘   └──────────────────┘   └──────────────────┘</code></pre>
             </div>
 
@@ -457,7 +453,7 @@
                     <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span class="text-2xl font-display font-bold text-yellow-600">1</span>
                     </div>
-                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on Manager</h3>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on First Node</h3>
                     <div class="relative bg-slate-800 p-4 rounded-lg text-sm mb-3">
                         <div class="flex items-center justify-between gap-2">
                             <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
@@ -467,7 +463,7 @@
                         </div>
                     </div>
                     <p class="text-slate-400 text-sm">
-                        Install AI Maestro on your main machine (laptop/desktop). This becomes your manager.
+                        Install AI Maestro on your main machine (laptop/desktop). This becomes your first node in the mesh.
                     </p>
                 </div>
 
@@ -475,9 +471,9 @@
                     <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span class="text-2xl font-display font-bold text-yellow-600">2</span>
                     </div>
-                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on Workers</h3>
+                    <h3 class="text-xl font-display font-semibold mb-3 text-white">Install on Peers</h3>
                     <div class="relative bg-slate-800 p-4 rounded-lg text-sm mb-3">
-                        <div class="text-slate-500 text-left mb-1"># On each worker machine</div>
+                        <div class="text-slate-500 text-left mb-1"># On each peer machine</div>
                         <div class="flex items-center justify-between gap-2">
                             <code class="text-cyan-400 text-left overflow-x-auto install-cmd">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code>
                             <button onclick="copyCmd(this)" class="copy-btn flex-shrink-0 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 rounded text-slate-400 hover:text-cyan-400 text-xs transition-all" title="Copy">
@@ -495,8 +491,8 @@
                         <span class="text-2xl font-display font-bold text-yellow-600">3</span>
                     </div>
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Configure SSH</h3>
-                    <pre class="text-left bg-slate-800 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code># ~/.aimaestro/workers.yml
-workers:
+                    <pre class="text-left bg-slate-800 p-4 rounded-lg text-sm mb-3 overflow-x-auto"><code># ~/.aimaestro/peers.yml
+peers:
   - name: desktop
     host: desktop.local
   - name: cloud
@@ -504,7 +500,7 @@ workers:
   - name: team-server
     host: team@company.com</code></pre>
                     <p class="text-slate-400 text-sm">
-                        Define workers once. Auto-discovery handles the rest.
+                        Define peers once. Auto-discovery handles the rest.
                     </p>
                 </div>
             </div>
@@ -512,11 +508,11 @@ workers:
             <div class="mt-12 text-center">
                 <h3 class="text-2xl font-display font-semibold font-display mb-6 text-white">That's It!</h3>
                 <p class="text-lg text-slate-400 mb-4">
-                    All tmux sessions from all workers appear in your dashboard automatically.
+                    All tmux sessions from all peers appear in your dashboard automatically.
                 </p>
                 <div class="bg-yellow-50 border border-slate-700 rounded-xl p-6 max-w-2xl mx-auto">
                     <p class="text-slate-200">
-                        <strong>Pro Tip:</strong> Workers can be anywhere - local network, cloud, behind VPN, or even team members' machines. As long as SSH works, AI Maestro works.
+                        <strong>Pro Tip:</strong> Peers can be anywhere - local network, cloud, behind VPN, or even team members' machines. As long as network connectivity works, AI Maestro works.
                     </p>
                 </div>
             </div>
@@ -563,12 +559,12 @@ workers:
                 <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700">
                     <h3 class="text-2xl font-display font-semibold font-display mb-4 text-white">Team Collaboration</h3>
                     <p class="text-slate-400 mb-4">
-                        Share access to worker machines across your team. Everyone can monitor integration tests, access shared development databases, or collaborate on pair programming sessions.
+                        Share access to peer machines across your team. Everyone can monitor integration tests, access shared development databases, or collaborate on pair programming sessions.
                     </p>
                     <div class="bg-slate-950 rounded-lg p-4">
                         <p class="text-sm font-mono">
-                            Shared Workers: CI/CD, staging env<br/>
-                            Personal Workers: Individual dev<br/>
+                            Shared Peers: CI/CD, staging env<br/>
+                            Personal Peers: Individual dev<br/>
                             One Dashboard: Unified team view
                         </p>
                     </div>
@@ -577,7 +573,7 @@ workers:
                 <div class="bg-slate-900 rounded-2xl p-8 border border-slate-700">
                     <h3 class="text-2xl font-display font-semibold font-display mb-4 text-white">Cloud + Local Hybrid</h3>
                     <p class="text-slate-400 mb-4">
-                        Keep fast feedback loops local, but leverage cloud GPUs or large instances for specialized tasks. Spin up/down cloud workers as needed while maintaining local control.
+                        Keep fast feedback loops local, but leverage cloud GPUs or large instances for specialized tasks. Spin up/down cloud peers as needed while maintaining local control.
                     </p>
                     <div class="bg-slate-950 rounded-lg p-4">
                         <p class="text-sm font-mono">
@@ -603,10 +599,10 @@ workers:
                 <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Jump Hosts & Bastion Servers</h3>
                     <p class="text-slate-400 mb-4">
-                        Access workers behind corporate firewalls or VPNs using SSH ProxyJump configuration.
+                        Access peers behind corporate firewalls or VPNs using SSH ProxyJump configuration.
                     </p>
                     <pre class="bg-slate-900/50 p-3 rounded text-sm overflow-x-auto"><code># ~/.ssh/config
-Host production-worker
+Host production-peer
   HostName 10.0.1.50
   ProxyJump bastion.company.com
   User deployer</code></pre>
@@ -628,10 +624,10 @@ Host cloud-gpu
                 <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Resource Limits</h3>
                     <p class="text-slate-400 mb-4">
-                        Set CPU/memory limits per worker to prevent any single agent from consuming all resources.
+                        Set CPU/memory limits per peer to prevent any single agent from consuming all resources.
                     </p>
-                    <pre class="bg-slate-900/50 p-3 rounded text-sm overflow-x-auto"><code># workers.yml
-workers:
+                    <pre class="bg-slate-900/50 p-3 rounded text-sm overflow-x-auto"><code># peers.yml
+peers:
   - name: desktop
     host: desktop.local
     limits:
@@ -642,7 +638,7 @@ workers:
                 <div class="bg-slate-800/50 rounded-2xl p-8 border border-slate-700">
                     <h3 class="text-xl font-display font-semibold mb-3 text-white">Auto-Reconnection</h3>
                     <p class="text-slate-400 mb-4">
-                        Workers go offline? No problem. AI Maestro automatically reconnects when they're back online.
+                        Peers go offline? No problem. AI Maestro automatically reconnects when they're back online.
                     </p>
                     <pre class="bg-slate-900/50 p-3 rounded text-sm overflow-x-auto"><code># Automatic behavior:
 # - Retry every 30 seconds
@@ -814,7 +810,7 @@ workers:
                     </div>
                     <h4 class="text-lg font-semibold mb-2 text-white">Cross-Host Transfer</h4>
                     <p class="text-slate-400 text-sm">
-                        Move agents between local machine and worker hosts. Optimize placement based on workload requirements.
+                        Move agents between local machine and peer hosts. Optimize placement based on workload requirements.
                     </p>
                 </div>
             </div>
@@ -859,7 +855,7 @@ workers:
                 <span class="text-white">Across All Your Machines</span>
             </h2>
             <p class="text-xl text-slate-400 mb-8">
-                Install in 15 minutes. Works with existing SSH setup. Unlimited workers.
+                Install in 15 minutes. Works with existing network setup. Unlimited peers.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
                 <a href="https://github.com/23blocks-OS/ai-maestro#multi-computer-setup" target="_blank" class="bg-yellow-600 hover:bg-yellow-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition no-underline">
@@ -882,10 +878,10 @@ workers:
                     <span class="font-bold text-white text-sm group-hover:text-green-400 transition-colors">Single Computer</span>
                     <p class="text-slate-500 text-xs mt-1">Local setup</p>
                 </a>
-                <a href="workers.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-purple-500/50 transition-all duration-300 no-underline">
+                <a href="peers.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-purple-500/50 transition-all duration-300 no-underline">
                     <span class="text-xl mb-2 block">⚡</span>
-                    <span class="font-bold text-white text-sm group-hover:text-purple-400 transition-colors">Workers</span>
-                    <p class="text-slate-500 text-xs mt-1">Distributed fleet</p>
+                    <span class="font-bold text-white text-sm group-hover:text-purple-400 transition-colors">Peers</span>
+                    <p class="text-slate-500 text-xs mt-1">Peer mesh network</p>
                 </a>
                 <a href="docker-local.html" class="group p-4 bg-slate-900 border border-slate-700 rounded-lg hover:border-cyan-500/50 transition-all duration-300 no-underline">
                     <span class="text-xl mb-2 block">🐳</span>

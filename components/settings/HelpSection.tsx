@@ -17,10 +17,10 @@ export default function HelpSection() {
     },
     {
       icon: Server,
-      title: 'Remote Hosts (Manager/Worker)',
+      title: 'Remote Hosts (Peer Mesh)',
       description: 'Configure AI Maestro to manage sessions across multiple machines',
       topics: [
-        'What is the Manager/Worker pattern?',
+        'What is the peer mesh network?',
         'Adding a remote host',
         'Testing host connectivity',
         'Creating sessions on remote hosts',
@@ -190,7 +190,7 @@ export default function HelpSection() {
           <li className="flex items-start gap-2">
             <span className="text-blue-400 mt-1">•</span>
             <span>
-              <strong>Remote hosts:</strong> Use Tailscale for secure remote access to workers across the internet
+              <strong>Remote hosts:</strong> Use Tailscale for secure remote access to peers across the internet
             </span>
           </li>
         </ul>

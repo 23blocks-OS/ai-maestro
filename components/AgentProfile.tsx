@@ -382,7 +382,15 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                     {/* Avatar and basic info */}
                     <div className="flex gap-6">
                       <div className="w-24 h-24 rounded-xl border-2 border-gray-700 overflow-hidden hover:border-blue-500 transition-all flex-shrink-0 bg-gray-800 flex items-center justify-center text-4xl">
-                        {agent.avatar || '🤖'}
+                        {agent.avatar ? (
+                          <img
+                            src={agent.avatar}
+                            alt={agent.label || agent.name || 'Agent'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          '🤖'
+                        )}
                       </div>
                       <div className="flex-1 space-y-3">
                         {/* Agent Name - Primary identifier */}

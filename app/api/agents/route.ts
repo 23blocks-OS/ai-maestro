@@ -273,10 +273,15 @@ export async function GET(request: Request) {
       // Create session status for API response (backward compatibility)
       const primarySession = updatedSessions.find(s => s.index === 0) || updatedSessions[0]
       const onlineSession = updatedSessions.find(s => s.status === 'online')
+      // Find the actual tmux session to get its real name (preserves original case)
+      const onlineDiscoveredSession = onlineSession
+        ? agentSessions.find(s => parseSessionName(s.name).index === onlineSession.index)
+        : undefined
       const sessionStatus: AgentSessionStatus = onlineSession
         ? {
             status: 'online',
-            tmuxSessionName: computeSessionName(agentName, onlineSession.index),
+            // Use actual tmux session name, not computed from lowercase agent name
+            tmuxSessionName: onlineDiscoveredSession?.name || computeSessionName(agentName, onlineSession.index),
             workingDirectory: onlineSession.workingDirectory,
             lastActivity: onlineSession.lastActive,
             // GAP6 FIX: Include host context in session status

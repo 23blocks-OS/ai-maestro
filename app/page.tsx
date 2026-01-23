@@ -15,7 +15,7 @@ import MigrationBanner from '@/components/MigrationBanner'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -518,23 +518,21 @@ export default function DashboardPage() {
             {/* Empty State - shown when no agents */}
             {agents.length === 0 && !agentsLoading && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <svg
-                    className="w-16 h-16 mx-auto mb-4 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  <p className="text-xl mb-2">No agents found</p>
-                  <p className="text-sm">
-                    Create a tmux session with Claude Code to get started
+                <div className="text-center max-w-md">
+                  <div className="relative mb-6">
+                    <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-600/20 flex items-center justify-center border border-green-500/30">
+                      <User className="w-10 h-10 text-green-400" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
+                      <Plus className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <p className="text-xl mb-2 text-gray-200">Create your first agent</p>
+                  <p className="text-sm text-gray-500 mb-1">
+                    Click the <span className="text-green-400 font-medium">+</span> button in the sidebar to get started
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Agents are AI assistants that help you code, debug, and build
                   </p>
                 </div>
               </div>

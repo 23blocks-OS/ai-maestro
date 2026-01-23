@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Star, Cpu, Terminal, Zap, Heart, Code, Folder, GitBranch } from 'lucide-react'
+import { Sparkles, Star, Cpu, Terminal, Zap, Heart, Code, Folder, GitBranch, FolderOpen, Play, MessageSquare, Server } from 'lucide-react'
 
 interface CreateAgentAnimationProps {
   phase: 'naming' | 'preparing' | 'creating' | 'ready' | 'error'
@@ -9,6 +9,7 @@ interface CreateAgentAnimationProps {
   agentAlias?: string  // Fun AI-themed nickname (e.g., MarIA, LunAI)
   avatarUrl?: string   // Preview avatar URL based on agent name
   progress?: number
+  showNextSteps?: boolean  // Show next steps guide in ready phase
 }
 
 // Generate a preview avatar URL from agent name (same logic as AgentBadge)
@@ -80,6 +81,7 @@ export default function CreateAgentAnimation({
   agentAlias,
   avatarUrl,
   progress = 0,
+  showNextSteps = false,
 }: CreateAgentAnimationProps) {
   const config = PHASE_CONFIG[phase]
   const messageIndex = Math.floor((progress / 100) * config.messages.length)
@@ -107,7 +109,7 @@ export default function CreateAgentAnimation({
           {phase === 'naming' && <NamingAnimation key="naming" agentName={agentName} />}
           {phase === 'preparing' && <PreparingAnimation key="preparing" />}
           {phase === 'creating' && <CreatingAnimation key="creating" avatarUrl={avatarUrl} />}
-          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} agentAlias={agentAlias} avatarUrl={avatarUrl} />}
+          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} agentAlias={agentAlias} avatarUrl={avatarUrl} showNextSteps={showNextSteps} />}
           {phase === 'error' && <ErrorAnimation key="error" />}
         </AnimatePresence>
       </div>
@@ -416,7 +418,34 @@ function CreatingAnimation({ avatarUrl }: { avatarUrl?: string }) {
 }
 
 // Ready Animation - Agent comes to life!
-function ReadyAnimation({ agentName, agentAlias, avatarUrl }: { agentName: string; agentAlias?: string; avatarUrl?: string }) {
+function ReadyAnimation({ agentName, agentAlias, avatarUrl, showNextSteps }: { agentName: string; agentAlias?: string; avatarUrl?: string; showNextSteps?: boolean }) {
+  const nextSteps = [
+    {
+      icon: FolderOpen,
+      title: 'Set Working Directory',
+      description: 'Choose a repo or folder as your agent\'s home',
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-500/10',
+      borderColor: 'border-blue-500/30',
+    },
+    {
+      icon: Play,
+      title: 'Launch Your Agent',
+      description: 'Start with Claude, Codex, or other AI tools',
+      color: 'text-green-400',
+      bgColor: 'bg-green-500/10',
+      borderColor: 'border-green-500/30',
+    },
+    {
+      icon: MessageSquare,
+      title: 'Explore Skills',
+      description: 'Send messages, register hosts, and more',
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-500/10',
+      borderColor: 'border-purple-500/30',
+    },
+  ]
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -424,129 +453,86 @@ function ReadyAnimation({ agentName, agentAlias, avatarUrl }: { agentName: strin
       exit={{ opacity: 0 }}
       className="relative flex flex-col items-center"
     >
-      {/* Agent avatar with bounce */}
-      <motion.div
-        initial={{ scale: 0, y: 50 }}
-        animate={{ scale: 1, y: 0 }}
-        transition={{
-          type: 'spring',
-          damping: 8,
-          stiffness: 200,
-        }}
-        className="relative"
-      >
+      {/* Compact header with avatar and name */}
+      <div className="flex items-center gap-4 mb-4">
+        {/* Agent avatar */}
         <motion.div
-          animate={{
-            y: [0, -10, 0],
-          }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', damping: 10 }}
+          className="relative"
         >
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt="Agent avatar"
-              className="w-24 h-24 rounded-full object-cover ring-4 ring-green-400/50 shadow-lg shadow-green-500/30"
+              className="w-16 h-16 rounded-full object-cover ring-2 ring-green-400/50"
             />
           ) : (
-            <span className="text-7xl">🤖</span>
+            <span className="text-5xl">🤖</span>
           )}
-        </motion.div>
-
-        {/* Heart pulse */}
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{
-            scale: [0.8, 1.2, 0.8],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            delay: 0.5,
-            duration: 1,
-            repeat: Infinity,
-          }}
-          className="absolute -top-2 -right-2"
-        >
-          <Heart className="w-6 h-6 text-red-400" fill="currentColor" />
-        </motion.div>
-      </motion.div>
-
-      {/* Wave emoji */}
-      <motion.div
-        initial={{ scale: 0, rotate: -45 }}
-        animate={{
-          scale: 1,
-          rotate: [0, 20, 0, 20, 0],
-        }}
-        transition={{
-          scale: { delay: 0.3, type: 'spring' },
-          rotate: { delay: 0.5, duration: 1.5, repeat: 2 },
-        }}
-        className="text-4xl mt-2"
-      >
-        👋
-      </motion.div>
-
-      {/* Agent name and alias display */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="mt-6 text-center"
-      >
-        {/* Agent name */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mb-2"
-        >
-          <span className="text-gray-400 text-sm">Your new agent</span>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 1, type: 'spring' }}
-          className="px-5 py-2 bg-green-500/20 rounded-xl border border-green-500/30 mb-3"
-        >
-          <span className="text-green-400 font-bold text-lg">{agentName}</span>
-        </motion.div>
-
-        {/* Alias with flair */}
-        {agentAlias && (
+          {/* Heart pulse */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5 }}
-            className="space-y-1"
+            animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1, repeat: Infinity }}
+            className="absolute -top-1 -right-1"
           >
-            <span className="text-gray-500 text-sm">You can also call them</span>
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 1.8, type: 'spring', damping: 8 }}
-              className="flex items-center justify-center gap-2"
-            >
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                {agentAlias}
-              </span>
-              <motion.span
-                animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
-                transition={{ delay: 2, duration: 0.8 }}
-                className="text-xl"
-              >
-                ✨
-              </motion.span>
-            </motion.div>
+            <Heart className="w-4 h-4 text-red-400" fill="currentColor" />
           </motion.div>
-        )}
-      </motion.div>
+        </motion.div>
 
-      {/* Celebration confetti - more of it! */}
-      {[...Array(16)].map((_, i) => (
+        {/* Name and alias */}
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-left"
+        >
+          <div className="text-green-400 font-bold text-lg">{agentAlias || agentName}</div>
+          {agentAlias && (
+            <div className="text-gray-500 text-xs">{agentName}</div>
+          )}
+          <div className="text-gray-400 text-xs mt-0.5">is ready! 👋</div>
+        </motion.div>
+      </div>
+
+      {/* Next Steps Guide */}
+      {showNextSteps && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="w-full max-w-sm"
+        >
+          <div className="text-center mb-3">
+            <span className="text-gray-400 text-sm font-medium">Next Steps</span>
+          </div>
+
+          <div className="space-y-2">
+            {nextSteps.map((step, index) => (
+              <motion.div
+                key={step.title}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + index * 0.15 }}
+                className={`flex items-start gap-3 p-3 rounded-lg ${step.bgColor} border ${step.borderColor}`}
+              >
+                <div className={`p-1.5 rounded-md ${step.bgColor}`}>
+                  <step.icon className={`w-4 h-4 ${step.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={`font-medium text-sm ${step.color}`}>{step.title}</div>
+                  <div className="text-gray-400 text-xs">{step.description}</div>
+                </div>
+                <div className="text-gray-600 text-xs font-bold">{index + 1}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Celebration confetti - reduced when showing next steps */}
+      {[...Array(showNextSteps ? 8 : 16)].map((_, i) => (
         <motion.div
           key={i}
           initial={{ y: 0, opacity: 1, scale: 0 }}

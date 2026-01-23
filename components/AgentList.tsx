@@ -1632,6 +1632,7 @@ function CreateAgentModal({
               agentAlias={getRandomAlias(name)}
               avatarUrl={getPreviewAvatarUrl(name)}
               progress={animationProgress}
+              showNextSteps={showButton}
             />
             {/* Let's Go button - appears after celebration */}
             {showButton && (

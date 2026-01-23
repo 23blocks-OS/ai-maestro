@@ -593,14 +593,14 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string): Promise<boolean> => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string): Promise<boolean> => {
     setActionLoading(true)
 
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory, hostId, label }),
+        body: JSON.stringify({ name, workingDirectory, hostId, label, avatar }),
       })
 
       if (!response.ok) {
@@ -1463,7 +1463,7 @@ function CreateAgentModal({
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string) => Promise<boolean>
+  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string) => Promise<boolean>
   onComplete: () => void
   loading: boolean
 }) {
@@ -1594,9 +1594,11 @@ function CreateAgentModal({
     e.preventDefault()
     if (name.trim()) {
       setIsCreating(true)
-      // Generate persona name (like "NatalIA") and pass it to be saved
+      // Generate persona name (like "NatalIA") and avatar URL to be saved
+      // These must match what's shown in the preview animation
       const personaName = getRandomAlias(name.trim())
-      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, undefined, personaName)
+      const avatarUrl = getPreviewAvatarUrl(name.trim())
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, undefined, personaName, avatarUrl)
       if (success) {
         setCreationSuccess(true)
         // Animation continues, user will click "Let's Go!" to close

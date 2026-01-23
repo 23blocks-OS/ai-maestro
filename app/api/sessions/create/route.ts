@@ -126,11 +126,15 @@ export async function POST(request: Request) {
     }
 
     // Local session creation
+    // NORMALIZE ALL INTERNAL NAMES TO LOWERCASE
+    // Only display labels preserve original case
+    const normalizedName = name.toLowerCase()
+
     // Determine the actual session name
     // If agentId is provided, use structured format: agentId@hostId (like email)
-    // Otherwise use the provided name (legacy support)
+    // Otherwise use the normalized lowercase name
     const selfHostId = getSelfHostId()
-    const actualSessionName = agentId ? `${agentId}@${selfHostId}` : name
+    const actualSessionName = agentId ? `${agentId}@${selfHostId}` : normalizedName
 
     // Check if session already exists
     const { stdout: existingCheck } = await execAsync(
@@ -141,14 +145,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Session already exists' }, { status: 409 })
     }
 
-    // Create new tmux session with structured name
+    // Create new tmux session with LOWERCASE name
     // Default to current working directory if not specified
     const cwd = workingDirectory || process.cwd()
     await execAsync(`tmux new-session -d -s "${actualSessionName}" -c "${cwd}"`)
 
     // Register agent in registry if not already exists
-    // The session name (without @host suffix) is the agent name
-    const agentName = name // Use the original name, not actualSessionName
+    // Agent name is ALWAYS lowercase, label preserves display name
+    const agentName = normalizedName
     let registeredAgent = getAgentByName(agentName)
 
     if (!registeredAgent) {

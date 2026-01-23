@@ -16,6 +16,7 @@ import ExportAgentDialog from './ExportAgentDialog'
 import DeleteAgentDialog from './DeleteAgentDialog'
 import MemoryViewer from './MemoryViewer'
 import SkillsSection from './SkillsSection'
+import AvatarPicker from './AvatarPicker'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -41,6 +42,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false)
+  const [usedAvatars, setUsedAvatars] = useState<string[]>([])
 
   // Repository state
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -119,6 +122,28 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
     fetchRepos()
   }, [isOpen, agentId])
+
+  // Fetch used avatars (all avatars from other agents on this host)
+  useEffect(() => {
+    if (!isOpen) return
+
+    const fetchUsedAvatars = async () => {
+      try {
+        const response = await fetch(`${baseUrl}/api/agents`)
+        if (response.ok) {
+          const data = await response.json()
+          const avatars = (data.agents || [])
+            .filter((a: Agent) => a.id !== agentId && a.avatar)
+            .map((a: Agent) => a.avatar as string)
+          setUsedAvatars(avatars)
+        }
+      } catch (error) {
+        console.error('Failed to fetch used avatars:', error)
+      }
+    }
+
+    fetchUsedAvatars()
+  }, [isOpen, agentId, baseUrl])
 
   // Detect repositories from working directory
   const handleDetectRepos = async () => {
@@ -381,7 +406,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   <div className="space-y-4">
                     {/* Avatar and basic info */}
                     <div className="flex gap-6">
-                      <div className="w-24 h-24 rounded-xl border-2 border-gray-700 overflow-hidden hover:border-blue-500 transition-all flex-shrink-0 bg-gray-800 flex items-center justify-center text-4xl">
+                      <button
+                        onClick={() => setShowAvatarPicker(true)}
+                        className="w-24 h-24 rounded-xl border-2 border-gray-700 overflow-hidden hover:border-blue-500 hover:scale-105 transition-all flex-shrink-0 bg-gray-800 flex items-center justify-center text-4xl cursor-pointer group relative"
+                        title="Click to change avatar"
+                      >
                         {agent.avatar ? (
                           <img
                             src={agent.avatar}
@@ -391,7 +420,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         ) : (
                           '🤖'
                         )}
-                      </div>
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Edit2 className="w-6 h-6 text-white" />
+                        </div>
+                      </button>
                       <div className="flex-1 space-y-3">
                         {/* Agent Name - Primary identifier */}
                         <div>
@@ -420,31 +452,6 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         </div>
                       </div>
                     </div>
-
-                    {/* Host Information - Read only */}
-                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                      <div className="flex items-center gap-2 text-xs font-medium text-gray-400 mb-2">
-                        <Server className="w-4 h-4" />
-                        Host
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-200">
-                          {/* If no hostUrl prop, agent is on this machine (local) */}
-                          {!hostUrl
-                            ? 'This Machine'
-                            : agent.hostName || agent.hostId || 'Remote'}
-                        </span>
-                        {!hostUrl ? (
-                          <Monitor className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <Cloud className="w-4 h-4 text-blue-400" />
-                        )}
-                      </div>
-                      {agent.hostUrl && agent.hostUrl !== '' && (
-                        <p className="text-xs text-gray-500 mt-1">{agent.hostUrl}</p>
-                      )}
-                    </div>
-
                     {/* Owner and Team */}
                     <div className="grid grid-cols-2 gap-4">
                       <EditableField
@@ -1073,6 +1080,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentDisplayName={agent.label}
         />
       )}
+
+      {/* Avatar Picker */}
+      <AvatarPicker
+        isOpen={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        onSelect={(avatarUrl) => {
+          updateField('avatar', avatarUrl)
+        }}
+        currentAvatar={agent?.avatar}
+        usedAvatars={usedAvatars}
+      />
     </>
   )
 }

@@ -236,7 +236,7 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
                   On each cloud VM, run AI Maestro in Worker mode:
                 </p>
                 <code className="block bg-gray-900 px-3 py-2 rounded text-xs text-blue-400">
-                  DEPLOYMENT_TYPE=worker PORT=3001 yarn start
+                  DEPLOYMENT_TYPE=worker PORT=23000 yarn start
                 </code>
               </div>
 
@@ -246,7 +246,7 @@ export default function DockerHybridGuide({ onBack, onComplete }: DockerHybridGu
                   In AI Maestro Settings → Hosts, add each cloud Worker:
                 </p>
                 <code className="block bg-gray-900 px-3 py-2 rounded text-xs text-blue-400">
-                  http://[tailscale-ip]:3001
+                  http://[tailscale-ip]:23000
                 </code>
               </div>
 

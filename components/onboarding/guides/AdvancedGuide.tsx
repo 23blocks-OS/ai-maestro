@@ -160,7 +160,7 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
                 Create <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">.env.local</code>:
                 <div className="bg-gray-900 px-3 py-2 rounded font-mono text-xs text-blue-400 mt-1">
                   DEPLOYMENT_TYPE=worker<br />
-                  PORT=3001
+                  PORT=23000
                 </div>
               </li>
               <li>
@@ -177,7 +177,7 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
               <li>Get Worker&apos;s Tailscale IP: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">tailscale ip -4</code></li>
               <li>In Manager: Settings → Hosts</li>
-              <li>Add: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://[tailscale-ip]:3001</code></li>
+              <li>Add: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://[tailscale-ip]:23000</code></li>
               <li>Repeat for each Worker</li>
             </ol>
           </div>

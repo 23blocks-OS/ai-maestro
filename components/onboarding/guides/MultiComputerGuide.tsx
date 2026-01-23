@@ -61,7 +61,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
                 </div>
                 <div>
                   <p className="font-medium text-white">Workers (Remote Computers)</p>
-                  <p className="text-gray-400">Run tmux sessions, expose API on port 3001, managed from Manager</p>
+                  <p className="text-gray-400">Run tmux sessions, expose API on port 23000, managed from Manager</p>
                 </div>
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
                 Create config file: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">.env.local</code>
                 <div className="ml-6 mt-2 p-3 bg-gray-900 rounded font-mono text-xs">
                   DEPLOYMENT_TYPE=worker<br />
-                  PORT=3001
+                  PORT=23000
                 </div>
               </li>
               <li>
@@ -161,7 +161,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
               From the Worker machine, check:
             </p>
             <code className="block bg-gray-900 px-3 py-2 rounded text-sm text-blue-400">
-              curl http://localhost:3001/api/sessions
+              curl http://localhost:23000/api/sessions
             </code>
             <p className="text-xs text-gray-400 mt-2">
               Should return JSON list of tmux sessions
@@ -171,8 +171,8 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
           <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
             <p className="text-sm text-yellow-400 font-medium mb-1">⚠️ Important:</p>
             <p className="text-sm text-gray-300">
-              Workers must run on port <code className="bg-gray-900 px-2 py-0.5 rounded">3001</code>.
-              The Manager will connect to <code className="bg-gray-900 px-2 py-0.5 rounded">[tailscale-ip]:3001</code>
+              Workers must run on port <code className="bg-gray-900 px-2 py-0.5 rounded">23000</code>.
+              The Manager will connect to <code className="bg-gray-900 px-2 py-0.5 rounded">[tailscale-ip]:23000</code>
             </p>
           </div>
         </div>
@@ -210,7 +210,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
               <div className="p-3 bg-gray-900/50 rounded-lg">
                 <h4 className="text-sm font-medium text-blue-400 mb-2">3. Add Worker Host</h4>
                 <p className="text-sm text-gray-300 mb-2">
-                  Enter the URL: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://100.64.0.2:3001</code>
+                  Enter the URL: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://100.64.0.2:23000</code>
                 </p>
                 <p className="text-xs text-gray-400">
                   The system will auto-discover sessions and verify connection

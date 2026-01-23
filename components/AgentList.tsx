@@ -36,7 +36,7 @@ import {
   Brain,
 } from 'lucide-react'
 import Link from 'next/link'
-import CreateAgentAnimation from './CreateAgentAnimation'
+import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -644,14 +644,25 @@ export default function AgentList({
                 <span>{stats.offline}</span>
               </div>
             )}
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110"
-              aria-label="Create new agent"
-              title="Create new agent"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            <div className="relative">
+              {/* Pulsing ring when no agents */}
+              {agents.length === 0 && (
+                <>
+                  <span className="absolute inset-0 rounded-lg bg-green-500/30 animate-ping" />
+                  <span className="absolute inset-0 rounded-lg bg-green-500/20 animate-pulse" />
+                </>
+              )}
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className={`relative p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110 ${
+                  agents.length === 0 ? 'ring-2 ring-green-500/50' : ''
+                }`}
+                aria-label="Create new agent"
+                title="Create new agent"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
             {/* View mode toggle */}
             <button
               onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
@@ -805,16 +816,49 @@ export default function AgentList({
             <p className="text-sm">Loading agents...</p>
           </div>
         ) : agents.length === 0 ? (
-          <div className="px-4 py-8 text-center text-gray-400">
-            <p className="text-sm mb-2">No agents found</p>
-            <p className="text-xs text-gray-500 mb-4">
-              Create a new agent or start a tmux session
+          <div className="px-6 py-12 text-center">
+            {/* Welcome animation */}
+            <div className="relative mb-6">
+              {/* Pulsing rings */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-32 h-32 rounded-full border-2 border-green-500/20 animate-ping" style={{ animationDuration: '2s' }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full border-2 border-green-500/30 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+              </div>
+
+              {/* Central icon */}
+              <div className="relative flex items-center justify-center h-32">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 flex items-center justify-center">
+                  <Plus className="w-10 h-10 text-green-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Welcome text */}
+            <h3 className="text-xl font-semibold text-gray-100 mb-2">
+              Welcome to AI Maestro!
+            </h3>
+            <p className="text-sm text-gray-400 mb-6 max-w-xs mx-auto">
+              Create your first AI agent to get started. Each agent runs in its own terminal session.
             </p>
+
+            {/* Arrow pointing up */}
+            <div className="flex flex-col items-center gap-2 mb-4">
+              <div className="animate-bounce">
+                <svg className="w-6 h-6 text-green-400 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+              <span className="text-xs text-green-400 font-medium">Click the + button above</span>
+            </div>
+
+            {/* Or create button */}
             <button
               onClick={() => setShowCreateModal(true)}
-              className="text-sm text-blue-400 hover:text-blue-300 underline"
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105"
             >
-              Create your first agent
+              Create Your First Agent
             </button>
           </div>
         ) : viewMode === 'grid' ? (
@@ -1586,6 +1630,7 @@ function CreateAgentModal({
               phase={animationPhase}
               agentName={name}
               agentAlias={getRandomAlias(name)}
+              avatarUrl={getPreviewAvatarUrl(name)}
               progress={animationProgress}
             />
             {/* Let's Go button - appears after celebration */}

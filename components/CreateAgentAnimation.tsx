@@ -7,7 +7,21 @@ interface CreateAgentAnimationProps {
   phase: 'naming' | 'preparing' | 'creating' | 'ready' | 'error'
   agentName: string
   agentAlias?: string  // Fun AI-themed nickname (e.g., MarIA, LunAI)
+  avatarUrl?: string   // Preview avatar URL based on agent name
   progress?: number
+}
+
+// Generate a preview avatar URL from agent name (same logic as AgentBadge)
+export function getPreviewAvatarUrl(agentName: string): string {
+  let hash = 0
+  for (let i = 0; i < agentName.length; i++) {
+    const char = agentName.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  const index = Math.abs(hash) % 100
+  const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
+  return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
 }
 
 const PHASE_CONFIG = {
@@ -64,6 +78,7 @@ export default function CreateAgentAnimation({
   phase,
   agentName,
   agentAlias,
+  avatarUrl,
   progress = 0,
 }: CreateAgentAnimationProps) {
   const config = PHASE_CONFIG[phase]
@@ -91,8 +106,8 @@ export default function CreateAgentAnimation({
         <AnimatePresence mode="wait">
           {phase === 'naming' && <NamingAnimation key="naming" agentName={agentName} />}
           {phase === 'preparing' && <PreparingAnimation key="preparing" />}
-          {phase === 'creating' && <CreatingAnimation key="creating" />}
-          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} agentAlias={agentAlias} />}
+          {phase === 'creating' && <CreatingAnimation key="creating" avatarUrl={avatarUrl} />}
+          {phase === 'ready' && <ReadyAnimation key="ready" agentName={agentName} agentAlias={agentAlias} avatarUrl={avatarUrl} />}
           {phase === 'error' && <ErrorAnimation key="error" />}
         </AnimatePresence>
       </div>
@@ -297,7 +312,7 @@ function PreparingAnimation() {
 }
 
 // Creating Animation - Energy coalescing, the "birth"
-function CreatingAnimation() {
+function CreatingAnimation({ avatarUrl }: { avatarUrl?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -327,7 +342,7 @@ function CreatingAnimation() {
         />
       ))}
 
-      {/* Central forming agent */}
+      {/* Central forming agent - avatar or fallback emoji */}
       <motion.div
         animate={{
           scale: [0.9, 1.1, 0.9],
@@ -336,9 +351,17 @@ function CreatingAnimation() {
           duration: 1,
           repeat: Infinity,
         }}
-        className="relative z-10 text-6xl"
+        className="relative z-10"
       >
-        🤖
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt="Agent avatar"
+            className="w-20 h-20 rounded-full object-cover ring-4 ring-cyan-400/50"
+          />
+        ) : (
+          <span className="text-6xl">🤖</span>
+        )}
       </motion.div>
 
       {/* Lightning bolts */}
@@ -393,7 +416,7 @@ function CreatingAnimation() {
 }
 
 // Ready Animation - Agent comes to life!
-function ReadyAnimation({ agentName, agentAlias }: { agentName: string; agentAlias?: string }) {
+function ReadyAnimation({ agentName, agentAlias, avatarUrl }: { agentName: string; agentAlias?: string; avatarUrl?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -421,9 +444,16 @@ function ReadyAnimation({ agentName, agentAlias }: { agentName: string; agentAli
             repeat: Infinity,
             ease: 'easeInOut',
           }}
-          className="text-7xl"
         >
-          🤖
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Agent avatar"
+              className="w-24 h-24 rounded-full object-cover ring-4 ring-green-400/50 shadow-lg shadow-green-500/30"
+            />
+          ) : (
+            <span className="text-7xl">🤖</span>
+          )}
         </motion.div>
 
         {/* Heart pulse */}

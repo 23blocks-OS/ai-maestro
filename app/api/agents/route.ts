@@ -105,7 +105,9 @@ async function discoverLocalSessions(): Promise<DiscoveredSession[]> {
  */
 function createOrphanAgent(session: DiscoveredSession, hostId: string, hostName: string, hostUrl: string): Agent {
   // Parse session name to get agent name and index
-  const { agentName, index } = parseSessionName(session.name)
+  const { agentName: rawAgentName, index } = parseSessionName(session.name)
+  // Normalize to lowercase for consistency with registry
+  const agentName = rawAgentName.toLowerCase()
   // Parse agent name to get display hierarchy
   const { tags } = parseNameForDisplay(agentName)
 
@@ -210,14 +212,15 @@ export async function GET(request: Request) {
 
     console.log(`[Agents] Found ${discoveredSessions.length} local tmux session(s)`)
 
-    // 3. Group discovered sessions by agent name
+    // 3. Group discovered sessions by agent name (NORMALIZED TO LOWERCASE for case-insensitive matching)
     const sessionsByAgentName = new Map<string, DiscoveredSession[]>()
     for (const session of discoveredSessions) {
       const { agentName } = parseSessionName(session.name)
-      if (!sessionsByAgentName.has(agentName)) {
-        sessionsByAgentName.set(agentName, [])
+      const normalizedName = agentName.toLowerCase() // Normalize for case-insensitive matching
+      if (!sessionsByAgentName.has(normalizedName)) {
+        sessionsByAgentName.set(normalizedName, [])
       }
-      sessionsByAgentName.get(agentName)!.push(session)
+      sessionsByAgentName.get(normalizedName)!.push(session)
     }
 
     // 4. Process agents and update their session status
@@ -230,10 +233,11 @@ export async function GET(request: Request) {
       const agentName = agent.name || agent.alias
       if (!agentName) continue
 
-      processedAgentNames.add(agentName)
+      const normalizedAgentName = agentName.toLowerCase()
+      processedAgentNames.add(normalizedAgentName)
 
-      // Find all sessions for this agent
-      const agentSessions = sessionsByAgentName.get(agentName) || []
+      // Find all sessions for this agent (using normalized name)
+      const agentSessions = sessionsByAgentName.get(normalizedAgentName) || []
 
       // Build updated sessions array from discovered tmux sessions
       const updatedSessions: AgentSession[] = []

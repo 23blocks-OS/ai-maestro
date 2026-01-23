@@ -21,7 +21,7 @@ export interface Session {
   windows: number               // Number of tmux windows
   agentId?: string              // Link to parent Agent (optional for backward compatibility)
 
-  // Remote host metadata (Manager/Worker pattern)
+  // Remote host metadata (peer mesh network)
   hostId?: string               // Host identifier (e.g., "mac-mini", "local")
   hostName?: string             // Human-readable host name (e.g., "Mac Mini")
   remote?: boolean              // true if session is on a remote host

@@ -1,12 +1,12 @@
 # Remote Sessions Architecture
 
-Analysis and implementation plan for managing tmux sessions across multiple machines.
+Analysis and implementation plan for managing tmux sessions across multiple machines using a peer mesh network.
 
 ## Table of Contents
 - [Overview](#overview)
 - [Current Architecture](#current-architecture)
 - [Approach Comparison](#approach-comparison)
-- [Recommended: Manager/Worker Pattern](#recommended-managerworker-pattern)
+- [Recommended: Peer Mesh Network](#recommended-peer-mesh-network)
 - [Implementation Plan](#implementation-plan)
 - [Technical Specifications](#technical-specifications)
 - [Migration Path](#migration-path)
@@ -15,13 +15,13 @@ Analysis and implementation plan for managing tmux sessions across multiple mach
 
 ## Overview
 
-**Goal:** Allow one AI Maestro instance (MacBook) to discover, create, and interact with tmux sessions on multiple machines (MacBook, Mac Mini, cloud servers).
+**Goal:** Allow any AI Maestro instance to discover, create, and interact with tmux sessions on multiple machines - all connected as equals in a peer mesh network.
 
 **Use Cases:**
-- Manage local MacBook sessions + remote Mac Mini sessions from one dashboard
-- Access all your Claude Code agents from any device
-- Centralized monitoring and control
-- Scale to multiple worker machines
+- Manage agents across MacBook, Mac Mini, and cloud servers from any node
+- Access all your Claude Code agents from any connected device
+- Decentralized monitoring and control - no single point of failure
+- Scale to multiple machines seamlessly
 
 ---
 
@@ -66,7 +66,7 @@ const ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
 ### WebSocket Flow (Local Only)
 
 ```
-Browser → MacBook AI Maestro WS → PTY → Local tmux
+Browser → AI Maestro WS → PTY → Local tmux
 ```
 
 ---
@@ -78,23 +78,22 @@ Browser → MacBook AI Maestro WS → PTY → Local tmux
 #### Architecture
 
 ```
-MacBook AI Maestro
-├─ Session Discovery: ssh mac-mini "tmux ls"
-├─ Session Creation: ssh mac-mini "tmux new-session..."
-└─ Terminal: PTY → ssh -t mac-mini tmux attach -t session
+Central AI Maestro
+├─ Session Discovery: ssh peer "tmux ls"
+├─ Session Creation: ssh peer "tmux new-session..."
+└─ Terminal: PTY → ssh -t peer tmux attach -t session
 ```
 
 #### Data Flow
 
 ```
-Browser → MacBook WS → PTY(ssh) → Remote tmux
+Browser → Central WS → PTY(ssh) → Remote tmux
 ```
 
 #### Pros
 
 - ✅ Direct connection to remote tmux
 - ✅ Traditional approach, well-understood
-- ✅ Single point of control
 - ✅ No additional server required on remote machine
 
 #### Cons
@@ -108,6 +107,7 @@ Browser → MacBook WS → PTY(ssh) → Remote tmux
 - ❌ No reuse of existing APIs
 - ❌ PTY + SSH = complex error handling
 - ❌ Difficult to debug SSH connection issues
+- ❌ **Central server required** - single point of failure
 
 #### Implementation Complexity
 
@@ -122,83 +122,93 @@ Browser → MacBook WS → PTY(ssh) → Remote tmux
 
 ---
 
-### Option 2: Manager/Worker Pattern (Recommended)
+### Option 2: Peer Mesh Network (Recommended)
 
 #### Architecture
 
 ```
-MacBook AI Maestro (Manager)
-├─ Local Sessions: tmux ls (direct)
-└─ Remote Sessions: HTTP GET http://mac-mini:23000/api/sessions
+Peer Mesh Network (All Nodes Equal)
 
-Mac Mini AI Maestro (Worker)
+Node A (MacBook) ◄──────► Node B (Mac Mini)
+       ▲                        ▲
+       │                        │
+       └────────► Node C ◄──────┘
+                (Cloud)
+
+Each node:
 ├─ Runs standard AI Maestro on port 23000
-└─ Exposes same APIs as manager
-
-Terminal Connection:
-Browser → MacBook WS → HTTP Proxy → Mac Mini WS → Mac Mini tmux
+├─ Discovers peers via HTTP API
+├─ Syncs peer list automatically
+└─ Can access any agent from any node
 ```
 
 #### Data Flow
 
-**Session Discovery:**
+**Peer Discovery:**
 ```
-Manager → GET http://worker:23000/api/sessions → Worker tmux ls → JSON response
-Manager merges local + remote sessions
+Node A → POST /api/hosts/register-peer to Node B
+       ↓
+Node B auto-discovers Node A
+       ↓
+Both nodes exchange peer lists
+       ↓
+All nodes eventually converge to same peer list
 ```
 
 **Terminal Connection:**
 ```
-Browser → Manager WS (/term?name=session&host=mac-mini)
+Browser → Current Node WS (/term?name=session&host=peer-id)
          ↓
-Manager WS Proxy
+Current Node WS Proxy
          ↓
-Worker WS (ws://mac-mini:23000/term?name=session)
+Peer Node WS (ws://peer:23000/term?name=session)
          ↓
-Worker PTY → Worker tmux
+Peer PTY → Peer tmux
 ```
 
 #### Pros
 
+- ✅ **No central server** - All nodes are equal peers
 - ✅ **No SSH needed** - Use Tailscale VPN or local network
 - ✅ **Same codebase** - Every machine runs identical AI Maestro
 - ✅ **APIs already exist** - Zero new API development
 - ✅ **WebSocket already exists** - Just add proxy layer
-- ✅ **Clean separation** - Manager/worker roles are natural
-- ✅ **Scales to N machines** - Add workers by configuration
+- ✅ **Bidirectional discovery** - Add once, both sides auto-discover
+- ✅ **Scales to N machines** - Add peers by configuration
 - ✅ **Standard HTTP/WS** - Easier debugging (browser dev tools)
 - ✅ **Built-in security** - Tailscale handles encryption
 - ✅ **Reuse existing code** - Session discovery, creation, deletion all work
-- ✅ **Unified UI** - Same interface for local and remote
-- ✅ **Simple config** - Just add host URLs
+- ✅ **Access from anywhere** - Dashboard works from any connected node
 
 #### Cons
 
-- ⚠️ Requires AI Maestro running on each worker machine (minimal overhead)
+- ⚠️ Requires AI Maestro running on each machine (minimal overhead)
 - ⚠️ WebSocket proxy adds small latency (negligible on local network/Tailscale)
-- ⚠️ Each worker needs pm2 or similar process manager
+- ⚠️ Each node needs pm2 or similar process manager
 
 #### Implementation Complexity
 
 **Low-Medium** - Requires:
-1. Configuration file for remote hosts
-2. Fetch remote sessions via existing API
+1. Configuration file for peer hosts
+2. Fetch sessions via existing API
 3. WebSocket proxy for remote connections
 4. UI indicator for host location
 5. Session creation routing (local vs remote)
+6. Automatic peer exchange protocol
 
 ---
 
-## Recommended: Manager/Worker Pattern
+## Recommended: Peer Mesh Network
 
-The Manager/Worker pattern is **strongly recommended** because:
+The Peer Mesh Network is **strongly recommended** because:
 
-1. **Leverages existing infrastructure** - All APIs/WebSockets already work
-2. **Simpler implementation** - 80% less code than SSH approach
-3. **Better architecture** - Clean separation, scalable design
-4. **Easier debugging** - Standard HTTP/WS, browser dev tools work
-5. **More secure** - Tailscale VPN, no SSH key management
-6. **Future-proof** - Can add authentication, load balancing, etc.
+1. **Decentralized** - No single point of failure, access from any node
+2. **Leverages existing infrastructure** - All APIs/WebSockets already work
+3. **Simpler implementation** - 80% less code than SSH approach
+4. **Better architecture** - Clean separation, scalable design
+5. **Easier debugging** - Standard HTTP/WS, browser dev tools work
+6. **More secure** - Tailscale VPN, no SSH key management
+7. **Future-proof** - Can add authentication, load balancing, etc.
 
 ---
 
@@ -206,9 +216,9 @@ The Manager/Worker pattern is **strongly recommended** because:
 
 ### Phase 1: Configuration & Discovery
 
-**Goal:** Manager discovers sessions from multiple workers
+**Goal:** Node discovers sessions from all connected peers
 
-#### 1.1 Add Remote Hosts Configuration
+#### 1.1 Add Peer Hosts Configuration
 
 **File:** `.aimaestro/config.json` or environment variables
 
@@ -263,8 +273,8 @@ export async function GET() {
         // Local discovery (existing code)
         return discoverLocalSessions(host)
       } else {
-        // Remote discovery (new)
-        return discoverRemoteSessions(host)
+        // Peer discovery (new)
+        return discoverPeerSessions(host)
       }
     })
   )
@@ -274,7 +284,7 @@ export async function GET() {
   return NextResponse.json({ sessions: allSessions })
 }
 
-async function discoverRemoteSessions(host) {
+async function discoverPeerSessions(host) {
   try {
     const response = await fetch(`${host.url}/api/sessions`)
     const { sessions } = await response.json()
@@ -308,7 +318,7 @@ export interface Session {
   windows: number
   agentId?: string
 
-  // New fields for remote sessions
+  // Fields for peer sessions
   hostId?: string      // "mac-mini", "macbook-local"
   hostName?: string    // "Mac Mini", "MacBook Pro"
   remote?: boolean     // true if not local
@@ -319,7 +329,7 @@ export interface Session {
 
 ### Phase 2: WebSocket Proxy
 
-**Goal:** Browser connects to manager, manager proxies to worker WebSocket
+**Goal:** Browser connects to current node, node proxies to peer WebSocket
 
 #### 2.1 Update WebSocket Handler
 
@@ -345,16 +355,16 @@ wss.on('connection', (ws, request, query) => {
   const sessionName = query.name
   const hostId = query.host // New parameter
 
-  if (!hostId || hostId === 'macbook-local') {
+  if (!hostId || hostId === 'local') {
     // Local session - existing code
     handleLocalSession(ws, sessionName)
   } else {
-    // Remote session - proxy to worker
-    handleRemoteSession(ws, sessionName, hostId)
+    // Peer session - proxy to peer node
+    handlePeerSession(ws, sessionName, hostId)
   }
 })
 
-function handleRemoteSession(clientWs, sessionName, hostId) {
+function handlePeerSession(clientWs, sessionName, hostId) {
   const host = getHostById(hostId)
 
   if (!host) {
@@ -362,36 +372,36 @@ function handleRemoteSession(clientWs, sessionName, hostId) {
     return
   }
 
-  // Create WebSocket connection to worker
-  const workerWsUrl = host.url.replace('http', 'ws') + `/term?name=${sessionName}`
-  const workerWs = new WebSocket(workerWsUrl)
+  // Create WebSocket connection to peer
+  const peerWsUrl = host.url.replace('http', 'ws') + `/term?name=${sessionName}`
+  const peerWs = new WebSocket(peerWsUrl)
 
-  // Proxy: Client → Worker
+  // Proxy: Client → Peer
   clientWs.on('message', (data) => {
-    if (workerWs.readyState === WebSocket.OPEN) {
-      workerWs.send(data)
+    if (peerWs.readyState === WebSocket.OPEN) {
+      peerWs.send(data)
     }
   })
 
-  // Proxy: Worker → Client
-  workerWs.on('message', (data) => {
+  // Proxy: Peer → Client
+  peerWs.on('message', (data) => {
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(data)
     }
   })
 
   // Handle disconnections
-  clientWs.on('close', () => workerWs.close())
-  workerWs.on('close', () => clientWs.close())
+  clientWs.on('close', () => peerWs.close())
+  peerWs.on('close', () => clientWs.close())
 
   // Handle errors
   clientWs.on('error', (err) => {
     console.error('Client WebSocket error:', err)
-    workerWs.close()
+    peerWs.close()
   })
 
-  workerWs.on('error', (err) => {
-    console.error('Worker WebSocket error:', err)
+  peerWs.on('error', (err) => {
+    console.error('Peer WebSocket error:', err)
     clientWs.close(1011, 'Remote connection failed')
   })
 }
@@ -408,7 +418,7 @@ const ws = new WebSocket(`ws://localhost:23000/term?name=${session.id}`)
 
 **Updated:**
 ```typescript
-const hostId = session.hostId || 'macbook-local'
+const hostId = session.hostId || 'local'
 const wsUrl = session.remote
   ? `ws://localhost:23000/term?name=${session.id}&host=${hostId}`
   : `ws://localhost:23000/term?name=${session.id}`
@@ -416,7 +426,7 @@ const wsUrl = session.remote
 const ws = new WebSocket(wsUrl)
 ```
 
-**Note:** Client always connects to local manager (localhost:23000). Manager handles proxying to remote workers.
+**Note:** Client always connects to current node. Node handles proxying to peers.
 
 ---
 
@@ -440,7 +450,7 @@ export async function POST(request: Request) {
     await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
     return NextResponse.json({ success: true, name })
   } else {
-    // Remote creation (forward to worker)
+    // Peer creation (forward to peer)
     const response = await fetch(`${host.url}/api/sessions/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -462,7 +472,7 @@ Add host selector to "Create Session" modal:
 <select value={selectedHost} onChange={(e) => setSelectedHost(e.target.value)}>
   {hosts.map(host => (
     <option key={host.id} value={host.id}>
-      {host.name} {host.remote ? '(Remote)' : '(Local)'}
+      {host.name} {host.remote ? '(Peer)' : '(Local)'}
     </option>
   ))}
 </select>
@@ -470,11 +480,72 @@ Add host selector to "Create Session" modal:
 
 ---
 
-### Phase 4: UI Enhancements
+### Phase 4: Automatic Peer Discovery
+
+**Goal:** Add a peer once, both sides auto-discover each other
+
+#### 4.1 Peer Registration API
+
+**File:** `app/api/hosts/register-peer/route.ts`
+
+```typescript
+export async function POST(request: Request) {
+  const { url, name, hostId } = await request.json()
+
+  // Add the registering peer to our hosts list
+  await addHost({
+    id: hostId,
+    name: name,
+    url: url,
+    type: 'remote',
+    enabled: true
+  })
+
+  return NextResponse.json({
+    success: true,
+    myHostId: getLocalHostId(),
+    myName: getLocalHostName()
+  })
+}
+```
+
+#### 4.2 Peer Exchange Protocol
+
+When adding a new peer:
+
+```typescript
+async function addPeer(peerUrl: string) {
+  // 1. Register ourselves with the peer
+  const response = await fetch(`${peerUrl}/api/hosts/register-peer`, {
+    method: 'POST',
+    body: JSON.stringify({
+      url: getMyUrl(),
+      name: getMyName(),
+      hostId: getMyHostId()
+    })
+  })
+
+  // 2. Exchange peer lists
+  const { peers } = await fetch(`${peerUrl}/api/hosts/exchange-peers`, {
+    method: 'POST',
+    body: JSON.stringify({ myPeers: getMyPeers() })
+  }).then(r => r.json())
+
+  // 3. Merge peer lists
+  mergePeers(peers)
+
+  // 4. Notify other peers about the new peer
+  notifyPeersOfNewPeer(peerUrl)
+}
+```
+
+---
+
+### Phase 5: UI Enhancements
 
 **Goal:** Show which host each session is on
 
-#### 4.1 Add Host Indicator
+#### 5.1 Add Host Indicator
 
 **File:** `components/SessionList.tsx`
 
@@ -491,7 +562,7 @@ Add host selector to "Create Session" modal:
 </div>
 ```
 
-#### 4.2 Add Host Filter
+#### 5.2 Add Host Filter
 
 ```tsx
 const [selectedHostFilter, setSelectedHostFilter] = useState('all')
@@ -526,10 +597,10 @@ interface Config {
 ### Session Discovery Flow
 
 ```
-1. Manager loads config → List of hosts
+1. Node loads config → List of peers
 2. For each host:
    a. If local: execAsync('tmux ls')
-   b. If remote: fetch(`${host.url}/api/sessions`)
+   b. If peer: fetch(`${host.url}/api/sessions`)
 3. Merge results, add host metadata
 4. Return unified session list to UI
 ```
@@ -537,28 +608,39 @@ interface Config {
 ### WebSocket Proxy Flow
 
 ```
-Browser → Manager WS (ws://localhost:23000/term?name=X&host=mac-mini)
+Browser → Node WS (ws://localhost:23000/term?name=X&host=mac-mini)
               ↓
-        Manager detects host=mac-mini
+        Node detects host=mac-mini
               ↓
-        Manager opens WS to worker (ws://100.80.12.6:23000/term?name=X)
+        Node opens WS to peer (ws://100.80.12.6:23000/term?name=X)
               ↓
         Bidirectional proxy:
-          - Browser message → Worker
-          - Worker message → Browser
+          - Browser message → Peer
+          - Peer message → Browser
+```
+
+### Peer Exchange Protocol
+
+```
+Node A adds Node B:
+  1. A → POST /api/hosts/register-peer → B (A registers itself with B)
+  2. A → POST /api/hosts/exchange-peers → B (share peer lists)
+  3. B now knows about A, A now knows about B
+  4. Both converge to same peer list
+  5. New peers propagate through the mesh
 ```
 
 ### Error Handling
 
-**Worker unreachable:**
+**Peer unreachable:**
 - Session discovery: Skip failed hosts, log error
 - Session creation: Return error to user
 - Terminal connection: Show "Connection failed" message
 
-**Worker authentication (future):**
+**Peer authentication (future):**
 - Add API key to config
 - Include in request headers
-- Worker validates before responding
+- Peer validates before responding
 
 ---
 
@@ -567,43 +649,41 @@ Browser → Manager WS (ws://localhost:23000/term?name=X&host=mac-mini)
 ### Step 1: Single Machine (Current)
 
 ```
-MacBook AI Maestro → Local tmux sessions
+AI Maestro → Local tmux sessions
 ```
 
 **No changes required** - Works as-is
 
-### Step 2: Add First Remote Host
+### Step 2: Add First Peer
 
 ```
-MacBook AI Maestro (Manager)
-├─ Local sessions
-└─ Mac Mini sessions (via HTTP/WS)
+MacBook AI Maestro ◄──────► Mac Mini AI Maestro
+├─ Local sessions           ├─ Local sessions
+└─ Mac Mini sessions        └─ MacBook sessions
 
-Mac Mini AI Maestro (Worker)
-└─ Runs on port 23000
+Both see all agents!
 ```
 
 **Changes:**
 1. Install AI Maestro on Mac Mini (pm2 setup)
-2. Add Mac Mini to manager config
-3. Manager discovers both local + remote
+2. Add Mac Mini as peer from either node
+3. Both nodes auto-discover each other
 
-### Step 3: Scale to Multiple Hosts
+### Step 3: Scale to Multiple Peers
 
 ```
-MacBook AI Maestro (Manager)
-├─ Local sessions
-├─ Mac Mini sessions
-├─ Cloud Server 1 sessions
-└─ Cloud Server 2 sessions
+MacBook ◄──────► Mac Mini
+    ▲               ▲
+    │               │
+    └──► Cloud ◄────┘
 
-Each worker runs AI Maestro independently
+All nodes see all agents from all peers!
 ```
 
 **Changes:**
-- Add more hosts to config
-- Each worker is independent
-- Manager aggregates all sessions
+- Add more peers from any node
+- Each node is independent
+- All nodes see aggregated sessions
 
 ---
 
@@ -626,20 +706,21 @@ Management Service
 - Ephemeral containers
 - Orchestrated via Docker API
 
-### AI Maestro Multi-Host (Multiple Sessions per Host)
+### AI Maestro Peer Mesh (Multiple Sessions per Node)
 
 ```
-MacBook Manager
-└─ Worker machines, each with N tmux sessions
+Peer Mesh Network
+└─ Multiple machines, each with N tmux sessions
    ├─ Mac Mini → 10+ tmux sessions (agents)
    ├─ Cloud Server 1 → 20+ tmux sessions
    └─ Cloud Server 2 → 15+ tmux sessions
 ```
 
 **Characteristics:**
-- 1 worker = N sessions = N agents
+- 1 node = N sessions = N agents
 - Persistent sessions (survive across AI Maestro restarts)
 - Orchestrated via HTTP/WebSocket API
+- Accessible from any connected node
 
 ### Key Difference
 
@@ -648,10 +729,11 @@ MacBook Manager
 - Create container → Agent appears
 - Stop container → Agent disappears
 
-**AI Maestro workers:**
+**AI Maestro peers:**
 - Session = tmux session (lightweight)
-- Multiple sessions per worker machine
+- Multiple sessions per peer node
 - Sessions persist independently of AI Maestro process
+- Access from any node in the mesh
 
 ---
 
@@ -684,15 +766,15 @@ MacBook Manager
 ### Latency
 
 **Local sessions:**
-- Browser → Manager → Local tmux
+- Browser → Node → Local tmux
 - Latency: ~1-5ms
 
-**Remote sessions (same network):**
-- Browser → Manager → Worker (LAN) → Remote tmux
+**Peer sessions (same network):**
+- Browser → Node → Peer (LAN) → Peer tmux
 - Latency: ~5-20ms
 
-**Remote sessions (Tailscale):**
-- Browser → Manager → Worker (VPN) → Remote tmux
+**Peer sessions (Tailscale):**
+- Browser → Node → Peer (VPN) → Peer tmux
 - Latency: ~20-100ms (depends on route)
 
 **Recommendation:**
@@ -702,7 +784,7 @@ MacBook Manager
 ### Bandwidth
 
 **Session discovery:**
-- HTTP GET request per worker (KB-sized JSON)
+- HTTP GET request per peer (KB-sized JSON)
 - Low bandwidth, runs every 10 seconds
 
 **Terminal streaming:**
@@ -721,12 +803,14 @@ MacBook Manager
 ### Backend
 
 - [ ] Add configuration system (JSON file or env vars)
-- [ ] Update GET /api/sessions to fetch from multiple hosts
-- [ ] Add remote session discovery function
+- [ ] Update GET /api/sessions to fetch from all peers
+- [ ] Add peer session discovery function
 - [ ] Update session type with host metadata
-- [ ] Add WebSocket proxy for remote connections
+- [ ] Add WebSocket proxy for peer connections
 - [ ] Update POST /api/sessions/create with host routing
-- [ ] Add error handling for unreachable hosts
+- [ ] Add peer registration API
+- [ ] Add peer exchange protocol
+- [ ] Add error handling for unreachable peers
 - [ ] Add health check endpoint per host
 
 ### Frontend
@@ -735,25 +819,26 @@ MacBook Manager
 - [ ] Add host indicator badge in session list
 - [ ] Add host filter dropdown
 - [ ] Update session creation modal with host selector
-- [ ] Add visual distinction for remote sessions
+- [ ] Add visual distinction for peer sessions
 - [ ] Add error messages for connection failures
-- [ ] Add host management UI (add/remove/edit hosts)
+- [ ] Add peer management UI (add/remove/edit peers)
 
 ### Testing
 
 - [ ] Test local-only sessions (no regression)
-- [ ] Test single remote host
-- [ ] Test multiple remote hosts
-- [ ] Test host unreachable scenarios
+- [ ] Test single peer
+- [ ] Test multiple peers
+- [ ] Test peer unreachable scenarios
 - [ ] Test WebSocket proxy stability
 - [ ] Test session creation routing
+- [ ] Test bidirectional peer discovery
 - [ ] Test with Tailscale VPN
 - [ ] Test with local network
 
 ### Documentation
 
-- [ ] Update CLAUDE.md with remote session architecture
-- [ ] Create REMOTE-SETUP-GUIDE.md
+- [ ] Update CLAUDE.md with peer mesh architecture
+- [ ] Create PEER-SETUP-GUIDE.md
 - [ ] Update NETWORK-ACCESS.md
 - [ ] Add troubleshooting section
 - [ ] Document configuration schema
@@ -767,44 +852,46 @@ MacBook Manager
 1. **Prototype configuration system**
    - Create simple JSON config
    - Load hosts on startup
-   - Test with 2 hosts (local + Mac Mini)
+   - Test with 2 nodes (local + Mac Mini)
 
-2. **Test remote session discovery**
+2. **Test peer session discovery**
    - Manually fetch from Mac Mini API
    - Verify JSON format matches
    - Merge with local sessions
 
 3. **Implement WebSocket proxy**
    - Add host parameter to /term endpoint
-   - Create proxy connection to worker
+   - Create proxy connection to peer
    - Test bidirectional streaming
 
 ### Short-term (Next Week)
 
 1. Update UI with host indicators
 2. Add host selector to session creation
-3. Test end-to-end workflow
-4. Document setup process
+3. Implement peer registration API
+4. Test end-to-end workflow
+5. Document setup process
 
 ### Long-term (Phase 2)
 
 1. Add authentication
 2. Add host health monitoring
-3. Add load balancing (multiple workers per region)
-4. Add session migration (move session between hosts)
+3. Add load balancing (multiple peers per region)
+4. Add session migration (move session between peers)
 
 ---
 
 ## Conclusion
 
-The Manager/Worker pattern is the **recommended approach** for remote sessions because:
+The Peer Mesh Network is the **recommended approach** for remote sessions because:
 
-1. **Minimal implementation** - Reuses 90% of existing code
-2. **Clean architecture** - Natural separation of concerns
-3. **Scalable** - Add unlimited workers
-4. **Secure** - Tailscale VPN handles encryption
-5. **Debuggable** - Standard HTTP/WebSocket protocols
-6. **Future-proof** - Easy to add features (auth, monitoring, etc.)
+1. **Decentralized** - No central server, access from any node
+2. **Minimal implementation** - Reuses 90% of existing code
+3. **Clean architecture** - Natural separation of concerns
+4. **Scalable** - Add unlimited peers
+5. **Secure** - Tailscale VPN handles encryption
+6. **Debuggable** - Standard HTTP/WebSocket protocols
+7. **Future-proof** - Easy to add features (auth, monitoring, etc.)
 
 **Estimated implementation time:** 2-4 days for basic functionality
 
@@ -812,10 +899,6 @@ The Manager/Worker pattern is the **recommended approach** for remote sessions b
 
 ---
 
-**Next Steps:** Would you like to proceed with implementing this? We can start with Phase 1 (Configuration & Discovery) and build incrementally.
-
----
-
-**Last Updated:** 2025-11-05
-**AI Maestro Version:** 0.8.0
-**Status:** Design Document - Implementation Pending
+**Last Updated:** 2025-01-22
+**AI Maestro Version:** 0.18.x
+**Status:** Implemented - Peer Mesh Architecture Active

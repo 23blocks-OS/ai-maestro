@@ -250,7 +250,7 @@ export default function HostsSection() {
         <div>
           <h1 className="text-2xl font-semibold text-white mb-2">Host Management</h1>
           <p className="text-sm text-gray-400">
-            Configure remote AI Maestro workers for distributed session management
+            Configure remote AI Maestro peers for distributed session management
           </p>
         </div>
         <button

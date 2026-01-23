@@ -110,15 +110,15 @@ The agent will appear in the sidebar. Click it to open the terminal.
 
 ## Next Steps
 
-### Add a Remote Worker (Optional)
+### Connect a Peer (Optional)
 
-Want to manage agents on another machine? See [Setup Tutorial](./SETUP-TUTORIAL.md).
+Want to manage agents across multiple machines? See [Setup Tutorial](./SETUP-TUTORIAL.md).
 
 ### Understand the Architecture
 
 Read the [Concepts Guide](./CONCEPTS.md) to learn about:
 - Localhost vs Remote Hosts
-- Manager/Worker pattern
+- Peer mesh network
 - Security model
 
 ### See Real-World Examples
@@ -243,4 +243,4 @@ npm uninstall -g pm2
 
 ---
 
-**Ready to scale?** Check out the [Setup Tutorial](./SETUP-TUTORIAL.md) to add remote workers and distribute your AI coding workforce across multiple machines!
+**Ready to scale?** Check out the [Setup Tutorial](./SETUP-TUTORIAL.md) to connect peers and distribute your AI coding workforce across multiple machines!

@@ -8,7 +8,7 @@ const WS_MAX_RECONNECT_ATTEMPTS = 5
 
 interface UseWebSocketOptions {
   sessionId: string
-  hostId?: string  // Host ID for remote sessions (Manager/Worker pattern)
+  hostId?: string  // Host ID for remote sessions (peer mesh network)
   onMessage?: (data: string) => void
   onOpen?: () => void
   onClose?: () => void
@@ -40,7 +40,7 @@ export function useWebSocket({
     const host = window.location.host
     let url = `${protocol}//${host}/term?name=${encodeURIComponent(sessionId)}`
 
-    // Add host parameter for remote sessions (Manager/Worker pattern)
+    // Add host parameter for remote sessions (peer mesh network)
     if (hostId) {
       url += `&host=${encodeURIComponent(hostId)}`
     }

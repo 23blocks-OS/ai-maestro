@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Check, Server, Network, Shield, Play, Book } from 'lucide-react'
+import { ArrowLeft, Check, Server, Network, Shield, Play, Book, RefreshCw } from 'lucide-react'
 
 interface MultiComputerGuideProps {
   onBack: () => void
@@ -14,11 +14,11 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
   const steps = [
     {
       title: 'Welcome to Multi-Computer Setup',
-      icon: Server,
+      icon: Network,
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Perfect! You&apos;ll run AI Maestro across multiple computers using the Manager/Worker architecture.
+            Connect your AI Maestro instances into a peer mesh network - share agents seamlessly across all your computers.
           </p>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
@@ -26,15 +26,15 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
             <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span>One Manager dashboard controlling all your computers</span>
+                <span>View and manage agents from any connected computer</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span>Workers on laptop, desktop, cloud servers - all unified</span>
+                <span>Laptop, desktop, cloud servers - all interconnected as peers</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span>Resource distribution across machines</span>
+                <span>Automatic peer discovery - add once, both sides sync</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
@@ -44,26 +44,43 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
           </div>
 
           <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-2">Architecture Overview:</h3>
+            <h3 className="font-medium text-white mb-2">Mesh Network Architecture:</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
-                  <Server className="w-4 h-4 text-blue-400" />
+              <div className="p-3 bg-gray-900/50 rounded-lg">
+                <div className="flex items-center justify-center gap-4 text-xs text-gray-400 mb-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-1">
+                      <Server className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <span>MacBook</span>
+                  </div>
+                  <div className="flex-1 border-t border-dashed border-gray-600 relative">
+                    <RefreshCw className="w-3 h-3 text-green-400 absolute -top-1.5 left-1/2 -translate-x-1/2 bg-gray-900" />
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-lg bg-green-500/20 border border-green-500/40 flex items-center justify-center mb-1">
+                      <Server className="w-5 h-5 text-green-400" />
+                    </div>
+                    <span>Mac Mini</span>
+                  </div>
+                  <div className="flex-1 border-t border-dashed border-gray-600 relative">
+                    <RefreshCw className="w-3 h-3 text-green-400 absolute -top-1.5 left-1/2 -translate-x-1/2 bg-gray-900" />
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center mb-1">
+                      <Server className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <span>Cloud</span>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-white">Manager (This Computer)</p>
-                  <p className="text-gray-400">Runs the web dashboard, discovers workers, displays all sessions</p>
-                </div>
+                <p className="text-center text-gray-400 text-xs">
+                  Every node is equal - no central server required
+                </p>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-center flex-shrink-0">
-                  <Server className="w-4 h-4 text-green-400" />
-                </div>
-                <div>
-                  <p className="font-medium text-white">Workers (Remote Computers)</p>
-                  <p className="text-gray-400">Run tmux sessions, expose API on port 23000, managed from Manager</p>
-                </div>
-              </div>
+              <p className="text-gray-400">
+                Each computer runs AI Maestro and can see agents on all connected peers.
+                Add a host once, and both sides automatically discover each other.
+              </p>
             </div>
           </div>
         </div>
@@ -71,11 +88,11 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
     },
     {
       title: 'Setup Tailscale VPN',
-      icon: Network,
+      icon: Shield,
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Tailscale creates a secure VPN mesh network between your computers, making remote access safe and simple.
+            Tailscale creates a secure VPN mesh network between your computers, making peer connections safe and simple.
           </p>
 
           <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
@@ -91,7 +108,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
               </li>
               <li className="flex items-start gap-2">
                 <Shield className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                <span>Free for personal use (up to 20 devices)</span>
+                <span>Free for personal use (up to 100 devices)</span>
               </li>
             </ul>
           </div>
@@ -102,33 +119,33 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
               <li>
                 Visit <a href="https://tailscale.com/download" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">tailscale.com/download</a>
               </li>
-              <li>Install on <strong>all computers</strong> (Manager + Workers)</li>
+              <li>Install on <strong>all computers</strong> you want to connect</li>
               <li>Sign in with your account (same account on all devices)</li>
               <li>Verify connection: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">tailscale status</code></li>
             </ol>
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">💡 Pro Tip:</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Pro Tip:</p>
             <p className="text-sm text-gray-300">
               After setup, each computer gets a unique Tailscale IP (e.g., <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">100.x.x.x</code>).
-              You&apos;ll use these IPs to connect your Manager to Workers.
+              You&apos;ll use these IPs to connect your AI Maestro instances.
             </p>
           </div>
         </div>
       ),
     },
     {
-      title: 'Configure Workers',
+      title: 'Install AI Maestro on Each Computer',
       icon: Server,
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Each Worker computer needs to run AI Maestro in Worker mode to expose sessions to the Manager.
+            Each computer in your mesh needs its own AI Maestro instance. The setup is identical on every machine.
           </p>
 
           <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-3">On each Worker computer:</h3>
+            <h3 className="font-medium text-white mb-3">On each computer:</h3>
             <ol className="space-y-3 text-sm text-gray-300 list-decimal list-inside">
               <li>
                 Clone AI Maestro: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">git clone [repo]</code>
@@ -140,14 +157,7 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
                 Build the project: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">yarn build</code>
               </li>
               <li>
-                Create config file: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">.env.local</code>
-                <div className="ml-6 mt-2 p-3 bg-gray-900 rounded font-mono text-xs">
-                  DEPLOYMENT_TYPE=worker<br />
-                  PORT=23000
-                </div>
-              </li>
-              <li>
-                Start worker: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">yarn start</code>
+                Start AI Maestro: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">yarn start</code>
               </li>
               <li>
                 Keep it running: Use <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">pm2</code> or <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">systemd</code> for persistence
@@ -156,44 +166,44 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
           </div>
 
           <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-lg">
-            <h3 className="font-medium text-green-400 mb-2">Verify Worker is Running:</h3>
+            <h3 className="font-medium text-green-400 mb-2">Verify It&apos;s Running:</h3>
             <p className="text-sm text-gray-300 mb-2">
-              From the Worker machine, check:
+              On each machine, check:
             </p>
             <code className="block bg-gray-900 px-3 py-2 rounded text-sm text-blue-400">
               curl http://localhost:23000/api/sessions
             </code>
             <p className="text-xs text-gray-400 mt-2">
-              Should return JSON list of tmux sessions
+              Should return JSON list of tmux sessions on that machine
             </p>
           </div>
 
-          <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-            <p className="text-sm text-yellow-400 font-medium mb-1">⚠️ Important:</p>
+          <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+            <p className="text-sm text-blue-400 font-medium mb-1">Same setup everywhere:</p>
             <p className="text-sm text-gray-300">
-              Workers must run on port <code className="bg-gray-900 px-2 py-0.5 rounded">23000</code>.
-              The Manager will connect to <code className="bg-gray-900 px-2 py-0.5 rounded">[tailscale-ip]:23000</code>
+              Unlike traditional setups, there&apos;s no &quot;server&quot; vs &quot;client&quot; distinction.
+              Every AI Maestro instance is a full peer that can connect to any other.
             </p>
           </div>
         </div>
       ),
     },
     {
-      title: 'Add Workers to Manager',
+      title: 'Connect Your Peers',
       icon: Play,
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Now connect your Manager dashboard to the Workers using the host discovery wizard.
+            Add a peer from any computer - both sides will automatically discover each other.
           </p>
 
           <div className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg">
-            <h3 className="font-medium text-white mb-3">Steps to Add a Worker:</h3>
+            <h3 className="font-medium text-white mb-3">Connect Two Computers:</h3>
 
             <div className="space-y-3">
               <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">1. Get Worker&apos;s Tailscale IP</h4>
-                <p className="text-sm text-gray-300 mb-2">On the Worker machine, run:</p>
+                <h4 className="text-sm font-medium text-blue-400 mb-2">1. Get the Peer&apos;s Tailscale IP</h4>
+                <p className="text-sm text-gray-300 mb-2">On the remote computer, run:</p>
                 <code className="block bg-gray-900 px-3 py-2 rounded text-sm text-blue-400">
                   tailscale ip -4
                 </code>
@@ -201,43 +211,44 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
               </div>
 
               <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">2. Open Settings in Manager Dashboard</h4>
+                <h4 className="text-sm font-medium text-blue-400 mb-2">2. Open Settings → Hosts</h4>
                 <p className="text-sm text-gray-300">
-                  Click <strong>Settings</strong> → <strong>Hosts</strong> tab
+                  From any AI Maestro dashboard, click <strong>Settings</strong> → <strong>Hosts</strong> tab
                 </p>
               </div>
 
               <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">3. Add Worker Host</h4>
+                <h4 className="text-sm font-medium text-blue-400 mb-2">3. Add the Peer</h4>
                 <p className="text-sm text-gray-300 mb-2">
                   Enter the URL: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://100.64.0.2:23000</code>
                 </p>
                 <p className="text-xs text-gray-400">
-                  The system will auto-discover sessions and verify connection
+                  AI Maestro will verify the connection and exchange peer info
                 </p>
               </div>
 
-              <div className="p-3 bg-gray-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-400 mb-2">4. Repeat for Each Worker</h4>
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <h4 className="text-sm font-medium text-green-400 mb-2">4. Automatic Sync!</h4>
                 <p className="text-sm text-gray-300">
-                  Add all your Worker machines to manage them from one dashboard
+                  Both computers now see each other. Add a third peer from any node -
+                  it automatically propagates to all connected peers.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-2">What happens next:</h3>
+            <h3 className="font-medium text-white mb-2">What happens:</h3>
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
-              <li>Worker sessions appear in sidebar with host badge</li>
-              <li>Click any session to open terminal (works across all hosts)</li>
-              <li>Create sessions on any Worker from the dashboard</li>
-              <li>Full terminal streaming and interaction</li>
+              <li>Agents from all peers appear in your sidebar with host badges</li>
+              <li>Click any agent to open its terminal (works across all peers)</li>
+              <li>Create agents on any connected peer from your dashboard</li>
+              <li>The mesh grows automatically as peers share their connections</li>
             </ol>
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">📚 Need More Help?</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Need More Help?</p>
             <p className="text-sm text-gray-300">
               Read the full setup tutorial in{' '}
               <a
@@ -287,11 +298,11 @@ export default function MultiComputerGuide({ onBack, onComplete }: MultiComputer
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-center">
-                <Server className="w-5 h-5 text-green-400" />
+                <Network className="w-5 h-5 text-green-400" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Multi-Computer Setup</h1>
-                <p className="text-sm text-gray-400">Manager/Worker architecture across your machines</p>
+                <p className="text-sm text-gray-400">Connect your machines into a peer mesh network</p>
               </div>
             </div>
 

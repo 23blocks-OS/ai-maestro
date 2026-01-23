@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Check, Zap, Terminal, Server, Package, Cloud, Network, Book } from 'lucide-react'
+import { ArrowLeft, Check, Zap, Terminal, Server, Package, Cloud, Network, Book, RefreshCw } from 'lucide-react'
 
 interface AdvancedGuideProps {
   onBack: () => void
@@ -18,7 +18,7 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            You&apos;ve chosen the most powerful setup! This combines all AI Maestro features for maximum flexibility and scale.
+            You&apos;ve chosen the most powerful setup! This combines all AI Maestro features in a peer mesh network for maximum flexibility and scale.
           </p>
 
           <div className="p-4 bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-lg">
@@ -30,7 +30,7 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
               </li>
               <li className="flex items-start gap-2">
                 <Server className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span><strong>Remote Workers:</strong> AI Maestro instances on other machines</span>
+                <span><strong>Remote Peers:</strong> AI Maestro instances on other machines</span>
               </li>
               <li className="flex items-start gap-2">
                 <Package className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
@@ -40,11 +40,15 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
                 <Cloud className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
                 <span><strong>Cloud Docker:</strong> Containers on AWS/GCP/Azure</span>
               </li>
+              <li className="flex items-start gap-2">
+                <Network className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                <span><strong>Mesh Network:</strong> All nodes connected as equals - no central server</span>
+              </li>
             </ul>
           </div>
 
           <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
-            <h3 className="font-medium text-yellow-400 mb-2">⚡ Complexity Warning:</h3>
+            <h3 className="font-medium text-yellow-400 mb-2">Complexity Warning:</h3>
             <p className="text-sm text-gray-300">
               This setup requires knowledge of: tmux, Docker, networking, cloud infrastructure, and Tailscale VPN.
               Estimated setup time: <strong>30+ minutes</strong>. Consider starting with a simpler setup if you&apos;re new to these technologies.
@@ -114,9 +118,9 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
           </div>
 
           <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-3">Step 3: Setup AI Maestro Manager (This Machine)</h3>
+            <h3 className="font-medium text-white mb-3">Step 3: Start AI Maestro (This Machine)</h3>
             <p className="text-sm text-gray-300 mb-2">
-              This machine runs in Manager mode (default):
+              Launch AI Maestro - it runs the same way on every machine:
             </p>
             <code className="block bg-gray-900 px-3 py-2 rounded text-sm text-blue-400">
               yarn dev  # or yarn start for production
@@ -124,21 +128,21 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">💡 Foundation Complete:</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Foundation Complete:</p>
             <p className="text-sm text-gray-300">
-              With Tailscale, Docker, and Manager running, you have the base infrastructure. Next steps add features on top.
+              With Tailscale, Docker, and AI Maestro running, you have the base infrastructure. Next steps add peers and capabilities.
             </p>
           </div>
         </div>
       ),
     },
     {
-      title: 'Deploy Workers',
+      title: 'Connect Remote Peers',
       icon: Server,
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Set up AI Maestro Workers on remote machines to distribute workloads.
+            Set up AI Maestro on remote machines and connect them into your mesh network.
           </p>
 
           <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-lg">
@@ -151,20 +155,13 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
                 </code>
               </li>
               <li>
-                Install dependencies:
+                Install and build:
                 <code className="block bg-gray-900 px-3 py-2 rounded text-blue-400 mt-1">
                   yarn install && yarn build
                 </code>
               </li>
               <li>
-                Create <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">.env.local</code>:
-                <div className="bg-gray-900 px-3 py-2 rounded font-mono text-xs text-blue-400 mt-1">
-                  DEPLOYMENT_TYPE=worker<br />
-                  PORT=23000
-                </div>
-              </li>
-              <li>
-                Start Worker:
+                Start AI Maestro:
                 <code className="block bg-gray-900 px-3 py-2 rounded text-blue-400 mt-1">
                   yarn start  # or use pm2/systemd for persistence
                 </code>
@@ -173,19 +170,27 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
           </div>
 
           <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-3">Add Workers to Manager:</h3>
+            <h3 className="font-medium text-white mb-3">Connect Peers:</h3>
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
-              <li>Get Worker&apos;s Tailscale IP: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">tailscale ip -4</code></li>
-              <li>In Manager: Settings → Hosts</li>
+              <li>Get peer&apos;s Tailscale IP: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">tailscale ip -4</code></li>
+              <li>From any AI Maestro: Settings → Hosts</li>
               <li>Add: <code className="bg-gray-900 px-2 py-0.5 rounded text-blue-400">http://[tailscale-ip]:23000</code></li>
-              <li>Repeat for each Worker</li>
             </ol>
+            <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+              <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                <RefreshCw className="w-4 h-4" />
+                <span>Automatic bidirectional sync!</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Add from any node - both sides discover each other. New peers propagate to all connected nodes.
+              </p>
+            </div>
           </div>
 
           <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400 font-medium mb-2">✅ Workers Active:</p>
+            <p className="text-sm text-blue-400 font-medium mb-2">Peers Connected:</p>
             <p className="text-sm text-gray-300">
-              Remote sessions now appear in sidebar with host badges. You can create sessions on any Worker from the Manager.
+              Remote agents now appear in your sidebar with host badges. You can view and manage agents on any peer from any dashboard.
             </p>
           </div>
         </div>
@@ -197,7 +202,7 @@ export default function AdvancedGuide({ onBack, onComplete }: AdvancedGuideProps
       content: (
         <div className="space-y-4">
           <p className="text-lg text-gray-300">
-            Deploy containerized agents both locally and on Workers for maximum flexibility.
+            Deploy containerized agents both locally and on remote peers for maximum flexibility.
           </p>
 
           <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
@@ -219,10 +224,10 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
           <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
             <h3 className="font-medium text-orange-400 mb-2">Cloud Docker Agents:</h3>
             <ol className="space-y-2 text-sm text-gray-300 list-decimal list-inside">
-              <li>Deploy Worker to cloud VM (AWS/GCP/Azure/etc.)</li>
+              <li>Install AI Maestro on cloud VM (AWS/GCP/Azure/etc.)</li>
               <li>Install Docker on that VM</li>
               <li>Run same Docker containers as local</li>
-              <li>Sessions appear in Manager with host badge showing location</li>
+              <li>Connect as peer - agents appear across all dashboards</li>
             </ol>
           </div>
 
@@ -239,7 +244,7 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
               </div>
               <div className="flex items-start gap-2">
                 <Server className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span><strong>Heavy computation:</strong> Remote Workers (offload from laptop)</span>
+                <span><strong>Heavy computation:</strong> Remote peers (offload from laptop)</span>
               </div>
               <div className="flex items-start gap-2">
                 <Cloud className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
@@ -276,7 +281,7 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                <span>Add host labels to identify Workers (Settings → Hosts)</span>
+                <span>Add host labels to identify peers (Settings → Hosts)</span>
               </li>
             </ul>
           </div>
@@ -285,20 +290,20 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
             <h3 className="font-medium text-yellow-400 mb-3">Cost Optimization:</h3>
             <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-start gap-2">
-                <span className="text-yellow-400 mt-0.5">💰</span>
+                <span className="text-yellow-400 mt-0.5">$</span>
                 <span>Monitor cloud costs - set billing alerts</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-yellow-400 mt-0.5">💰</span>
+                <span className="text-yellow-400 mt-0.5">$</span>
                 <span>Shut down idle cloud containers</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-yellow-400 mt-0.5">💰</span>
+                <span className="text-yellow-400 mt-0.5">$</span>
                 <span>Use spot/preemptible instances for non-critical work</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-yellow-400 mt-0.5">💰</span>
-                <span>Prefer local/remote Workers over cloud when possible</span>
+                <span className="text-yellow-400 mt-0.5">$</span>
+                <span>Prefer local/remote peers over cloud when possible</span>
               </li>
             </ul>
           </div>
@@ -326,17 +331,17 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
           </div>
 
           <div className="p-4 bg-gray-800/30 border border-gray-700 rounded-lg">
-            <h3 className="font-medium text-white mb-3">📚 Essential Reading:</h3>
+            <h3 className="font-medium text-white mb-3">Essential Reading:</h3>
             <ul className="space-y-2 text-sm text-gray-300">
               <li>
                 <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/SETUP-TUTORIAL.md" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
                   Complete Setup Tutorial
-                </a> - Step-by-step Manager/Worker setup
+                </a> - Step-by-step multi-computer setup
               </li>
               <li>
                 <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/CONCEPTS.md" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
                   Architecture Concepts
-                </a> - Understanding localhost, hosts, and deployment types
+                </a> - Understanding hosts, peers, and the mesh network
               </li>
               <li>
                 <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/USE-CASES.md" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
@@ -357,9 +362,9 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
           </div>
 
           <div className="p-6 bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg">
-            <h3 className="font-medium text-white mb-2 text-lg">🎉 You&apos;re Ready!</h3>
+            <h3 className="font-medium text-white mb-2 text-lg">You&apos;re Ready!</h3>
             <p className="text-sm text-gray-300">
-              You have the most powerful AI development environment possible. Start creating agents and explore all the features AI Maestro offers!
+              You have the most powerful AI development environment possible - a fully connected peer mesh network. Start creating agents and explore all the features AI Maestro offers!
             </p>
           </div>
         </div>
@@ -402,7 +407,7 @@ CMD ["tmux", "new-session", "-s", "docker-agent", "-d", "claude"]`}
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Advanced Setup</h1>
-                <p className="text-sm text-gray-400">All features combined - maximum power</p>
+                <p className="text-sm text-gray-400">Full peer mesh with all features</p>
               </div>
             </div>
 

@@ -388,7 +388,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Checking installed scripts..."
 
     SCRIPTS_OK=true
-    for script in send-aimaestro-message.sh check-and-show-messages.sh check-new-messages-arrived.sh send-tmux-message.sh; do
+    for script in send-aimaestro-message.sh check-aimaestro-messages.sh read-aimaestro-message.sh reply-aimaestro-message.sh check-and-show-messages.sh check-new-messages-arrived.sh send-tmux-message.sh; do
         if [ -x ~/.local/bin/"$script" ]; then
             print_success "$script is executable"
         else

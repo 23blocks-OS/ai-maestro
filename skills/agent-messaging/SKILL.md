@@ -53,19 +53,22 @@ When the human operator says "check your messages" or "read your messages":
 - User wants YOU to communicate with ANOTHER agent
 - You need to send urgent alerts or requests to OTHER AGENTS
 
-**Receiving (Check YOUR OWN Inbox):**
-- User says "check my inbox" or "check my messages" = Use `check-aimaestro-messages.sh`
-- User says "read my messages" or "read message X" = Use `read-aimaestro-message.sh <id>`
+**Receiving Messages (Push Notifications):**
+- **You receive automatic notifications** when messages arrive - no polling needed!
+- Notification format: `[MESSAGE] From: sender - Subject - check your inbox`
+- When you see a notification, use `check-aimaestro-messages.sh` to see details
+- Use `read-aimaestro-message.sh <id>` to read the full message
 - User asks "any new messages?" = Use `check-aimaestro-messages.sh`
-- Agent just started (best practice: check YOUR inbox first)
-- You want to see what OTHER AGENTS have sent TO YOU
 
 **RECOMMENDED WORKFLOW:**
-1. First check for unread messages: `check-aimaestro-messages.sh`
-2. Then read specific message: `read-aimaestro-message.sh <message-id>`
-3. Message is automatically marked as read after reading
-4. Reply if needed: `reply-aimaestro-message.sh <message-id> "Your reply"`
+1. **Receive notification**: `[MESSAGE] From: slack-bridge - Question from #engineering - check your inbox`
+2. Check inbox details: `check-aimaestro-messages.sh`
+3. Read specific message: `read-aimaestro-message.sh <message-id>`
+4. Message is automatically marked as read after reading
+5. Reply if needed: `reply-aimaestro-message.sh <message-id> "Your reply"`
    - For Slack messages (📱), reply automatically posts to Slack thread
+
+**Note:** Notifications are instant - you don't need to poll or periodically check for messages.
 
 ## Available Tools
 
@@ -223,22 +226,22 @@ Reply sent
    Slack: Will post to channel CS5SXB7C6  # Only shown for Slack messages
 ```
 
-### 4. Auto-Display on Agent Start (Legacy - DO NOT USE MANUALLY)
+### 4. Auto-Display on Agent Start (DEPRECATED)
 **Command:**
 ```bash
 check-and-show-messages.sh
 ```
 
-**What it does:**
-- Automatically runs when you attach to a tmux session
-- Shows a summary of unread messages
-- **DO NOT run this command manually** - it's for auto-display only
-- **For manual checking, use `check-aimaestro-messages.sh` instead**
+**⚠️ DEPRECATED:** This command is no longer needed. AI Maestro now uses **push notifications** to alert you instantly when messages arrive. You don't need to poll or auto-check on startup.
 
-**Why not use this manually?**
-- It's designed for auto-display (runs on tmux attach)
-- Output format is optimized for quick glance, not interactive reading
-- Use the new commands (#1 and #2 above) for better experience
+**What it did (legacy):**
+- Automatically ran when you attach to a tmux session
+- Showed a summary of unread messages
+
+**What to use instead:**
+- **Push notifications** alert you automatically when messages arrive
+- Use `check-aimaestro-messages.sh` when you want to check inbox manually
+- Use `read-aimaestro-message.sh <id>` to read specific messages
 
 **Output format:**
 ```
@@ -577,6 +580,52 @@ reply-aimaestro-message.sh msg-abc123... "Reviewed the schema. Looks good, but c
 # Your reply appears in the Slack thread!
 ```
 
+## PART 2.7: RECEIVING PUSH NOTIFICATIONS
+
+AI Maestro uses **push notifications** to alert you when messages arrive. This eliminates the need for polling - you're notified instantly when someone sends you a message.
+
+### How Notifications Work
+
+When a message is delivered to your inbox, AI Maestro automatically sends a notification to your terminal:
+
+```
+[MESSAGE] From: slack-bridge - Question from #engineering - check your inbox
+```
+
+**Notification format:**
+- `[MESSAGE]` - Indicates an incoming message notification
+- `From: <sender>` - Who sent the message (agent name or `slack-bridge` for Slack)
+- `<subject>` - The message subject
+- Priority indicators: `🔴 [URGENT]` or `🟠 [HIGH]` for urgent/high priority messages
+
+### Responding to Notifications
+
+When you see a notification:
+
+1. **Check your inbox** to see the message details:
+   ```bash
+   check-aimaestro-messages.sh
+   ```
+
+2. **Read the full message**:
+   ```bash
+   read-aimaestro-message.sh <message-id>
+   ```
+
+3. **Reply** (works for both agent and Slack messages):
+   ```bash
+   reply-aimaestro-message.sh <message-id> "Your response here"
+   ```
+
+### Why Push Notifications?
+
+- **Instant delivery** - No delay waiting for polling intervals
+- **Zero overhead** - No background processes polling for messages
+- **Non-intrusive** - Notifications appear without interrupting your work
+- **Reliable** - Notifications are sent at message delivery time, guaranteed
+
+**Note:** You still use `check-aimaestro-messages.sh` and `read-aimaestro-message.sh` to read messages - notifications just tell you when they arrive.
+
 ### 6. Instant Notifications (Real-time, Ephemeral)
 Use for urgent alerts that need immediate attention FROM OTHER AGENTS.
 
@@ -659,81 +708,83 @@ send-aimaestro-message.sh backend-architect \
 
 ### RECEIVING Examples (Checking YOUR OWN Inbox)
 
-#### Scenario R1: Check YOUR Inbox on Agent Start
+#### Scenario R1: Responding to Message Notifications
 ```bash
 # YOU are agent "frontend-dev"
-# Best practice: Always check YOUR inbox when starting work
+# You receive a notification:
+# [MESSAGE] From: backend-api - API endpoint ready - check your inbox
 
-check-and-show-messages.sh
-# This checks ~/.aimaestro/messages/inbox/frontend-dev/
-# Shows messages OTHER AGENTS sent TO YOU
+# 1. Check your inbox to see the message
+check-aimaestro-messages.sh
 
-# If messages found from other agents, read and respond appropriately
+# 2. Read the specific message
+read-aimaestro-message.sh msg-1234567890-abc
+
+# 3. Reply if needed
+reply-aimaestro-message.sh msg-1234567890-abc "Thanks! I'll integrate it now."
 ```
 
-#### Scenario R2: Quick Check for New Messages in YOUR Inbox
+#### Scenario R2: Operator Asks About Messages
 ```bash
 # Operator asks: "Any new messages?"
 # YOU (the agent) check YOUR inbox
 
-check-new-messages-arrived.sh
-# Output: "You have 2 new message(s)"  ← Sent TO YOU by other agents
+check-aimaestro-messages.sh
+# Output shows unread messages:
+# [msg-123...] 🔵 From: backend-api | 2025-01-23 14:30
+#     Subject: API endpoint ready
+#     Preview: The POST /api/users endpoint is now...
 
-# Then show full details from YOUR inbox
-check-and-show-messages.sh
+# Note: With push notifications, you'll already know about messages
+# because AI Maestro notifies you when they arrive!
 ```
 
-#### Scenario R3: Read Message FROM YOUR Inbox and Respond
+#### Scenario R3: Read Message and Respond
 ```bash
 # YOU are agent "backend-architect"
-# 1. Check YOUR inbox for messages sent TO YOU
+# You received notification: [MESSAGE] From: frontend-dev - Need API endpoint - check your inbox
 
-check-and-show-messages.sh
+# 1. Check YOUR inbox for details
+check-aimaestro-messages.sh
 
-# Output shows message sent TO YOU:
-# Message: msg_1705502625_abc123
-# From: frontend-dev          ← Another agent sent this
-# To: backend-architect       ← YOU (your session)
-# Subject: Need API endpoint
-# Priority: high
-# Type: request
-# Content: Please implement POST /api/users with pagination...
+# Output shows:
+# [msg-1705502625...] 🟠 From: frontend-dev | 2025-01-17 14:23
+#     Subject: Need API endpoint
+#     Preview: Please implement POST /api/users with pagination...
 
-# 2. Work on the request (implement the feature)
+# 2. Read full message
+read-aimaestro-message.sh msg-1705502625-abc123
 
-# 3. Send response TO THE AGENT who messaged you
-send-aimaestro-message.sh frontend-dev \
-  "Re: API endpoint ready" \
-  "Implemented POST /api/users at routes/users.ts:45. Includes pagination support." \
-  normal \
-  response
+# 3. Work on the request (implement the feature)
+
+# 4. Reply TO THE AGENT who messaged you
+reply-aimaestro-message.sh msg-1705502625-abc123 \
+  "Implemented POST /api/users at routes/users.ts:45. Includes pagination support."
 ```
 
-#### Scenario R4: Handle Urgent Message in YOUR Inbox
+#### Scenario R4: Handle Urgent Message
 ```bash
 # YOU are agent "frontend-dev"
-# Check YOUR inbox
+# You receive URGENT notification:
+# 🔴 [URGENT] [MESSAGE] From: backend-architect - Production: Database down - check your inbox
 
-check-and-show-messages.sh
+# 1. Check inbox immediately
+check-aimaestro-messages.sh
 
-# Output shows urgent message sent TO YOU:
-# 🚨 Priority: urgent
-# From: backend-architect     ← Sent by another agent
-# To: frontend-dev            ← YOU (your session)
-# Subject: Production: Database down
-# Content: All queries failing since 15:30...
+# Output shows:
+# [msg-urgent...] 🔴 From: backend-architect | 2025-01-23 15:30
+#     Subject: Production: Database down
+#     Preview: All queries failing since 15:30...
 
-# 1. Acknowledge immediately TO THE AGENT who sent it
-send-tmux-message.sh backend-architect "Received urgent alert - investigating now!" inject
+# 2. Read full details
+read-aimaestro-message.sh msg-urgent-abc123
 
-# 2. Work on issue
+# 3. Acknowledge and work on issue
+reply-aimaestro-message.sh msg-urgent-abc123 "Investigating now!"
 
-# 3. Send detailed update TO THE AGENT who alerted you
-send-aimaestro-message.sh backend-architect \
-  "Re: Database issue - RESOLVED" \
-  "Issue identified: connection pool exhausted. Increased max_connections. System stable." \
-  urgent \
-  response
+# 4. After resolving, send detailed update
+reply-aimaestro-message.sh msg-urgent-abc123 \
+  "RESOLVED: Issue was connection pool exhaustion. Increased max_connections. System stable."
 ```
 
 #### Scenario R5: Receive and Reply to Slack Message
@@ -811,31 +862,44 @@ send-aimaestro-message.sh frontend-dev \
 
 ## Workflow
 
-### Receiving Messages Workflow (Checking YOUR OWN Inbox)
+### Receiving Messages Workflow (Push Notifications)
 
-**Remember: You are checking YOUR inbox for messages other agents sent TO YOU**
+**You receive automatic notifications when messages arrive - no polling needed!**
 
-1. **Check YOUR inbox proactively** - Run `check-and-show-messages.sh` when starting work or operator asks
-   - This reads `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
-   - Shows messages OTHER AGENTS sent TO YOU
+1. **Receive notification** - AI Maestro automatically notifies you when a message arrives:
+   ```
+   [MESSAGE] From: backend-architect - API endpoint ready - check your inbox
+   ```
+   - Notifications appear instantly when messages are delivered
+   - No need to poll or periodically check
 
-2. **Read message content** - Display full message details
-   - From: Which agent sent this TO YOU
-   - To: YOUR session name
-   - Subject, priority, content: What they want YOU to know/do
+2. **Check your inbox** - Run `check-aimaestro-messages.sh` to see message details:
+   ```bash
+   check-aimaestro-messages.sh
+   ```
+   - Shows unread messages in YOUR inbox
+   - Displays: sender, subject, preview, priority
 
-3. **Assess urgency** - Check priority level (urgent = respond immediately TO THAT AGENT)
+3. **Read full message** - Use `read-aimaestro-message.sh` to see complete content:
+   ```bash
+   read-aimaestro-message.sh <message-id>
+   ```
+   - Automatically marks message as read
+   - Shows full content, context, and Slack info if applicable
 
-4. **Take action** - Work on the request that was sent TO YOU
+4. **Assess urgency** - Check priority level (urgent = respond immediately)
+
+5. **Take action** - Work on the request
    - Investigate issue
    - Implement feature
    - Or acknowledge receipt
 
-5. **Respond TO THE AGENT who messaged you** - Send reply using appropriate method
-   - File-based: Send TO the agent who messaged you
-   - Instant: Send TO the agent who messaged you
-
-6. **Mark as read** - (Optional) Update YOUR message status via API
+6. **Reply** - Use `reply-aimaestro-message.sh` to respond:
+   ```bash
+   reply-aimaestro-message.sh <message-id> "Your response"
+   ```
+   - Automatically addresses reply to original sender
+   - For Slack messages, posts to the Slack thread
 
 ### Sending Messages Workflow (TO Other Agents)
 

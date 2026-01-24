@@ -164,6 +164,9 @@ export default function AgentList({
     if (typeof window === 'undefined') return 'list'
     return (localStorage.getItem('agent-sidebar-view-mode') as 'list' | 'grid') || 'list'
   })
+  // Track if user manually toggled view mode (don't auto-switch if true)
+  const [userOverrodeViewMode, setUserOverrodeViewMode] = useState(false)
+  const prevSidebarWidthRef = useRef(sidebarWidth)
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
   const [wakeDialogAgent, setWakeDialogAgent] = useState<UnifiedAgent | null>(null)
@@ -269,15 +272,30 @@ export default function AgentList({
     return 1
   }, [sidebarWidth])
 
-  // Auto-switch view mode based on sidebar width
-  // Wide sidebar (>= 480px) → grid view, narrow sidebar → list view
+  // Auto-switch view mode when sidebar is being resized
+  // But respect user's manual toggle until they cross the width threshold again
   useEffect(() => {
-    if (sidebarWidth >= 480 && viewMode === 'list') {
-      setViewMode('grid')
-    } else if (sidebarWidth < 480 && viewMode === 'grid') {
-      setViewMode('list')
+    const prevWidth = prevSidebarWidthRef.current
+    const widthChanged = prevWidth !== sidebarWidth
+    prevSidebarWidthRef.current = sidebarWidth
+
+    if (!widthChanged) return
+
+    // Reset user override when crossing the 480px threshold (resize resets manual choice)
+    const crossedThreshold = (prevWidth < 480 && sidebarWidth >= 480) || (prevWidth >= 480 && sidebarWidth < 480)
+    if (crossedThreshold) {
+      setUserOverrodeViewMode(false)
     }
-  }, [sidebarWidth, viewMode])
+
+    // Auto-switch if user hasn't manually overridden
+    if (!userOverrodeViewMode) {
+      if (sidebarWidth >= 480 && viewMode === 'list') {
+        setViewMode('grid')
+      } else if (sidebarWidth < 480 && viewMode === 'grid') {
+        setViewMode('list')
+      }
+    }
+  }, [sidebarWidth, viewMode, userOverrodeViewMode])
 
   // Initialize NEW panels as open on first mount
   const initializedRef = useRef(false)
@@ -665,7 +683,10 @@ export default function AgentList({
             </div>
             {/* View mode toggle */}
             <button
-              onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+              onClick={() => {
+                setViewMode(viewMode === 'list' ? 'grid' : 'list')
+                setUserOverrodeViewMode(true) // User manually toggled, respect their choice
+              }}
               className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-gray-400 hover:text-gray-200 hover:scale-110"
               aria-label={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
               title={viewMode === 'list' ? 'Grid view' : 'List view'}

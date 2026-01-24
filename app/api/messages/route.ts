@@ -15,6 +15,7 @@ import {
 } from '@/lib/messageQueue'
 import { searchAgents } from '@/lib/agent-registry'
 import { getSelfHostId, getSelfHost } from '@/lib/hosts-config-server.mjs'
+import { notifyAgent } from '@/lib/notification-service'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -161,7 +162,23 @@ export async function POST(request: NextRequest) {
       toAlias,
     })
 
-    return NextResponse.json({ message }, { status: 201 })
+    // Notify target agent immediately (fire-and-forget, doesn't block response)
+    const notificationResult = await notifyAgent({
+      agentId: message.to,
+      agentName: message.toAlias || message.to,
+      agentHost: message.toHost || 'local',
+      fromName: message.fromAlias || message.from,
+      fromHost: message.fromHost,
+      subject: message.subject,
+      messageId: message.id,
+      priority: message.priority,
+      messageType: content.type,
+    })
+
+    return NextResponse.json({
+      message,
+      notified: notificationResult.notified,
+    }, { status: 201 })
   } catch (error) {
     console.error('Error sending message:', error)
     const errorMessage = error instanceof Error ? error.message : 'Failed to send message'

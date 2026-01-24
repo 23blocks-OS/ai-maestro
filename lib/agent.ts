@@ -44,7 +44,8 @@ interface AgentConfig {
 
 interface SubconsciousConfig {
   memoryCheckInterval?: number  // How often to check for new conversations (default: 5 minutes)
-  messageCheckInterval?: number // How often to check for messages (default: 2 minutes)
+  messageCheckInterval?: number // How often to check for messages (default: 5 minutes) - DEPRECATED
+  messagePollingEnabled?: boolean // Enable message polling (default: false - use push notifications instead)
   consolidationEnabled?: boolean // Enable long-term memory consolidation (default: true)
   consolidationHour?: number    // Hour of day to run consolidation (default: 2 = 2 AM)
 }
@@ -77,6 +78,7 @@ interface SubconsciousStatus {
   startedAt: number | null
   memoryCheckInterval: number
   messageCheckInterval: number
+  messagePollingEnabled: boolean  // false = using push notifications (default)
   activityState: 'active' | 'idle' | 'disconnected'
   staggerOffset: number
   lastMemoryRun: number | null
@@ -148,6 +150,9 @@ class AgentSubconscious {
   private cumulativeMessagesIndexed = 0
   private cumulativeConversationsIndexed = 0
 
+  // Message polling (deprecated - use push notifications instead)
+  private messagePollingEnabled: boolean
+
   // Long-term memory consolidation
   private consolidationEnabled: boolean
   private consolidationHour: number
@@ -161,7 +166,9 @@ class AgentSubconscious {
     this.agent = agent
     // Default interval (will be adjusted based on activity)
     this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
-    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes
+    this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (deprecated)
+    // Message polling is DISABLED by default - use push notifications instead (RFC: Message Delivery Notifications)
+    this.messagePollingEnabled = config.messagePollingEnabled === true  // Default: disabled
     // Long-term memory consolidation config
     this.consolidationEnabled = config.consolidationEnabled !== false  // Default: enabled
     this.consolidationHour = config.consolidationHour ?? 2  // Default: 2 AM
@@ -197,19 +204,25 @@ class AgentSubconscious {
     console.log(`[Agent ${this.agentId.substring(0, 8)}] 🧠 Starting subconscious...`)
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Stagger offset: ${Math.round(this.staggerOffset / 1000)}s`)
     console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Memory interval: ${this.memoryCheckInterval / 60000} min (${this.activityState})`)
-    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message interval: ${this.messageCheckInterval / 60000} min`)
+    console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message polling: ${this.messagePollingEnabled ? 'enabled (legacy)' : 'disabled (using push notifications)'}`)
 
-    // Run first message check immediately (lightweight, no stagger needed)
-    this.checkMessages().catch(err => {
-      console.error(`[Agent ${this.agentId.substring(0, 8)}] Initial message check failed:`, err)
-    })
+    // Message polling is DEPRECATED - push notifications handle this at delivery time
+    // Only enable polling if explicitly configured (for backwards compatibility)
+    if (this.messagePollingEnabled) {
+      console.log(`[Agent ${this.agentId.substring(0, 8)}]   - Message interval: ${this.messageCheckInterval / 60000} min`)
 
-    // Start periodic message checking
-    this.messageTimer = setInterval(() => {
+      // Run first message check immediately (lightweight, no stagger needed)
       this.checkMessages().catch(err => {
-        console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check failed:`, err)
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Initial message check failed:`, err)
       })
-    }, this.messageCheckInterval)
+
+      // Start periodic message checking
+      this.messageTimer = setInterval(() => {
+        this.checkMessages().catch(err => {
+          console.error(`[Agent ${this.agentId.substring(0, 8)}] Message check failed:`, err)
+        })
+      }, this.messageCheckInterval)
+    }
 
     // Start memory maintenance with stagger offset
     // First run is delayed by staggerOffset, then runs on interval
@@ -701,6 +714,7 @@ class AgentSubconscious {
       startedAt: this.startedAt,
       memoryCheckInterval: this.memoryCheckInterval,
       messageCheckInterval: this.messageCheckInterval,
+      messagePollingEnabled: this.messagePollingEnabled,
       activityState: this.activityState,
       staggerOffset: this.staggerOffset,
       lastMemoryRun: this.lastMemoryRun,

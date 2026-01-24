@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.18.10"
+VERSION="0.18.11"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 
@@ -106,12 +106,17 @@ parse_args() {
     SKIP_TOOLS=false
     AUTO_START=false
     UNINSTALL=false
+    NON_INTERACTIVE=false
 
     while [[ $# -gt 0 ]]; do
         case $1 in
             -d|--dir)
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
+                ;;
+            -y|--yes|--non-interactive)
+                NON_INTERACTIVE=true
+                shift
                 ;;
             --skip-prereqs)
                 SKIP_PREREQS=true
@@ -149,6 +154,7 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -d, --dir PATH      Install directory (default: ~/ai-maestro)"
+    echo "  -y, --yes           Non-interactive mode (auto-accept all prompts)"
     echo "  --skip-prereqs      Skip prerequisite installation prompts"
     echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
     echo "  --auto-start        Automatically start after installation"
@@ -162,8 +168,8 @@ show_help() {
     echo "  # Install to custom directory"
     echo "  curl -fsSL https://get.aimaestro.dev | sh -s -- -d ~/projects/ai-maestro"
     echo ""
-    echo "  # Unattended install with auto-start"
-    echo "  curl -fsSL https://get.aimaestro.dev | sh -s -- --skip-prereqs --auto-start"
+    echo "  # Fully unattended install with auto-start"
+    echo "  curl -fsSL https://get.aimaestro.dev | sh -s -- -y --auto-start"
 }
 
 # Uninstall function
@@ -226,7 +232,12 @@ uninstall() {
 
     # Remove message storage
     echo ""
-    read -p "Remove message history (~/.aimaestro/messages)? (y/n): " REMOVE_MESSAGES
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: preserving message history"
+        REMOVE_MESSAGES="n"
+    else
+        read -p "Remove message history (~/.aimaestro/messages)? (y/n): " REMOVE_MESSAGES
+    fi
     if [[ "$REMOVE_MESSAGES" =~ ^[Yy]$ ]]; then
         rm -rf "$HOME/.aimaestro/messages" 2>/dev/null || true
         print_info "Removed message history"
@@ -235,7 +246,12 @@ uninstall() {
     # Remove installation directory
     if [ -d "$INSTALL_DIR" ]; then
         echo ""
-        read -p "Remove installation directory ($INSTALL_DIR)? (y/n): " REMOVE_DIR
+        if [ "$NON_INTERACTIVE" = true ]; then
+            print_info "Non-interactive mode: removing installation directory"
+            REMOVE_DIR="y"
+        else
+            read -p "Remove installation directory ($INSTALL_DIR)? (y/n): " REMOVE_DIR
+        fi
         if [[ "$REMOVE_DIR" =~ ^[Yy]$ ]]; then
             rm -rf "$INSTALL_DIR"
             print_info "Removed $INSTALL_DIR"
@@ -259,7 +275,12 @@ install() {
         if [ -f "$INSTALL_DIR/package.json" ] && grep -q "ai-maestro" "$INSTALL_DIR/package.json" 2>/dev/null; then
             print_warning "AI Maestro already installed at $INSTALL_DIR"
             echo ""
-            read -p "Update existing installation? (y/n): " UPDATE
+            if [ "$NON_INTERACTIVE" = true ]; then
+                print_info "Non-interactive mode: updating existing installation..."
+                UPDATE="y"
+            else
+                read -p "Update existing installation? (y/n): " UPDATE
+            fi
             if [[ "$UPDATE" =~ ^[Yy]$ ]]; then
                 print_info "Updating..."
                 cd "$INSTALL_DIR"
@@ -306,6 +327,9 @@ install() {
 
         # Build installer arguments
         INSTALLER_ARGS=""
+        if [ "$NON_INTERACTIVE" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS -y"
+        fi
         if [ "$SKIP_TOOLS" = true ]; then
             INSTALLER_ARGS="$INSTALLER_ARGS --skip-tools"
         fi

@@ -1,8 +1,40 @@
 #!/bin/bash
 # AI Maestro - Agent Messaging System Installer
 # Installs messaging scripts and Claude Code skill
+#
+# Usage:
+#   ./install-messaging.sh           # Interactive mode
+#   ./install-messaging.sh -y        # Non-interactive (install all)
+#   ./install-messaging.sh --yes     # Same as -y
 
 set -e
+
+# Parse command line arguments
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        -h|--help)
+            echo "AI Maestro - Agent Messaging System Installer"
+            echo ""
+            echo "Usage: ./install-messaging.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --yes          Non-interactive mode (install all, assume yes)"
+            echo "  -h, --help         Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -113,15 +145,21 @@ if [ "$PREREQUISITES_OK" = false ]; then
     exit 1
 fi
 
-# Ask user what to install
-echo "📦 What would you like to install?"
-echo ""
-echo "  1) Messaging scripts only (works with ANY agent)"
-echo "  2) Claude Code skill only (requires Claude Code)"
-echo "  3) Both scripts and skill (recommended)"
-echo "  4) Cancel installation"
-echo ""
-read -p "Enter your choice (1-4): " CHOICE
+# Ask user what to install (or auto-select in non-interactive mode)
+if [ "$NON_INTERACTIVE" = true ]; then
+    # Non-interactive: install both scripts and skill (option 3)
+    print_info "Non-interactive mode: installing scripts and skills..."
+    CHOICE=3
+else
+    echo "📦 What would you like to install?"
+    echo ""
+    echo "  1) Messaging scripts only (works with ANY agent)"
+    echo "  2) Claude Code skill only (requires Claude Code)"
+    echo "  3) Both scripts and skill (recommended)"
+    echo "  4) Cancel installation"
+    echo ""
+    read -p "Enter your choice (1-4): " CHOICE
+fi
 
 case $CHOICE in
     1)

@@ -98,6 +98,11 @@ CONTEXT=$(echo "$RESPONSE" | jq -r '.content.context // empty')
 IN_REPLY_TO=$(echo "$RESPONSE" | jq -r '.inReplyTo // empty')
 FORWARDED=$(echo "$RESPONSE" | jq -r '.forwardedFrom // empty')
 
+# Extract Slack context if present
+SLACK_CHANNEL=$(echo "$RESPONSE" | jq -r '.content.slack.channel // empty')
+SLACK_THREAD=$(echo "$RESPONSE" | jq -r '.content.slack.thread_ts // empty')
+SLACK_USER=$(echo "$RESPONSE" | jq -r '.content.slack.user // empty')
+
 # Get priority indicator
 PRIORITY_ICON=""
 case $PRIORITY in
@@ -156,6 +161,21 @@ if [ -n "$FORWARDED" ] && [ "$FORWARDED" != "null" ]; then
   echo ""
 fi
 
+# Show Slack context if present (message came from Slack bridge)
+if [ -n "$SLACK_CHANNEL" ] && [ "$SLACK_CHANNEL" != "null" ]; then
+  echo "───────────────────────────────────────────────────────────────"
+  echo "📱 VIA SLACK:"
+  echo ""
+  echo "   Channel:  $SLACK_CHANNEL"
+  if [ -n "$SLACK_THREAD" ] && [ "$SLACK_THREAD" != "null" ]; then
+    echo "   Thread:   $SLACK_THREAD"
+  fi
+  if [ -n "$SLACK_USER" ] && [ "$SLACK_USER" != "null" ]; then
+    echo "   User:     $SLACK_USER"
+  fi
+  echo ""
+fi
+
 echo "═══════════════════════════════════════════════════════════════"
 
 # Mark as read if requested
@@ -170,6 +190,17 @@ if [ "$MARK_READ" = true ]; then
   fi
 else
   echo "👁️  Message not marked as read (peek mode)"
+fi
+
+# Show reply hint
+if [ -n "$SLACK_CHANNEL" ] && [ "$SLACK_CHANNEL" != "null" ]; then
+  echo ""
+  echo "💡 To reply (will post to Slack thread):"
+  echo "   reply-aimaestro-message.sh $MESSAGE_ID \"Your reply here\""
+else
+  echo ""
+  echo "💡 To reply:"
+  echo "   reply-aimaestro-message.sh $MESSAGE_ID \"Your reply here\""
 fi
 
 echo "═══════════════════════════════════════════════════════════════"

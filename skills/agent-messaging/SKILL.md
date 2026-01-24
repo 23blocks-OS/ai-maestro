@@ -64,6 +64,8 @@ When the human operator says "check your messages" or "read your messages":
 1. First check for unread messages: `check-aimaestro-messages.sh`
 2. Then read specific message: `read-aimaestro-message.sh <message-id>`
 3. Message is automatically marked as read after reading
+4. Reply if needed: `reply-aimaestro-message.sh <message-id> "Your reply"`
+   - For Slack messages (📱), reply automatically posts to Slack thread
 
 ## Available Tools
 
@@ -182,7 +184,46 @@ The POST /api/auth/login endpoint is now deployed and ready...
 ═══════════════════════════════════════════════════════════════
 ```
 
-### 3. Auto-Display on Agent Start (Legacy - DO NOT USE MANUALLY)
+### 3. Reply to a Message
+**Command:**
+```bash
+reply-aimaestro-message.sh <message-id> <reply-message> [priority]
+```
+
+**What it does:**
+- Replies to a specific message in your inbox
+- Automatically addresses the reply to the original sender
+- Sets `inReplyTo` field linking to the original message
+- **If original message came from Slack, reply is posted to Slack thread**
+- Subject is automatically prefixed with "Re: "
+
+**Parameters:**
+- `message-id` (required) - The message ID to reply to
+- `reply-message` (required) - Your reply content
+- `priority` (optional) - low | normal | high | urgent (default: normal)
+
+**Examples:**
+```bash
+# Simple reply
+reply-aimaestro-message.sh msg-1234567890-abc "Thanks, I'll look into it"
+
+# Urgent reply
+reply-aimaestro-message.sh msg-1234567890-abc "Found the bug - deploying fix now" urgent
+
+# Reply to Slack message (automatically posts to Slack thread)
+reply-aimaestro-message.sh msg-slack-abc "The API is ready, you can start integration"
+```
+
+**Output format:**
+```
+Reply sent
+   From: backend-api@hostname
+   To: frontend-dev@hostname
+   Subject: Re: Need API endpoint
+   Slack: Will post to channel CS5SXB7C6  # Only shown for Slack messages
+```
+
+### 4. Auto-Display on Agent Start (Legacy - DO NOT USE MANUALLY)
 **Command:**
 ```bash
 check-and-show-messages.sh
@@ -432,6 +473,110 @@ list_hosts
 - Verify agent exists on remote: `curl http://<host-url>/api/agents | jq '.agents[].alias'`
 - Check agent alias spelling
 
+## PART 2.6: SLACK INTEGRATION (BRIDGED MESSAGES)
+
+AI Maestro supports receiving messages from Slack via a bridge service. When someone mentions or messages you on Slack, the message appears in your inbox with Slack context attached.
+
+### How Slack Bridged Messages Work
+
+1. **Receiving from Slack:**
+   - A Slack bridge service monitors for messages directed to agents
+   - Messages are converted to AI Maestro format with Slack context attached
+   - The message appears in your inbox with a 📱 indicator
+
+2. **Slack Context Fields:**
+   When a message comes from Slack, it includes:
+   - `content.slack.channel` - The Slack channel ID
+   - `content.slack.thread_ts` - The thread timestamp (for threading replies)
+   - `content.slack.user` - The Slack user ID who sent the message
+
+### Identifying Slack Messages
+
+**In `check-aimaestro-messages.sh`:**
+```
+[msg-1234...] 🔴 📱 From: slack-bridge | 2025-01-23 14:30
+    Subject: Question from #engineering
+    Preview: Can you help with the API design? [via Slack]
+```
+- 📱 emoji indicates the message came from Slack
+- `[via Slack]` tag on the preview line
+
+**In `read-aimaestro-message.sh`:**
+```
+═══════════════════════════════════════════════════════════════
+📧 Message: Question from #engineering
+═══════════════════════════════════════════════════════════════
+
+From:     slack-bridge
+To:       backend-api
+Date:     2025-01-23 14:30:00
+Priority: 🔵 normal
+Type:     request
+
+───────────────────────────────────────────────────────────────
+
+Can you help with the API design for the new user service?
+
+───────────────────────────────────────────────────────────────
+📱 VIA SLACK:
+
+   Channel:  CS5SXB7C6
+   Thread:   1769217994.223089
+   User:     US37DSBS8
+
+═══════════════════════════════════════════════════════════════
+✅ Message marked as read
+
+💡 To reply (will post to Slack thread):
+   reply-aimaestro-message.sh msg-1234... "Your reply here"
+═══════════════════════════════════════════════════════════════
+```
+
+### Replying to Slack Messages
+
+When you reply to a message that came from Slack, **your reply is automatically posted to the same Slack thread**:
+
+```bash
+# Reply to a Slack-bridged message
+reply-aimaestro-message.sh msg-1234567890-abc "I can help! The API design should use REST with..."
+
+# Output:
+# Replying to Slack thread...
+# ✅ Reply sent
+#    From: backend-api@hostname
+#    To: slack-bridge
+#    Subject: Re: Question from #engineering
+#    Slack: Will post to channel CS5SXB7C6
+```
+
+**How it works:**
+1. `reply-aimaestro-message.sh` fetches the original message
+2. If `content.slack` exists, it's automatically included in the reply
+3. The Slack bridge picks up the reply and posts it to the original thread
+4. The Slack user sees your response in-context
+
+### Scenario: Responding to Slack Questions
+
+```bash
+# 1. Check your inbox - notice the 📱 Slack indicator
+check-aimaestro-messages.sh
+
+# Output:
+# [msg-abc123...] 🔵 📱 From: slack-bridge | 2025-01-23 15:00
+#     Subject: Help with database schema
+#     Preview: @backend-api Can you review the new schema? [via Slack]
+
+# 2. Read the full message to see Slack context
+read-aimaestro-message.sh msg-abc123...
+
+# Shows VIA SLACK section with channel, thread, user info
+
+# 3. Reply - it will automatically post to Slack thread
+reply-aimaestro-message.sh msg-abc123... "Reviewed the schema. Looks good, but consider adding an index on user_id for better query performance."
+
+# Your reply appears in the Slack thread!
+```
+
 ### 6. Instant Notifications (Real-time, Ephemeral)
 Use for urgent alerts that need immediate attention FROM OTHER AGENTS.
 
@@ -589,6 +734,32 @@ send-aimaestro-message.sh backend-architect \
   "Issue identified: connection pool exhausted. Increased max_connections. System stable." \
   urgent \
   response
+```
+
+#### Scenario R5: Receive and Reply to Slack Message
+```bash
+# YOU are agent "backend-api"
+# 1. Check YOUR inbox - notice the 📱 Slack indicator
+check-aimaestro-messages.sh
+
+# Output shows Slack-bridged message:
+# [msg-slack-123...] 🔵 📱 From: slack-bridge | 2025-01-23 10:30
+#     Subject: Question from #engineering
+#     Preview: @backend-api What's the status of the auth API? [via Slack]
+
+# 2. Read full message to see Slack context
+read-aimaestro-message.sh msg-slack-123...
+
+# Shows:
+# 📱 VIA SLACK:
+#    Channel:  C0123ENGG
+#    Thread:   1737641400.123456
+#    User:     U0456USER
+
+# 3. Reply - it automatically posts to Slack thread
+reply-aimaestro-message.sh msg-slack-123... "The auth API is 80% complete. Login and registration are done, working on password reset. ETA: tomorrow."
+
+# Your reply appears in the Slack #engineering thread!
 ```
 
 ### SENDING Examples

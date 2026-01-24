@@ -68,6 +68,7 @@ export interface MessageSummary {
   status: 'unread' | 'read' | 'archived'
   type: 'request' | 'response' | 'notification' | 'update'
   preview: string
+  viaSlack?: boolean  // True if message originated from Slack bridge
 }
 
 interface ResolvedAgent {
@@ -789,6 +790,8 @@ async function collectMessagesFromDir(
         status: message.status,
         type: message.content.type,
         preview: message.content.message.substring(0, 100),
+        // Check if message came from Slack bridge (has slack context)
+        viaSlack: !!(message.content as any).slack,
       })
     } catch (error) {
       console.error(`Error reading message file ${file}:`, error)
@@ -844,6 +847,8 @@ async function listInboxMessagesByFolder(
         status: message.status,
         type: message.content.type,
         preview: message.content.message.substring(0, 100),
+        // Check if message came from Slack bridge (has slack context)
+        viaSlack: !!(message.content as any).slack,
       })
     } catch (error) {
       console.error(`Error reading message file ${file}:`, error)
@@ -959,6 +964,8 @@ async function collectSentMessagesFromDir(
         status: message.status,
         type: message.content.type,
         preview: message.content.message.substring(0, 100),
+        // Check if message has Slack context (reply to Slack thread)
+        viaSlack: !!(message.content as any).slack,
       })
     } catch (error) {
       console.error(`Error reading sent message file ${file}:`, error)
@@ -1012,6 +1019,8 @@ async function listSentMessagesByFolder(
         status: message.status,
         type: message.content.type,
         preview: message.content.message.substring(0, 100),
+        // Check if message has Slack context (reply to Slack thread)
+        viaSlack: !!(message.content as any).slack,
       })
     } catch (error) {
       console.error(`Error reading sent message file ${file}:`, error)

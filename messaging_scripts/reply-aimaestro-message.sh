@@ -75,7 +75,7 @@ SLACK_CONTEXT=$(echo "$RESPONSE" | jq '.content.slack // null')
 
 # Build reply subject (add "Re: " prefix if not already present)
 REPLY_SUBJECT="$ORIG_SUBJECT"
-if [[ ! "$REPLY_SUBJECT" =~ ^Re:\ ]]; then
+if [[ ! "$REPLY_SUBJECT" =~ ^Re:[[:space:]] ]]; then
   REPLY_SUBJECT="Re: $ORIG_SUBJECT"
 fi
 

@@ -97,9 +97,13 @@ detect_os() {
             echo "    1. Open PowerShell as Administrator on Windows"
             echo "    2. Run: wsl --set-version Ubuntu 2"
             echo ""
-            read -p "Continue with WSL1? (y/n): " CONTINUE_WSL1
-            if [[ ! "$CONTINUE_WSL1" =~ ^[Yy]$ ]]; then
-                exit 1
+            if [ "$NON_INTERACTIVE" = true ]; then
+                print_info "Non-interactive mode: continuing with WSL1..."
+            else
+                read -p "Continue with WSL1? (y/n): " CONTINUE_WSL1
+                if [[ ! "$CONTINUE_WSL1" =~ ^[Yy]$ ]]; then
+                    exit 1
+                fi
             fi
         fi
 
@@ -303,7 +307,12 @@ if [ $MISSING_COUNT -gt 0 ]; then
     fi
 
     echo ""
-    read -p "Install missing prerequisites? (y/n): " INSTALL_PREREQS
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: installing prerequisites..."
+        INSTALL_PREREQS="y"
+    else
+        read -p "Install missing prerequisites? (y/n): " INSTALL_PREREQS
+    fi
 
     if [[ ! "$INSTALL_PREREQS" =~ ^[Yy]$ ]]; then
         print_warning "Skipping prerequisite installation"
@@ -410,7 +419,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
         echo ""
         print_info "AI Maestro works without Claude Code (you can use Aider, Cursor, etc.)"
         echo ""
-        read -p "Press Enter to continue without Claude Code..."
+        if [ "$NON_INTERACTIVE" != true ]; then
+            read -p "Press Enter to continue without Claude Code..."
+        fi
     fi
 fi
 
@@ -426,21 +437,31 @@ if [ -f "package.json" ] && grep -q "ai-maestro" package.json 2>/dev/null; then
     print_info "Already in AI Maestro directory: $INSTALL_DIR"
 
     echo ""
-    read -p "Reinstall/update AI Maestro here? (y/n): " REINSTALL
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: updating AI Maestro..."
+        REINSTALL="y"
+    else
+        read -p "Reinstall/update AI Maestro here? (y/n): " REINSTALL
+    fi
     if [[ ! "$REINSTALL" =~ ^[Yy]$ ]]; then
         print_info "Skipping AI Maestro installation"
         INSTALL_DIR=""
     fi
 else
     echo ""
-    echo "Where would you like to install AI Maestro?"
-    echo ""
-    echo "  1) ~/ai-maestro (recommended)"
-    echo "  2) Current directory ($(pwd))"
-    echo "  3) Custom location"
-    echo "  4) Skip installation (already installed elsewhere)"
-    echo ""
-    read -p "Enter your choice (1-4): " DIR_CHOICE
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: installing to ~/ai-maestro..."
+        DIR_CHOICE=1
+    else
+        echo "Where would you like to install AI Maestro?"
+        echo ""
+        echo "  1) ~/ai-maestro (recommended)"
+        echo "  2) Current directory ($(pwd))"
+        echo "  3) Custom location"
+        echo "  4) Skip installation (already installed elsewhere)"
+        echo ""
+        read -p "Enter your choice (1-4): " DIR_CHOICE
+    fi
 
     case $DIR_CHOICE in
         1)
@@ -468,7 +489,12 @@ if [ -n "$INSTALL_DIR" ]; then
 
     if [ -d "$INSTALL_DIR" ] && [ "$IN_AI_MAESTRO" = false ]; then
         print_warning "Directory already exists: $INSTALL_DIR"
-        read -p "Delete and reinstall? (y/n): " DELETE_DIR
+        if [ "$NON_INTERACTIVE" = true ]; then
+            print_info "Non-interactive mode: deleting existing directory..."
+            DELETE_DIR="y"
+        else
+            read -p "Delete and reinstall? (y/n): " DELETE_DIR
+        fi
         if [[ "$DELETE_DIR" =~ ^[Yy]$ ]]; then
             rm -rf "$INSTALL_DIR"
         else
@@ -495,7 +521,12 @@ if [ -n "$INSTALL_DIR" ]; then
     echo "  - Enables mouse scrolling"
     echo "  - Increases scrollback buffer to 50,000 lines"
     echo "  - Better colors"
-    read -p "Configure tmux? (y/n): " SETUP_TMUX
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: configuring tmux..."
+        SETUP_TMUX="y"
+    else
+        read -p "Configure tmux? (y/n): " SETUP_TMUX
+    fi
 
     if [[ "$SETUP_TMUX" =~ ^[Yy]$ ]]; then
         if [ -f "scripts/setup-tmux.sh" ]; then
@@ -509,7 +540,12 @@ if [ -n "$INSTALL_DIR" ]; then
     # Configure SSH for tmux
     echo ""
     print_info "Configure SSH for tmux sessions? (CRITICAL for git operations)"
-    read -p "Configure SSH? (y/n): " SETUP_SSH
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: configuring SSH..."
+        SETUP_SSH="y"
+    else
+        read -p "Configure SSH? (y/n): " SETUP_SSH
+    fi
 
     if [[ "$SETUP_SSH" =~ ^[Yy]$ ]]; then
         # Add to ~/.tmux.conf
@@ -573,7 +609,11 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         if [ -f "install-messaging.sh" ]; then
             echo ""
             print_step "Installing messaging tools..."
-            ./install-messaging.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./install-messaging.sh -y
+            else
+                ./install-messaging.sh
+            fi
         fi
 
         # Install memory tools

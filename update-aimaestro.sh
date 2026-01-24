@@ -22,6 +22,30 @@ DOWNLOAD="📥"
 BUILD="🔨"
 RESTART="🔄"
 
+# Parse command line arguments
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: ./update-aimaestro.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --yes, --non-interactive  Run without prompts (auto-accept all)"
+            echo "  -h, --help                    Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
@@ -74,7 +98,13 @@ if [ -n "$(git status --porcelain)" ]; then
     echo "  1) Stash changes and continue (git stash)"
     echo "  2) Abort update"
     echo ""
-    read -p "Choose option (1/2): " STASH_CHOICE
+
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: auto-stashing changes..."
+        STASH_CHOICE="1"
+    else
+        read -p "Choose option (1/2): " STASH_CHOICE
+    fi
 
     if [ "$STASH_CHOICE" = "1" ]; then
         print_info "Stashing changes..."
@@ -100,7 +130,12 @@ if [ "$COMMITS_BEHIND" = "0" ]; then
     echo ""
 
     # Ask if user wants to reinstall scripts/skills anyway
-    read -p "Would you like to reinstall scripts and skills anyway? (y/n): " REINSTALL
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: reinstalling scripts and skills..."
+        REINSTALL="y"
+    else
+        read -p "Would you like to reinstall scripts and skills anyway? (y/n): " REINSTALL
+    fi
     if [[ ! "$REINSTALL" =~ ^[Yy]$ ]]; then
         exit 0
     fi
@@ -111,7 +146,12 @@ else
     git log HEAD..origin/main --oneline | head -10
     echo ""
 
-    read -p "Continue with update? (y/n): " CONFIRM
+    if [ "$NON_INTERACTIVE" = true ]; then
+        print_info "Non-interactive mode: proceeding with update..."
+        CONFIRM="y"
+    else
+        read -p "Continue with update? (y/n): " CONFIRM
+    fi
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
         print_warning "Update cancelled"
         exit 0

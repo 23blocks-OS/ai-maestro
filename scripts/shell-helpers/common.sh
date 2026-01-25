@@ -295,3 +295,89 @@ format_result() {
     local field="${2:-.result}"
     echo "$response" | jq "$field" 2>/dev/null
 }
+
+# ============================================================================
+# PATH Setup Functions (for installers)
+# ============================================================================
+
+# Setup ~/.local/bin in PATH - works on both macOS and Linux
+# Usage: setup_local_bin_path [--quiet]
+# Returns: 0 if PATH is configured, 1 if manual action needed
+setup_local_bin_path() {
+    local quiet=false
+    if [ "$1" = "--quiet" ]; then
+        quiet=true
+    fi
+
+    local INSTALL_DIR="$HOME/.local/bin"
+
+    # Detect the appropriate shell config file
+    local SHELL_RC=""
+    if [[ "$SHELL" == *"zsh"* ]]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [[ "$SHELL" == *"bash"* ]]; then
+        # On Linux, .bashrc is standard. On macOS, .bash_profile is often used.
+        if [ -f "$HOME/.bashrc" ]; then
+            SHELL_RC="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            SHELL_RC="$HOME/.bash_profile"
+        else
+            SHELL_RC="$HOME/.bashrc"
+        fi
+    else
+        # Fallback: check what exists
+        if [ -f "$HOME/.zshrc" ]; then
+            SHELL_RC="$HOME/.zshrc"
+        elif [ -f "$HOME/.bashrc" ]; then
+            SHELL_RC="$HOME/.bashrc"
+        else
+            SHELL_RC="$HOME/.profile"
+        fi
+    fi
+
+    # Check if already in PATH
+    if [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
+        [ "$quiet" = false ] && echo "✅ ~/.local/bin is already in PATH"
+        return 0
+    fi
+
+    # Check if already in shell config
+    if grep -q 'export PATH=.*\.local/bin' "$SHELL_RC" 2>/dev/null; then
+        [ "$quiet" = false ] && echo "✅ PATH configured in $SHELL_RC (restart terminal or run: source $SHELL_RC)"
+        # Add to current session
+        export PATH="$HOME/.local/bin:$PATH"
+        return 0
+    fi
+
+    # Add to shell config
+    echo "" >> "$SHELL_RC"
+    echo "# AI Maestro - Added by installer" >> "$SHELL_RC"
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+
+    # Add to current session
+    export PATH="$HOME/.local/bin:$PATH"
+
+    [ "$quiet" = false ] && echo "✅ Added ~/.local/bin to PATH in $SHELL_RC"
+    [ "$quiet" = false ] && echo "   Restart terminal or run: source $SHELL_RC"
+
+    return 0
+}
+
+# Verify scripts are accessible in PATH
+# Usage: verify_scripts_in_path "script1.sh" "script2.sh" ...
+verify_scripts_in_path() {
+    local all_found=true
+    for script in "$@"; do
+        if command -v "$script" &> /dev/null; then
+            echo "✅ $script is accessible"
+        else
+            echo "⚠️  $script not in PATH yet"
+            all_found=false
+        fi
+    done
+
+    if [ "$all_found" = false ]; then
+        echo ""
+        echo "Restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
+    fi
+}

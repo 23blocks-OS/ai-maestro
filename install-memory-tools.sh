@@ -10,6 +10,17 @@ SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
 echo "AI Maestro Memory Tools Installer"
 echo "=================================="
+echo ""
+
+# Check for jq dependency
+echo "Checking dependencies..."
+if command -v jq &> /dev/null; then
+    echo "  ✅ jq is installed"
+else
+    echo "  ⚠️  jq is not installed (required for memory scripts)"
+    echo "     Install with: brew install jq (macOS) or apt install jq (Linux)"
+fi
+echo ""
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$SKILL_DIR"
@@ -37,8 +48,22 @@ echo "Installing memory-search skill to $SKILL_DIR..."
 cp "$SCRIPT_DIR/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
 echo "  Installed: SKILL.md"
 
+# Setup PATH
+echo ""
+echo "Configuring PATH..."
+source "$SCRIPT_DIR/scripts/shell-helpers/common.sh"
+setup_local_bin_path
+
 echo ""
 echo "Installation complete!"
 echo ""
 echo "Available commands:"
 echo "  memory-search.sh \"<query>\"   - Search conversation history"
+echo ""
+
+# Verify installation
+if command -v memory-search.sh &> /dev/null; then
+    echo "✅ Scripts are accessible in PATH"
+else
+    echo "⚠️  Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
+fi

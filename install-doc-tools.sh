@@ -130,6 +130,21 @@ else
     echo "  Warning: SKILL.md not found, skipping"
 fi
 
+# Verify jq is available
+echo ""
+if command -v jq &> /dev/null; then
+    echo "✅ jq is installed"
+else
+    echo "⚠️  jq is not installed (required for docs scripts)"
+    echo "   Install with: brew install jq (macOS) or apt install jq (Linux)"
+fi
+
+# Setup PATH
+echo ""
+echo "Configuring PATH..."
+source "$SCRIPT_DIR/scripts/shell-helpers/common.sh"
+setup_local_bin_path
+
 echo ""
 echo "Installation complete!"
 echo ""
@@ -141,3 +156,11 @@ echo "  docs-index.sh                 - Index documentation"
 echo "  docs-index-delta.sh           - Delta index (changed files only)"
 echo "  docs-list.sh                  - List indexed documents"
 echo "  docs-get.sh <doc-id>          - Get specific document"
+echo ""
+
+# Verify installation
+if command -v docs-search.sh &> /dev/null; then
+    echo "✅ Scripts are accessible in PATH"
+else
+    echo "⚠️  Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
+fi

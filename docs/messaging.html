@@ -700,6 +700,55 @@
                     </a>
                 </div>
             </div>
+
+            <!-- Differentiation from Official Claude for Slack -->
+            <div class="mt-12 bg-slate-900/80 p-8 rounded-2xl border border-slate-700">
+                <h3 class="text-2xl font-display font-bold mb-6 text-white text-center">How is this different from Claude for Slack?</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-700">
+                                <th class="py-3 px-4 text-slate-400 font-semibold">Feature</th>
+                                <th class="py-3 px-4 text-purple-400 font-semibold">AI Maestro Slack Bridge</th>
+                                <th class="py-3 px-4 text-slate-400 font-semibold">Official Claude for Slack</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr class="border-b border-slate-800">
+                                <td class="py-3 px-4 font-medium">API Usage</td>
+                                <td class="py-3 px-4 text-green-400"><strong>No extra calls</strong> - uses your running agents</td>
+                                <td class="py-3 px-4">Creates new API sessions per message</td>
+                            </tr>
+                            <tr class="border-b border-slate-800">
+                                <td class="py-3 px-4 font-medium">Agent Persistence</td>
+                                <td class="py-3 px-4 text-green-400">Connects to <strong>running</strong> Claude Code sessions</td>
+                                <td class="py-3 px-4">Starts new sessions each time</td>
+                            </tr>
+                            <tr class="border-b border-slate-800">
+                                <td class="py-3 px-4 font-medium">Context Retention</td>
+                                <td class="py-3 px-4 text-green-400">Agents keep full project context</td>
+                                <td class="py-3 px-4">Fresh context per conversation</td>
+                            </tr>
+                            <tr class="border-b border-slate-800">
+                                <td class="py-3 px-4 font-medium">Claude Code Skills</td>
+                                <td class="py-3 px-4 text-green-400">Full access to custom skills & hooks</td>
+                                <td class="py-3 px-4">Limited to web capabilities</td>
+                            </tr>
+                            <tr class="border-b border-slate-800">
+                                <td class="py-3 px-4 font-medium">Multi-Agent</td>
+                                <td class="py-3 px-4 text-green-400">Route to any agent in your network</td>
+                                <td class="py-3 px-4">Single Claude instance</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 px-4 font-medium">Hosting</td>
+                                <td class="py-3 px-4">Your machines (local/cloud)</td>
+                                <td class="py-3 px-4">Anthropic's cloud</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-slate-400 text-sm mt-6 text-center"><em>Note: You still need a Claude subscription (Pro/Max) or API credits to run your Claude Code agents. The bridge itself doesn't make additional API calls - it routes messages to agents you're already running.</em></p>
+            </div>
         </div>
     </section>
 

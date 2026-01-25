@@ -170,9 +170,9 @@ export default function MobileDashboard({
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
-        {/* Empty State */}
-        {onlineAgents.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+        {/* Empty State - only show on terminal/messages tabs */}
+        {onlineAgents.length === 0 && (activeTab === 'terminal' || activeTab === 'messages') && (
+          <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
             <Terminal className="w-16 h-16 text-gray-600 mb-4" />
             <p className="text-lg font-medium text-gray-300 mb-2">No Online Agents</p>
             <p className="text-sm text-gray-500">

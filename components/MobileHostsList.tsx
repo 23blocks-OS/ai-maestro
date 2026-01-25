@@ -132,7 +132,7 @@ export default function MobileHostsList({
   // Show loading state
   if (isLoading && agents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
         <RefreshCw className="w-12 h-12 text-blue-400 animate-spin mb-4" />
         <p className="text-sm text-gray-400">Loading hosts and agents...</p>
       </div>
@@ -142,7 +142,7 @@ export default function MobileHostsList({
   // Show error state
   if (error && agents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
         <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
         <p className="text-lg font-medium text-gray-300 mb-2">Connection Error</p>
         <p className="text-sm text-red-400 mb-4">{error.message}</p>
@@ -162,7 +162,7 @@ export default function MobileHostsList({
   // Show no hosts state when no hosts are configured
   if (hosts.length === 0 && agents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
         <Server className="w-16 h-16 text-gray-600 mb-4" />
         <p className="text-lg font-medium text-gray-300 mb-2">No Hosts</p>
         <p className="text-sm text-gray-500 mb-4">
@@ -184,7 +184,7 @@ export default function MobileHostsList({
   // Show no agents state when hosts exist but no agents
   if (agents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center bg-gray-900">
         <Terminal className="w-16 h-16 text-gray-600 mb-4" />
         <p className="text-lg font-medium text-gray-300 mb-2">No Agents</p>
         <p className="text-sm text-gray-500 mb-4">

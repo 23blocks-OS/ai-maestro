@@ -11,7 +11,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { getAgent, getAgentByName } from '@/lib/agent-registry'
 import { computeSessionName } from '@/types/agent'
-import { getSelfHostId } from '@/lib/hosts-config-server.mjs'
+import { getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 
 const execAsync = promisify(exec)
 
@@ -118,10 +118,11 @@ export async function notifyAgent(options: NotificationOptions): Promise<Notific
     const selfHostId = getSelfHostId()
 
     // Check if target is on a remote host
-    if (agentHost && agentHost !== 'local' && agentHost !== selfHostId) {
-      // Option A: Local-only notifications (skip remote)
-      // Option B would forward to remote host's /api/notify endpoint
-      console.log(`[Notify] Agent ${agentName} is on remote host ${agentHost}, skipping notification`)
+    // Use isSelf() for robust hostname comparison (handles variations like 'mac-mini' vs 'mac-mini.local')
+    if (agentHost && agentHost !== 'local' && !isSelf(agentHost)) {
+      // Target is genuinely on a remote host - skip notification
+      // (Remote host will handle its own notification when it receives the message)
+      console.log(`[Notify] Agent ${agentName} is on remote host ${agentHost} (self: ${selfHostId}), skipping notification`)
       return { success: true, notified: false, reason: `Remote host: ${agentHost}` }
     }
 

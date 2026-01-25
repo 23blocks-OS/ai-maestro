@@ -360,26 +360,11 @@ EOF
     echo ""
     print_success "Installed $PORTABLE_SCRIPT_COUNT portable agent scripts"
 
-    # Check if ~/.local/bin is in PATH
-    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        print_warning "~/.local/bin is not in your PATH"
-        echo ""
-        echo "Add this to your ~/.zshrc or ~/.bashrc:"
-        echo ""
-        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-        echo ""
-        read -p "Would you like me to add it to ~/.zshrc now? (y/n): " ADD_PATH
-        if [[ "$ADD_PATH" =~ ^[Yy]$ ]]; then
-            echo "" >> ~/.zshrc
-            echo "# AI Maestro - Added by installer" >> ~/.zshrc
-            echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.zshrc
-            print_success "Added to ~/.zshrc - restart your terminal or run: source ~/.zshrc"
-        else
-            print_warning "Skipped PATH update - scripts may not work until PATH is configured"
-        fi
-    else
-        print_success "~/.local/bin is already in PATH"
-    fi
+    # Setup PATH using shared function (works in both interactive and non-interactive mode)
+    echo ""
+    print_info "Configuring PATH..."
+    source "$PWD/scripts/shell-helpers/common.sh"
+    setup_local_bin_path
 fi
 
 # Install Claude Code skill
@@ -435,13 +420,13 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
         fi
     done
 
-    # Try to find scripts in PATH
+    # Verify scripts are in PATH
     echo ""
     if command -v send-aimaestro-message.sh &> /dev/null; then
         SCRIPT_PATH=$(which send-aimaestro-message.sh)
         print_success "Scripts are accessible in PATH: $SCRIPT_PATH"
     else
-        print_warning "Scripts not in PATH yet - restart terminal or run: source ~/.zshrc"
+        print_warning "Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
     fi
 fi
 
@@ -531,7 +516,7 @@ echo ""
 
 # Show warnings if any
 if [ "$INSTALL_SCRIPTS" = true ] && ! command -v send-aimaestro-message.sh &> /dev/null; then
-    print_warning "Remember to restart your terminal or run: source ~/.zshrc"
+    print_warning "Remember to restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
 fi
 
 echo ""

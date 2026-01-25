@@ -42,29 +42,31 @@ echo "Installing graph-query skill to $SKILL_DIR..."
 cp "$SCRIPT_DIR/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
 echo "  Installed: SKILL.md"
 
-# Check if ~/.local/bin is in PATH
-echo ""
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    echo "NOTE: $INSTALL_DIR is not in your PATH."
-    echo ""
-    echo "Add this to your ~/.bashrc or ~/.zshrc:"
-    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    echo ""
-else
-    echo "PATH already includes $INSTALL_DIR"
-fi
-
 # Verify jq is available
 echo ""
 if command -v jq &> /dev/null; then
-    echo "jq is installed."
+    echo "✅ jq is installed"
 else
-    echo "WARNING: jq is not installed. Graph scripts require jq."
-    echo "Install with: brew install jq"
+    echo "⚠️  jq is not installed (required for graph scripts)"
+    echo "   Install with: brew install jq (macOS) or apt install jq (Linux)"
 fi
+
+# Setup PATH
+echo ""
+echo "Configuring PATH..."
+source "$SCRIPT_DIR/scripts/shell-helpers/common.sh"
+setup_local_bin_path
 
 echo ""
 echo "Installation complete!"
+
+# Verify installation
+echo ""
+if command -v graph-describe.sh &> /dev/null; then
+    echo "✅ Scripts are accessible in PATH"
+else
+    echo "⚠️  Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
+fi
 echo ""
 echo "Available commands:"
 echo "  graph-describe.sh <name>          - Describe a component/function"

@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.19.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.19.1-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -128,6 +128,10 @@ Works with **any** terminal-based AI:
   - [`send-tmux-message.sh`](./messaging_scripts/send-tmux-message.sh) - Instant notifications
   - [📖 Installation Guide](./messaging_scripts/README.md)
 - **Web UI**: Rich inbox/compose interface in Messages tab
+- **Slack Integration**: Connect your team's Slack to AI agents ([🔗 Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge))
+  - DM or @mention agents from Slack
+  - Route to specific agents with `@AIM:agent-name`
+  - Responses delivered to Slack threads
 - See [📬 Communication Docs](./docs/AGENT-COMMUNICATION-QUICKSTART.md) for 5-minute setup
 
 ### Agent Intelligence System (New in v0.11!)
@@ -142,7 +146,8 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - **Delta Indexing**: Only re-indexes changed files (~100ms vs 1000ms+ full re-index)
 - **Agent Subconscious**: Background memory maintenance
   - Automatic conversation indexing for semantic search
-  - Message checking for inter-agent communication
+  - Long-term memory consolidation for better retrieval
+  - Push notifications for instant message delivery (v0.18.10+)
   - Self-staggering scheduler (scales to 100+ agents without CPU spikes)
   - Activity-aware intervals (faster when active, slower when idle)
 - **Conversation Memory**: Full conversation history with search
@@ -635,6 +640,40 @@ Each agent has a **Messages tab** with:
 - ✍️ **Compose** - Send new messages with priority/type selection
 - ↗️ **Forward** - Forward received messages to other agents with notes
 - 🔔 **Unread count** - Never miss important messages
+
+### Slack Integration
+
+**Connect your team's Slack workspace to AI Maestro agents.** Your entire team can now interact with AI agents directly from Slack - no terminal access needed.
+
+```
+Slack Message → Slack Bridge → AI Maestro → Agent
+                                               ↓
+Slack Thread  ← Slack Bridge ← AI Maestro ← Response
+```
+
+**Features:**
+- **DM the bot** - Send direct messages to interact with agents
+- **@mention in channels** - `@AI Maestro check the API status`
+- **Route to specific agents** - `@AIM:backend-api check server health`
+- **Thread responses** - Replies delivered to the original Slack thread
+- **Cross-host routing** - Route to agents on any host in your network
+
+**Quick Start:**
+```bash
+# Clone the Slack Bridge
+git clone https://github.com/23blocks-OS/aimaestro-slack-bridge.git
+cd aimaestro-slack-bridge
+npm install
+
+# Configure (see README for Slack app setup)
+cp .env.example .env
+# Edit .env with your Slack tokens
+
+# Run
+npm start
+```
+
+**See the full setup guide:** [🔗 AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge)
 
 ### Get Started in 2 Minutes
 

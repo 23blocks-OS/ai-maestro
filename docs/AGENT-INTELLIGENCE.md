@@ -302,16 +302,22 @@ GET /api/agents/{agentId}/conversations/search?q=query
 # Memory check interval (default: 5 minutes when active)
 MEMORY_CHECK_INTERVAL=300000
 
-# Message check interval (default: 30 seconds when active)
-MESSAGE_CHECK_INTERVAL=30000
+# Consolidation interval (default: 30 minutes when active)
+CONSOLIDATION_INTERVAL=1800000
+
+# Push notifications (v0.18.10+)
+NOTIFICATIONS_ENABLED=true
+NOTIFICATION_FORMAT="[MESSAGE] From: {from} - {subject} - check your inbox"
 ```
 
 ### Per-Agent Settings
 
 Agent settings can be configured via the Agent Profile tab:
 - Memory maintenance enable/disable
-- Message checking enable/disable
+- Consolidation enable/disable
 - Custom check intervals
+
+> **Note:** Message polling has been replaced by push notifications (v0.18.10+). Agents receive instant tmux notifications when messages arrive.
 
 ## Troubleshooting
 

@@ -1,17 +1,19 @@
-# AI Maestro Message Checking Hooks
+# AI Maestro Message Notification Hooks
 
-This guide shows how to set up Claude Code hooks to automatically check for messages in your AI Maestro messaging system.
+This guide shows how to set up Claude Code hooks to notify about unread messages in your AI Maestro messaging system.
+
+> **Note (v0.18.10+):** AI Maestro now uses **push notifications** to instantly alert agents when messages arrive. These hooks are **complementary** - they help agents catch up on any messages they may have missed while offline or at session startup.
 
 ## What are Hooks?
 
 Claude Code hooks are shell commands that run automatically at specific points during your agent's lifecycle. They provide deterministic control - ensuring certain actions **always** happen rather than relying on Claude to remember to do them.
 
-## Message Checking Hook
+## Message Notification Hook
 
-We'll create a hook that checks for new messages:
-- **When**: At the start of each agent
+We'll create a hook that notifies about unread messages:
+- **When**: At the start of each agent session
 - **What**: Checks `~/.aimaestro/messages/inbox/[your-agent]/`
-- **Result**: Notifies Claude if there are unread messages
+- **Result**: Notifies Claude if there are any unread messages to catch up on
 
 ## Setup Instructions
 

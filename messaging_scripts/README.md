@@ -20,6 +20,13 @@ cd /path/to/ai-maestro
 # Installs scripts + Claude Code skill automatically
 ```
 
+**Unattended installation** (for CI/CD, scripts):
+```bash
+./install-messaging.sh -y
+```
+
+The `-y` flag auto-selects full installation without prompts.
+
 ### Update Existing Installation
 
 ```bash

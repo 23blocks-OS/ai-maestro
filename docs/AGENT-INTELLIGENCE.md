@@ -32,20 +32,22 @@ GET /api/agents/{agentId}/graph/entities?type=all
 
 ### 2. Agent Subconscious
 
-The Agent Subconscious is a background process that maintains each agent's memory by indexing conversations and checking for inter-agent messages.
+The Agent Subconscious is a background process that maintains each agent's memory by indexing conversations for semantic search.
 
 ![Agent Subconscious Panel](./images/agent_subconscius.png)
 
 **Features:**
 - **Memory Maintenance**: Indexes conversations for semantic search
-- **Message Checking**: Monitors inbox for new inter-agent messages
+- **Long-Term Memory Consolidation**: Periodically consolidates memories for better retrieval
 - **Self-Staggering**: Automatically staggers startup times across agents to prevent CPU spikes
 - **Activity-Aware Intervals**: Runs more frequently when agent is active, less when idle
+
+> **Note (v0.18.10+):** Message checking has been replaced by **push notifications**. When messages are sent, agents receive instant tmux notifications instead of polling. This eliminates delays and reduces CPU usage.
 
 **Status Panel Shows:**
 - **Status**: Running / Stopped
 - **Memory Maintenance**: Last run time, total runs
-- **Message Checking**: Last run time, total runs
+- **Consolidation**: Last run time, memory count
 
 **Technical Details:**
 
@@ -58,11 +60,11 @@ const staggerOffset = hash(agentId) % memoryCheckInterval
 This ensures that even with 100+ agents, they don't all try to run at the same time.
 
 **Intervals:**
-| Activity State | Memory Check | Message Check |
+| Activity State | Memory Check | Consolidation |
 |---------------|--------------|---------------|
-| Active        | 5 minutes    | 30 seconds    |
-| Idle          | 30 minutes   | 2 minutes     |
-| Disconnected  | 60 minutes   | 5 minutes     |
+| Active        | 5 minutes    | 30 minutes    |
+| Idle          | 30 minutes   | 60 minutes    |
+| Disconnected  | 60 minutes   | 120 minutes   |
 
 **API Endpoint:**
 ```

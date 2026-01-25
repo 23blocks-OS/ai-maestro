@@ -176,6 +176,13 @@ The subconscious process runs on the **same machine where the agent lives**. Thi
 
 The subconscious does NOT need remote API calls to access agent data - everything is local. This is why `index-delta` can read `.jsonl` files directly from disk.
 
+**Subconscious timers (v0.18.10+):**
+- `maintainMemory()` - Indexes conversations for semantic search (runs periodically)
+- `triggerConsolidation()` - Long-term memory consolidation (runs periodically)
+- `checkMessages()` - **DISABLED by default** (push notifications replace polling)
+
+Message polling was removed in favor of push notifications. When messages arrive, agents receive instant tmux notifications instead of waiting for the next poll cycle. To re-enable polling (not recommended), set `messagePollingEnabled: true` in the subconscious config.
+
 ### 3. Session Discovery Pattern
 
 Sessions are discovered from tmux and LINKED to agents:
@@ -458,6 +465,13 @@ Users install the messaging system with:
 ./install-messaging.sh
 ```
 
+**Non-interactive installation** (for CI/CD, WSL, scripts):
+```bash
+./install-messaging.sh -y
+```
+
+The `-y` flag auto-selects option 3 (install scripts + skills) without prompts.
+
 This installer copies:
 - CLI scripts from `messaging_scripts/` → `~/.local/bin/`
 - Skill file from `skills/agent-messaging/SKILL.md` → `~/.claude/skills/agent-messaging/SKILL.md`
@@ -552,6 +566,26 @@ Agent: "Check my inbox for any urgent messages"
 → Executes: check-aimaestro-messages.sh
 → Filters for urgent priority messages
 ```
+
+### Push Notifications (v0.18.10+)
+
+Messages are delivered with **instant push notifications** via tmux. When a message is sent:
+
+1. Message is stored in recipient's inbox (file-based)
+2. Notification service looks up the recipient agent
+3. If agent has an active tmux session, notification is sent via `tmux send-keys`
+4. Agent sees the notification immediately in their terminal
+
+**Key files:**
+- `lib/notification-service.ts` - Push notification implementation
+- `app/api/messages/route.ts` - Calls `notifyAgent()` after storing message
+
+**Configuration (via environment variables):**
+- `NOTIFICATIONS_ENABLED=false` - Disable push notifications entirely (default: enabled)
+- `NOTIFICATION_FORMAT` - Customize notification message template (default: `[MESSAGE] From: {from} - {subject} - check your inbox`)
+- `NOTIFICATION_SKIP_TYPES` - Comma-separated list of message types to skip (default: `system,heartbeat`)
+
+**Note:** Push notifications replaced polling-based message checking in the subconscious. Agents no longer need to poll for messages - they receive instant notifications.
 
 ### Development Notes
 

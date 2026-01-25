@@ -97,7 +97,8 @@ export function getPublicUrl(host?: Host): string {
 
   // NEVER return localhost - use hostname as last resort
   // localhost is useless in a mesh network
-  const hostname = os.hostname().toLowerCase()
+  // Strip .local suffix (macOS Bonjour/mDNS) for cross-platform consistency
+  const hostname = os.hostname().toLowerCase().replace(/\.local$/, '')
   return `http://${hostname}:${port}`
 }
 

@@ -85,9 +85,10 @@ async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
 /**
  * Get this machine's hostname - the canonical host ID
  * Always returns lowercase for case-insensitive consistency
+ * Strips .local suffix (macOS Bonjour/mDNS) for cross-platform consistency
  */
 export function getSelfHostId(): string {
-  return os.hostname().toLowerCase()
+  return os.hostname().toLowerCase().replace(/\.local$/, '')
 }
 
 /**

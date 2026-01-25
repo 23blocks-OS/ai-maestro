@@ -132,6 +132,11 @@ yarn --version  # Should show 1.22.x
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 ```
 
+**Unattended installation** (skips all prompts):
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- -y --auto-start
+```
+
 The installer will:
 - Detect WSL2 environment
 - Clone the repository

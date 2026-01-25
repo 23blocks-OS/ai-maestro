@@ -132,7 +132,7 @@
         "name": "How does the Agent Subconscious work?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "The Agent Subconscious is a background process that maintains each agent's memory. It automatically indexes conversations for semantic search, checks for inter-agent messages, and uses self-staggering scheduling to prevent CPU spikes even with 100+ agents. It adjusts intervals based on activity - running more frequently when active, less when idle."
+          "text": "The Agent Subconscious is a background process that maintains each agent's memory. It automatically indexes conversations for semantic search and consolidates long-term memories. It uses self-staggering scheduling to prevent CPU spikes even with 100+ agents, adjusting intervals based on activity. Note: Message checking has been replaced by instant push notifications (v0.18.10+)."
         }
       },{
         "@type": "Question",
@@ -449,7 +449,7 @@
                 <div class="feature-card p-6 bg-slate-900 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">🧠</div>
                     <h3 class="text-lg font-display font-bold mb-2 text-white">Subconscious</h3>
-                    <p class="text-slate-400 text-sm">Background process maintaining memory and checking messages</p>
+                    <p class="text-slate-400 text-sm">Background process maintaining memory and consolidating knowledge</p>
                 </div>
                 <div class="feature-card p-6 bg-slate-900 rounded-2xl border border-slate-700">
                     <div class="text-4xl mb-4">💬</div>
@@ -589,8 +589,12 @@
                             <p class="text-slate-400 text-sm">Automatically indexes conversations for semantic search. Every conversation your agent has is stored and searchable.</p>
                         </div>
                         <div class="bg-slate-950 p-4 rounded-lg">
-                            <h4 class="font-display font-bold text-white mb-2">Message Checking</h4>
-                            <p class="text-slate-400 text-sm">Monitors inbox for new inter-agent messages. Your agents never miss important communications.</p>
+                            <h4 class="font-display font-bold text-white mb-2">Long-Term Consolidation</h4>
+                            <p class="text-slate-400 text-sm">Periodically consolidates memories for better retrieval. Important patterns are extracted and stored for future reference.</p>
+                        </div>
+                        <div class="bg-slate-950 p-4 rounded-lg border border-cyan-500/30">
+                            <h4 class="font-display font-bold text-cyan-400 mb-2">Push Notifications <span class="text-xs bg-cyan-500/20 px-2 py-0.5 rounded ml-2">v0.18.10+</span></h4>
+                            <p class="text-slate-400 text-sm">Messages are delivered instantly via tmux notifications. No polling required - agents receive messages in real-time.</p>
                         </div>
                         <div class="bg-slate-950 p-4 rounded-lg">
                             <h4 class="font-display font-bold text-white mb-2">Self-Staggering</h4>
@@ -603,7 +607,7 @@
                     </div>
                 </div>
                 <div>
-                    <img src="images/agent_subconscius.png" alt="Agent Subconscious panel showing status, memory maintenance, and message checking" class="w-full rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
+                    <img src="images/agent_subconscius.png" alt="Agent Subconscious panel showing status, memory maintenance, and consolidation" class="w-full rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
                 </div>
             </div>
 
@@ -616,7 +620,7 @@
                             <tr class="border-b border-slate-700">
                                 <th class="py-3 px-4 font-semibold text-white">Activity State</th>
                                 <th class="py-3 px-4 font-semibold text-white">Memory Check</th>
-                                <th class="py-3 px-4 font-semibold text-white">Message Check</th>
+                                <th class="py-3 px-4 font-semibold text-white">Consolidation</th>
                                 <th class="py-3 px-4 font-semibold text-white">Description</th>
                             </tr>
                         </thead>
@@ -624,19 +628,19 @@
                             <tr class="border-b border-gray-100">
                                 <td class="py-3 px-4"><span class="inline-flex items-center gap-2"><span class="w-2 h-2 bg-cyan-500 rounded-full"></span> Active</span></td>
                                 <td class="py-3 px-4">5 minutes</td>
-                                <td class="py-3 px-4">30 seconds</td>
+                                <td class="py-3 px-4">30 minutes</td>
                                 <td class="py-3 px-4 text-slate-400">User is actively working with agent</td>
                             </tr>
                             <tr class="border-b border-gray-100">
                                 <td class="py-3 px-4"><span class="inline-flex items-center gap-2"><span class="w-2 h-2 bg-yellow-500 rounded-full"></span> Idle</span></td>
                                 <td class="py-3 px-4">30 minutes</td>
-                                <td class="py-3 px-4">2 minutes</td>
+                                <td class="py-3 px-4">60 minutes</td>
                                 <td class="py-3 px-4 text-slate-400">No recent activity, agent is waiting</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-4"><span class="inline-flex items-center gap-2"><span class="w-2 h-2 bg-gray-400 rounded-full"></span> Disconnected</span></td>
                                 <td class="py-3 px-4">60 minutes</td>
-                                <td class="py-3 px-4">5 minutes</td>
+                                <td class="py-3 px-4">120 minutes</td>
                                 <td class="py-3 px-4 text-slate-400">No active session, background only</td>
                             </tr>
                         </tbody>
@@ -773,7 +777,7 @@
                 <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700">
                     <div class="inline-flex items-center justify-center w-12 h-12 bg-secondary text-white rounded-full text-2xl font-display font-bold mb-4">3</div>
                     <h3 class="text-xl font-display font-bold mb-4 text-white">Monitor Subconscious</h3>
-                    <p class="text-slate-400">Check the Subconscious panel in the sidebar to see memory maintenance and message checking status.</p>
+                    <p class="text-slate-400">Check the Subconscious panel in the sidebar to see memory maintenance and consolidation status.</p>
                 </div>
             </div>
 

@@ -23,7 +23,12 @@ brew install node tmux
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 ```
 
-This handles everything: prerequisites, installation, configuration.
+**Unattended installation** (for CI/CD, scripts, WSL):
+```bash
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh -s -- -y --auto-start
+```
+
+This handles everything: prerequisites, installation, configuration. The `-y` flag skips all prompts.
 
 ### Option B: Manual Install
 

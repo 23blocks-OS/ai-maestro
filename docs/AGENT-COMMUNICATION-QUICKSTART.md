@@ -77,6 +77,13 @@ cd /path/to/ai-maestro
 ./install-messaging.sh
 ```
 
+**Unattended installation** (for CI/CD, scripts):
+```bash
+./install-messaging.sh -y
+```
+
+The `-y` flag auto-selects full installation (scripts + skills) without prompts.
+
 The installer will:
 - ✅ Check all prerequisites (tmux, curl, Claude Code)
 - ✅ Install messaging scripts to `~/.local/bin/`

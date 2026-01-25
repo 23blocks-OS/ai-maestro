@@ -65,8 +65,11 @@ async function sendTmuxNotification(sessionName: string, message: string): Promi
   // Target the first pane of the first window
   const target = `${sessionName}:0.0`
 
-  // Use echo to display notification (non-intrusive)
-  await execAsync(`tmux send-keys -t "${target}" "echo '${escapedMessage}'" Enter`)
+  // Send message first, then Enter separately (tmux quirk - Enter must be separate for reliability)
+  // See: https://github.com/23blocks-OS/ai-maestro/issues/95
+  await execAsync(`tmux send-keys -t "${target}" "echo '${escapedMessage}'"`)
+  await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+  await execAsync(`tmux send-keys -t "${target}" Enter`)
 }
 
 /**

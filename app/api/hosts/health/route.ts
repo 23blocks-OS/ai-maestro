@@ -87,7 +87,8 @@ async function makeHealthCheckRequest(
         'User-Agent': 'AI-Maestro-Health-Check',
         'Accept': 'application/json'
       },
-      signal: AbortSignal.timeout(timeout)
+      signal: AbortSignal.timeout(timeout),
+      cache: 'no-store'  // Disable Next.js fetch caching
     })
 
     if (response.ok || response.status < 500) {
@@ -133,7 +134,8 @@ async function fetchVersionInfo(
         'User-Agent': 'AI-Maestro-Health-Check',
         'Accept': 'application/json'
       },
-      signal: AbortSignal.timeout(timeout)
+      signal: AbortSignal.timeout(timeout),
+      cache: 'no-store'  // Disable Next.js fetch caching
     })
 
     if (response.ok) {

@@ -56,36 +56,73 @@ export default function HostsSection() {
     fetchHosts()
   }, [])
 
+  // Function to refresh all hosts health/version
+  const refreshAllHosts = () => {
+    // Get all enabled hosts
+    const enabledHosts = hosts.filter(h => h.enabled)
+
+    // Set ALL hosts to 'checking' state first (so user sees all spinners)
+    const checkingState: Record<string, 'checking'> = {}
+    enabledHosts.forEach(h => { checkingState[h.id] = 'checking' })
+    setHealthStatus(prev => ({ ...prev, ...checkingState }))
+
+    // Then check each host
+    enabledHosts.forEach(host => {
+      if (host.isSelf) {
+        // For this machine, fetch version and sessions directly (no proxy needed)
+        Promise.all([
+          fetch('/api/config').then(res => res.json()),
+          fetch('/api/sessions').then(res => res.json())
+        ])
+          .then(([configData, sessionsData]) => {
+            if (configData.version) {
+              setHostVersions(prev => ({ ...prev, [host.id]: configData.version }))
+            }
+            if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
+              setHostSessionCounts(prev => ({ ...prev, [host.id]: sessionsData.sessions.length }))
+            }
+            setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
+          })
+          .catch(() => {
+            setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
+          })
+      } else {
+        // For remote hosts, use the health proxy (don't set 'checking' again, already done above)
+        checkHealthWithoutSettingChecking(host)
+      }
+    })
+  }
+
+  // Check health without setting 'checking' state (used by refreshAllHosts which sets it upfront)
+  const checkHealthWithoutSettingChecking = async (host: Host) => {
+    try {
+      const response = await fetch(`/api/hosts/health?url=${encodeURIComponent(host.url)}`, {
+        signal: AbortSignal.timeout(15000),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
+        if (data.version) {
+          setHostVersions(prev => ({ ...prev, [host.id]: data.version }))
+        }
+        if (typeof data.sessionCount === 'number') {
+          setHostSessionCounts(prev => ({ ...prev, [host.id]: data.sessionCount }))
+        }
+      } else {
+        setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
+      }
+    } catch {
+      setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
+    }
+  }
+
   // Auto-check health for all hosts on mount to get versions
   useEffect(() => {
     if (hosts.length > 0) {
-      hosts.forEach(host => {
-        if (host.enabled) {
-          if (host.isSelf) {
-            // For this machine, fetch version and sessions directly (no proxy needed)
-            Promise.all([
-              fetch('/api/config').then(res => res.json()),
-              fetch('/api/sessions').then(res => res.json())
-            ])
-              .then(([configData, sessionsData]) => {
-                if (configData.version) {
-                  setHostVersions(prev => ({ ...prev, [host.id]: configData.version }))
-                }
-                if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
-                  setHostSessionCounts(prev => ({ ...prev, [host.id]: sessionsData.sessions.length }))
-                }
-                setHealthStatus(prev => ({ ...prev, [host.id]: 'online' }))
-              })
-              .catch(() => {
-                setHealthStatus(prev => ({ ...prev, [host.id]: 'offline' }))
-              })
-          } else {
-            checkHealth(host)
-          }
-        }
-      })
+      refreshAllHosts()
     }
-  }, [hosts.length]) // Only run when hosts list changes
+  }, [hosts]) // Run when hosts change (not just length)
 
   const fetchHosts = async () => {
     try {
@@ -253,17 +290,28 @@ export default function HostsSection() {
             Configure remote AI Maestro peers for distributed session management
           </p>
         </div>
-        <button
-          onClick={() => {
-            setShowWizard(true)
-            setEditingId(null)
-            resetForm()
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Host
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshAllHosts}
+            disabled={Object.values(healthStatus).some(s => s === 'checking')}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+            title="Refresh all host versions and status"
+          >
+            <RefreshCw className={`w-4 h-4 ${Object.values(healthStatus).some(s => s === 'checking') ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => {
+              setShowWizard(true)
+              setEditingId(null)
+              resetForm()
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Host
+          </button>
+        </div>
       </div>
 
       {/* Error Display */}

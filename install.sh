@@ -591,6 +591,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     echo "  🧠 Memory       - Search conversation history for context"
     echo "  🔗 Graph        - Query code relationships and dependencies"
     echo "  📚 Docs         - Search auto-generated documentation"
+    echo "  🪝 Hooks        - Claude Code integration for Chat interface"
     echo ""
     if command -v claude &> /dev/null; then
         echo "  Claude Code skills will be installed for natural language access."
@@ -635,6 +636,13 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             echo ""
             print_step "Installing doc tools..."
             ./install-doc-tools.sh
+        fi
+
+        # Install Claude Code hooks
+        if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+            echo ""
+            print_step "Installing Claude Code hooks..."
+            ./scripts/claude-hooks/install-hooks.sh
         fi
 
         print_success "All agent tools installed"

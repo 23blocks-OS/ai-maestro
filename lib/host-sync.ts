@@ -19,7 +19,7 @@ import {
   PeerExchangeRequest,
   PeerExchangeResponse,
 } from '@/types/host-sync'
-import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache, getSelfAliases } from './hosts-config'
+import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache, getSelfAliases, isSelf } from './hosts-config'
 import os from 'os'
 
 // Track processed propagation IDs to prevent infinite loops
@@ -485,10 +485,10 @@ async function propagateToExistingPeers(
   let shared = 0
 
   const allHosts = getHosts()
-  console.log(`[Host Sync] Propagation check - All hosts (${allHosts.length}):`, allHosts.map(h => `${h.name} (type=${h.type}, enabled=${h.enabled}, id=${h.id})`))
+  console.log(`[Host Sync] Propagation check - All hosts (${allHosts.length}):`, allHosts.map(h => `${h.name} (isSelf=${isSelf(h.id)}, enabled=${h.enabled}, id=${h.id})`))
 
   const existingPeers = allHosts.filter(
-    h => h.type === 'remote' && h.enabled && h.id !== newHost.id
+    h => !isSelf(h.id) && h.enabled && h.id !== newHost.id
   )
 
   console.log(`[Host Sync] Will propagate ${newHost.name} to ${existingPeers.length} existing peers:`, existingPeers.map(p => p.name))
@@ -558,7 +558,7 @@ async function propagateToExistingPeers(
  */
 function getKnownHostIdentities(excludeId?: string): HostIdentity[] {
   return getHosts()
-    .filter(h => h.type === 'remote' && h.enabled && h.id !== excludeId)
+    .filter(h => !isSelf(h.id) && h.enabled && h.id !== excludeId)
     .map(h => ({
       id: h.id,
       name: h.name,

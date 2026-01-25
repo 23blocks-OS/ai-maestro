@@ -72,6 +72,7 @@
         "Universal command-line tools for any agent",
         "Persistent file-based inboxes",
         "Instant tmux notifications",
+        "Slack workspace integration",
         "Priority levels (urgent, high, normal, low)",
         "Structured message types (request, response, notification, update)",
         "Dual-channel system for real-time and persistent messaging"
@@ -640,6 +641,63 @@
                         <li class="text-slate-400">✅ Automatic session detection</li>
                         <li class="text-slate-400">✅ Structured message formatting</li>
                     </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slack Integration Section -->
+    <section class="py-16 md:py-24 bg-gradient-to-br from-purple-900/20 to-pink-900/20 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <span class="inline-block px-4 py-2 bg-purple-500/20 text-purple-300 rounded-full text-sm font-semibold mb-4">NEW INTEGRATION</span>
+                <h2 class="text-4xl md:text-5xl font-display font-bold mb-4">Slack Integration</h2>
+                <p class="text-xl text-slate-400 max-w-2xl mx-auto">Your team can now interact with AI agents directly from Slack. No terminal access needed.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="bg-slate-900/80 p-8 rounded-2xl border border-purple-500/30">
+                        <h3 class="text-2xl font-display font-bold mb-6 text-white">How It Works</h3>
+                        <div class="space-y-4 text-slate-300">
+                            <div class="flex items-start gap-3">
+                                <span class="text-purple-400 text-xl">1.</span>
+                                <p><strong>DM or @mention</strong> the AI Maestro bot in Slack</p>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="text-purple-400 text-xl">2.</span>
+                                <p><strong>Route to specific agents</strong> with <code class="bg-slate-800 px-2 py-1 rounded">@AIM:agent-name</code></p>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="text-purple-400 text-xl">3.</span>
+                                <p><strong>Get responses</strong> delivered to your Slack thread</p>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-6 border-t border-slate-700">
+                            <p class="text-slate-400 text-sm mb-4">Example:</p>
+                            <pre class="bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto">@AIM:backend-api check the server health
+@AIM:graph-query find all API endpoints
+@AI Maestro what's the project status?</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-slate-900/80 p-6 rounded-xl border border-slate-700">
+                        <h4 class="text-lg font-bold text-white mb-2">🎯 Agent Routing</h4>
+                        <p class="text-slate-400">Route messages to any agent in your network with <code class="bg-slate-800 px-2 py-1 rounded text-purple-300">@AIM:agent-name</code> syntax</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-6 rounded-xl border border-slate-700">
+                        <h4 class="text-lg font-bold text-white mb-2">💬 Thread Responses</h4>
+                        <p class="text-slate-400">Agent responses are posted to the original Slack thread - conversations stay organized</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-6 rounded-xl border border-slate-700">
+                        <h4 class="text-lg font-bold text-white mb-2">🌐 Cross-Host</h4>
+                        <p class="text-slate-400">Route to agents on any host in your AI Maestro network - local or remote</p>
+                    </div>
+                    <a href="https://github.com/23blocks-OS/aimaestro-slack-bridge" target="_blank" class="block bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-xl text-center font-bold text-white hover:from-purple-500 hover:to-pink-500 transition-all no-underline">
+                        🔗 Get the Slack Bridge →
+                    </a>
                 </div>
             </div>
         </div>

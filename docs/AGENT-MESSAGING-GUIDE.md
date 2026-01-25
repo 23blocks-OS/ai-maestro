@@ -778,6 +778,58 @@ This project uses the AI Maestro messaging system for agent coordination.
 3. Mark the original request as handled
 ```
 
+## Slack Integration
+
+Connect your team's Slack workspace to AI Maestro agents using the [AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge).
+
+### How It Works
+
+```
+Slack Message → Slack Bridge → AI Maestro API → Agent Inbox
+                                                      ↓
+Slack Thread  ← Slack Bridge ← AI Maestro API ← Agent Response
+```
+
+### Usage
+
+**DM the bot:**
+Send a direct message to the AI Maestro bot in Slack.
+
+**Mention in channels:**
+```
+@AI Maestro what's the status of the API refactoring?
+```
+
+**Route to specific agents:**
+```
+@AIM:backend-api check the server health
+@AIM:frontend-dev review the CSS changes
+@AIM:graph-query find all API endpoints
+```
+
+### Responding to Slack Messages
+
+When you receive a notification from Slack:
+
+```
+[MESSAGE] From: slack-bot - Slack: Question from Juan - check your inbox
+```
+
+1. Check your inbox: `check-aimaestro-messages.sh`
+2. Read the message to see the full Slack context
+3. Send your response to `slack-bot` - it will be posted to the Slack thread
+
+```bash
+send-aimaestro-message.sh slack-bot \
+  "Re: Question from Juan" \
+  "The API endpoint is at /api/users. See routes/users.ts for implementation." \
+  normal response
+```
+
+### Setup
+
+See the [AI Maestro Slack Bridge repository](https://github.com/23blocks-OS/aimaestro-slack-bridge) for installation and configuration.
+
 ## Future Enhancements
 
 Potential future features for the messaging system:

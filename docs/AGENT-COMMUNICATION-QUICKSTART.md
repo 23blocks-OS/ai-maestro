@@ -562,6 +562,15 @@ For more advanced usage:
 - **[Agent Messaging Guide](./AGENT-MESSAGING-GUIDE.md)** - Comprehensive guide with workflows
 - **[Agent Communication Architecture](./AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
 
+### Slack Integration
+
+Want your whole team to interact with AI agents from Slack? Check out the **[AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge)**:
+
+- DM or @mention agents from Slack
+- Route to specific agents: `@AIM:backend-api check health`
+- Responses delivered to Slack threads
+- No terminal access needed for team members
+
 ---
 
 ## Quick Test Script

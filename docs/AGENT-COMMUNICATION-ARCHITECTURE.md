@@ -6,10 +6,11 @@ Technical deep-dive into AI Maestro's dual-channel communication system.
 
 ## System Overview
 
-AI Maestro provides **two independent communication channels** for inter-agent messaging:
+AI Maestro provides **three communication channels** for inter-agent messaging:
 
 1. **File-Based Persistent Messaging** - REST API + JSON file storage
 2. **Instant tmux Notifications** - Direct tmux command execution
+3. **Slack Integration** - Bridge to Slack workspaces (external)
 
 These channels serve different purposes and use different underlying mechanisms.
 
@@ -930,7 +931,7 @@ echo (output)       | 12ms  | 22ms  | 35ms  |
 4. **Webhooks**
    - Trigger external actions on message receipt
    - HTTP POST to configured endpoints
-   - Use cases: Slack notifications, PagerDuty alerts
+   - Use cases: PagerDuty alerts, CI/CD triggers
 
 5. **Message Templates**
    - Pre-defined message formats
@@ -944,9 +945,94 @@ echo (output)       | 12ms  | 22ms  | 35ms  |
 
 ---
 
+## Channel 3: Slack Integration
+
+The [AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge) enables external communication from Slack workspaces.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Slack Workspace                            │
+├─────────────────────────────────────────────────────────────┤
+│  User sends message via:                                     │
+│  • DM to AI Maestro bot                                     │
+│  • @mention in channel                                       │
+│  • @AIM:agent-name routing syntax                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Slack Bridge (External Service)                 │
+├─────────────────────────────────────────────────────────────┤
+│  • Receives Slack events via Socket Mode                    │
+│  • Parses @AIM:agent-name routing                          │
+│  • Queries AI Maestro API for agent location               │
+│  • Sends message to agent inbox                             │
+│  • Polls slack-bot inbox for responses                      │
+│  • Posts responses to Slack threads                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   AI Maestro Server                          │
+├─────────────────────────────────────────────────────────────┤
+│  POST /api/messages        → Agent inbox                    │
+│  GET  /api/messages        ← slack-bot inbox                │
+│  GET  /api/agents          → Agent discovery                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Target Agent                              │
+├─────────────────────────────────────────────────────────────┤
+│  • Receives push notification via tmux                      │
+│  • Reads message with Slack context                         │
+│  • Sends response to slack-bot inbox                        │
+│  • Response routes back to Slack thread                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Message Flow
+
+**Incoming (Slack → Agent):**
+1. User sends message in Slack
+2. Bridge receives event via Slack Socket Mode
+3. Bridge parses `@AIM:agent-name` prefix (if present)
+4. Bridge queries AI Maestro for agent location
+5. Bridge posts to agent inbox via REST API
+6. Agent receives push notification
+7. Agent reads message with Slack context (channel, thread, user)
+
+**Outgoing (Agent → Slack):**
+1. Agent sends response to `slack-bot` inbox
+2. Bridge polls slack-bot inbox every 2 seconds
+3. Bridge finds response with Slack context
+4. Bridge posts to original Slack thread
+5. Bridge marks message as processed
+
+### Routing Syntax
+
+```
+@AI Maestro how do I fix this bug?           → Default agent
+@AIM:backend-api check server health          → backend-api agent
+@AIM:frontend-dev review the CSS changes      → frontend-dev agent
+@AIM:graph-query find all API endpoints       → graph-query agent
+```
+
+### Setup
+
+See the [AI Maestro Slack Bridge repository](https://github.com/23blocks-OS/aimaestro-slack-bridge) for:
+- Slack app manifest and configuration
+- Environment variables
+- PM2/systemd service setup
+
+---
+
 ## Related Documentation
 
 - **[Quickstart Guide](./AGENT-COMMUNICATION-QUICKSTART.md)** - Get started in 5 minutes
 - **[Guidelines](./AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices
 - **[Messaging Guide](./AGENT-MESSAGING-GUIDE.md)** - Comprehensive reference
+- **[AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge)** - Slack integration
 - **[CLAUDE.md](../CLAUDE.md)** - Overall project architecture

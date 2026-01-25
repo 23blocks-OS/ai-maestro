@@ -478,7 +478,9 @@ list_hosts
 
 ## PART 2.6: SLACK INTEGRATION (BRIDGED MESSAGES)
 
-AI Maestro supports receiving messages from Slack via a bridge service. When someone mentions or messages you on Slack, the message appears in your inbox with Slack context attached.
+AI Maestro supports receiving messages from Slack via the [AI Maestro Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge). When someone mentions or messages you on Slack, the message appears in your inbox with Slack context attached.
+
+**Setup:** See the [Slack Bridge repository](https://github.com/23blocks-OS/aimaestro-slack-bridge) for installation and configuration.
 
 ### How Slack Bridged Messages Work
 

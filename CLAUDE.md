@@ -32,6 +32,8 @@ tmux kill-session -t test-session    # Clean up test session
 
 **Port Configuration:** The application is configured to run on port 23000. This is set in the PM2 configuration.
 
+**Health Check:** Do NOT use `/api/health` to check if the site is live (it doesn't exist). Use `/api/sessions` instead - it returns the list of agents and confirms the server is running.
+
 ## Version Management
 
 **IMPORTANT:** When bumping the version, ALWAYS use the centralized script:

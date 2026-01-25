@@ -34,6 +34,7 @@ import {
   Search,
   X,
   Brain,
+  CheckCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
@@ -1476,6 +1477,90 @@ function AgentStatusIndicator({
   )
 }
 
+// Host Selector Component - beautiful list with search for large networks
+function HostSelector({
+  hosts,
+  selectedHostId,
+  onSelect,
+}: {
+  hosts: Array<{ id: string; name: string; url?: string; isSelf?: boolean }>
+  selectedHostId: string
+  onSelect: (hostId: string) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Filter hosts by search query
+  const filteredHosts = hosts.filter(host =>
+    host.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    host.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    host.url?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-2">
+        Host
+      </label>
+
+      {/* Search input - only show if more than 2 hosts */}
+      {hosts.length > 2 && (
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search hosts..."
+            className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+          />
+        </div>
+      )}
+
+      {/* Host list - scrollable */}
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+        {filteredHosts.length === 0 ? (
+          <div className="p-3 text-center text-gray-500 text-sm">
+            No hosts found
+          </div>
+        ) : (
+          filteredHosts.map(host => (
+            <button
+              key={host.id}
+              type="button"
+              onClick={() => onSelect(host.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                selectedHostId === host.id
+                  ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
+              }`}
+            >
+              <Server className="w-5 h-5 flex-shrink-0" />
+              <div className="flex-1 text-left min-w-0">
+                <div className="font-medium truncate">
+                  {host.name}
+                  {host.isSelf && (
+                    <span className="ml-2 text-xs text-gray-500">(this machine)</span>
+                  )}
+                </div>
+                {host.url && (
+                  <div className="text-xs text-gray-500 truncate">{host.url}</div>
+                )}
+              </div>
+              {selectedHostId === host.id && (
+                <CheckCircle className="w-5 h-5 text-blue-400 flex-shrink-0" />
+              )}
+            </button>
+          ))
+        )}
+      </div>
+
+      <p className="text-xs text-gray-500 mt-2">
+        Choose which machine to create this agent on
+      </p>
+    </div>
+  )
+}
+
 // Animated Create Modal
 function CreateAgentModal({
   onClose,
@@ -1491,7 +1576,16 @@ function CreateAgentModal({
   const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [selectedHostId, setSelectedHostId] = useState<string>('')
   const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
+
+  // Set default host to self/local host on mount
+  useEffect(() => {
+    if (hosts.length > 0 && !selectedHostId) {
+      const selfHost = hosts.find(h => h.isSelf) || hosts[0]
+      setSelectedHostId(selfHost.id)
+    }
+  }, [hosts, selectedHostId])
   const [animationProgress, setAnimationProgress] = useState(0)
   const [isCreating, setIsCreating] = useState(false)  // Animation in progress
   const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
@@ -1619,7 +1713,8 @@ function CreateAgentModal({
       // These must match what's shown in the preview animation
       const personaName = getRandomAlias(name.trim())
       const avatarUrl = getPreviewAvatarUrl(name.trim())
-      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, undefined, personaName, avatarUrl)
+      // Pass selectedHostId to create agent on the chosen host
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined, personaName, avatarUrl)
       if (success) {
         setCreationSuccess(true)
         // Animation continues, user will click "Let's Go!" to close
@@ -1639,7 +1734,7 @@ function CreateAgentModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={showAnimation ? undefined : onClose}>
-      <div className="bg-gray-900 rounded-xl w-full max-w-md shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl w-full max-w-lg shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {showAnimation ? (
           // Animated creation view
           <div className="p-6">
@@ -1708,6 +1803,13 @@ function CreateAgentModal({
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
+                {hosts.length > 1 && (
+                  <HostSelector
+                    hosts={hosts}
+                    selectedHostId={selectedHostId}
+                    onSelect={setSelectedHostId}
+                  />
+                )}
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button

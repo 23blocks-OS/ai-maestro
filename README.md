@@ -142,7 +142,8 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - **Delta Indexing**: Only re-indexes changed files (~100ms vs 1000ms+ full re-index)
 - **Agent Subconscious**: Background memory maintenance
   - Automatic conversation indexing for semantic search
-  - Message checking for inter-agent communication
+  - Long-term memory consolidation for better retrieval
+  - Push notifications for instant message delivery (v0.18.10+)
   - Self-staggering scheduler (scales to 100+ agents without CPU spikes)
   - Activity-aware intervals (faster when active, slower when idle)
 - **Conversation Memory**: Full conversation history with search

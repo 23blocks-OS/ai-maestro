@@ -631,24 +631,21 @@ Use for progress reports on ongoing work:
 
 ## Best Practices
 
-### 1. Check Messages Regularly
+### 1. Push Notifications (Automatic)
 
-Add message checking to your agent workflow:
+As of v0.18.10, AI Maestro uses **push notifications** to instantly alert agents when messages arrive:
+
+```
+[MESSAGE] From: backend-api@mini-lola - API endpoint ready - check your inbox
+```
+
+No polling or manual checking required - agents receive notifications in real-time via tmux.
+
+**To check for any missed messages** (e.g., at session startup):
 
 ```bash
-# Add to .bashrc or .zshrc for automatic checking
-check_messages() {
-  SESSION=$(tmux display-message -p '#S' 2>/dev/null)
-  if [ -n "$SESSION" ]; then
-    COUNT=$(ls ~/.aimaestro/messages/inbox/$SESSION/*.json 2>/dev/null | wc -l)
-    if [ $COUNT -gt 0 ]; then
-      echo "📬 You have $COUNT unread message(s)"
-    fi
-  fi
-}
-
-# Run on every prompt
-PROMPT_COMMAND="check_messages"
+# Quick check for unread messages
+check-aimaestro-messages.sh
 ```
 
 ### 2. Use Clear Subjects
@@ -748,7 +745,13 @@ Add to cron or run periodically in your session.
 
 ## Integration with Claude Code
 
-### Proactive Message Checking
+### Push Notifications (v0.18.10+)
+
+AI Maestro automatically delivers messages via push notifications. When a message arrives, you'll see:
+
+```
+[MESSAGE] From: backend-api - API endpoint ready - check your inbox
+```
 
 Add to your `CLAUDE.md` project instructions:
 
@@ -757,15 +760,15 @@ Add to your `CLAUDE.md` project instructions:
 
 This project uses the AI Maestro messaging system for agent coordination.
 
-**At the start of each task:**
-1. Check for messages: `ls ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/*.json`
-2. Read any unread messages
+**When you receive a message notification:**
+1. Run `check-aimaestro-messages.sh` to see your inbox
+2. Read messages with `read-aimaestro-message.sh <msg-id>`
 3. Prioritize urgent/high priority messages
 4. Incorporate message context into your task planning
 
 **When you need help from another agent:**
 1. Identify the appropriate specialist agent
-2. Use the Messages tab in the dashboard to send a request
+2. Use `send-aimaestro-message.sh` or the Messages tab in the dashboard
 3. Include clear context and requirements
 4. Continue with independent work while waiting for response
 

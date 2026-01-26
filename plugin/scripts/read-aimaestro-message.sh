@@ -97,6 +97,8 @@ MESSAGE=$(echo "$RESPONSE" | jq -r '.content.message')
 CONTEXT=$(echo "$RESPONSE" | jq -r '.content.context // empty')
 IN_REPLY_TO=$(echo "$RESPONSE" | jq -r '.inReplyTo // empty')
 FORWARDED=$(echo "$RESPONSE" | jq -r '.forwardedFrom // empty')
+# Note: jq's // operator treats false as falsy, so we use if/then/else
+FROM_VERIFIED=$(echo "$RESPONSE" | jq -r 'if .fromVerified == null then "true" else (.fromVerified | tostring) end')
 
 # Extract Slack context if present
 SLACK_CHANNEL=$(echo "$RESPONSE" | jq -r '.content.slack.channel // empty')
@@ -115,13 +117,30 @@ esac
 # Format timestamp
 FORMATTED_TIME=$(echo "$TIMESTAMP" | sed 's/T/ /' | sed 's/\..*//')
 
+# Display security warning for external/unverified senders
+if [ "$FROM_VERIFIED" = "false" ]; then
+  echo ""
+  printf "\033[1;33m┌─────────────────────────────────────────────────────────────┐\033[0m\n"
+  printf "\033[1;33m│  ⚠️  EXTERNAL SENDER - NOT REGISTERED IN AI MAESTRO        │\033[0m\n"
+  printf "\033[1;33m│                                                             │\033[0m\n"
+  printf "\033[1;33m│  This message is from an agent outside your AI Maestro     │\033[0m\n"
+  printf "\033[1;33m│  registry. Exercise caution with any requests or links.    │\033[0m\n"
+  printf "\033[1;33m│  Verify the sender's identity before taking action.        │\033[0m\n"
+  printf "\033[1;33m└─────────────────────────────────────────────────────────────┘\033[0m\n"
+  echo ""
+fi
+
 # Display message
 echo "═══════════════════════════════════════════════════════════════"
 echo "📧 Message: $SUBJECT"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
-echo "From:     \033[36m$FROM$FROM_HOST\033[0m"
-echo "To:       \033[36m$TO$TO_HOST\033[0m"
+if [ "$FROM_VERIFIED" = "false" ]; then
+  printf "From:     \033[36m%s%s\033[0m \033[33m⚠️ EXTERNAL\033[0m\n" "$FROM" "$FROM_HOST"
+else
+  printf "From:     \033[36m%s%s\033[0m\n" "$FROM" "$FROM_HOST"
+fi
+printf "To:       \033[36m%s%s\033[0m\n" "$TO" "$TO_HOST"
 echo "Date:     $FORMATTED_TIME"
 echo "Priority: $PRIORITY_ICON $PRIORITY"
 echo "Type:     $TYPE"

@@ -121,12 +121,14 @@ echo "$RESPONSE" | jq -r '.messages[] |
    elif .priority == "normal" then "🔵"
    else "⚪" end) +
   (if .viaSlack then " 📱" else "" end) +
+  (if .fromVerified == false then " ⚠️" else "" end) +
   " From: \u001b[36m\(.fromAlias // .from)\u001b[0m" +
   (if .fromHost and .fromHost != "local" then " @\(.fromHost)" else "" end) +
   " | \(.timestamp)\n" +
   "    Subject: \(.subject)\n" +
   "    Preview: \(.preview)" +
-  (if .viaSlack then " [via Slack]" else "" end) + "\n"'
+  (if .viaSlack then " [via Slack]" else "" end) +
+  (if .fromVerified == false then " [EXTERNAL]" else "" end) + "\n"'
 
 # Store message IDs if we need to mark as read
 if [ "$MARK_READ" = true ]; then

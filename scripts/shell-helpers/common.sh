@@ -159,15 +159,25 @@ load_hosts_config() {
     _HOSTS_LOADED="1"
 }
 
-# Get the current tmux session name
+# Get the current tmux session name (optional - may not be in tmux)
 get_session() {
     local session
     session=$(tmux display-message -p '#S' 2>/dev/null)
     if [ -z "$session" ]; then
-        echo "Error: Not running in a tmux session" >&2
+        # Not in tmux - this is OK for external agents
         return 1
     fi
     echo "$session"
+}
+
+# Auto-detect agent identity from git repo name
+# Returns repo name if in a git repository, empty otherwise
+get_repo_name() {
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [ -n "$repo_root" ]; then
+        basename "$repo_root"
+    fi
 }
 
 # Parse structured session name: agentId@hostId (like email)
@@ -233,21 +243,78 @@ check_jq() {
     fi
 }
 
-# Initialize common variables - get session and agent ID
-# Sets: SESSION, AGENT_ID, HOST_ID
+# Initialize common variables - AGENT-FIRST approach
+# Sets: SESSION (optional), AGENT_ID, HOST_ID
+#
+# Identity resolution priority:
+#   1. Environment variables (explicit identity for external agents)
+#   2. tmux session (inferred if running in tmux)
+#   3. Git repo name (fallback for external agents)
+#
+# Environment variables:
+#   AI_MAESTRO_AGENT_ID  - Agent identifier (name, alias, or UUID)
+#   AI_MAESTRO_HOST_ID   - Host identifier (optional, defaults to self)
+#
 init_common() {
     check_jq || return 1
 
-    SESSION=$(get_session) || return 1
+    # Reset variables
+    SESSION=""
+    AGENT_ID=""
+    HOST_ID=""
 
-    # Try parsing structured format first (agent@host) - sets AGENT_ID and HOST_ID directly
-    if parse_session_name "$SESSION"; then
-        # Structured format parsed successfully
-        :
-    else
-        # Legacy format - need API lookup
-        AGENT_ID=$(get_agent_id "$SESSION") || return 1
-        HOST_ID=$(get_self_host_id)  # Legacy sessions are on this machine
+    # Priority 1: Explicit identity via environment variables
+    if [ -n "$AI_MAESTRO_AGENT_ID" ]; then
+        AGENT_ID="$AI_MAESTRO_AGENT_ID"
+        HOST_ID="${AI_MAESTRO_HOST_ID:-$(get_self_host_id)}"
+        # SESSION stays empty - external agent not in tmux
+    fi
+
+    # Priority 2: Infer from tmux session (if available and no explicit identity)
+    if [ -z "$AGENT_ID" ]; then
+        SESSION=$(get_session 2>/dev/null) || true
+
+        if [ -n "$SESSION" ]; then
+            # Try parsing structured format first (agent@host)
+            if parse_session_name "$SESSION"; then
+                # Structured format parsed successfully - AGENT_ID and HOST_ID are set
+                :
+            else
+                # Legacy format - need API lookup
+                AGENT_ID=$(get_agent_id "$SESSION") || {
+                    # API lookup failed - SESSION exists but agent not registered
+                    # Fall through to Priority 3
+                    AGENT_ID=""
+                }
+                if [ -n "$AGENT_ID" ]; then
+                    HOST_ID=$(get_self_host_id)
+                fi
+            fi
+        fi
+    fi
+
+    # Priority 3: Auto-detect from git repo name (fallback for external agents)
+    if [ -z "$AGENT_ID" ]; then
+        local repo_name
+        repo_name=$(get_repo_name)
+        if [ -n "$repo_name" ]; then
+            AGENT_ID="$repo_name"
+            HOST_ID="${AI_MAESTRO_HOST_ID:-$(get_self_host_id)}"
+            # Inform user about auto-detected identity
+            echo "ℹ️  Using repo-based identity: ${AGENT_ID}@${HOST_ID}" >&2
+            echo "   Set AI_MAESTRO_AGENT_ID to override" >&2
+        fi
+    fi
+
+    # Final check: Agent must have an identity
+    if [ -z "$AGENT_ID" ]; then
+        echo "Error: No agent identity found" >&2
+        echo "" >&2
+        echo "Options:" >&2
+        echo "  1. Set environment variable: export AI_MAESTRO_AGENT_ID='my-agent'" >&2
+        echo "  2. Run in a registered tmux session" >&2
+        echo "  3. Run from within a git repository" >&2
+        return 1
     fi
 
     export SESSION

@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { from, to, subject, content, priority, inReplyTo, fromHost, toHost, fromAlias, toAlias } = body
+    const { from, to, subject, content, priority, inReplyTo, fromHost, toHost, fromAlias, toAlias, fromLabel, toLabel, fromVerified } = body
 
     // Validate required fields
     if (!from || !to || !subject || !content) {
@@ -160,6 +160,9 @@ export async function POST(request: NextRequest) {
       toHost,
       fromAlias,
       toAlias,
+      fromLabel,
+      toLabel,
+      fromVerified,
     })
 
     // Notify target agent immediately (fire-and-forget, doesn't block response)

@@ -180,7 +180,7 @@ export function SubconsciousStatus({ refreshTrigger }: SubconsciousStatusProps =
               <h3 className="text-sm font-semibold text-gray-100">Subconscious Status</h3>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Background processes that maintain agent memory and check messages
+              Background processes that maintain agent memory
             </p>
           </div>
 
@@ -284,39 +284,22 @@ export function SubconsciousStatus({ refreshTrigger }: SubconsciousStatusProps =
                 </div>
 
                 <div className="border-t border-gray-700 pt-3 mt-3">
-                  <p className="text-xs text-gray-500 mb-2">Message Checking</p>
+                  <p className="text-xs text-gray-500 mb-2">Notifications</p>
 
-                  {/* Last Message Run */}
+                  {/* Push Notifications Status */}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400 flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Last Run
+                      <MessageSquare className="w-4 h-4" />
+                      Delivery Method
                     </span>
-                    <span className="text-gray-200">
-                      {formatTimeAgo(status.lastMessageRun)}
+                    <span className="text-green-400">
+                      Push (instant)
                     </span>
                   </div>
 
-                  {/* Message Result */}
-                  {status.lastMessageResult && (
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-gray-400 flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4" />
-                        Unread Messages
-                      </span>
-                      <span className={status.lastMessageResult.success ? 'text-gray-200' : 'text-red-400'}>
-                        {status.lastMessageResult.success
-                          ? status.lastMessageResult.unreadCount || 0
-                          : 'Error'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Total Runs */}
-                  <div className="flex items-center justify-between text-sm mt-1">
-                    <span className="text-gray-400">Total Runs</span>
-                    <span className="text-gray-200">{status.totalMessageRuns}</span>
-                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Messages are delivered instantly via tmux notifications
+                  </p>
                 </div>
               </>
             ) : null}

@@ -246,36 +246,21 @@ export function AgentSubconsciousIndicator({ agentId, hostUrl }: Props) {
                     </div>
 
                     <div className="border-t border-gray-700 pt-2 mt-2">
-                      <p className="text-[10px] text-gray-500 mb-1.5">Message Checking</p>
+                      <p className="text-[10px] text-gray-500 mb-1.5">Notifications</p>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-gray-400 flex items-center gap-1.5">
-                          <Clock className="w-3 h-3" />
-                          Last Run
+                          <MessageSquare className="w-3 h-3" />
+                          Delivery
                         </span>
-                        <span className="text-gray-200">
-                          {formatTimeAgo(status.status.lastMessageRun)}
+                        <span className="text-green-400">
+                          Push (instant)
                         </span>
                       </div>
 
-                      {status.status.lastMessageResult && (
-                        <div className="flex items-center justify-between text-xs mt-1">
-                          <span className="text-gray-400 flex items-center gap-1.5">
-                            <MessageSquare className="w-3 h-3" />
-                            Unread
-                          </span>
-                          <span className={status.status.lastMessageResult.success ? 'text-gray-200' : 'text-red-400'}>
-                            {status.status.lastMessageResult.success
-                              ? status.status.lastMessageResult.unreadCount || 0
-                              : 'Error'}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-gray-400">Total Runs</span>
-                        <span className="text-gray-200">{status.status.totalMessageRuns}</span>
-                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1.5">
+                        Messages delivered via tmux
+                      </p>
                     </div>
                   </>
                 )}

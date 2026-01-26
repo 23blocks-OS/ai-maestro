@@ -121,6 +121,47 @@ function debugLog(data) {
     fs.appendFileSync(debugFile, line);
 }
 
+// Send message notification to agent via tmux
+async function sendMessageNotification(cwd, messagePrompt) {
+    try {
+        const agentsResponse = await fetch('http://localhost:23000/api/agents');
+        if (!agentsResponse.ok) return false;
+
+        const agentsData = await agentsResponse.json();
+        const agent = (agentsData.agents || []).find(a => {
+            const agentWd = a.workingDirectory || a.session?.workingDirectory;
+            if (!agentWd) return false;
+            if (agentWd === cwd) return true;
+            if (cwd.startsWith(agentWd + '/')) return true;
+            if (agentWd.startsWith(cwd + '/')) return true;
+            return false;
+        });
+
+        if (agent && agent.session?.tmuxSessionName) {
+            // Send via AI Maestro API
+            const response = await fetch(
+                `http://localhost:23000/api/sessions/${encodeURIComponent(agent.session.tmuxSessionName)}/command`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        command: messagePrompt,
+                        requireIdle: false,  // Hook context ensures appropriate timing
+                        addNewline: true
+                    })
+                }
+            );
+            const result = await response.json();
+            debugLog({ event: 'message_notification_sent', success: result.success, session: agent.session.tmuxSessionName });
+            return result.success;
+        }
+        return false;
+    } catch (err) {
+        debugLog({ event: 'message_notification_error', error: err.message });
+        return false;
+    }
+}
+
 // Check for unread messages for this agent
 async function checkUnreadMessages(cwd) {
     try {
@@ -294,43 +335,8 @@ async function main() {
                 // Check for unread messages and notify the agent
                 const messagePrompt = await checkUnreadMessages(cwd);
                 if (messagePrompt) {
-                    debugLog({ event: 'sending_message_notification', cwd, prompt: messagePrompt });
-
-                    // Find the tmux session for this working directory and send the prompt
-                    try {
-                        const agentsResponse = await fetch('http://localhost:23000/api/agents');
-                        if (agentsResponse.ok) {
-                            const agentsData = await agentsResponse.json();
-                            const agent = (agentsData.agents || []).find(a => {
-                                const agentWd = a.workingDirectory || a.session?.workingDirectory;
-                                if (!agentWd) return false;
-                                if (agentWd === cwd) return true;
-                                if (cwd.startsWith(agentWd + '/')) return true;
-                                if (agentWd.startsWith(cwd + '/')) return true;
-                                return false;
-                            });
-
-                            if (agent && agent.session?.tmuxSessionName) {
-                                // Send via AI Maestro API (requireIdle: false since we KNOW it's idle from the hook)
-                                const response = await fetch(
-                                    `http://localhost:23000/api/sessions/${encodeURIComponent(agent.session.tmuxSessionName)}/command`,
-                                    {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            command: messagePrompt,
-                                            requireIdle: false,  // We know it's idle - hook just fired!
-                                            addNewline: true
-                                        })
-                                    }
-                                );
-                                const result = await response.json();
-                                debugLog({ event: 'message_notification_sent', success: result.success, session: agent.session.tmuxSessionName });
-                            }
-                        }
-                    } catch (err) {
-                        debugLog({ event: 'message_notification_error', error: err.message });
-                    }
+                    debugLog({ event: 'sending_message_notification', cwd, prompt: messagePrompt, trigger: 'idle_prompt' });
+                    await sendMessageNotification(cwd, messagePrompt);
                 }
             } else if (notificationType === 'permission_prompt') {
                 // For permission prompts, preserve existing tool info if we have it
@@ -384,6 +390,16 @@ async function main() {
                 transcriptPath,
                 source: input.source
             });
+
+            // Check for unread messages after a short delay to let session initialize
+            // The delay ensures Claude Code is ready to receive the notification
+            setTimeout(async () => {
+                const messagePrompt = await checkUnreadMessages(cwd);
+                if (messagePrompt) {
+                    debugLog({ event: 'sending_message_notification', cwd, prompt: messagePrompt, trigger: 'session_start' });
+                    await sendMessageNotification(cwd, messagePrompt);
+                }
+            }, 3000);  // 3 second delay for session initialization
             break;
 
         default:

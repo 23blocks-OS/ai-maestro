@@ -21,12 +21,14 @@ function getSelfHostName(): string {
 export interface Message {
   id: string
   from: string           // Agent ID (or session name for backward compat)
-  fromAlias?: string     // Agent alias for display
+  fromAlias?: string     // Agent name for addressing (e.g., "23blocks-api-auth")
+  fromLabel?: string     // Agent display label (e.g., "API Authentication")
   fromSession?: string   // Actual session name (for delivery)
   fromHost?: string      // Host ID where sender resides (e.g., 'macbook-pro', 'mac-mini')
   fromVerified?: boolean // True if sender is a registered agent, false for external agents
   to: string             // Agent ID (or session name for backward compat)
-  toAlias?: string       // Agent alias for display
+  toAlias?: string       // Agent name for addressing
+  toLabel?: string       // Agent display label
   toSession?: string     // Actual session name (for delivery)
   toHost?: string        // Host ID where recipient resides
   timestamp: string
@@ -59,10 +61,12 @@ export interface MessageSummary {
   id: string
   from: string
   fromAlias?: string
+  fromLabel?: string      // Agent display label
   fromHost?: string
   fromVerified?: boolean  // True if sender is registered, false for external agents
   to: string
   toAlias?: string
+  toLabel?: string        // Agent display label
   toHost?: string
   timestamp: string
   subject: string
@@ -395,6 +399,9 @@ export async function sendMessage(
     toHost?: string        // Host ID where recipient is
     fromAlias?: string     // Pre-resolved alias (from remote host)
     toAlias?: string       // Pre-resolved alias (from remote host)
+    fromLabel?: string     // Pre-resolved label (from remote host)
+    toLabel?: string       // Pre-resolved label (from remote host)
+    fromVerified?: boolean // Explicitly set verified status (for cross-host messages)
   }
 ): Promise<Message> {
   await ensureMessageDirectories()
@@ -438,15 +445,34 @@ export async function sendMessage(
   const fromHostId = options?.fromHost || fromAgent?.hostId || getSelfHostName()
   const toHostId = options?.toHost || targetHostId || toResolved?.hostId || getSelfHostName()
 
+  // Determine if sender is a verified AI Maestro agent:
+  // 1. If explicitly provided (for cross-host messages), use that
+  // 2. If found in local registry, it's verified
+  // 3. If fromHost is provided and it's a known host in the mesh (not self), it's verified
+  let isFromVerified: boolean
+  if (options?.fromVerified !== undefined) {
+    isFromVerified = options.fromVerified
+  } else if (fromAgent) {
+    isFromVerified = true
+  } else if (options?.fromHost && !isSelf(options.fromHost)) {
+    // Message from a remote host - check if it's a known host in the mesh
+    const remoteFromHost = getHostById(options.fromHost)
+    isFromVerified = !!remoteFromHost  // Verified if the host is registered in our mesh
+  } else {
+    isFromVerified = false  // Unknown sender, treat as external
+  }
+
   const message: Message = {
     id: generateMessageId(),
     from: fromAgent?.agentId || from,
     fromAlias: options?.fromAlias || fromAgent?.alias,
+    fromLabel: options?.fromLabel || fromAgent?.displayName,
     fromSession: fromAgent?.sessionName,
     fromHost: fromHostId,
-    fromVerified: !!fromAgent,  // true if sender is registered, false for external agents
+    fromVerified: isFromVerified,
     to: toResolved.agentId,
     toAlias: options?.toAlias || toResolved.alias,
+    toLabel: options?.toLabel || toResolved.displayName,
     toSession: toResolved.sessionName,
     toHost: toHostId,
     timestamp: new Date().toISOString(),
@@ -483,9 +509,12 @@ export async function sendMessage(
         body: JSON.stringify({
           from: message.from,
           fromAlias: message.fromAlias,
+          fromLabel: message.fromLabel,
           fromHost: message.fromHost,
+          fromVerified: message.fromVerified,  // Pass verified status to remote host
           to: message.to,
           toAlias: message.toAlias,
+          toLabel: message.toLabel,
           toHost: message.toHost,
           subject,
           content,
@@ -781,10 +810,12 @@ async function collectMessagesFromDir(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromLabel: message.fromLabel,
         fromHost: message.fromHost,
         fromVerified: message.fromVerified,
         to: message.to,
         toAlias: message.toAlias,
+        toLabel: message.toLabel,
         toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
@@ -839,10 +870,12 @@ async function listInboxMessagesByFolder(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromLabel: message.fromLabel,
         fromHost: message.fromHost,
         fromVerified: message.fromVerified,
         to: message.to,
         toAlias: message.toAlias,
+        toLabel: message.toLabel,
         toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
@@ -957,9 +990,11 @@ async function collectSentMessagesFromDir(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromLabel: message.fromLabel,
         fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toLabel: message.toLabel,
         toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,
@@ -1012,9 +1047,11 @@ async function listSentMessagesByFolder(
         id: message.id,
         from: message.from,
         fromAlias: message.fromAlias,
+        fromLabel: message.fromLabel,
         fromHost: message.fromHost,
         to: message.to,
         toAlias: message.toAlias,
+        toLabel: message.toLabel,
         toHost: message.toHost,
         timestamp: message.timestamp,
         subject: message.subject,

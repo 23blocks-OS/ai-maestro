@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle, ExternalLink } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 /**
@@ -56,6 +56,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
   const toInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+
+  // External agent info toggle
+  const [showExternalAgentInfo, setShowExternalAgentInfo] = useState(false)
 
   // Fetch inbox messages
   const fetchMessages = useCallback(async () => {
@@ -453,6 +456,14 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
     return `${displayName}@${hostName}`
   }
 
+  // Get agent display parts - display name and technical address separately
+  const getAgentDisplayParts = (agentId: string, alias?: string, host?: string) => {
+    const displayName = alias || agentId
+    const hostName = host || 'unknown-host'
+    const technicalAddress = `${agentId}@${hostName}`
+    return { displayName, technicalAddress }
+  }
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'text-red-600 bg-red-100'
@@ -471,12 +482,33 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
     }
   }
 
+  // Check if the "To" field looks like an external agent (not in autocomplete list)
+  const isExternalRecipient = (toValue: string): boolean => {
+    if (!toValue) return false
+    // If it matches any agent in the list, it's not external
+    const matchesAgent = allAgents.some(agent =>
+      agent.name.toLowerCase() === toValue.toLowerCase() ||
+      agent.alias.toLowerCase() === toValue.toLowerCase() ||
+      `${agent.name}@${agent.hostId || 'unknown-host'}`.toLowerCase() === toValue.toLowerCase() ||
+      `${agent.alias}@${agent.hostId || 'unknown-host'}`.toLowerCase() === toValue.toLowerCase()
+    )
+    return !matchesAgent && toValue.length > 0
+  }
+
   return (
     <div className="flex flex-col h-full w-full bg-gray-900">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Mail className="w-5 h-5 text-gray-300" />
+          <button
+            onClick={() => setShowExternalAgentInfo(!showExternalAgentInfo)}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded transition-colors"
+            title="Learn about messaging AI Maestro and external agents"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            Agent Types
+          </button>
         </div>
         <div className="flex gap-2">
           <button
@@ -520,6 +552,75 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
         </div>
       </div>
 
+      {/* Agent Types Info Panel */}
+      {showExternalAgentInfo && (
+        <div className="p-4 bg-gradient-to-r from-gray-800 to-gray-850 border-b border-gray-700">
+          <div className="flex items-start gap-4">
+            <div className="flex-1 grid grid-cols-2 gap-4">
+              {/* AI Maestro Agents */}
+              <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center">
+                    <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
+                  </div>
+                  <span className="text-sm font-medium text-green-400">AI Maestro Agents</span>
+                </div>
+                <p className="text-xs text-gray-400 mb-2">
+                  Registered agents in your AI Maestro network. These appear in autocomplete when composing messages.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                    Local agents on this machine
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                    Network agents on other hosts
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                    Push notifications supported
+                  </li>
+                </ul>
+              </div>
+
+              {/* External Agents */}
+              <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-blue-500/20 rounded-full flex items-center justify-center">
+                    <Globe className="w-3.5 h-3.5 text-blue-400" />
+                  </div>
+                  <span className="text-sm font-medium text-blue-400">External Agents</span>
+                </div>
+                <p className="text-xs text-gray-400 mb-2">
+                  Agents outside AI Maestro that use the messaging API. Type their address manually in compose.
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                    Custom Claude Code agents
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                    Third-party integrations
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                    Use format: <code className="bg-gray-800 px-1 rounded">name@host</code>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowExternalAgentInfo(false)}
+              className="text-gray-500 hover:text-gray-300 p-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Inbox View */}
       {view === 'inbox' && (
         <div className="flex flex-1 overflow-hidden">
@@ -539,14 +640,33 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                     msg.status === 'unread' ? 'bg-blue-900/30' : ''
                   } ${selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''}`}
                 >
-                  <div className="flex items-start justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
-                        {formatAgentName(msg.from, msg.fromAlias, msg.fromHost)}
-                      </span>
-                      {getPriorityIcon(msg.priority)}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start gap-2">
+                      {/* Verified/External indicator */}
+                      <div className="mt-0.5">
+                        {msg.fromVerified !== false ? (
+                          <span title="AI Maestro Agent">
+                            <ShieldCheck className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                          </span>
+                        ) : (
+                          <span title="External Agent">
+                            <Globe className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-semibold truncate ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
+                            {(msg as any).fromLabel || msg.fromAlias || msg.from}
+                          </span>
+                          {getPriorityIcon(msg.priority)}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {msg.fromAlias || msg.from}@{msg.fromHost || 'unknown-host'}
+                        </div>
+                      </div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${getPriorityColor(msg.priority)}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
                       {msg.priority}
                     </span>
                   </div>
@@ -571,19 +691,37 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
           <div className="flex-1 bg-gray-900 overflow-y-auto">
             {selectedMessage ? (
               <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-100 mb-2">
+                <div className="flex items-start justify-between mb-4 gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-bold text-gray-100 mb-3">
                       {selectedMessage.subject}
                     </h2>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span className="font-medium">From:</span>
-                      <span>{formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost)}</span>
-                      <span className="mx-2">•</span>
-                      <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-sm text-gray-400 mt-0.5 flex-shrink-0">From:</span>
+                      {/* Verified/External indicator */}
+                      <span
+                        className={`flex items-center mt-0.5 flex-shrink-0 ${(selectedMessage as any).fromVerified !== false ? 'text-green-400' : 'text-blue-400'}`}
+                        title={(selectedMessage as any).fromVerified !== false ? 'AI Maestro Agent' : 'External Agent'}
+                      >
+                        {(selectedMessage as any).fromVerified !== false ? (
+                          <ShieldCheck className="w-4 h-4" />
+                        ) : (
+                          <Globe className="w-4 h-4" />
+                        )}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-200 truncate">
+                          {(selectedMessage as any).fromLabel || selectedMessage.fromAlias || selectedMessage.from}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="truncate">{selectedMessage.fromAlias || selectedMessage.from}@{selectedMessage.fromHost || 'unknown-host'}</span>
+                          <span className="flex-shrink-0">•</span>
+                          <span className="flex-shrink-0">{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-shrink-0">
                     {/* Copy Button with Dropdown */}
                     <div className="relative">
                       <button
@@ -725,15 +863,22 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                     selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-green-400 font-medium">To:</span>
-                      <span className="text-sm font-semibold text-gray-300">
-                        {formatAgentName(msg.to, msg.toAlias, msg.toHost)}
-                      </span>
-                      {getPriorityIcon(msg.priority)}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-green-400 font-medium mt-0.5">To:</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-300 truncate">
+                            {(msg as any).toLabel || msg.toAlias || msg.to}
+                          </span>
+                          {getPriorityIcon(msg.priority)}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {msg.toAlias || msg.to}@{msg.toHost || 'unknown-host'}
+                        </div>
+                      </div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${getPriorityColor(msg.priority)}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
                       {msg.priority}
                     </span>
                   </div>
@@ -756,23 +901,30 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
           <div className="flex-1 bg-gray-900 overflow-y-auto">
             {selectedMessage ? (
               <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
+                <div className="flex items-start justify-between mb-4 gap-4">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="w-5 h-5 text-green-500" />
                       <span className="text-sm text-green-400 font-medium">Sent Message</span>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-100 mb-2">
+                    <h2 className="text-xl font-bold text-gray-100 mb-3">
                       {selectedMessage.subject}
                     </h2>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span className="font-medium">To:</span>
-                      <span>{formatAgentName(selectedMessage.to, selectedMessage.toAlias, selectedMessage.toHost)}</span>
-                      <span className="mx-2">•</span>
-                      <span>{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-sm text-gray-400 mt-0.5 flex-shrink-0">To:</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-200 truncate">
+                          {(selectedMessage as any).toLabel || selectedMessage.toAlias || selectedMessage.to}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="truncate">{selectedMessage.toAlias || selectedMessage.to}@{selectedMessage.toHost || 'unknown-host'}</span>
+                          <span className="flex-shrink-0">•</span>
+                          <span className="flex-shrink-0">{new Date(selectedMessage.timestamp).toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-shrink-0">
                     {/* Copy Button with Dropdown */}
                     <div className="relative">
                       <button
@@ -920,9 +1072,20 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                 </div>
               )}
 
-              <p className="mt-1 text-xs text-gray-500">
-                Type to search agents. Use <code className="bg-gray-800 px-1 rounded">agent@host</code> for remote agents.
-              </p>
+              {/* External agent indicator */}
+              {isExternalRecipient(composeTo) ? (
+                <div className="mt-2 flex items-center gap-2 p-2 bg-blue-900/30 border border-blue-700/50 rounded-md">
+                  <Globe className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <div className="text-xs">
+                    <span className="text-blue-300 font-medium">External Agent</span>
+                    <span className="text-blue-400/70 ml-1">— This agent is not registered in AI Maestro. The message will be sent via API.</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  Type to search AI Maestro agents, or enter <code className="bg-gray-800 px-1 rounded">agent@host</code> for external agents.
+                </p>
+              )}
             </div>
 
             <div>

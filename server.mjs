@@ -334,6 +334,30 @@ app.prepare().then(() => {
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true)
+
+      // Internal endpoint for PTY debug info - served directly from server.mjs
+      // This allows access to the in-memory sessions map
+      if (parsedUrl.pathname === '/api/internal/pty-sessions') {
+        res.setHeader('Content-Type', 'application/json')
+        const sessionInfo = []
+        sessions.forEach((state, name) => {
+          sessionInfo.push({
+            name,
+            clients: state.clients?.size || 0,
+            hasPty: !!state.ptyProcess,
+            pid: state.ptyProcess?.pid || null,
+            hasCleanupTimer: !!state.cleanupTimer,
+            lastActivity: sessionActivity.get(name) || null
+          })
+        })
+        res.end(JSON.stringify({
+          activeSessions: sessions.size,
+          sessions: sessionInfo,
+          timestamp: new Date().toISOString()
+        }))
+        return
+      }
+
       await handle(req, res, parsedUrl)
     } catch (err) {
       console.error('Error handling request:', err)

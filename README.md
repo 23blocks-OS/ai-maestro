@@ -120,13 +120,13 @@ Works with **any** terminal-based AI:
   - Popup notifications (non-intrusive)
   - Terminal injections (visible in history)
   - Formatted output (for critical alerts)
-- **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./messaging_scripts))
-  - [`send-aimaestro-message.sh`](./messaging_scripts/send-aimaestro-message.sh) - Send structured messages
-  - [`forward-aimaestro-message.sh`](./messaging_scripts/forward-aimaestro-message.sh) - Forward messages between agents
-  - [`check-and-show-messages.sh`](./messaging_scripts/check-and-show-messages.sh) - Display inbox
-  - [`check-new-messages-arrived.sh`](./messaging_scripts/check-new-messages-arrived.sh) - Quick unread count
-  - [`send-tmux-message.sh`](./messaging_scripts/send-tmux-message.sh) - Instant notifications
-  - [📖 Installation Guide](./messaging_scripts/README.md)
+- **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./plugin/scripts))
+  - [`send-aimaestro-message.sh`](./plugin/scripts/send-aimaestro-message.sh) - Send structured messages
+  - [`forward-aimaestro-message.sh`](./plugin/scripts/forward-aimaestro-message.sh) - Forward messages between agents
+  - [`check-and-show-messages.sh`](./plugin/scripts/check-and-show-messages.sh) - Display inbox
+  - [`check-new-messages-arrived.sh`](./plugin/scripts/check-new-messages-arrived.sh) - Quick unread count
+  - [`send-tmux-message.sh`](./plugin/scripts/send-tmux-message.sh) - Instant notifications
+  - [📖 Installation Guide](./plugin/README.md)
 - **Web UI**: Rich inbox/compose interface in Messages tab
 - **Slack Integration**: Connect your team's Slack to AI agents ([🔗 Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge))
   - DM or @mention agents from Slack
@@ -160,6 +160,38 @@ Your AI agents become smarter over time with persistent memory and deep code und
   - Search through all documented functions and classes
 
 > [See Agent Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) for setup and configuration
+
+### Claude Code Plugin (New in v0.20!)
+Use AI Maestro skills directly with Claude Code via the official plugin system.
+
+```bash
+# Run Claude Code with AI Maestro plugin
+claude --plugin-dir ./plugin
+```
+
+**What's Included:**
+- **5 Skills** for natural language interaction:
+  - `memory-search` - Search your conversation history
+  - `docs-search` - Search auto-generated documentation
+  - `graph-query` - Query code relationships
+  - `agent-messaging` - Send/receive messages between agents
+  - `planning` - Stay focused on complex multi-step tasks
+- **3 Hooks** for automatic integration:
+  - `SessionStart` - Check messages, broadcast status
+  - `Stop` - Update status when finished
+  - `Notification` - Track idle/permission prompts
+- **32 CLI Scripts** for direct command-line usage
+
+**Installation Options:**
+```bash
+# Option 1: Plugin mode (recommended for Claude Code users)
+claude --plugin-dir ./plugin
+
+# Option 2: System install (works with any agent)
+./install-messaging.sh
+```
+
+> [See Plugin Guide](./plugin/README.md) for full documentation
 
 ### Portable Agents (New in v0.15!)
 Move your AI agents anywhere. Export, import, transfer, and clone agents across machines.
@@ -611,7 +643,7 @@ send-aimaestro-message.sh backend-architect \
 
 ### Claude Code Integration
 
-Every agent can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./skills/agent-messaging)):
+Every agent can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./plugin/skills/agent-messaging)):
 
 ```bash
 # With any agent, just say:
@@ -628,9 +660,10 @@ Every agent can use the messaging system automatically via a **Claude Code skill
 **No manual scripting needed** - agents understand natural language messaging commands.
 
 **Installation:**
-- **Easy:** Run [`./install-messaging.sh`](./install-messaging.sh) (installs scripts + skill automatically)
-- **Update:** Run [`./update-messaging.sh`](./update-messaging.sh) (updates scripts + skill with zero friction)
-- **Manual:** Copy [`skills/agent-messaging/`](./skills/agent-messaging) to `~/.claude/skills/` ([📖 Guide](./skills/README.md))
+- **Plugin:** Run `claude --plugin-dir ./plugin` (loads all skills, hooks, and scripts)
+- **Easy:** Run [`./install-messaging.sh`](./install-messaging.sh) (installs scripts + skills to your system)
+- **Update:** Run [`./update-messaging.sh`](./update-messaging.sh) (updates scripts + skills with zero friction)
+- **Manual:** Copy [`plugin/skills/`](./plugin/skills) to `~/.claude/skills/` ([📖 Guide](./plugin/README.md))
 
 ### Built-In UI
 
@@ -690,7 +723,7 @@ npm start
 # Remember to restart agents to reload updated skill
 ```
 
-**Manual Install:** See [Installation Guide](./messaging_scripts/README.md)
+**Manual Install:** See [Installation Guide](./plugin/README.md)
 
 ```bash
 # 1. Agents check inbox on startup
@@ -707,7 +740,7 @@ send-aimaestro-message.sh backend-api \
 check-new-messages-arrived.sh
 ```
 
-**For Claude Code:** Install the skill to use natural language - [Skills Guide](./skills/README.md)
+**For Claude Code:** Install the plugin or skills to use natural language - [Plugin Guide](./plugin/README.md)
 
 ### Documentation
 

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { execSync } from 'child_process'
 
+// Disable Next.js caching for this endpoint
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /**
  * GET /api/debug/pty
  *
@@ -9,8 +13,19 @@ import { execSync } from 'child_process'
  */
 export async function GET() {
   try {
-    // Get the sessions map from global state
-    const sessions = (global as any).terminalSessions as Map<string, any> || new Map()
+    // Get session data from server.mjs internal endpoint
+    // (Next.js API routes run in a separate process and can't access server.mjs globals)
+    let aiMaestroData = { activeSessions: 0, sessions: [] }
+    try {
+      const internalResponse = await fetch('http://127.0.0.1:23000/api/internal/pty-sessions', {
+        cache: 'no-store'
+      })
+      if (internalResponse.ok) {
+        aiMaestroData = await internalResponse.json()
+      }
+    } catch (e) {
+      // Internal endpoint may not be available during startup
+    }
 
     // Get system PTY info (macOS specific)
     let systemPtyCount = 0
@@ -47,25 +62,6 @@ export async function GET() {
       // Commands may fail on non-macOS systems
     }
 
-    // Build session info
-    const sessionInfo: {
-      name: string
-      clients: number
-      hasPty: boolean
-      pid: number | null
-      hasCleanupTimer: boolean
-    }[] = []
-
-    sessions.forEach((state: any, name: string) => {
-      sessionInfo.push({
-        name,
-        clients: state.clients?.size || 0,
-        hasPty: !!state.ptyProcess,
-        pid: state.ptyProcess?.pid || null,
-        hasCleanupTimer: !!state.cleanupTimer
-      })
-    })
-
     // Calculate health status
     const usagePercent = (systemPtyCount / ptyLimit) * 100
     let health: 'healthy' | 'warning' | 'critical' = 'healthy'
@@ -80,10 +76,7 @@ export async function GET() {
         usagePercent: Math.round(usagePercent * 10) / 10,
         topProcesses: ptyProcesses
       },
-      aiMaestro: {
-        activeSessions: sessions.size,
-        sessions: sessionInfo
-      },
+      aiMaestro: aiMaestroData,
       timestamp: new Date().toISOString()
     })
   } catch (error) {

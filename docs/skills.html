@@ -68,12 +68,13 @@
       "name": "AI Maestro Skills",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS, Linux, Windows (WSL2)",
-      "description": "Skills system that gives Claude Code agents superpowers: memory search, code graph queries, documentation search, and agent-to-agent messaging",
+      "description": "Skills system that gives Claude Code agents superpowers: memory search, code graph queries, documentation search, agent-to-agent messaging, and task planning",
       "featureList": [
         "Memory Search - Search past conversations and decisions",
         "Code Graph - Query code relationships and dependencies",
         "Documentation Search - Find function signatures and API specs",
-        "Agent Messaging - Send messages between AI agents"
+        "Agent Messaging - Send messages between AI agents",
+        "Planning - Persistent markdown files for complex task execution"
       ],
       "offers": {
         "@type": "Offer",
@@ -92,7 +93,7 @@
       "@context": "https://schema.org",
       "@type": "HowTo",
       "name": "How to Install Claude Code Skills",
-      "description": "Add AI Maestro skills to Claude Code for memory search, code graph, and agent messaging",
+      "description": "Add AI Maestro skills to Claude Code for memory search, code graph, agent messaging, and planning",
       "totalTime": "PT2M",
       "tool": [{
         "@type": "HowToTool",
@@ -129,7 +130,7 @@
         "name": "What are Claude Code skills?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Claude Code skills are SKILL.md files that teach Claude Code how to use specific tools and workflows. AI Maestro provides 4 skills: memory-search (conversation history), docs-search (code documentation), graph-query (code relationships), and agent-messaging (inter-agent communication)."
+          "text": "Claude Code skills are SKILL.md files that teach Claude Code how to use specific tools and workflows. AI Maestro provides 5 skills: memory-search (conversation history), docs-search (code documentation), graph-query (code relationships), agent-messaging (inter-agent communication), and planning (persistent task execution)."
         }
       },{
         "@type": "Question",
@@ -471,7 +472,7 @@
     <!-- Skills Grid -->
     <section id="skills" class="py-16 md:py-24 px-8 bg-slate-950">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">The Four Skills</h2>
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">The Five Skills</h2>
             <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Each skill gives Claude Code a specific superpower</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -595,6 +596,46 @@
                         <span class="text-green-400">send-aimaestro-message.sh</span> <span class="text-amber-300">backend-api</span> <span class="text-amber-300">"Need API"</span> <span class="text-amber-300">"..."</span>
                     </div>
                 </div>
+
+                <!-- Planning -->
+                <div class="skill-card bg-gradient-to-br from-rose-500/10 to-rose-600/5 p-8 rounded-2xl border-2 border-rose-500/50 md:col-span-2">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-rose-500/20 border border-rose-500/50 flex items-center justify-center">
+                            <span class="text-2xl">📋</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-display font-bold text-white">planning</h3>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-500/20 border border-slate-500/30 rounded text-slate-400 text-xs font-mono">ON-DEMAND</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 mb-4">Persistent markdown files for complex task execution. Solves the execution problem - staying focused during long-running tasks.</p>
+
+                    <div class="grid md:grid-cols-2 gap-4 mb-4">
+                        <div class="bg-slate-900/50 p-4 rounded-lg">
+                            <p class="text-sm text-slate-400 mb-2">Use when:</p>
+                            <ul class="list-none p-0 space-y-1 text-sm">
+                                <li class="text-slate-200">• Multi-step tasks (3+ steps)</li>
+                                <li class="text-slate-200">• Research projects</li>
+                                <li class="text-slate-200">• Building features</li>
+                                <li class="text-slate-200">• Tasks requiring >5 tool calls</li>
+                            </ul>
+                        </div>
+                        <div class="bg-slate-900/50 p-4 rounded-lg">
+                            <p class="text-sm text-slate-400 mb-2">The 3-file pattern:</p>
+                            <ul class="list-none p-0 space-y-1 text-sm">
+                                <li class="text-slate-200">• <code class="text-rose-400">task_plan.md</code> - Goals, phases, decisions</li>
+                                <li class="text-slate-200">• <code class="text-rose-400">findings.md</code> - Research, discoveries</li>
+                                <li class="text-slate-200">• <code class="text-rose-400">progress.md</code> - Session log, results</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded font-mono text-sm overflow-x-auto">
+                        <span class="text-slate-500"># Copy templates to project root</span><br>
+                        <span class="text-green-400">cat</span> ~/.claude/skills/planning/templates/task_plan.md <span class="text-amber-300">></span> task_plan.md<br>
+                        <span class="text-green-400">cat</span> ~/.claude/skills/planning/templates/findings.md <span class="text-amber-300">></span> findings.md
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -603,7 +644,7 @@
     <section id="installation" class="py-16 md:py-24 px-8">
         <div class="max-w-[900px] mx-auto">
             <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">Installation</h2>
-            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Get all four skills in under 2 minutes</p>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Get all five skills in under 2 minutes</p>
 
             <div class="space-y-6">
                 <!-- Step 1 -->
@@ -647,7 +688,7 @@
             <div class="mt-8 text-center">
                 <p class="text-slate-400 mb-4">Skills are installed to:</p>
                 <div class="bg-slate-800 inline-block px-6 py-3 rounded-lg font-mono text-sm">
-                    ~/.claude/skills/<span class="text-cyan-400">{memory-search, docs-search, graph-query, agent-messaging}</span>/SKILL.md
+                    ~/.claude/skills/<span class="text-cyan-400">{memory-search, docs-search, graph-query, agent-messaging, planning}</span>/SKILL.md
                 </div>
             </div>
         </div>

@@ -24,6 +24,7 @@ export interface Message {
   fromAlias?: string     // Agent alias for display
   fromSession?: string   // Actual session name (for delivery)
   fromHost?: string      // Host ID where sender resides (e.g., 'macbook-pro', 'mac-mini')
+  fromVerified?: boolean // True if sender is a registered agent, false for external agents
   to: string             // Agent ID (or session name for backward compat)
   toAlias?: string       // Agent alias for display
   toSession?: string     // Actual session name (for delivery)
@@ -59,6 +60,7 @@ export interface MessageSummary {
   from: string
   fromAlias?: string
   fromHost?: string
+  fromVerified?: boolean  // True if sender is registered, false for external agents
   to: string
   toAlias?: string
   toHost?: string
@@ -410,13 +412,11 @@ export async function sendMessage(
 
   // Resolve recipient agent
   // GAP4 FIX: For remote targets, allow sending without local resolution
+  // EXTERNAL AGENTS: Also allow unregistered local recipients (creates inbox on demand)
   const toAgent = resolveAgent(toIdentifier)
-  if (!toAgent && isTargetLocal) {
-    // Local agent MUST be resolvable
-    throw new Error(`Unknown recipient: ${to}. Please ensure the agent is registered.`)
-  }
 
-  // For remote targets without local resolution, create minimal resolved info
+  // For unresolved recipients (local or remote), create minimal resolved info
+  // This allows external agents to receive messages without full registration
   const toResolved: ResolvedAgent = toAgent || {
     agentId: toIdentifier,
     alias: options?.toAlias || toIdentifier,
@@ -424,11 +424,11 @@ export async function sendMessage(
     hostUrl: undefined
   }
 
-  // For local sender, ensure directories exist
-  if (fromAgent) {
-    await ensureAgentDirectories(fromAgent.agentId)
-  }
-  // Only create local directories for local recipients
+  // Ensure directories exist for sender (registered or external)
+  const senderIdForDirs = fromAgent?.agentId || from
+  await ensureAgentDirectories(senderIdForDirs)
+
+  // Create local directories for local recipients (registered or external)
   if (isTargetLocal && toResolved.agentId) {
     await ensureAgentDirectories(toResolved.agentId)
   }
@@ -444,6 +444,7 @@ export async function sendMessage(
     fromAlias: options?.fromAlias || fromAgent?.alias,
     fromSession: fromAgent?.sessionName,
     fromHost: fromHostId,
+    fromVerified: !!fromAgent,  // true if sender is registered, false for external agents
     to: toResolved.agentId,
     toAlias: options?.toAlias || toResolved.alias,
     toSession: toResolved.sessionName,
@@ -781,6 +782,7 @@ async function collectMessagesFromDir(
         from: message.from,
         fromAlias: message.fromAlias,
         fromHost: message.fromHost,
+        fromVerified: message.fromVerified,
         to: message.to,
         toAlias: message.toAlias,
         toHost: message.toHost,
@@ -838,6 +840,7 @@ async function listInboxMessagesByFolder(
         from: message.from,
         fromAlias: message.fromAlias,
         fromHost: message.fromHost,
+        fromVerified: message.fromVerified,
         to: message.to,
         toAlias: message.toAlias,
         toHost: message.toHost,

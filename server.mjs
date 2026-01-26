@@ -29,6 +29,210 @@ const idleTimers = new Map() // sessionName -> { timer, wasActive }
 // Idle threshold in milliseconds (30 seconds)
 const IDLE_THRESHOLD_MS = 30 * 1000
 
+// PTY cleanup grace period (30 seconds)
+const PTY_CLEANUP_GRACE_MS = 30 * 1000
+
+// Periodic orphaned PTY cleanup interval (5 minutes)
+const ORPHAN_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+
+/**
+ * Safely kill a PTY process
+ * Based on node-pty best practices from GitHub issues #333, #382
+ *
+ * Key learnings:
+ * - Use ptyProcess.kill() first (not process.kill)
+ * - Wrap in try-catch because killing already-dead process throws
+ * - Use SIGKILL as fallback after timeout
+ * - Process group kill (-pid) is unreliable with node-pty
+ *
+ * @returns true if kill was attempted, false if process was already dead
+ */
+function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
+  if (!ptyProcess) {
+    return false
+  }
+
+  // If process already exited via onExit, don't try to kill again
+  if (alreadyExited) {
+    console.log(`[PTY] Skipping kill for ${sessionName} - already exited`)
+    return true
+  }
+
+  const pid = ptyProcess.pid
+  if (!pid) {
+    return false
+  }
+
+  console.log(`[PTY] Killing PTY for ${sessionName} (pid: ${pid})`)
+
+  // Method 1: Use node-pty's kill() - recommended approach
+  // This properly handles the underlying PTY cleanup
+  try {
+    ptyProcess.kill()
+    console.log(`[PTY] Sent SIGTERM to ${sessionName} via ptyProcess.kill()`)
+  } catch (e) {
+    // Process might already be dead - this is expected
+    console.log(`[PTY] ptyProcess.kill() failed for ${sessionName}: ${e.message}`)
+  }
+
+  // Schedule a SIGKILL as a fallback if SIGTERM didn't work
+  // This ensures we don't leave zombie processes
+  setTimeout(() => {
+    try {
+      // Check if process still exists (signal 0 just checks existence)
+      process.kill(pid, 0)
+      // Still alive after 3 seconds, force kill
+      console.log(`[PTY] Force killing ${sessionName} (pid: ${pid}) - SIGTERM didn't work`)
+      try {
+        ptyProcess.kill('SIGKILL')
+      } catch (e) {
+        // Fallback to process.kill if ptyProcess.kill fails
+        try { process.kill(pid, 'SIGKILL') } catch (e2) {}
+      }
+    } catch (e) {
+      // Process doesn't exist anymore - good!
+    }
+  }, 3000)
+
+  return true
+}
+
+/**
+ * Clean up a session's PTY and resources
+ * Called when last client disconnects, on error, or when PTY exits
+ *
+ * @param sessionName - Name of the session
+ * @param sessionState - Session state object (optional, will lookup if null)
+ * @param reason - Reason for cleanup (for logging)
+ * @param ptyAlreadyExited - If true, PTY has already exited (don't try to kill)
+ */
+function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlreadyExited = false) {
+  if (!sessionState) {
+    sessionState = sessions.get(sessionName)
+  }
+  if (!sessionState) {
+    return
+  }
+
+  // Prevent double cleanup
+  if (sessionState.cleanedUp) {
+    console.log(`[PTY] Session ${sessionName} already cleaned up, skipping`)
+    return
+  }
+  sessionState.cleanedUp = true
+
+  console.log(`[PTY] Cleaning up session ${sessionName} (reason: ${reason}, ptyExited: ${ptyAlreadyExited})`)
+
+  // Clear any pending cleanup timer
+  if (sessionState.cleanupTimer) {
+    clearTimeout(sessionState.cleanupTimer)
+    sessionState.cleanupTimer = null
+  }
+
+  // Close log stream
+  if (sessionState.logStream) {
+    try {
+      sessionState.logStream.end()
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  // Kill the PTY process (skip if it already exited)
+  if (sessionState.ptyProcess) {
+    killPtyProcess(sessionState.ptyProcess, sessionName, ptyAlreadyExited)
+  }
+
+  // Close all remaining client connections
+  if (sessionState.clients) {
+    sessionState.clients.forEach((client) => {
+      try {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.close(1000, 'Session cleaned up')
+        }
+      } catch (e) {
+        // Ignore close errors
+      }
+    })
+    sessionState.clients.clear()
+  }
+
+  // Remove from sessions map
+  sessions.delete(sessionName)
+
+  // Clean up activity tracking
+  sessionActivity.delete(sessionName)
+  const idleTimer = idleTimers.get(sessionName)
+  if (idleTimer?.timer) {
+    clearTimeout(idleTimer.timer)
+  }
+  idleTimers.delete(sessionName)
+
+  console.log(`[PTY] Session ${sessionName} cleaned up. Active sessions: ${sessions.size}`)
+}
+
+/**
+ * Handle client removal from a session
+ * Schedules cleanup if no clients remain
+ */
+function handleClientDisconnect(ws, sessionName, sessionState, reason = 'close') {
+  if (!sessionState) return
+
+  // Remove this client
+  sessionState.clients.delete(ws)
+
+  console.log(`[PTY] Client disconnected from ${sessionName} (${reason}). Remaining clients: ${sessionState.clients.size}`)
+
+  // If no clients remain, schedule cleanup
+  if (sessionState.clients.size === 0) {
+    console.log(`[PTY] Last client disconnected from ${sessionName}, scheduling cleanup in ${PTY_CLEANUP_GRACE_MS / 1000}s`)
+
+    // Clear any existing cleanup timer
+    if (sessionState.cleanupTimer) {
+      clearTimeout(sessionState.cleanupTimer)
+    }
+
+    // Schedule cleanup after grace period
+    sessionState.cleanupTimer = setTimeout(() => {
+      // Double-check no clients reconnected
+      if (sessionState.clients.size === 0) {
+        cleanupSession(sessionName, sessionState, 'no_clients_after_grace_period')
+      }
+    }, PTY_CLEANUP_GRACE_MS)
+  }
+}
+
+/**
+ * Periodic cleanup of orphaned sessions
+ * Runs every ORPHAN_CLEANUP_INTERVAL_MS to catch any leaked PTYs
+ */
+function startOrphanedPtyCleanup() {
+  setInterval(() => {
+    let orphanedCount = 0
+
+    sessions.forEach((sessionState, sessionName) => {
+      // Skip if already cleaned up or being cleaned up
+      if (sessionState.cleanedUp) {
+        return
+      }
+
+      // Check for sessions with no clients and no pending cleanup timer
+      // These are orphaned - they have a PTY but no way to clean it up
+      if (sessionState.clients.size === 0 && !sessionState.cleanupTimer) {
+        console.log(`[PTY] Found orphaned session: ${sessionName}`)
+        cleanupSession(sessionName, sessionState, 'orphan_cleanup', false)
+        orphanedCount++
+      }
+    })
+
+    if (orphanedCount > 0) {
+      console.log(`[PTY] Cleaned up ${orphanedCount} orphaned session(s). Active: ${sessions.size}`)
+    }
+  }, ORPHAN_CLEANUP_INTERVAL_MS)
+
+  console.log(`[PTY] Orphaned PTY cleanup scheduled every ${ORPHAN_CLEANUP_INTERVAL_MS / 1000}s`)
+}
+
 /**
  * Get agentId for a session
  *
@@ -483,19 +687,9 @@ app.prepare().then(() => {
       })
 
       ptyProcess.onExit(({ exitCode, signal }) => {
-        // Close the log stream
-        if (sessionState.logStream) {
-          sessionState.logStream.end()
-          console.log(`Log file closed for session: ${sessionName}`)
-        }
-
-        // Clean up session
-        sessions.delete(sessionName)
-
-        // Close all clients
-        sessionState.clients.forEach((client) => {
-          client.close()
-        })
+        console.log(`[PTY] Process exited for ${sessionName} (code: ${exitCode}, signal: ${signal})`)
+        // Pass ptyAlreadyExited=true since the process has already terminated
+        cleanupSession(sessionName, sessionState, `pty_exit_${exitCode || signal}`, true)
       })
     }
 
@@ -579,50 +773,13 @@ app.prepare().then(() => {
 
     // Handle client disconnect
     ws.on('close', () => {
-      sessionState.clients.delete(ws)
-
-      // If this was the last client, schedule cleanup after grace period
-      if (sessionState.clients.size === 0) {
-        console.log(`Last client disconnected from ${sessionName}, scheduling cleanup in 30s`)
-
-        // Clear any existing cleanup timer
-        if (sessionState.cleanupTimer) {
-          clearTimeout(sessionState.cleanupTimer)
-        }
-
-        // Schedule cleanup after 30 second grace period
-        sessionState.cleanupTimer = setTimeout(() => {
-          // Check if still no clients (they might have reconnected)
-          if (sessionState.clients.size === 0) {
-            console.log(`No clients reconnected to ${sessionName}, cleaning up PTY`)
-
-            // Close log stream
-            if (sessionState.logStream) {
-              sessionState.logStream.end()
-            }
-
-            // Kill PTY process and its entire process group
-            try {
-              // Kill the entire process group (negative PID) to prevent orphaned shells
-              process.kill(-sessionState.ptyProcess.pid, 'SIGTERM')
-            } catch (error) {
-              // Fallback to direct kill if process group kill fails
-              try {
-                sessionState.ptyProcess.kill()
-              } catch (e) {
-                console.error(`Error killing PTY for ${sessionName}:`, e)
-              }
-            }
-
-            // Remove from sessions map
-            sessions.delete(sessionName)
-          }
-        }, 30000) // 30 second grace period
-      }
+      handleClientDisconnect(ws, sessionName, sessionState, 'close')
     })
 
+    // Handle WebSocket errors - MUST also trigger cleanup
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error)
+      console.error(`[PTY] WebSocket error for ${sessionName}:`, error.message)
+      handleClientDisconnect(ws, sessionName, sessionState, 'error')
     })
   })
 
@@ -689,6 +846,9 @@ app.prepare().then(() => {
     // The subconscious processes will start when an agent is first accessed
     // To manually trigger indexing, call /api/agents/{id}/index-delta
     console.log('[AgentStartup] Startup indexing disabled - agents will initialize on-demand')
+
+    // Start periodic orphaned PTY cleanup to prevent leaks
+    startOrphanedPtyCleanup()
   })
 
   // Graceful shutdown - kill PTYs FIRST before closing server

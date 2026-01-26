@@ -262,13 +262,13 @@ echo ""
 
 # Count missing items
 MISSING_COUNT=0
-if [ "$NEED_HOMEBREW" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_GIT" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_NODE" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_YARN" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_TMUX" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_CLAUDE" = true ]; then ((MISSING_COUNT++)); fi
-if [ "$NEED_JQ" = true ]; then ((MISSING_COUNT++)); fi
+if [ "$NEED_HOMEBREW" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_GIT" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_NODE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_YARN" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_TMUX" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_CLAUDE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
 if [ $MISSING_COUNT -eq 0 ]; then
     print_success "All prerequisites are installed!"

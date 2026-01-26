@@ -162,32 +162,36 @@ Your AI agents become smarter over time with persistent memory and deep code und
 > [See Agent Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) for setup and configuration
 
 ### Claude Code Plugin (New in v0.20!)
-Use AI Maestro skills directly with Claude Code via the official plugin system.
+Use AI Maestro skills directly with Claude Code via the official plugin marketplace.
 
+**Install in 2 commands (no cloning required):**
 ```bash
-# Run Claude Code with AI Maestro plugin
-claude --plugin-dir ./plugin
+/plugin marketplace add 23blocks-OS/ai-maestro
+/plugin install ai-maestro@ai-maestro-marketplace
 ```
+
+That's it! Skills are immediately available with the `ai-maestro:` namespace.
 
 **What's Included:**
 - **5 Skills** for natural language interaction:
-  - `memory-search` - Search your conversation history
-  - `docs-search` - Search auto-generated documentation
-  - `graph-query` - Query code relationships
-  - `agent-messaging` - Send/receive messages between agents
-  - `planning` - Stay focused on complex multi-step tasks
+  - `ai-maestro:memory-search` - Search your conversation history
+  - `ai-maestro:docs-search` - Search auto-generated documentation
+  - `ai-maestro:graph-query` - Query code relationships
+  - `ai-maestro:agent-messaging` - Send/receive messages between agents
+  - `ai-maestro:planning` - Stay focused on complex multi-step tasks
 - **3 Hooks** for automatic integration:
   - `SessionStart` - Check messages, broadcast status
   - `Stop` - Update status when finished
   - `Notification` - Track idle/permission prompts
 - **32 CLI Scripts** for direct command-line usage
 
-**Installation Options:**
+**Alternative Installation (for development):**
 ```bash
-# Option 1: Plugin mode (recommended for Claude Code users)
-claude --plugin-dir ./plugin
+# Clone repo and run with local plugin
+git clone https://github.com/23blocks-OS/ai-maestro.git
+claude --plugin-dir ./ai-maestro/plugin
 
-# Option 2: System install (works with any agent)
+# Or install CLI scripts system-wide
 ./install-messaging.sh
 ```
 

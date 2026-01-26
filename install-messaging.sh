@@ -376,7 +376,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     mkdir -p ~/.claude/skills
 
     # Copy all skills
-    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search")
+    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search" "planning")
 
     for skill in "${SKILLS_TO_INSTALL[@]}"; do
         if [ -d "skills/$skill" ]; then
@@ -435,7 +435,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Checking installed skills..."
 
-    for skill in agent-messaging graph-query memory-search docs-search; do
+    for skill in agent-messaging graph-query memory-search docs-search planning; do
         if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
             print_success "$skill skill is installed"
         else
@@ -488,6 +488,11 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo "      > \"Search docs for authentication functions\""
     echo "      > \"Find documentation for PaymentService\""
     echo "      > \"What functions handle user validation?\""
+    echo ""
+    echo "   📋 planning - Stay focused on complex multi-step tasks"
+    echo "      > \"Use the planning skill for this task\""
+    echo "      > Create task_plan.md, findings.md, progress.md"
+    echo "      > Prevents goal drift and tracks errors"
     echo ""
     echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/skills"
     echo ""

@@ -15,6 +15,66 @@ This document explores improvements to how AI Maestro agents plan and execute co
 
 ---
 
+## Two Different Problems: Recall vs Execution
+
+AI Maestro agents face two distinct "lost-in-the-middle" challenges. Our **Memory system** and the **Planning system** solve different problems:
+
+| System | Problem | Core Question | "Lost" Symptom |
+|--------|---------|---------------|----------------|
+| **Memory (RAG)** | **Recall Problem** | "What do I know? What happened before?" | "I forgot we discussed this 3 weeks ago" |
+| **Planning (Manus-style)** | **Execution Problem** | "What am I doing? What's the next step?" | "I forgot what I was building 10 minutes ago" |
+
+### The Recall Problem (Memory)
+
+When an agent needs to remember:
+- Previous decisions made in past conversations
+- Code patterns used elsewhere in the codebase
+- User preferences expressed weeks ago
+- Context from a conversation that was compacted
+
+**Solution:** RAG with semantic search over conversation history and long-term memory consolidation.
+
+**AI Maestro has this:** CozoDB + hybrid search + memory consolidation + subconscious indexing.
+
+### The Execution Problem (Planning)
+
+When an agent loses focus during complex tasks:
+- Drifts from the original goal after 50+ tool calls
+- Forgets phase 2 requirements while deep in phase 1 implementation
+- Repeats the same error because it wasn't tracked
+- Can't resume work after `/clear` or session restart
+
+**Solution:** Persistent markdown files that are re-read before decisions and updated after actions.
+
+**AI Maestro needs this:** The planning skill fills this gap.
+
+### Why Both Are Needed
+
+```
+Long-term recall          Short-term focus
+      │                         │
+      ▼                         ▼
+┌─────────────┐          ┌─────────────┐
+│   Memory    │          │  Planning   │
+│    (RAG)    │          │  (Files)    │
+└─────────────┘          └─────────────┘
+      │                         │
+      ▼                         ▼
+"What did we               "What am I
+ decide last                supposed to
+ month?"                    do next?"
+```
+
+They operate on different timescales:
+- **Memory**: Days, weeks, months of history
+- **Planning**: Minutes, hours of current task execution
+
+Both suffer from attention limits, but the solutions differ:
+- **Memory**: Index everything, retrieve what's relevant
+- **Planning**: Keep goals visible, refresh constantly
+
+---
+
 ## Research: Manus AI Planning Pattern
 
 ### Background
@@ -60,32 +120,31 @@ The [planning-with-files](https://github.com/OthmanAdi/planning-with-files) skil
 
 ---
 
-## Comparison: File-Based vs RAG
+## AI Maestro: Current State & Gap
 
-**Important:** These are complementary approaches, not competing ones. Manus uses BOTH.
+### What We Have (Memory/Recall)
 
-### Manus Layered Memory Architecture
-
-1. **Event Stream**: Chronological context window (recent messages, actions, results)
-2. **File-Based Persistence**: Intermediate results stored in workspace files
-3. **Knowledge Base**: External references injected on-demand
-4. **Vector Storage (RAG)**: Retrieval-Augmented Generation for relevant document retrieval
-
-### When to Use Each
-
-| Approach | Best For |
-|----------|----------|
-| **File-Based Planning** | Structured tasks, explicit state, session continuity, error tracking |
-| **RAG/Vector Search** | Large knowledge bases, semantic similarity, finding relevant context from history |
-
-### AI Maestro Current State
-
-We currently have:
 - **RAG System**: CozoDB with hybrid search (semantic + lexical) - `lib/cozo.ts`
 - **Memory Consolidation**: Long-term memory extraction from conversations
 - **Subconscious**: Background indexing of conversation history
+- **Memory Skill**: Agents can search their history and consolidated memories
 
-**Gap:** We lack structured file-based planning for complex multi-step tasks.
+### What We Need (Planning/Execution)
+
+- **Task Planning Files**: Persistent task_plan.md for complex work
+- **Progress Tracking**: Error logs, phase completion, session recovery
+- **Hook Integration**: Re-read goals before decisions, update after actions
+
+### How Manus Combines Both
+
+Manus uses a layered architecture with BOTH approaches:
+
+1. **Event Stream**: Recent context (volatile)
+2. **File-Based Planning**: Task state and progress (persistent, explicit)
+3. **Knowledge Base**: Reference docs (persistent, on-demand)
+4. **Vector Storage (RAG)**: Semantic retrieval (persistent, searchable)
+
+**Key insight:** Planning files are read/written constantly during execution. RAG is queried when relevant context is needed. Different access patterns for different problems.
 
 ---
 
@@ -236,7 +295,8 @@ Automatically create planning files when agents receive complex tasks:
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-01-25 | Document research on Manus planning pattern | Understand approach before implementation |
-| 2026-01-25 | Plan to add as complementary skill (not replace RAG) | Both approaches have value for different use cases |
+| 2026-01-25 | Plan to add as complementary skill (not replace RAG) | Memory solves recall, Planning solves execution - different problems |
+| 2026-01-25 | Clarify "Recall vs Execution" framing | Makes the distinction clear: Memory (weeks ago) vs Planning (minutes ago) |
 
 ---
 

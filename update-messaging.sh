@@ -116,7 +116,7 @@ if [ "$SCRIPTS_INSTALLED" = true ]; then
             cp "$script" ~/.local/bin/
             chmod +x ~/.local/bin/"$SCRIPT_NAME"
             print_success "Updated: $SCRIPT_NAME"
-            ((SCRIPT_COUNT++))
+            SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
         fi
     done
 

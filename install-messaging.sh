@@ -323,7 +323,7 @@ EOF
             cp "$script" ~/.local/bin/
             chmod +x ~/.local/bin/"$SCRIPT_NAME"
             print_success "Installed: $SCRIPT_NAME"
-            ((SCRIPT_COUNT++))
+            SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
         fi
     done
 
@@ -339,7 +339,7 @@ EOF
             cp "$script" ~/.local/bin/
             chmod +x ~/.local/bin/"$SCRIPT_NAME"
             print_success "Installed: $SCRIPT_NAME"
-            ((DOCS_SCRIPT_COUNT++))
+            DOCS_SCRIPT_COUNT=$((DOCS_SCRIPT_COUNT + 1))
         fi
     done
     echo ""
@@ -354,7 +354,7 @@ EOF
             cp "$script" ~/.local/bin/
             chmod +x ~/.local/bin/"$SCRIPT_NAME"
             print_success "Installed: $SCRIPT_NAME"
-            ((PORTABLE_SCRIPT_COUNT++))
+            PORTABLE_SCRIPT_COUNT=$((PORTABLE_SCRIPT_COUNT + 1))
         fi
     done
     echo ""

@@ -45,7 +45,7 @@ done
 
 echo ""
 echo "Installing memory-search skill to $SKILL_DIR..."
-cp "$SCRIPT_DIR/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+cp "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
 echo "  Installed: SKILL.md"
 
 # Setup PATH

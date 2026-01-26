@@ -129,7 +129,7 @@ if [ "$SKILL_INSTALLED" = true ]; then
     echo ""
     print_info "Updating Claude Code skill..."
 
-    if [ -d "skills/agent-messaging" ]; then
+    if [ -d "plugin/skills/agent-messaging" ]; then
         # Backup old version
         if [ -d ~/.claude/skills/agent-messaging ]; then
             BACKUP_DIR=~/.claude/skills/agent-messaging.backup.$(date +%Y%m%d_%H%M%S)
@@ -138,7 +138,7 @@ if [ "$SKILL_INSTALLED" = true ]; then
         fi
 
         # Install new version
-        cp -r skills/agent-messaging ~/.claude/skills/
+        cp -r plugin/skills/agent-messaging ~/.claude/skills/
         print_success "Updated: agent-messaging skill"
 
         # Verify skill file exists
@@ -149,7 +149,7 @@ if [ "$SKILL_INSTALLED" = true ]; then
             print_error "Skill file not found after update"
         fi
     else
-        print_error "Skill source directory not found: skills/agent-messaging"
+        print_error "Skill source directory not found: plugin/skills/agent-messaging"
     fi
 fi
 

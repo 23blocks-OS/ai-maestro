@@ -123,8 +123,8 @@ done
 # Install skill
 echo ""
 echo "Installing docs-search skill to $SKILL_DIR..."
-if [ -f "$SCRIPT_DIR/skills/docs-search/SKILL.md" ]; then
-    cp "$SCRIPT_DIR/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+if [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
     echo "  Installed: SKILL.md"
 else
     echo "  Warning: SKILL.md not found, skipping"

@@ -445,6 +445,10 @@ main() {
     echo "     tmux new-session -s my-agent"
     echo "     claude  # or aider, cursor, etc."
     echo ""
+    echo -e "${CYAN}Claude Code Users:${NC} Install AI Maestro skills directly:"
+    echo "     /plugin marketplace add 23blocks-OS/ai-maestro"
+    echo "     /plugin install ai-maestro@ai-maestro-marketplace"
+    echo ""
     echo "Documentation: https://github.com/23blocks-OS/ai-maestro"
     echo ""
 }

@@ -121,7 +121,10 @@
         </section>
 
         <section>
-            <h2>Installation (Quick Start)</h2>
+            <h2>Installation Options</h2>
+
+            <h3>Option 1: Full Installation (Recommended)</h3>
+            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and all 5 Claude Code skills.</p>
             <pre>
 # One command installs everything
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
@@ -130,6 +133,22 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 git clone https://github.com/23blocks-OS/ai-maestro.git
 cd ai-maestro && yarn install && yarn dev
             </pre>
+
+            <h3>Option 2: Claude Code Plugin Only</h3>
+            <p>Installs 5 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 4 skills require the AI Maestro service running on localhost:23000.</p>
+            <pre>
+/plugin marketplace add 23blocks-OS/ai-maestro
+/plugin install ai-maestro@ai-maestro-marketplace
+            </pre>
+
+            <h3>Skill Service Requirements</h3>
+            <ul>
+                <li><strong>planning</strong> - Works standalone (no service needed)</li>
+                <li><strong>memory-search</strong> - Requires AI Maestro service</li>
+                <li><strong>docs-search</strong> - Requires AI Maestro service</li>
+                <li><strong>graph-query</strong> - Requires AI Maestro service</li>
+                <li><strong>agent-messaging</strong> - Requires AI Maestro service</li>
+            </ul>
 
             <p><strong>Requirements:</strong></p>
             <ul>

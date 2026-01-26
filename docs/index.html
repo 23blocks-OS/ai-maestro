@@ -893,6 +893,21 @@
                         </div>
                     </details>
 
+                    <!-- Claude Code Plugin (Collapsible) -->
+                    <details class="group mt-2">
+                        <summary class="text-slate-500 text-sm cursor-pointer hover:text-slate-300 transition-colors flex items-center gap-2">
+                            <span class="text-purple-400 group-open:rotate-90 transition-transform">▸</span>
+                            Or install Claude Code skills only (no service)
+                        </summary>
+                        <div class="bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-x-auto mt-3">
+                            <div class="text-purple-400">/plugin marketplace add 23blocks-OS/ai-maestro</div>
+                            <div class="text-purple-400">/plugin install ai-maestro@ai-maestro-marketplace</div>
+                        </div>
+                        <div class="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                            <p class="text-sm text-slate-300"><span class="text-amber-400 font-bold">Note:</span> Plugin-only installs 5 skills, but <strong class="text-white">only the planning skill works standalone</strong>. The other 4 skills require the full AI Maestro service running. <a href="skills.html" class="text-cyan-400 hover:underline">Learn more →</a></p>
+                        </div>
+                    </details>
+
                     <p class="mt-4 text-slate-400 text-sm">Dashboard opens at <code class="bg-slate-800 px-2 py-1 rounded text-cyan-400">http://localhost:23000</code></p>
                     <div class="mt-4 p-4 bg-slate-800/50 border-l-2 border-amber-500 rounded">
                         <p class="text-sm text-slate-300"><span class="text-amber-400 font-bold">Windows Users:</span> See our <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/docs/WINDOWS-INSTALLATION.md" class="text-cyan-400 hover:underline" target="_blank">Windows installation guide</a> for WSL2 setup.</p>

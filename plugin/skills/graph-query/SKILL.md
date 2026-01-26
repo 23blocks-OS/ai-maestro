@@ -1,7 +1,10 @@
 ---
-name: AI Maestro Code Graph Query
+name: graph-query
 description: PROACTIVELY query the code graph database to understand relationships and impact of changes. Use this skill WHEN READING any file to understand context, when searching for files, when exploring the codebase, or when you need to understand what depends on a component. This is your primary tool for understanding code structure and avoiding breaking changes.
 allowed-tools: Bash
+metadata:
+  author: 23blocks
+  version: "1.0"
 ---
 
 # AI Maestro Code Graph Query

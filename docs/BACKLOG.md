@@ -3,7 +3,7 @@
 **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
 
 **Last Updated:** 2026-01-03
-**Current Version:** v0.19.10
+**Current Version:** v0.19.11
 
 ---
 
@@ -509,7 +509,7 @@ remember-this.sh "$1" context
 
 **Claude Code Skill Integration:**
 
-**`skills/agent-memory/SKILL.md`**
+**`plugin/skills/agent-memory/SKILL.md`**
 ```markdown
 ---
 name: Agent Memory Management
@@ -617,7 +617,7 @@ Add "Memory" tab to AI Maestro dashboard:
 - [ ] Test with sample memories across sessions
 
 **Phase 2: Claude Integration (v0.5.0)**
-- [ ] Create `skills/agent-memory/SKILL.md` (200 lines)
+- [ ] Create `plugin/skills/agent-memory/SKILL.md` (200 lines)
 - [ ] Update Claude Code configuration docs
 - [ ] Add memory recall to session start workflow
 - [ ] Test "remember this" natural language commands
@@ -681,10 +681,10 @@ Add "Memory" tab to AI Maestro dashboard:
 
 **Files to Create:**
 
-- `messaging_scripts/remember-this.sh` (150 lines)
-- `messaging_scripts/recall-memory.sh` (50 lines)
-- `messaging_scripts/update-memory-context.sh` (30 lines)
-- `skills/agent-memory/SKILL.md` (200 lines)
+- `plugin/scripts/remember-this.sh` (150 lines)
+- `plugin/scripts/recall-memory.sh` (50 lines)
+- `plugin/scripts/update-memory-context.sh` (30 lines)
+- `plugin/skills/agent-memory/SKILL.md` (200 lines)
 - `docs/AGENT-MEMORY-GUIDE.md` (comprehensive guide)
 - Update `install-messaging.sh` to install memory scripts
 
@@ -898,7 +898,7 @@ curl -X POST https://slack.com/api/chat.postMessage \
 
 **Claude Code Skill Integration:**
 ```markdown
-# skills/slack-integration/SKILL.md
+# plugin/skills/slack-integration/SKILL.md
 
 User says "notify me on Slack" or "send to Slack":
 1. Use send-to-slack.sh to send notification
@@ -1036,7 +1036,7 @@ AIMAESTRO_SLACK_DEFAULT_CHANNEL=#ai-maestro
 
 **4. New Scripts**
 
-**`messaging_scripts/send-to-slack.sh`** (50 lines)
+**`plugin/scripts/send-to-slack.sh`** (50 lines)
 ```bash
 #!/bin/bash
 # Send message to Slack channel or user
@@ -1079,7 +1079,7 @@ else
 fi
 ```
 
-**`messaging_scripts/slack-webhook-server.sh`** (100 lines - for Events API alternative)
+**`plugin/scripts/slack-webhook-server.sh`** (100 lines - for Events API alternative)
 ```bash
 #!/bin/bash
 # Start simple webhook server for Slack Events API
@@ -1099,7 +1099,7 @@ wait
 
 **5. Claude Code Skill**
 
-**`skills/slack-integration/SKILL.md`** (200 lines)
+**`plugin/skills/slack-integration/SKILL.md`** (200 lines)
 ```markdown
 ---
 name: Slack Integration
@@ -1468,9 +1468,9 @@ Similar pattern could be applied to Discord:
 **Files to Create:**
 
 - `lib/slackClient.ts` (300 lines) - Socket Mode client and handlers
-- `messaging_scripts/send-to-slack.sh` (50 lines) - Send messages to Slack
-- `messaging_scripts/slack-webhook-server.sh` (100 lines) - Events API alternative
-- `skills/slack-integration/SKILL.md` (200 lines) - Claude Code skill
+- `plugin/scripts/send-to-slack.sh` (50 lines) - Send messages to Slack
+- `plugin/scripts/slack-webhook-server.sh` (100 lines) - Events API alternative
+- `plugin/skills/slack-integration/SKILL.md` (200 lines) - Claude Code skill
 - `docs/SLACK-INTEGRATION-GUIDE.md` (500 lines) - Complete setup guide
 - Update `install-messaging.sh` to offer Slack setup
 - Update `package.json` with Slack dependencies
@@ -1616,7 +1616,7 @@ export interface Message {
 **2. Forward Script**
 ```bash
 #!/bin/bash
-# messaging_scripts/forward-aimaestro-message.sh
+# plugin/scripts/forward-aimaestro-message.sh
 # Usage: forward-aimaestro-message.sh <message-id> <new-recipient> "[optional note]"
 
 MESSAGE_ID="$1"
@@ -1887,7 +1887,7 @@ function buildForwardedContent(
 **5. Claude Code Skill Integration**
 
 ```markdown
-# skills/agent-messaging/SKILL.md
+# plugin/skills/agent-messaging/SKILL.md
 
 ## Forwarding Messages
 
@@ -2028,12 +2028,12 @@ Specialist has all original information
 
 **Files to Create/Modify:**
 
-- `messaging_scripts/forward-aimaestro-message.sh` (150 lines)
+- `plugin/scripts/forward-aimaestro-message.sh` (150 lines)
 - `app/api/messages/forward/route.ts` (100 lines)
 - `components/MessageCenter.tsx` - Add forward button and dialog
 - `components/ForwardDialog.tsx` (100 lines) - New component
 - `types/message.ts` - Extend Message interface
-- `skills/agent-messaging/SKILL.md` - Add forward examples
+- `plugin/skills/agent-messaging/SKILL.md` - Add forward examples
 - `docs/MESSAGING-GUIDE.md` - Document forward feature
 
 ---

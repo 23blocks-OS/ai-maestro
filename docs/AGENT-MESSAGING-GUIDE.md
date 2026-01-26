@@ -46,7 +46,7 @@ Claude: *Automatically calls send-aimaestro-message.sh with proper parameters*
 
 **Requirements:**
 - Claude Code with skills support
-- Agent-messaging skill installed at `~/.claude/skills/agent-messaging/`
+- Agent-messaging skill installed at `~/.claude/skills/agent-messaging/` (from `plugin/skills/`)
 
 ---
 

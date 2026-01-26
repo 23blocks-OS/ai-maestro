@@ -75,7 +75,7 @@ print_info() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ] || [ ! -d "docs_scripts" ] || [ ! -d "portable_scripts" ]; then
+if [ ! -d "plugin" ]; then
     print_error "Error: This script must be run from the AI Maestro root directory"
     echo ""
     echo "Usage:"
@@ -310,14 +310,14 @@ EOF
     fi
 
     echo ""
-    print_info "Installing messaging scripts to ~/.local/bin/..."
+    print_info "Installing scripts to ~/.local/bin/..."
 
     # Create directory if it doesn't exist
     mkdir -p ~/.local/bin
 
-    # Copy scripts
+    # Copy all scripts from plugin/scripts/
     SCRIPT_COUNT=0
-    for script in messaging_scripts/*.sh; do
+    for script in plugin/scripts/*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
@@ -328,37 +328,7 @@ EOF
     done
 
     echo ""
-    print_success "Installed $SCRIPT_COUNT messaging scripts"
-
-    # Install docs scripts
-    print_info "Installing docs scripts to ~/.local/bin/..."
-    DOCS_SCRIPT_COUNT=0
-    for script in docs_scripts/*.sh; do
-        if [ -f "$script" ]; then
-            SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
-            print_success "Installed: $SCRIPT_NAME"
-            DOCS_SCRIPT_COUNT=$((DOCS_SCRIPT_COUNT + 1))
-        fi
-    done
-    echo ""
-    print_success "Installed $DOCS_SCRIPT_COUNT docs scripts"
-
-    # Install portable agent scripts
-    print_info "Installing portable agent scripts to ~/.local/bin/..."
-    PORTABLE_SCRIPT_COUNT=0
-    for script in portable_scripts/*.sh; do
-        if [ -f "$script" ]; then
-            SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
-            print_success "Installed: $SCRIPT_NAME"
-            PORTABLE_SCRIPT_COUNT=$((PORTABLE_SCRIPT_COUNT + 1))
-        fi
-    done
-    echo ""
-    print_success "Installed $PORTABLE_SCRIPT_COUNT portable agent scripts"
+    print_success "Installed $SCRIPT_COUNT scripts (messaging, docs, graph, memory, agent tools)"
 
     # Setup PATH using shared function (works in both interactive and non-interactive mode)
     echo ""
@@ -375,18 +345,18 @@ if [ "$INSTALL_SKILL" = true ]; then
     # Create directory if it doesn't exist
     mkdir -p ~/.claude/skills
 
-    # Copy all skills
-    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search")
+    # Copy all skills from plugin/skills/
+    SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search" "planning")
 
     for skill in "${SKILLS_TO_INSTALL[@]}"; do
-        if [ -d "skills/$skill" ]; then
+        if [ -d "plugin/skills/$skill" ]; then
             # Remove old version if exists
             if [ -d ~/.claude/skills/"$skill" ]; then
                 print_warning "Removing old version of $skill skill..."
                 rm -rf ~/.claude/skills/"$skill"
             fi
 
-            cp -r "skills/$skill" ~/.claude/skills/
+            cp -r "plugin/skills/$skill" ~/.claude/skills/
             print_success "Installed: $skill skill"
 
             # Verify skill file exists
@@ -397,7 +367,7 @@ if [ "$INSTALL_SKILL" = true ]; then
                 print_error "Skill file not found after installation"
             fi
         else
-            print_warning "Skill source directory not found: skills/$skill"
+            print_warning "Skill source directory not found: plugin/skills/$skill"
         fi
     done
 fi
@@ -435,7 +405,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Checking installed skills..."
 
-    for skill in agent-messaging graph-query memory-search docs-search; do
+    for skill in agent-messaging graph-query memory-search docs-search planning; do
         if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
             print_success "$skill skill is installed"
         else
@@ -461,7 +431,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo "   $ send-aimaestro-message.sh backend-architect \"Test\" \"Hello!\" normal notification"
     echo "   $ check-and-show-messages.sh"
     echo ""
-    echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/messaging_scripts"
+    echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/plugin"
     echo ""
 fi
 
@@ -489,7 +459,12 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo "      > \"Find documentation for PaymentService\""
     echo "      > \"What functions handle user validation?\""
     echo ""
-    echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/skills"
+    echo "   📋 planning - Stay focused on complex multi-step tasks"
+    echo "      > \"Use the planning skill for this task\""
+    echo "      > Create task_plan.md, findings.md, progress.md"
+    echo "      > Prevents goal drift and tracks errors"
+    echo ""
+    echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/plugin/skills"
     echo ""
 fi
 

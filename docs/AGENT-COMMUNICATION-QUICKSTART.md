@@ -36,7 +36,7 @@ Claude: *Automatically uses the messaging skill to send the message*
 - ✅ Context-aware (Claude knows your session name)
 - ✅ Progressive disclosure (skill loads only when needed)
 
-**Requirements:** Claude Code with skills installed → [📖 Install the skill](../skills/README.md) (copy [`../skills/agent-messaging/`](../skills/agent-messaging) to `~/.claude/skills/`)
+**Requirements:** Claude Code with skills installed → [📖 Install the skill](../plugin/skills/README.md) (copy [`../plugin/skills/agent-messaging/`](../plugin/skills/agent-messaging) to `~/.claude/skills/`)
 
 ---
 
@@ -64,7 +64,7 @@ send-aimaestro-message.sh backend-architect "Subject" "Message body" normal requ
 - ✅ Full control over parameters
 - ✅ No dependencies on Claude Code
 
-**Requirements:** Shell scripts in PATH → [📖 Install the scripts](../messaging_scripts/README.md) (copy [`../messaging_scripts/`](../messaging_scripts) to `~/.local/bin/`)
+**Requirements:** Shell scripts in PATH → [📖 Install the scripts](../plugin/scripts/README.md) (copy scripts from [`../plugin/scripts/`](../plugin/scripts) to `~/.local/bin/`)
 
 ---
 
@@ -515,8 +515,8 @@ Scripts should be in `~/.local/bin/`:
 ls -l ~/.local/bin/*message*.sh
 
 # If missing, install from the repo
-# See: https://github.com/23blocks-OS/ai-maestro/tree/main/messaging_scripts
-# Or: cp ../messaging_scripts/*.sh ~/.local/bin/ && chmod +x ~/.local/bin/*.sh
+# See: https://github.com/23blocks-OS/ai-maestro/tree/main/plugin/scripts
+# Or: cp ../plugin/scripts/*.sh ~/.local/bin/ && chmod +x ~/.local/bin/*.sh
 ```
 
 ### 3. PATH Configured

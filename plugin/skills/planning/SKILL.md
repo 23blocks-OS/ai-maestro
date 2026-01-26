@@ -1,8 +1,11 @@
 ---
-name: AI Maestro Planning
+name: planning
 description: Use persistent markdown files for complex task execution. Creates task_plan.md, findings.md, and progress.md. Use when starting multi-step tasks, research projects, or any task requiring >5 tool calls. Solves the EXECUTION problem - staying focused during long-running tasks.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 user-invocable: true
+metadata:
+  author: 23blocks
+  version: "1.0"
 ---
 
 # AI Maestro Planning Skill

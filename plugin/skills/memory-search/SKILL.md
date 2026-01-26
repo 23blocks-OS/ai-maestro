@@ -1,7 +1,10 @@
 ---
-name: AI Maestro Memory Search
+name: memory-search
 description: PROACTIVELY search conversation history when receiving user instructions. Find previous discussions, decisions, and context BEFORE starting new work. Your memory is valuable - use it.
 allowed-tools: Bash
+metadata:
+  author: 23blocks
+  version: "1.0"
 ---
 
 # AI Maestro Memory Search

@@ -63,7 +63,21 @@ A Claude Code plugin providing skills, hooks, and CLI scripts for AI agent orche
 
 ## Installation
 
-### Option 1: Local Development (--plugin-dir)
+### Option 1: Install from GitHub (Recommended)
+
+```bash
+# Add the AI Maestro marketplace
+/plugin marketplace add 23blocks-OS/ai-maestro
+
+# Install the plugin
+/plugin install ai-maestro@ai-maestro-marketplace
+```
+
+That's it! Skills are immediately available with the `ai-maestro:` namespace.
+
+### Option 2: Local Development (--plugin-dir)
+
+For testing or development:
 
 ```bash
 # Clone the repo
@@ -73,38 +87,15 @@ git clone https://github.com/23blocks-OS/ai-maestro.git
 claude --plugin-dir ./ai-maestro/plugin
 ```
 
-### Option 2: Add to Plugin Marketplace
+### Installing CLI Scripts (Optional)
 
-Add to your marketplace's `plugins.json`:
-
-```json
-{
-  "plugins": [
-    {
-      "id": "ai-maestro",
-      "name": "AI Maestro",
-      "description": "Skills, hooks, and scripts for AI agent orchestration",
-      "repository": "https://github.com/23blocks-OS/ai-maestro",
-      "path": "plugin"
-    }
-  ]
-}
-```
-
-Then install via:
-```
-/plugin install ai-maestro
-```
-
-### Installing CLI Scripts
-
-After plugin installation, add scripts to your PATH:
+The plugin includes 32 CLI scripts for terminal use. To install them:
 
 ```bash
-# Add to ~/.zshrc or ~/.bashrc
-export PATH="$PATH:$CLAUDE_PLUGIN_ROOT/scripts"
+# Run the installer from the repo
+./install-messaging.sh -y
 
-# Or copy to ~/.local/bin
+# Or manually copy to your PATH
 cp plugin/scripts/*.sh ~/.local/bin/
 ```
 

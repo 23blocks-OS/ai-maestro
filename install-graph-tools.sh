@@ -39,7 +39,7 @@ done
 # Install skill
 echo ""
 echo "Installing graph-query skill to $SKILL_DIR..."
-cp "$SCRIPT_DIR/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
+cp "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
 echo "  Installed: SKILL.md"
 
 # Verify jq is available

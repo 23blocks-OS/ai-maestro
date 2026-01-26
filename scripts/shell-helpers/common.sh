@@ -243,13 +243,47 @@ check_jq() {
     fi
 }
 
+# Lookup agent by working directory in registry
+# Returns agent info if found, empty if not
+lookup_agent_by_directory() {
+    local current_dir="$1"
+    local api_url
+    api_url=$(get_api_base)
+
+    # Query the agents API and find agent with matching workingDirectory
+    local response
+    response=$(curl -s --max-time 5 "${api_url}/api/agents" 2>/dev/null)
+
+    if [ -z "$response" ]; then
+        return 1
+    fi
+
+    # Find agent where workingDirectory matches or is parent of current_dir
+    local agent_info
+    agent_info=$(echo "$response" | jq -r --arg dir "$current_dir" '
+        .agents[] |
+        select(.workingDirectory != null and ($dir | startswith(.workingDirectory))) |
+        "\(.id)|\(.name)|\(.alias // .name)"
+    ' 2>/dev/null | head -1)
+
+    if [ -n "$agent_info" ] && [ "$agent_info" != "null" ]; then
+        echo "$agent_info"
+        return 0
+    fi
+
+    return 1
+}
+
 # Initialize common variables - AGENT-FIRST approach
 # Sets: SESSION (optional), AGENT_ID, HOST_ID
 #
 # Identity resolution priority:
-#   1. Environment variables (explicit identity for external agents)
-#   2. tmux session (inferred if running in tmux)
-#   3. Git repo name (fallback for external agents)
+#   1. Environment variables (explicit override)
+#   2. Structured tmux session name (agent@host) - canonical identity
+#   3. Working directory → lookup agent in registry (for sessionless agents)
+#   4. Git repo name (external agent identity)
+#
+# NOTE: Legacy tmux session names (without @) are NOT used for identity.
 #
 # Environment variables:
 #   AI_MAESTRO_AGENT_ID  - Agent identifier (name, alias, or UUID)
@@ -267,33 +301,38 @@ init_common() {
     if [ -n "$AI_MAESTRO_AGENT_ID" ]; then
         AGENT_ID="$AI_MAESTRO_AGENT_ID"
         HOST_ID="${AI_MAESTRO_HOST_ID:-$(get_self_host_id)}"
-        # SESSION stays empty - external agent not in tmux
     fi
 
-    # Priority 2: Infer from tmux session (if available and no explicit identity)
+    # Priority 2: Structured tmux session name (agent@host format)
+    # This is the canonical identity set by AI Maestro when creating agents
     if [ -z "$AGENT_ID" ]; then
         SESSION=$(get_session 2>/dev/null) || true
-
         if [ -n "$SESSION" ]; then
-            # Try parsing structured format first (agent@host)
-            if parse_session_name "$SESSION"; then
-                # Structured format parsed successfully - AGENT_ID and HOST_ID are set
-                :
-            else
-                # Legacy format - need API lookup
-                AGENT_ID=$(get_agent_id "$SESSION") || {
-                    # API lookup failed - SESSION exists but agent not registered
-                    # Fall through to Priority 3
-                    AGENT_ID=""
-                }
-                if [ -n "$AGENT_ID" ]; then
-                    HOST_ID=$(get_self_host_id)
-                fi
+            # Only use structured format (contains @) - NOT legacy session names
+            if [[ "$SESSION" == *"@"* ]]; then
+                parse_session_name "$SESSION"
+                # AGENT_ID and HOST_ID are now set by parse_session_name
             fi
         fi
     fi
 
-    # Priority 3: Auto-detect from git repo name (fallback for external agents)
+    # Priority 3: Lookup agent by working directory in registry
+    # For agents without active sessions (external, sessionless)
+    if [ -z "$AGENT_ID" ]; then
+        local current_dir
+        current_dir=$(pwd)
+        local agent_info
+        agent_info=$(lookup_agent_by_directory "$current_dir" 2>/dev/null)
+
+        if [ -n "$agent_info" ]; then
+            # Parse: id|name|alias
+            AGENT_ID=$(echo "$agent_info" | cut -d'|' -f1)
+            local agent_name=$(echo "$agent_info" | cut -d'|' -f2)
+            HOST_ID=$(get_self_host_id)
+        fi
+    fi
+
+    # Priority 4: Auto-detect from git repo name (external agent identity)
     if [ -z "$AGENT_ID" ]; then
         local repo_name
         repo_name=$(get_repo_name)
@@ -312,8 +351,9 @@ init_common() {
         echo "" >&2
         echo "Options:" >&2
         echo "  1. Set environment variable: export AI_MAESTRO_AGENT_ID='my-agent'" >&2
-        echo "  2. Run in a registered tmux session" >&2
-        echo "  3. Run from within a git repository" >&2
+        echo "  2. Run in a structured tmux session (name@host format)" >&2
+        echo "  3. Run from an agent's working directory (registered in AI Maestro)" >&2
+        echo "  4. Run from within a git repository" >&2
         return 1
     fi
 

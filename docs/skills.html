@@ -469,8 +469,52 @@
         </div>
     </section>
 
+    <!-- Memory vs Planning Comparison -->
+    <section class="py-16 px-8 bg-slate-950">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="text-3xl md:text-4xl text-center mb-4 font-display font-bold">Memory vs Planning: Two Different Problems</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">These skills complement each other but solve fundamentally different problems.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div class="bg-purple-500/10 p-6 rounded-2xl border border-purple-500/30">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">🧠</span>
+                        <h3 class="text-xl font-display font-bold text-purple-400">memory-search</h3>
+                    </div>
+                    <p class="text-2xl font-bold text-white mb-2">Solves RETRIEVAL</p>
+                    <p class="text-slate-300 mb-4">"What did we discuss last week?"</p>
+                    <ul class="space-y-2 text-sm">
+                        <li class="text-slate-200">📅 <strong>Timescale:</strong> Days, weeks, months</li>
+                        <li class="text-slate-200">🔍 <strong>Problem:</strong> Can't recall past conversations</li>
+                        <li class="text-slate-200">💾 <strong>Data:</strong> Past session history (indexed JSONL)</li>
+                        <li class="text-slate-200">⚡ <strong>Trigger:</strong> Proactive (auto-runs)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-rose-500/10 p-6 rounded-2xl border border-rose-500/30">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">📋</span>
+                        <h3 class="text-xl font-display font-bold text-rose-400">planning</h3>
+                    </div>
+                    <p class="text-2xl font-bold text-white mb-2">Solves EXECUTION</p>
+                    <p class="text-slate-300 mb-4">"What am I supposed to do next?"</p>
+                    <ul class="space-y-2 text-sm">
+                        <li class="text-slate-200">⏱️ <strong>Timescale:</strong> Minutes, hours (current session)</li>
+                        <li class="text-slate-200">🎯 <strong>Problem:</strong> Losing focus during complex tasks</li>
+                        <li class="text-slate-200">📝 <strong>Data:</strong> Current task files (task_plan.md)</li>
+                        <li class="text-slate-200">🔧 <strong>Trigger:</strong> On-demand (user invokes)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl text-center">
+                <p class="text-lg text-slate-300"><strong class="text-white">Use BOTH for complex work:</strong> Memory tells you what happened before. Planning keeps you focused now.</p>
+            </div>
+        </div>
+    </section>
+
     <!-- Skills Grid -->
-    <section id="skills" class="py-16 md:py-24 px-8 bg-slate-950">
+    <section id="skills" class="py-16 md:py-24 px-8">
         <div class="max-w-[1200px] mx-auto">
             <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">The Five Skills</h2>
             <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Each skill gives Claude Code a specific superpower</p>
@@ -487,7 +531,7 @@
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 text-xs font-mono">PROACTIVE</span>
                         </div>
                     </div>
-                    <p class="text-slate-300 mb-4">Search your conversation history to find previous discussions, decisions, and context.</p>
+                    <p class="text-slate-300 mb-4"><strong>Solves RETRIEVAL:</strong> Search <em>past</em> conversation history from days/weeks/months ago. "What did we discuss last week?"</p>
 
                     <div class="bg-slate-900/50 p-4 rounded-lg mb-4">
                         <p class="text-sm text-slate-400 mb-2">Auto-triggers when:</p>
@@ -608,7 +652,7 @@
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-500/20 border border-slate-500/30 rounded text-slate-400 text-xs font-mono">ON-DEMAND</span>
                         </div>
                     </div>
-                    <p class="text-slate-300 mb-4">Persistent markdown files for complex task execution. Solves the execution problem - staying focused during long-running tasks.</p>
+                    <p class="text-slate-300 mb-4"><strong>Solves EXECUTION:</strong> Stay focused during <em>current</em> complex tasks. Prevents goal drift, lost progress, and repeated errors within the current session.</p>
 
                     <div class="grid md:grid-cols-2 gap-4 mb-4">
                         <div class="bg-slate-900/50 p-4 rounded-lg">

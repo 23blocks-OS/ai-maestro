@@ -105,18 +105,18 @@
       "step": [{
         "@type": "HowToStep",
         "position": 1,
-        "name": "Clone AI Maestro",
-        "text": "git clone https://github.com/23blocks-OS/ai-maestro.git"
+        "name": "Add AI Maestro Marketplace",
+        "text": "/plugin marketplace add 23blocks-OS/ai-maestro"
       },{
         "@type": "HowToStep",
         "position": 2,
-        "name": "Run Skills Installer",
-        "text": "cd ai-maestro && ./install-skills.sh"
+        "name": "Install the Plugin",
+        "text": "/plugin install ai-maestro@ai-maestro-marketplace"
       },{
         "@type": "HowToStep",
         "position": 3,
         "name": "Start Using Skills",
-        "text": "Skills auto-trigger when Claude Code agents read files or receive instructions"
+        "text": "Skills are immediately available with the ai-maestro: namespace"
       }]
     }
     </script>
@@ -137,7 +137,7 @@
         "name": "How do I add skills to Claude Code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Skills are installed to ~/.claude/skills/. Run the AI Maestro installer: ./install-skills.sh. This copies SKILL.md files and installs the required command-line scripts to ~/.local/bin/."
+          "text": "Install via Claude Code's plugin marketplace with two commands: /plugin marketplace add 23blocks-OS/ai-maestro then /plugin install ai-maestro@ai-maestro-marketplace. Skills are immediately available with the ai-maestro: namespace."
         }
       },{
         "@type": "Question",
@@ -695,11 +695,11 @@
                 <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="flex items-center gap-4 mb-4">
                         <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">1</div>
-                        <h3 class="text-xl font-display font-semibold text-white">Clone AI Maestro</h3>
+                        <h3 class="text-xl font-display font-semibold text-white">Add the AI Maestro Marketplace</h3>
                     </div>
+                    <p class="text-slate-400 mb-4">In Claude Code, run this command:</p>
                     <div class="bg-slate-800 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                        <span class="text-green-400">git clone</span> https://github.com/23blocks-OS/ai-maestro.git<br>
-                        <span class="text-green-400">cd</span> ai-maestro
+                        <span class="text-green-400">/plugin marketplace add</span> <span class="text-amber-300">23blocks-OS/ai-maestro</span>
                     </div>
                 </div>
 
@@ -707,12 +707,10 @@
                 <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
                     <div class="flex items-center gap-4 mb-4">
                         <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">2</div>
-                        <h3 class="text-xl font-display font-semibold text-white">Run the Skills Installer</h3>
+                        <h3 class="text-xl font-display font-semibold text-white">Install the Plugin</h3>
                     </div>
                     <div class="bg-slate-800 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-                        <span class="text-green-400">./install-skills.sh</span><br>
-                        <span class="text-slate-500"># Copies skills to ~/.claude/skills/</span><br>
-                        <span class="text-slate-500"># Installs scripts to ~/.local/bin/</span>
+                        <span class="text-green-400">/plugin install</span> <span class="text-amber-300">ai-maestro@ai-maestro-marketplace</span>
                     </div>
                 </div>
 
@@ -722,17 +720,17 @@
                         <div class="w-10 h-10 rounded-full bg-cyan-500 text-slate-900 flex items-center justify-center font-bold text-lg">3</div>
                         <h3 class="text-xl font-display font-semibold text-white">Start Using Skills</h3>
                     </div>
-                    <p class="text-slate-400 mb-4">Skills auto-trigger when Claude Code agents read files or receive instructions. Just use Claude normally - the skills work in the background.</p>
+                    <p class="text-slate-400 mb-4">Skills are immediately available! They auto-trigger when Claude Code agents read files or receive instructions.</p>
                     <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg">
-                        <p class="text-emerald-400"><strong>Tip:</strong> Restart any running Claude Code sessions to load the new skills.</p>
+                        <p class="text-emerald-400"><strong>That's it!</strong> No cloning, no manual installation. Skills work instantly.</p>
                     </div>
                 </div>
             </div>
 
             <div class="mt-8 text-center">
-                <p class="text-slate-400 mb-4">Skills are installed to:</p>
+                <p class="text-slate-400 mb-4">Skills are available with the namespace:</p>
                 <div class="bg-slate-800 inline-block px-6 py-3 rounded-lg font-mono text-sm">
-                    ~/.claude/skills/<span class="text-cyan-400">{memory-search, docs-search, graph-query, agent-messaging, planning}</span>/SKILL.md
+                    <span class="text-cyan-400">ai-maestro:</span>{memory-search, docs-search, graph-query, agent-messaging, planning}
                 </div>
             </div>
         </div>

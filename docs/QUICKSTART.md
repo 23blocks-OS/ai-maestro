@@ -113,6 +113,26 @@ The agent will appear in the sidebar. Click it to open the terminal.
 
 ---
 
+## Install Claude Code Skills (Optional)
+
+If you use Claude Code, install AI Maestro skills for enhanced capabilities:
+
+```bash
+/plugin marketplace add 23blocks-OS/ai-maestro
+/plugin install ai-maestro@ai-maestro-marketplace
+```
+
+This gives your Claude Code agents:
+- **Memory search** - Search conversation history
+- **Docs search** - Search auto-generated documentation
+- **Graph query** - Query code relationships
+- **Agent messaging** - Send/receive messages between agents
+- **Planning** - Stay focused on complex tasks
+
+> **Note:** Most skills require the AI Maestro service running. The `planning` skill works standalone.
+
+---
+
 ## Next Steps
 
 ### Connect a Peer (Optional)

@@ -10,7 +10,7 @@ Skills transform AI agents from simple code assistants into **knowledge-aware sy
 - **Communicate** with other agents asynchronously
 - **Learn** from auto-generated documentation
 
-## Available Skills (4)
+## Available Skills (5)
 
 | Skill | Purpose | Behavior |
 |-------|---------|----------|
@@ -18,6 +18,16 @@ Skills transform AI agents from simple code assistants into **knowledge-aware sy
 | [docs-search](#docs-search) | Search code documentation | **PROACTIVE** - Auto-triggers before implementing |
 | [graph-query](#graph-query) | Query code relationships | **PROACTIVE** - Auto-triggers when reading files |
 | [agent-messaging](#agent-messaging) | Inter-agent communication | On-demand messaging |
+| [planning](#planning) | Complex task execution | On-demand for multi-step tasks |
+
+### Two Types of "Memory"
+
+| Skill | Problem Solved | Timescale |
+|-------|----------------|-----------|
+| **memory-search** | Recall: "What did we discuss before?" | Days/weeks/months |
+| **planning** | Execution: "What am I supposed to do next?" | Minutes/hours |
+
+Both are needed. Memory recalls the past. Planning keeps you focused in the present.
 
 ---
 
@@ -204,6 +214,73 @@ reply-aimaestro-message.sh msg-1234567890 "Endpoint ready at routes/users.ts"
 
 ---
 
+## planning
+
+**Stay focused during complex, multi-step tasks using persistent markdown files.**
+
+This skill solves the EXECUTION problem - losing focus after many tool calls. It uses the "Manus-style" 3-file pattern to maintain goals, track progress, and prevent repeated errors.
+
+### When To Use
+
+- Multi-step tasks (3+ steps)
+- Research projects
+- Building features
+- Any task with >5 tool calls
+- Work that spans multiple sessions
+
+### The 3-File Pattern
+
+Create these in your **project root**:
+
+| File | Purpose | Update When |
+|------|---------|-------------|
+| `task_plan.md` | Goals, phases, decisions, errors | After each phase |
+| `findings.md` | Research, discoveries, resources | During research |
+| `progress.md` | Session log, test results | Throughout session |
+
+### Quick Start
+
+```bash
+# Copy templates to project
+cat ~/.claude/skills/planning/templates/task_plan.md > task_plan.md
+cat ~/.claude/skills/planning/templates/findings.md > findings.md
+cat ~/.claude/skills/planning/templates/progress.md > progress.md
+
+# Then edit task_plan.md with your specific goal
+```
+
+### The 6 Rules
+
+| Rule | Description |
+|------|-------------|
+| **Create Plan First** | Never start complex tasks without task_plan.md |
+| **Read Before Decide** | Re-read plan before major decisions |
+| **Update After Act** | Mark phases complete, log errors |
+| **2-Action Rule** | After 2 searches, write findings immediately |
+| **Log ALL Errors** | Every error in plan prevents repetition |
+| **Never Repeat Failures** | Change approach after failure |
+
+### Core Principle
+
+```
+Context Window = RAM (volatile, limited)
+Filesystem = Disk (persistent, unlimited)
+
+→ Important things get written to disk.
+```
+
+### Why It Matters
+
+Without planning files:
+- You forget the original goal after 50 tool calls
+- You lose track of which phase you're in
+- You repeat the same errors
+- You can't resume after /clear
+
+**Creating a plan takes 30 seconds. Losing focus wastes hours.**
+
+---
+
 ## Installation
 
 ### Quick Install (Recommended)
@@ -224,6 +301,7 @@ cp -r skills/memory-search ~/.claude/skills/
 cp -r skills/docs-search ~/.claude/skills/
 cp -r skills/graph-query ~/.claude/skills/
 cp -r skills/agent-messaging ~/.claude/skills/
+cp -r skills/planning ~/.claude/skills/
 
 # Verify installation
 ls -la ~/.claude/skills/
@@ -240,6 +318,7 @@ ls ~/.claude/skills/*/SKILL.md
 # ~/.claude/skills/docs-search/SKILL.md
 # ~/.claude/skills/graph-query/SKILL.md
 # ~/.claude/skills/memory-search/SKILL.md
+# ~/.claude/skills/planning/SKILL.md
 ```
 
 ---
@@ -343,10 +422,11 @@ cat ~/.claude/skills/memory-search/SKILL.md | head -10
 
 ## Skill Documentation
 
-- [Memory Search Skill](./memory-search/SKILL.md) - Full documentation
-- [Docs Search Skill](./docs-search/SKILL.md) - Full documentation
-- [Graph Query Skill](./graph-query/SKILL.md) - Full documentation
-- [Agent Messaging Skill](./agent-messaging/SKILL.md) - Full documentation
+- [Memory Search Skill](./memory-search/SKILL.md) - Search conversation history (Recall)
+- [Docs Search Skill](./docs-search/SKILL.md) - Search code documentation
+- [Graph Query Skill](./graph-query/SKILL.md) - Query code relationships
+- [Agent Messaging Skill](./agent-messaging/SKILL.md) - Inter-agent communication
+- [Planning Skill](./planning/SKILL.md) - Complex task execution (Execution)
 
 ---
 

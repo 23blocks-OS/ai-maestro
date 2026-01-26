@@ -164,36 +164,43 @@ Your AI agents become smarter over time with persistent memory and deep code und
 ### Claude Code Plugin (New in v0.20!)
 Use AI Maestro skills directly with Claude Code via the official plugin marketplace.
 
-**Install in 2 commands (no cloning required):**
+**Two Installation Options:**
+
+| Option | What You Get | Service Required? |
+|--------|--------------|-------------------|
+| **Plugin Only** | 5 skills (1 standalone, 4 need service) | 4/5 skills need service |
+| **Full Install** | Everything (service + dashboard + all skills) | Included |
+
+#### Option 1: Plugin Only (Quick Start)
+
 ```bash
 /plugin marketplace add 23blocks-OS/ai-maestro
 /plugin install ai-maestro@ai-maestro-marketplace
 ```
 
-That's it! Skills are immediately available with the `ai-maestro:` namespace.
+> **Important:** Only the `planning` skill works standalone. Other skills (memory-search, docs-search, graph-query, agent-messaging) require the AI Maestro service running on localhost:23000.
 
-**What's Included:**
-- **5 Skills** for natural language interaction:
-  - `ai-maestro:memory-search` - Search your conversation history
-  - `ai-maestro:docs-search` - Search auto-generated documentation
-  - `ai-maestro:graph-query` - Query code relationships
-  - `ai-maestro:agent-messaging` - Send/receive messages between agents
-  - `ai-maestro:planning` - Stay focused on complex multi-step tasks
-- **3 Hooks** for automatic integration:
-  - `SessionStart` - Check messages, broadcast status
-  - `Stop` - Update status when finished
-  - `Notification` - Track idle/permission prompts
-- **32 CLI Scripts** for direct command-line usage
+#### Option 2: Full Installation (Recommended)
 
-**Alternative Installation (for development):**
 ```bash
-# Clone repo and run with local plugin
-git clone https://github.com/23blocks-OS/ai-maestro.git
-claude --plugin-dir ./ai-maestro/plugin
-
-# Or install CLI scripts system-wide
-./install-messaging.sh
+curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
 ```
+
+This installs everything: service, dashboard, all 5 skills working, 32 CLI scripts.
+
+**Skills Included:**
+
+| Skill | Description | Standalone? |
+|-------|-------------|-------------|
+| `ai-maestro:planning` | Stay focused on complex multi-step tasks | **YES** |
+| `ai-maestro:memory-search` | Search your conversation history | NO |
+| `ai-maestro:docs-search` | Search auto-generated documentation | NO |
+| `ai-maestro:graph-query` | Query code relationships | NO |
+| `ai-maestro:agent-messaging` | Send/receive messages between agents | NO |
+
+**Also Included:**
+- **3 Hooks** for automatic integration (SessionStart, Stop, Notification)
+- **32 CLI Scripts** for direct command-line usage
 
 > [See Plugin Guide](./plugin/README.md) for full documentation
 

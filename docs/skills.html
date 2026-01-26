@@ -725,6 +725,43 @@
                         <p class="text-emerald-400"><strong>That's it!</strong> No cloning, no manual installation. Skills work instantly.</p>
                     </div>
                 </div>
+
+                <!-- Service Dependency Warning -->
+                <div class="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl">
+                    <div class="flex items-start gap-4">
+                        <span class="text-2xl">⚠️</span>
+                        <div>
+                            <h4 class="text-lg font-semibold text-amber-400 mb-2">Service Dependency</h4>
+                            <p class="text-slate-300 mb-4"><strong>4 of 5 skills require the AI Maestro service running</strong> on localhost:23000.</p>
+                            <table class="w-full text-sm">
+                                <tr class="border-b border-slate-700">
+                                    <td class="py-2 text-emerald-400 font-mono">planning</td>
+                                    <td class="py-2 text-emerald-400">✓ Works standalone</td>
+                                </tr>
+                                <tr class="border-b border-slate-700">
+                                    <td class="py-2 text-amber-400 font-mono">memory-search</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                </tr>
+                                <tr class="border-b border-slate-700">
+                                    <td class="py-2 text-amber-400 font-mono">docs-search</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                </tr>
+                                <tr class="border-b border-slate-700">
+                                    <td class="py-2 text-amber-400 font-mono">graph-query</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 text-amber-400 font-mono">agent-messaging</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                </tr>
+                            </table>
+                            <p class="text-slate-400 mt-4">To enable all skills, install AI Maestro:</p>
+                            <div class="bg-slate-800 p-3 rounded-lg font-mono text-sm mt-2 overflow-x-auto">
+                                curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="mt-8 text-center">
@@ -758,7 +795,8 @@
                         <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
                     </summary>
                     <div class="px-6 pb-6 text-slate-400">
-                        Yes, AI Maestro provides the APIs that skills call. The scripts communicate with AI Maestro's backend at <code class="bg-slate-800 px-2 py-1 rounded text-sm">http://localhost:23000</code> to search memory, query the code graph, and send messages.
+                        <strong>4 of 5 skills require AI Maestro running</strong> on <code class="bg-slate-800 px-2 py-1 rounded text-sm">localhost:23000</code>. These skills (memory-search, docs-search, graph-query, agent-messaging) communicate with AI Maestro's backend APIs.<br><br>
+                        <strong>The planning skill works standalone</strong> - it only creates local markdown files (task_plan.md, findings.md, progress.md) and doesn't need any backend service.
                     </div>
                 </details>
 

@@ -4,18 +4,33 @@ Get AI Maestro running in 5 minutes.
 
 ## Prerequisites
 
-- macOS 12.0+ (Monterey or later)
+- macOS 12.0+ (Monterey or later) OR Windows 10+ (WSL2) OR Linux
 - Node.js 18.17+ or 20.x
 - tmux 3.0+
 
 ```bash
-# Install dependencies (if not already installed)
+# macOS: Install dependencies (if not already installed)
 brew install node tmux
+
+# Linux/WSL: Install dependencies
+sudo apt-get install -y nodejs npm tmux
 ```
 
 ---
 
-## Installation
+## Choose Your Installation Path
+
+AI Maestro offers different installation options depending on your needs:
+
+| What You Want | Installation Method | Time |
+|---------------|---------------------|------|
+| **Full AI agent orchestration** (dashboard, memory, messaging, all skills) | [Full Install](#full-installation) | 5-10 min |
+| **Just the planning skill** (no service needed) | [Plugin Only](#plugin-only-skills) | 1 min |
+| **Try skills before committing** | [Plugin Only](#plugin-only-skills), then [Full Install](#full-installation) | 1 min + 5 min |
+
+---
+
+## Full Installation
 
 ### Option A: One-Line Install (Recommended)
 
@@ -29,6 +44,13 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
 ```
 
 This handles everything: prerequisites, installation, configuration. The `-y` flag skips all prompts.
+
+**What gets installed:**
+- AI Maestro service (localhost:23000)
+- Web dashboard for managing agents
+- 32 CLI scripts in `~/.local/bin/`
+- 5 Claude Code skills in `~/.claude/skills/`
+- Prerequisites (Node.js, tmux, etc.) if needed
 
 ### Option B: Manual Install
 
@@ -44,23 +66,26 @@ yarn install
 # Build the application
 yarn build
 # or: npm run build
+
+# Install CLI scripts and skills
+./install-messaging.sh -y
 ```
 
-### Step 2: Start AI Maestro
+### Start AI Maestro
 
-**Option A: Development Mode**
+**Development Mode:**
 ```bash
 yarn dev
 # or: npm run dev
 ```
 
-**Option B: Production Mode (Recommended)**
+**Production Mode (Recommended):**
 ```bash
 # Install pm2 globally
 npm install -g pm2
 
 # Start with pm2
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 
 # Save pm2 process list
 pm2 save
@@ -70,13 +95,41 @@ pm2 startup
 # Follow the command it shows
 ```
 
-### Step 3: Open in Browser
+### Open in Browser
 
 ```bash
 open http://localhost:23000
 ```
 
-🎉 **You're done!** AI Maestro is now running.
+You're done! AI Maestro is now running with all features.
+
+---
+
+## Plugin Only (Skills)
+
+If you just want Claude Code skills without running the full AI Maestro service:
+
+```bash
+/plugin marketplace add 23blocks-OS/ai-maestro
+/plugin install ai-maestro@ai-maestro-marketplace
+```
+
+> **IMPORTANT: Service Dependency**
+>
+> | Skill | Works Without Service? |
+> |-------|------------------------|
+> | `planning` | **YES** - Standalone |
+> | `memory-search` | NO - needs AI Maestro running |
+> | `docs-search` | NO - needs AI Maestro running |
+> | `graph-query` | NO - needs AI Maestro running |
+> | `agent-messaging` | NO - needs AI Maestro running |
+>
+> **Only the `planning` skill works standalone.** For all other skills, install the full AI Maestro service.
+
+The `planning` skill helps you stay focused on complex tasks by creating persistent markdown files:
+- `task_plan.md` - Your implementation plan
+- `findings.md` - Research and discoveries
+- `progress.md` - Step-by-step tracking
 
 ---
 
@@ -113,23 +166,21 @@ The agent will appear in the sidebar. Click it to open the terminal.
 
 ---
 
-## Install Claude Code Skills (Optional)
+## Installation Comparison
 
-If you use Claude Code, install AI Maestro skills for enhanced capabilities:
-
-```bash
-/plugin marketplace add 23blocks-OS/ai-maestro
-/plugin install ai-maestro@ai-maestro-marketplace
-```
-
-This gives your Claude Code agents:
-- **Memory search** - Search conversation history
-- **Docs search** - Search auto-generated documentation
-- **Graph query** - Query code relationships
-- **Agent messaging** - Send/receive messages between agents
-- **Planning** - Stay focused on complex tasks
-
-> **Note:** Most skills require the AI Maestro service running. The `planning` skill works standalone.
+| Feature | Full Install | Plugin Only |
+|---------|--------------|-------------|
+| Web dashboard | ✅ | ❌ |
+| Agent management | ✅ | ❌ |
+| Memory search skill | ✅ | ❌ (needs service) |
+| Docs search skill | ✅ | ❌ (needs service) |
+| Graph query skill | ✅ | ❌ (needs service) |
+| Agent messaging skill | ✅ | ❌ (needs service) |
+| **Planning skill** | ✅ | ✅ |
+| CLI scripts in PATH | ✅ | ❌ |
+| Hooks (session tracking) | ✅ | ❌ (needs service) |
+| Peer mesh network | ✅ | ❌ |
+| Code graph visualization | ✅ | ❌ |
 
 ---
 
@@ -230,6 +281,14 @@ tmux ls
 # Should show: test: 1 windows
 ```
 
+### Skills not working (Plugin install)
+
+If you installed via plugin marketplace and skills aren't working:
+
+1. **Check if AI Maestro is running:** `curl http://localhost:23000/api/sessions`
+2. **If not running:** Either start it (`cd ~/ai-maestro && yarn dev`) or use only the `planning` skill
+3. **If not installed:** Run the [full installation](#full-installation)
+
 ### Terminal is blank
 
 1. Refresh the page (Cmd + R)
@@ -264,6 +323,10 @@ rm -rf ai-maestro
 
 # Remove pm2 (optional)
 npm uninstall -g pm2
+
+# Remove plugin (if installed via marketplace)
+/plugin uninstall ai-maestro@ai-maestro-marketplace
+/plugin marketplace remove ai-maestro-marketplace
 ```
 
 ---

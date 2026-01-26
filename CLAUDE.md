@@ -476,7 +476,7 @@ The `-y` flag auto-selects option 3 (install scripts + skills) without prompts.
 
 This installer copies:
 - CLI scripts from `messaging_scripts/` → `~/.local/bin/`
-- Skill file from `skills/agent-messaging/SKILL.md` → `~/.claude/skills/agent-messaging/SKILL.md`
+- Skill file from `plugin/skills/agent-messaging/SKILL.md` → `~/.claude/skills/agent-messaging/SKILL.md`
 - Creates message directories: `~/.aimaestro/messages/inbox/` and `~/.aimaestro/messages/sent/`
 
 ### Architecture
@@ -554,7 +554,7 @@ check-aimaestro-messages.sh
 
 ### Claude Code Skill Integration
 
-The `skills/agent-messaging/SKILL.md` file provides a natural language interface for agents. When an agent says "check my messages" or "send a message to backend-api", Claude Code automatically translates this into the appropriate CLI script calls.
+The `plugin/skills/agent-messaging/SKILL.md` file provides a natural language interface for agents. When an agent says "check my messages" or "send a message to backend-api", Claude Code automatically translates this into the appropriate CLI script calls.
 
 **Skill provides:**
 - Natural language commands → CLI script mapping

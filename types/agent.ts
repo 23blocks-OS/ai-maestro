@@ -428,9 +428,25 @@ export interface EmailIndexEntry {
   agentId: string
   agentName: string
   hostId: string
+  hostUrl?: string  // URL to reach the host (for federated lookups)
   displayName?: string
   primary: boolean
   metadata?: Record<string, string>
+}
+
+/**
+ * Response from federated email-index query
+ * Includes metadata about which hosts were queried
+ */
+export interface FederatedEmailIndexResponse {
+  emails: EmailIndexResponse
+  meta: {
+    federated: true
+    hostsQueried: number
+    hostsSucceeded: number
+    hostsFailed: string[]  // IDs of hosts that failed
+    queryTime: number      // ms
+  }
 }
 
 /**

@@ -37,11 +37,12 @@ When the human operator says "check your messages" or "read your messages":
 - **Your inbox location** = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
 
 **Identity Resolution (Priority Order):**
-1. **Environment variable** - `AI_MAESTRO_AGENT_ID` (explicit, for external agents)
-2. **tmux session** - Parsed from session name if running in tmux
-3. **Git repo name** - Auto-detected from current repository (fallback)
+1. **Environment variable** - `AI_MAESTRO_AGENT_ID` (explicit override)
+2. **Structured session name** - Parsed from tmux session if format is `agent@host`
+3. **Working directory** - Lookup agent in registry by workingDirectory
+4. **Git repo name** - Auto-detected from current repository (fallback)
 
-**Note:** tmux is NOT required. External agents can set their identity via environment variable or run from a git repository for auto-detection.
+**Note:** tmux is NOT required. External agents can set their identity via environment variable, run from an agent's working directory, or run from a git repository for auto-detection.
 
 ### External Agents (Not in AI Maestro)
 

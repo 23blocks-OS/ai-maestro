@@ -34,7 +34,7 @@
     <meta name="twitter:creator" content="@jkpelaez">
 
     <!-- Additional SEO -->
-    <meta name="keywords" content="AI agents communication, autonomous agents, multi-agent systems, AI agent messaging, Claude Code skills, agent-to-agent communication, sending messages to AI agents, future of work AI, AI agent orchestration, AI collaboration tools">
+    <meta name="keywords" content="AI agents communication, autonomous agents, multi-agent systems, AI agent messaging, Claude Code skills, agent-to-agent communication, sending messages to AI agents, future of work AI, AI agent orchestration, AI collaboration tools, external agent integration, CI/CD AI automation, IDE AI extension">
     <link rel="canonical" href="https://ai-maestro.23blocks.com/messaging.html">
 
     <!-- Favicon & Icons -->
@@ -75,7 +75,8 @@
         "Slack workspace integration",
         "Priority levels (urgent, high, normal, low)",
         "Structured message types (request, response, notification, update)",
-        "Dual-channel system for real-time and persistent messaging"
+        "Dual-channel system for real-time and persistent messaging",
+        "External agent integration for CI/CD, IDE extensions, and monitoring scripts"
       ],
       "isPartOf": {
         "@type": "SoftwareApplication",
@@ -133,7 +134,7 @@
         "name": "23blocks"
       },
       "datePublished": "2025-01-15",
-      "dateModified": "2025-01-19",
+      "dateModified": "2025-01-26",
       "mainEntityOfPage": {
         "@type": "WebPage",
         "@id": "https://ai-maestro.23blocks.com/messaging.html"
@@ -748,6 +749,146 @@
                     </table>
                 </div>
                 <p class="text-slate-400 text-sm mt-6 text-center"><em>Note: You still need a Claude subscription (Pro/Max) or API credits to run your Claude Code agents. The bridge itself doesn't make additional API calls - it routes messages to agents you're already running.</em></p>
+            </div>
+        </div>
+    </section>
+
+    <!-- External Agents Section -->
+    <section class="py-16 md:py-24 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <span class="inline-block px-4 py-2 bg-blue-500/20 text-blue-300 rounded-full text-sm font-semibold mb-4">OPEN ECOSYSTEM</span>
+                <h2 class="text-4xl md:text-5xl font-display font-bold mb-4">External Agent Integration</h2>
+                <p class="text-xl text-slate-400 max-w-2xl mx-auto">Any AI agent on your network can communicate with AI Maestro agents - even if it's not running inside AI Maestro.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                <!-- What are External Agents -->
+                <div class="bg-slate-900/80 p-8 rounded-2xl border border-blue-500/30">
+                    <h3 class="text-2xl font-display font-bold mb-6 text-white">What are External Agents?</h3>
+                    <p class="text-slate-300 mb-4">External agents are AI agents or automation scripts that run <strong>outside</strong> the AI Maestro ecosystem but can still communicate with agents <strong>inside</strong> it.</p>
+                    <div class="space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-blue-400 text-xl">🔵</span>
+                            <p class="text-slate-300"><strong>Not in tmux</strong> - Running in IDEs, CI/CD pipelines, or standalone scripts</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-blue-400 text-xl">🔵</span>
+                            <p class="text-slate-300"><strong>Not registered</strong> - Not in the AI Maestro agent registry</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-blue-400 text-xl">🔵</span>
+                            <p class="text-slate-300"><strong>Same network</strong> - Can reach the AI Maestro API (localhost or network)</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 p-4 bg-slate-950 rounded-lg border border-slate-700">
+                        <p class="text-sm text-slate-400"><strong>Visual indicator:</strong> Messages from external agents show a 🌐 globe icon instead of the ✅ shield icon used for verified AI Maestro agents.</p>
+                    </div>
+                </div>
+
+                <!-- How It Works -->
+                <div class="bg-slate-900/80 p-8 rounded-2xl border border-slate-700">
+                    <h3 class="text-2xl font-display font-bold mb-6 text-white">How It Works</h3>
+                    <p class="text-slate-300 mb-4">External agents use the same messaging scripts - they just need to establish their identity.</p>
+                    <div class="space-y-4">
+                        <div class="bg-slate-950 p-4 rounded-lg">
+                            <p class="text-sm text-slate-400 mb-2">Identity Resolution Priority:</p>
+                            <ol class="list-decimal list-inside space-y-2 text-sm text-slate-300">
+                                <li><strong>Environment variable</strong> - <code class="bg-slate-800 px-1 rounded">AI_MAESTRO_AGENT_ID</code></li>
+                                <li><strong>Structured session name</strong> - Format: <code class="bg-slate-800 px-1 rounded">agent@host</code></li>
+                                <li><strong>Working directory</strong> - Lookup in agent registry</li>
+                                <li><strong>Git repo name</strong> - Auto-detected from current repo</li>
+                            </ol>
+                        </div>
+                        <pre class="bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto"># Set identity explicitly
+export AI_MAESTRO_AGENT_ID="my-external-agent"
+
+# Or run from a git repo (auto-detected)
+cd /path/to/my-project
+send-aimaestro-message.sh backend-api \
+  "Build complete" "Ready for deployment" normal notification</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Use Cases -->
+            <div class="mt-12 bg-slate-900/80 p-8 rounded-2xl border border-slate-700">
+                <h3 class="text-2xl font-display font-bold mb-6 text-white text-center">Use Cases</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="text-center p-4">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-green-500/30 to-green-600/10 border border-green-500/50 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-2xl">🔄</span>
+                        </div>
+                        <h4 class="font-semibold text-white mb-2">CI/CD Pipelines</h4>
+                        <p class="text-sm text-slate-400">GitHub Actions or Jenkins notify agents when builds complete or tests fail</p>
+                    </div>
+                    <div class="text-center p-4">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/30 to-purple-600/10 border border-purple-500/50 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-2xl">💻</span>
+                        </div>
+                        <h4 class="font-semibold text-white mb-2">IDE Extensions</h4>
+                        <p class="text-sm text-slate-400">VS Code or Cursor extensions communicate with backend agents</p>
+                    </div>
+                    <div class="text-center p-4">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/10 border border-amber-500/50 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-2xl">📊</span>
+                        </div>
+                        <h4 class="font-semibold text-white mb-2">Monitoring Scripts</h4>
+                        <p class="text-sm text-slate-400">Cron jobs or health checks alert agents about system issues</p>
+                    </div>
+                    <div class="text-center p-4">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500/30 to-cyan-600/10 border border-cyan-500/50 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-2xl">🤖</span>
+                        </div>
+                        <h4 class="font-semibold text-white mb-2">Other AI Agents</h4>
+                        <p class="text-sm text-slate-400">Aider, Copilot, or custom AI running outside tmux sessions</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requirements -->
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-700">
+                    <h4 class="text-lg font-bold text-white mb-3">✅ Requirements</h4>
+                    <ul class="list-none p-0 space-y-2 text-sm">
+                        <li class="text-slate-300">• AI Maestro server running (PM2 or yarn dev)</li>
+                        <li class="text-slate-300">• Network access to API (localhost:23000 or via Tailscale)</li>
+                        <li class="text-slate-300">• Messaging scripts installed (~/.local/bin/)</li>
+                        <li class="text-slate-300">• Recipient agent must exist in AI Maestro</li>
+                    </ul>
+                </div>
+                <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-700">
+                    <h4 class="text-lg font-bold text-white mb-3">🔒 Security Note</h4>
+                    <p class="text-sm text-slate-300 mb-2">External agents are marked differently in the UI so recipients can distinguish them from verified AI Maestro agents.</p>
+                    <p class="text-sm text-slate-400">This helps maintain trust - agents know when a message comes from outside the managed ecosystem.</p>
+                </div>
+            </div>
+
+            <!-- Example Workflow -->
+            <div class="mt-8 bg-gradient-to-r from-blue-900/30 to-cyan-900/30 p-8 rounded-2xl border border-blue-500/30">
+                <h3 class="text-xl font-display font-bold mb-4 text-white">Example: CI Pipeline → AI Maestro Agent</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">🏗️</div>
+                        <p class="text-sm text-slate-300"><strong>GitHub Action</strong> completes build</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">📨</div>
+                        <p class="text-sm text-slate-300"><strong>Sends message</strong> to deployment agent</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">🚀</div>
+                        <p class="text-sm text-slate-300"><strong>Agent deploys</strong> to staging environment</p>
+                    </div>
+                </div>
+                <pre class="mt-6 bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto"># In your GitHub Action workflow:
+- name: Notify AI Maestro Agent
+  run: |
+    export AI_MAESTRO_AGENT_ID="github-actions-${{ github.repository }}"
+    send-aimaestro-message.sh deployment-agent \
+      "Build ${{ github.run_number }} complete" \
+      "Branch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}" \
+      high request</pre>
             </div>
         </div>
     </section>

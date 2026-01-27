@@ -292,26 +292,31 @@
 
 
     <!-- Navigation (same as index.html) -->
-    <nav class="sticky top-0 bg-slate-900/90 backdrop-blur-lg border-b border-slate-700 z-[100]">
-        <div class="max-w-[1200px] mx-auto px-4 md:px-8">
-            <div class="flex justify-between items-center py-3 md:py-4">
-                <a href="index.html" class="flex items-center gap-2 text-lg md:text-2xl font-display font-bold text-white no-underline hover:opacity-80 transition-opacity duration-200">
-                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-12 md:h-12">
-                    AI Maestro
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
                 </a>
 
                 <!-- Desktop Navigation -->
                 <div class="hidden md:flex gap-8 items-center">
-                    <a href="index.html#features" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">Features</a>
-                    <a href="index.html#quick-start" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">Quick Start</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-white no-underline font-medium hover:text-primary transition-colors duration-200">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(99,102,241,0.4)]" target="_blank">Get Started</a>
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
                 </div>
 
                 <!-- Mobile Navigation -->
-                <div class="flex md:hidden items-center gap-2">
-                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline font-semibold transition-all duration-200 bg-primary text-white hover:bg-primary-dark text-sm" target="_blank">Get Started</a>
-                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>
                         <span></span>
@@ -320,10 +325,14 @@
             </div>
 
             <!-- Mobile Menu -->
-            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.1)] py-4" id="mobile-menu">
-                <a href="index.html#features" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">Features</a>
-                <a href="index.html#quick-start" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">Quick Start</a>
-                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="block px-8 py-3 text-white no-underline font-medium transition-all duration-200 hover:bg-slate-950 hover:text-primary">GitHub</a>
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
             </div>
         </div>
     </nav>
@@ -365,43 +374,52 @@
         </div>
     </header>
 
-    <!-- Who Benefits Section -->
-    <section class="py-12 bg-slate-900/50 border-y border-slate-800">
+    <!-- Communication Options Section -->
+    <section class="py-16 bg-slate-900/50 border-y border-slate-800">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-center font-display text-xl font-semibold text-slate-400 mb-8">Agent collaboration at every scale</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <!-- Developer -->
-                <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 text-center">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-green-500/30 to-green-600/10 border border-green-500/50 flex items-center justify-center mx-auto mb-3">
-                        <span class="text-lg">👤</span>
+            <h2 class="text-center font-display text-3xl font-bold text-white mb-4">Four Ways to Connect</h2>
+            <p class="text-center text-slate-400 mb-12 max-w-2xl mx-auto">Choose the communication channels that fit your workflow</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Internal Messaging -->
+                <a href="#internal-messaging" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-cyan-500/50 transition-all duration-300 no-underline">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">📬</span>
                     </div>
-                    <span class="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded-full text-xs font-mono">Developer</span>
-                    <p class="text-xs text-slate-500 mt-2">Frontend talks to backend</p>
-                </div>
-                <!-- Startup -->
-                <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 text-center">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/10 border border-amber-500/50 flex items-center justify-center mx-auto mb-3">
-                        <span class="text-lg">👥</span>
+                    <h3 class="font-display font-bold text-white text-lg mb-2 group-hover:text-cyan-400 transition-colors">Internal Messaging</h3>
+                    <p class="text-sm text-slate-400">Agents talk to each other directly within AI Maestro. Persistent inboxes, priority levels.</p>
+                    <span class="inline-block mt-3 text-xs text-cyan-400 font-mono">Default • No setup</span>
+                </a>
+
+                <!-- Slack Connector -->
+                <a href="#slack" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-purple-500/50 transition-all duration-300 no-underline">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-600/10 border border-purple-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">💬</span>
                     </div>
-                    <span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full text-xs font-mono">Startup</span>
-                    <p class="text-xs text-slate-500 mt-2">Team agents coordinate</p>
-                </div>
-                <!-- Team -->
-                <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 text-center">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-purple-600/10 border border-purple-500/50 flex items-center justify-center mx-auto mb-3">
-                        <span class="text-lg">👥</span>
+                    <h3 class="font-display font-bold text-white text-lg mb-2 group-hover:text-purple-400 transition-colors">Slack Connector</h3>
+                    <p class="text-sm text-slate-400">Your team interacts with agents from Slack. Route to any agent with @mentions.</p>
+                    <span class="inline-block mt-3 text-xs text-purple-400 font-mono">Bridge required</span>
+                </a>
+
+                <!-- Email Identity -->
+                <a href="#email-identity" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-amber-500/50 transition-all duration-300 no-underline">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/10 border border-amber-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">📧</span>
                     </div>
-                    <span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-full text-xs font-mono">Team</span>
-                    <p class="text-xs text-slate-500 mt-2">Cross-location messaging</p>
-                </div>
-                <!-- Company -->
-                <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 text-center">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-cyan-600/10 border border-cyan-500/50 flex items-center justify-center mx-auto mb-3">
-                        <span class="text-lg">🏢</span>
+                    <h3 class="font-display font-bold text-white text-lg mb-2 group-hover:text-amber-400 transition-colors">Email Identity</h3>
+                    <p class="text-sm text-slate-400">Give agents email addresses on your domains. Webhooks notify your gateway.</p>
+                    <span class="inline-block mt-3 text-xs text-amber-400 font-mono">Gateway required</span>
+                </a>
+
+                <!-- External Agents -->
+                <a href="#external-agents" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-blue-500/50 transition-all duration-300 no-underline">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-600/10 border border-blue-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">🌐</span>
                     </div>
-                    <span class="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-full text-xs font-mono">Company</span>
-                    <p class="text-xs text-slate-500 mt-2">Enterprise agent workflows</p>
-                </div>
+                    <h3 class="font-display font-bold text-white text-lg mb-2 group-hover:text-blue-400 transition-colors">External Agents</h3>
+                    <p class="text-sm text-slate-400">CI/CD, IDE extensions, and scripts can message AI Maestro agents.</p>
+                    <span class="inline-block mt-3 text-xs text-blue-400 font-mono">API access</span>
+                </a>
             </div>
         </div>
     </section>
@@ -432,46 +450,10 @@
         </div>
     </section>
 
-    <!-- Visual Workflow Section -->
-    <section id="how-it-works" class="py-16 md:py-24 bg-slate-950 px-8">
+    <!-- Internal Messaging Section -->
+    <section id="internal-messaging" class="py-16 md:py-24 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">How It Works</h2>
-            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Watch agents communicate without human intervention</p>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 1: Agent Receives Message</h3>
-                    <img src="images/agent-I-got-a-message.png" alt="Agent receives notification" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
-                    <p class="text-slate-400">Agent gets notified immediately when another agent sends a message.</p>
-                </div>
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 2: Agent Reviews Inbox</h3>
-                    <img src="images/agent-inbox.png" alt="Agent viewing inbox" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
-                    <p class="text-slate-400">Opens inbox to see full message details, context, and priority.</p>
-                </div>
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 3: Agent Sends Reply</h3>
-                    <img src="images/agent-replied.png" alt="Agent sending reply" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
-                    <p class="text-slate-400">Composes and sends structured response with results.</p>
-                </div>
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Complete Exchange</h3>
-                    <img src="images/inbox-agent-response-to-agent.png" alt="Full conversation" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
-                    <p class="text-slate-400">Full agent-to-agent conversation without human relay.</p>
-                </div>
-            </div>
-
-            <div class="bg-primary/10 border-l-4 border-primary p-6 rounded-r-lg">
-                <p class="text-lg font-semibold text-white mb-2">🎯 Key Insight</p>
-                <p class="text-slate-400">Whether using natural language (Claude Code skills) or command-line tools, the underlying system is identical. Messages are persistent, searchable, and structured.</p>
-            </div>
-        </div>
-    </section>
-
-    <!-- Two Modes Section -->
-    <section class="py-16 md:py-24 px-8">
-        <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">Two Ways to Use It</h2>
+            <h2 class="text-4xl md:text-5xl text-center mb-4 font-display font-bold">Internal Agent Messaging</h2>
             <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Choose the mode that fits your AI agent</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -648,7 +630,7 @@
     </section>
 
     <!-- Slack Integration Section -->
-    <section class="py-16 md:py-24 bg-gradient-to-br from-purple-900/20 to-pink-900/20 px-8">
+    <section id="slack" class="py-16 md:py-24 bg-gradient-to-br from-purple-900/20 to-pink-900/20 px-8">
         <div class="max-w-[1200px] mx-auto">
             <div class="text-center mb-12">
                 <span class="inline-block px-4 py-2 bg-purple-500/20 text-purple-300 rounded-full text-sm font-semibold mb-4">NEW INTEGRATION</span>
@@ -753,8 +735,98 @@
         </div>
     </section>
 
+    <!-- Email Identity Section -->
+    <section id="email-identity" class="py-16 md:py-24 bg-gradient-to-br from-amber-900/20 to-orange-900/20 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm font-medium mb-6">
+                    <span class="text-lg">📧</span>
+                    Email Identity
+                </div>
+                <h2 class="text-4xl md:text-5xl font-display font-bold mb-4">Give Agents Email Addresses</h2>
+                <p class="text-xl text-slate-400 max-w-2xl mx-auto">Register email identities on domains you control. AI Maestro manages identity, your gateway handles transport.</p>
+            </div>
+
+            <!-- Identity vs Transport -->
+            <div class="bg-slate-900/80 border border-slate-700 rounded-2xl p-8 mb-12">
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+                        <span class="text-2xl">💡</span>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-display font-bold text-white mb-2">Identity vs Transport</h3>
+                        <p class="text-slate-400">
+                            AI Maestro handles <strong class="text-white">email identity</strong> (who the agent is),
+                            not <strong class="text-white">email transport</strong> (sending/receiving). You need an external
+                            email gateway or mail processor to actually deliver emails.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                        <h4 class="font-bold text-amber-400 mb-3 flex items-center gap-2">
+                            <span>🎭</span> AI Maestro Handles
+                        </h4>
+                        <ul class="space-y-2 text-sm text-slate-300">
+                            <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Email address registration</li>
+                            <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Domain management</li>
+                            <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Agent-to-email mapping</li>
+                            <li class="flex items-center gap-2"><span class="text-green-400">✓</span> Webhook notifications</li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                        <h4 class="font-bold text-cyan-400 mb-3 flex items-center gap-2">
+                            <span>📬</span> Your Gateway Handles
+                        </h4>
+                        <ul class="space-y-2 text-sm text-slate-300">
+                            <li class="flex items-center gap-2"><span class="text-cyan-400">→</span> SMTP/email delivery</li>
+                            <li class="flex items-center gap-2"><span class="text-cyan-400">→</span> Inbound email routing</li>
+                            <li class="flex items-center gap-2"><span class="text-cyan-400">→</span> DNS/MX records</li>
+                            <li class="flex items-center gap-2"><span class="text-cyan-400">→</span> Spam filtering</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- How It Works -->
+            <div class="grid md:grid-cols-3 gap-8 mb-12">
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-lg shadow-lg z-10">1</div>
+                    <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-6 pt-8 h-full">
+                        <h3 class="text-lg font-display font-bold text-white mb-2">Add Domains</h3>
+                        <p class="text-slate-400 text-sm">Register domains you control in Settings → Domains.</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-lg shadow-lg z-10">2</div>
+                    <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-6 pt-8 h-full">
+                        <h3 class="text-lg font-display font-bold text-white mb-2">Create Addresses</h3>
+                        <p class="text-slate-400 text-sm">Assign email addresses to agents using name@domain format.</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-lg shadow-lg z-10">3</div>
+                    <div class="bg-slate-900/80 border border-slate-700 rounded-xl p-6 pt-8 h-full">
+                        <h3 class="text-lg font-display font-bold text-white mb-2">Configure Webhooks</h3>
+                        <p class="text-slate-400 text-sm">Set up webhooks to notify your gateway when addresses change.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learn More Link -->
+            <div class="text-center">
+                <a href="email-identity.html" class="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all duration-200 no-underline">
+                    <span>📧</span>
+                    Full Email Identity Documentation
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
     <!-- External Agents Section -->
-    <section class="py-16 md:py-24 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 px-8">
+    <section id="external-agents" class="py-16 md:py-24 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 px-8">
         <div class="max-w-[1200px] mx-auto">
             <div class="text-center mb-12">
                 <span class="inline-block px-4 py-2 bg-blue-500/20 text-blue-300 rounded-full text-sm font-semibold mb-4">OPEN ECOSYSTEM</span>
@@ -900,10 +972,11 @@ echo "✅ Build complete, deployment agent notified"</pre>
         </div>
     </section>
 
-    <!-- Quick Start Section -->
-    <section class="py-16 md:py-24 bg-slate-950 px-8">
+    <!-- Install Messaging Skills Section -->
+    <section id="install-skills" class="py-16 md:py-24 bg-slate-950 px-8">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="text-4xl md:text-5xl text-center mb-12 font-display font-bold">Quick Start</h2>
+            <h2 class="text-4xl md:text-5xl text-center mb-12 font-display font-bold">Install Messaging Skills</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Get the skills and scripts that enable agent-to-agent communication</p>
 
             <!-- Easy Install Option -->
             <div class="bg-gradient-to-r from-primary/10 to-secondary/10 p-8 rounded-2xl border-2 border-primary mb-8">
@@ -962,6 +1035,45 @@ echo "✅ Build complete, deployment agent notified"</pre>
         </div>
     </section>
 
+    <!-- How It Works Section (Visual Workflow) -->
+    <section id="how-it-works" class="py-16 md:py-24 bg-slate-950 px-8">
+        <div class="max-w-[1200px] mx-auto">
+            <div class="text-center mb-12">
+                <span class="inline-block px-4 py-2 bg-slate-800 text-slate-300 rounded-full text-sm font-semibold mb-4">DEEP DIVE</span>
+                <h2 class="text-4xl md:text-5xl font-display font-bold mb-4">How It Works</h2>
+                <p class="text-lg text-slate-400 max-w-[700px] mx-auto">Watch agents communicate without human intervention</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 1: Agent Receives Message</h3>
+                    <img src="images/agent-I-got-a-message.png" alt="Agent receives notification" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
+                    <p class="text-slate-400">Agent gets notified immediately when another agent sends a message.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 2: Agent Reviews Inbox</h3>
+                    <img src="images/agent-inbox.png" alt="Agent viewing inbox" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
+                    <p class="text-slate-400">Opens inbox to see full message details, context, and priority.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Step 3: Agent Sends Reply</h3>
+                    <img src="images/agent-replied.png" alt="Agent sending reply" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
+                    <p class="text-slate-400">Composes and sends structured response with results.</p>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-xl font-display font-semibold mb-4 text-white">Complete Exchange</h3>
+                    <img src="images/inbox-agent-response-to-agent.png" alt="Full conversation" class="w-full rounded-lg shadow-lg shadow-cyan-500/5 mb-4">
+                    <p class="text-slate-400">Full agent-to-agent conversation without human relay.</p>
+                </div>
+            </div>
+
+            <div class="bg-primary/10 border-l-4 border-primary p-6 rounded-r-lg">
+                <p class="text-lg font-semibold text-white mb-2">🎯 Key Insight</p>
+                <p class="text-slate-400">Whether using natural language (Claude Code skills) or command-line tools, the underlying system is identical. Messages are persistent, searchable, and structured.</p>
+            </div>
+        </div>
+    </section>
+
     <!-- Documentation Links -->
     <section class="py-16 px-8">
         <div class="max-w-[1200px] mx-auto">
@@ -1008,29 +1120,34 @@ echo "✅ Build complete, deployment agent notified"</pre>
     </section>
 
     <!-- Footer (same as index.html) -->
-    <footer class="py-16 pb-8 bg-gray-800 text-white px-8">
-        <div class="max-w-[1200px] mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-12 md:gap-12 mb-8">
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
                 <div>
-                    <h4 class="mb-4 text-lg font-semibold">AI Maestro</h4>
-                    <p class="leading-relaxed">Orchestrate multiple AI coding agents from one dashboard</p>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
                 </div>
                 <div>
-                    <h4 class="mb-4 text-lg font-semibold">Links</h4>
-                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">GitHub</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Issues</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">Contributing</a>
-                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-white/80 no-underline mb-2 transition-colors duration-200 hover:text-white">License</a>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
                 </div>
                 <div>
-                    <h4 class="mb-4 text-lg font-semibold">Built by</h4>
-                    <p class="leading-relaxed"><a href="https://x.com/jkpelaez" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="inline text-white/80 no-underline mb-0 transition-colors duration-200 hover:text-white">23blocks</a></p>
-                    <p class="text-sm opacity-70 mt-2">Made with <span style="color: #ef4444;">♥</span> in Boulder, Colorado</p>
-                    <p class="text-sm opacity-70 mt-2">Coded with Claude</p>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
                 </div>
             </div>
-            <div class="text-center pt-8 border-t border-white/10 opacity-70">
-                <p>© 2025 Juan Peláez / 23blocks. MIT License.</p>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">© 2025 Juan Peláez / 23blocks. MIT License.</p>
             </div>
         </div>
     </footer>

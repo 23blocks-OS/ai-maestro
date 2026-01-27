@@ -48,6 +48,8 @@
         "Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, Copilot)",
         "Zero-configuration auto-discovery of tmux sessions",
         "Agent-to-agent communication with inbox/outbox messaging",
+        "Email identity management with domain control",
+        "Webhook subscriptions for external integrations",
         "Real-time WebSocket terminal streaming",
         "Hierarchical session organization (3-level categorization)",
         "Mobile remote access via Tailscale VPN",
@@ -83,7 +85,7 @@
             <h2>What is AI Maestro?</h2>
             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It auto-discovers tmux sessions and provides real-time terminal streaming with zero configuration.</p>
 
-            <p><strong>Version:</strong> 0.17.12 (December 2025)</p>
+            <p><strong>Version:</strong> 0.19.26 (January 2026)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -117,6 +119,8 @@
                 <li><strong>Session Notes:</strong> Per-agent note-taking with localStorage persistence</li>
                 <li><strong>Agent Management:</strong> Create, configure, export, import, and transfer agents between hosts</li>
                 <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer, cloning, and backup</li>
+                <li><strong>Email Identity:</strong> Assign email addresses to agents on domains you control</li>
+                <li><strong>Webhook Subscriptions:</strong> Notify external systems when agents or emails change</li>
             </ul>
         </section>
 
@@ -209,6 +213,54 @@ cd ai-maestro && yarn install && yarn dev
         </section>
 
         <section>
+            <h2>Email Identity Management</h2>
+            <p>Give your AI agents email addresses on domains you control. AI Maestro manages email identity while external gateways handle transport.</p>
+
+            <h3>Key Concepts</h3>
+            <ul>
+                <li><strong>Identity vs Transport:</strong> AI Maestro handles who the agent is (identity), not email delivery (transport)</li>
+                <li><strong>Domain Management:</strong> Add domains you own to create agent email addresses</li>
+                <li><strong>Global Uniqueness:</strong> Each email address is unique across all agents</li>
+                <li><strong>Webhook Notifications:</strong> External systems are notified when addresses are created/deleted</li>
+            </ul>
+
+            <h3>What AI Maestro Handles</h3>
+            <ul>
+                <li>Email address registration and validation</li>
+                <li>Domain management (add, remove, set default)</li>
+                <li>Agent-to-email address mapping</li>
+                <li>Webhook notifications for external integrations</li>
+                <li>Email lookup API (resolve agent from email address)</li>
+            </ul>
+
+            <h3>What Your Gateway Handles</h3>
+            <ul>
+                <li>SMTP delivery (sending emails)</li>
+                <li>Inbound email routing (receiving emails)</li>
+                <li>DNS and MX records</li>
+                <li>Spam filtering and email storage</li>
+            </ul>
+
+            <h3>API Endpoints</h3>
+            <ul>
+                <li><strong>GET /api/domains</strong> - List all domains</li>
+                <li><strong>POST /api/domains</strong> - Add a new domain</li>
+                <li><strong>GET /api/agents/:id/emails</strong> - List agent's email addresses</li>
+                <li><strong>POST /api/agents/:id/emails</strong> - Add email address to agent</li>
+                <li><strong>GET /api/email-lookup?address=X</strong> - Find agent by email address</li>
+                <li><strong>POST /api/webhooks</strong> - Subscribe to email events</li>
+            </ul>
+
+            <h3>Webhook Events</h3>
+            <ul>
+                <li><strong>email.created</strong> - New email address registered</li>
+                <li><strong>email.updated</strong> - Email address modified</li>
+                <li><strong>email.deleted</strong> - Email address removed</li>
+                <li><strong>domain.created</strong> - New domain added</li>
+            </ul>
+        </section>
+
+        <section>
             <h2>Technical Architecture</h2>
             <ul>
                 <li><strong>Frontend:</strong> Next.js 14, React 18, Tailwind CSS</li>
@@ -259,6 +311,8 @@ cd ai-maestro && yarn install && yarn dev
             <h2>Getting Help & Contributing</h2>
             <ul>
                 <li><strong>Documentation:</strong> https://ai-maestro.23blocks.com</li>
+                <li><strong>Messaging Guide:</strong> https://ai-maestro.23blocks.com/messaging.html</li>
+                <li><strong>Email Identity:</strong> https://ai-maestro.23blocks.com/email-identity.html</li>
                 <li><strong>GitHub Issues:</strong> https://github.com/23blocks-OS/ai-maestro/issues</li>
                 <li><strong>Contributing Guide:</strong> https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md</li>
                 <li><strong>Creator:</strong> Juan Peláez (@jkpelaez on X/Twitter)</li>
@@ -269,13 +323,15 @@ cd ai-maestro && yarn install && yarn dev
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.17.12 (December 2025)</li>
+                <li><strong>Current Version:</strong> 0.19.26 (January 2026)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
                 <li><strong>Platform Support:</strong> macOS, Windows (WSL2), Linux</li>
                 <li><strong>Zero Config:</strong> Auto-discovers tmux sessions, no manual setup</li>
                 <li><strong>Agent Communication:</strong> Built-in messaging system for autonomous coordination</li>
+                <li><strong>Email Identity:</strong> Yes, assign email addresses to agents on your domains</li>
+                <li><strong>Webhooks:</strong> Yes, notify external systems of changes</li>
                 <li><strong>Mobile Support:</strong> Yes, via touch-optimized interface</li>
                 <li><strong>Distributed:</strong> Yes, peer mesh network for multiple machines</li>
                 <li><strong>Docker:</strong> Yes, supports containerized agents</li>

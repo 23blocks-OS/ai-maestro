@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Identity for AI Agents: Domain Management & Webhooks | AI Maestro</title>
+    <meta name="description" content="Give AI agents email addresses on domains you control. AI Maestro manages email identity with webhooks for external gateway integration.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/email-identity.html">
+    <meta property="og:title" content="Email Identity for AI Agents - AI Maestro">
+    <meta property="og:description" content="Give your AI agents email addresses on domains you control. Identity management with webhook notifications.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro - Email Identity for AI Agents">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Email Identity for AI Agents - AI Maestro">
+    <meta name="twitter:description" content="Give your AI agents email addresses on domains you control.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="keywords" content="AI agents email, agent email identity, domain management, email webhooks, AI Maestro, Claude Code email, agent communication, email gateway integration, AI agent orchestration, multi-agent email">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/email-identity.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#6366f1">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="msapplication-TileColor" content="#6366f1">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareFeature",
+      "name": "Email Identity Management",
+      "description": "Give AI agents email addresses on domains you control. AI Maestro manages identity while external gateways handle transport.",
+      "featureList": [
+        "Domain management (add, remove, set default)",
+        "Email address registration per agent",
+        "Global uniqueness enforcement",
+        "Webhook notifications for external integrations",
+        "Email lookup API (resolve agent from address)",
+        "Display name support",
+        "REST API for programmatic access"
+      ],
+      "isPartOf": {
+        "@type": "SoftwareApplication",
+        "name": "AI Maestro",
+        "url": "https://ai-maestro.23blocks.com"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Set Up Email Identity for AI Agents",
+      "description": "Configure email addresses for your AI agents on domains you control",
+      "totalTime": "PT5M",
+      "tool": [{
+        "@type": "HowToTool",
+        "name": "AI Maestro Dashboard"
+      },{
+        "@type": "HowToTool",
+        "name": "External Email Gateway (Mandrill, SendGrid, etc.)"
+      }],
+      "step": [{
+        "@type": "HowToStep",
+        "position": 1,
+        "name": "Add Your Domain",
+        "text": "Go to Settings → Domains and add a domain you control (e.g., yourdomain.com)"
+      },{
+        "@type": "HowToStep",
+        "position": 2,
+        "name": "Create Email Address",
+        "text": "Select an agent, go to Email Addresses, click 'Add Email Address', choose name and domain"
+      },{
+        "@type": "HowToStep",
+        "position": 3,
+        "name": "Configure Webhook",
+        "text": "Set up a webhook in Settings → Webhooks to notify your email gateway when addresses change"
+      },{
+        "@type": "HowToStep",
+        "position": 4,
+        "name": "Route Inbound Emails",
+        "text": "Configure your gateway to use /api/email-lookup to resolve which agent should receive emails"
+      }]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Email Identity for AI Agents: Domain Management & Gateway Integration",
+      "description": "Learn how to give AI agents email addresses on domains you control using AI Maestro's identity management system",
+      "author": {
+        "@type": "Person",
+        "name": "Juan Peláez"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "23blocks"
+      },
+      "datePublished": "2026-01-27",
+      "dateModified": "2026-01-27",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://ai-maestro.23blocks.com/email-identity.html"
+      }
+    }
+    </script>
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #22d3ee 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Horizontal rule accent */
+        .hr-accent {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+        }
+    </style>
+
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-amber-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-amber-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8">
+        <div class="max-w-[1200px] mx-auto text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm font-medium mb-8">
+                <span class="text-lg">📧</span>
+                Email Identity Management
+            </div>
+
+            <h1 class="text-4xl md:text-6xl font-display font-bold text-white mb-6 leading-tight">
+                Give Your AI Agents <span class="gradient-text">Email Addresses</span>
+            </h1>
+
+            <p class="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
+                Register email identities on domains you control. AI Maestro manages the identity,
+                your external gateway handles the transport.
+            </p>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#how-it-works" class="px-8 py-4 bg-amber-500 text-slate-900 font-semibold rounded-lg hover:bg-amber-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(245,158,11,0.4)] transition-all duration-200 no-underline">
+                    How It Works
+                </a>
+                <a href="#api-reference" class="px-8 py-4 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 transition-all duration-200 border border-slate-700 no-underline">
+                    API Reference
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="hr-accent max-w-[800px] mx-auto"></div>
+
+    <!-- Key Concept Section -->
+    <section class="py-16 md:py-20 px-4 md:px-8">
+        <div class="max-w-[1000px] mx-auto">
+            <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-8">
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+                        <span class="text-2xl">💡</span>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-display font-bold text-white mb-2">Identity vs Transport</h3>
+                        <p class="text-slate-400">
+                            AI Maestro handles <strong class="text-white">email identity</strong> (who the agent is),
+                            not <strong class="text-white">email transport</strong> (sending/receiving). You need an external
+                            email gateway or mail processor (like Mandrill, SendGrid, Postmark, or your own SMTP server)
+                            to actually deliver emails.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6 mt-8">
+                    <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-700">
+                        <h4 class="font-bold text-amber-400 mb-3 flex items-center gap-2">
+                            <span>🎭</span> AI Maestro Handles
+                        </h4>
+                        <ul class="space-y-2 text-sm text-slate-300">
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span> Email address registration
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span> Domain management
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span> Agent-to-email mapping
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span> Webhook notifications
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span> Uniqueness enforcement
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-700">
+                        <h4 class="font-bold text-cyan-400 mb-3 flex items-center gap-2">
+                            <span>📬</span> Your Gateway Handles
+                        </h4>
+                        <ul class="space-y-2 text-sm text-slate-300">
+                            <li class="flex items-center gap-2">
+                                <span class="text-cyan-400">→</span> SMTP/email delivery
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-cyan-400">→</span> Inbound email routing
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-cyan-400">→</span> DNS/MX records
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-cyan-400">→</span> Spam filtering
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="text-cyan-400">→</span> Email storage
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-16 md:py-20 px-4 md:px-8 bg-slate-850">
+        <div class="max-w-[1000px] mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-white mb-4">How It Works</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">Three simple steps to give your agents email identity</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Step 1 -->
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-xl shadow-lg shadow-amber-500/25 z-10">
+                        1
+                    </div>
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 pt-10 h-full">
+                        <div class="w-16 h-16 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
+                            <span class="text-3xl">🌐</span>
+                        </div>
+                        <h3 class="text-xl font-display font-bold text-white mb-2">Add Your Domains</h3>
+                        <p class="text-slate-400 text-sm">
+                            Register domains you control in Settings. These become available for
+                            creating agent email addresses.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-xl shadow-lg shadow-amber-500/25 z-10">
+                        2
+                    </div>
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 pt-10 h-full">
+                        <div class="w-16 h-16 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4">
+                            <span class="text-3xl">📧</span>
+                        </div>
+                        <h3 class="text-xl font-display font-bold text-white mb-2">Create Email Addresses</h3>
+                        <p class="text-slate-400 text-sm">
+                            Assign email addresses to agents using name@domain format.
+                            Each address is globally unique.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="relative">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-slate-900 font-display font-bold text-xl shadow-lg shadow-amber-500/25 z-10">
+                        3
+                    </div>
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 pt-10 h-full">
+                        <div class="w-16 h-16 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-4">
+                            <span class="text-3xl">🔔</span>
+                        </div>
+                        <h3 class="text-xl font-display font-bold text-white mb-2">Configure Webhooks</h3>
+                        <p class="text-slate-400 text-sm">
+                            Set up webhook subscriptions to notify your email gateway
+                            when addresses are created, updated, or deleted.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="hr-accent max-w-[800px] mx-auto"></div>
+
+    <!-- API Reference Section -->
+    <section id="api-reference" class="py-16 md:py-20 px-4 md:px-8">
+        <div class="max-w-[1000px] mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-white mb-4">API Reference</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">RESTful endpoints for managing domains, email addresses, and webhooks</p>
+            </div>
+
+            <!-- Domains API -->
+            <div class="mb-12">
+                <h3 class="text-2xl font-display font-bold text-white mb-6 flex items-center gap-3">
+                    <span class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">🌐</span>
+                    Domains API
+                </h3>
+
+                <div class="space-y-4">
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-bold font-mono rounded">GET</span>
+                            <code class="font-mono text-slate-300">/api/domains</code>
+                            <span class="text-slate-500 text-sm ml-auto">List all domains</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl http://localhost:23000/api/domains</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold font-mono rounded">POST</span>
+                            <code class="font-mono text-slate-300">/api/domains</code>
+                            <span class="text-slate-500 text-sm ml-auto">Add a domain</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl -X POST http://localhost:23000/api/domains \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "example.com", "isDefault": true}'</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-red-500/20 text-red-400 text-xs font-bold font-mono rounded">DELETE</span>
+                            <code class="font-mono text-slate-300">/api/domains/:id</code>
+                            <span class="text-slate-500 text-sm ml-auto">Remove a domain</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl -X DELETE http://localhost:23000/api/domains/domain-uuid</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Addresses API -->
+            <div class="mb-12">
+                <h3 class="text-2xl font-display font-bold text-white mb-6 flex items-center gap-3">
+                    <span class="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center">📧</span>
+                    Email Addresses API
+                </h3>
+
+                <div class="space-y-4">
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-bold font-mono rounded">GET</span>
+                            <code class="font-mono text-slate-300">/api/agents/:id/emails</code>
+                            <span class="text-slate-500 text-sm ml-auto">List agent's emails</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl http://localhost:23000/api/agents/{agentId}/emails</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold font-mono rounded">POST</span>
+                            <code class="font-mono text-slate-300">/api/agents/:id/emails</code>
+                            <span class="text-slate-500 text-sm ml-auto">Add email to agent</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl -X POST http://localhost:23000/api/agents/{agentId}/emails \
+  -H "Content-Type: application/json" \
+  -d '{"address": "support@example.com", "displayName": "Support Bot"}'</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-bold font-mono rounded">GET</span>
+                            <code class="font-mono text-slate-300">/api/email-lookup?address=:email</code>
+                            <span class="text-slate-500 text-sm ml-auto">Find agent by email</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl "http://localhost:23000/api/email-lookup?address=support@example.com"</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Webhooks API -->
+            <div>
+                <h3 class="text-2xl font-display font-bold text-white mb-6 flex items-center gap-3">
+                    <span class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">🔔</span>
+                    Webhooks API
+                </h3>
+
+                <div class="space-y-4">
+                    <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                        <div class="flex items-center gap-3 p-4 border-b border-slate-700">
+                            <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold font-mono rounded">POST</span>
+                            <code class="font-mono text-slate-300">/api/webhooks</code>
+                            <span class="text-slate-500 text-sm ml-auto">Subscribe to events</span>
+                        </div>
+                        <div class="p-4 code-block m-4">
+                            <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>curl -X POST http://localhost:23000/api/webhooks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-gateway.com/webhook",
+    "events": ["email.created", "email.deleted"],
+    "secret": "your-webhook-secret"
+  }'</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <h4 class="font-display font-bold text-white mb-3">Available Webhook Events</h4>
+                    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+                        <div class="flex items-center gap-2">
+                            <code class="px-2 py-1 bg-green-500/10 text-green-400 rounded font-mono text-xs">email.created</code>
+                            <span class="text-slate-400">New address registered</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <code class="px-2 py-1 bg-blue-500/10 text-blue-400 rounded font-mono text-xs">email.updated</code>
+                            <span class="text-slate-400">Address modified</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <code class="px-2 py-1 bg-red-500/10 text-red-400 rounded font-mono text-xs">email.deleted</code>
+                            <span class="text-slate-400">Address removed</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <code class="px-2 py-1 bg-amber-500/10 text-amber-400 rounded font-mono text-xs">domain.created</code>
+                            <span class="text-slate-400">Domain added</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Webhook Payload Section -->
+    <section class="py-16 md:py-20 px-4 md:px-8 bg-slate-850">
+        <div class="max-w-[1000px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-white mb-4">Webhook Payloads</h2>
+                <p class="text-slate-400">Example payloads sent to your gateway</p>
+            </div>
+
+            <div class="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+                <div class="flex items-center gap-2 p-4 border-b border-slate-700 bg-slate-900/50">
+                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    <span class="ml-4 text-sm text-slate-400 font-mono">email.created webhook payload</span>
+                </div>
+                <div class="p-6 code-block m-4">
+                    <pre class="text-sm text-slate-300 font-mono overflow-x-auto"><code>{
+  "event": "email.created",
+  "timestamp": "2026-01-27T14:30:00.000Z",
+  "data": {
+    "emailAddress": {
+      "id": "email-uuid",
+      "address": "support@example.com",
+      "displayName": "Support Bot",
+      "createdAt": "2026-01-27T14:30:00.000Z"
+    },
+    "agent": {
+      "id": "agent-uuid",
+      "name": "support-agent"
+    }
+  },
+  "signature": "sha256=..."
+}</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="hr-accent max-w-[800px] mx-auto"></div>
+
+    <!-- Quick Start Section -->
+    <section class="py-16 md:py-20 px-4 md:px-8">
+        <div class="max-w-[800px] mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-white mb-4">Quick Start</h2>
+                <p class="text-slate-400">Set up email identity for your agents</p>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-display font-bold">1</span>
+                        <h3 class="font-display font-bold text-white">Add a domain in Settings</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">
+                        Go to Settings → Domains and add a domain you control (e.g., <code class="text-amber-400 font-mono">yourdomain.com</code>).
+                    </p>
+                </div>
+
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-display font-bold">2</span>
+                        <h3 class="font-display font-bold text-white">Create an email address for an agent</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">
+                        Select an agent, go to Email Addresses, and click "Add Email Address". Choose a name and domain.
+                    </p>
+                </div>
+
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-display font-bold">3</span>
+                        <h3 class="font-display font-bold text-white">Configure your email gateway</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">
+                        Set up a webhook in Settings → Webhooks to notify your email gateway (Mandrill, SendGrid, Postmark, etc.)
+                        when email addresses are created or deleted.
+                    </p>
+                </div>
+
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-display font-bold">4</span>
+                        <h3 class="font-display font-bold text-white">Route inbound emails to agents</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">
+                        Configure your gateway to forward inbound emails to AI Maestro using the
+                        <code class="text-cyan-400 font-mono">/api/email-lookup</code> endpoint to resolve which agent should receive the email.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Contributing</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Peláez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">♥</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">© 2026 Juan Peláez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- GSAP Animations -->
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Fade in sections on scroll
+        gsap.utils.toArray("section").forEach((section) => {
+            gsap.from(section, {
+                opacity: 0,
+                y: 50,
+                duration: 0.8,
+                ease: "power2.out",
+                scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                    end: "top 50%",
+                    toggleActions: "play none none none"
+                }
+            });
+        });
+    </script>
+
+    <!-- Copy for AI functionality -->
+    <script src="copy-for-ai.js"></script>
+</body>
+</html>

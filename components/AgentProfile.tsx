@@ -17,6 +17,7 @@ import DeleteAgentDialog from './DeleteAgentDialog'
 import MemoryViewer from './MemoryViewer'
 import SkillsSection from './SkillsSection'
 import AvatarPicker from './AvatarPicker'
+import EmailAddressesSection from './EmailAddressesSection'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -55,6 +56,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     identity: true,
     work: true,
     deployment: true,
+    email: false,
     repositories: true,
     memory: true,
     skills: true,
@@ -669,6 +671,14 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   </div>
                 )}
               </section>
+
+              {/* Email Addresses Section */}
+              <EmailAddressesSection
+                agentId={agent.id}
+                hostUrl={hostUrl}
+                isExpanded={expandedSections.email}
+                onToggle={() => toggleSection('email')}
+              />
 
               {/* Repositories Section */}
               <section>

@@ -31,8 +31,8 @@
         "price": "0",
         "priceCurrency": "USD"
       },
-      "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Zero-configuration terminal multiplexer with agent-to-agent communication.",
-      "softwareVersion": "0.19.24",
+      "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
+      "softwareVersion": "0.19.26",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -43,20 +43,23 @@
         "name": "Juan Peláez",
         "url": "https://x.com/jkpelaez"
       },
-      "keywords": "AI agents, Claude Code, autonomous agents, agent orchestration, distributed AI, multi-agent systems, Aider, Cursor, GitHub Copilot, terminal dashboard, tmux, agent communication, remote agents, Docker containers, mobile access",
+      "keywords": "AI agents, Claude Code, autonomous agents, agent orchestration, Slack integration, email identity, multi-agent systems, Aider, Cursor, GitHub Copilot, terminal dashboard, tmux, agent communication, code graph, persistent memory, conversation history",
       "featureList": [
         "Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, Copilot)",
-        "Zero-configuration auto-discovery of tmux sessions",
-        "Agent-to-agent communication with inbox/outbox messaging",
-        "Real-time WebSocket terminal streaming",
-        "Hierarchical session organization (3-level categorization)",
-        "Mobile remote access via Tailscale VPN",
-        "Distributed peers across multiple machines",
-        "Docker containerized agents (local and cloud)",
-        "Portable agents (export, import, clone, transfer between hosts)",
+        "Four communication channels: Internal messaging, Slack, Email, External agents",
+        "Slack integration for team collaboration",
+        "Email identity management with domain control",
+        "Persistent memory with CozoDB embedded database",
+        "Code graph visualization with multi-language support",
         "Conversation history with full-text search",
-        "Session notes and per-agent memory",
-        "Works on macOS, Windows (WSL2), and Linux"
+        "Auto-generated documentation search",
+        "Zero-configuration auto-discovery of tmux sessions",
+        "Real-time WebSocket terminal streaming",
+        "Mobile remote access via Tailscale VPN",
+        "Peer mesh network across multiple machines",
+        "Docker containerized agents (local and cloud)",
+        "Portable agents (export, import, clone, transfer)",
+        "Webhook subscriptions for external integrations"
       ],
       "installUrl": "https://github.com/23blocks-OS/ai-maestro#installation",
       "requirements": "Node.js 18.17+/20.x, tmux 3.0+, macOS 12.0+ or Windows 10/11 (WSL2) or Linux"
@@ -81,9 +84,9 @@
 
         <section>
             <h2>What is AI Maestro?</h2>
-            <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It auto-discovers tmux sessions and provides real-time terminal streaming with zero configuration.</p>
+            <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
 
-            <p><strong>Version:</strong> 0.17.12 (December 2025)</p>
+            <p><strong>Version:</strong> 0.19.26 (January 2026)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -92,31 +95,86 @@
         <section>
             <h2>Supported AI Agents</h2>
             <ul>
-                <li><strong>Claude Code</strong> - Anthropic's official CLI for Claude (primary use case)</li>
+                <li><strong>Claude Code</strong> - Anthropic's official CLI for Claude (primary use case, full skill integration)</li>
                 <li><strong>Aider</strong> - AI pair programming in your terminal</li>
                 <li><strong>Cursor</strong> - AI-first code editor</li>
                 <li><strong>GitHub Copilot CLI</strong> - GitHub's AI coding assistant</li>
-                <li><strong>OpenAI Codex</strong> - OpenAI's code generation</li>
-                <li><strong>Any terminal-based AI agent</strong> - Universal compatibility</li>
+                <li><strong>Any terminal-based AI agent</strong> - Universal compatibility via tmux</li>
             </ul>
         </section>
 
         <section>
-            <h2>Key Features</h2>
+            <h2>Feature Tiers</h2>
+
+            <h3>Tier 1: The Foundation</h3>
+            <p>Everything you need to manage multiple AI agents:</p>
             <ul>
-                <li><strong>Multi-Agent Orchestration:</strong> Manage unlimited AI agents from one dashboard</li>
-                <li><strong>Zero Configuration:</strong> Auto-discovers all tmux sessions instantly</li>
-                <li><strong>Agent-to-Agent Communication:</strong> Built-in messaging system for autonomous coordination</li>
-                <li><strong>Hierarchical Organization:</strong> 3-level categorization using hyphens (project-category-agent)</li>
-                <li><strong>Real-Time Terminals:</strong> WebSocket streaming with full ANSI support</li>
-                <li><strong>Session Management:</strong> Create, rename, delete sessions from UI</li>
-                <li><strong>Peer Mesh Network:</strong> Control agents across multiple machines (decentralized peer architecture)</li>
-                <li><strong>Mobile Access:</strong> Touch-optimized interface for remote monitoring</li>
-                <li><strong>Conversation History:</strong> Browse, search, and analyze all agent conversations</li>
-                <li><strong>Docker Support:</strong> Containerized agents (local and hybrid cloud)</li>
-                <li><strong>Session Notes:</strong> Per-agent note-taking with localStorage persistence</li>
-                <li><strong>Agent Management:</strong> Create, configure, export, import, and transfer agents between hosts</li>
-                <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer, cloning, and backup</li>
+                <li><strong>Zero Configuration:</strong> Auto-discovers all tmux sessions. No config files needed.</li>
+                <li><strong>Universal Support:</strong> Works with Claude Code, Aider, Cursor, GitHub Copilot, or any terminal AI.</li>
+                <li><strong>Real-time Terminals:</strong> WebSocket streaming with full ANSI support. No lag, no polling.</li>
+                <li><strong>Smart Organization:</strong> 3-level hierarchy with dynamic colors (project-category-agent naming).</li>
+            </ul>
+
+            <h3>Tier 2: The Superpowers</h3>
+            <p>Agents remember, learn, and understand your codebase:</p>
+            <ul>
+                <li><strong>Persistent Memory:</strong> CozoDB embedded database. Agents remember past conversations and learn your patterns.</li>
+                <li><strong>Code Graph:</strong> Visualize entire codebase structure. Multi-language support with delta indexing.</li>
+                <li><strong>Conversation History:</strong> Browse, search, and analyze all agent conversations with full thinking/tool tracking.</li>
+                <li><strong>Docs Search:</strong> Auto-generated documentation index. Agents search function signatures and API specs before coding.</li>
+            </ul>
+
+            <h3>Tier 3: The Multiplier</h3>
+            <p>Scale from MacBook to cloud infrastructure:</p>
+            <ul>
+                <li><strong>Agent Communication:</strong> Four channels - internal messaging, Slack, email, external agents.</li>
+                <li><strong>Peer Mesh Network:</strong> Control agents across multiple computers and cloud servers.</li>
+                <li><strong>Mobile Access:</strong> Touch-optimized interface with secure Tailscale VPN.</li>
+                <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer and cloning.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Agent Communication (4 Channels)</h2>
+            <p>AI Maestro provides four ways for agents to communicate:</p>
+
+            <h3>1. Internal Messaging</h3>
+            <p>Direct agent-to-agent communication within AI Maestro.</p>
+            <ul>
+                <li>Persistent inbox/outbox for each agent</li>
+                <li>Priority levels (urgent, high, normal, low)</li>
+                <li>Message types (request, response, notification, update)</li>
+                <li>Natural language interface via Claude Code skills</li>
+                <li>CLI tools for universal agent support</li>
+                <li>Push notifications via tmux</li>
+            </ul>
+
+            <h3>2. Slack Integration</h3>
+            <p>Connect AI agents to Slack for team collaboration.</p>
+            <ul>
+                <li>Teams interact with agents directly from Slack</li>
+                <li>No terminal access needed for non-technical users</li>
+                <li>Message routing between Slack and agent inboxes</li>
+                <li>Works alongside internal messaging</li>
+            </ul>
+
+            <h3>3. Email Identity</h3>
+            <p>Give agents email addresses on domains you control.</p>
+            <ul>
+                <li>AI Maestro handles identity (who the agent is)</li>
+                <li>External gateway handles transport (sending/receiving)</li>
+                <li>Domain management in Settings</li>
+                <li>Webhook notifications for email events</li>
+                <li>Email lookup API to resolve agent from address</li>
+            </ul>
+
+            <h3>4. External Agents</h3>
+            <p>Any AI agent on your network can communicate with AI Maestro agents.</p>
+            <ul>
+                <li>Works with agents not running inside AI Maestro</li>
+                <li>CI/CD pipelines, IDE agents, standalone scripts</li>
+                <li>Identity resolution via environment variable or git repo</li>
+                <li>Visual indicator distinguishes external vs verified agents</li>
             </ul>
         </section>
 
@@ -137,75 +195,48 @@ cd ai-maestro && yarn install && yarn dev
                 <li>tmux 3.0+</li>
                 <li>macOS 12.0+ OR Windows 10/11 (WSL2) OR Linux</li>
             </ul>
+
+            <p><strong>Default Port:</strong> http://localhost:23000</p>
         </section>
 
         <section>
-            <h2>Work Modes / Setup Options</h2>
+            <h2>Setup Options</h2>
 
-            <h3>1. Single Computer (Beginner - 5 min setup)</h3>
-            <p>Run multiple AI agents on one machine. Perfect for solo developers and getting started.</p>
-            <p><strong>Use case:</strong> Developer wants to run Claude Code for backend, Aider for frontend, all on their MacBook</p>
+            <h3>1. Single Computer (5 min setup)</h3>
+            <p>Run multiple AI agents on one machine. Perfect for solo developers.</p>
+            <p><strong>Use case:</strong> Developer runs Claude Code for backend, Aider for frontend, all on MacBook.</p>
 
-            <h3>2. Multiple Computers (Intermediate - 15 min setup)</h3>
-            <p>Distribute AI agent workloads across laptop, desktop, and servers using peer mesh network.</p>
-            <p><strong>Use case:</strong> Use laptop for light coding, offload heavy builds to Mac Mini with 32GB RAM</p>
+            <h3>2. Multiple Computers (15 min setup)</h3>
+            <p>Distribute AI agent workloads across machines using peer mesh network.</p>
+            <p><strong>Use case:</strong> Laptop for light coding, Mac Mini with 32GB RAM for heavy builds.</p>
 
-            <h3>3. Docker Local (Intermediate - 10 min setup)</h3>
-            <p>Run AI agents in isolated Docker containers on local machine. Perfect environment isolation.</p>
-            <p><strong>Use case:</strong> Prevent dependency conflicts between Python projects</p>
+            <h3>3. Docker Local (10 min setup)</h3>
+            <p>Run AI agents in isolated Docker containers for environment isolation.</p>
+            <p><strong>Use case:</strong> Prevent dependency conflicts between Python projects.</p>
 
-            <h3>4. Docker Hybrid (Advanced - 20 min setup)</h3>
-            <p>Local + cloud containers. Run lightweight agents locally, scale heavy workloads to cloud.</p>
-            <p><strong>Use case:</strong> Cost-optimized architecture for startups</p>
+            <h3>4. Docker Hybrid (20 min setup)</h3>
+            <p>Local + cloud containers. Scale heavy workloads to cloud.</p>
+            <p><strong>Use case:</strong> Cost-optimized architecture for startups.</p>
 
-            <h3>5. Advanced Setup (Expert - 30 min setup)</h3>
-            <p>Everything combined: local + distributed + Docker + cloud. Enterprise-grade orchestration.</p>
-            <p><strong>Use case:</strong> Software teams with complex infrastructure needs</p>
+            <h3>5. Advanced Setup (30 min setup)</h3>
+            <p>Everything combined: local + distributed + Docker + cloud.</p>
+            <p><strong>Use case:</strong> Enterprise teams with complex infrastructure.</p>
         </section>
 
         <section>
-            <h2>Common Use Cases</h2>
+            <h2>Who Is This For?</h2>
 
-            <h3>For Solo Developers</h3>
-            <ul>
-                <li>Organize multiple AI agents by project (myproject-backend, myproject-frontend)</li>
-                <li>Switch between agents instantly with visual organization</li>
-                <li>Take notes for each agent session</li>
-                <li>Monitor agents from mobile device while away from desk</li>
-            </ul>
+            <h3>The Overwhelmed Developer</h3>
+            <p>Running 3+ AI agents in separate terminals, losing track of which agent has which context. AI Maestro provides visual organization and instant switching.</p>
 
-            <h3>For Teams</h3>
-            <ul>
-                <li>Distribute workloads across team members' machines</li>
-                <li>Share access to specific agents via secure Tailscale VPN</li>
-                <li>Agent-to-agent messaging reduces human coordination overhead</li>
-                <li>Centralized visibility into all active AI agents</li>
-            </ul>
+            <h3>The Efficiency Optimizer</h3>
+            <p>Wants AI agents to coordinate autonomously. Backend agent finishes API → messages frontend agent → frontend implements UI. No human relay needed.</p>
 
-            <h3>For Distributed Systems</h3>
-            <ul>
-                <li>Run agents on platform-specific machines (Mac for iOS builds, Linux for Docker)</li>
-                <li>Scale horizontally by adding more peer machines</li>
-                <li>Leverage cloud GPUs for compute-intensive AI tasks</li>
-            </ul>
-        </section>
+            <h3>The Power User</h3>
+            <p>Runs distributed agents across laptop, desktop, and cloud. Needs unified dashboard for all machines with mobile monitoring.</p>
 
-        <section>
-            <h2>Agent-to-Agent Communication</h2>
-            <p>AI Maestro includes a built-in messaging system that allows agents to communicate autonomously without human relay.</p>
-
-            <h3>Features</h3>
-            <ul>
-                <li>Persistent inbox/outbox for each agent</li>
-                <li>Priority levels (urgent, high, normal, low)</li>
-                <li>Structured message types (request, response, notification, update)</li>
-                <li>Automatic mark-as-read functionality</li>
-                <li>Natural language interface via Claude Code skills</li>
-                <li>Universal CLI tools work with any agent</li>
-            </ul>
-
-            <h3>Example Workflow</h3>
-            <p>Backend agent finishes authentication endpoint → Sends message to frontend agent → Frontend agent receives notification in terminal → Frontend agent implements login UI → Sends completion message back</p>
+            <h3>The Team Lead</h3>
+            <p>Wants team members to interact with AI agents via Slack without terminal access. Needs visibility into all active agents.</p>
         </section>
 
         <section>
@@ -214,10 +245,45 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>Frontend:</strong> Next.js 14, React 18, Tailwind CSS</li>
                 <li><strong>Terminal:</strong> xterm.js with WebGL acceleration</li>
                 <li><strong>Backend:</strong> Custom Node.js server with WebSocket</li>
+                <li><strong>Database:</strong> CozoDB (embedded) for agent memory and code graph</li>
                 <li><strong>Session Discovery:</strong> Auto-discovers tmux sessions via `tmux ls`</li>
                 <li><strong>Communication:</strong> WebSocket (real-time) + File-based messaging (persistent)</li>
-                <li><strong>Database:</strong> CozoDB for agent memory and conversation history</li>
-                <li><strong>Port:</strong> Runs on port 23000 (http://localhost:23000)</li>
+                <li><strong>Port:</strong> 23000 (http://localhost:23000)</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>API Endpoints</h2>
+
+            <h3>Sessions & Agents</h3>
+            <ul>
+                <li><strong>GET /api/sessions</strong> - List all discovered tmux sessions</li>
+                <li><strong>GET /api/agents</strong> - List all registered agents</li>
+                <li><strong>POST /api/agents</strong> - Create new agent</li>
+                <li><strong>GET /api/agents/:id</strong> - Get agent details</li>
+            </ul>
+
+            <h3>Messaging</h3>
+            <ul>
+                <li><strong>GET /api/messages</strong> - List messages (filter by agent, status, box)</li>
+                <li><strong>POST /api/messages</strong> - Send message to agent</li>
+                <li><strong>PATCH /api/messages</strong> - Mark message as read</li>
+            </ul>
+
+            <h3>Email Identity</h3>
+            <ul>
+                <li><strong>GET /api/domains</strong> - List all domains</li>
+                <li><strong>POST /api/domains</strong> - Add new domain</li>
+                <li><strong>GET /api/agents/:id/emails</strong> - List agent's email addresses</li>
+                <li><strong>POST /api/agents/:id/emails</strong> - Add email to agent</li>
+                <li><strong>GET /api/email-lookup?address=X</strong> - Find agent by email</li>
+            </ul>
+
+            <h3>Webhooks</h3>
+            <ul>
+                <li><strong>GET /api/webhooks</strong> - List webhook subscriptions</li>
+                <li><strong>POST /api/webhooks</strong> - Subscribe to events</li>
+                <li><strong>DELETE /api/webhooks/:id</strong> - Unsubscribe</li>
             </ul>
         </section>
 
@@ -227,59 +293,64 @@ cd ai-maestro && yarn install && yarn dev
             <h3>Perfect For:</h3>
             <ul>
                 <li>Developers using multiple AI coding assistants simultaneously</li>
-                <li>Terminal-heavy workflows (tmux users)</li>
-                <li>Teams coordinating multiple AI agents</li>
+                <li>Teams wanting agents to communicate autonomously</li>
+                <li>Organizations needing Slack integration with AI agents</li>
                 <li>Anyone experiencing "too many terminal windows" chaos</li>
                 <li>Remote work scenarios (monitor agents from phone)</li>
-                <li>DevOps engineers managing distributed infrastructure</li>
+                <li>Distributed teams with agents on multiple machines</li>
             </ul>
 
             <h3>Not Ideal For:</h3>
             <ul>
-                <li>Users who prefer single-agent workflows</li>
-                <li>Windows users without WSL2 (native Windows support coming)</li>
-                <li>Teams requiring enterprise authentication (Phase 1 is localhost-only)</li>
+                <li>Users who only use one AI agent at a time</li>
+                <li>Windows users without WSL2</li>
+                <li>Teams requiring enterprise SSO (coming in future release)</li>
             </ul>
         </section>
 
         <section>
-            <h2>Comparison to Alternatives</h2>
-
-            <h3>vs. Plain tmux</h3>
-            <p>AI Maestro builds on tmux but adds: visual organization, point-and-click switching, persistent notes, beautiful UI, agent communication, and mobile access. You keep full terminal access.</p>
-
-            <h3>vs. IDE-Based AI Tools</h3>
-            <p>Works with ANY terminal-based AI agent. Not locked into specific IDEs. Better for polyglot developers using multiple languages/tools.</p>
-
-            <h3>vs. Manual Session Management</h3>
-            <p>Zero configuration - just works. No config files, no manual setup. Auto-discovers everything.</p>
-        </section>
-
-        <section>
-            <h2>Getting Help & Contributing</h2>
+            <h2>Documentation Links</h2>
             <ul>
-                <li><strong>Documentation:</strong> https://ai-maestro.23blocks.com</li>
-                <li><strong>GitHub Issues:</strong> https://github.com/23blocks-OS/ai-maestro/issues</li>
-                <li><strong>Contributing Guide:</strong> https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md</li>
-                <li><strong>Creator:</strong> Juan Peláez (@jkpelaez on X/Twitter)</li>
-                <li><strong>Company:</strong> 23blocks (https://23blocks.com)</li>
+                <li><strong>Main Website:</strong> https://ai-maestro.23blocks.com</li>
+                <li><strong>Agent Communication:</strong> https://ai-maestro.23blocks.com/messaging.html</li>
+                <li><strong>Email Identity:</strong> https://ai-maestro.23blocks.com/email-identity.html</li>
+                <li><strong>Agent Intelligence:</strong> https://ai-maestro.23blocks.com/agent-intelligence.html</li>
+                <li><strong>Mobile Access:</strong> https://ai-maestro.23blocks.com/mobile.html</li>
+                <li><strong>Peer Network:</strong> https://ai-maestro.23blocks.com/peers.html</li>
+                <li><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</li>
+                <li><strong>Issues:</strong> https://github.com/23blocks-OS/ai-maestro/issues</li>
             </ul>
         </section>
 
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.17.12 (December 2025)</li>
+                <li><strong>Current Version:</strong> 0.19.26 (January 2026)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
                 <li><strong>Platform Support:</strong> macOS, Windows (WSL2), Linux</li>
-                <li><strong>Zero Config:</strong> Auto-discovers tmux sessions, no manual setup</li>
-                <li><strong>Agent Communication:</strong> Built-in messaging system for autonomous coordination</li>
-                <li><strong>Mobile Support:</strong> Yes, via touch-optimized interface</li>
-                <li><strong>Distributed:</strong> Yes, peer mesh network for multiple machines</li>
-                <li><strong>Docker:</strong> Yes, supports containerized agents</li>
-                <li><strong>Open Source:</strong> Yes, GitHub stars welcome</li>
+                <li><strong>Zero Config:</strong> Yes, auto-discovers tmux sessions</li>
+                <li><strong>Agent Communication:</strong> 4 channels (internal, Slack, email, external)</li>
+                <li><strong>Slack Integration:</strong> Yes, for team collaboration</li>
+                <li><strong>Email Identity:</strong> Yes, assign email addresses to agents</li>
+                <li><strong>Persistent Memory:</strong> Yes, CozoDB embedded database</li>
+                <li><strong>Code Graph:</strong> Yes, multi-language visualization</li>
+                <li><strong>Mobile Support:</strong> Yes, touch-optimized + Tailscale VPN</li>
+                <li><strong>Distributed:</strong> Yes, peer mesh network</li>
+                <li><strong>Docker:</strong> Yes, local and hybrid cloud</li>
+                <li><strong>Portable Agents:</strong> Yes, export/import as .zip</li>
+                <li><strong>Open Source:</strong> Yes, MIT license</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Creator & Support</h2>
+            <ul>
+                <li><strong>Creator:</strong> Juan Peláez (@jkpelaez on X/Twitter)</li>
+                <li><strong>Company:</strong> 23blocks (https://23blocks.com)</li>
+                <li><strong>Location:</strong> Boulder, Colorado</li>
+                <li><strong>Contributing:</strong> https://github.com/23blocks-OS/ai-maestro/blob/main/CONTRIBUTING.md</li>
             </ul>
         </section>
     </article>

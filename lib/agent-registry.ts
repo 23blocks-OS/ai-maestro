@@ -969,3 +969,305 @@ export function removeSessionFromAgent(agentId: string, sessionIndex: number): b
 
   return saveAgents(agents)
 }
+
+// ============================================================================
+// Email Identity Management
+// ============================================================================
+
+import type { EmailAddress, EmailIndexEntry, EmailIndexResponse, EmailConflictError } from '@/types/agent'
+
+/**
+ * Normalize email address for case-insensitive comparison
+ */
+function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim()
+}
+
+/**
+ * Validate email format (basic RFC 5322 validation)
+ */
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email) && email.length <= 254
+}
+
+/**
+ * Get email index - mapping of all email addresses to agent identity
+ * Used by external gateways to build routing tables
+ */
+export function getEmailIndex(): EmailIndexResponse {
+  const agents = loadAgents()
+  const index: EmailIndexResponse = {}
+
+  for (const agent of agents) {
+    const agentName = agent.name || agent.alias || 'unknown'
+    const addresses = agent.tools?.email?.addresses || []
+
+    // Handle legacy single-address format
+    if (agent.tools?.email?.address && addresses.length === 0) {
+      const legacyEmail = normalizeEmail(agent.tools.email.address)
+      index[legacyEmail] = {
+        agentId: agent.id,
+        agentName,
+        hostId: agent.hostId || getSelfHostId(),
+        primary: true,
+      }
+    }
+
+    // Handle new multi-address format
+    for (const addr of addresses) {
+      const email = normalizeEmail(addr.address)
+      index[email] = {
+        agentId: agent.id,
+        agentName,
+        hostId: agent.hostId || getSelfHostId(),
+        displayName: addr.displayName,
+        primary: addr.primary || false,
+        metadata: addr.metadata,
+      }
+    }
+  }
+
+  return index
+}
+
+/**
+ * Find agent by email address (local lookup only)
+ * Returns agent ID if found, null otherwise
+ */
+export function findAgentByEmail(email: string): string | null {
+  const normalizedEmail = normalizeEmail(email)
+  const agents = loadAgents()
+
+  for (const agent of agents) {
+    // Check legacy single-address format
+    if (agent.tools?.email?.address) {
+      if (normalizeEmail(agent.tools.email.address) === normalizedEmail) {
+        return agent.id
+      }
+    }
+
+    // Check new multi-address format
+    const addresses = agent.tools?.email?.addresses || []
+    for (const addr of addresses) {
+      if (normalizeEmail(addr.address) === normalizedEmail) {
+        return agent.id
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Check if an email address is available (not claimed by any agent)
+ * Checks local registry only - cross-host check happens at API layer
+ */
+export function isEmailAddressAvailableLocally(email: string, excludeAgentId?: string): boolean {
+  const ownerId = findAgentByEmail(email)
+  if (!ownerId) return true
+  if (excludeAgentId && ownerId === excludeAgentId) return true
+  return false
+}
+
+/**
+ * Add an email address to an agent
+ * Returns the updated agent or throws an error if address is already claimed
+ */
+export function addEmailAddress(
+  agentId: string,
+  emailAddress: EmailAddress
+): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedEmail = normalizeEmail(emailAddress.address)
+
+  // Validate email format
+  if (!isValidEmail(normalizedEmail)) {
+    throw new Error(`Invalid email format: ${emailAddress.address}`)
+  }
+
+  // Check uniqueness locally
+  const existingOwnerId = findAgentByEmail(normalizedEmail)
+  if (existingOwnerId && existingOwnerId !== agentId) {
+    const existingOwner = getAgent(existingOwnerId)
+    const error: EmailConflictError = {
+      error: 'conflict',
+      message: `Email address ${normalizedEmail} is already claimed`,
+      claimedBy: {
+        agentName: existingOwner?.name || existingOwner?.alias || 'unknown',
+        hostId: existingOwner?.hostId || getSelfHostId(),
+      }
+    }
+    throw error
+  }
+
+  // Initialize tools.email if needed
+  if (!agents[index].tools) {
+    agents[index].tools = {}
+  }
+  if (!agents[index].tools.email) {
+    agents[index].tools.email = {
+      enabled: true,
+      addresses: [],
+    }
+  }
+  if (!agents[index].tools.email.addresses) {
+    agents[index].tools.email.addresses = []
+  }
+
+  // Check max addresses limit (10)
+  if (agents[index].tools.email.addresses.length >= 10) {
+    throw new Error('Maximum of 10 email addresses per agent')
+  }
+
+  // Check if address already exists on this agent
+  const existingIdx = agents[index].tools.email.addresses.findIndex(
+    a => normalizeEmail(a.address) === normalizedEmail
+  )
+  if (existingIdx >= 0) {
+    throw new Error(`Email address ${normalizedEmail} already exists on this agent`)
+  }
+
+  // If this is marked as primary, unmark other primaries
+  if (emailAddress.primary) {
+    agents[index].tools.email.addresses.forEach(a => {
+      a.primary = false
+    })
+  }
+
+  // Add the address (normalized)
+  agents[index].tools.email.addresses.push({
+    ...emailAddress,
+    address: normalizedEmail,
+  })
+
+  // If this is the first address, make it primary
+  if (agents[index].tools.email.addresses.length === 1) {
+    agents[index].tools.email.addresses[0].primary = true
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Remove an email address from an agent
+ */
+export function removeEmailAddress(agentId: string, email: string): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedEmail = normalizeEmail(email)
+
+  if (!agents[index].tools?.email?.addresses) {
+    throw new Error(`Agent has no email addresses`)
+  }
+
+  const addrIndex = agents[index].tools.email.addresses.findIndex(
+    a => normalizeEmail(a.address) === normalizedEmail
+  )
+
+  if (addrIndex === -1) {
+    throw new Error(`Email address not found: ${email}`)
+  }
+
+  const wasRemovePrimary = agents[index].tools.email.addresses[addrIndex].primary
+
+  // Remove the address
+  agents[index].tools.email.addresses.splice(addrIndex, 1)
+
+  // If we removed the primary, make the first remaining address primary
+  if (wasRemovePrimary && agents[index].tools.email.addresses.length > 0) {
+    agents[index].tools.email.addresses[0].primary = true
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Get all email addresses for an agent
+ */
+export function getAgentEmailAddresses(agentId: string): EmailAddress[] {
+  const agent = getAgent(agentId)
+  if (!agent) return []
+
+  const addresses: EmailAddress[] = []
+
+  // Handle legacy single-address format
+  if (agent.tools?.email?.address && (!agent.tools.email.addresses || agent.tools.email.addresses.length === 0)) {
+    addresses.push({
+      address: agent.tools.email.address,
+      primary: true,
+    })
+  }
+
+  // Handle new multi-address format
+  if (agent.tools?.email?.addresses) {
+    addresses.push(...agent.tools.email.addresses)
+  }
+
+  return addresses
+}
+
+/**
+ * Update an existing email address on an agent
+ */
+export function updateEmailAddress(
+  agentId: string,
+  email: string,
+  updates: Partial<Omit<EmailAddress, 'address'>>
+): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedEmail = normalizeEmail(email)
+
+  if (!agents[index].tools?.email?.addresses) {
+    throw new Error(`Agent has no email addresses`)
+  }
+
+  const addrIndex = agents[index].tools.email.addresses.findIndex(
+    a => normalizeEmail(a.address) === normalizedEmail
+  )
+
+  if (addrIndex === -1) {
+    throw new Error(`Email address not found: ${email}`)
+  }
+
+  // If setting this as primary, unmark other primaries
+  if (updates.primary) {
+    agents[index].tools.email.addresses.forEach(a => {
+      a.primary = false
+    })
+  }
+
+  // Update the address
+  agents[index].tools.email.addresses[addrIndex] = {
+    ...agents[index].tools.email.addresses[addrIndex],
+    ...updates,
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}

@@ -211,11 +211,29 @@ export interface SessionTool {
   lastActive?: string
 }
 
+/**
+ * Email address identity for an agent
+ * AI Maestro stores identity only - routing/transport is handled by external gateways
+ */
+export interface EmailAddress {
+  address: string                       // Full email: "titania@23blocks.23smartagents.com"
+  primary?: boolean                     // Primary address for this agent
+  displayName?: string                  // Friendly name: "Titania"
+  metadata?: Record<string, string>     // Arbitrary metadata for consumers (e.g., gateway config)
+}
+
+/**
+ * Email tool configuration for an agent
+ * Supports multiple email addresses per agent with global uniqueness enforcement
+ */
 export interface EmailTool {
-  address: string               // Email address (e.g., "pronghub@aimaestro.local")
-  provider: 'local' | 'smtp'    // Email provider
   enabled: boolean
-  // Additional config can be added later
+  addresses: EmailAddress[]
+
+  // DEPRECATED: Legacy single-address fields (kept for migration)
+  // Remove after all agents migrated to addresses[]
+  address?: string              // @deprecated Use addresses[] instead
+  provider?: 'local' | 'smtp'   // @deprecated Gateway concern, not identity
 }
 
 export interface CloudTool {
@@ -396,4 +414,147 @@ export interface AgentsApiResponse {
   agents: UnifiedAgent[]
   stats: AgentStats
   hostInfo: AgentHostInfo
+}
+
+// ============================================================================
+// Email Identity Types
+// ============================================================================
+
+/**
+ * Entry in the email index - maps email address to agent identity
+ * Used by external gateways to build routing tables
+ */
+export interface EmailIndexEntry {
+  agentId: string
+  agentName: string
+  hostId: string
+  displayName?: string
+  primary: boolean
+  metadata?: Record<string, string>
+}
+
+/**
+ * Response from GET /api/agents/email-index
+ * Maps email addresses to agent identity
+ */
+export type EmailIndexResponse = Record<string, EmailIndexEntry>
+
+/**
+ * Request to add an email address to an agent
+ * POST /api/agents/:id/email/addresses
+ */
+export interface AddEmailAddressRequest {
+  address: string
+  displayName?: string
+  primary?: boolean
+  metadata?: Record<string, string>
+}
+
+/**
+ * Error response when email address is already claimed
+ */
+export interface EmailConflictError {
+  error: 'conflict'
+  message: string
+  claimedBy: {
+    agentName: string
+    hostId: string
+  }
+}
+
+// ============================================================================
+// Webhook Subscription Types
+// ============================================================================
+
+/**
+ * Webhook event types for agent identity changes
+ */
+export type WebhookEventType =
+  | 'agent.email.changed'
+  | 'agent.created'
+  | 'agent.deleted'
+  | 'agent.updated'
+
+/**
+ * Webhook subscription
+ */
+export interface WebhookSubscription {
+  id: string
+  url: string
+  events: WebhookEventType[]
+  secret: string                    // For HMAC signature verification (hidden in API responses)
+  description?: string              // Optional user description
+  status?: 'active' | 'inactive'    // Webhook status based on delivery health
+  createdAt: string
+  lastDeliveryAt?: string
+  lastDeliveryStatus?: 'success' | 'failed'
+  failureCount?: number
+}
+
+/**
+ * Request to create a webhook subscription
+ * POST /api/webhooks
+ */
+export interface CreateWebhookRequest {
+  url: string
+  events: WebhookEventType[]
+  description?: string              // Optional description
+  secret?: string                   // Optional - API generates if not provided
+}
+
+/**
+ * Webhook payload for email changes
+ */
+export interface WebhookEmailChangedPayload {
+  event: 'agent.email.changed'
+  timestamp: string
+  agent: {
+    id: string
+    name: string
+    hostId: string
+  }
+  changes: {
+    added: string[]
+    removed: string[]
+    current: string[]
+  }
+}
+
+/**
+ * Webhook payload for agent lifecycle events
+ */
+export interface WebhookAgentPayload {
+  event: 'agent.created' | 'agent.deleted' | 'agent.updated'
+  timestamp: string
+  agent: {
+    id: string
+    name: string
+    hostId: string
+  }
+}
+
+// ============================================================================
+// Email Domains
+// ============================================================================
+
+/**
+ * An email domain that agents can use for email addresses.
+ * Domains are global (shared by all agents on this host).
+ */
+export interface EmailDomain {
+  id: string                    // UUID
+  domain: string                // e.g., "23smartagents.com"
+  description?: string          // Optional friendly description
+  createdAt: string             // ISO timestamp
+  isDefault?: boolean           // Mark one as default for quick selection
+}
+
+/**
+ * Request to create a new email domain
+ * POST /api/domains
+ */
+export interface CreateDomainRequest {
+  domain: string
+  description?: string
+  isDefault?: boolean
 }

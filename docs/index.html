@@ -77,7 +77,7 @@
         "priceCurrency": "USD"
       },
       "description": "The future of work platform. Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. One human, multiple AI agents, working together.",
-      "softwareVersion": "0.19.24",
+      "softwareVersion": "0.19.26",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
@@ -97,6 +97,8 @@
         "Terminal agent management",
         "Real-time WebSocket streaming",
         "Agent-to-agent communication with inbox/outbox",
+        "Email identity management with domain control",
+        "Webhook subscriptions for external integrations",
         "Slack integration for team collaboration",
         "Persistent memory with CozoDB",
         "Code Graph visualization",
@@ -440,7 +442,7 @@
                 <div class="flex flex-wrap gap-8 text-sm font-mono text-slate-500" id="stats" style="opacity: 0;">
                     <div class="flex items-center gap-2">
                         <span class="text-cyan-400">▸</span>
-                        <span>v0.19.24</span>
+                        <span>v0.19.26</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="text-cyan-400">▸</span>
@@ -803,14 +805,15 @@
                 </div>
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
                     <a href="messaging.html" class="group relative bg-slate-900/80 border border-slate-700 rounded-xl p-6 hover:border-amber-500/50 hover:bg-slate-900 transition-all duration-300 no-underline overflow-hidden">
-                        <div class="absolute top-3 right-3">
+                        <div class="absolute top-3 right-3 flex gap-1">
                             <span class="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg shadow-purple-500/25">+ SLACK</span>
+                            <span class="px-2 py-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold rounded-full shadow-lg shadow-cyan-500/25">+ EMAIL</span>
                         </div>
                         <div class="w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <span class="text-2xl">📬</span>
                         </div>
                         <h4 class="font-bold text-white text-lg mb-2 group-hover:text-amber-400 transition-colors">Agent Communication</h4>
-                        <p class="text-slate-400 text-sm leading-relaxed">Agents talk to each other directly. Connect your team via Slack. No human relay needed.</p>
+                        <p class="text-slate-400 text-sm leading-relaxed">Agents talk directly, connect via Slack, and get email addresses on your domains.</p>
                     </a>
                     <a href="peers.html" class="group bg-slate-900/80 border border-slate-700 rounded-xl p-6 hover:border-amber-500/50 hover:bg-slate-900 transition-all duration-300 no-underline">
                         <div class="w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">

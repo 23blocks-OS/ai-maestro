@@ -819,8 +819,8 @@ send-aimaestro-message.sh backend-api \
                         <div class="w-12 h-12 rounded-full bg-gradient-to-br from-green-500/30 to-green-600/10 border border-green-500/50 flex items-center justify-center mx-auto mb-3">
                             <span class="text-2xl">🔄</span>
                         </div>
-                        <h4 class="font-semibold text-white mb-2">CI/CD Pipelines</h4>
-                        <p class="text-sm text-slate-400">GitHub Actions or Jenkins notify agents when builds complete or tests fail</p>
+                        <h4 class="font-semibold text-white mb-2">Local Build Scripts</h4>
+                        <p class="text-sm text-slate-400">Build scripts and self-hosted CI runners notify agents when builds complete</p>
                     </div>
                     <div class="text-center p-4">
                         <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/30 to-purple-600/10 border border-purple-500/50 flex items-center justify-center mx-auto mb-3">
@@ -866,11 +866,11 @@ send-aimaestro-message.sh backend-api \
 
             <!-- Example Workflow -->
             <div class="mt-8 bg-gradient-to-r from-blue-900/30 to-cyan-900/30 p-8 rounded-2xl border border-blue-500/30">
-                <h3 class="text-xl font-display font-bold mb-4 text-white">Example: CI Pipeline → AI Maestro Agent</h3>
+                <h3 class="text-xl font-display font-bold mb-4 text-white">Example: Build Script → AI Maestro Agent</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="text-center">
                         <div class="text-4xl mb-2">🏗️</div>
-                        <p class="text-sm text-slate-300"><strong>GitHub Action</strong> completes build</p>
+                        <p class="text-sm text-slate-300"><strong>Build script</strong> completes successfully</p>
                     </div>
                     <div class="text-center">
                         <div class="text-4xl mb-2">📨</div>
@@ -881,14 +881,21 @@ send-aimaestro-message.sh backend-api \
                         <p class="text-sm text-slate-300"><strong>Agent deploys</strong> to staging environment</p>
                     </div>
                 </div>
-                <pre class="mt-6 bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto"># In your GitHub Action workflow:
-- name: Notify AI Maestro Agent
-  run: |
-    export AI_MAESTRO_AGENT_ID="github-actions-${{ github.repository }}"
-    send-aimaestro-message.sh deployment-agent \
-      "Build ${{ github.run_number }} complete" \
-      "Branch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}" \
-      high request</pre>
+                <pre class="mt-6 bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto"># In your build script (build.sh):
+#!/bin/bash
+set -e
+
+# Run the build
+yarn build
+
+# Notify the deployment agent
+export AI_MAESTRO_AGENT_ID="build-script"
+send-aimaestro-message.sh deployment-agent \
+  "Build complete" \
+  "Branch: $(git branch --show-current)\nCommit: $(git rev-parse --short HEAD)" \
+  high request
+
+echo "✅ Build complete, deployment agent notified"</pre>
             </div>
         </div>
     </section>

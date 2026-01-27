@@ -136,6 +136,45 @@ Returns a mapping of email addresses to agent identity. Consumers use this to bu
 **Query parameters:**
 - `?address=titania@23blocks.23smartagents.com` - lookup single address
 - `?agentId=uuid-123` - get all addresses for an agent
+- `?federated=true` - query ALL known hosts (not just local)
+
+### Federated Lookup
+
+When `?federated=true` is specified, the endpoint queries all known hosts in the mesh and aggregates results. This is useful for gateways that need to find an agent by email without knowing which host it's on.
+
+**Request:**
+```
+GET /api/agents/email-index?address=titania@23blocks.23smartagents.com&federated=true
+```
+
+**Response:**
+```json
+{
+  "emails": {
+    "titania@23blocks.23smartagents.com": {
+      "agentId": "uuid-23blocks-iac",
+      "agentName": "23blocks-iac",
+      "hostId": "mac-mini",
+      "hostUrl": "http://100.x.x.x:23000",
+      "displayName": "Titania",
+      "primary": true
+    }
+  },
+  "meta": {
+    "federated": true,
+    "hostsQueried": 3,
+    "hostsSucceeded": 2,
+    "hostsFailed": ["offline-host"],
+    "queryTime": 234
+  }
+}
+```
+
+**Notes:**
+- `hostUrl` is included so gateways know where to route requests
+- Hosts are queried in parallel with a 5-second timeout per host
+- Duplicate email addresses: first host wins (no conflicts across hosts due to uniqueness enforcement)
+- The `meta` object provides visibility into query performance and failed hosts
 
 ### Email Address Management
 

@@ -3,6 +3,7 @@ import path from 'path'
 import os from 'os'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
 import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgent } from './agent-registry'
+import { applyContentSecurity } from './content-security'
 import type { Agent } from '@/types/agent'
 
 /**
@@ -481,6 +482,17 @@ export async function sendMessage(
     status: 'unread',
     content,
     inReplyTo: options?.inReplyTo,
+  }
+
+  // Content security: wrap unverified sender content as backstop
+  const { flags: securityFlags } = applyContentSecurity(
+    message.content,
+    isFromVerified,
+    message.fromAlias || from,
+    fromHostId
+  )
+  if (securityFlags.length > 0) {
+    console.log(`[SECURITY] Message from ${message.fromAlias || from}: ${securityFlags.length} injection pattern(s) flagged`)
   }
 
   // Determine if recipient is on a remote host (reuse isTargetLocal computed above)

@@ -3,7 +3,7 @@
 **Version:** 1.1
 **Date:** 2026-01-27
 **Status:** Draft
-**Authors:** Lola (original), Claude (refined)
+**Authors:** Lola (original), AI Maestro team (refined)
 
 ---
 
@@ -31,6 +31,24 @@ Agents need email identity for external communication. AI Maestro is the source 
 
 ---
 
+## Current State
+
+```typescript
+// types/agent.ts (current)
+export interface EmailTool {
+  address: string               // Single email address
+  provider: 'local' | 'smtp'
+  enabled: boolean
+}
+```
+
+This is minimal and doesn't support:
+- Multiple email addresses per agent
+- Uniqueness enforcement
+- Change notifications for external systems
+
+---
+
 ## Proposed Changes
 
 ### 1. Extended EmailTool Interface
@@ -51,10 +69,10 @@ export interface EmailAddress {
 }
 ```
 
-**Notes:**
-- No `tenant`, `localPart`, `type` - those are concerns for consumers to parse/interpret
+**Design decisions:**
+- No `tenant`, `localPart`, `type` - those are consumer concerns to parse/interpret
 - No `outbound` config - that's gateway configuration, not identity
-- Generic `metadata` field for consumer-specific data
+- Generic `metadata` field for consumer-specific data (e.g., gateway can store tenant info)
 
 ### 2. Agent Registry Example
 
@@ -119,11 +137,45 @@ Returns a mapping of email addresses to agent identity. Consumers use this to bu
 - `?address=titania@23blocks.23smartagents.com` - lookup single address
 - `?agentId=uuid-123` - get all addresses for an agent
 
+### Email Address Management
+
+```
+POST   /api/agents/:id/email/addresses
+```
+
+Add an email address to an agent.
+
+**Request:**
+```json
+{
+  "address": "newemail@domain.com",
+  "displayName": "New Email",
+  "primary": false
+}
+```
+
+**Response:** `201 Created` or `409 Conflict` if address is claimed.
+
+```
+DELETE /api/agents/:id/email/addresses/:address
+```
+
+Remove an email address from an agent.
+
+### Modified Endpoints
+
+| Method | Endpoint | Change |
+|--------|----------|--------|
+| `POST` | `/api/agents` | `CreateAgentRequest` accepts `tools.email` |
+| `PATCH` | `/api/agents/:id` | `UpdateAgentRequest` accepts `tools.email` |
+
 ---
 
-### Webhook Subscriptions (for change notifications)
+## Webhook Subscriptions (Change Notifications)
 
-External systems can subscribe to identity changes instead of polling.
+External systems subscribe to identity changes instead of polling.
+
+### Subscribe
 
 ```
 POST /api/webhooks
@@ -148,7 +200,8 @@ POST /api/webhooks
 }
 ```
 
-**Webhook payload (when triggered):**
+### Webhook Payload
+
 ```json
 {
   "event": "agent.email.changed",
@@ -166,7 +219,10 @@ POST /api/webhooks
 }
 ```
 
-**Webhook management:**
+Payloads are signed with HMAC using the subscriber's secret.
+
+### Management
+
 ```
 GET    /api/webhooks           # List all webhooks
 GET    /api/webhooks/:id       # Get specific webhook
@@ -174,42 +230,21 @@ DELETE /api/webhooks/:id       # Unsubscribe
 POST   /api/webhooks/:id/test  # Send test payload
 ```
 
-**Supported events:**
-- `agent.email.changed` - Email addresses added/removed/modified
-- `agent.created` - New agent registered
-- `agent.deleted` - Agent removed
-- `agent.updated` - Any agent field changed
+### Supported Events
 
----
-
-### Email Address Management
-
-```
-POST   /api/agents/:id/email/addresses
-```
-Add an email address to an agent.
-
-**Request:**
-```json
-{
-  "address": "newemail@domain.com",
-  "displayName": "New Email",
-  "primary": false
-}
-```
-
-**Response:** `201 Created` or `409 Conflict` if address is claimed.
-
-```
-DELETE /api/agents/:id/email/addresses/:address
-```
-Remove an email address from an agent.
+| Event | Trigger |
+|-------|---------|
+| `agent.email.changed` | Email addresses added/removed/modified |
+| `agent.created` | New agent registered |
+| `agent.deleted` | Agent removed |
+| `agent.updated` | Any agent field changed |
 
 ---
 
 ## Uniqueness Enforcement
 
 ### Rule
+
 Each email address can be claimed by exactly one agent, globally across all hosts.
 
 ### Enforcement
@@ -232,21 +267,19 @@ Each email address can be claimed by exactly one agent, globally across all host
 ```
 
 ### Validation Rules
+
 - Valid email format (RFC 5322)
 - Case-insensitive uniqueness (`Titania@X.com` = `titania@x.com`)
 - Max 10 addresses per agent
 - Address max length: 254 characters
 
----
+### Same local-part, different domains
 
-## Implementation Order
-
-1. **Extend types** - Update `EmailTool`, add `EmailAddress` interface
-2. **Registry storage** - Store email addresses in agent registry
-3. **Uniqueness check** - Local + cross-host validation
-4. **Email index API** - `GET /api/agents/email-index`
-5. **Webhook system** - Generic webhook subscription for identity changes
-6. **Address management** - Add/remove address endpoints
+| Address | Agent | Result |
+|---------|-------|--------|
+| `lola@juan.23smartagents.com` | pas-lola | OK |
+| `lola@23blocks.23smartagents.com` | different-agent | OK (different domain) |
+| `lola@juan.23smartagents.com` | another-agent | REJECTED (duplicate) |
 
 ---
 
@@ -263,16 +296,27 @@ Each email address can be claimed by exactly one agent, globally across all host
 | Attachment storage | External gateway |
 | Thread tracking | External gateway |
 | Bounce handling | External gateway |
+| Two-tier model (webhook vs mailbox) | External gateway |
+| Unregistered address handling | External gateway |
+
+---
+
+## Implementation Order
+
+1. **Extend types** - Update `EmailTool`, add `EmailAddress` interface
+2. **Registry storage** - Store email addresses in agent registry
+3. **Uniqueness check** - Local + cross-host validation
+4. **Email index API** - `GET /api/agents/email-index`
+5. **Webhook system** - Generic webhook subscription for identity changes
+6. **Address management** - Add/remove address endpoints
 
 ---
 
 ## Open Questions
 
 1. **Cross-host uniqueness latency** - Querying all hosts adds latency to registration. Alternative: eventual consistency with conflict resolution?
-
 2. **Webhook delivery guarantees** - Retry policy? Dead letter queue?
-
-3. **Host discovery for uniqueness check** - How do we know all hosts? Use existing `hosts.json` mesh?
+3. **Host discovery** - Use existing `hosts.json` mesh for cross-host uniqueness checks?
 
 ---
 
@@ -282,5 +326,6 @@ The webhook system is generic and could be useful beyond email. Any external sys
 - CI/CD systems reacting to agent changes
 - Monitoring dashboards tracking agent status
 - External orchestration tools
+- Email gateways rebuilding routing indexes
 
 This positions AI Maestro as an identity provider with event-driven integration capabilities.

@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, HelpCircle, Info, Compass, FlaskConical } from 'lucide-react'
+import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'help' | 'about' | 'onboarding' | 'experiments'
-  onSectionChange: (section: 'hosts' | 'help' | 'about' | 'onboarding' | 'experiments') => void
+  activeSection: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments'
+  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -14,6 +14,18 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Hosts',
       icon: Server,
       description: 'Manage remote workers',
+    },
+    {
+      id: 'domains' as const,
+      label: 'Domains',
+      icon: Globe,
+      description: 'Email domains',
+    },
+    {
+      id: 'webhooks' as const,
+      label: 'Webhooks',
+      icon: Webhook,
+      description: 'Event subscriptions',
     },
     {
       id: 'experiments' as const,

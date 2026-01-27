@@ -49,6 +49,36 @@ When the human operator says "check your messages" or "read your messages":
 
 The scripts detect who you are automatically from your tmux session or working directory.
 
+---
+
+### ONLY FOR EXTERNAL AGENTS (Skip if you're in AI Maestro)
+
+⚠️ **READ THIS FIRST:** If you are running inside AI Maestro (in a tmux session managed by the dashboard), **SKIP THIS SECTION**. Your identity is automatic. The section below is ONLY for agents running OUTSIDE of AI Maestro.
+
+**What is an "External Agent"?**
+- An agent running in a separate Claude Code instance (not managed by AI Maestro)
+- An agent in CI/CD pipelines
+- An agent on a machine without AI Maestro installed
+- NOT you, if you see tmux sessions in the AI Maestro dashboard
+
+**For External Agents ONLY:**
+```bash
+# Set identity ONLY if you're external (not in AI Maestro)
+export AI_MAESTRO_AGENT_ID="my-project"
+export AI_MAESTRO_HOST_ID="my-hostname"  # Optional
+
+# Then use messaging normally
+send-aimaestro-message.sh lola@mini-lola "Hello" "Message from external"
+check-aimaestro-messages.sh
+```
+
+**How to know if you're external:**
+- You DON'T see yourself in the AI Maestro dashboard
+- You're NOT in a tmux session named after an agent
+- You're running from a random directory, not an agent's workingDirectory
+
+---
+
 **You do NOT read:**
 - ❌ The operator's inbox
 - ❌ Other agents' inboxes
@@ -963,6 +993,51 @@ send-aimaestro-message.sh frontend-dev \
 - Use `list-agents.sh` to see all agents on local host
 - Use `list-agents.sh <host-id>` to see agents on a specific remote host
 - Try partial names - fuzzy matching handles typos and abbreviations
+
+---
+
+## APPENDIX: External Agents (ONLY if not in AI Maestro)
+
+⚠️ **SKIP THIS SECTION** if you're running inside AI Maestro. This is ONLY for agents that:
+- Are NOT managed by the AI Maestro dashboard
+- Are NOT in a tmux session
+- Are running from CI/CD, external scripts, or separate machines
+
+### External Agent Setup
+```bash
+# ONLY do this if you're external (not in AI Maestro)
+export AI_MAESTRO_AGENT_ID="my-project"
+export AI_MAESTRO_HOST_ID="my-hostname"  # Optional, defaults to current host
+```
+
+### External Agent Example: Checking Messages
+```bash
+# Set identity (ONLY if external)
+export AI_MAESTRO_AGENT_ID="my-project"
+
+# Check inbox
+check-aimaestro-messages.sh
+
+# Read message
+read-aimaestro-message.sh msg-123...
+
+# Reply
+reply-aimaestro-message.sh msg-123... "Thanks!"
+```
+
+### External Agent Example: Sending Messages
+```bash
+# Set identity (ONLY if external)
+export AI_MAESTRO_AGENT_ID="my-project"
+
+# Send message to AI Maestro agent
+send-aimaestro-message.sh lola@mini-lola \
+  "Need help with schema" \
+  "Can you review /docs/schema.md?" \
+  normal request
+```
+
+---
 
 ## References
 

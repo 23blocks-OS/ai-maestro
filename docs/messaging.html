@@ -1092,46 +1092,6 @@ Build completed successfully at 14:32.
 
     <!-- Install Messaging Skills Section -->
     <section id="install-skills" class="py-16 md:py-24 bg-slate-950 px-8">
-            </div>
-
-            <!-- Example Workflow -->
-            <div class="mt-8 bg-gradient-to-r from-blue-900/30 to-cyan-900/30 p-8 rounded-2xl border border-blue-500/30">
-                <h3 class="text-xl font-display font-bold mb-4 text-white">Example: Build Script → AI Maestro Agent</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="text-center">
-                        <div class="text-4xl mb-2">🏗️</div>
-                        <p class="text-sm text-slate-300"><strong>Build script</strong> completes successfully</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-4xl mb-2">📨</div>
-                        <p class="text-sm text-slate-300"><strong>Sends message</strong> to deployment agent</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-4xl mb-2">🚀</div>
-                        <p class="text-sm text-slate-300"><strong>Agent deploys</strong> to staging environment</p>
-                    </div>
-                </div>
-                <pre class="mt-6 bg-slate-950 text-green-400 p-4 rounded text-sm overflow-x-auto"># In your build script (build.sh):
-#!/bin/bash
-set -e
-
-# Run the build
-yarn build
-
-# Notify the deployment agent
-export AI_MAESTRO_AGENT_ID="build-script"
-send-aimaestro-message.sh deployment-agent \
-  "Build complete" \
-  "Branch: $(git branch --show-current)\nCommit: $(git rev-parse --short HEAD)" \
-  high request
-
-echo "✅ Build complete, deployment agent notified"</pre>
-            </div>
-        </div>
-    </section>
-
-    <!-- Install Messaging Skills Section -->
-    <section id="install-skills" class="py-16 md:py-24 bg-slate-950 px-8">
         <div class="max-w-[1200px] mx-auto">
             <h2 class="text-4xl md:text-5xl text-center mb-12 font-display font-bold">Install Messaging Skills</h2>
             <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Get the skills and scripts that enable agent-to-agent communication</p>

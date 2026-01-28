@@ -41,6 +41,13 @@ const CLI_OPTIONS = [
     description: 'AI-first code editor',
     icon: Cpu,
     command: 'cursor'
+  },
+  {
+    id: 'terminal',
+    name: 'Terminal Only',
+    description: 'Plain shell without AI assistant',
+    icon: Terminal,
+    command: 'none'
   }
 ]
 
@@ -135,7 +142,7 @@ export default function WakeAgentDialog({
               {/* Content */}
               <div className="px-6 py-4">
                 <p className="text-sm text-zinc-300 mb-4">
-                  Select the AI coding assistant to start with this agent:
+                  Select what to start with this agent:
                 </p>
 
                 <div className="space-y-2">

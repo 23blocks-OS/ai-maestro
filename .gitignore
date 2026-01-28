@@ -100,6 +100,12 @@ logs/
 
 # Marketing materials (not part of open source repo)
 docs/marketing/
+marketing/
+
+# Planning files (temporary, not committed)
+task_plan.md
+findings.md
+progress.md
 
 # Benchmark and competitive analysis (internal use only)
 docs/benchmark/

@@ -45,6 +45,7 @@ export async function POST(
     let programOverride: string | undefined
     try {
       const body = await request.json()
+      console.log(`[Wake] Received body:`, JSON.stringify(body))
       if (body.startProgram === false) {
         startProgram = false
       }
@@ -53,9 +54,10 @@ export async function POST(
       }
       if (typeof body.program === 'string') {
         programOverride = body.program.toLowerCase()
+        console.log(`[Wake] Program override set to: ${programOverride}`)
       }
-    } catch {
-      // No body or invalid JSON, use defaults
+    } catch (e) {
+      console.log(`[Wake] No body or invalid JSON, using defaults. Error:`, e)
     }
 
     // Get the agent
@@ -149,30 +151,37 @@ export async function POST(
     if (startProgram) {
       // Determine which program to start - use override if provided, else use agent.program
       const program = programOverride || agent.program?.toLowerCase() || 'claude code'
+      console.log(`[Wake] Final program selection: "${program}" (override: ${programOverride}, agent.program: ${agent.program})`)
 
-      let startCommand = ''
-      if (program.includes('claude') || program.includes('claude code')) {
-        startCommand = 'claude'
-      } else if (program.includes('codex')) {
-        startCommand = 'codex'
-      } else if (program.includes('aider')) {
-        startCommand = 'aider'
-      } else if (program.includes('cursor')) {
-        startCommand = 'cursor'
+      // Check if user wants terminal only (no AI program)
+      if (program === 'none' || program === 'terminal') {
+        // Skip starting any program - just leave the shell
+        console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
-        // Default to claude for unknown programs
-        startCommand = 'claude'
-      }
+        let startCommand = ''
+        if (program.includes('claude') || program.includes('claude code')) {
+          startCommand = 'claude'
+        } else if (program.includes('codex')) {
+          startCommand = 'codex'
+        } else if (program.includes('aider')) {
+          startCommand = 'aider'
+        } else if (program.includes('cursor')) {
+          startCommand = 'cursor'
+        } else {
+          // Default to claude for unknown programs
+          startCommand = 'claude'
+        }
 
-      // Small delay to let the session initialize
-      await new Promise(resolve => setTimeout(resolve, 300))
+        // Small delay to let the session initialize
+        await new Promise(resolve => setTimeout(resolve, 300))
 
-      // Send the command to start the program
-      try {
-        await execAsync(`tmux send-keys -t "${sessionName}" "${startCommand}" Enter`)
-      } catch (error) {
-        console.error(`[Wake] Failed to start program:`, error)
-        // Don't fail the whole operation, session is still created
+        // Send the command to start the program
+        try {
+          await execAsync(`tmux send-keys -t "${sessionName}" "${startCommand}" Enter`)
+        } catch (error) {
+          console.error(`[Wake] Failed to start program:`, error)
+          // Don't fail the whole operation, session is still created
+        }
       }
     }
 

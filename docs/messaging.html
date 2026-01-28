@@ -378,10 +378,10 @@
     <!-- Communication Options Section -->
     <section class="py-16 bg-slate-900/50 border-y border-slate-800">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-center font-display text-3xl font-bold text-white mb-4">Five Ways to Connect</h2>
+            <h2 class="text-center font-display text-3xl font-bold text-white mb-4">Four Ways to Connect</h2>
             <p class="text-center text-slate-400 mb-12 max-w-2xl mx-auto">Choose the communication channels that fit your workflow</p>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Internal Messaging -->
                 <a href="#internal-messaging" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-cyan-500/50 transition-all duration-300 no-underline">
                     <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -422,15 +422,6 @@
                     <span class="inline-block mt-3 text-xs text-blue-400 font-mono">API access</span>
                 </a>
 
-                <!-- Content Security -->
-                <a href="#content-security" class="group bg-slate-800/50 rounded-2xl p-6 border border-slate-700 hover:border-red-500/50 transition-all duration-300 no-underline">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-600/10 border border-red-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <span class="text-2xl">🛡️</span>
-                    </div>
-                    <h3 class="font-display font-bold text-white text-lg mb-2 group-hover:text-red-400 transition-colors">Content Security</h3>
-                    <p class="text-sm text-slate-400">Defense-in-depth against prompt injection attacks from external sources.</p>
-                    <span class="inline-block mt-3 text-xs text-red-400 font-mono">Built-in</span>
-                </a>
             </div>
         </div>
     </section>
@@ -636,6 +627,21 @@
                         <li class="text-slate-400">✅ Structured message formatting</li>
                     </ul>
                 </div>
+
+                <a href="#content-security" class="md:col-span-2 bg-slate-900 p-6 rounded-2xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all no-underline flex items-center gap-6">
+                    <div class="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+                        <span class="text-6xl">🛡️</span>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-xl font-display font-semibold mb-2 text-white">Content Security</h3>
+                        <p class="text-slate-400 mb-3">Defense-in-depth against prompt injection attacks from external sources.</p>
+                        <ul class="list-none p-0 space-y-1 text-sm text-slate-400">
+                            <li><strong>Content wrapping</strong> marks external data as untrusted</li>
+                            <li><strong>Pattern scanning</strong> detects injection attempts</li>
+                            <li><strong>Trust indicators</strong> show message source reliability</li>
+                        </ul>
+                    </div>
+                </a>
             </div>
         </div>
     </section>

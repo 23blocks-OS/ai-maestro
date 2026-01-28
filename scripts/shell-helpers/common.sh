@@ -180,58 +180,39 @@ get_repo_name() {
     fi
 }
 
-# Parse structured session name: agentId@hostId (like email)
-# Sets global variables: AGENT_ID and HOST_ID
-# Returns 0 if structured format, 1 if legacy format
-parse_session_name() {
-    local session="$1"
-
-    # Check if session uses structured format (contains @)
-    if [[ "$session" == *"@"* ]]; then
-        AGENT_ID="${session%%@*}"
-        HOST_ID="${session#*@}"
-        return 0
-    fi
-
-    # Legacy format - need to lookup
-    return 1
-}
-
-# Get the agent UUID for the current tmux session
-# First tries to parse from structured session name, falls back to API lookup
-get_agent_id() {
-    local session="$1"
-
-    # Try parsing structured format first (no API call needed)
-    if parse_session_name "$session"; then
-        echo "$AGENT_ID"
-        return 0
-    fi
-
-    # Fallback: API lookup for legacy session names
-    local response
-    local agent_id
+# Lookup agent by tmux session name in registry
+# AGENT-FIRST: The registry owns the mapping, not the session name format
+# Returns agent info if found, empty if not
+lookup_agent_by_session() {
+    local session_name="$1"
     local api_url
     api_url=$(get_api_base)
 
-    response=$(curl -s "${api_url}/api/agents" 2>/dev/null)
+    local response
+    response=$(curl -s --max-time 5 "${api_url}/api/agents" 2>/dev/null)
+
     if [ -z "$response" ]; then
-        echo "Error: Cannot connect to AI Maestro at ${api_url}" >&2
         return 1
     fi
 
-    agent_id=$(echo "$response" | jq -r ".agents[] | select(.session.tmuxSessionName == \"$session\") | .id" 2>/dev/null | head -1)
+    # Find agent that owns this tmux session
+    # Agents can have multiple sessions, so we check the sessions array
+    local agent_info
+    agent_info=$(echo "$response" | jq -r --arg session "$session_name" '
+        .agents[] |
+        select(
+            (.session.tmuxSessionName == $session) or
+            (.sessions[]? | .tmuxSessionName == $session)
+        ) |
+        "\(.id)|\(.name)|\(.alias // .name)"
+    ' 2>/dev/null | head -1)
 
-    if [ -z "$agent_id" ] || [ "$agent_id" = "null" ]; then
-        echo "Error: No agent found for session '$session'" >&2
-        echo "Session format should be: agentId@hostId (e.g., my-agent@my-hostname)" >&2
-        echo "Run 'register-agent-from-session.mjs' to register and rename this session" >&2
-        return 1
+    if [ -n "$agent_info" ] && [ "$agent_info" != "null" ]; then
+        echo "$agent_info"
+        return 0
     fi
 
-    AGENT_ID="$agent_id"
-    HOST_ID=$(get_self_host_id)
-    echo "$agent_id"
+    return 1
 }
 
 # Check if jq is available
@@ -279,11 +260,15 @@ lookup_agent_by_directory() {
 #
 # Identity resolution priority:
 #   1. Environment variables (explicit override)
-#   2. Structured tmux session name (agent@host) - canonical identity
-#   3. Working directory → lookup agent in registry (for sessionless agents)
-#   4. Git repo name (external agent identity)
+#   2. Tmux session → Registry lookup (find agent that OWNS this session)
+#   3. Working directory → Registry lookup (for sessionless agents)
+#   4. Git repo name (external agent identity fallback)
 #
-# NOTE: Legacy tmux session names (without @) are NOT used for identity.
+# AGENT-FIRST PRINCIPLE:
+#   - The agent registry is the source of truth for identity
+#   - Session names are just names, not encoded identities
+#   - An agent can have multiple sessions (future support)
+#   - Sessions are properties of agents, not the other way around
 #
 # Environment variables:
 #   AI_MAESTRO_AGENT_ID  - Agent identifier (name, alias, or UUID)
@@ -303,15 +288,18 @@ init_common() {
         HOST_ID="${AI_MAESTRO_HOST_ID:-$(get_self_host_id)}"
     fi
 
-    # Priority 2: Structured tmux session name (agent@host format)
-    # This is the canonical identity set by AI Maestro when creating agents
+    # Priority 2: Tmux session → Registry lookup
+    # AGENT-FIRST: Query the registry to find which agent owns this session
     if [ -z "$AGENT_ID" ]; then
         SESSION=$(get_session 2>/dev/null) || true
         if [ -n "$SESSION" ]; then
-            # Only use structured format (contains @) - NOT legacy session names
-            if [[ "$SESSION" == *"@"* ]]; then
-                parse_session_name "$SESSION"
-                # AGENT_ID and HOST_ID are now set by parse_session_name
+            local agent_info
+            agent_info=$(lookup_agent_by_session "$SESSION" 2>/dev/null)
+
+            if [ -n "$agent_info" ]; then
+                # Parse: id|name|alias
+                AGENT_ID=$(echo "$agent_info" | cut -d'|' -f1)
+                HOST_ID=$(get_self_host_id)
             fi
         fi
     fi
@@ -327,12 +315,12 @@ init_common() {
         if [ -n "$agent_info" ]; then
             # Parse: id|name|alias
             AGENT_ID=$(echo "$agent_info" | cut -d'|' -f1)
-            local agent_name=$(echo "$agent_info" | cut -d'|' -f2)
             HOST_ID=$(get_self_host_id)
         fi
     fi
 
     # Priority 4: Auto-detect from git repo name (external agent identity)
+    # This is a fallback for agents not registered in AI Maestro
     if [ -z "$AGENT_ID" ]; then
         local repo_name
         repo_name=$(get_repo_name)
@@ -341,7 +329,7 @@ init_common() {
             HOST_ID="${AI_MAESTRO_HOST_ID:-$(get_self_host_id)}"
             # Inform user about auto-detected identity
             echo "ℹ️  Using repo-based identity: ${AGENT_ID}@${HOST_ID}" >&2
-            echo "   Set AI_MAESTRO_AGENT_ID to override" >&2
+            echo "   Register this agent or set AI_MAESTRO_AGENT_ID to override" >&2
         fi
     fi
 
@@ -351,7 +339,7 @@ init_common() {
         echo "" >&2
         echo "Options:" >&2
         echo "  1. Set environment variable: export AI_MAESTRO_AGENT_ID='my-agent'" >&2
-        echo "  2. Run in a structured tmux session (name@host format)" >&2
+        echo "  2. Register your tmux session: register-agent-from-session.mjs" >&2
         echo "  3. Run from an agent's working directory (registered in AI Maestro)" >&2
         echo "  4. Run from within a git repository" >&2
         return 1

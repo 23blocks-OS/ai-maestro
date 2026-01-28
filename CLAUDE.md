@@ -107,6 +107,24 @@ Key improvements:
 
 Keep posts concise (<280 chars when possible), engaging, and focused on user benefits rather than technical implementation.
 
+### Marketing Content Location
+
+**IMPORTANT:** All marketing content files MUST be created in the `marketing/` folder:
+
+```
+marketing/
+  medium-article.md      # Blog posts for Medium
+  linkedin-post.md       # LinkedIn content
+  x-post.md              # X/Twitter posts
+  findings.md            # Research notes (planning skill)
+  task_plan.md           # Task tracking (planning skill)
+  progress.md            # Progress logs (planning skill)
+```
+
+- The `marketing/` folder is gitignored - content is deleted after publishing
+- Never create these files in the project root
+- When using the planning skill for marketing tasks, set the output directory to `marketing/`
+
 ## Architecture: Critical Design Patterns
 
 ### 1. Custom Server Architecture (server.mjs)

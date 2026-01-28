@@ -1,0 +1,93 @@
+/*
+ * AI Maestro Docs - Shared Styles
+ *
+ * This file defines the design system for all documentation pages.
+ * Use with Tailwind CDN: <style type="text/tailwindcss">@import url('shared-styles.css');</style>
+ *
+ * NOTE: Since we use Tailwind CDN, these are defined as CSS custom properties
+ * and utility classes that work alongside Tailwind.
+ */
+
+/* =============================================================================
+   DESIGN TOKENS - Reference for consistent styling
+   ============================================================================= */
+
+/*
+TYPOGRAPHY CLASSES (copy these exactly):
+
+Page Title (h1 - index.html hero):
+  font-display text-5xl md:text-7xl lg:text-8xl font-extrabold leading-[0.9] tracking-tight mb-6
+
+Page Title (h1 - subpage heroes):
+  font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6
+
+Section Title (h2 - main sections):
+  font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-4
+
+Subsection Title (h2 - smaller sections):
+  font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-4
+
+Card Title (h3 - large cards):
+  font-display text-2xl font-bold text-white
+
+Card Title (h3 - medium cards):
+  font-display text-xl font-bold mb-3 text-white
+
+Card Title (h3 - small cards):
+  font-display text-lg font-bold text-white mb-2
+
+Card Subtitle (h4):
+  font-bold text-white text-lg mb-2
+
+Body Text:
+  text-slate-400
+
+Small Text:
+  text-sm text-slate-400
+
+CODE/MONO:
+  font-mono text-sm
+
+IMPORTANT RULES:
+  - Always use font-bold (not font-semibold) for h3 elements
+  - Always use font-extrabold for h1 and h2 elements
+  - Always include tracking-tight for h1 and h2
+  - Always include font-display for headings
+
+
+COLOR USAGE:
+
+Primary Accent: cyan-400, cyan-500
+Secondary Accent: amber-400, amber-500
+Success: emerald-400, green-400
+Warning: amber-400, orange-400
+Error: red-400, red-600
+
+Backgrounds:
+  Page: bg-slate-950
+  Section alt: bg-slate-900
+  Card: bg-slate-900, bg-slate-800
+
+Borders:
+  Default: border-slate-700
+  Hover: border-cyan-500/50, border-amber-500/50
+
+
+COMPONENT PATTERNS:
+
+Feature Card:
+  bg-slate-900 p-6 rounded-2xl border border-slate-700
+
+Section Container:
+  max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8
+
+Badge/Pill:
+  inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-medium
+
+Primary Button:
+  inline-flex items-center gap-2 px-6 py-3 bg-cyan-500 text-slate-900 font-bold rounded-lg hover:bg-cyan-400 transition-all
+
+Secondary Button:
+  inline-flex items-center gap-2 px-6 py-3 bg-slate-800 text-white font-bold rounded-lg border border-slate-700 hover:border-cyan-500/50 transition-all
+
+*/

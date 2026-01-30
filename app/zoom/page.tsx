@@ -40,15 +40,6 @@ function agentToSession(agent: Agent): Session {
   // Use tmuxSessionName if available, otherwise fall back to agent.id (matching main dashboard)
   const sessionId = agent.session?.tmuxSessionName || agent.id
 
-  console.log('[Zoom] agentToSession:', {
-    agentId: agent.id,
-    agentName: agent.name,
-    tmuxSessionName: agent.session?.tmuxSessionName,
-    resultSessionId: sessionId,
-    hostId: agent.hostId,
-    hasValidSession: !!agent.session?.tmuxSessionName
-  })
-
   return {
     id: sessionId,
     name: agent.label || agent.name || agent.alias || '',
@@ -314,7 +305,8 @@ export default function ZoomPage() {
 
             {/* Modal Content */}
             <div
-              className="relative w-full h-full max-w-6xl max-h-[90vh] bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden zoom-modal-enter"
+              className="relative w-full max-w-6xl bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden zoom-modal-enter"
+              style={{ height: 'calc(100vh - 4rem)', maxHeight: '90vh' }}
               onClick={e => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -378,12 +370,11 @@ export default function ZoomPage() {
               </div>
 
               {/* Modal Body - Full Agent View */}
-              <div className="flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden relative">
                 <AgentCardView
                   agent={selectedAgent}
                   session={selectedSession}
                   isHibernated={isSelectedHibernated}
-                  hasValidSession={hasValidTerminalSession(selectedAgent)}
                   allAgents={onlineAgents}
                   onWake={async () => handleWake(selectedAgent)}
                   isWaking={false}

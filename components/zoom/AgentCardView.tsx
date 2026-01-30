@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Terminal,
@@ -9,8 +9,7 @@ import {
   Brain,
   Moon,
   Power,
-  Loader2,
-  AlertTriangle
+  Loader2
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
@@ -58,7 +57,6 @@ interface AgentCardViewProps {
   agent: Agent
   session: Session
   isHibernated: boolean
-  hasValidSession: boolean
   allAgents: Agent[]
   onWake: (e: React.MouseEvent) => Promise<void>
   isWaking: boolean
@@ -68,12 +66,66 @@ export default function AgentCardView({
   agent,
   session,
   isHibernated,
-  hasValidSession,
   allAgents,
   onWake,
   isWaking
 }: AgentCardViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('terminal')
+  const [containerReady, setContainerReady] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Wait for container to have valid dimensions before rendering terminal
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+    let observerDisconnected = false
+
+    const checkDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          setContainerReady(true)
+          return true
+        }
+      }
+      return false
+    }
+
+    // Use ResizeObserver for reliable dimension detection
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      const observer = new ResizeObserver((entries) => {
+        if (observerDisconnected) return
+        for (const entry of entries) {
+          if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+            setContainerReady(true)
+            observer.disconnect()
+            observerDisconnected = true
+            break
+          }
+        }
+      })
+      observer.observe(containerRef.current)
+
+      // Fallback: check after modal animation (300ms) + small buffer
+      timeoutId = setTimeout(() => {
+        if (!observerDisconnected && checkDimensions()) {
+          observer.disconnect()
+          observerDisconnected = true
+        }
+      }, 400)
+
+      return () => {
+        observer.disconnect()
+        observerDisconnected = true
+        clearTimeout(timeoutId)
+      }
+    } else {
+      // Fallback for older browsers
+      timeoutId = setTimeout(() => {
+        checkDimensions()
+      }, 400)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [])
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'terminal', label: 'Terminal', icon: <Terminal className="w-4 h-4" /> },
@@ -117,7 +169,7 @@ export default function AgentCardView({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="absolute inset-0 flex flex-col">
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-700 flex-shrink-0 bg-gray-800/50">
         {tabs.map(tab => (
@@ -137,32 +189,29 @@ export default function AgentCardView({
       </div>
 
       {/* Tab Content - Use relative positioning with absolute children */}
-      <div className="flex-1 relative overflow-hidden">
-        {/* Terminal Tab - Always mounted, visibility toggled */}
+      <div ref={containerRef} className="flex-1 min-h-0 relative overflow-hidden" style={{ position: 'relative' }}>
+        {/* Terminal Tab - Only render when container has valid dimensions */}
+        {/* CRITICAL: Use flex flex-col because TerminalView's root uses flex-1 */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 flex flex-col"
           style={{
             visibility: activeTab === 'terminal' ? 'visible' : 'hidden',
             pointerEvents: activeTab === 'terminal' ? 'auto' : 'none',
             zIndex: activeTab === 'terminal' ? 10 : 0
           }}
         >
-          {hasValidSession ? (
+          {containerReady ? (
             <TerminalView
               session={session}
               isVisible={activeTab === 'terminal'}
               hideFooter={true}
             />
           ) : (
-            <div className="h-full flex flex-col items-center justify-center bg-gray-900 text-center p-6">
-              <div className="w-16 h-16 rounded-full bg-yellow-900/30 flex items-center justify-center mb-4">
-                <AlertTriangle className="w-8 h-8 text-yellow-500" />
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-violet-500 animate-spin mx-auto mb-2" />
+                <p className="text-sm text-gray-400">Preparing terminal...</p>
               </div>
-              <p className="text-lg font-medium text-gray-300 mb-2">No Active Terminal Session</p>
-              <p className="text-sm text-gray-500 max-w-md">
-                This agent does not have an active tmux session.
-                The terminal will connect automatically when the agent starts running.
-              </p>
             </div>
           )}
         </div>

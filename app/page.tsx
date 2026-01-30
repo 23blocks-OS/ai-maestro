@@ -579,11 +579,11 @@ export default function DashboardPage() {
                     zIndex: isActive ? 10 : 0
                   }}
                 >
-                  {/* Tab Navigation */}
-                  <div className="flex border-b border-gray-800 bg-gray-900 flex-shrink-0">
+                  {/* Tab Navigation - Responsive with flex-wrap */}
+                  <div className="flex flex-wrap border-b border-gray-800 bg-gray-900 flex-shrink-0">
                     <button
                       onClick={() => setActiveTab('terminal')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'terminal'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -594,7 +594,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('terminal-new')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'terminal-new'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -605,7 +605,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('chat')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'chat'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -616,7 +616,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('messages')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'messages'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -632,7 +632,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('worktree')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'worktree'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -643,7 +643,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('graph')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'graph'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -654,7 +654,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('memory')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'memory'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
@@ -665,7 +665,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('docs')}
-                      className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'docs'
                           ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
                           : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'

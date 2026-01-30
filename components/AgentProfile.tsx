@@ -16,6 +16,7 @@ import ExportAgentDialog from './ExportAgentDialog'
 import DeleteAgentDialog from './DeleteAgentDialog'
 import MemoryViewer from './MemoryViewer'
 import SkillsSection from './SkillsSection'
+import { AgentSkillEditor } from './marketplace'
 import AvatarPicker from './AvatarPicker'
 import EmailAddressesSection from './EmailAddressesSection'
 
@@ -59,7 +60,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     email: false,
     repositories: true,
     memory: true,
-    skills: true,
+    installedSkills: true,
+    skillSettings: false,
     metrics: true,
     documentation: false,
     customMetadata: false,
@@ -815,22 +817,42 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 )}
               </section>
 
-              {/* Skills Settings Section */}
+              {/* Installed Skills Section */}
               <section>
                 <button
-                  onClick={() => toggleSection('skills')}
+                  onClick={() => toggleSection('installedSkills')}
                   className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
                 >
-                  {expandedSections.skills ? (
+                  {expandedSections.installedSkills ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                  <Zap className="w-4 h-4" />
+                  Skills
+                </button>
+
+                {expandedSections.installedSkills && (
+                  <AgentSkillEditor agentId={agent.id} hostUrl={hostUrl} />
+                )}
+              </section>
+
+              {/* Skill Settings Section */}
+              <section>
+                <button
+                  onClick={() => toggleSection('skillSettings')}
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 hover:text-gray-400 transition-all"
+                >
+                  {expandedSections.skillSettings ? (
                     <ChevronDown className="w-4 h-4" />
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
                   <Cpu className="w-4 h-4" />
-                  Skills
+                  Skill Settings
                 </button>
 
-                {expandedSections.skills && (
+                {expandedSections.skillSettings && (
                   <SkillsSection agentId={agent.id} hostUrl={hostUrl} />
                 )}
               </section>

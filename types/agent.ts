@@ -137,10 +137,57 @@ export interface Agent {
   // Preferences
   preferences?: AgentPreferences
 
+  // Skills (composable capabilities)
+  skills?: AgentSkillsConfig
+
+  // Hooks (event-triggered scripts)
+  hooks?: Record<string, string>  // event -> script path
+
   // Runtime state (set by API, not persisted)
   session?: AgentSessionStatus   // Live tmux session status
   isOrphan?: boolean             // True if session exists but agent was auto-registered
   _cached?: boolean              // True if loaded from cache (remote host unreachable)
+}
+
+/**
+ * Skills configuration for an agent
+ * Agents can have skills from marketplaces, AI Maestro, and custom skills
+ */
+export interface AgentSkillsConfig {
+  // Skills from Claude Code marketplaces
+  marketplace: AgentMarketplaceSkill[]
+
+  // AI Maestro built-in skills
+  aiMaestro: {
+    enabled: boolean              // Include AI Maestro skills?
+    skills: string[]              // Which skills (default: all)
+  }
+
+  // Custom skills specific to this agent
+  custom: AgentCustomSkill[]
+}
+
+/**
+ * A marketplace skill installed on an agent
+ */
+export interface AgentMarketplaceSkill {
+  id: string                      // Full skill ID (marketplace:plugin:skill)
+  marketplace: string             // Source marketplace
+  plugin: string                  // Source plugin
+  name: string                    // Skill name
+  version?: string                // Installed version
+  installedAt: string             // When installed (ISO timestamp)
+}
+
+/**
+ * A custom skill created for a specific agent
+ */
+export interface AgentCustomSkill {
+  name: string                    // Skill name
+  path: string                    // Relative path within agent folder
+  description?: string            // Optional description
+  createdAt: string               // When created
+  updatedAt?: string              // When last modified
 }
 
 export type DeploymentType = 'local' | 'cloud'

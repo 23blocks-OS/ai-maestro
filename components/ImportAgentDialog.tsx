@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Upload, Package, FolderOpen, Check, AlertCircle, Sparkles, Home, Database, Mail, GitBranch, FileText, User } from 'lucide-react'
+import { X, Upload, Package, FolderOpen, Check, AlertCircle, Sparkles, Home, Database, Mail, GitBranch, FileText, User, Zap } from 'lucide-react'
 import type { AgentImportResult } from '@/types/portable'
 
 interface ImportAgentDialogProps {
@@ -40,6 +40,7 @@ const ITEMS_UNPACKING = [
   { icon: Database, label: 'Memory', color: 'text-blue-400' },
   { icon: Mail, label: 'Messages', color: 'text-green-400' },
   { icon: GitBranch, label: 'Repos', color: 'text-purple-400' },
+  { icon: Zap, label: 'Skills', color: 'text-amber-400' },
   { icon: FileText, label: 'Config', color: 'text-orange-400' },
 ]
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getAgent, getAgentByAlias, getAgentByName } from '@/lib/agent-registry'
+import { getAgent, getAgentByAlias, getAgentByName, getAgentSkills, DEFAULT_AI_MAESTRO_SKILLS } from '@/lib/agent-registry'
+import { getSkillById } from '@/lib/marketplace-skills'
 import archiver from 'archiver'
 import fs from 'fs'
 import path from 'path'
@@ -159,6 +160,17 @@ export async function GET(
     const sentCount = countJsonFiles(sentDir)
     const archivedCount = countJsonFiles(archivedDir)
 
+    // Get skills configuration
+    const skills = getAgentSkills(agent.id)
+    const hasSkills = !!(skills && (
+      skills.marketplace.length > 0 ||
+      skills.custom.length > 0 ||
+      (skills.aiMaestro.enabled && skills.aiMaestro.skills.length > 0)
+    ))
+
+    // Check for hooks
+    const hasHooks = !!(agent.hooks && Object.keys(agent.hooks).length > 0)
+
     // Detect git repositories
     const repositories: PortableRepository[] = []
 
@@ -190,7 +202,7 @@ export async function GET(
 
     // Create manifest
     const manifest: AgentExportManifest = {
-      version: '1.0.0',
+      version: '1.1.0', // Version bump for skills support
       exportedAt: new Date().toISOString(),
       exportedFrom: {
         hostname: os.hostname(),
@@ -212,7 +224,15 @@ export async function GET(
           inbox: inboxCount,
           sent: sentCount,
           archived: archivedCount
-        }
+        },
+        // Skills support (v1.1.0)
+        hasSkills,
+        skillStats: hasSkills ? {
+          marketplace: skills?.marketplace.length || 0,
+          aiMaestro: skills?.aiMaestro.enabled ? skills.aiMaestro.skills.length : 0,
+          custom: skills?.custom.length || 0
+        } : undefined,
+        hasHooks
       },
       // Include detected repositories for cloning on import
       repositories: repositories.length > 0 ? repositories : undefined
@@ -277,6 +297,42 @@ export async function GET(
     }
     if (hasArchived) {
       archive.directory(archivedDir, 'messages/archived')
+    }
+
+    // Add skills (v1.1.0)
+    if (hasSkills && skills) {
+      // Add marketplace skills - copy the actual SKILL.md files
+      for (const marketplaceSkill of skills.marketplace) {
+        const skill = await getSkillById(marketplaceSkill.id, true)
+        if (skill?.content) {
+          const skillPath = `skills/marketplace/${marketplaceSkill.marketplace}/${marketplaceSkill.plugin}/${marketplaceSkill.name}/SKILL.md`
+          archive.append(skill.content, { name: skillPath })
+        }
+      }
+
+      // Add custom skills - copy from agent's folder
+      for (const customSkill of skills.custom) {
+        const customSkillDir = path.join(AGENTS_DIR, agent.id, customSkill.path)
+        if (fs.existsSync(customSkillDir)) {
+          archive.directory(customSkillDir, `skills/custom/${customSkill.name}`)
+        }
+      }
+    }
+
+    // Add hooks if present
+    if (hasHooks && agent.hooks) {
+      // Create hooks manifest
+      archive.append(JSON.stringify(agent.hooks, null, 2), { name: 'hooks/hooks.json' })
+
+      // Copy hook scripts if they exist relative to agent folder
+      for (const [_event, scriptPath] of Object.entries(agent.hooks)) {
+        if (scriptPath.startsWith('./')) {
+          const fullPath = path.join(AGENTS_DIR, agent.id, scriptPath.slice(2))
+          if (fs.existsSync(fullPath)) {
+            archive.file(fullPath, { name: `hooks/${path.basename(scriptPath)}` })
+          }
+        }
+      }
     }
 
     // Set up promise to wait for archive completion BEFORE finalizing

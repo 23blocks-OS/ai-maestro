@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Download, Package, FileArchive, Check, AlertCircle, Sparkles, Database, Mail, GitBranch, FileText, FolderArchive } from 'lucide-react'
+import { X, Download, Package, FileArchive, Check, AlertCircle, Sparkles, Database, Mail, GitBranch, FileText, FolderArchive, Zap } from 'lucide-react'
 
 interface ExportAgentDialogProps {
   isOpen: boolean
@@ -42,6 +42,7 @@ const ITEMS_TO_PACK = [
   { icon: Database, label: 'Memory', color: 'text-blue-400' },
   { icon: Mail, label: 'Messages', color: 'text-green-400' },
   { icon: GitBranch, label: 'Repos', color: 'text-purple-400' },
+  { icon: Zap, label: 'Skills', color: 'text-amber-400' },
   { icon: FileText, label: 'Config', color: 'text-orange-400' },
 ]
 

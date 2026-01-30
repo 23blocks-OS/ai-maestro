@@ -234,10 +234,10 @@ export default function AgentCard({
           <div className="flex items-center gap-2">
             {/* Email icon before name */}
             {hasEmail && (
-              <div className="relative">
+              <div className="relative flex items-center">
                 <button
                   onClick={handleEmailClick}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="p-0 flex items-center text-blue-400 hover:text-blue-300 transition-colors"
                   title="Show email addresses"
                 >
                   <Mail className="w-5 h-5" />

@@ -51,16 +51,17 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [detectingRepos, setDetectingRepos] = useState(false)
+  const [reposLoaded, setReposLoaded] = useState(false)
 
-  // Collapsible sections
+  // Collapsible sections - skills and memory start collapsed for faster loading
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     identity: true,
     work: true,
     deployment: true,
     email: false,
-    repositories: true,
-    memory: true,
-    installedSkills: true,
+    repositories: false,
+    memory: false,
+    installedSkills: false,
     skillSettings: false,
     metrics: true,
     documentation: false,
@@ -87,6 +88,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   useEffect(() => {
     if (!isOpen || !agentId) return
 
+    // Reset lazy-load flags when agent changes
+    setReposLoaded(false)
+    setRepositories([])
+
     const fetchAgent = async () => {
       setLoading(true)
       try {
@@ -105,9 +110,9 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     fetchAgent()
   }, [isOpen, agentId])
 
-  // Fetch repositories when agent loads
+  // Fetch repositories lazily - only when section is expanded
   useEffect(() => {
-    if (!isOpen || !agentId) return
+    if (!isOpen || !agentId || !expandedSections.repositories || reposLoaded) return
 
     const fetchRepos = async () => {
       setLoadingRepos(true)
@@ -116,6 +121,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         if (response.ok) {
           const data = await response.json()
           setRepositories(data.repositories || [])
+          setReposLoaded(true)
         }
       } catch (error) {
         console.error('Failed to fetch repos:', error)
@@ -125,7 +131,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
 
     fetchRepos()
-  }, [isOpen, agentId])
+  }, [isOpen, agentId, expandedSections.repositories, reposLoaded])
 
   // Fetch used avatars (all avatars from other agents on this host)
   useEffect(() => {
@@ -263,7 +269,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
         }`}
       >
         {loading ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             <div className="text-gray-400">Loading agent profile...</div>
           </div>
         ) : !agent ? (

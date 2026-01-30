@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3 } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -11,6 +11,7 @@ interface HeaderProps {
 
 export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentId, onOpenHelp }: HeaderProps) {
   const immersiveUrl = activeAgentId ? `/immersive?agent=${encodeURIComponent(activeAgentId)}` : '/immersive'
+  const zoomUrl = '/zoom'
 
   return (
     <header className="border-b border-gray-800 bg-gray-950 px-4 py-2">
@@ -39,6 +40,13 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
               Help
             </button>
           )}
+          <a
+            href={zoomUrl}
+            className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"
+          >
+            <Grid3X3 className="w-3.5 h-3.5" />
+            Zoom
+          </a>
           <a
             href={immersiveUrl}
             className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"

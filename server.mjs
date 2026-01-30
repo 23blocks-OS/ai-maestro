@@ -731,20 +731,25 @@ app.prepare().then(() => {
       sessionState.cleanupTimer = null
     }
 
-    // Send scrollback history to new clients
+    // Send scrollback history to new clients - ASYNC to avoid blocking the event loop
+    // The client can start typing immediately; history loads in the background
     setTimeout(async () => {
       try {
-        const { execSync } = await import('child_process')
+        const { exec } = await import('child_process')
+        const { promisify } = await import('util')
+        const execAsync = promisify(exec)
 
         let historyContent = ''
         try {
-          // Capture scrollback history (up to 5000 lines) WITHOUT escape sequences
+          // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
           // The -e flag was causing terminal query responses like ">0;276;0c" to appear
-          // The -S -5000 flag captures scrollback history, not just visible pane
-          historyContent = execSync(
-            `tmux capture-pane -t ${sessionName} -p -S -5000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
-            { encoding: 'utf8', timeout: 5000, shell: '/bin/bash' }
-          ).toString()
+          // The -S -2000 flag captures scrollback history, not just visible pane
+          // Reduced from 5000 to 2000 for faster loading
+          const { stdout } = await execAsync(
+            `tmux capture-pane -t ${sessionName} -p -S -2000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
+            { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
+          )
+          historyContent = stdout
         } catch (historyError) {
           console.error('Failed to capture history:', historyError)
         }
@@ -763,7 +768,7 @@ app.prepare().then(() => {
           ws.send(JSON.stringify({ type: 'history-complete' }))
         }
       }
-    }, 150)
+    }, 100)
 
     // Handle client input
     ws.on('message', (data) => {

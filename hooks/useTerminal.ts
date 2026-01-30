@@ -66,9 +66,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         background: '#1e1e1e',
         foreground: '#d4d4d4',
         cursor: '#aeafad',
-        selectionBackground: 'rgba(81, 154, 186, 0.5)',  // Blue-ish selection (more visible)
+        selectionBackground: '#3a3d41',    // Visible selection background
         selectionForeground: '#ffffff',     // White text when selected
-        selectionInactiveBackground: 'rgba(81, 154, 186, 0.3)', // Dimmer when unfocused
+        selectionInactiveBackground: '#3a3d41', // Selection when terminal not focused
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',
@@ -109,8 +109,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       disableStdin: false,
       // Try to prevent the accessibility tree from being created
       customGlyphs: true,
-      // Allow proposed API for better selection handling
-      allowProposedApi: true,
       // CRITICAL: This might help with carriage return handling
       macOptionIsMeta: true,
       // Enable right-click for context menu (paste, copy)
@@ -212,30 +210,10 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     resizeObserver.observe(container)
 
-    // Add keyboard shortcuts for scrolling and clipboard
+    // Add keyboard shortcuts for scrolling
     terminal.attachCustomKeyEventHandler((event) => {
       // Calculate scroll amount based on terminal height (scroll by page)
       const scrollAmount = Math.max(1, terminal.rows - 2)
-
-      // Cmd/Ctrl + C - Copy selection (if there is one)
-      if ((event.metaKey || event.ctrlKey) && event.key === 'c') {
-        const selection = terminal.getSelection()
-        if (selection && selection.length > 0) {
-          navigator.clipboard.writeText(selection)
-            .then(() => console.log('[Terminal] Copied selection to clipboard'))
-            .catch(err => console.error('[Terminal] Failed to copy:', err))
-          terminal.clearSelection()
-          return false // Prevent sending Ctrl+C to terminal
-        }
-        // No selection, let Ctrl+C go through (sends SIGINT)
-        return true
-      }
-
-      // Cmd/Ctrl + V - Paste from clipboard
-      if ((event.metaKey || event.ctrlKey) && event.key === 'v') {
-        // Let the browser handle paste - clipboard addon will intercept
-        return true
-      }
 
       // Shift + Page Up - Scroll up by page
       if (event.shiftKey && event.key === 'PageUp') {

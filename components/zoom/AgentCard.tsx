@@ -3,11 +3,14 @@
 import { useState } from 'react'
 import {
   Power,
+  PowerOff,
   Loader2,
   Circle,
   Maximize2,
   Terminal,
-  WifiOff
+  WifiOff,
+  Mail,
+  Inbox
 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
@@ -18,9 +21,11 @@ interface AgentCardProps {
   isFlipped: boolean
   isHibernated: boolean
   hasValidSession: boolean
+  unreadCount?: number
   onFlip: () => void
   onClose: () => void
   onPopOut: () => void
+  onShutdown?: () => void
   allAgents: Agent[]
 }
 
@@ -29,9 +34,13 @@ export default function AgentCard({
   isFlipped,
   isHibernated,
   hasValidSession,
+  unreadCount = 0,
   onFlip,
+  onShutdown,
 }: AgentCardProps) {
   const [isWaking, setIsWaking] = useState(false)
+  const [isShuttingDown, setIsShuttingDown] = useState(false)
+  const [showEmailPopup, setShowEmailPopup] = useState(false)
 
   const displayName = agent.label || agent.name || agent.alias || 'Unnamed Agent'
   const initials = displayName
@@ -43,6 +52,10 @@ export default function AgentCard({
 
   // Check if avatar is a URL (image) or emoji/text
   const isAvatarUrl = agent.avatar && (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://'))
+
+  // Check if agent has email addresses
+  const emailAddresses = agent.tools?.email?.addresses || []
+  const hasEmail = emailAddresses.length > 0
 
   const handleWake = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -64,6 +77,36 @@ export default function AgentCard({
       console.error('Failed to wake agent:', error)
     } finally {
       setIsWaking(false)
+    }
+  }
+
+  const handleShutdown = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isShuttingDown) return
+
+    setIsShuttingDown(true)
+    try {
+      const baseUrl = agent.hostUrl || ''
+      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/shutdown`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to shutdown agent')
+      }
+      onShutdown?.()
+    } catch (error) {
+      console.error('Failed to shutdown agent:', error)
+    } finally {
+      setIsShuttingDown(false)
+    }
+  }
+
+  const handleEmailClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hasEmail) {
+      setShowEmailPopup(!showEmailPopup)
     }
   }
 
@@ -102,9 +145,38 @@ export default function AgentCard({
         {/* Overlay gradient for text readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
 
-        {/* Top Bar - Status & Expand Hint */}
+        {/* Top Bar - Status & Icons */}
         <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-start z-10">
           <div className="flex items-center gap-2">
+            {/* Power button - icon only */}
+            {isHibernated ? (
+              <button
+                onClick={handleWake}
+                disabled={isWaking}
+                className="text-green-400 hover:text-green-300 disabled:text-green-600 transition-colors"
+                title="Wake Agent"
+              >
+                {isWaking ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Power className="w-4 h-4" />
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleShutdown}
+                disabled={isShuttingDown}
+                className="text-red-400 hover:text-red-300 disabled:text-red-600 transition-colors"
+                title="Shutdown Agent"
+              >
+                {isShuttingDown ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <PowerOff className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
             {/* Online/Hibernating Status */}
             <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs backdrop-blur-sm ${
               isHibernated
@@ -135,49 +207,86 @@ export default function AgentCard({
             </div>
           </div>
 
-          {/* Expand icon hint - visible on hover */}
-          <div className="p-2 rounded-lg bg-black/30 backdrop-blur-sm text-white/50 group-hover:text-white group-hover:bg-violet-600/50 transition-all">
-            <Maximize2 className="w-4 h-4" />
+          {/* Right side icons */}
+          <div className="flex items-center gap-2">
+            {/* Inbox - always show, with count if unread */}
+            <div
+              className={`relative ${unreadCount > 0 ? 'text-orange-400' : 'text-white/50'}`}
+              title={unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` : 'Inbox'}
+            >
+              <Inbox className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold text-white bg-orange-500 px-1 py-0.5 rounded-full min-w-[14px] text-center leading-none">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+
+            {/* Expand icon hint - visible on hover */}
+            <div className="p-2 rounded-lg bg-black/30 backdrop-blur-sm text-white/50 group-hover:text-white group-hover:bg-violet-600/50 transition-all">
+              <Maximize2 className="w-4 h-4" />
+            </div>
           </div>
         </div>
 
         {/* Bottom Bar - Agent Info */}
         <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-          <h3 className="text-lg font-semibold text-white truncate drop-shadow-lg">
-            {displayName}
-          </h3>
-          {agent.tags && agent.tags.length > 0 && (
-            <p className="text-sm text-white/70 truncate mt-0.5">
-              {agent.tags.join(' / ')}
-            </p>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Email icon before name */}
+            {hasEmail && (
+              <div className="relative">
+                <button
+                  onClick={handleEmailClick}
+                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  title="Show email addresses"
+                >
+                  <Mail className="w-5 h-5" />
+                </button>
 
-          {/* Wake Button for Hibernated */}
-          {isHibernated && (
-            <button
-              onClick={handleWake}
-              disabled={isWaking}
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium"
-            >
-              {isWaking ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Waking...
-                </>
-              ) : (
-                <>
-                  <Power className="w-4 h-4" />
-                  Wake Agent
-                </>
+                {/* Email popup */}
+                {showEmailPopup && (
+                  <div
+                    className="absolute bottom-8 left-0 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl min-w-[200px] z-20"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-xs text-gray-400 mb-2">Email Addresses:</p>
+                    {emailAddresses.map((email, i) => (
+                      <p key={i} className="text-sm text-white font-mono truncate">
+                        {email.address}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <h3 className="text-lg font-semibold text-white truncate drop-shadow-lg">
+              {displayName}
+              {/* Show host inline for remote agents */}
+              {agent.hostId && agent.hostId !== 'local' && (
+                <span className="font-normal">@{agent.hostName || agent.hostId}</span>
               )}
-            </button>
+            </h3>
+          </div>
+
+          {/* Show agent.name if we have both label and name (matching main dashboard) */}
+          {agent.label && agent.name && (
+            <p className="text-xs text-white/50 truncate font-mono">
+              {agent.name}
+            </p>
           )}
 
-          {/* Click Hint */}
-          {!isHibernated && (
-            <p className="text-xs text-white/50 mt-2 group-hover:text-violet-300 transition-colors">
-              Click to expand
-            </p>
+          {agent.tags && agent.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {agent.tags.map((tag, i) => (
+                <span
+                  key={i}
+                  className="px-2 py-0.5 text-xs bg-white/20 text-white/90 rounded-full backdrop-blur-sm"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useAgents } from '@/hooks/useAgents'
@@ -63,6 +63,37 @@ export default function ZoomPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [flippingCardId, setFlippingCardId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+
+  // Fetch unread message counts for all agents
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      const counts: Record<string, number> = {}
+
+      for (const agent of agents) {
+        try {
+          const baseUrl = agent.hostUrl || ''
+          const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.count > 0) {
+              counts[agent.id] = data.count
+            }
+          }
+        } catch {
+          // Ignore errors for individual agents
+        }
+      }
+
+      setUnreadCounts(counts)
+    }
+
+    if (agents.length > 0) {
+      fetchUnreadCounts()
+      const interval = setInterval(fetchUnreadCounts, 10000)
+      return () => clearInterval(interval)
+    }
+  }, [agents])
 
   // Compute selectable agents: online + hibernated (offline with session config)
   const selectableAgents = useMemo(
@@ -113,8 +144,11 @@ export default function ZoomPage() {
   }
 
   const handlePopOut = (agent: Agent) => {
-    const url = `/immersive?agent=${encodeURIComponent(agent.id)}`
+    // Open the same tabbed view in a new window
+    const url = `/zoom/agent?id=${encodeURIComponent(agent.id)}`
     window.open(url, `agent-${agent.id}`, 'width=1200,height=800,menubar=no,toolbar=no')
+    // Close the modal
+    setSelectedAgentId(null)
   }
 
   const handleWake = async (agent: Agent) => {
@@ -275,9 +309,11 @@ export default function ZoomPage() {
                       isFlipped={flippingCardId === agent.id}
                       isHibernated={isHibernated}
                       hasValidSession={hasValidTerminalSession(agent)}
+                      unreadCount={unreadCounts[agent.id]}
                       onFlip={() => handleCardClick(agent.id)}
                       onClose={() => {}}
                       onPopOut={() => handlePopOut(agent)}
+                      onShutdown={refreshAgents}
                       allAgents={onlineAgents}
                     />
                   )

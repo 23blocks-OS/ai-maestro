@@ -107,8 +107,13 @@ export default function ImmersivePage() {
       window.addEventListener('resize', handleResize)
 
       // Connect WebSocket using tmux session name
+      // Include hostId for remote agents (peer mesh network)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${protocol}//${window.location.host}/term?name=${encodeURIComponent(tmuxSessionName)}`)
+      let wsUrl = `${protocol}//${window.location.host}/term?name=${encodeURIComponent(tmuxSessionName)}`
+      if (activeAgent?.hostId && activeAgent.hostId !== 'local') {
+        wsUrl += `&host=${encodeURIComponent(activeAgent.hostId)}`
+      }
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {

@@ -197,8 +197,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   useEffect(() => {
     let cleanup: (() => void) | undefined
     let retryCount = 0
-    const maxRetries = 10
-    const retryDelay = 100 // ms
+    const maxRetries = 20
+    const retryDelay = 150 // ms
     let retryTimer: NodeJS.Timeout | null = null
     let mounted = true
 

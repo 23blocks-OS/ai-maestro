@@ -260,7 +260,7 @@ export default function AgentCard({
               </div>
             )}
 
-            <h3 className="text-lg font-semibold text-white truncate drop-shadow-lg">
+            <h3 className="text-lg font-semibold text-white truncate drop-shadow-lg leading-none">
               {displayName}
               {/* Show host inline for remote agents */}
               {agent.hostId && agent.hostId !== 'local' && (

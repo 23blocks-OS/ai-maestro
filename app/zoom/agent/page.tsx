@@ -62,7 +62,7 @@ function ZoomAgentContent() {
     : 'Agent'
 
   const isAvatarUrl = agent?.avatar &&
-    (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://'))
+    (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://') || agent.avatar.startsWith('/'))
 
   const initials = displayName
     .split(/[\s-_]+/)

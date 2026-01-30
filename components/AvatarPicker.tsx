@@ -28,7 +28,7 @@ export default function AvatarPicker({
     if (isOpen) {
       setSelectedAvatar(null)
       // Default to the tab matching current avatar
-      if (currentAvatar?.includes('/women/')) {
+      if (currentAvatar?.includes('/women') || currentAvatar?.includes('women_')) {
         setActiveTab('women')
       } else {
         setActiveTab('men')
@@ -38,15 +38,30 @@ export default function AvatarPicker({
 
   if (!isOpen) return null
 
-  const usedAvatarsSet = new Set(usedAvatars)
+  // Helper to normalize avatar paths for comparison (handles both old randomuser URLs and new local paths)
+  const normalizeAvatarPath = (avatar: string | undefined): string | undefined => {
+    if (!avatar) return undefined
+    // Convert randomuser.me URL to local path format for comparison
+    const match = avatar.match(/portraits\/(men|women)\/(\d+)\.jpg/)
+    if (match) {
+      return `/avatars/${match[1]}_${match[2].padStart(2, '0')}.png`
+    }
+    return avatar
+  }
 
-  // Generate avatar URLs for the selected gender (0-99)
-  const avatars = Array.from({ length: 100 }, (_, i) => ({
-    url: `https://randomuser.me/api/portraits/${activeTab}/${i}.jpg`,
-    index: i,
-    isUsed: usedAvatarsSet.has(`https://randomuser.me/api/portraits/${activeTab}/${i}.jpg`),
-    isCurrent: currentAvatar === `https://randomuser.me/api/portraits/${activeTab}/${i}.jpg`
-  }))
+  const usedAvatarsNormalized = new Set(usedAvatars.map(a => normalizeAvatarPath(a)))
+  const currentAvatarNormalized = normalizeAvatarPath(currentAvatar)
+
+  // Generate avatar URLs for the selected gender (0-99) using local library
+  const avatars = Array.from({ length: 100 }, (_, i) => {
+    const url = `/avatars/${activeTab}_${i.toString().padStart(2, '0')}.png`
+    return {
+      url,
+      index: i,
+      isUsed: usedAvatarsNormalized.has(url),
+      isCurrent: currentAvatarNormalized === url
+    }
+  })
 
   const handleSelect = () => {
     if (selectedAvatar) {

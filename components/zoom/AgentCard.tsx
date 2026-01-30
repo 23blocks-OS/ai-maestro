@@ -51,7 +51,7 @@ export default function AgentCard({
     .slice(0, 2)
 
   // Check if avatar is a URL (image) or emoji/text
-  const isAvatarUrl = agent.avatar && (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://'))
+  const isAvatarUrl = agent.avatar && (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://') || agent.avatar.startsWith('/'))
 
   // Check if agent has email addresses
   const emailAddresses = agent.tools?.email?.addresses || []

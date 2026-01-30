@@ -450,6 +450,73 @@ export async function POST(request: Request) {
       }
     }
 
+    // Import skills if present (v1.1.0)
+    const skillsDir = path.join(tempDir, 'skills')
+    if (fs.existsSync(skillsDir) && !options.skipSkills) {
+      const targetSkillsDir = path.join(AGENTS_DIR, agentToImport.id, 'skills')
+      ensureDir(targetSkillsDir)
+
+      // Import custom skills
+      const customSkillsDir = path.join(skillsDir, 'custom')
+      if (fs.existsSync(customSkillsDir)) {
+        const skillFolders = fs.readdirSync(customSkillsDir, { withFileTypes: true })
+          .filter(d => d.isDirectory())
+
+        for (const skillFolder of skillFolders) {
+          const srcPath = path.join(customSkillsDir, skillFolder.name)
+          const destPath = path.join(targetSkillsDir, skillFolder.name)
+          ensureDir(destPath)
+
+          // Copy skill files
+          const files = fs.readdirSync(srcPath)
+          for (const file of files) {
+            fs.copyFileSync(path.join(srcPath, file), path.join(destPath, file))
+          }
+        }
+      }
+
+      // Note: Marketplace skills are stored as references, not files
+      // The SKILL.md files are bundled for portability but we just restore
+      // the references from the agent's skills config
+    }
+
+    // Import hooks if present
+    const hooksDir = path.join(tempDir, 'hooks')
+    if (fs.existsSync(hooksDir) && !options.skipHooks) {
+      const targetHooksDir = path.join(AGENTS_DIR, agentToImport.id, 'hooks')
+      ensureDir(targetHooksDir)
+
+      // Read hooks manifest if exists
+      const hooksManifestPath = path.join(hooksDir, 'hooks.json')
+      if (fs.existsSync(hooksManifestPath)) {
+        const hooksManifest = JSON.parse(fs.readFileSync(hooksManifestPath, 'utf-8'))
+
+        // Copy hook scripts
+        const hookFiles = fs.readdirSync(hooksDir).filter(f => f !== 'hooks.json')
+        for (const file of hookFiles) {
+          fs.copyFileSync(path.join(hooksDir, file), path.join(targetHooksDir, file))
+        }
+
+        // Update agent with hooks config
+        const agents = loadAgents()
+        const agentIndex = agents.findIndex(a => a.id === agentToImport.id)
+        if (agentIndex >= 0) {
+          // Update hook paths to new location
+          const updatedHooks: Record<string, string> = {}
+          for (const [event, _scriptPath] of Object.entries(hooksManifest)) {
+            // Find the matching hook file
+            const hookFile = hookFiles.find(f => f === path.basename(_scriptPath as string))
+            if (hookFile) {
+              updatedHooks[event] = `./hooks/${hookFile}`
+            }
+          }
+          agents[agentIndex].hooks = updatedHooks
+          saveAgents(agents)
+          agentToImport.hooks = updatedHooks
+        }
+      }
+    }
+
     // Clean up temp directory
     fs.rmSync(tempDir, { recursive: true, force: true })
     tempDir = null

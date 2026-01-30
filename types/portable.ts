@@ -33,6 +33,14 @@ export interface AgentExportManifest {
       sent: number             // Number of sent messages
       archived: number         // Number of archived messages
     }
+    // Skills support (v1.1.0)
+    hasSkills?: boolean        // Has skills directory
+    skillStats?: {
+      marketplace: number      // Number of marketplace skills
+      aiMaestro: number        // Number of AI Maestro skills
+      custom: number           // Number of custom skills
+    }
+    hasHooks?: boolean         // Has hooks directory
   }
   // Git repositories the agent works with (for cloning on import)
   repositories?: PortableRepository[]
@@ -63,6 +71,10 @@ export interface AgentImportOptions {
   // Repository handling
   cloneRepositories?: boolean  // Whether to clone repos on import
   repositoryMappings?: RepositoryMapping[]  // Custom path mappings for repos
+
+  // Skills & hooks handling (v1.1.0)
+  skipSkills?: boolean         // Don't import skills
+  skipHooks?: boolean          // Don't import hooks
 }
 
 /**

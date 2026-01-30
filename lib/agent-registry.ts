@@ -1271,3 +1271,303 @@ export function updateEmailAddress(
 
   return agents[index]
 }
+
+// ============================================================================
+// Skills Management
+// ============================================================================
+
+import type { AgentSkillsConfig, AgentCustomSkill } from '@/types/agent'
+
+/**
+ * Default AI Maestro skills included with every agent
+ */
+export const DEFAULT_AI_MAESTRO_SKILLS = [
+  'agent-messaging',
+  'docs-search',
+  'graph-query',
+  'memory-search',
+  'planning',
+]
+
+/**
+ * Get skills configuration for an agent
+ * Returns default config if agent has no skills configured
+ */
+export function getAgentSkills(agentId: string): AgentSkillsConfig | null {
+  const agent = getAgent(agentId)
+  if (!agent) return null
+
+  return agent.skills || {
+    marketplace: [],
+    aiMaestro: {
+      enabled: true,
+      skills: DEFAULT_AI_MAESTRO_SKILLS,
+    },
+    custom: [],
+  }
+}
+
+/**
+ * Add marketplace skills to an agent
+ * @param agentId - Agent ID
+ * @param skillsToAdd - Array of skill objects to add
+ * @returns Updated agent or null if agent not found
+ */
+export function addMarketplaceSkills(
+  agentId: string,
+  skillsToAdd: Array<{
+    id: string
+    marketplace: string
+    plugin: string
+    name: string
+    version?: string
+  }>
+): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  // Initialize skills if not present
+  if (!agents[index].skills) {
+    agents[index].skills = {
+      marketplace: [],
+      aiMaestro: {
+        enabled: true,
+        skills: DEFAULT_AI_MAESTRO_SKILLS,
+      },
+      custom: [],
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  for (const skill of skillsToAdd) {
+    // Check if already installed
+    const existing = agents[index].skills!.marketplace.find(s => s.id === skill.id)
+    if (existing) {
+      // Update version if provided
+      if (skill.version) {
+        existing.version = skill.version
+      }
+      continue
+    }
+
+    // Add new skill
+    agents[index].skills!.marketplace.push({
+      id: skill.id,
+      marketplace: skill.marketplace,
+      plugin: skill.plugin,
+      name: skill.name,
+      version: skill.version,
+      installedAt: now,
+    })
+  }
+
+  agents[index].lastActive = now
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Remove marketplace skills from an agent
+ * @param agentId - Agent ID
+ * @param skillIds - Array of skill IDs to remove
+ * @returns Updated agent or null if agent not found
+ */
+export function removeMarketplaceSkills(agentId: string, skillIds: string[]): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  if (!agents[index].skills?.marketplace) {
+    return agents[index]
+  }
+
+  agents[index].skills!.marketplace = agents[index].skills!.marketplace.filter(
+    s => !skillIds.includes(s.id)
+  )
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Add a custom skill to an agent
+ * Custom skills are stored in the agent's folder: ~/.aimaestro/agents/{id}/skills/
+ * @param agentId - Agent ID
+ * @param skill - Custom skill to add
+ * @returns Updated agent or null if agent not found
+ */
+export function addCustomSkill(
+  agentId: string,
+  skill: {
+    name: string
+    content: string
+    description?: string
+  }
+): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  // Initialize skills if not present
+  if (!agents[index].skills) {
+    agents[index].skills = {
+      marketplace: [],
+      aiMaestro: {
+        enabled: true,
+        skills: DEFAULT_AI_MAESTRO_SKILLS,
+      },
+      custom: [],
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  // Check if skill with same name exists
+  const existingIndex = agents[index].skills!.custom.findIndex(
+    s => s.name.toLowerCase() === skill.name.toLowerCase()
+  )
+
+  // Write skill file to agent's folder
+  const agentSkillsDir = path.join(AGENTS_DIR, agentId, 'skills', skill.name)
+  const skillFilePath = path.join(agentSkillsDir, 'SKILL.md')
+  const relativePath = path.join('skills', skill.name)
+
+  try {
+    fs.mkdirSync(agentSkillsDir, { recursive: true })
+    fs.writeFileSync(skillFilePath, skill.content, 'utf-8')
+  } catch (error) {
+    console.error('Failed to write custom skill file:', error)
+    return null
+  }
+
+  const customSkill: AgentCustomSkill = {
+    name: skill.name,
+    path: relativePath,
+    description: skill.description,
+    createdAt: existingIndex >= 0 ? agents[index].skills!.custom[existingIndex].createdAt : now,
+    updatedAt: now,
+  }
+
+  if (existingIndex >= 0) {
+    // Update existing
+    agents[index].skills!.custom[existingIndex] = customSkill
+  } else {
+    // Add new
+    agents[index].skills!.custom.push(customSkill)
+  }
+
+  agents[index].lastActive = now
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Remove a custom skill from an agent
+ * Also deletes the skill file from disk
+ * @param agentId - Agent ID
+ * @param skillName - Name of the custom skill to remove
+ * @returns Updated agent or null if agent not found
+ */
+export function removeCustomSkill(agentId: string, skillName: string): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  if (!agents[index].skills?.custom) {
+    return agents[index]
+  }
+
+  // Find the skill
+  const skillIndex = agents[index].skills!.custom.findIndex(
+    s => s.name.toLowerCase() === skillName.toLowerCase()
+  )
+
+  if (skillIndex === -1) {
+    return agents[index]
+  }
+
+  // Get the path and try to delete the file
+  const skill = agents[index].skills!.custom[skillIndex]
+  const skillDir = path.join(AGENTS_DIR, agentId, skill.path)
+
+  try {
+    if (fs.existsSync(skillDir)) {
+      fs.rmSync(skillDir, { recursive: true })
+    }
+  } catch (error) {
+    console.error('Failed to delete custom skill folder:', error)
+    // Continue anyway to remove from registry
+  }
+
+  // Remove from registry
+  agents[index].skills!.custom.splice(skillIndex, 1)
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Update AI Maestro skills configuration for an agent
+ * @param agentId - Agent ID
+ * @param config - New AI Maestro config
+ * @returns Updated agent or null if agent not found
+ */
+export function updateAiMaestroSkills(
+  agentId: string,
+  config: {
+    enabled?: boolean
+    skills?: string[]
+  }
+): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  // Initialize skills if not present
+  if (!agents[index].skills) {
+    agents[index].skills = {
+      marketplace: [],
+      aiMaestro: {
+        enabled: true,
+        skills: DEFAULT_AI_MAESTRO_SKILLS,
+      },
+      custom: [],
+    }
+  }
+
+  if (config.enabled !== undefined) {
+    agents[index].skills!.aiMaestro.enabled = config.enabled
+  }
+
+  if (config.skills !== undefined) {
+    agents[index].skills!.aiMaestro.skills = config.skills
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}

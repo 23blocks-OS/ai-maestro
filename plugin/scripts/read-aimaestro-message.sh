@@ -155,6 +155,38 @@ echo ""
 echo "$MESSAGE"
 echo ""
 
+# Show email content if present (inbound email via gateway)
+EMAIL_FROM=$(echo "$RESPONSE" | jq -r '.content.email.from // empty')
+if [ -n "$EMAIL_FROM" ] && [ "$EMAIL_FROM" != "null" ]; then
+  EMAIL_FROM_NAME=$(echo "$RESPONSE" | jq -r '.content.email.fromName // empty')
+  EMAIL_TO=$(echo "$RESPONSE" | jq -r '.content.email.to // empty')
+  EMAIL_SUBJECT=$(echo "$RESPONSE" | jq -r '.content.email.subject // empty')
+  EMAIL_BODY=$(echo "$RESPONSE" | jq -r '.content.email.textBody // empty')
+  EMAIL_ATTACHMENTS=$(echo "$RESPONSE" | jq -r '.content.email.attachmentCount // 0')
+  EMAIL_MSG_ID=$(echo "$RESPONSE" | jq -r '.content.email.messageId // empty')
+  EMAIL_TRUST=$(echo "$RESPONSE" | jq -r '.content.security.trust // "unknown"')
+
+  echo "───────────────────────────────────────────────────────────────"
+  echo "📨 EMAIL CONTENT:"
+  echo ""
+  if [ -n "$EMAIL_FROM_NAME" ] && [ "$EMAIL_FROM_NAME" != "null" ]; then
+    echo "   From:    $EMAIL_FROM_NAME <$EMAIL_FROM>"
+  else
+    echo "   From:    $EMAIL_FROM"
+  fi
+  echo "   To:      $EMAIL_TO"
+  echo "   Subject: $EMAIL_SUBJECT"
+  if [ "$EMAIL_ATTACHMENTS" != "0" ] && [ "$EMAIL_ATTACHMENTS" != "null" ]; then
+    echo "   Attach:  $EMAIL_ATTACHMENTS file(s) 📎"
+  fi
+  echo "   Trust:   $EMAIL_TRUST"
+  echo ""
+  echo "───────────────────────────────────────────────────────────────"
+  echo ""
+  echo "$EMAIL_BODY"
+  echo ""
+fi
+
 # Show context if present
 if [ -n "$CONTEXT" ] && [ "$CONTEXT" != "null" ] && [ "$CONTEXT" != "{}" ]; then
   echo "───────────────────────────────────────────────────────────────"

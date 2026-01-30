@@ -60,6 +60,7 @@ interface AgentCardViewProps {
   allAgents: Agent[]
   onWake: (e: React.MouseEvent) => Promise<void>
   isWaking: boolean
+  unreadCount?: number
 }
 
 export default function AgentCardView({
@@ -68,7 +69,8 @@ export default function AgentCardView({
   isHibernated,
   allAgents,
   onWake,
-  isWaking
+  isWaking,
+  unreadCount = 0
 }: AgentCardViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('terminal')
   const [containerReady, setContainerReady] = useState(false)
@@ -127,9 +129,9 @@ export default function AgentCardView({
     }
   }, [])
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: TabType; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'terminal', label: 'Terminal', icon: <Terminal className="w-4 h-4" /> },
-    { id: 'messages', label: 'Messages', icon: <Mail className="w-4 h-4" /> },
+    { id: 'messages', label: 'Messages', icon: <Mail className="w-4 h-4" />, badge: unreadCount },
     { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
     { id: 'memory', label: 'Memory', icon: <Brain className="w-4 h-4" /> },
   ]
@@ -176,7 +178,7 @@ export default function AgentCardView({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
+            className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
               activeTab === tab.id
                 ? 'text-violet-400 border-b-2 border-violet-400 bg-gray-900/50'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
@@ -184,6 +186,11 @@ export default function AgentCardView({
           >
             {tab.icon}
             {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="ml-1.5 bg-blue-500/90 text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
+                {tab.badge > 99 ? '99+' : tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>

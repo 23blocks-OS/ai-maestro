@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X, ExternalLink, Search, Mail } from 'lucide-react'
+import { VersionChecker } from '@/components/VersionChecker'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 import './zoom.css'
@@ -325,9 +326,32 @@ export default function ZoomPage() {
 
         {/* Footer */}
         <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
-          <p className="text-xs text-gray-500 text-center">
-            Click a card to open full view. Use pop-out for separate window.
-          </p>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
+            <p className="text-xs md:text-sm text-white leading-none">
+              <VersionChecker /> • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            </p>
+            <p className="text-xs md:text-sm text-white leading-none">
+              Concept by{' '}
+              <a
+                href="https://x.com/jkpelaez"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-gray-300 transition-colors"
+              >
+                Juan Peláez
+              </a>{' '}
+              @{' '}
+              <a
+                href="https://23blocks.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-red-500 hover:text-red-400 transition-colors"
+              >
+                23blocks
+              </a>
+              . Coded by Claude
+            </p>
+          </div>
         </footer>
 
         {/* Expanded Agent Modal */}
@@ -348,9 +372,9 @@ export default function ZoomPage() {
               {/* Modal Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
                 <div className="flex items-center gap-4">
-                  {/* Avatar with status dot */}
-                  <div className="relative">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold overflow-hidden ${
+                  {/* Avatar with status dot - sized for 3 rows */}
+                  <div className="relative flex-shrink-0">
+                    <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-xl font-bold overflow-hidden ${
                       isSelectedHibernated
                         ? 'bg-yellow-900/30 text-yellow-400'
                         : 'bg-violet-600/30 text-violet-300'
@@ -362,57 +386,69 @@ export default function ZoomPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : selectedAgent.avatar ? (
-                        <span className="text-2xl">{selectedAgent.avatar}</span>
+                        <span className="text-3xl">{selectedAgent.avatar}</span>
                       ) : (
                         <span>{initials}</span>
                       )}
                     </div>
                     {/* Status dot */}
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-gray-900 ${
                       isSelectedHibernated ? 'bg-yellow-400' : 'bg-green-400'
                     }`} />
                   </div>
 
-                  {/* Agent Info */}
-                  <div>
+                  {/* Agent Info - 3 rows */}
+                  <div className="flex flex-col justify-center min-w-0 flex-1">
+                    {/* Row 1: Display name + host */}
                     <h2 className="text-xl font-semibold text-white leading-none">
                       {displayName}
                       {selectedAgent.hostId && selectedAgent.hostId !== 'local' && (
                         <span className="font-normal text-white">@{selectedAgent.hostName || selectedAgent.hostId}</span>
                       )}
                     </h2>
-                    {/* Agent name (if different from display name) */}
-                    {selectedAgent.label && selectedAgent.name && (
-                      <p className="text-xs text-gray-400 font-mono mt-1">{selectedAgent.name}</p>
-                    )}
-                    {/* Email addresses */}
-                    {selectedAgent.tools?.email?.addresses && selectedAgent.tools.email.addresses.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <Mail className="w-3.5 h-3.5 text-blue-400" />
-                        <span className="text-xs text-gray-400 font-mono">
-                          {selectedAgent.tools.email.addresses.map(e => e.address).join(', ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tags as pill labels */}
-                  {selectedAgent.tags && selectedAgent.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {selectedAgent.tags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
+                    {/* Row 2: Agent name and tags */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {selectedAgent.label && selectedAgent.name && (
+                        <span className="text-xs text-gray-400 font-mono">{selectedAgent.name}</span>
+                      )}
+                      {selectedAgent.tags && selectedAgent.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedAgent.tags.map((tag, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded-full whitespace-nowrap"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Show placeholder if no name or tags */}
+                      {!(selectedAgent.label && selectedAgent.name) && !(selectedAgent.tags && selectedAgent.tags.length > 0) && (
+                        <span className="text-xs text-gray-600">—</span>
+                      )}
                     </div>
-                  )}
+                    {/* Row 3: Email addresses - always show */}
+                    <div className="flex items-start gap-1.5 mt-1.5">
+                      {selectedAgent.tools?.email?.addresses && selectedAgent.tools.email.addresses.length > 0 ? (
+                        <>
+                          <Mail className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span className="text-xs text-gray-400 font-mono">
+                            {selectedAgent.tools.email.addresses.map(e => e.address).join(', ')}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-3.5 h-3.5 text-red-400/50 flex-shrink-0" />
+                          <span className="text-xs text-gray-600">No email configured</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
+                {/* Actions - never shrink */}
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => handlePopOut(selectedAgent)}
                     className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm"
@@ -439,6 +475,7 @@ export default function ZoomPage() {
                   allAgents={onlineAgents}
                   onWake={async () => handleWake(selectedAgent)}
                   isWaking={false}
+                  unreadCount={unreadCounts[selectedAgent.id] || 0}
                 />
               </div>
             </div>

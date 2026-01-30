@@ -311,6 +311,30 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
+  // Paste from clipboard (with user gesture - required for mobile)
+  const pasteFromClipboard = useCallback(async () => {
+    if (!isConnected) return
+
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        // Send as bracketed paste to handle multi-line content properly
+        const carriageAdjusted = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
+        const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
+        sendMessage(bracketedPayload)
+        console.log('[Terminal] Pasted from clipboard')
+        // Focus terminal after paste
+        if (terminalInstanceRef.current) {
+          terminalInstanceRef.current.focus()
+        }
+      }
+    } catch (err) {
+      console.error('[Terminal] Failed to paste:', err)
+      // On mobile, clipboard access might fail - show user-friendly message
+      alert('Unable to access clipboard. Please use the Prompt Builder tab to paste text.')
+    }
+  }, [isConnected, sendMessage])
+
   // Handle terminal resize
   useEffect(() => {
     if (!terminal || !isConnected) return
@@ -592,6 +616,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 title="Copy selected text to clipboard"
               >
                 📋 <span className="hidden md:inline">Copy</span>
+              </button>
+              <button
+                onClick={pasteFromClipboard}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title="Paste from clipboard (mobile-friendly)"
+              >
+                📥 <span className="hidden md:inline">Paste</span>
               </button>
               <button
                 onClick={() => terminal.clear()}

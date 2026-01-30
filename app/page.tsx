@@ -15,7 +15,7 @@ import MigrationBanner from '@/components/MigrationBanner'
 import { VersionChecker } from '@/components/VersionChecker'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, ExternalLink } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -679,11 +679,22 @@ export default function DashboardPage() {
                       <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
                       <button
                         onClick={() => handleShowAgentProfile(agent)}
-                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
                         title="View Agent Profile"
                       >
                         <User className="w-4 h-4" />
                         Agent Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          const url = `/zoom/agent?id=${encodeURIComponent(agent.id)}`
+                          window.open(url, `agent-${agent.id}`, 'width=1200,height=800,menubar=no,toolbar=no')
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-violet-400 hover:bg-gray-800/30"
+                        title="Open in new window"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Pop Out
                       </button>
                     </div>
                   </div>

@@ -51,6 +51,18 @@ const MemoryViewer = dynamic(
   }
 )
 
+const AgentProfileTab = dynamic(
+  () => import('@/components/zoom/AgentProfileTab'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
+      </div>
+    )
+  }
+)
+
 type TabType = 'terminal' | 'messages' | 'profile' | 'memory'
 
 interface AgentCardViewProps {
@@ -61,6 +73,7 @@ interface AgentCardViewProps {
   onWake: (e: React.MouseEvent) => Promise<void>
   isWaking: boolean
   unreadCount?: number
+  onClose?: () => void
 }
 
 export default function AgentCardView({
@@ -70,7 +83,8 @@ export default function AgentCardView({
   allAgents,
   onWake,
   isWaking,
-  unreadCount = 0
+  unreadCount = 0,
+  onClose
 }: AgentCardViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('terminal')
   const [containerReady, setContainerReady] = useState(false)
@@ -249,66 +263,18 @@ export default function AgentCardView({
 
         {/* Profile Tab */}
         <div
-          className="absolute inset-0 overflow-auto p-6"
+          className="absolute inset-0 overflow-hidden"
           style={{
             visibility: activeTab === 'profile' ? 'visible' : 'hidden',
             pointerEvents: activeTab === 'profile' ? 'auto' : 'none',
             zIndex: activeTab === 'profile' ? 10 : 0
           }}
         >
-          <div className="space-y-6 max-w-2xl">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Name</label>
-              <p className="text-white text-lg mt-1">{displayName}</p>
-            </div>
-            {agent.alias && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Alias</label>
-                <p className="text-white mt-1">{agent.alias}</p>
-              </div>
-            )}
-            {agent.tags && agent.tags.length > 0 && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Tags</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {agent.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 text-sm bg-gray-700 text-gray-300 rounded-full"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {session.workingDirectory && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Working Directory</label>
-                <p className="text-white text-sm font-mono mt-1 p-3 bg-gray-800 rounded-lg break-all">
-                  {session.workingDirectory}
-                </p>
-              </div>
-            )}
-            {agent.documentation?.description && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Description</label>
-                <p className="text-gray-300 mt-1">{agent.documentation.description}</p>
-              </div>
-            )}
-            {agent.hostId && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Host</label>
-                <p className="text-gray-400 mt-1">{agent.hostId}</p>
-              </div>
-            )}
-            {agent.program && (
-              <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wide font-medium">Program</label>
-                <p className="text-gray-400 mt-1">{agent.program}</p>
-              </div>
-            )}
-          </div>
+          <AgentProfileTab
+            agent={agent}
+            hostUrl={agent.hostUrl}
+            onClose={onClose}
+          />
         </div>
 
         {/* Memory Tab */}

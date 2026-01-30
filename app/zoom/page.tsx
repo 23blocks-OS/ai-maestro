@@ -476,6 +476,7 @@ export default function ZoomPage() {
                   onWake={async () => handleWake(selectedAgent)}
                   isWaking={false}
                   unreadCount={unreadCounts[selectedAgent.id] || 0}
+                  onClose={handleCloseModal}
                 />
               </div>
             </div>

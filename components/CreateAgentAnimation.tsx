@@ -22,7 +22,7 @@ export function getPreviewAvatarUrl(agentName: string): string {
   }
   const index = Math.abs(hash) % 100
   const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
-  return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
 }
 
 const PHASE_CONFIG = {

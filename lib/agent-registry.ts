@@ -56,7 +56,7 @@ function generateAvatarUrl(agentId: string): string {
   const hash = computeHash(agentId)
   const index = Math.abs(hash) % 100
   const gender = getGenderFromId(agentId) === 'male' ? 'men' : 'women'
-  return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
 }
 
 /**
@@ -111,7 +111,7 @@ function generateUniqueAvatarUrl(agentId: string, usedAvatars: Set<string>): str
   let attempts = 0
 
   while (attempts < 100) {
-    const url = `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+    const url = `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
     if (!usedAvatars.has(url)) {
       return url
     }
@@ -120,7 +120,7 @@ function generateUniqueAvatarUrl(agentId: string, usedAvatars: Set<string>): str
   }
 
   // Fallback if all 100 are used (unlikely)
-  return `https://randomuser.me/api/portraits/${gender}/${Math.abs(hash) % 100}.jpg`
+  return `/avatars/${gender}_${(Math.abs(hash) % 100).toString().padStart(2, '0')}.png`
 }
 
 /**

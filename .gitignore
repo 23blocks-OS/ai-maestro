@@ -146,3 +146,6 @@ override.tf.json
 # Help build success marker (build artifact)
 data/.help-build-success
 docs/BACKLOG-AGENTS-MARKETPLACE.md
+
+# Agent-specific avatar files (only library files should be committed)
+public/avatars/*_enhanced.png

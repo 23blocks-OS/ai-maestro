@@ -1176,7 +1176,7 @@ export default function AgentList({
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="flex-1 min-w-0 flex items-center gap-3">
                                             {/* Avatar or Icon */}
-                                            {agent.avatar && agent.avatar.startsWith('http') ? (
+                                            {agent.avatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/')) ? (
                                               <img
                                                 src={agent.avatar}
                                                 alt=""

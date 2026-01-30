@@ -48,7 +48,7 @@ function getAvatarUrl(agentId: string): string {
   // Alternate between men and women based on another bit of the hash
   const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
 
-  return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
 }
 
 // Generate a consistent color from a string (for avatar ring/fallback)
@@ -77,8 +77,8 @@ function stringToRingColor(str: string): string {
 // Check if string is an emoji (not a URL or other text)
 // Note: \p{Emoji} matches digits, so we need a stricter check
 function isEmoji(str: string): boolean {
-  // Emojis are short (1-8 chars with modifiers) and don't start with http
-  if (!str || str.length > 8 || str.startsWith('http')) return false
+  // Emojis are short (1-8 chars with modifiers) and don't start with http or /
+  if (!str || str.length > 8 || str.startsWith('http') || str.startsWith('/')) return false
   // Match actual emoji presentations, not just emoji components like digits
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
@@ -136,7 +136,7 @@ export default function AgentBadge({
 
   // Avatar priority: stored URL > stored emoji > computed from ID
   const hasEmojiAvatar = agent.avatar ? isEmoji(agent.avatar) : false
-  const hasStoredAvatarUrl = agent.avatar && !hasEmojiAvatar && agent.avatar.startsWith('http')
+  const hasStoredAvatarUrl = agent.avatar && !hasEmojiAvatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/'))
   const avatarUrl = hasStoredAvatarUrl ? agent.avatar : getAvatarUrl(agent.id)
   const [imageError, setImageError] = React.useState(false)
 

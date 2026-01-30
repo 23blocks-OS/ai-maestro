@@ -197,7 +197,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   }
 
   const displayName = agent.label || agent.name || agent.alias || 'Unnamed Agent'
-  const isAvatarUrl = agent.avatar && (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://'))
+  const isAvatarUrl = agent.avatar && (agent.avatar.startsWith('http://') || agent.avatar.startsWith('https://') || agent.avatar.startsWith('/'))
 
   return (
     <div className="h-full flex flex-col">

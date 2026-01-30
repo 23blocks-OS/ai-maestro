@@ -171,7 +171,7 @@ export default function ZoomPage() {
     : ''
 
   const isAvatarUrl = selectedAgent?.avatar &&
-    (selectedAgent.avatar.startsWith('http://') || selectedAgent.avatar.startsWith('https://'))
+    (selectedAgent.avatar.startsWith('http://') || selectedAgent.avatar.startsWith('https://') || selectedAgent.avatar.startsWith('/'))
 
   const initials = displayName
     .split(/[\s-_]+/)

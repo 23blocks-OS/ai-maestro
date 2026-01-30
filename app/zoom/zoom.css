@@ -117,6 +117,13 @@
   overflow: hidden;
 }
 
+/* Ensure xterm selection works in zoom modal - no browser native selection */
+.zoom-terminal-container .xterm,
+.zoom-terminal-container .xterm * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* Loading shimmer */
 @keyframes shimmer {
   0% {

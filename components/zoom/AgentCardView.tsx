@@ -256,8 +256,8 @@ export default function AgentCardView({
               tmuxSessionName: a.session?.tmuxSessionName,
               hostId: a.hostId
             }))}
-            isVisible={activeTab === 'messages'}
             hostUrl={agent.hostUrl}
+            isActive={activeTab === 'messages'}
           />
         </div>
 
@@ -289,7 +289,7 @@ export default function AgentCardView({
           <MemoryViewer
             agentId={agent.id}
             hostUrl={agent.hostUrl}
-            isVisible={activeTab === 'memory'}
+            isActive={activeTab === 'memory'}
           />
         </div>
       </div>

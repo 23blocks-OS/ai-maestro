@@ -792,7 +792,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <ChatView agent={agent} isVisible={isActive && activeTab === 'chat'} />
+                        <ChatView agent={agent} isActive={isActive} />
                       )
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
@@ -805,8 +805,8 @@ export default function DashboardPage() {
                           tmuxSessionName: a.session?.tmuxSessionName,
                           hostId: a.hostId
                         }))}
-                        isVisible={isActive && activeTab === 'messages'}
                         hostUrl={agent.hostUrl}
+                        isActive={isActive}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
@@ -814,29 +814,29 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         agentAlias={agent.alias}
                         hostId={agent.hostId}
-                        isVisible={isActive && activeTab === 'worktree'}
+                        isActive={isActive}
                       />
                     ) : activeTab === 'graph' ? (
                       <AgentGraph
                         sessionName={session.id}
                         agentId={agent.id}
-                        isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                        isActive={isActive}
                       />
                     ) : activeTab === 'memory' ? (
                       <MemoryViewer
                         agentId={agent.id}
                         hostUrl={agent.hostUrl}
-                        isVisible={isActive && activeTab === 'memory'}
+                        isActive={isActive}
                       />
                     ) : (
                       <DocumentationPanel
                         sessionName={session.id}
                         agentId={agent.id}
-                        isVisible={isActive && activeTab === 'docs'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                        isActive={isActive}
                       />
                     )}
                   </div>

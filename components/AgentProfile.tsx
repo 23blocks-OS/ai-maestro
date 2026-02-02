@@ -820,7 +820,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                 </button>
 
                 {expandedSections.memory && (
-                  <MemoryViewer agentId={agent.id} hostUrl={hostUrl} />
+                  <MemoryViewer agentId={agent.id} hostUrl={hostUrl} isActive={true} />
                 )}
               </section>
 

@@ -6,7 +6,7 @@ import type { Agent } from '@/types/agent'
 
 interface ChatViewProps {
   agent: Agent
-  isVisible?: boolean
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
 interface Message {
@@ -35,7 +35,7 @@ interface ContentBlock {
   [key: string]: any
 }
 
-export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
+export default function ChatView({ agent, isActive = false }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [pendingMessages, setPendingMessages] = useState<Array<{ text: string; timestamp: string }>>([])
   const [input, setInput] = useState('')
@@ -88,7 +88,7 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
 
     try {
       const hostUrl = agent.hostUrl || ''
-      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat?limit=200`)
+      const response = await fetch(`${hostUrl}/api/agents/${agent.id}/chat?limit=25`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -132,19 +132,19 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
     }
   }, [agent?.id, agent?.hostUrl, messages.length, messages, pendingMessages.length])
 
-  // Start polling when visible, but don't clear messages on tab switch
+  // Only fetch when this agent is active (prevents API flood with 40+ agents)
   useEffect(() => {
-    if (isVisible && agent?.id) {
-      // Only fetch with loading indicator if we haven't loaded yet
-      if (!hasLoadedRef.current) {
-        fetchMessages(true)
-      }
+    if (!agent?.id || !isActive) return
 
-      // Poll every 2 seconds for new messages
-      pollIntervalRef.current = setInterval(() => {
-        fetchMessages(false)
-      }, 2000)
+    // Initial fetch with loading indicator
+    if (!hasLoadedRef.current) {
+      fetchMessages(true)
     }
+
+    // Poll every 2 seconds for new messages
+    pollIntervalRef.current = setInterval(() => {
+      fetchMessages(false)
+    }, 2000)
 
     return () => {
       if (pollIntervalRef.current) {
@@ -152,12 +152,11 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
         pollIntervalRef.current = null
       }
     }
-  }, [isVisible, agent?.id, fetchMessages])
+  }, [agent?.id, isActive]) // Re-run when agent changes or becomes active
 
-  // Auto-scroll to bottom ONLY when new messages arrive (not on tab switch)
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    // Only scroll when new messages arrive while visible
-    if (!isVisible || messages.length === 0) return
+    if (messages.length === 0) return
 
     const hasNewMessages = messages.length > prevMessageCountRef.current
     const isInitialLoad = prevMessageCountRef.current === 0
@@ -170,16 +169,7 @@ export default function ChatView({ agent, isVisible = true }: ChatViewProps) {
     } else if (hasNewMessages) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-    // Tab switch: do nothing, let browser preserve scroll position
-  }, [messages, isVisible])
-
-  // Focus input when visible
-  useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 100)
-      return () => clearTimeout(timer)
-    }
-  }, [isVisible])
+  }, [messages])
 
   // Send message via API
   const handleSend = async () => {

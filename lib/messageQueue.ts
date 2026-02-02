@@ -777,6 +777,7 @@ export async function listInboxMessages(
     status?: Message['status']
     priority?: Message['priority']
     from?: string
+    limit?: number  // Maximum number of messages to return (default: unlimited)
   }
 ): Promise<MessageSummary[]> {
   // Resolve agent
@@ -812,6 +813,11 @@ export async function listInboxMessages(
 
   // Sort by timestamp (newest first)
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  // Apply limit if specified
+  if (filter?.limit && filter.limit > 0) {
+    return allMessages.slice(0, filter.limit)
+  }
 
   return allMessages
 }
@@ -963,6 +969,7 @@ export async function listSentMessages(
   filter?: {
     priority?: Message['priority']
     to?: string
+    limit?: number  // Maximum number of messages to return (default: unlimited)
   }
 ): Promise<MessageSummary[]> {
   const agent = resolveAgent(agentIdentifier)
@@ -996,6 +1003,12 @@ export async function listSentMessages(
   }
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  // Apply limit if specified
+  if (filter?.limit && filter.limit > 0) {
+    return allMessages.slice(0, filter.limit)
+  }
+
   return allMessages
 }
 

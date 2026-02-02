@@ -335,6 +335,7 @@ EOF
     print_info "Configuring PATH..."
     source "$PWD/scripts/shell-helpers/common.sh"
     setup_local_bin_path
+
 fi
 
 # Install Claude Code skill
@@ -346,6 +347,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     mkdir -p ~/.claude/skills
 
     # Copy all skills from plugin/skills/
+    # NOTE: ai-maestro-agents-management skill is installed by install-agent-cli.sh
     SKILLS_TO_INSTALL=("agent-messaging" "graph-query" "memory-search" "docs-search" "planning")
 
     for skill in "${SKILLS_TO_INSTALL[@]}"; do
@@ -398,6 +400,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     else
         print_warning "Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
     fi
+
 fi
 
 # Verify skills
@@ -466,23 +469,12 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     echo "   📖 Full guide: https://github.com/23blocks-OS/ai-maestro/tree/main/plugin/skills"
     echo ""
+    echo "   💡 For agent management (create, delete, hibernate, plugins), run:"
+    echo "      ./install-agent-cli.sh"
+    echo ""
 fi
 
-echo "3️⃣  Portable Agents (Export/Import)"
-echo ""
-echo "   Transfer agents between AI Maestro instances:"
-echo ""
-echo "   $ list-agents.sh                    # List available agents"
-echo "   $ export-agent.sh backend-api       # Export agent to ZIP"
-echo "   $ import-agent.sh agent-export.zip  # Import on new machine"
-echo ""
-echo "   Options:"
-echo "   --alias <name>     Override agent name on import"
-echo "   --new-id           Generate new ID (keeps original by default)"
-echo "   --overwrite        Replace existing agent with same name"
-echo ""
-
-echo "4️⃣  Documentation"
+echo "3️⃣  Documentation"
 echo ""
 echo "   📬 Quickstart: https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-QUICKSTART.md"
 echo "   📋 Best Practices: https://github.com/23blocks-OS/ai-maestro/blob/main/docs/AGENT-COMMUNICATION-GUIDELINES.md"

@@ -563,9 +563,12 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* All Selectable Agents (Online + Hibernated) Mounted as Tabs - toggle visibility with CSS */}
-            {selectableAgents.map(agent => {
-              const isActive = agent.id === activeAgentId
+            {/* Only render the active agent - no need to mount all 40+ agents */}
+            {(() => {
+              const agent = selectableAgents.find(a => a.id === activeAgentId)
+              if (!agent) return null
+
+              const isActive = true  // We only render the active agent
               const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
 
@@ -573,11 +576,6 @@ export default function DashboardPage() {
                 <div
                   key={agent.id}
                   className="absolute inset-0 flex flex-col"
-                  style={{
-                    visibility: isActive ? 'visible' : 'hidden',
-                    pointerEvents: isActive ? 'auto' : 'none',
-                    zIndex: isActive ? 10 : 0
-                  }}
                 >
                   {/* Tab Navigation - Responsive with flex-wrap */}
                   <div className="flex flex-wrap border-b border-gray-800 bg-gray-900 flex-shrink-0">
@@ -763,6 +761,11 @@ export default function DashboardPage() {
                       ) : (
                         <TerminalViewNew session={session} isVisible={isActive && activeTab === 'terminal-new'} />
                       )
+                    ) : !isActive ? (
+                      // For inactive agents, don't mount heavy components - just show placeholder
+                      <div className="flex-1 flex items-center justify-center text-gray-500">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      </div>
                     ) : activeTab === 'chat' ? (
                       isHibernated ? (
                         <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -792,7 +795,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <ChatView agent={agent} isActive={isActive} />
+                        <ChatView agent={agent} isActive={true} />
                       )
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
@@ -806,7 +809,7 @@ export default function DashboardPage() {
                           hostId: a.hostId
                         }))}
                         hostUrl={agent.hostUrl}
-                        isActive={isActive}
+                        isActive={true}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
@@ -814,7 +817,7 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         agentAlias={agent.alias}
                         hostId={agent.hostId}
-                        isActive={isActive}
+                        isActive={true}
                       />
                     ) : activeTab === 'graph' ? (
                       <AgentGraph
@@ -822,13 +825,13 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
-                        isActive={isActive}
+                        isActive={true}
                       />
                     ) : activeTab === 'memory' ? (
                       <MemoryViewer
                         agentId={agent.id}
                         hostUrl={agent.hostUrl}
-                        isActive={isActive}
+                        isActive={true}
                       />
                     ) : (
                       <DocumentationPanel
@@ -836,13 +839,13 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
-                        isActive={isActive}
+                        isActive={true}
                       />
                     )}
                   </div>
                 </div>
               )
-            })}
+            })()}
           </main>
         </div>
 

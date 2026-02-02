@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.20.0"
+VERSION="0.20.1"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 

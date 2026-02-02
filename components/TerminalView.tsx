@@ -93,7 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal, enableWebGL, disableWebGL } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
@@ -269,6 +269,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       messageBufferRef.current = []
     }
   }, [terminal])
+
+  // Toggle WebGL based on visibility - only active terminal gets WebGL for GPU efficiency
+  // This prevents exhausting WebGL contexts when many terminals are open
+  useEffect(() => {
+    if (!isReady) return
+
+    if (isVisible) {
+      // Terminal became active - enable WebGL for better rendering
+      enableWebGL()
+    } else {
+      // Terminal became inactive - disable WebGL to free GPU context
+      disableWebGL()
+    }
+  }, [isVisible, isReady, enableWebGL, disableWebGL])
 
   // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {

@@ -56,6 +56,14 @@ export interface Message {
     forwardedAt: string
     forwardNote?: string
   }
+  // AMP Protocol fields (for cryptographic verification)
+  amp?: {
+    signature?: string           // Ed25519 signature of envelope (base64)
+    senderPublicKey?: string     // Sender's public key (hex)
+    signatureVerified?: boolean  // True if signature was cryptographically verified
+    ampAddress?: string          // Full AMP address (name@tenant.provider)
+    envelopeId?: string          // Original AMP envelope ID
+  }
 }
 
 export interface MessageSummary {
@@ -403,6 +411,13 @@ export async function sendMessage(
     fromLabel?: string     // Pre-resolved label (from remote host)
     toLabel?: string       // Pre-resolved label (from remote host)
     fromVerified?: boolean // Explicitly set verified status (for cross-host messages)
+    // AMP Protocol fields for cryptographic verification
+    amp?: {
+      signature?: string         // Ed25519 signature (base64)
+      senderPublicKey?: string   // Sender's public key (hex)
+      ampAddress?: string        // Full AMP address
+      envelopeId?: string        // AMP envelope ID
+    }
   }
 ): Promise<Message> {
   await ensureMessageDirectories()
@@ -463,6 +478,30 @@ export async function sendMessage(
     isFromVerified = false  // Unknown sender, treat as external
   }
 
+  // AMP signature verification (if provided)
+  let signatureVerified = false
+  if (options?.amp?.signature && options?.amp?.senderPublicKey) {
+    try {
+      // Dynamically import to avoid bundling issues
+      const { verifySignature } = require('@/lib/amp-keys')
+      // Build canonical data for verification (same format as sender)
+      const canonicalData = JSON.stringify({
+        from: options.amp.ampAddress || (fromAgent?.alias || from),
+        to: options?.toAlias || toResolved.alias || to,
+        subject,
+        timestamp: new Date().toISOString().split('T')[0], // Just date for tolerance
+      })
+      signatureVerified = verifySignature(canonicalData, options.amp.signature, options.amp.senderPublicKey)
+      if (signatureVerified) {
+        console.log(`[MessageQueue] AMP signature verified for message from ${options.amp.ampAddress || from}`)
+        isFromVerified = true // Cryptographic verification trumps registry lookup
+      }
+    } catch (error) {
+      console.error('[MessageQueue] AMP signature verification failed:', error)
+      signatureVerified = false
+    }
+  }
+
   const message: Message = {
     id: generateMessageId(),
     from: fromAgent?.agentId || from,
@@ -482,6 +521,14 @@ export async function sendMessage(
     status: 'unread',
     content,
     inReplyTo: options?.inReplyTo,
+    // Include AMP fields if provided
+    amp: options?.amp ? {
+      signature: options.amp.signature,
+      senderPublicKey: options.amp.senderPublicKey,
+      signatureVerified,
+      ampAddress: options.amp.ampAddress,
+      envelopeId: options.amp.envelopeId,
+    } : undefined,
   }
 
   // Content security: wrap unverified sender content as backstop

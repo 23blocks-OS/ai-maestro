@@ -20,8 +20,8 @@ import { queueMessage } from '@/lib/amp-relay'
 import { sendMessage, resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getAgent, getAgentByName, getAgentByNameAnyHost } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
-import { getSelfHostId, getHostById, isSelf } from '@/lib/hosts-config-server.mjs'
-import { AMP_PROVIDER_NAME } from '@/lib/types/amp'
+import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
+import { getAMPProviderDomain } from '@/lib/types/amp'
 import type {
   AMPRouteRequest,
   AMPRouteResponse,
@@ -183,8 +183,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
     // Determine delivery method
     // Is recipient on this provider (aimaestro.local or any .local)?
+    // Get organization from hosts config for dynamic provider domain
+    const organization = getOrganization() || undefined
+    const providerDomain = getAMPProviderDomain(organization)
+
     const isLocalProvider = !recipientParsed ||
-      recipientParsed.provider === AMP_PROVIDER_NAME ||
+      recipientParsed.provider === providerDomain ||
+      recipientParsed.provider === 'aimaestro.local' ||  // Legacy support
       recipientParsed.provider.endsWith('.local')
 
     if (isLocalProvider) {

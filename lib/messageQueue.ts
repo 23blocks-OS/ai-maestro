@@ -4,7 +4,9 @@ import os from 'os'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
 import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgent } from './agent-registry'
 import { applyContentSecurity } from './content-security'
+import { queueMessage as queueToAMPRelay } from './amp-relay'
 import type { Agent } from '@/types/agent'
+import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
 /**
  * Get this host's name for messages
@@ -592,9 +594,46 @@ export async function sendMessage(
       throw new Error(`Failed to deliver message to remote agent: ${error}`)
     }
   } else {
-    // Local recipient - write to filesystem using agent ID
-    const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
-    await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+    // Local recipient - check if this is an AMP external agent
+    // AMP external agents: registered via AMP API, no active tmux session
+    const recipientFullAgent = getAgent(toResolved.agentId)
+    const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
+    const hasNoActiveSession = !toResolved.sessionName ||
+      !recipientFullAgent?.sessions?.some(s => s.status === 'online')
+
+    if (isAMPExternalAgent && hasNoActiveSession) {
+      // Queue to AMP relay for external agent to poll
+      console.log(`[MessageQueue] Recipient ${toResolved.alias} is AMP external agent - queuing to relay`)
+
+      // Convert internal message to AMP format for relay
+      const ampEnvelope: AMPEnvelope = {
+        id: message.id.replace('msg-', 'msg_').replace(/-/g, '_'), // Convert to AMP format
+        from: message.fromAlias || message.from,
+        to: message.toAlias || message.to,
+        subject: message.subject,
+        priority: message.priority,
+        timestamp: message.timestamp,
+        signature: message.amp?.signature || '',
+      }
+      if (message.inReplyTo) {
+        ampEnvelope.in_reply_to = message.inReplyTo
+      }
+
+      const ampPayload: AMPPayload = {
+        type: message.content.type,
+        message: message.content.message,
+        context: message.content.context,
+      }
+
+      // Get sender's public key (for signature verification by recipient)
+      const senderPublicKey = message.amp?.senderPublicKey || ''
+
+      queueToAMPRelay(toResolved.agentId, ampEnvelope, ampPayload, senderPublicKey)
+    } else {
+      // Regular AI Maestro agent - write to filesystem using agent ID
+      const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
+      await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+    }
   }
 
   // Always write to sender's sent folder (locally) using agent ID

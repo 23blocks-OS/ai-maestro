@@ -13,8 +13,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { AMP_PROTOCOL_VERSION, AMP_PROVIDER_NAME } from '@/lib/types/amp'
-import { getSelfHost, getSelfHostId } from '@/lib/hosts-config-server.mjs'
+import { AMP_PROTOCOL_VERSION, getAMPProviderDomain } from '@/lib/types/amp'
+import { getSelfHost, getSelfHostId, getOrganization } from '@/lib/hosts-config-server.mjs'
 
 interface WellKnownResponse {
   version: string
@@ -30,6 +30,10 @@ export async function GET(_request: NextRequest): Promise<NextResponse<WellKnown
   const selfHost = getSelfHost()
   const selfHostId = getSelfHostId()
 
+  // Get organization from hosts config for dynamic provider domain
+  const organization = getOrganization() || undefined
+  const providerDomain = getAMPProviderDomain(organization)
+
   // Determine the endpoint URL
   // In production, this should be the externally accessible URL
   const endpoint = selfHost?.url
@@ -39,7 +43,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<WellKnown
   const response: WellKnownResponse = {
     version: `AMP${AMP_PROTOCOL_VERSION.replace('.', '')}`, // AMP010 format
     endpoint,
-    provider: `${selfHostId}.${AMP_PROVIDER_NAME}`,
+    provider: `${selfHostId}.${providerDomain}`,
 
     // Provider-level public key (for signing federation requests)
     // TODO: Implement provider-level keypair

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getHosts, getSelfHost, isSelf, addHostAsync, getHostById, clearHostsCache } from '@/lib/hosts-config'
+import { getHosts, getSelfHost, isSelf, addHostAsync, getHostById, clearHostsCache, getOrganizationInfo, adoptOrganization } from '@/lib/hosts-config'
 import { hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
   PeerExchangeRequest,
@@ -63,6 +63,37 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
     const newlyAdded: string[] = []
     const alreadyKnown: string[] = []
     const unreachable: string[] = []
+    let organizationAdopted = false
+
+    // Handle organization sync - adopt from peer if we don't have one
+    if (body.organization && body.organizationSetAt && body.organizationSetBy) {
+      const adoptResult = adoptOrganization(
+        body.organization,
+        body.organizationSetAt,
+        body.organizationSetBy
+      )
+      if (adoptResult.success && adoptResult.adopted) {
+        organizationAdopted = true
+        console.log(`[Host Sync] Adopted organization "${body.organization}" from peer exchange`)
+      } else if (!adoptResult.success && adoptResult.error?.includes('mismatch')) {
+        // Organization mismatch - this is a serious error
+        console.error(`[Host Sync] Organization mismatch with peer: ${adoptResult.error}`)
+        const orgInfo = getOrganizationInfo()
+        return NextResponse.json(
+          {
+            success: false,
+            newlyAdded: [],
+            alreadyKnown: [],
+            unreachable: [],
+            organization: orgInfo.organization || undefined,
+            organizationSetAt: orgInfo.setAt || undefined,
+            organizationSetBy: orgInfo.setBy || undefined,
+            error: adoptResult.error,
+          },
+          { status: 409 } // Conflict
+        )
+      }
+    }
 
     // Deduplicate incoming hosts by ID
     const seenIds = new Set<string>()
@@ -166,20 +197,31 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
 
     console.log(`[Host Sync] Peer exchange from ${body.fromHost.name}: +${newlyAdded.length} new, ${alreadyKnown.length} known, ${unreachable.length} unreachable`)
 
+    // Include our organization info in response
+    const orgInfo = getOrganizationInfo()
+
     return NextResponse.json({
       success: true,
       newlyAdded,
       alreadyKnown,
       unreachable,
+      organization: orgInfo.organization || undefined,
+      organizationSetAt: orgInfo.setAt || undefined,
+      organizationSetBy: orgInfo.setBy || undefined,
+      organizationAdopted,
     })
   } catch (error) {
     console.error('[Host Sync] Error in exchange-peers:', error)
+    const orgInfo = getOrganizationInfo()
     return NextResponse.json(
       {
         success: false,
         newlyAdded: [],
         alreadyKnown: [],
         unreachable: [],
+        organization: orgInfo.organization || undefined,
+        organizationSetAt: orgInfo.setAt || undefined,
+        organizationSetBy: orgInfo.setBy || undefined,
         error: error instanceof Error ? error.message : 'Internal server error',
       },
       { status: 500 }

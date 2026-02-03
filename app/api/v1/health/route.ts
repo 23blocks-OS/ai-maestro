@@ -9,13 +9,18 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { loadAgents } from '@/lib/agent-registry'
-import { AMP_PROTOCOL_VERSION, AMP_PROVIDER_NAME } from '@/lib/types/amp'
+import { AMP_PROTOCOL_VERSION, getAMPProviderDomain } from '@/lib/types/amp'
+import { getOrganization } from '@/lib/hosts-config'
 import type { AMPHealthResponse } from '@/lib/types/amp'
 
 // Track server start time for uptime calculation
 const SERVER_START_TIME = Date.now()
 
 export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealthResponse>> {
+  // Get organization from hosts config for dynamic provider domain
+  const organization = getOrganization() || undefined
+  const providerDomain = getAMPProviderDomain(organization)
+
   try {
     // Count online agents
     const agents = loadAgents()
@@ -29,7 +34,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealth
     const response: AMPHealthResponse = {
       status: 'healthy',
       version: AMP_PROTOCOL_VERSION,
-      provider: AMP_PROVIDER_NAME,
+      provider: providerDomain,
       federation: false, // Federation support coming later
       agents_online: onlineAgents,
       uptime_seconds: uptimeSeconds
@@ -47,7 +52,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealth
     const errorResponse: AMPHealthResponse = {
       status: 'unhealthy',
       version: AMP_PROTOCOL_VERSION,
-      provider: AMP_PROVIDER_NAME,
+      provider: providerDomain,
       federation: false,
       agents_online: 0,
       uptime_seconds: Math.floor((Date.now() - SERVER_START_TIME) / 1000)

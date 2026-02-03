@@ -28,6 +28,12 @@ const OnboardingFlow = dynamic(
   { ssr: false }
 )
 
+// Only shown when organization not set
+const OrganizationSetup = dynamic(
+  () => import('@/components/OrganizationSetup'),
+  { ssr: false }
+)
+
 // Only shown when help button is clicked
 const HelpPanel = dynamic(
   () => import('@/components/HelpPanel'),
@@ -105,6 +111,8 @@ export default function DashboardPage() {
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
   const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showOrganizationSetup, setShowOrganizationSetup] = useState(false)
+  const [organizationChecked, setOrganizationChecked] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
@@ -118,12 +126,36 @@ export default function DashboardPage() {
     [agents]
   )
 
-  // Check for onboarding completion on mount
+  // Check for organization and onboarding completion on mount
   useEffect(() => {
-    const completed = localStorage.getItem('aimaestro-onboarding-completed')
-    if (!completed) {
-      setShowOnboarding(true)
+    const checkOrganization = async () => {
+      try {
+        const response = await fetch('/api/organization')
+        const data = await response.json()
+
+        if (!data.isSet) {
+          // No organization set - show organization setup first
+          setShowOrganizationSetup(true)
+        } else {
+          // Organization is set, check onboarding
+          const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+          if (!onboardingCompleted) {
+            setShowOnboarding(true)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check organization:', error)
+        // On error, proceed with normal onboarding check
+        const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+        if (!onboardingCompleted) {
+          setShowOnboarding(true)
+        }
+      } finally {
+        setOrganizationChecked(true)
+      }
     }
+
+    checkOrganization()
   }, [])
 
   // Read agent from URL parameter on mount (changed from ?session= to ?agent=)
@@ -437,6 +469,32 @@ export default function DashboardPage() {
   const handleOnboardingSkip = () => {
     localStorage.setItem('aimaestro-onboarding-completed', 'true')
     setShowOnboarding(false)
+  }
+
+  const handleOrganizationComplete = () => {
+    setShowOrganizationSetup(false)
+    // After organization is set, check if onboarding is needed
+    const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+    if (!onboardingCompleted) {
+      setShowOnboarding(true)
+    }
+  }
+
+  // Show loading while checking organization status
+  if (!organizationChecked) {
+    return (
+      <div className="fixed inset-0 bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show organization setup if not set
+  if (showOrganizationSetup) {
+    return <OrganizationSetup onComplete={handleOrganizationComplete} />
   }
 
   // Show onboarding flow if not completed

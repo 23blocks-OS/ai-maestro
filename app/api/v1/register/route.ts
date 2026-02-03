@@ -22,8 +22,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAgent, getAgentByName } from '@/lib/agent-registry'
 import { createApiKey } from '@/lib/amp-auth'
 import { saveKeyPair, calculateFingerprint } from '@/lib/amp-keys'
-import { getSelfHostId, getSelfHost } from '@/lib/hosts-config-server.mjs'
-import { AMP_PROVIDER_NAME } from '@/lib/types/amp'
+import { getSelfHostId, getSelfHost, getOrganization } from '@/lib/hosts-config-server.mjs'
+import { getAMPProviderDomain } from '@/lib/types/amp'
 import type {
   AMPRegistrationRequest,
   AMPRegistrationResponse,
@@ -150,6 +150,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
     const selfHost = getSelfHost()
     const selfHostId = selfHost?.id || getSelfHostId()
 
+    // Get organization from hosts config
+    const configOrg = getOrganization()
+
+    // If organization is configured, validate that tenant matches (or use it)
+    // This ensures agents register under the correct organization
+    const tenant = configOrg || body.tenant
+    if (configOrg && body.tenant && body.tenant !== configOrg) {
+      return NextResponse.json({
+        error: 'invalid_field',
+        message: `This AI Maestro instance is configured for organization '${configOrg}'. Cannot register under '${body.tenant}'.`,
+        field: 'tenant',
+        details: { expected_tenant: configOrg }
+      } as AMPError, { status: 400 })
+    }
+
     // Check if name already exists in this tenant (on this host)
     // For now, tenant is ignored for name uniqueness (single-tenant mode)
     const existingAgent = getAgentByName(normalizedName, selfHostId)
@@ -174,7 +189,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
         createSession: false, // AMP agents don't auto-create tmux sessions
         metadata: {
           amp: {
-            tenant: body.tenant,
+            tenant,
             scope: body.scope,
             delivery: body.delivery,
             fingerprint,
@@ -206,27 +221,30 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
       // Don't fail registration, just log
     }
 
+    // Get provider domain based on organization
+    const providerDomain = getAMPProviderDomain(tenant)
+
     // Generate API key for this agent
-    const apiKey = createApiKey(agent.id, body.tenant, `${normalizedName}@${body.tenant}.${AMP_PROVIDER_NAME}`)
+    const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`)
 
     // Build response
     const hostEndpoint = selfHost?.url || `http://localhost:23000`
 
     // Build address based on scope
-    let fullAddress = `${normalizedName}@${body.tenant}.${AMP_PROVIDER_NAME}`
+    let fullAddress = `${normalizedName}@${providerDomain}`
     if (body.scope?.repo && body.scope?.platform) {
-      fullAddress = `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${body.tenant}.${AMP_PROVIDER_NAME}`
+      fullAddress = `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
     }
 
     const response: AMPRegistrationResponse = {
       address: fullAddress,
-      short_address: `${normalizedName}@${body.tenant}.${AMP_PROVIDER_NAME}`,
+      short_address: `${normalizedName}@${providerDomain}`,
       local_name: normalizedName,
       agent_id: agent.id,
-      tenant_id: body.tenant, // For now, tenant_id == tenant name
+      tenant_id: tenant,
       api_key: apiKey,
       provider: {
-        name: AMP_PROVIDER_NAME,
+        name: providerDomain,
         endpoint: `${hostEndpoint}/api/v1`
       },
       fingerprint,

@@ -62,6 +62,15 @@ export interface Host {
 }
 
 export interface HostsConfig {
+  /** Organization/network name - used as tenant in AMP addresses */
+  organization?: string
+
+  /** ISO timestamp when organization was first set */
+  organizationSetAt?: string
+
+  /** Host ID that first set the organization (leader) */
+  organizationSetBy?: string
+
   /** List of configured hosts */
   hosts: Host[]
 }

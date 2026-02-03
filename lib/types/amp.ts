@@ -45,7 +45,68 @@ export const AMP_API_KEY_PREFIX = 'amp_live_sk_'
 // ============================================================================
 
 export const AMP_PROTOCOL_VERSION = '0.1.0'
+
+/**
+ * Default provider name (used when organization is not set)
+ * @deprecated Use getAMPProviderDomain() instead for dynamic organization support
+ */
 export const AMP_PROVIDER_NAME = 'aimaestro.local'
+
+/**
+ * Default organization name when none is configured
+ */
+export const AMP_DEFAULT_ORGANIZATION = 'default'
+
+/**
+ * Get the AMP provider domain based on organization
+ * Format: {organization}.aimaestro.local
+ *
+ * @param organization - Organization name (optional, reads from config if not provided)
+ * @returns Provider domain string
+ *
+ * Note: This function is synchronous and returns a default if organization
+ * is not available. For server-side usage with dynamic organization,
+ * import getOrganization from hosts-config.ts
+ */
+export function getAMPProviderDomain(organization?: string): string {
+  const org = organization || AMP_DEFAULT_ORGANIZATION
+  return `${org}.aimaestro.local`
+}
+
+/**
+ * Build an AMP address from components
+ *
+ * @param agentName - Agent name (e.g., "backend-api")
+ * @param organization - Organization name (e.g., "acme-corp")
+ * @returns Full AMP address (e.g., "backend-api@acme-corp.aimaestro.local")
+ */
+export function buildAMPAddress(agentName: string, organization?: string): string {
+  const domain = getAMPProviderDomain(organization)
+  return `${agentName}@${domain}`
+}
+
+/**
+ * Parse an AMP address into components
+ *
+ * @param address - Full AMP address (e.g., "agent@org.aimaestro.local")
+ * @returns Parsed components or null if invalid
+ */
+export function parseAMPAddress(address: string): {
+  name: string
+  organization: string
+  provider: string
+  full: string
+} | null {
+  const match = address.match(/^([^@]+)@([^.]+)\.(.+)$/)
+  if (!match) return null
+
+  return {
+    name: match[1],
+    organization: match[2],
+    provider: match[3],
+    full: address,
+  }
+}
 
 // ============================================================================
 // Message Envelope (Protocol Layer)

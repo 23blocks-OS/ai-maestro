@@ -8,12 +8,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { AMP_PROTOCOL_VERSION, AMP_PROVIDER_NAME } from '@/lib/types/amp'
+import { AMP_PROTOCOL_VERSION, getAMPProviderDomain } from '@/lib/types/amp'
+import { getOrganization } from '@/lib/hosts-config'
 import type { AMPInfoResponse } from '@/lib/types/amp'
 
 export async function GET(_request: NextRequest): Promise<NextResponse<AMPInfoResponse>> {
+  // Get organization from hosts config for dynamic provider domain
+  const organization = getOrganization() || undefined
+  const providerDomain = getAMPProviderDomain(organization)
+
   const response: AMPInfoResponse = {
-    provider: AMP_PROVIDER_NAME,
+    provider: providerDomain,
     version: `amp/${AMP_PROTOCOL_VERSION}`,
 
     // Provider-level public key (optional - for federation signing)

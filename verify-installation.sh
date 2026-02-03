@@ -132,6 +132,7 @@ SKILLS=(
     "memory-search"
     "docs-search"
     "graph-query"
+    "ai-maestro-agents-management"
 )
 
 for skill in "${SKILLS[@]}"; do
@@ -141,6 +142,23 @@ for skill in "${SKILLS[@]}"; do
         warn "$skill skill not installed"
     fi
 done
+
+# 6.5 Check agent CLI scripts
+echo ""
+echo "6.5. Checking agent CLI scripts..."
+
+if [ -x "$HOME/.local/bin/aimaestro-agent.sh" ]; then
+    pass "aimaestro-agent.sh"
+else
+    warn "Agent CLI not installed - run install-agent-cli.sh"
+fi
+
+# Check agent-helper.sh
+if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
+    pass "agent-helper.sh"
+else
+    warn "agent-helper.sh not found"
+fi
 
 # 7. Check PATH
 echo ""
@@ -191,6 +209,24 @@ if [ -f "$HOME/.local/share/aimaestro/shell-helpers/docs-helper.sh" ]; then
     fi
 fi
 
+# Test agent-helper.sh (in share dir)
+if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
+    if bash -n "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" 2>/dev/null; then
+        pass "agent-helper.sh syntax OK"
+    else
+        fail "agent-helper.sh has syntax errors"
+    fi
+fi
+
+# Test aimaestro-agent.sh
+if [ -f "$HOME/.local/bin/aimaestro-agent.sh" ]; then
+    if bash -n "$HOME/.local/bin/aimaestro-agent.sh" 2>/dev/null; then
+        pass "aimaestro-agent.sh syntax OK"
+    else
+        fail "aimaestro-agent.sh has syntax errors"
+    fi
+fi
+
 # 9. Test scripts can run (with --help or graceful failure)
 echo ""
 echo "9. Testing script execution..."
@@ -219,6 +255,15 @@ if [ -n "$TMUX" ]; then
         pass "docs-stats.sh runs"
     else
         warn "docs-stats.sh failed (may need API running)"
+    fi
+
+    # Test agent CLI
+    if [ -x "$HOME/.local/bin/aimaestro-agent.sh" ]; then
+        if "$HOME/.local/bin/aimaestro-agent.sh" list >/dev/null 2>&1; then
+            pass "aimaestro-agent.sh runs"
+        else
+            warn "aimaestro-agent.sh failed (may need API running)"
+        fi
     fi
 else
     warn "Not in tmux session - skipping runtime tests"

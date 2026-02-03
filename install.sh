@@ -244,12 +244,12 @@ else
     NEED_CLAUDE=true
 fi
 
-# Check jq (optional but recommended)
+# Check jq (required for agent CLI tools)
 print_info "Checking for jq..."
 if command -v jq &> /dev/null; then
-    print_success "jq installed (optional)"
+    print_success "jq installed"
 else
-    print_warning "jq not found (optional but recommended)"
+    print_warning "jq not found (required for agent CLI)"
     NEED_JQ=true
 fi
 
@@ -643,6 +643,14 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             echo ""
             print_step "Installing Claude Code hooks..."
             ./scripts/claude-hooks/install-hooks.sh
+        fi
+
+        # Install agent management CLI
+        # This installs aimaestro-agent.sh and the ai-maestro-agents-management skill
+        if [ -f "install-agent-cli.sh" ]; then
+            echo ""
+            print_step "Installing agent management CLI..."
+            ./install-agent-cli.sh
         fi
 
         print_success "All agent tools installed"

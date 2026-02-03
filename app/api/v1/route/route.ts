@@ -18,9 +18,9 @@ import { authenticateRequest } from '@/lib/amp-auth'
 import { loadKeyPair, signMessage } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
 import { sendMessage, resolveAgentIdentifier } from '@/lib/messageQueue'
-import { getAgent, getAgentByName } from '@/lib/agent-registry'
+import { getAgent, getAgentByName, getAgentByNameAnyHost } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
-import { getSelfHostId } from '@/lib/hosts-config-server.mjs'
+import { getSelfHostId, getHostById, isSelf } from '@/lib/hosts-config-server.mjs'
 import { AMP_PROVIDER_NAME } from '@/lib/types/amp'
 import type {
   AMPRouteRequest,
@@ -182,138 +182,283 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     }
 
     // Determine delivery method
-    // Is recipient on this provider (local)?
+    // Is recipient on this provider (aimaestro.local or any .local)?
     const isLocalProvider = !recipientParsed ||
       recipientParsed.provider === AMP_PROVIDER_NAME ||
       recipientParsed.provider.endsWith('.local')
 
     if (isLocalProvider) {
-      // Local delivery - try to find the recipient agent
+      // Internal mesh delivery
+      // Address format: agentname@hostid.aimaestro.local
+      // The "tenant" field is actually the hostId in mesh routing
       const recipientName = recipientParsed?.name || body.to.split('@')[0]
+      const targetHostId = recipientParsed?.tenant  // tenant = hostId in mesh
       const selfHostId = getSelfHostId()
 
-      // Try to resolve recipient
-      const recipientResolved = resolveAgentIdentifier(recipientName)
-      const recipientAgent = recipientResolved
-        ? getAgent(recipientResolved.agentId)
-        : getAgentByName(recipientName, selfHostId)
+      // Determine if target is on a different host in the mesh
+      const isTargetRemote = targetHostId && !isSelf(targetHostId)
 
-      if (!recipientAgent) {
-        // Queue for relay - agent might register later
-        queueMessage(
-          recipientName, // Use name as ID for unregistered agents
-          envelope,
-          body.payload,
-          senderKeyPair?.publicHex || ''
-        )
+      if (isTargetRemote) {
+        // ========================================
+        // CROSS-HOST DELIVERY (mesh routing)
+        // ========================================
+        const remoteHost = getHostById(targetHostId)
 
-        return NextResponse.json({
-          id: messageId,
-          status: 'queued',
-          method: 'relay',
-          queued_at: now
-        } as AMPRouteResponse, { status: 200 })
-      }
+        if (!remoteHost) {
+          // Unknown host - queue for relay (host might come online later)
+          console.log(`[AMP Route] Unknown host '${targetHostId}', queuing for relay`)
+          queueMessage(
+            `${recipientName}@${targetHostId}`,
+            envelope,
+            body.payload,
+            senderKeyPair?.publicHex || ''
+          )
 
-      // Check if agent is online (has active session)
-      const isOnline = recipientAgent.sessions?.some(s => s.status === 'online')
+          return NextResponse.json({
+            id: messageId,
+            status: 'queued',
+            method: 'relay',
+            queued_at: now,
+            note: `Host '${targetHostId}' not found in mesh, queued for later delivery`
+          } as AMPRouteResponse, { status: 200 })
+        }
 
-      if (!isOnline) {
-        // Queue for relay
-        queueMessage(
-          recipientAgent.id,
-          envelope,
-          body.payload,
-          senderKeyPair?.publicHex || ''
-        )
+        // Forward to remote host via HTTP
+        console.log(`[AMP Route] Forwarding message to ${recipientName}@${targetHostId} via ${remoteHost.url}`)
 
-        return NextResponse.json({
-          id: messageId,
-          status: 'queued',
-          method: 'relay',
-          queued_at: now
-        } as AMPRouteResponse, { status: 200 })
-      }
-
-      // Deliver locally via existing message system
-      try {
-        // Map AMP payload type to Message content type
-        // 'system' type maps to 'notification' for local delivery
-        const contentType = body.payload.type === 'system' ? 'notification' : body.payload.type
-
-        const message = await sendMessage(
-          senderAgent.id,
-          recipientAgent.id,
-          body.subject,
-          {
-            type: contentType as 'request' | 'response' | 'notification' | 'update',
-            message: body.payload.message,
-            context: {
-              ...body.payload.context,
-              amp: {
-                envelope_id: envelope.id,
-                signature: envelope.signature,
-                sender_address: envelope.from,
-                recipient_address: envelope.to
-              }
+        try {
+          const remoteResponse = await fetch(`${remoteHost.url}/api/v1/route`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // Forward the original auth or use a mesh-to-mesh token
+              'X-Forwarded-From': selfHostId,
+              'X-AMP-Envelope-Id': envelope.id,
+              // Include sender's signature for verification
+              ...(envelope.signature ? { 'X-AMP-Signature': envelope.signature } : {}),
+              ...(senderKeyPair?.publicHex ? { 'X-AMP-Sender-Key': senderKeyPair.publicHex } : {})
             },
-            attachments: body.payload.attachments?.map(a => ({
-              name: a.name,
-              path: a.path || a.url || '',
-              type: a.type
-            }))
-          },
-          {
-            priority: body.priority,
-            inReplyTo: body.in_reply_to,
-            fromVerified: true // Sender is authenticated via API key
+            body: JSON.stringify({
+              // Rewrite address to local format for the remote host
+              to: recipientName,  // Just the name, no @host
+              subject: body.subject,
+              payload: body.payload,
+              priority: body.priority,
+              in_reply_to: body.in_reply_to,
+              // Include original envelope for audit trail
+              _forwarded: {
+                original_from: envelope.from,
+                original_to: envelope.to,
+                forwarded_by: selfHostId,
+                forwarded_at: now
+              }
+            })
+          })
+
+          if (!remoteResponse.ok) {
+            const errorText = await remoteResponse.text()
+            throw new Error(`Remote host returned ${remoteResponse.status}: ${errorText}`)
           }
-        )
 
-        // Notify recipient
-        await notifyAgent({
-          agentId: recipientAgent.id,
-          agentName: recipientAgent.name || recipientAgent.alias || 'unknown',
-          fromName: senderName,
-          fromHost: senderAgent.hostId,
-          subject: body.subject,
-          messageId: message.id,
-          priority: body.priority,
-          messageType: body.payload.type
-        })
+          const remoteResult = await remoteResponse.json()
 
-        return NextResponse.json({
-          id: message.id,
-          status: 'delivered',
-          method: 'local',
-          delivered_at: now
-        } as AMPRouteResponse, { status: 200 })
+          return NextResponse.json({
+            id: remoteResult.id || messageId,
+            status: 'delivered',
+            method: 'mesh',
+            delivered_at: now,
+            remote_host: targetHostId
+          } as AMPRouteResponse, { status: 200 })
 
-      } catch (error) {
-        console.error('[AMP Route] Local delivery failed:', error)
+        } catch (error) {
+          console.error(`[AMP Route] Mesh delivery to ${targetHostId} failed:`, error)
 
-        // Fall back to relay queue
-        queueMessage(
-          recipientAgent.id,
-          envelope,
-          body.payload,
-          senderKeyPair?.publicHex || ''
-        )
+          // Queue for relay - remote host might be temporarily unavailable
+          queueMessage(
+            `${recipientName}@${targetHostId}`,
+            envelope,
+            body.payload,
+            senderKeyPair?.publicHex || ''
+          )
 
-        return NextResponse.json({
-          id: messageId,
-          status: 'queued',
-          method: 'relay',
-          queued_at: now,
-          error: 'Direct delivery failed, queued for relay'
-        } as AMPRouteResponse, { status: 200 })
+          return NextResponse.json({
+            id: messageId,
+            status: 'queued',
+            method: 'relay',
+            queued_at: now,
+            error: `Mesh delivery to ${targetHostId} failed, queued for retry`
+          } as AMPRouteResponse, { status: 200 })
+        }
+
+      } else {
+        // ========================================
+        // LOCAL DELIVERY (same host)
+        // ========================================
+
+        // Try to resolve recipient on this host first, then any host
+        let recipientAgent = getAgentByName(recipientName, selfHostId)
+
+        // If not found locally and no specific host was targeted, search all hosts
+        if (!recipientAgent && !targetHostId) {
+          recipientAgent = getAgentByNameAnyHost(recipientName)
+
+          // If found on a different host, forward there
+          if (recipientAgent && recipientAgent.hostId && !isSelf(recipientAgent.hostId)) {
+            const remoteHost = getHostById(recipientAgent.hostId)
+            if (remoteHost) {
+              console.log(`[AMP Route] Agent ${recipientName} found on ${recipientAgent.hostId}, forwarding`)
+
+              try {
+                const remoteResponse = await fetch(`${remoteHost.url}/api/v1/route`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Forwarded-From': selfHostId,
+                    'X-AMP-Envelope-Id': envelope.id
+                  },
+                  body: JSON.stringify({
+                    to: recipientName,
+                    subject: body.subject,
+                    payload: body.payload,
+                    priority: body.priority,
+                    in_reply_to: body.in_reply_to
+                  })
+                })
+
+                if (remoteResponse.ok) {
+                  const remoteResult = await remoteResponse.json()
+                  return NextResponse.json({
+                    id: remoteResult.id || messageId,
+                    status: 'delivered',
+                    method: 'mesh',
+                    delivered_at: now,
+                    remote_host: recipientAgent.hostId
+                  } as AMPRouteResponse, { status: 200 })
+                }
+              } catch (error) {
+                console.error(`[AMP Route] Auto-forward failed:`, error)
+              }
+            }
+          }
+        }
+
+        if (!recipientAgent) {
+          // Queue for relay - agent might register later
+          queueMessage(
+            recipientName,
+            envelope,
+            body.payload,
+            senderKeyPair?.publicHex || ''
+          )
+
+          return NextResponse.json({
+            id: messageId,
+            status: 'queued',
+            method: 'relay',
+            queued_at: now
+          } as AMPRouteResponse, { status: 200 })
+        }
+
+        // Check if agent is online (has active session)
+        const isOnline = recipientAgent.sessions?.some(s => s.status === 'online')
+
+        if (!isOnline) {
+          // Queue for relay
+          queueMessage(
+            recipientAgent.id,
+            envelope,
+            body.payload,
+            senderKeyPair?.publicHex || ''
+          )
+
+          return NextResponse.json({
+            id: messageId,
+            status: 'queued',
+            method: 'relay',
+            queued_at: now
+          } as AMPRouteResponse, { status: 200 })
+        }
+
+        // Deliver locally via existing message system
+        try {
+          const contentType = body.payload.type === 'system' ? 'notification' : body.payload.type
+
+          const message = await sendMessage(
+            senderAgent.id,
+            recipientAgent.id,
+            body.subject,
+            {
+              type: contentType as 'request' | 'response' | 'notification' | 'update',
+              message: body.payload.message,
+              context: {
+                ...body.payload.context,
+                amp: {
+                  envelope_id: envelope.id,
+                  signature: envelope.signature,
+                  sender_address: envelope.from,
+                  recipient_address: envelope.to
+                }
+              },
+              attachments: body.payload.attachments?.map(a => ({
+                name: a.name,
+                path: a.path || a.url || '',
+                type: a.type
+              }))
+            },
+            {
+              priority: body.priority,
+              inReplyTo: body.in_reply_to,
+              fromVerified: true
+            }
+          )
+
+          // Notify recipient
+          await notifyAgent({
+            agentId: recipientAgent.id,
+            agentName: recipientAgent.name || recipientAgent.alias || 'unknown',
+            fromName: senderName,
+            fromHost: senderAgent.hostId,
+            subject: body.subject,
+            messageId: message.id,
+            priority: body.priority,
+            messageType: body.payload.type
+          })
+
+          return NextResponse.json({
+            id: message.id,
+            status: 'delivered',
+            method: 'local',
+            delivered_at: now
+          } as AMPRouteResponse, { status: 200 })
+
+        } catch (error) {
+          console.error('[AMP Route] Local delivery failed:', error)
+
+          queueMessage(
+            recipientAgent.id,
+            envelope,
+            body.payload,
+            senderKeyPair?.publicHex || ''
+          )
+
+          return NextResponse.json({
+            id: messageId,
+            status: 'queued',
+            method: 'relay',
+            queued_at: now,
+            error: 'Direct delivery failed, queued for relay'
+          } as AMPRouteResponse, { status: 200 })
+        }
       }
 
     } else {
-      // External provider - would need federation (not yet implemented)
+      // ========================================
+      // EXTERNAL PROVIDER (federation)
+      // ========================================
+      // e.g., alice@acme.crabmail.ai
       return NextResponse.json({
         error: 'forbidden',
-        message: `Federation to external provider "${recipientParsed?.provider}" is not yet supported`
+        message: `Federation to external provider "${recipientParsed?.provider}" is not yet supported. Use agentname@hostid.aimaestro.local for mesh routing.`
       } as AMPError, { status: 403 })
     }
 

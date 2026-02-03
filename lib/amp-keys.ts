@@ -19,6 +19,23 @@ import os from 'os'
 import { createHash } from 'crypto'
 import type { AMPAgentIdentity, AMPExternalRegistration } from '@/types/agent'
 
+// Import host identification for mesh routing
+// The hostId becomes the "tenant" in AMP addresses for mesh routing
+let _selfHostId: string = ''
+function getSelfHostIdForAMP(): string {
+  if (_selfHostId) return _selfHostId
+  try {
+    // Dynamic import to avoid bundling issues
+    const { getSelfHostId } = require('./hosts-config-server.mjs')
+    _selfHostId = getSelfHostId() || os.hostname().toLowerCase().replace(/\.local$/, '')
+    return _selfHostId
+  } catch {
+    // Fallback to hostname
+    _selfHostId = os.hostname().toLowerCase().replace(/\.local$/, '')
+    return _selfHostId
+  }
+}
+
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 
@@ -210,12 +227,22 @@ export function deleteKeyPair(agentId: string): boolean {
 /**
  * Get or create AMP identity for an agent
  * If the agent doesn't have a keypair, generates one.
+ *
+ * Address format: agentname@hostid.aimaestro.local
+ * The hostId acts as the "tenant" for mesh routing - messages addressed
+ * to agent@otherhostid.aimaestro.local will be routed to that host.
+ *
+ * @param agentId - Agent UUID
+ * @param agentName - Agent name (used in address)
+ * @param tenant - Optional tenant override (defaults to this host's ID for mesh routing)
  */
 export async function getOrCreateAMPIdentity(
   agentId: string,
   agentName: string,
-  tenant: string = 'default'
+  tenant?: string
 ): Promise<AMPAgentIdentity> {
+  // Default tenant to hostId for mesh routing
+  const effectiveTenant = tenant || getSelfHostIdForAMP()
   let keyPair = loadKeyPair(agentId)
 
   if (!keyPair) {
@@ -229,20 +256,23 @@ export async function getOrCreateAMPIdentity(
     publicKeyHex: keyPair.publicHex,
     keyAlgorithm: 'Ed25519',
     createdAt: new Date().toISOString(),
-    ampAddress: `${agentName}@${tenant}.aimaestro.local`,
-    tenant
+    ampAddress: `${agentName}@${effectiveTenant}.aimaestro.local`,
+    tenant: effectiveTenant
   }
 }
 
 /**
  * Get AMP identity from existing keypair
  * Returns null if no keypair exists
+ *
+ * Address format: agentname@hostid.aimaestro.local
  */
 export function getAMPIdentity(
   agentId: string,
   agentName: string,
-  tenant: string = 'default'
+  tenant?: string
 ): AMPAgentIdentity | null {
+  const effectiveTenant = tenant || getSelfHostIdForAMP()
   const keyPair = loadKeyPair(agentId)
 
   if (!keyPair) {
@@ -254,8 +284,8 @@ export function getAMPIdentity(
     publicKeyHex: keyPair.publicHex,
     keyAlgorithm: 'Ed25519',
     createdAt: new Date().toISOString(),
-    ampAddress: `${agentName}@${tenant}.aimaestro.local`,
-    tenant
+    ampAddress: `${agentName}@${effectiveTenant}.aimaestro.local`,
+    tenant: effectiveTenant
   }
 }
 

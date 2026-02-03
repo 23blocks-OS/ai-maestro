@@ -23,9 +23,11 @@ export async function GET(_request: NextRequest): Promise<NextResponse<AMPInfoRe
 
     // Supported features
     capabilities: [
+      'registration',       // Agent registration via /v1/register
       'local-delivery',     // Local agent delivery via file system + tmux notification
       'relay-queue',        // Store-and-forward for offline agents
-      'webhooks',           // Webhook delivery (planned)
+      'mesh-routing',       // Cross-host routing within local network
+      // 'webhooks',        // Webhook delivery (planned)
       // 'federation',      // Provider-to-provider routing (planned)
       // 'websockets',      // Real-time WebSocket delivery (planned)
     ],

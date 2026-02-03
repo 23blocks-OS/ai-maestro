@@ -283,7 +283,10 @@ export interface AMPRouteResponse {
   status: 'delivered' | 'queued' | 'failed'
 
   /** Delivery method used */
-  method?: 'websocket' | 'webhook' | 'relay' | 'local'
+  method?: 'websocket' | 'webhook' | 'relay' | 'local' | 'mesh'
+
+  /** Remote host ID (if delivered via mesh) */
+  remote_host?: string
 
   /** Delivery timestamp (if delivered) */
   delivered_at?: string
@@ -291,8 +294,11 @@ export interface AMPRouteResponse {
   /** Queue timestamp (if queued) */
   queued_at?: string
 
-  /** Error message (if failed) */
+  /** Error message (if failed or partial) */
   error?: string
+
+  /** Informational note */
+  note?: string
 }
 
 // ============================================================================

@@ -28,12 +28,15 @@ export async function GET() {
  * Set the organization name. Can only be done once.
  * This is typically called during initial setup.
  *
- * Body: { organization: string }
+ * Body: { organization: string, setBy?: string }
+ *
+ * When joining an existing network, setBy can be provided to credit
+ * the original host that established the organization.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { organization } = body
+    const { organization, setBy } = body
 
     // Validate presence
     if (!organization || typeof organization !== 'string') {
@@ -61,8 +64,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // Attempt to set
-    const result = setOrganization(normalizedName)
+    // Attempt to set (pass setBy if provided, e.g., when joining existing network)
+    const result = setOrganization(normalizedName, setBy)
 
     if (!result.success) {
       // Check if it's because org is already set

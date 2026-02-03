@@ -416,6 +416,7 @@ export type AMPErrorCode =
   | 'invalid_signature'
   | 'agent_not_found'
   | 'tenant_access_denied'
+  | 'organization_not_set'  // Phase 2: Organization required for AMP registration
 
 /**
  * AMP error response

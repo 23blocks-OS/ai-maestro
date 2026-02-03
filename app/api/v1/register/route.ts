@@ -19,8 +19,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createAgent, getAgentByName } from '@/lib/agent-registry'
-import { createApiKey } from '@/lib/amp-auth'
+import { createAgent, getAgentByName, markAgentAsAMPRegistered } from '@/lib/agent-registry'
+import { createApiKey, hashApiKey } from '@/lib/amp-auth'
 import { saveKeyPair, calculateFingerprint } from '@/lib/amp-keys'
 import { getSelfHostId, getSelfHost, getOrganization } from '@/lib/hosts-config-server.mjs'
 import { getAMPProviderDomain } from '@/lib/types/amp'
@@ -153,10 +153,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
     // Get organization from hosts config
     const configOrg = getOrganization()
 
-    // If organization is configured, validate that tenant matches (or use it)
-    // This ensures agents register under the correct organization
-    const tenant = configOrg || body.tenant
-    if (configOrg && body.tenant && body.tenant !== configOrg) {
+    // PHASE 2: Require organization to be set before AMP registration
+    // This ensures agents get proper AMP addresses (name@org.aimaestro.local)
+    if (!configOrg) {
+      return NextResponse.json({
+        error: 'organization_not_set',
+        message: 'Organization must be configured before registering agents. Please complete the AI Maestro setup first.',
+        field: 'organization',
+        setup_url: '/setup' // Frontend can redirect here
+      } as AMPError, { status: 400 })
+    }
+
+    // Use the configured organization (ignore client-provided tenant if it differs)
+    const tenant = configOrg
+    if (body.tenant && body.tenant !== configOrg) {
       return NextResponse.json({
         error: 'invalid_field',
         message: `This AI Maestro instance is configured for organization '${configOrg}'. Cannot register under '${body.tenant}'.`,
@@ -227,14 +237,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
     // Generate API key for this agent
     const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`)
 
+    // PHASE 2: Mark agent as AMP-registered with full metadata
+    // This distinguishes properly registered agents from legacy ones
+    const registeredAt = new Date().toISOString()
+    const fullAddress = body.scope?.repo && body.scope?.platform
+      ? `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
+      : `${normalizedName}@${providerDomain}`
+
+    markAgentAsAMPRegistered(agent.id, {
+      address: fullAddress,
+      tenant,
+      fingerprint,
+      registeredAt,
+      apiKeyHash: hashApiKey(apiKey)
+    })
+
     // Build response
     const hostEndpoint = selfHost?.url || `http://localhost:23000`
-
-    // Build address based on scope
-    let fullAddress = `${normalizedName}@${providerDomain}`
-    if (body.scope?.repo && body.scope?.platform) {
-      fullAddress = `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
-    }
 
     const response: AMPRegistrationResponse = {
       address: fullAddress,
@@ -248,7 +267,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
         endpoint: `${hostEndpoint}/api/v1`
       },
       fingerprint,
-      registered_at: new Date().toISOString()
+      registered_at: registeredAt
     }
 
     console.log(`[AMP Register] Registered agent: ${fullAddress} (${agent.id.substring(0, 8)}...)`)

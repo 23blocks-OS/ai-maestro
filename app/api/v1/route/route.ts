@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/amp-auth'
-import { loadKeyPair, signMessage } from '@/lib/amp-keys'
+import { loadKeyPair, verifySignature } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
 import { sendMessage, resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getAgent, getAgentByName, getAgentByNameAnyHost } from '@/lib/agent-registry'
@@ -162,23 +162,62 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       in_reply_to: body.in_reply_to
     }
 
-    // Try to sign the message with sender's private key
+    // ==========================================================================
+    // Signature Handling
+    // ==========================================================================
+    // Client-side signing is the correct pattern:
+    // - External agents own their private keys (server doesn't have them)
+    // - Client signs before sending via /v1/route
+    // - Server verifies the signature (optional for local mesh)
+    // - Signature is forwarded to recipient unchanged
+
     const senderKeyPair = loadKeyPair(auth.agentId!)
-    if (senderKeyPair && senderKeyPair.privatePem) {
-      const signatureData = JSON.stringify({
-        from: envelope.from,
-        to: envelope.to,
-        subject: envelope.subject,
-        timestamp: envelope.timestamp,
-        payload_hash: require('crypto')
+
+    // Accept client-provided signature
+    if (body.signature) {
+      // Client provided a signature - verify it if we have the sender's public key
+      if (senderKeyPair && senderKeyPair.publicHex) {
+        // Reconstruct the canonical string the client signed
+        // Format: from|to|subject|payload_hash (pipe-delimited)
+        // Note: We exclude ID and timestamp because they differ between client and server.
+        // This ensures signature validity regardless of transport metadata.
+        const crypto = require('crypto')
+        const payloadHash = crypto
           .createHash('sha256')
           .update(JSON.stringify(body.payload))
-          .digest('hex')
-      })
-      const signature = signMessage(auth.agentId!, signatureData)
-      if (signature) {
-        envelope.signature = signature
+          .digest('base64')
+
+        const signatureData = [
+          envelope.from,
+          envelope.to,
+          envelope.subject,
+          payloadHash
+        ].join('|')
+
+        const isValid = verifySignature(signatureData, body.signature, senderKeyPair.publicHex)
+
+        if (!isValid) {
+          console.warn(`[AMP Route] Invalid signature from ${envelope.from}`)
+          // For now, accept but log - in strict mode this would be rejected
+          // return NextResponse.json({
+          //   error: 'invalid_signature',
+          //   message: 'Message signature verification failed'
+          // } as AMPError, { status: 400 })
+        } else {
+          console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+        }
       }
+
+      // Use the client-provided signature
+      envelope.signature = body.signature
+    } else {
+      // No client signature provided
+      // For local agents we might still have their private key (legacy support)
+      // but external agents MUST sign their own messages
+      console.log(`[AMP Route] No signature provided by ${envelope.from}`)
+
+      // Leave signature empty - recipient can choose whether to accept unsigned messages
+      envelope.signature = ''
     }
 
     // Determine delivery method

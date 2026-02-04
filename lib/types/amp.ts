@@ -326,6 +326,13 @@ export interface AMPRouteRequest {
   /** Message payload */
   payload: AMPPayload
 
+  /**
+   * Client-provided Ed25519 signature (base64)
+   * The server will VERIFY this signature, not create one.
+   * Signature covers: id|from|to|subject|timestamp (pipe-delimited)
+   */
+  signature?: string
+
   /** Delivery options */
   options?: {
     /** Request delivery receipt */

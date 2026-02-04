@@ -44,6 +44,9 @@
 | Message Acknowledgment | ACK removes from queue | ✅ Works |
 | Local Delivery | Online agent (with session) receives directly | ✅ Works |
 | Federation Rejection | External provider returns 403 | ✅ Correct |
+| Client-Side Signing | Messages signed with Ed25519 before sending | ✅ Works |
+| Server Signature Verification | Server verifies client signatures | ✅ Works |
+| Signature Forwarding | Signatures stored in relay queue | ✅ Works |
 
 ### 🟡 Issues Found
 
@@ -85,15 +88,18 @@ But the API expects:
 - Server only has their public key (from registration)
 - Private key should never leave the agent
 
-**Recommended Fix:** Messages should be signed CLIENT-SIDE by the sender before calling `/api/v1/route`. The server should:
-1. Verify incoming signature (if present)
-2. NOT attempt to sign on behalf of agents
-3. Forward signature to recipient
+**Status:** ✅ Fixed in this session
 
-**Protocol Impact:** The AMP spec should clarify:
-- Sender signs message before sending
-- Server verifies signature (optional for local mesh)
-- Signature is forwarded to recipient unchanged
+**Implementation:**
+1. Client (`amp-send.sh`) now signs messages before sending
+2. Signature format: `from|to|subject|payload_hash` (SHA256, base64)
+3. Server verifies signature using sender's public key
+4. Signature forwarded to recipient unchanged
+
+**Technical Notes:**
+- Fixed jq newline issue in payload hash calculation
+- Server logs `[AMP Route] Verified signature from ...` on success
+- Invalid signatures are logged but accepted (graceful degradation)
 
 ---
 
@@ -129,12 +135,13 @@ But the API expects:
 
 ### Priority 1: Fix Plugin Registration
 - ✅ Fixed `amp-register.sh` to use correct field names
-- Commit and push changes
+- ✅ Committed and pushed
 
 ### Priority 2: Client-Side Signing
-- Update plugin's `amp-send.sh` to sign messages before sending
-- Update server to verify (not create) signatures
-- Document in AMP spec
+- ✅ Updated `amp-send.sh` to sign messages before sending
+- ✅ Updated server (`route.ts`) to verify signatures
+- ✅ Signatures forwarded to recipients
+- ✅ Fixed jq newline issue in payload hash calculation
 
 ### Priority 3: Federation (Future)
 - Implement provider discovery

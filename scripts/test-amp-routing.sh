@@ -19,7 +19,11 @@
 #
 # =============================================================================
 
-set -e
+# Don't use set -e - we handle errors manually
+# set -e
+
+# Timeouts
+CURL_TIMEOUT=10
 
 # Colors
 RED='\033[0;31m'
@@ -48,12 +52,12 @@ log_info() {
 
 log_success() {
     echo -e "${GREEN}[PASS]${NC} $1"
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 log_fail() {
     echo -e "${RED}[FAIL]${NC} $1"
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 log_warn() {
@@ -71,7 +75,7 @@ log_section() {
 # Check if API is available
 check_api() {
     local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}/health" 2>/dev/null || echo "000")
+    response=$(curl -s -m "${CURL_TIMEOUT}" -o /dev/null -w "%{http_code}" "${API_URL}/health" 2>/dev/null || echo "000")
     if [ "$response" = "200" ]; then
         return 0
     fi
@@ -132,10 +136,10 @@ register_agent() {
     public_key=$(cat "${agent_dir}/keys/public.pem")
 
     local response
-    response=$(curl -s -X POST "${API_URL}/register" \
+    response=$(curl -s -m "${CURL_TIMEOUT}" -X POST "${API_URL}/register" \
         -H "Content-Type: application/json" \
         -d "{
-            \"agent_name\": \"${name}\",
+            \"name\": \"${name}\",
             \"tenant\": \"${tenant}\",
             \"public_key\": $(echo "$public_key" | jq -Rs .),
             \"key_algorithm\": \"Ed25519\"
@@ -171,7 +175,7 @@ send_message() {
     local msg_type="${5:-notification}"
 
     local response
-    response=$(curl -s -X POST "${API_URL}/route" \
+    response=$(curl -s -m "${CURL_TIMEOUT}" -X POST "${API_URL}/route" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${api_key}" \
         -d "{
@@ -192,7 +196,7 @@ check_pending() {
     local api_key="$1"
 
     local response
-    response=$(curl -s -X GET "${API_URL}/messages/pending" \
+    response=$(curl -s -m "${CURL_TIMEOUT}" -X GET "${API_URL}/messages/pending" \
         -H "Authorization: Bearer ${api_key}")
 
     echo "$response"
@@ -203,7 +207,7 @@ ack_message() {
     local api_key="$1"
     local message_id="$2"
 
-    curl -s -X DELETE "${API_URL}/messages/pending?id=${message_id}" \
+    curl -s -m "${CURL_TIMEOUT}" -X DELETE "${API_URL}/messages/pending?id=${message_id}" \
         -H "Authorization: Bearer ${api_key}"
 }
 
@@ -212,11 +216,11 @@ ack_message() {
 # =============================================================================
 
 test_api_health() {
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_info "Testing API health endpoint..."
 
     local response
-    response=$(curl -s "${API_URL}/health" 2>/dev/null)
+    response=$(curl -s -m "${CURL_TIMEOUT}" "${API_URL}/health" 2>/dev/null)
     local status
     status=$(echo "$response" | jq -r '.status // empty' 2>/dev/null)
 
@@ -234,16 +238,17 @@ test_agent_registration() {
     local tenant="$2"
     local agent_dir="$3"
 
-    ((TESTS_RUN++))
-    log_info "Registering agent '${name}' with tenant '${tenant}'..."
+    TESTS_RUN=$((TESTS_RUN + 1))
+    log_info "Registering agent '${name}' with tenant '${tenant}'..." >&2
 
     local api_key
-    if api_key=$(register_agent "$name" "$tenant" "$agent_dir"); then
-        log_success "Agent '${name}' registered successfully"
+    api_key=$(register_agent "$name" "$tenant" "$agent_dir" 2>/dev/null)
+    if [ -n "$api_key" ] && [[ ! "$api_key" == "Registration failed:"* ]]; then
+        log_success "Agent '${name}' registered successfully" >&2
         echo "$api_key"
         return 0
     else
-        log_fail "Agent '${name}' registration failed"
+        log_fail "Agent '${name}' registration failed" >&2
         return 1
     fi
 }
@@ -254,7 +259,7 @@ test_internal_to_internal() {
     local recipient_name="$3"
     local recipient_key="$4"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_info "Testing: ${sender_name} -> ${recipient_name} (internal to internal)"
 
     local test_id
@@ -300,7 +305,7 @@ test_external_agent_polling() {
     local agent_key="$1"
     local agent_name="$2"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_info "Testing: External agent polling for ${agent_name}"
 
     local pending
@@ -319,7 +324,7 @@ test_cross_provider_federation() {
     local sender_name="$2"
     local external_address="$3"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_info "Testing: ${sender_name} -> ${external_address} (cross-provider federation)"
 
     local test_id
@@ -350,7 +355,7 @@ test_message_acknowledgment() {
     local api_key="$1"
     local agent_name="$2"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
     log_info "Testing: Message acknowledgment for ${agent_name}"
 
     # Get pending messages
@@ -409,20 +414,27 @@ main() {
     log_section "Phase 1: Agent Setup"
     # ==========================================================================
 
-    # Create test agents
+    # Create test agents with unique names
+    local timestamp
+    timestamp=$(date +%s)
+
     log_info "Creating test agent identities..."
-    AGENT_A_DIR=$(create_test_agent "test-agent-a")
-    AGENT_B_DIR=$(create_test_agent "test-agent-b")
-    AGENT_C_DIR=$(create_test_agent "test-agent-c-external")
+    AGENT_A_NAME="test-a-${timestamp}"
+    AGENT_B_NAME="test-b-${timestamp}"
+    AGENT_C_NAME="test-c-${timestamp}"
+
+    AGENT_A_DIR=$(create_test_agent "$AGENT_A_NAME")
+    AGENT_B_DIR=$(create_test_agent "$AGENT_B_NAME")
+    AGENT_C_DIR=$(create_test_agent "$AGENT_C_NAME")
 
     log_success "Test agent identities created"
 
     # Register agents with AI Maestro
     TENANT="rnd23blocks"
 
-    AGENT_A_KEY=$(test_agent_registration "test-agent-a" "$TENANT" "$AGENT_A_DIR") || true
-    AGENT_B_KEY=$(test_agent_registration "test-agent-b" "$TENANT" "$AGENT_B_DIR") || true
-    AGENT_C_KEY=$(test_agent_registration "test-agent-c-external" "$TENANT" "$AGENT_C_DIR") || true
+    AGENT_A_KEY=$(test_agent_registration "$AGENT_A_NAME" "$TENANT" "$AGENT_A_DIR") || true
+    AGENT_B_KEY=$(test_agent_registration "$AGENT_B_NAME" "$TENANT" "$AGENT_B_DIR") || true
+    AGENT_C_KEY=$(test_agent_registration "$AGENT_C_NAME" "$TENANT" "$AGENT_C_DIR") || true
 
     # Save keys for reference
     echo "AGENT_A_KEY=${AGENT_A_KEY}" > "${TEST_DIR}/keys.env"
@@ -435,13 +447,13 @@ main() {
 
     if [ -n "$AGENT_A_KEY" ] && [ -n "$AGENT_B_KEY" ]; then
         # A -> B
-        test_internal_to_internal "$AGENT_A_KEY" "test-agent-a" "test-agent-b" "$AGENT_B_KEY"
+        test_internal_to_internal "$AGENT_A_KEY" "$AGENT_A_NAME" "$AGENT_B_NAME" "$AGENT_B_KEY"
 
         # B -> A
-        test_internal_to_internal "$AGENT_B_KEY" "test-agent-b" "test-agent-a" "$AGENT_A_KEY"
+        test_internal_to_internal "$AGENT_B_KEY" "$AGENT_B_NAME" "$AGENT_A_NAME" "$AGENT_A_KEY"
 
         # A -> A (self-message)
-        test_internal_to_internal "$AGENT_A_KEY" "test-agent-a" "test-agent-a" "$AGENT_A_KEY"
+        test_internal_to_internal "$AGENT_A_KEY" "$AGENT_A_NAME" "$AGENT_A_NAME" "$AGENT_A_KEY"
     else
         log_warn "Skipping internal communication tests - agents not registered"
     fi
@@ -453,15 +465,15 @@ main() {
     if [ -n "$AGENT_C_KEY" ]; then
         # Internal -> External
         if [ -n "$AGENT_A_KEY" ]; then
-            test_internal_to_internal "$AGENT_A_KEY" "test-agent-a" "test-agent-c-external" "$AGENT_C_KEY"
+            test_internal_to_internal "$AGENT_A_KEY" "$AGENT_A_NAME" "$AGENT_C_NAME" "$AGENT_C_KEY"
         fi
 
         # External agent polls for messages
-        test_external_agent_polling "$AGENT_C_KEY" "test-agent-c-external"
+        test_external_agent_polling "$AGENT_C_KEY" "$AGENT_C_NAME"
 
         # External -> Internal
         if [ -n "$AGENT_B_KEY" ]; then
-            test_internal_to_internal "$AGENT_C_KEY" "test-agent-c-external" "test-agent-b" "$AGENT_B_KEY"
+            test_internal_to_internal "$AGENT_C_KEY" "$AGENT_C_NAME" "$AGENT_B_NAME" "$AGENT_B_KEY"
         fi
     else
         log_warn "Skipping external agent tests - agent not registered"
@@ -473,8 +485,8 @@ main() {
 
     if [ -n "$AGENT_A_KEY" ]; then
         # Test sending to external provider (should fail gracefully)
-        test_cross_provider_federation "$AGENT_A_KEY" "test-agent-a" "alice@acme.crabmail.ai"
-        test_cross_provider_federation "$AGENT_A_KEY" "test-agent-a" "bob@other.external-provider.com"
+        test_cross_provider_federation "$AGENT_A_KEY" "$AGENT_A_NAME" "alice@acme.crabmail.ai"
+        test_cross_provider_federation "$AGENT_A_KEY" "$AGENT_A_NAME" "bob@other.external-provider.com"
     fi
 
     # ==========================================================================
@@ -482,11 +494,11 @@ main() {
     # ==========================================================================
 
     if [ -n "$AGENT_B_KEY" ]; then
-        test_message_acknowledgment "$AGENT_B_KEY" "test-agent-b"
+        test_message_acknowledgment "$AGENT_B_KEY" "$AGENT_B_NAME"
     fi
 
     if [ -n "$AGENT_C_KEY" ]; then
-        test_message_acknowledgment "$AGENT_C_KEY" "test-agent-c-external"
+        test_message_acknowledgment "$AGENT_C_KEY" "$AGENT_C_NAME"
     fi
 
     # ==========================================================================

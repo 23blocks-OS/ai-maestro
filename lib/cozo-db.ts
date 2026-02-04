@@ -61,6 +61,9 @@ export class AgentDatabase {
 
       // Auto-migrate: Initialize Memory schema if not present
       await this.ensureMemorySchema()
+
+      // Auto-migrate: Initialize Phase 5 schema if not present
+      await this.ensurePhase5Schema()
     } catch (error) {
       console.error(`[CozoDB] Failed to initialize database:`, error)
       throw error
@@ -92,6 +95,20 @@ export class AgentDatabase {
     } catch (error) {
       console.error(`[CozoDB] Failed to ensure Memory schema:`, error)
       // Don't throw - allow database to work without Memory features
+    }
+  }
+
+  /**
+   * Ensure Phase 5 schema tables exist (auto-migration)
+   */
+  private async ensurePhase5Schema(): Promise<void> {
+    try {
+      const { initializePhase5Schema } = await import('./cozo-schema-phase5')
+      await initializePhase5Schema(this)
+      console.log(`[CozoDB] Phase 5 schema migration complete`)
+    } catch (error) {
+      console.error(`[CozoDB] Failed to ensure Phase 5 schema:`, error)
+      // Don't throw - allow database to work without Phase 5 features
     }
   }
 

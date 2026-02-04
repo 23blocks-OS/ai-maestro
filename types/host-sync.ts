@@ -47,6 +47,12 @@ export interface PeerRegistrationRequest {
     propagationId?: string  // Unique ID to prevent circular propagation
     propagationDepth?: number  // How many hops from original initiator
   }
+  /** Organization name (if set) - for mesh sync */
+  organization?: string
+  /** When organization was set (ISO timestamp) */
+  organizationSetAt?: string
+  /** Host ID that set the organization */
+  organizationSetBy?: string
 }
 
 /**
@@ -64,6 +70,8 @@ export interface PeerRegistrationResponse {
   organizationSetAt?: string
   /** Host ID that set the organization */
   organizationSetBy?: string
+  /** True if we adopted organization from this peer */
+  organizationAdopted?: boolean
   error?: string
 }
 

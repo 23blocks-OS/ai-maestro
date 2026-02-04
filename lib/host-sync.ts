@@ -314,6 +314,9 @@ async function registerWithPeer(
     // Include all aliases for duplicate detection on remote host
     const aliases = getSelfAliases()
 
+    // Include organization info for propagation
+    const orgInfo = getOrganizationInfo()
+
     const request: PeerRegistrationRequest = {
       host: {
         id: localHost.id,
@@ -328,6 +331,10 @@ async function registerWithPeer(
         propagationId: propagation?.propagationId,
         propagationDepth: propagation?.propagationDepth,
       },
+      // Include organization for mesh propagation
+      organization: orgInfo.organization || undefined,
+      organizationSetAt: orgInfo.setAt || undefined,
+      organizationSetBy: orgInfo.setBy || undefined,
     }
 
     const response = await fetchWithTimeout(

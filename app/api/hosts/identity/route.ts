@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { getSelfHost, getOrganizationInfo } from '@/lib/hosts-config'
 import { HostIdentityResponse } from '@/types/host-sync'
 
+// Force dynamic rendering - organization can change at runtime
+export const dynamic = 'force-dynamic'
+
 // Get package version
 const packageJson = require('@/package.json')
 

@@ -103,9 +103,9 @@ But the API expects:
 
 ---
 
-#### Issue 3: Federation Not Implemented
+#### Issue 3: Federation Architecture Clarification
 
-**Severity:** Low (known limitation)
+**Severity:** N/A (by design)
 
 **Current Behavior:**
 ```json
@@ -115,11 +115,17 @@ But the API expects:
 }
 ```
 
-**Required for Federation:**
-1. Provider discovery via `/.well-known/agent-messaging.json`
-2. Outbound HTTP routing to external providers
-3. Inbound webhook for receiving federated messages
-4. Provider-to-provider authentication
+**This is correct behavior.** AI Maestro should NOT relay messages to external providers.
+
+**Architecture:**
+- External provider routing is handled **client-side** by `amp-send.sh`
+- When sending to `alice@acme.crabmail.ai`, the client routes directly to CrabMail's API
+- AI Maestro only handles local mesh routing (`@*.aimaestro.local`)
+- Agents register with external providers independently and use those APIs directly
+
+**Inbound federation (external → local) options:**
+1. Agents poll external providers via `amp-fetch.sh`
+2. Future: External providers could push via webhook endpoint
 
 ---
 
@@ -143,10 +149,10 @@ But the API expects:
 - ✅ Signatures forwarded to recipients
 - ✅ Fixed jq newline issue in payload hash calculation
 
-### Priority 3: Federation (Future)
-- Implement provider discovery
-- Add outbound routing
-- Add inbound webhook
+### Priority 3: External Provider Support (Client-Side)
+- ✅ `amp-send.sh` already routes to external providers directly
+- ✅ Registration with external providers via `amp-register.sh`
+- Future: `amp-fetch.sh` for polling external provider messages
 
 ## Test Commands
 

@@ -376,3 +376,124 @@ export async function GET(
     )
   }
 }
+
+/**
+ * POST /api/agents/[id]/export
+ * Export agent transcript in specified format (JSON, Markdown, or Plain Text)
+ *
+ * Body:
+ * - format: Export format - 'json', 'markdown', or 'plaintext' (required)
+ * - sessionId: Specific session to export (optional, exports all if not provided)
+ * - startDate: Filter by start date (ISO timestamp, optional)
+ * - endDate: Filter by end date (ISO timestamp, optional)
+ * - includeMetadata: Include agent metadata in export (default: false)
+ *
+ * Returns:
+ * - jobId: Unique job identifier for tracking export status
+ * - status: 'pending' | 'processing' | 'completed' | 'failed'
+ * - format: Export format used
+ */
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Try to find agent by ID first, then by name, then by alias (deprecated)
+    let agent = getAgent(params.id)
+    if (!agent) {
+      agent = getAgentByName(params.id)
+    }
+    if (!agent) {
+      agent = getAgentByAlias(params.id)
+    }
+
+    if (!agent) {
+      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+
+    // Validate required format parameter
+    const format = body.format
+    if (!format) {
+      return NextResponse.json(
+        { error: 'Missing required parameter: format' },
+        { status: 400 }
+      )
+    }
+
+    // Validate format value
+    if (!['json', 'markdown', 'plaintext'].includes(format)) {
+      return NextResponse.json(
+        { error: 'Invalid format. Must be: json, markdown, or plaintext' },
+        { status: 400 }
+      )
+    }
+
+    // Extract optional parameters
+    const sessionId = body.sessionId
+    const startDate = body.startDate
+    const endDate = body.endDate
+    const includeMetadata = body.includeMetadata === true
+
+    // Validate date formats if provided
+    if (startDate && isNaN(Date.parse(startDate))) {
+      return NextResponse.json(
+        { error: 'Invalid startDate format. Must be ISO 8601 timestamp' },
+        { status: 400 }
+      )
+    }
+
+    if (endDate && isNaN(Date.parse(endDate))) {
+      return NextResponse.json(
+        { error: 'Invalid endDate format. Must be ISO 8601 timestamp' },
+        { status: 400 }
+      )
+    }
+
+    // Validate sessionId exists for this agent (session is identified by index)
+    if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId))) {
+      return NextResponse.json(
+        { error: 'Session not found for this agent' },
+        { status: 404 }
+      )
+    }
+
+    console.log(
+      `[Transcript Export] Agent: ${params.id}, Format: ${format}, Session: ${sessionId || 'all'}`
+    )
+
+    // Generate unique job ID
+    const jobId = `export-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    // TODO: Implement actual transcript export logic
+    // This will use lib/transcript-export.ts in a future task
+    // For now, return a pending job status as scaffolding
+    const exportJob = {
+      id: jobId,
+      agentId: agent.id,
+      agentName: agent.name || agent.alias,
+      sessionId,
+      format,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      progress: 0,
+      filePath: null
+    }
+
+    // TODO: Store export job in database or file system
+    // This will be implemented in lib/transcript-export.ts
+
+    return NextResponse.json({
+      success: true,
+      job: exportJob,
+      message: 'Transcript export job created successfully'
+    })
+  } catch (error) {
+    console.error('Failed to create transcript export job:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create transcript export job' },
+      { status: 500 }
+    )
+  }
+}

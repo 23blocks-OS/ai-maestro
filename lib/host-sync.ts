@@ -19,7 +19,7 @@ import {
   PeerExchangeRequest,
   PeerExchangeResponse,
 } from '@/types/host-sync'
-import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache, getSelfAliases, isSelf } from './hosts-config'
+import { getHosts, getSelfHost, addHost, addHostAsync, getHostById, clearHostsCache, getSelfAliases, isSelf, getOrganizationInfo, adoptOrganization } from './hosts-config'
 import os from 'os'
 
 // Track processed propagation IDs to prevent infinite loops
@@ -307,6 +307,7 @@ async function registerWithPeer(
   success: boolean
   alreadyKnown: boolean
   knownHosts: HostIdentity[]
+  organizationAdopted?: boolean
   error?: string
 }> {
   try {
@@ -350,10 +351,35 @@ async function registerWithPeer(
     }
 
     const data: PeerRegistrationResponse = await response.json()
+
+    // Handle organization sync - adopt from peer if we don't have one
+    let organizationAdopted = false
+    if (data.organization && data.organizationSetAt && data.organizationSetBy) {
+      const adoptResult = adoptOrganization(
+        data.organization,
+        data.organizationSetAt,
+        data.organizationSetBy
+      )
+      if (adoptResult.success && adoptResult.adopted) {
+        organizationAdopted = true
+        console.log(`[Host Sync] Adopted organization "${data.organization}" from peer`)
+      } else if (!adoptResult.success && adoptResult.error?.includes('mismatch')) {
+        // Organization mismatch - this is a serious error
+        console.error(`[Host Sync] Organization mismatch with peer: ${adoptResult.error}`)
+        return {
+          success: false,
+          alreadyKnown: false,
+          knownHosts: [],
+          error: adoptResult.error,
+        }
+      }
+    }
+
     return {
       success: data.success,
       alreadyKnown: data.alreadyKnown,
       knownHosts: data.knownHosts || [],
+      organizationAdopted,
       error: data.error,
     }
   } catch (error) {
@@ -377,10 +403,12 @@ async function processPeerExchange(
   propagationId?: string
 ): Promise<{
   newlyAdded: number
+  organizationAdopted?: boolean
   errors: string[]
 }> {
   const errors: string[] = []
   let newlyAdded = 0
+  let organizationAdopted = false
 
   // Deduplicate incoming hosts
   const uniqueHosts = deduplicateHosts(peerKnownHosts)
@@ -434,8 +462,11 @@ async function processPeerExchange(
   }
 
   // Share our known hosts with the peer (with response checking)
+  // Also include our organization info for mesh sync
   const ourKnownHosts = getKnownHostIdentities(localHost.id)
-  if (ourKnownHosts.length > 0) {
+  const orgInfo = getOrganizationInfo()
+
+  if (ourKnownHosts.length > 0 || orgInfo.organization) {
     try {
       const request: PeerExchangeRequest = {
         fromHost: {
@@ -445,6 +476,10 @@ async function processPeerExchange(
         },
         knownHosts: ourKnownHosts,
         propagationId,
+        // Include organization info
+        organization: orgInfo.organization || undefined,
+        organizationSetAt: orgInfo.setAt || undefined,
+        organizationSetBy: orgInfo.setBy || undefined,
       }
 
       const response = await fetchWithTimeout(
@@ -460,6 +495,22 @@ async function processPeerExchange(
       if (!response.ok) {
         console.error(`[Host Sync] Peer exchange failed: HTTP ${response.status}`)
         errors.push(`Peer exchange returned ${response.status}`)
+      } else {
+        // Check if peer has organization we should adopt
+        const exchangeResponse: PeerExchangeResponse = await response.json()
+        if (exchangeResponse.organization && exchangeResponse.organizationSetAt && exchangeResponse.organizationSetBy) {
+          const adoptResult = adoptOrganization(
+            exchangeResponse.organization,
+            exchangeResponse.organizationSetAt,
+            exchangeResponse.organizationSetBy
+          )
+          if (adoptResult.success && adoptResult.adopted) {
+            organizationAdopted = true
+            console.log(`[Host Sync] Adopted organization "${exchangeResponse.organization}" from peer exchange`)
+          } else if (!adoptResult.success && adoptResult.error?.includes('mismatch')) {
+            errors.push(adoptResult.error)
+          }
+        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -468,7 +519,7 @@ async function processPeerExchange(
     }
   }
 
-  return { newlyAdded, errors }
+  return { newlyAdded, organizationAdopted, errors }
 }
 
 /**

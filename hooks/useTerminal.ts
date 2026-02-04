@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
+import type { WebglAddon } from '@xterm/addon-webgl'
 
 export interface UseTerminalOptions {
   fontSize?: number
@@ -25,6 +26,7 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
 export function useTerminal(options: UseTerminalOptions = {}) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const webglAddonRef = useRef<WebglAddon | null>(null)
   const optionsRef = useRef(options)
 
   // Keep options ref up to date
@@ -133,22 +135,10 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Open terminal in container
     terminal.open(container)
 
-    // Load WebGL addon for better rendering and selection handling
-    // WebGL renders everything on canvas, avoiding DOM-based selection issues (yellow highlight)
-    try {
-      const { WebglAddon } = await import('@xterm/addon-webgl')
-      const webglAddon = new WebglAddon()
-      terminal.loadAddon(webglAddon)
-      console.log(`✅ [Terminal] WebGL renderer loaded for session ${optionsRef.current.sessionId}`)
-
-      // Handle context loss
-      webglAddon.onContextLoss(() => {
-        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}`)
-        webglAddon.dispose()
-      })
-    } catch (e) {
-      console.warn(`[Terminal] WebGL addon not available, using canvas renderer:`, e)
-    }
+    // NOTE: WebGL is NOT loaded on initialization - terminals start with canvas renderer
+    // WebGL is loaded dynamically only for the ACTIVE terminal via enableWebGL()
+    // This prevents exhausting GPU contexts when many terminals are open
+    console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
 
     // Hide accessibility tree to prevent yellow browser selection
     const hideAccessibilityTree = () => {
@@ -287,6 +277,62 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     }
   }, [])
 
+  // Enable WebGL renderer for better performance (call when terminal becomes active/visible)
+  const enableWebGL = useCallback(async () => {
+    if (!terminalRef.current) return
+    if (webglAddonRef.current) {
+      // WebGL already enabled
+      return
+    }
+
+    try {
+      const { WebglAddon } = await import('@xterm/addon-webgl')
+      const webglAddon = new WebglAddon()
+
+      // Handle context loss - fall back to canvas renderer
+      webglAddon.onContextLoss(() => {
+        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas renderer`)
+        try {
+          webglAddon.dispose()
+        } catch {
+          // Ignore dispose errors
+        }
+        webglAddonRef.current = null
+        // Force a re-render to ensure canvas is working
+        if (terminalRef.current) {
+          terminalRef.current.refresh(0, terminalRef.current.rows - 1)
+        }
+      })
+
+      terminalRef.current.loadAddon(webglAddon)
+      webglAddonRef.current = webglAddon
+      console.log(`✅ [Terminal] WebGL renderer enabled for session ${optionsRef.current.sessionId}`)
+    } catch (e) {
+      console.warn(`[Terminal] WebGL addon not available, keeping canvas renderer:`, e)
+    }
+  }, [])
+
+  // Disable WebGL renderer (call when terminal becomes inactive/hidden to free GPU context)
+  const disableWebGL = useCallback(() => {
+    if (!webglAddonRef.current) {
+      // WebGL not enabled
+      return
+    }
+
+    try {
+      webglAddonRef.current.dispose()
+      console.log(`[Terminal] WebGL renderer disabled for session ${optionsRef.current.sessionId}, using canvas`)
+    } catch (e) {
+      console.warn(`[Terminal] Error disposing WebGL addon:`, e)
+    }
+    webglAddonRef.current = null
+
+    // Force refresh to ensure canvas renderer takes over
+    if (terminalRef.current) {
+      terminalRef.current.refresh(0, terminalRef.current.rows - 1)
+    }
+  }, [])
+
   return {
     terminal: terminalRef.current,
     initializeTerminal,
@@ -294,5 +340,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     fitTerminal,
     clearTerminal,
     writeToTerminal,
+    enableWebGL,
+    disableWebGL,
   }
 }

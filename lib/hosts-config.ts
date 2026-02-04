@@ -667,3 +667,194 @@ export function deleteHost(hostId: string): { success: boolean; error?: string }
     }
   }
 }
+
+// ============================================================================
+// ORGANIZATION MANAGEMENT
+// ============================================================================
+
+/**
+ * Validation regex for organization name
+ * Must be 1-63 characters, lowercase alphanumeric + hyphens
+ * Must start with letter, cannot start/end with hyphen
+ */
+const ORGANIZATION_REGEX = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/
+
+/**
+ * Validate organization name format
+ */
+export function isValidOrganizationName(name: string): boolean {
+  return ORGANIZATION_REGEX.test(name)
+}
+
+/**
+ * Get the current organization name from hosts config
+ * Returns null if not set
+ */
+export function getOrganization(): string | null {
+  try {
+    if (!fs.existsSync(HOSTS_CONFIG_PATH)) {
+      return null
+    }
+    const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
+    const config = JSON.parse(fileContent) as HostsConfig
+    return config.organization || null
+  } catch (error) {
+    console.error('[Hosts] Failed to read organization:', error)
+    return null
+  }
+}
+
+/**
+ * Get full organization info (name, when set, who set it)
+ */
+export function getOrganizationInfo(): {
+  organization: string | null
+  setAt: string | null
+  setBy: string | null
+} {
+  try {
+    if (!fs.existsSync(HOSTS_CONFIG_PATH)) {
+      return { organization: null, setAt: null, setBy: null }
+    }
+    const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
+    const config = JSON.parse(fileContent) as HostsConfig
+    return {
+      organization: config.organization || null,
+      setAt: config.organizationSetAt || null,
+      setBy: config.organizationSetBy || null,
+    }
+  } catch (error) {
+    console.error('[Hosts] Failed to read organization info:', error)
+    return { organization: null, setAt: null, setBy: null }
+  }
+}
+
+/**
+ * Check if organization is set
+ */
+export function hasOrganization(): boolean {
+  return getOrganization() !== null
+}
+
+/**
+ * Set the organization name
+ * Can only be set once - returns error if already set
+ *
+ * @param name - Organization name (1-63 chars, lowercase alphanumeric + hyphens)
+ * @param setBy - Host ID that is setting the organization (optional, defaults to self)
+ */
+export function setOrganization(
+  name: string,
+  setBy?: string
+): { success: boolean; error?: string } {
+  try {
+    // Validate name format
+    if (!isValidOrganizationName(name)) {
+      return {
+        success: false,
+        error: 'Invalid organization name. Must be 1-63 lowercase characters (letters, numbers, hyphens). Must start with a letter and cannot start/end with a hyphen.',
+      }
+    }
+
+    // Read existing config
+    let config: HostsConfig = { hosts: [] }
+    if (fs.existsSync(HOSTS_CONFIG_PATH)) {
+      const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
+      config = JSON.parse(fileContent) as HostsConfig
+    }
+
+    // Check if already set
+    if (config.organization) {
+      return {
+        success: false,
+        error: `Organization already set to "${config.organization}". Cannot change organization name.`,
+      }
+    }
+
+    // Set organization
+    config.organization = name.toLowerCase()
+    config.organizationSetAt = new Date().toISOString()
+    config.organizationSetBy = setBy || getSelfHostId()
+
+    // Ensure directory exists
+    const configDir = path.dirname(HOSTS_CONFIG_PATH)
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
+    }
+
+    // Save config
+    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+    clearHostsCache()
+
+    console.log(`[Hosts] Organization set to "${name}" by ${config.organizationSetBy}`)
+    return { success: true }
+  } catch (error) {
+    console.error('[Hosts] Failed to set organization:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to set organization',
+    }
+  }
+}
+
+/**
+ * Adopt organization from a peer during mesh sync
+ * Only succeeds if local organization is NOT set
+ *
+ * @param organization - Organization name from peer
+ * @param setAt - When the peer set it (ISO timestamp)
+ * @param setBy - Which host originally set it
+ */
+export function adoptOrganization(
+  organization: string,
+  setAt: string,
+  setBy: string
+): { success: boolean; adopted: boolean; error?: string } {
+  try {
+    // Read existing config
+    let config: HostsConfig = { hosts: [] }
+    if (fs.existsSync(HOSTS_CONFIG_PATH)) {
+      const fileContent = fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')
+      config = JSON.parse(fileContent) as HostsConfig
+    }
+
+    // If we already have an organization, check for conflict
+    if (config.organization) {
+      if (config.organization === organization) {
+        // Same organization, nothing to do
+        return { success: true, adopted: false }
+      }
+      // Different organization - this is a conflict
+      return {
+        success: false,
+        adopted: false,
+        error: `Organization mismatch: local is "${config.organization}", peer is "${organization}". Cannot join incompatible networks.`,
+      }
+    }
+
+    // Adopt the peer's organization
+    config.organization = organization.toLowerCase()
+    config.organizationSetAt = setAt
+    config.organizationSetBy = setBy
+
+    // Ensure directory exists
+    const configDir = path.dirname(HOSTS_CONFIG_PATH)
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
+    }
+
+    // Save config
+    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+    clearHostsCache()
+
+    console.log(`[Hosts] Adopted organization "${organization}" from ${setBy}`)
+    return { success: true, adopted: true }
+  } catch (error) {
+    console.error('[Hosts] Failed to adopt organization:', error)
+    return {
+      success: false,
+      adopted: false,
+      error: error instanceof Error ? error.message : 'Failed to adopt organization',
+    }
+  }
+}

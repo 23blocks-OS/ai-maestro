@@ -28,6 +28,12 @@ export interface HostIdentityResponse {
     tailscale: boolean
     isSelf: true  // Always true - this is the host serving the API
   }
+  /** Organization name (if set) */
+  organization?: string
+  /** When organization was set (ISO timestamp) */
+  organizationSetAt?: string
+  /** Host ID that set the organization */
+  organizationSetBy?: string
 }
 
 /**
@@ -52,6 +58,12 @@ export interface PeerRegistrationResponse {
   alreadyKnown: boolean    // true if host was already in hosts.json
   host: HostIdentity       // This host's identity (for back-registration)
   knownHosts: HostIdentity[] // All known remote hosts (for peer exchange)
+  /** Organization name (if set) - for mesh sync */
+  organization?: string
+  /** When organization was set (ISO timestamp) */
+  organizationSetAt?: string
+  /** Host ID that set the organization */
+  organizationSetBy?: string
   error?: string
 }
 
@@ -62,6 +74,12 @@ export interface PeerExchangeRequest {
   fromHost: HostIdentity
   knownHosts: HostIdentity[]
   propagationId?: string  // To prevent circular propagation
+  /** Organization name (if set) - for mesh sync */
+  organization?: string
+  /** When organization was set (ISO timestamp) */
+  organizationSetAt?: string
+  /** Host ID that set the organization */
+  organizationSetBy?: string
 }
 
 /**
@@ -72,6 +90,14 @@ export interface PeerExchangeResponse {
   newlyAdded: string[]     // IDs of hosts that were new to us
   alreadyKnown: string[]   // IDs of hosts we already knew
   unreachable: string[]    // IDs of hosts we couldn't reach
+  /** Organization name (if set) - for mesh sync */
+  organization?: string
+  /** When organization was set (ISO timestamp) */
+  organizationSetAt?: string
+  /** Host ID that set the organization */
+  organizationSetBy?: string
+  /** True if we adopted organization from this peer */
+  organizationAdopted?: boolean
   error?: string
 }
 

@@ -279,9 +279,13 @@ export function createAgent(request: CreateAgentRequest): Agent {
 
   // Get host information FIRST (needed for uniqueness check)
   // Use hostname as hostId for cross-host compatibility
+  // ALWAYS normalize hostId to canonical format (lowercase, no .local suffix)
   const selfHost = getSelfHost()
   const selfHostIdValue = getSelfHostId()
-  const hostId = request.hostId || selfHost?.id || selfHostIdValue
+  // Normalize any provided hostId, or use self host
+  const hostId = request.hostId
+    ? request.hostId.toLowerCase().replace(/\.local$/, '')
+    : (selfHost?.id || selfHostIdValue)
   const hostName = selfHost?.name || selfHostIdValue
   // NEVER use localhost - use actual IP from selfHost or hostname
   const hostUrl = selfHost?.url || `http://${selfHostIdValue}:23000`
@@ -1570,4 +1574,319 @@ export function updateAiMaestroSkills(
   saveAgents(agents)
 
   return agents[index]
+}
+
+// ============================================================================
+// HOST ID NORMALIZATION (Phase 1: AMP Protocol Fix)
+// ============================================================================
+
+/**
+ * Normalize a hostId to canonical format for AMP compatibility
+ * - Lowercase for case-insensitive consistency
+ * - Strip .local suffix (macOS Bonjour/mDNS)
+ * - Convert legacy 'local' to actual hostname
+ *
+ * @param hostId - Raw host ID (could be 'local', 'Juans-MacBook-Pro.local', etc.)
+ * @returns Canonical hostId (lowercase, no .local suffix)
+ */
+export function normalizeHostId(hostId: string | undefined): string {
+  const selfHostId = getSelfHostId()
+
+  // Handle undefined or empty
+  if (!hostId || hostId === '' || hostId === 'local') {
+    return selfHostId
+  }
+
+  // Normalize: lowercase and strip .local suffix
+  return hostId.toLowerCase().replace(/\.local$/, '')
+}
+
+/**
+ * Check if a hostId needs normalization
+ * @param hostId - Host ID to check
+ * @returns true if hostId is not in canonical format
+ */
+export function needsHostIdNormalization(hostId: string | undefined): boolean {
+  if (!hostId) return true
+  if (hostId === 'local') return true
+  if (hostId !== hostId.toLowerCase()) return true
+  if (hostId.endsWith('.local')) return true
+  return false
+}
+
+/**
+ * Normalize all agent hostIds to canonical format
+ * Fixes agents with:
+ * - Legacy 'local' hostId
+ * - Mixed case hostIds (e.g., 'Juans-MacBook-Pro')
+ * - .local suffix (e.g., 'juans-macbook-pro.local')
+ *
+ * @returns { updated: number, skipped: number, agents: { id: string, name: string, oldHostId: string, newHostId: string }[] }
+ */
+export function normalizeAllAgentHostIds(): {
+  updated: number
+  skipped: number
+  agents: { id: string, name: string, oldHostId: string, newHostId: string }[]
+} {
+  const agents = loadAgents()
+  const result = {
+    updated: 0,
+    skipped: 0,
+    agents: [] as { id: string, name: string, oldHostId: string, newHostId: string }[]
+  }
+
+  let hasChanges = false
+
+  for (const agent of agents) {
+    const oldHostId = agent.hostId || 'local'
+    const newHostId = normalizeHostId(agent.hostId)
+
+    if (oldHostId !== newHostId) {
+      agent.hostId = newHostId
+      // Also normalize hostName and hostUrl if they reference this host
+      if (agent.hostName) {
+        agent.hostName = normalizeHostId(agent.hostName)
+      }
+      result.updated++
+      result.agents.push({
+        id: agent.id,
+        name: agent.name || agent.alias || 'unknown',
+        oldHostId,
+        newHostId
+      })
+      hasChanges = true
+    } else {
+      result.skipped++
+    }
+  }
+
+  if (hasChanges) {
+    saveAgents(agents)
+    console.log(`[Agent Registry] Normalized ${result.updated} agent hostIds`)
+  }
+
+  return result
+}
+
+/**
+ * Get agents grouped by hostId for mesh directory
+ * @returns Map of hostId -> array of agents
+ */
+export function getAgentsByHost(): Map<string, Agent[]> {
+  const agents = loadAgents()
+  const byHost = new Map<string, Agent[]>()
+
+  for (const agent of agents) {
+    const hostId = normalizeHostId(agent.hostId)
+    if (!byHost.has(hostId)) {
+      byHost.set(hostId, [])
+    }
+    byHost.get(hostId)!.push(agent)
+  }
+
+  return byHost
+}
+
+/**
+ * Get a summary of hostId inconsistencies for diagnosis
+ * @returns Summary of all unique hostIds and agent counts
+ */
+export function diagnoseHostIds(): {
+  canonical: string
+  hostIds: { hostId: string, count: number, needsNormalization: boolean }[]
+  totalAgents: number
+  agentsNeedingNormalization: number
+} {
+  const agents = loadAgents()
+  const canonical = getSelfHostId()
+  const hostIdCounts = new Map<string, number>()
+
+  for (const agent of agents) {
+    const hostId = agent.hostId || 'local'
+    hostIdCounts.set(hostId, (hostIdCounts.get(hostId) || 0) + 1)
+  }
+
+  const hostIds = Array.from(hostIdCounts.entries()).map(([hostId, count]) => ({
+    hostId,
+    count,
+    needsNormalization: needsHostIdNormalization(hostId)
+  }))
+
+  const agentsNeedingNormalization = hostIds
+    .filter(h => h.needsNormalization)
+    .reduce((sum, h) => sum + h.count, 0)
+
+  return {
+    canonical,
+    hostIds,
+    totalAgents: agents.length,
+    agentsNeedingNormalization
+  }
+}
+
+// ============================================================================
+// MESH-WIDE AGENT OPERATIONS (Phase 2: AMP Registration Enforcement)
+// ============================================================================
+
+/**
+ * Check if an agent name exists locally (on this host)
+ * @param name - Agent name to check
+ * @returns Agent if found, null otherwise
+ */
+export function checkLocalAgentExists(name: string): Agent | null {
+  const selfHostId = getSelfHostId()
+  return getAgentByName(name, selfHostId)
+}
+
+/**
+ * Check if an agent name exists anywhere in the mesh
+ * This queries all known peer hosts to ensure mesh-wide uniqueness
+ *
+ * @param name - Agent name to check
+ * @param timeout - Timeout in ms for peer queries (default: 5000)
+ * @returns { exists: boolean, host?: string, agent?: AgentSummary }
+ */
+export async function checkMeshAgentExists(
+  name: string,
+  timeout: number = 5000
+): Promise<{
+  exists: boolean
+  host?: string
+  agent?: AgentSummary
+  checkedHosts: string[]
+  failedHosts: string[]
+}> {
+  const { getPeerHosts } = await import('./hosts-config')
+
+  const result = {
+    exists: false,
+    host: undefined as string | undefined,
+    agent: undefined as AgentSummary | undefined,
+    checkedHosts: [] as string[],
+    failedHosts: [] as string[]
+  }
+
+  // Check locally first
+  const selfHostId = getSelfHostId()
+  const localAgent = getAgentByName(name, selfHostId)
+  if (localAgent) {
+    result.exists = true
+    result.host = selfHostId
+    result.agent = {
+      id: localAgent.id,
+      name: localAgent.name || localAgent.alias || '',
+      label: localAgent.label,
+      hostId: localAgent.hostId || selfHostId,
+      status: localAgent.status,
+      lastActive: localAgent.lastActive,
+      sessions: localAgent.sessions || [],
+      deployment: localAgent.deployment
+    }
+    result.checkedHosts.push(selfHostId)
+    return result
+  }
+  result.checkedHosts.push(selfHostId)
+
+  // Check peer hosts in parallel
+  const peerHosts = getPeerHosts()
+  const normalizedName = name.toLowerCase()
+
+  const checks = peerHosts.map(async (host) => {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+      const response = await fetch(`${host.url}/api/agents/by-name/${encodeURIComponent(normalizedName)}`, {
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.agent) {
+          return { host: host.id, agent: data.agent, success: true }
+        }
+      }
+      return { host: host.id, success: true }
+    } catch (error) {
+      return { host: host.id, success: false, error }
+    }
+  })
+
+  const results = await Promise.all(checks)
+
+  for (const checkResult of results) {
+    if (checkResult.success) {
+      result.checkedHosts.push(checkResult.host)
+      if (checkResult.agent) {
+        result.exists = true
+        result.host = checkResult.host
+        result.agent = checkResult.agent
+        // Found a match, but continue to build full list of checked hosts
+      }
+    } else {
+      result.failedHosts.push(checkResult.host)
+    }
+  }
+
+  return result
+}
+
+/**
+ * Mark an agent as AMP-registered
+ * Sets the ampRegistered flag and stores AMP metadata
+ *
+ * @param agentId - Agent ID
+ * @param ampData - AMP registration data
+ */
+export function markAgentAsAMPRegistered(
+  agentId: string,
+  ampData: {
+    address: string
+    tenant: string
+    fingerprint: string
+    registeredAt: string
+    apiKeyHash?: string
+  }
+): Agent | null {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    return null
+  }
+
+  // Set AMP-registered flag and metadata
+  agents[index].ampRegistered = true
+  agents[index].metadata = {
+    ...agents[index].metadata,
+    amp: {
+      ...agents[index].metadata?.amp,
+      address: ampData.address,
+      tenant: ampData.tenant,
+      fingerprint: ampData.fingerprint,
+      registeredAt: ampData.registeredAt,
+      apiKeyHash: ampData.apiKeyHash
+    }
+  }
+  agents[index].lastActive = new Date().toISOString()
+
+  saveAgents(agents)
+  return agents[index]
+}
+
+/**
+ * Get all AMP-registered agents
+ */
+export function getAMPRegisteredAgents(): Agent[] {
+  const agents = loadAgents()
+  return agents.filter(a => a.ampRegistered === true)
+}
+
+/**
+ * Get all non-AMP-registered agents (legacy agents)
+ */
+export function getLegacyAgents(): Agent[] {
+  const agents = loadAgents()
+  return agents.filter(a => a.ampRegistered !== true)
 }

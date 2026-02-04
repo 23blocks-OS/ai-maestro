@@ -74,9 +74,9 @@ interface GraphStats {
 interface AgentGraphProps {
   sessionName: string
   agentId: string | null | undefined
-  isVisible: boolean
   workingDirectory?: string
   hostUrl?: string  // Base URL for remote hosts
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
 const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -111,7 +111,7 @@ const EDGE_COLORS: Record<string, string> = {
   serializes: '#06b6d4',  // cyan - serializer relationships
 }
 
-export default function AgentGraph({ sessionName, agentId, isVisible, workingDirectory, hostUrl }: AgentGraphProps) {
+export default function AgentGraph({ sessionName, agentId, workingDirectory, hostUrl, isActive = false }: AgentGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<any>(null)
   const [loading, setLoading] = useState(true)
@@ -276,9 +276,9 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     }
   }
 
-  // Initial load
+  // Only fetch when this agent is active (prevents API flood with many agents)
   useEffect(() => {
-    if (!isVisible || !agentId) return
+    if (!agentId || !isActive) return
 
     const init = async () => {
       const currentStats = await fetchStats()
@@ -293,13 +293,13 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
     }
 
     init()
-  }, [isVisible, agentId, fetchStats, detectProjectPath, fetchGraphData])
+  }, [agentId, isActive])
 
   // Render graph with Cytoscape
   useEffect(() => {
     // Handle both regular graph data and focus mode data
     const dataToRender = focusMode ? focusMode.data : graphData
-    if (!dataToRender || !containerRef.current || !isVisible) return
+    if (!dataToRender || !containerRef.current) return
 
     const loadCytoscape = async () => {
       const cytoscape = (await import('cytoscape')).default
@@ -535,7 +535,7 @@ export default function AgentGraph({ sessionName, agentId, isVisible, workingDir
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphData, layout, nodeFilter, isVisible, focusMode?.nodeId])
+  }, [graphData, layout, nodeFilter, focusMode?.nodeId])
 
   const handleZoomIn = () => cyRef.current?.zoom(cyRef.current.zoom() * 1.2)
   const handleZoomOut = () => cyRef.current?.zoom(cyRef.current.zoom() / 1.2)

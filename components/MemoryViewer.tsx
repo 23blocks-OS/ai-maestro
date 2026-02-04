@@ -63,7 +63,7 @@ interface MemoryStats {
 interface MemoryViewerProps {
   agentId: string
   hostUrl?: string
-  isVisible?: boolean
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -91,13 +91,12 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
   supersedes: '#f59e0b'   // amber
 }
 
-export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }: MemoryViewerProps) {
+export default function MemoryViewer({ agentId, hostUrl = '', isActive = false }: MemoryViewerProps) {
   const [view, setView] = useState<'list' | 'graph'>('list')
   const [memories, setMemories] = useState<Memory[]>([])
   const [stats, setStats] = useState<MemoryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [hasInitialized, setHasInitialized] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [consolidating, setConsolidating] = useState(false)
@@ -203,20 +202,18 @@ export default function MemoryViewer({ agentId, hostUrl = '', isVisible = true }
     }
   }
 
-  // Only fetch when visible and not already initialized
-  // OPTIMIZED: Use Promise.all for parallel fetching
+  // Only fetch when this agent is active (prevents API flood with many agents)
   useEffect(() => {
-    if (isVisible && !hasInitialized) {
-      setHasInitialized(true)
-      Promise.all([fetchMemories(), fetchStats()])
-    }
-  }, [isVisible, hasInitialized, fetchMemories, fetchStats])
+    if (!isActive) return
+    Promise.all([fetchMemories(), fetchStats()])
+  }, [agentId, isActive])
 
+  // Fetch graph when view changes to graph
   useEffect(() => {
-    if (isVisible && view === 'graph') {
+    if (view === 'graph') {
       fetchGraph()
     }
-  }, [isVisible, view, fetchGraph])
+  }, [view, agentId])
 
   // Handle edit
   const startEdit = (memory: Memory) => {

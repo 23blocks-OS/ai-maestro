@@ -102,13 +102,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Agent identifier required (agent ID, alias, or session name)' }, { status: 400 })
   }
 
+  // Parse limit parameter (default: 25 for performance, 0 = unlimited)
+  const limitParam = searchParams.get('limit')
+  const limit = limitParam === null ? 25 : parseInt(limitParam, 10) || 0
+
   // List sent messages
   if (box === 'sent') {
     const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
     const to = searchParams.get('to') || undefined
 
-    const messages = await listSentMessages(agentIdentifier, { priority, to })
-    return NextResponse.json({ messages })
+    const messages = await listSentMessages(agentIdentifier, { priority, to, limit })
+    return NextResponse.json({ messages, limit })
   }
 
   // List inbox messages (default)
@@ -116,8 +120,8 @@ export async function GET(request: NextRequest) {
   const priority = searchParams.get('priority') as 'low' | 'normal' | 'high' | 'urgent' | undefined
   const from = searchParams.get('from') || undefined
 
-  const messages = await listInboxMessages(agentIdentifier, { status, priority, from })
-  return NextResponse.json({ messages })
+  const messages = await listInboxMessages(agentIdentifier, { status, priority, from, limit })
+  return NextResponse.json({ messages, limit })
 }
 
 /**

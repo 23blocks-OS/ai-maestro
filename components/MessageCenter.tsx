@@ -19,11 +19,11 @@ interface MessageCenterProps {
   sessionName: string
   agentId?: string  // Primary identifier when available
   allAgents: AgentRecipient[]
-  isVisible?: boolean
   hostUrl?: string  // Base URL for remote hosts (e.g., http://100.80.12.6:23000)
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
-export default function MessageCenter({ sessionName, agentId, allAgents, isVisible = true, hostUrl }: MessageCenterProps) {
+export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl, isActive = false }: MessageCenterProps) {
   // Use agentId as primary identifier if available, fall back to sessionName
   const messageIdentifier = agentId || sessionName
   // Base URL for API calls - empty for local, full URL for remote hosts
@@ -35,9 +35,12 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
   const [unreadCount, setUnreadCount] = useState(0)
   const [sentCount, setSentCount] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [hasInitialized, setHasInitialized] = useState(false)
   const [isForwarding, setIsForwarding] = useState(false)
   const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
+  const [inboxLimit, setInboxLimit] = useState(25)  // Pagination: number of inbox messages to load
+  const [sentLimit, setSentLimit] = useState(25)    // Pagination: number of sent messages to load
+  const [hasMoreInbox, setHasMoreInbox] = useState(false)
+  const [hasMoreSent, setHasMoreSent] = useState(false)
 
   // Compose form state
   const [composeTo, setComposeTo] = useState('')
@@ -60,27 +63,49 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
   // External agent info toggle
   const [showExternalAgentInfo, setShowExternalAgentInfo] = useState(false)
 
-  // Fetch inbox messages
-  const fetchMessages = useCallback(async () => {
+  // Fetch inbox messages with pagination
+  const fetchMessages = useCallback(async (limit?: number) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
+      const fetchLimit = limit ?? inboxLimit
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox&limit=${fetchLimit}`)
       const data = await response.json()
-      setMessages(data.messages || [])
+      const msgs = data.messages || []
+      setMessages(msgs)
+      // If we got exactly the limit, there may be more
+      setHasMoreInbox(msgs.length === fetchLimit)
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
-  }, [messageIdentifier, apiBaseUrl])
+  }, [messageIdentifier, apiBaseUrl, inboxLimit])
 
-  // Fetch sent messages
-  const fetchSentMessages = useCallback(async () => {
+  // Fetch sent messages with pagination
+  const fetchSentMessages = useCallback(async (limit?: number) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
+      const fetchLimit = limit ?? sentLimit
+      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent&limit=${fetchLimit}`)
       const data = await response.json()
-      setSentMessages(data.messages || [])
+      const msgs = data.messages || []
+      setSentMessages(msgs)
+      // If we got exactly the limit, there may be more
+      setHasMoreSent(msgs.length === fetchLimit)
     } catch (error) {
       console.error('Error fetching sent messages:', error)
     }
-  }, [messageIdentifier, apiBaseUrl])
+  }, [messageIdentifier, apiBaseUrl, sentLimit])
+
+  // Load more inbox messages
+  const loadMoreInbox = useCallback(() => {
+    const newLimit = inboxLimit + 25
+    setInboxLimit(newLimit)
+    fetchMessages(newLimit)
+  }, [inboxLimit, fetchMessages])
+
+  // Load more sent messages
+  const loadMoreSent = useCallback(() => {
+    const newLimit = sentLimit + 25
+    setSentLimit(newLimit)
+    fetchSentMessages(newLimit)
+  }, [sentLimit, fetchSentMessages])
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
@@ -324,29 +349,26 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
     setView('compose')
   }
 
-  // Only fetch messages when visible for the first time, then set up polling
+  // Only fetch when this agent is active (prevents API flood with 40+ agents)
   useEffect(() => {
-    if (!isVisible || hasInitialized) return
-
-    setHasInitialized(true)
+    if (!isActive) return
     fetchMessages()
     fetchSentMessages()
     fetchUnreadCount()
     fetchSentCount()
-  }, [isVisible, hasInitialized, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+  }, [messageIdentifier, isActive])
 
-  // Set up polling interval only when visible
+  // Polling - only when active
   useEffect(() => {
-    if (!isVisible || !hasInitialized) return
-
+    if (!isActive) return
     const interval = setInterval(() => {
       fetchMessages()
       fetchSentMessages()
       fetchUnreadCount()
       fetchSentCount()
-    }, 10000) // Refresh every 10 seconds
+    }, 10000)
     return () => clearInterval(interval)
-  }, [isVisible, hasInitialized, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+  }, [messageIdentifier, isActive])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -632,58 +654,68 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                 <p>No inbox messages</p>
               </div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  onClick={() => loadMessage(msg.id)}
-                  className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
-                    msg.status === 'unread' ? 'bg-blue-900/30' : ''
-                  } ${selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''}`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-start gap-2">
-                      {/* Verified/External indicator */}
-                      <div className="mt-0.5">
-                        {msg.fromVerified !== false ? (
-                          <span title="AI Maestro Agent">
-                            <ShieldCheck className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                          </span>
-                        ) : (
-                          <span title="External Agent">
-                            <Globe className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-semibold truncate ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
-                            {(msg as any).fromLabel || msg.fromAlias || msg.from}
-                          </span>
-                          {getPriorityIcon(msg.priority)}
+              <>
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    onClick={() => loadMessage(msg.id)}
+                    className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
+                      msg.status === 'unread' ? 'bg-blue-900/30' : ''
+                    } ${selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''}`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start gap-2">
+                        {/* Verified/External indicator */}
+                        <div className="mt-0.5">
+                          {msg.fromVerified !== false ? (
+                            <span title="AI Maestro Agent">
+                              <ShieldCheck className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                            </span>
+                          ) : (
+                            <span title="External Agent">
+                              <Globe className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {msg.fromAlias || msg.from}@{msg.fromHost || 'unknown-host'}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold truncate ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
+                              {(msg as any).fromLabel || msg.fromAlias || msg.from}
+                            </span>
+                            {getPriorityIcon(msg.priority)}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {msg.fromAlias || msg.from}@{msg.fromHost || 'unknown-host'}
+                          </div>
                         </div>
                       </div>
+                      <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
+                        {msg.priority}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
-                      {msg.priority}
-                    </span>
+                    <h3 className={`text-sm mb-1 ${msg.status === 'unread' ? 'font-semibold text-gray-200' : 'font-medium text-gray-300'}`}>
+                      {msg.subject}
+                    </h3>
+                    <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.timestamp).toLocaleString()}
+                      </span>
+                      {msg.status === 'unread' && (
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                      )}
+                    </div>
                   </div>
-                  <h3 className={`text-sm mb-1 ${msg.status === 'unread' ? 'font-semibold text-gray-200' : 'font-medium text-gray-300'}`}>
-                    {msg.subject}
-                  </h3>
-                  <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-500">
-                      {new Date(msg.timestamp).toLocaleString()}
-                    </span>
-                    {msg.status === 'unread' && (
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    )}
-                  </div>
-                </div>
-              ))
+                ))}
+                {hasMoreInbox && (
+                  <button
+                    onClick={loadMoreInbox}
+                    className="w-full p-3 text-sm text-blue-400 hover:bg-gray-700 transition-colors border-t border-gray-700"
+                  >
+                    Load more messages...
+                  </button>
+                )}
+              </>
             )}
           </div>
 
@@ -855,45 +887,55 @@ export default function MessageCenter({ sessionName, agentId, allAgents, isVisib
                 <p>No sent messages</p>
               </div>
             ) : (
-              sentMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  onClick={() => loadMessage(msg.id, 'sent')}
-                  className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
-                    selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs text-green-400 font-medium mt-0.5">To:</span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-300 truncate">
-                            {(msg as any).toLabel || msg.toAlias || msg.to}
-                          </span>
-                          {getPriorityIcon(msg.priority)}
-                        </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {msg.toAlias || msg.to}@{msg.toHost || 'unknown-host'}
+              <>
+                {sentMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    onClick={() => loadMessage(msg.id, 'sent')}
+                    className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${
+                      selectedMessage?.id === msg.id ? 'bg-blue-900/50' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs text-green-400 font-medium mt-0.5">To:</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-300 truncate">
+                              {(msg as any).toLabel || msg.toAlias || msg.to}
+                            </span>
+                            {getPriorityIcon(msg.priority)}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {msg.toAlias || msg.to}@{msg.toHost || 'unknown-host'}
+                          </div>
                         </div>
                       </div>
+                      <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
+                        {msg.priority}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${getPriorityColor(msg.priority)}`}>
-                      {msg.priority}
-                    </span>
+                    <h3 className="text-sm mb-1 font-medium text-gray-300">
+                      {msg.subject}
+                    </h3>
+                    <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.timestamp).toLocaleString()}
+                      </span>
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                    </div>
                   </div>
-                  <h3 className="text-sm mb-1 font-medium text-gray-300">
-                    {msg.subject}
-                  </h3>
-                  <p className="text-xs text-gray-400 line-clamp-2">{msg.preview}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-500">
-                      {new Date(msg.timestamp).toLocaleString()}
-                    </span>
-                    <CheckCircle className="w-3 h-3 text-green-500" />
-                  </div>
-                </div>
-              ))
+                ))}
+                {hasMoreSent && (
+                  <button
+                    onClick={loadMoreSent}
+                    className="w-full p-3 text-sm text-blue-400 hover:bg-gray-700 transition-colors border-t border-gray-700"
+                  >
+                    Load more messages...
+                  </button>
+                )}
+              </>
             )}
           </div>
 

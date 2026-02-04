@@ -8,6 +8,7 @@ import {
   clearHostsCache,
   findHostByAnyIdentifier,
   getSelfAliases,
+  getOrganizationInfo,
 } from '@/lib/hosts-config'
 import { getPublicUrl, hasProcessedPropagation, markPropagationProcessed } from '@/lib/host-sync'
 import {
@@ -44,6 +45,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
           alreadyKnown: false,
           host: getLocalHostIdentity(),
           knownHosts: [],
+          ...getOrgInfo(),
           error: 'Missing required fields: host.id, host.name, host.url',
         },
         { status: 400 }
@@ -60,6 +62,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         alreadyKnown: true,
         host: getLocalHostIdentity(),
         knownHosts: [], // Don't send hosts to prevent further propagation
+        ...getOrgInfo(),
         error: 'Max propagation depth reached',
       })
     }
@@ -74,6 +77,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         alreadyKnown: true,
         host: getLocalHostIdentity(),
         knownHosts: [], // Don't send hosts to prevent further propagation
+        ...getOrgInfo(),
       })
     }
 
@@ -92,6 +96,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
           alreadyKnown: false,
           host: getLocalHostIdentity(),
           knownHosts: [],
+          ...getOrgInfo(),
           error: 'Cannot register self as peer',
         },
         { status: 400 }
@@ -115,6 +120,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         alreadyKnown: true,
         host: getLocalHostIdentity(),
         knownHosts: getKnownHostIdentities(body.host.id),
+        ...getOrgInfo(),
       })
     }
 
@@ -129,6 +135,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
           alreadyKnown: true,
           host: getLocalHostIdentity(),
           knownHosts: getKnownHostIdentities(body.host.id),
+          ...getOrgInfo(),
         })
       }
     }
@@ -161,6 +168,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
           alreadyKnown: false,
           host: getLocalHostIdentity(),
           knownHosts: [],
+          ...getOrgInfo(),
           error: result.error || 'Failed to add peer',
         },
         { status: 500 }
@@ -178,6 +186,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
       alreadyKnown: false,
       host: getLocalHostIdentity(),
       knownHosts: getKnownHostIdentities(body.host.id),
+      ...getOrgInfo(),
     })
   } catch (error) {
     console.error('[Host Sync] Error in register-peer:', error)
@@ -188,6 +197,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerRegistrat
         alreadyKnown: false,
         host: getLocalHostIdentity(),
         knownHosts: [],
+        ...getOrgInfo(),
         error: error instanceof Error ? error.message : 'Internal server error',
       },
       { status: 500 }
@@ -209,6 +219,18 @@ function getLocalHostIdentity(): HostIdentity {
     url: getPublicUrl(selfHost),
     description: selfHost.description,
     aliases,
+  }
+}
+
+/**
+ * Get organization info for response
+ */
+function getOrgInfo(): { organization?: string; organizationSetAt?: string; organizationSetBy?: string } {
+  const orgInfo = getOrganizationInfo()
+  return {
+    organization: orgInfo.organization || undefined,
+    organizationSetAt: orgInfo.setAt || undefined,
+    organizationSetBy: orgInfo.setBy || undefined,
   }
 }
 

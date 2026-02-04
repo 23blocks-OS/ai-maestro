@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSelfHost } from '@/lib/hosts-config'
+import { getSelfHost, getOrganizationInfo } from '@/lib/hosts-config'
 import { HostIdentityResponse } from '@/types/host-sync'
 
 // Get package version
@@ -12,9 +12,11 @@ const packageJson = require('@/package.json')
  * Used by remote hosts to know who we are when registering.
  *
  * Uses centralized getPublicUrl() for consistent URL detection.
+ * Includes organization info for mesh synchronization.
  */
 export async function GET(): Promise<NextResponse<HostIdentityResponse>> {
   const selfHost = getSelfHost()
+  const orgInfo = getOrganizationInfo()
 
   // ALWAYS use the configured URL from hosts.json
   // NEVER use localhost - it's useless in a mesh network
@@ -33,6 +35,10 @@ export async function GET(): Promise<NextResponse<HostIdentityResponse>> {
       version: packageJson.version || '0.0.0',
       tailscale,
       isSelf: true,  // Always true - this is the host serving the API
-    }
+    },
+    // Include organization info for mesh sync
+    organization: orgInfo.organization || undefined,
+    organizationSetAt: orgInfo.setAt || undefined,
+    organizationSetBy: orgInfo.setBy || undefined,
   })
 }

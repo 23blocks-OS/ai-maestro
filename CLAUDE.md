@@ -449,18 +449,12 @@ docs/
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
-messaging_scripts/      - CLI scripts for agent messaging system
-  check-aimaestro-messages.sh     - Check unread messages (recommended)
-  read-aimaestro-message.sh       - Read message and mark as read
-  check-and-show-messages.sh      - Auto-display on tmux attach (legacy)
-  send-aimaestro-message.sh       - Send message to another session
-  reply-aimaestro-message.sh      - Reply to a message
-  list-aimaestro-sent.sh          - List sent messages
-  delete-aimaestro-message.sh     - Delete a message
-
-skills/
-  agent-messaging/
-    SKILL.md            - Claude Code skill for natural language messaging interface
+plugins/
+  amp-messaging/        - AMP plugin (git submodule from agentmessaging/claude-plugin)
+    scripts/            - AMP CLI scripts (amp-init.sh, amp-send.sh, etc.)
+    skills/messaging/   - AMP Claude Code skill
+    commands/           - Command documentation
+    plugin.json         - Plugin metadata
 
 scripts/
   generate-social-logos.js        - Generate social media logos from SVG
@@ -474,146 +468,168 @@ server.mjs              - Custom Next.js server (HTTP + WebSocket)
 CLAUDE.md               - This file - guidance for Claude Code
 ```
 
-## AI Maestro Messaging System
+## Agent Messaging Protocol (AMP)
 
-**Overview:** AI Maestro includes an inter-agent messaging system that allows Claude Code sessions to send and receive messages asynchronously. Messages are stored as JSON files and accessed via HTTP API and CLI scripts.
+**Overview:** AI Maestro uses the Agent Messaging Protocol (AMP) for inter-agent communication. AMP is like email for AI agents - it works locally by default and can optionally federate with external providers.
+
+**Key Features:**
+- **Local-first**: Works immediately without external dependencies
+- **Cryptographic signing**: Ed25519 signatures for message authenticity
+- **Federation**: Connect to external providers (CrabMail, etc.) for global messaging
+- **Provider-agnostic**: Same CLI works with any AMP provider
 
 ### Installation
 
-Users install the messaging system with:
+The AMP plugin is bundled as a git submodule at `plugins/amp-messaging/`.
+
 ```bash
+# Install AMP scripts and skills
 ./install-messaging.sh
-```
 
-**Non-interactive installation** (for CI/CD, WSL, scripts):
-```bash
+# Non-interactive installation
 ./install-messaging.sh -y
+
+# Migrate existing messages only
+./install-messaging.sh --migrate
 ```
 
-The `-y` flag auto-selects option 3 (install scripts + skills) without prompts.
+**What gets installed:**
+- AMP scripts (`amp-*.sh`) → `~/.local/bin/`
+- AMP skill → `~/.claude/skills/agent-messaging/`
+- Message storage → `~/.agent-messaging/`
 
-This installer copies:
-- CLI scripts from `messaging_scripts/` → `~/.local/bin/`
-- Skill file from `plugin/skills/agent-messaging/SKILL.md` → `~/.claude/skills/agent-messaging/SKILL.md`
-- Creates message directories: `~/.aimaestro/messages/inbox/` and `~/.aimaestro/messages/sent/`
+### Quick Start
+
+```bash
+# 1. Initialize your agent identity (first time only)
+amp-init.sh --auto
+
+# 2. Send a message
+amp-send.sh alice "Hello" "How are you?"
+
+# 3. Check your inbox
+amp-inbox.sh
+
+# 4. Read a message
+amp-read.sh <message-id>
+```
 
 ### Architecture
 
-**Message Storage:**
-- File-based: Messages stored as JSON in `~/.aimaestro/messages/inbox/<session>/` and `~/.aimaestro/messages/sent/<session>/`
-- Each message is a separate `.json` file with unique ID
-- Messages have status: `unread`, `read`, or `archived`
+**Two Components:**
 
-**API Endpoints:**
-- `GET /api/messages?agent=X&box=inbox&status=unread` - List messages with filtering
-- `GET /api/messages?agent=X&id=Y&box=inbox` - Get specific message
-- `PATCH /api/messages?agent=X&id=Y&action=read` - Mark message as read
-- `POST /api/messages` - Send new message
+1. **AMP Plugin (Client)** - Installed on each agent machine
+   - Location: `plugins/amp-messaging/` (git submodule)
+   - Storage: `~/.agent-messaging/`
+   - Commands: `amp-init`, `amp-send`, `amp-inbox`, `amp-read`, etc.
+   - Handles: Key generation, message signing, local storage
 
-**Message Format:**
-```typescript
-{
-  id: string              // msg-<timestamp>-<random>
-  from: string            // sender session name
-  to: string              // recipient session name
-  subject: string
-  timestamp: string       // ISO 8601
-  priority: 'urgent' | 'high' | 'normal' | 'low'
-  status: 'unread' | 'read' | 'archived'
-  content: {
-    type: string          // 'request', 'response', 'notification', etc.
-    message: string       // main message body
-    context?: any         // optional structured context
-  }
-  inReplyTo?: string      // message ID if this is a reply
-}
+2. **AI Maestro (Provider)** - Server that routes messages
+   - Endpoints: `/api/v1/register`, `/api/v1/route`, `/api/v1/messages/pending`
+   - Handles: Message routing, relay queue, push notifications
+   - Optional: Agents can use external providers (CrabMail) instead
+
+**Message Storage (Client-side):**
+```
+~/.agent-messaging/
+├── config.json           # Agent configuration
+├── keys/
+│   ├── private.pem       # Ed25519 private key (never shared)
+│   └── public.pem        # Ed25519 public key
+├── messages/
+│   ├── inbox/            # Received messages
+│   └── sent/             # Sent messages
+└── registrations/        # External provider registrations
 ```
 
-### CLI Scripts (messaging_scripts/)
+### AMP CLI Commands
 
-**Recommended Workflow:**
-1. `check-aimaestro-messages.sh` - List unread messages
-2. `read-aimaestro-message.sh <msg-id>` - Read specific message (auto-marks as read)
+| Command | Description |
+|---------|-------------|
+| `amp-init.sh --auto` | Initialize agent identity |
+| `amp-status.sh` | Show agent status and registrations |
+| `amp-inbox.sh` | Check inbox for messages |
+| `amp-read.sh <id>` | Read a specific message |
+| `amp-send.sh <to> <subject> <message>` | Send a message |
+| `amp-reply.sh <id> <message>` | Reply to a message |
+| `amp-delete.sh <id>` | Delete a message |
+| `amp-register.sh --provider <url>` | Register with external provider |
+| `amp-fetch.sh` | Fetch messages from external providers |
 
-**All Scripts:**
-- `check-aimaestro-messages.sh [--mark-read]` - Check unread messages, optionally mark all as read
-- `read-aimaestro-message.sh <msg-id> [--no-mark-read]` - Read message and mark as read (unless --no-mark-read)
-- `send-aimaestro-message.sh <to-session> <subject> <message> [--priority urgent|high|normal|low]` - Send message
-- `reply-aimaestro-message.sh <msg-id> <message>` - Reply to a message
-- `list-aimaestro-sent.sh` - List sent messages
-- `delete-aimaestro-message.sh <msg-id>` - Delete a message
-- `check-and-show-messages.sh` - Auto-display on tmux attach (DO NOT USE MANUALLY)
+### Address Formats
 
-**Key Implementation Details:**
+**Local addresses** (work immediately):
+- `alice` → `alice@default.local`
+- `bob@myteam.local` → Local delivery
 
-1. **Unread-Only Filtering** - Scripts use API filtering (`status=unread`) instead of listing all files
-2. **Auto-Mark-as-Read** - `read-aimaestro-message.sh` automatically marks messages as read after displaying
-3. **Error Handling** - All scripts validate JSON responses and provide troubleshooting hints
-4. **Session Detection** - Scripts auto-detect current tmux session with `tmux display-message -p '#S'`
+**External addresses** (require registration):
+- `alice@acme.crabmail.ai` → Via CrabMail provider
+- `backend@company.otherprovider.com` → Via other provider
 
-**Example Usage:**
+### Provider API (v0.20.0+)
+
+AI Maestro can act as an AMP provider. Agents register with AI Maestro and it handles routing.
+
+**Endpoints:**
+- `GET /api/v1/health` - Provider health status (no auth)
+- `GET /api/v1/info` - Provider capabilities (no auth)
+- `POST /api/v1/register` - Register agent, get API key
+- `POST /api/v1/route` - Route a signed message
+- `GET /api/v1/messages/pending` - Poll for offline messages
+- `DELETE /api/v1/messages/pending?id=X` - Acknowledge message
+
+**Registration flow:**
 ```bash
-# Check for unread messages
-check-aimaestro-messages.sh
-# Output:
-# 📬 You have 2 unread message(s)
-# [msg-1234...] 🔴 From: backend-api | 2025-10-29 14:30
-#     Subject: Authentication endpoint ready
-
-# Read specific message (auto-marks as read)
-read-aimaestro-message.sh msg-1234...
-# Displays full message content
-# ✅ Message marked as read
-
-# Check again - message is now gone
-check-aimaestro-messages.sh
-# Output: 📭 No unread messages
+# Agent registers with local AI Maestro
+amp-register.sh --provider localhost:23000 --tenant myorg
+# Returns API key, stores in ~/.agent-messaging/registrations/
 ```
 
-### Claude Code Skill Integration
+### Push Notifications
 
-The `plugin/skills/agent-messaging/SKILL.md` file provides a natural language interface for agents. When an agent says "check my messages" or "send a message to backend-api", Claude Code automatically translates this into the appropriate CLI script calls.
+When a message is routed to a local agent, AI Maestro sends a push notification via tmux:
 
-**Skill provides:**
-- Natural language commands → CLI script mapping
-- Message formatting guidelines
-- Workflow examples and best practices
-- Priority and context usage patterns
-
-**After installation**, agents can use messaging naturally:
 ```
-Agent: "Check my inbox for any urgent messages"
-→ Executes: check-aimaestro-messages.sh
-→ Filters for urgent priority messages
+[MESSAGE] From: alice - Subject line - check your inbox
 ```
 
-### Push Notifications (v0.18.10+)
+**Configuration (environment variables):**
+- `NOTIFICATIONS_ENABLED=false` - Disable push notifications
+- `NOTIFICATION_FORMAT` - Customize notification format
 
-Messages are delivered with **instant push notifications** via tmux. When a message is sent:
+### Migration from Old System
 
-1. Message is stored in recipient's inbox (file-based)
-2. Notification service looks up the recipient agent
-3. If agent has an active tmux session, notification is sent via `tmux send-keys`
-4. Agent sees the notification immediately in their terminal
+If you have messages in the old format (`~/.aimaestro/messages/`):
 
-**Key files:**
-- `lib/notification-service.ts` - Push notification implementation
-- `app/api/messages/route.ts` - Calls `notifyAgent()` after storing message
+```bash
+# Run the migration script
+./scripts/migrate-to-amp.sh
 
-**Configuration (via environment variables):**
-- `NOTIFICATIONS_ENABLED=false` - Disable push notifications entirely (default: enabled)
-- `NOTIFICATION_FORMAT` - Customize notification message template (default: `[MESSAGE] From: {from} - {subject} - check your inbox`)
-- `NOTIFICATION_SKIP_TYPES` - Comma-separated list of message types to skip (default: `system,heartbeat`)
+# Or use dry-run to preview
+./scripts/migrate-to-amp.sh --dry-run
+```
 
-**Note:** Push notifications replaced polling-based message checking in the subconscious. Agents no longer need to poll for messages - they receive instant notifications.
+The migration:
+1. Copies messages to `~/.agent-messaging/messages/`
+2. Backs up old messages (doesn't delete)
+3. Preserves message content
+
+### Claude Code Skill
+
+The AMP skill (`plugins/amp-messaging/skills/messaging/SKILL.md`) provides natural language:
+
+```
+"Check my messages" → amp-inbox.sh
+"Send a message to backend-api about deployment" → amp-send.sh backend-api "Deployment" "..."
+"Reply to the last message" → amp-reply.sh <id> "..."
+```
 
 ### Development Notes
 
-- Messages are ephemeral - not backed up or persisted beyond the JSON files
-- No authentication - relies on tmux session isolation and OS-level user security
-- Session names must match tmux session names exactly (alphanumeric + hyphens/underscores)
-- API is localhost-only (binds to 127.0.0.1)
-- Message IDs are globally unique but should be verified before marking as read
+- **Submodule**: AMP plugin is at `plugins/amp-messaging/` - update with `git submodule update --remote`
+- **Protocol spec**: https://agentmessaging.org
+- **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
+- **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)
 
 ## Critical Implementation Details
 

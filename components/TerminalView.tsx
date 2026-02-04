@@ -93,7 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal, enableWebGL, disableWebGL } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
@@ -270,6 +270,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
+  // Toggle WebGL based on visibility - only active terminal gets WebGL for GPU efficiency
+  // This prevents exhausting WebGL contexts when many terminals are open
+  useEffect(() => {
+    if (!isReady) return
+
+    if (isVisible) {
+      // Terminal became active - enable WebGL for better rendering
+      enableWebGL()
+    } else {
+      // Terminal became inactive - disable WebGL to free GPU context
+      disableWebGL()
+    }
+  }, [isVisible, isReady, enableWebGL, disableWebGL])
+
   // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {
     if (isReady && terminal) {
@@ -310,6 +324,30 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         .catch(err => console.error('[Terminal] Failed to copy:', err))
     }
   }, [terminal])
+
+  // Paste from clipboard (with user gesture - required for mobile)
+  const pasteFromClipboard = useCallback(async () => {
+    if (!isConnected) return
+
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        // Send as bracketed paste to handle multi-line content properly
+        const carriageAdjusted = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
+        const bracketedPayload = `${BRACKETED_PASTE_START}${carriageAdjusted}${BRACKETED_PASTE_END}`
+        sendMessage(bracketedPayload)
+        console.log('[Terminal] Pasted from clipboard')
+        // Focus terminal after paste
+        if (terminalInstanceRef.current) {
+          terminalInstanceRef.current.focus()
+        }
+      }
+    } catch (err) {
+      console.error('[Terminal] Failed to paste:', err)
+      // On mobile, clipboard access might fail - show user-friendly message
+      alert('Unable to access clipboard. Please use the Prompt Builder tab to paste text.')
+    }
+  }, [isConnected, sendMessage])
 
   // Handle terminal resize
   useEffect(() => {
@@ -592,6 +630,13 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 title="Copy selected text to clipboard"
               >
                 📋 <span className="hidden md:inline">Copy</span>
+              </button>
+              <button
+                onClick={pasteFromClipboard}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
+                title="Paste from clipboard (mobile-friendly)"
+              >
+                📥 <span className="hidden md:inline">Paste</span>
               </button>
               <button
                 onClick={() => terminal.clear()}

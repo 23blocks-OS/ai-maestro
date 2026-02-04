@@ -57,19 +57,19 @@ This phase establishes the foundational infrastructure for Phase 5 features (sea
     - ExportJob interface with id, agentId, sessionId, type, status, progress, filePath
     - ExportOptions interface for customizing export output
 
-- [ ] Create React hooks for Phase 5 features:
-  - `hooks/useAgentSearch.ts`:
-    - search(query, filters) function with debouncing
-    - searchResults state management
-    - searchError state with retry logic
-  - `hooks/useTranscriptExport.ts`:
-    - exportTranscript(format, options) function
-    - exportJobs state tracking
-    - exportProgress polling for long-running jobs
-  - `hooks/useAgentPlayback.ts`:
-    - playbackState management (isPlaying, currentPosition, speed)
-    - playbackControls (start, pause, seek, setSpeed)
-    - playbackMessages loading and caching
+- [x] Create React hooks for Phase 5 features:
+   - `hooks/useAgentSearch.ts`:
+     - search(query, filters) function with debouncing
+     - searchResults state management
+     - searchError state with retry logic
+   - `hooks/useTranscriptExport.ts`:
+     - exportTranscript(format, options) function
+     - exportJobs state tracking
+     - exportProgress polling for long-running jobs
+   - `hooks/useAgentPlayback.ts`:
+     - playbackState management (isPlaying, currentPosition, speed)
+     - playbackControls (start, pause, seek, setSpeed)
+     - playbackMessages loading and caching
 
 - [ ] Build basic UI scaffolding components:
   - `components/AgentSearch.tsx`:

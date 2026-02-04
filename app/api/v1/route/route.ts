@@ -178,9 +178,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       // Client provided a signature - verify it if we have the sender's public key
       if (senderKeyPair && senderKeyPair.publicHex) {
         // Reconstruct the canonical string the client signed
-        // Format: from|to|subject|payload_hash (pipe-delimited)
+        // Format: from|to|subject|priority|in_reply_to|payload_hash (AMP Protocol v1.1)
         // Note: We exclude ID and timestamp because they differ between client and server.
         // This ensures signature validity regardless of transport metadata.
+        // Priority prevents escalation attacks, in_reply_to prevents thread hijacking.
         const crypto = require('crypto')
         const payloadHash = crypto
           .createHash('sha256')
@@ -191,6 +192,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
           envelope.from,
           envelope.to,
           envelope.subject,
+          body.priority || 'normal',
+          body.in_reply_to || '',
           payloadHash
         ].join('|')
 

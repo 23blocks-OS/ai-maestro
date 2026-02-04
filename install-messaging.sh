@@ -445,7 +445,7 @@ echo ""
 if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Checking AMP scripts..."
 
-    AMP_SCRIPTS=("amp-init.sh" "amp-send.sh" "amp-inbox.sh" "amp-read.sh" "amp-reply.sh" "amp-status.sh" "amp-register.sh" "amp-fetch.sh" "amp-delete.sh")
+    AMP_SCRIPTS=("amp-init.sh" "amp-identity.sh" "amp-send.sh" "amp-inbox.sh" "amp-read.sh" "amp-reply.sh" "amp-status.sh" "amp-register.sh" "amp-fetch.sh" "amp-delete.sh")
     SCRIPTS_OK=true
 
     for script in "${AMP_SCRIPTS[@]}"; do

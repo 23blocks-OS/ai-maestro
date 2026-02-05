@@ -51,7 +51,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     const { Terminal } = await import('@xterm/xterm')
     const { FitAddon } = await import('@xterm/addon-fit')
     const { WebLinksAddon } = await import('@xterm/addon-web-links')
-    const { ClipboardAddon } = await import('@xterm/addon-clipboard')
 
     const fontSize = optionsRef.current.fontSize || 16
     const fontFamily = optionsRef.current.fontFamily || '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Courier New", monospace'
@@ -104,16 +103,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       },
       // Disable Windows mode - we're on Unix/macOS
       windowsMode: false,
-      // Disable accessibility support to prevent yellow native selection
-      // The accessibility tree creates a selectable text layer that shows yellow highlight
+      // Disable screen reader mode - accessibility tree handled via CSS pointer-events
       screenReaderMode: false,
-      // Additional accessibility settings
       disableStdin: false,
-      // Try to prevent the accessibility tree from being created
       customGlyphs: true,
-      // CRITICAL: This might help with carriage return handling
       macOptionIsMeta: true,
-      // Enable right-click for context menu (paste, copy)
       rightClickSelectsWord: true,
     })
 
@@ -124,47 +118,49 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(webLinksAddon)
 
-    // Load clipboard addon for copy/paste support
+    // Load clipboard addon for OSC 52 support (terminal programs accessing clipboard)
     try {
+      const { ClipboardAddon } = await import('@xterm/addon-clipboard')
       const clipboardAddon = new ClipboardAddon()
       terminal.loadAddon(clipboardAddon)
     } catch (e) {
-      console.error(`❌ Failed to load clipboard addon for session ${optionsRef.current.sessionId}:`, e)
+      console.warn(`[Terminal] ClipboardAddon not available for session ${optionsRef.current.sessionId}:`, e)
     }
 
     // Open terminal in container
     terminal.open(container)
 
-    // NOTE: WebGL is NOT loaded on initialization - terminals start with canvas renderer
-    // WebGL is loaded dynamically only for the ACTIVE terminal via enableWebGL()
-    // This prevents exhausting GPU contexts when many terminals are open
-    console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
-
-    // Hide accessibility tree to prevent yellow browser selection
-    const hideAccessibilityTree = () => {
-      const elements = container.querySelectorAll('.xterm-accessibility-tree, .xterm-accessibility')
-      elements.forEach(el => {
-        const htmlEl = el as HTMLElement
-        htmlEl.style.display = 'none'
-        htmlEl.style.pointerEvents = 'none'
-      })
-    }
-
-    // Apply immediately after terminal opens
-    hideAccessibilityTree()
-
-    // Watch for xterm recreating/updating accessibility elements
-    const observer = new MutationObserver(() => {
-      hideAccessibilityTree()
-    })
-
-    observer.observe(container, {
-      childList: true,
-      subtree: true
-    })
+    // NOTE: No MutationObserver or JS-based accessibility tree hiding.
+    // The accessibility tree is handled purely via CSS (pointer-events: none + opacity: 0).
+    // A MutationObserver that modifies DOM on every terminal write creates a feedback loop
+    // that disrupts xterm.js's internal rendering and breaks canvas-based text selection.
 
     // Calculate proper size using FitAddon
     fitAddon.fit()
+
+    // Load WebGL renderer inline during initialization (not via separate effect).
+    // Loading WebGL via a separate useEffect caused a race condition on agent switch:
+    // the cached import resolved instantly, switching renderers before selection stabilized.
+    // By loading here, the terminal is fully set up (with WebGL) before being marked "ready".
+    try {
+      const { WebglAddon } = await import('@xterm/addon-webgl')
+      const webglAddon = new WebglAddon()
+
+      webglAddon.onContextLoss(() => {
+        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
+        try { webglAddon.dispose() } catch { /* ignore */ }
+        webglAddonRef.current = null
+        if (terminalRef.current) {
+          terminalRef.current.refresh(0, terminalRef.current.rows - 1)
+        }
+      })
+
+      terminal.loadAddon(webglAddon)
+      webglAddonRef.current = webglAddon
+      console.log(`[Terminal] Initialized with WebGL renderer for session ${optionsRef.current.sessionId}`)
+    } catch (e) {
+      console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
+    }
 
     // Fix xterm.js helper textarea missing id/name (causes browser console warnings)
     const helperTextarea = container.querySelector('.xterm-helper-textarea')
@@ -240,8 +236,12 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     // Cleanup function
     return () => {
-      observer.disconnect()
       resizeObserver.disconnect()
+      // Dispose WebGL addon before terminal to free GPU context cleanly
+      if (webglAddonRef.current) {
+        try { webglAddonRef.current.dispose() } catch { /* ignore */ }
+        webglAddonRef.current = null
+      }
       if (optionsRef.current.onUnregister) {
         optionsRef.current.onUnregister()
       }

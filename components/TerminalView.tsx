@@ -93,7 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal, enableWebGL, disableWebGL } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
@@ -270,19 +270,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [terminal])
 
-  // Toggle WebGL based on visibility - only active terminal gets WebGL for GPU efficiency
-  // This prevents exhausting WebGL contexts when many terminals are open
-  useEffect(() => {
-    if (!isReady) return
-
-    if (isVisible) {
-      // Terminal became active - enable WebGL for better rendering
-      enableWebGL()
-    } else {
-      // Terminal became inactive - disable WebGL to free GPU context
-      disableWebGL()
-    }
-  }, [isVisible, isReady, enableWebGL, disableWebGL])
+  // WebGL is now loaded inline during initializeTerminal() - no toggle needed.
+  // Only one terminal is mounted at a time, so no GPU context exhaustion concern.
 
   // Trigger fit when notes collapse/expand or footer tab changes (changes terminal height)
   useEffect(() => {
@@ -691,22 +680,12 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       >
         <div
           ref={terminalRef}
-          onMouseDown={() => {
-            // Focus terminal on mousedown to ensure xterm handles selection properly
-            // xterm.js needs focus to use its internal selection (not browser native yellow)
-            if (terminalInstanceRef.current) {
-              terminalInstanceRef.current.focus()
-            }
-          }}
           style={{
             // Terminal takes full available space within container
             flex: '1 1 0%',
             minHeight: 0,
             width: '100%',
             position: 'relative',
-            // Prevent browser native text selection on this container
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
           }}
         />
         {/* Use hoisted static JSX for loading state */}

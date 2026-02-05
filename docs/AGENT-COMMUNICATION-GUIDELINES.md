@@ -9,7 +9,7 @@ Best practices for Claude Code agents using the AI Maestro communication system.
 **Command-line examples:** This guide shows bash commands (Manual Mode) for clarity and precision.
 
 **Using Claude Code with skills?** You can use **natural language** instead:
-- Instead of: `send-aimaestro-message.sh backend "Subject" "Message"`
+- Instead of: `amp-send backend "Subject" "Message"`
 - Just say: "Send a message to backend with subject 'Subject' saying 'Message'"
 
 See the [Quickstart Guide](./AGENT-COMMUNICATION-QUICKSTART.md) for details on both modes.
@@ -47,7 +47,7 @@ Every message should include enough information for the recipient to act without
 
 **Example:**
 ```bash
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "Implement POST /api/auth/login" \
   "Need endpoint accepting {email, password}, returning JWT token. Should validate credentials against database and return 401 on failure." \
   high \
@@ -79,7 +79,7 @@ send-tmux-message.sh backend-architect "🚨 API tests failing - check inbox for
 send-tmux-message.sh frontend-dev "⚠️  Urgent: API contract changed"
 
 # 2. Provide full details
-send-aimaestro-message.sh frontend-dev \
+amp-send frontend-dev \
   "BREAKING: Auth API contract changed" \
   "Changed POST /api/auth/login response format. Now returns {token, user: {id, email}} instead of just {token}. Update your frontend to handle new format." \
   urgent \
@@ -106,7 +106,7 @@ send-aimaestro-message.sh frontend-dev \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh database-specialist \
+amp-send database-specialist \
   "Add users table migration" \
   "Building user auth system. Need migration for users table with: id (UUID), email (unique), password_hash, created_at, updated_at. Should include indexes on email." \
   high \
@@ -135,7 +135,7 @@ send-aimaestro-message.sh database-specialist \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh frontend-dev \
+amp-send frontend-dev \
   "Re: Add users table migration" \
   "Migration created at db/migrations/20250117_create_users.sql. Includes all requested fields plus unique constraint on email and indexes. Tested locally - ready to apply." \
   normal \
@@ -166,7 +166,7 @@ send-aimaestro-message.sh frontend-dev \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh team-orchestrator \
+amp-send team-orchestrator \
   "User dashboard deployed to staging" \
   "Deployed version 2.3.0 to staging environment. All tests passing. Ready for QA review." \
   normal \
@@ -196,7 +196,7 @@ send-aimaestro-message.sh team-orchestrator \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh project-lead \
+amp-send project-lead \
   "User auth system: 60% complete" \
   "✅ Database schema done
 ✅ Registration endpoint done
@@ -230,7 +230,7 @@ ETA: 2 hours. No blockers." \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "🚨 Production API returning 500 errors" \
   "All /api/users/* endpoints failing since 3:45pm. Error logs show database connection timeout. ~100 users affected." \
   urgent \
@@ -253,7 +253,7 @@ send-aimaestro-message.sh backend-architect \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh api-developer \
+amp-send api-developer \
   "Need pagination for /api/users endpoint" \
   "Building user list UI. Current endpoint returns all 10k users causing browser crash. Need pagination (limit/offset) before I can continue." \
   high \
@@ -274,7 +274,7 @@ send-aimaestro-message.sh api-developer \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh frontend-dev \
+amp-send frontend-dev \
   "User profile component complete" \
   "Finished UserProfile.tsx with edit/save functionality. Located at components/UserProfile.tsx:1-150. Ready for review." \
   normal \
@@ -297,7 +297,7 @@ send-aimaestro-message.sh frontend-dev \
 
 **Example:**
 ```bash
-send-aimaestro-message.sh code-quality \
+amp-send code-quality \
   "Consider refactoring auth utils" \
   "auth.ts has some duplicated validation logic that could be extracted into separate functions. Not urgent, but would improve maintainability." \
   low \
@@ -409,7 +409,7 @@ Examples:
 ### Example with Good Context:
 
 ```bash
-send-aimaestro-message.sh backend-api \
+amp-send backend-api \
   "Add rate limiting to /api/auth endpoints" \
   "Currently no rate limiting on /api/auth/login (routes/auth.ts:45).
 
@@ -458,7 +458,7 @@ Suggested implementation: Use express-rate-limit middleware." \
 
 **Acknowledge receipt** for `urgent` and `high` priority:
 ```bash
-send-aimaestro-message.sh sender-session \
+amp-send sender-session \
   "Re: Urgent API issue" \
   "Acknowledged. Investigating now. Will update in 15 min." \
   urgent \
@@ -483,8 +483,12 @@ send-aimaestro-message.sh sender-session \
 
 **Via CLI:**
 ```bash
-mv ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/msg-*.json \
-   ~/.aimaestro/messages/archived/$(tmux display-message -p '#S')/
+# Using AMP delete command
+amp-delete <message-id>
+
+# Or manually move message files
+mv ~/.agent-messaging/messages/inbox/msg-*.json \
+   ~/.agent-messaging/messages/archived/
 ```
 
 ### When to Delete:
@@ -508,20 +512,20 @@ mv ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/msg-*.json \
 **Bad:**
 ```bash
 # Sending 10 messages in 5 minutes
-send-aimaestro-message.sh backend "Update 1" "Starting..."
-send-aimaestro-message.sh backend "Update 2" "Still working..."
-send-aimaestro-message.sh backend "Update 3" "Almost done..."
+amp-send backend "Update 1" "Starting..."
+amp-send backend "Update 2" "Still working..."
+amp-send backend "Update 3" "Almost done..."
 # ... 7 more messages
 ```
 
 **Good:**
 ```bash
 # Send meaningful updates at reasonable intervals
-send-aimaestro-message.sh backend "User auth: started" "..." normal update
+amp-send backend "User auth: started" "..." normal update
 # ... work for 2 hours ...
-send-aimaestro-message.sh backend "User auth: 50% complete" "..." normal update
+amp-send backend "User auth: 50% complete" "..." normal update
 # ... work for 2 more hours ...
-send-aimaestro-message.sh backend "User auth: complete" "..." normal response
+amp-send backend "User auth: complete" "..." normal response
 ```
 
 ---
@@ -530,13 +534,13 @@ send-aimaestro-message.sh backend "User auth: complete" "..." normal response
 
 **Bad:**
 ```bash
-send-aimaestro-message.sh backend "Add new button to UI" "..." urgent request
+amp-send backend "Add new button to UI" "..." urgent request
 # This is not urgent!
 ```
 
 **Good:**
 ```bash
-send-aimaestro-message.sh backend "Add new button to UI" "..." normal request
+amp-send backend "Add new button to UI" "..." normal request
 # Or high if it's blocking you, but never urgent
 ```
 
@@ -560,7 +564,7 @@ send-aimaestro-message.sh backend "Add new button to UI" "..." normal request
 # Work on it
 # Complete it
 # Send response:
-send-aimaestro-message.sh requester \
+amp-send requester \
   "Re: Original request" \
   "Completed. Details..." \
   normal \
@@ -573,13 +577,13 @@ send-aimaestro-message.sh requester \
 
 **Bad:**
 ```bash
-send-aimaestro-message.sh backend "Problem" "Something's not working" normal notification
+amp-send backend "Problem" "Something's not working" normal notification
 # What problem? Where? What's not working?
 ```
 
 **Good:**
 ```bash
-send-aimaestro-message.sh backend \
+amp-send backend \
   "TypeError in LoginForm.tsx:67" \
   "Getting 'Cannot read property id of undefined' when submitting login form. Error occurs in handleSubmit function. User object appears to be undefined when calling user.id." \
   high \
@@ -618,14 +622,14 @@ Backend → Frontend: "Endpoint ready" (response)
 Example:
 ```bash
 # Frontend agent
-send-aimaestro-message.sh backend-api \
+amp-send backend-api \
   "Need GET /api/users endpoint" \
   "Building user list UI. Need endpoint returning array of users with {id, name, email}. Pagination optional but nice-to-have." \
   high \
   request
 
 # Backend agent (after completing)
-send-aimaestro-message.sh frontend-ui \
+amp-send frontend-ui \
   "Re: GET /api/users endpoint" \
   "Endpoint ready at routes/users.ts:120. Returns {users: Array<User>, total: number, page: number}. Includes pagination (query params: ?page=1&limit=20)." \
   normal \
@@ -651,9 +655,9 @@ Database → Orchestrator: "Schema done" (response)
 Example:
 ```bash
 # Orchestrator broadcasts
-send-aimaestro-message.sh backend-api "Implement user CRUD API" "..." high request
-send-aimaestro-message.sh frontend-ui "Build user management UI" "..." high request
-send-aimaestro-message.sh database-migrations "Create users table" "..." high request
+amp-send backend-api "Implement user CRUD API" "..." high request
+amp-send frontend-ui "Build user management UI" "..." high request
+amp-send database-migrations "Create users table" "..." high request
 ```
 
 ---
@@ -673,13 +677,13 @@ Agent → Requester: "Task complete" (response)
 Example:
 ```bash
 # Start
-send-aimaestro-message.sh project-lead "Payment integration: started" "..." normal update
+amp-send project-lead "Payment integration: started" "..." normal update
 
 # Middle
-send-aimaestro-message.sh project-lead "Payment integration: 50% complete" "Stripe API integrated. Working on webhook handling. ETA: 1 hour." normal update
+amp-send project-lead "Payment integration: 50% complete" "Stripe API integrated. Working on webhook handling. ETA: 1 hour." normal update
 
 # Complete
-send-aimaestro-message.sh project-lead "Payment integration: complete" "All done. Stripe integration at lib/stripe.ts. Webhook handling at api/webhooks/stripe.ts." normal response
+amp-send project-lead "Payment integration: complete" "All done. Stripe integration at lib/stripe.ts. Webhook handling at api/webhooks/stripe.ts." normal response
 ```
 
 ---
@@ -701,13 +705,13 @@ send-tmux-message.sh team-lead "🚨 Production API down - check inbox NOW!"
 send-tmux-message.sh backend-oncall "🚨 Production API down - check inbox NOW!"
 
 # Step 2: Provide details
-send-aimaestro-message.sh team-lead \
+amp-send team-lead \
   "🚨 Production: All API endpoints returning 500" \
   "Started at 14:30 PST. All /api/* endpoints failing. Server logs show: 'Connection pool exhausted'. ~500 users affected. Need immediate attention." \
   urgent \
   notification
 
-send-aimaestro-message.sh backend-oncall \
+amp-send backend-oncall \
   "🚨 Production: Database connection pool exhausted" \
   "All API requests failing with 'Connection pool exhausted'. Check api/database.ts:12 - maxConnections may be too low. Current: 10, should be 50+." \
   urgent \
@@ -725,7 +729,7 @@ Add to `~/.zshrc`:
 ```bash
 # Check messages when entering tmux session
 if [ -n "$TMUX" ]; then
-  check-and-show-messages.sh
+  amp-inbox
 fi
 ```
 
@@ -736,7 +740,7 @@ Add to `.claude/hooks/before-response.sh`:
 ```bash
 #!/bin/bash
 # Check for new messages before each Claude response
-check-new-messages-arrived.sh
+amp-inbox --unread
 ```
 
 ### Notification on New Message
@@ -745,12 +749,12 @@ Create `~/.local/bin/watch-inbox.sh`:
 
 ```bash
 #!/bin/bash
-SESSION=$(tmux display-message -p '#S')
-INBOX=~/.aimaestro/messages/inbox/$SESSION
+INBOX=~/.agent-messaging/messages/inbox
 
 # Watch for new files
 fswatch -0 "$INBOX" | while read -d "" event; do
   if [[ "$event" == *".json" ]]; then
+    SESSION=$(tmux display-message -p '#S')
     send-tmux-message.sh "$SESSION" "📬 New message received!" display
   fi
 done

@@ -43,9 +43,9 @@ These channels serve different purposes and use different underlying mechanisms.
 │                   User/Agent Interface                       │
 ├─────────────────────────────────────────────────────────────┤
 │  Shell Script Layer                                          │
-│  send-aimaestro-message.sh                                  │
-│  check-and-show-messages.sh                                 │
-│  check-new-messages-arrived.sh                              │
+│  amp-send                                  │
+│  amp-inbox                                 │
+│  amp-inbox --unread                              │
 ├─────────────────────────────────────────────────────────────┤
 │                    HTTP/REST API                             │
 │  POST   /api/messages          - Send message               │
@@ -61,7 +61,7 @@ These channels serve different purposes and use different underlying mechanisms.
 │  - Message validation                                       │
 ├─────────────────────────────────────────────────────────────┤
 │                  Storage Layer                               │
-│  ~/.aimaestro/messages/                                     │
+│  ~/.agent-messaging/messages/                                     │
 │  ├── inbox/<session>/msg-*.json                            │
 │  ├── sent/<session>/msg-*.json                             │
 │  └── archived/<session>/msg-*.json                         │
@@ -74,7 +74,7 @@ These channels serve different purposes and use different underlying mechanisms.
 
 **Location:** `~/.local/bin/`
 
-**send-aimaestro-message.sh**
+**amp-send**
 - Validates input (session name, priority, type)
 - Builds JSON payload using `jq -n` (prevents JSON injection)
 - Sends POST request to `/api/messages`
@@ -109,13 +109,13 @@ RESPONSE=$(curl -s -w "\n%{http_code}" \
   -d "$JSON_PAYLOAD")
 ```
 
-**check-and-show-messages.sh**
-- Reads all JSON files from `~/.aimaestro/messages/inbox/<session>/`
+**amp-inbox**
+- Reads all JSON files from `~/.agent-messaging/messages/inbox/<session>/`
 - Parses with `jq` for formatted display
 - Counts urgent/high priority messages
 - Displays inbox summary on session start
 
-**check-new-messages-arrived.sh**
+**amp-inbox --unread**
 - Quick unread count check
 - Called after Claude Code responses
 - Minimal output (only if unread > 0)
@@ -210,7 +210,7 @@ export async function sendMessage(
 
 **Directory management:**
 ```
-~/.aimaestro/messages/
+~/.agent-messaging/messages/
 ├── inbox/
 │   ├── backend-architect/
 │   │   ├── msg-1736618400-abc123.json
@@ -590,12 +590,12 @@ Total:        ~5ms
 # Check messages when tmux session starts
 if [ -n "$TMUX" ]; then
   SESSION=$(tmux display-message -p '#S')
-  INBOX=~/.aimaestro/messages/inbox/$SESSION
+  INBOX=~/.agent-messaging/messages/inbox/$SESSION
 
   if [ -d "$INBOX" ]; then
     COUNT=$(ls "$INBOX"/*.json 2>/dev/null | wc -l | tr -d ' ')
     if [ $COUNT -gt 0 ]; then
-      check-and-show-messages.sh
+      amp-inbox
     fi
   fi
 fi
@@ -606,7 +606,7 @@ fi
 ```bash
 #!/bin/bash
 # Check for new messages after each Claude response
-check-new-messages-arrived.sh
+amp-inbox --unread
 ```
 
 ---
@@ -646,7 +646,7 @@ curl "http://localhost:23000/api/messages?agent=backend-architect" | jq
 │  (frontend)  │
 └──────┬───────┘
        │
-       │ 1. Run: send-aimaestro-message.sh backend "Subject" "Message"
+       │ 1. Run: amp-send backend "Subject" "Message"
        │
        ↓
 ┌──────────────────────┐
@@ -680,7 +680,7 @@ curl "http://localhost:23000/api/messages?agent=backend-architect" | jq
        │
        ↓
 ┌──────────────────────────────────────────┐
-│  ~/.aimaestro/messages/                  │
+│  ~/.agent-messaging/messages/                  │
 │  ├── inbox/backend/msg-xxx.json    ← NEW│
 │  └── sent/frontend/msg-xxx.json    ← NEW│
 └──────────────────────────────────────────┘
@@ -785,7 +785,7 @@ curl "http://localhost:23000/api/messages?agent=backend-architect" | jq
 | HTTP 404 | Message not found | Message already deleted |
 | HTTP 500 | File system error | Check permissions, disk space |
 | ENOENT | Directory missing | Auto-created by messageQueue |
-| EACCES | Permission denied | `chmod -R u+rw ~/.aimaestro/messages/` |
+| EACCES | Permission denied | `chmod -R u+rw ~/.agent-messaging/messages/` |
 | ENOSPC | Disk full | Clean up old messages |
 
 **Error handling in shell script:**

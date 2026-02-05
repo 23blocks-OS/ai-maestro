@@ -289,19 +289,19 @@ For complete details, see [OPERATIONS-GUIDE.md - Section 8: SSH Configuration](.
 
 ### Problem: "command not found" for Scripts in ~/.local/bin
 
-**Symptom**: Scripts installed in `~/.local/bin/` (like `send-aimaestro-message.sh`, `check-and-show-messages.sh`) are not found in tmux sessions, even though they work in regular terminal windows.
+**Symptom**: Scripts installed in `~/.local/bin/` (like `amp-send`, `amp-inbox`) are not found in tmux sessions, even though they work in regular terminal windows.
 
 ```bash
 # In tmux session:
-send-aimaestro-message.sh
-# Returns: command not found: send-aimaestro-message.sh
+amp-send
+# Returns: command not found: amp-send
 
 # But this works:
-which send-aimaestro-message.sh
+which amp-send
 # Returns nothing or "not found"
 
 # Must use full path:
-/Users/username/.local/bin/send-aimaestro-message.sh
+/Users/username/.local/bin/amp-send
 # Works!
 ```
 
@@ -356,11 +356,11 @@ cat ~/.zshenv
 tmux new-session -d -s path-test
 
 # Check if script is found
-tmux send-keys -t path-test 'which send-aimaestro-message.sh' Enter
+tmux send-keys -t path-test 'which amp-send' Enter
 sleep 0.5
 tmux capture-pane -t path-test -p
 
-# Should show: /Users/username/.local/bin/send-aimaestro-message.sh
+# Should show: /Users/username/.local/bin/amp-send
 ```
 
 **Step 4: Clean up test session**
@@ -408,11 +408,11 @@ tmux new-session -s test
 echo $PATH
 # Should contain: /Users/username/.local/bin
 
-which send-aimaestro-message.sh
-# Should output: /Users/username/.local/bin/send-aimaestro-message.sh
+which amp-send
+# Should output: /Users/username/.local/bin/amp-send
 
 # Test the script
-send-aimaestro-message.sh
+amp-send
 # Should show usage/help, not "command not found"
 ```
 

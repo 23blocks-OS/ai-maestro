@@ -35,6 +35,21 @@ export function useWebSocket({
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
 
+  // CRITICAL: Store callbacks in refs so WebSocket handlers always call the latest version.
+  // Without this, the WebSocket's onmessage closure captures a stale onMessage callback
+  // (one where terminalInstanceRef.current is still null from initial render). The terminal
+  // receives data but writes to null. Users see this as "copy/paste only works after switching
+  // agents" because switching triggers a reconnect that picks up the fresh callback.
+  const onMessageRef = useRef(onMessage)
+  const onOpenRef = useRef(onOpen)
+  const onCloseRef = useRef(onClose)
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => { onMessageRef.current = onMessage }, [onMessage])
+  useEffect(() => { onOpenRef.current = onOpen }, [onOpen])
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+  useEffect(() => { onErrorRef.current = onError }, [onError])
+
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
@@ -80,7 +95,7 @@ export function useWebSocket({
         setStatus('connected')
         setConnectionError(null)
         reconnectAttemptsRef.current = 0
-        onOpen?.()
+        onOpenRef.current?.()
       }
 
       ws.onmessage = (event) => {
@@ -106,20 +121,20 @@ export function useWebSocket({
           // Not JSON, treat as terminal data
         }
 
-        onMessage?.(event.data)
+        onMessageRef.current?.(event.data)
       }
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error)
         setConnectionError(new Error('WebSocket connection error'))
         setStatus('error')
-        onError?.(error)
+        onErrorRef.current?.(error)
       }
 
       ws.onclose = (event) => {
         setIsConnected(false)
         setStatus('disconnected')
-        onClose?.()
+        onCloseRef.current?.()
 
         // Close code 4000 = permanent failure, don't retry (e.g., remote host unreachable after retries)
         if (event.code === 4000) {
@@ -148,7 +163,7 @@ export function useWebSocket({
       setConnectionError(error as Error)
       setStatus('error')
     }
-  }, [getWebSocketUrl, onMessage, onOpen, onClose, onError])
+  }, [getWebSocketUrl])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {

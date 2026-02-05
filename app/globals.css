@@ -60,6 +60,13 @@ body {
   height: 100%;
   width: 100%;
   padding: 10px;
+  /* Prevent browser native text selection on ALL terminal DOM elements.
+     xterm.js selection is canvas-based and works independently of user-select.
+     Without this, during the first mount (uncached module imports), the browser
+     can paint the terminal DOM before WebGL loads, allowing native selection
+     (yellow highlights) on viewport/accessibility elements during the gap. */
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Mobile: reduce padding for more screen space */
@@ -98,14 +105,23 @@ body {
   cursor: text;
 }
 
-/* Hide accessibility elements to prevent yellow browser selection */
+/* Neutralize xterm accessibility tree to prevent browser native text selection (yellow highlights).
+   Using pointer-events:none + opacity:0 instead of display:none so xterm.js's internal DOM
+   structure remains intact. display:none causes xterm.js to lose track of its elements and
+   breaks the canvas-based selection system on subsequent writes. */
 .xterm .xterm-accessibility,
 .xterm .xterm-accessibility-tree {
-  display: none !important;
-  visibility: hidden !important;
   pointer-events: none !important;
+  opacity: 0 !important;
   position: absolute !important;
-  left: -9999px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  height: 1px !important;
+  width: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Prevent text selection on UI elements */

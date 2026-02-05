@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
-import TerminalViewNew from '@/components/TerminalViewNew'
 import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
 import WorkTree from '@/components/WorkTree'
@@ -18,7 +17,7 @@ import TranscriptExport from '@/components/TranscriptExport'
 import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -108,7 +107,7 @@ export default function DashboardPage() {
   })
   const [isResizing, setIsResizing] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
@@ -675,17 +674,6 @@ export default function DashboardPage() {
                       Terminal
                     </button>
                     <button
-                      onClick={() => setActiveTab('terminal-new')}
-                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                        activeTab === 'terminal-new'
-                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
-                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
-                      }`}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Terminal New
-                    </button>
-                    <button
                       onClick={() => setActiveTab('chat')}
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                         activeTab === 'chat'
@@ -849,37 +837,6 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
-                      )
-                    ) : activeTab === 'terminal-new' ? (
-                      isHibernated ? (
-                        <div className="flex-1 flex items-center justify-center text-gray-400">
-                          <div className="text-center max-w-md">
-                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-yellow-900/30 flex items-center justify-center">
-                              <Moon className="w-10 h-10 text-yellow-500" />
-                            </div>
-                            <p className="text-xl mb-2 text-gray-300">{agent.label || agent.name || agent.alias}</p>
-                            <p className="text-sm mb-4 text-gray-500">This agent is hibernating</p>
-                            <button
-                              onClick={() => handleWakeAgent(agent)}
-                              disabled={wakingAgentId === agent.id}
-                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
-                            >
-                              {wakingAgentId === agent.id ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Waking...
-                                </>
-                              ) : (
-                                <>
-                                  <Power className="w-4 h-4" />
-                                  Wake Agent
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <TerminalViewNew session={session} isVisible={isActive && activeTab === 'terminal-new'} />
                       )
                     ) : !isActive ? (
                       // For inactive agents, don't mount heavy components - just show placeholder

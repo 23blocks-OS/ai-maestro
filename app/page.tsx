@@ -162,37 +162,38 @@ export default function DashboardPage() {
     checkOrganization()
   }, [])
 
-  // Read agent from URL parameter ONCE on mount (changed from ?session= to ?agent=)
-  // CRITICAL: This must NOT depend on [agents] - that causes it to re-run every 10s
-  // when the agent list refreshes, overriding the user's manual agent selection.
-  const urlParamAppliedRef = useState(() => ({ current: false }))[0]
+  // Read agent from URL parameter ONCE on mount, then strip from URL.
+  // The ?agent= param is only used for deep-linking (e.g., from immersive → dashboard).
+  // After reading, we remove it so it doesn't interfere with future navigation.
+  const urlParamProcessedRef = useState(() => ({ current: false }))[0]
 
   useEffect(() => {
-    if (urlParamAppliedRef.current) return // Only apply URL params once
+    if (urlParamProcessedRef.current) return
 
     const params = new URLSearchParams(window.location.search)
     const agentParam = params.get('agent')
+    const sessionParam = params.get('session')
+
     if (agentParam) {
       setActiveAgentId(decodeURIComponent(agentParam))
-      urlParamAppliedRef.current = true
-      return
-    }
-    // Also support legacy ?session= param for backwards compatibility
-    const sessionParam = params.get('session')
-    if (sessionParam) {
-      // Need agents to resolve session name → agent ID
-      const agent = agents.find(a => a.session?.tmuxSessionName === decodeURIComponent(sessionParam))
-      if (agent) {
-        setActiveAgentId(agent.id)
-        urlParamAppliedRef.current = true
+      window.history.replaceState({}, '', window.location.pathname)
+      urlParamProcessedRef.current = true
+    } else if (sessionParam) {
+      // Legacy ?session= param - needs agents loaded to resolve
+      if (agents.length > 0) {
+        const agent = agents.find(a => a.session?.tmuxSessionName === decodeURIComponent(sessionParam))
+        if (agent) {
+          setActiveAgentId(agent.id)
+        }
+        window.history.replaceState({}, '', window.location.pathname)
+        urlParamProcessedRef.current = true
       }
-      // If agent not found yet, let the effect retry when agents load
-      // (but only until we successfully resolve it once)
-      return
+      // If agents not loaded yet, effect will retry on next agents update
+    } else {
+      // No URL params — nothing to do
+      urlParamProcessedRef.current = true
     }
-    // No URL params at all - mark as done so we don't keep checking
-    urlParamAppliedRef.current = true
-  }, [agents, urlParamAppliedRef])
+  }, [agents, urlParamProcessedRef])
 
   // Detect mobile screen size
   useEffect(() => {

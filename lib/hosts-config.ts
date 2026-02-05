@@ -539,17 +539,73 @@ export async function saveHostsAsync(hosts: Host[]): Promise<{ success: boolean;
 }
 
 /**
- * Add a new host
+ * Extract hostname/IP from a URL for duplicate detection
  */
-export function addHost(host: Host): { success: boolean; host?: Host; error?: string } {
+function extractHostFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if two hosts are the same machine based on URL/IP
+ * This prevents duplicate hosts when hostname changes but IP stays the same
+ */
+function isSameHost(host1: Host, host2: Host): boolean {
+  // Same ID is obviously the same
+  if (host1.id.toLowerCase() === host2.id.toLowerCase()) return true
+
+  // Same URL is the same host
+  if (host1.url && host2.url) {
+    const url1 = host1.url.toLowerCase()
+    const url2 = host2.url.toLowerCase()
+    if (url1 === url2) return true
+
+    // Same IP in URL is the same host
+    const ip1 = extractHostFromUrl(host1.url)
+    const ip2 = extractHostFromUrl(host2.url)
+    if (ip1 && ip2 && ip1 === ip2) return true
+  }
+
+  // Check aliases overlap
+  const aliases1 = new Set((host1.aliases || []).map(a => a.toLowerCase()))
+  const aliases2 = host2.aliases || []
+  for (const alias of aliases2) {
+    if (aliases1.has(alias.toLowerCase())) return true
+  }
+
+  return false
+}
+
+/**
+ * Add a new host
+ * Includes duplicate detection by URL/IP to prevent same machine with different hostnames
+ */
+export function addHost(host: Host): { success: boolean; host?: Host; error?: string; existingHost?: Host } {
   try {
     const currentHosts = getHosts()
 
-    const existingHost = currentHosts.find(h => h.id === host.id)
-    if (existingHost) {
+    // Check for duplicate by ID
+    const existingById = currentHosts.find(h => h.id.toLowerCase() === host.id.toLowerCase())
+    if (existingById) {
       return {
         success: false,
         error: `Host with ID '${host.id}' already exists`,
+        existingHost: existingById,
+      }
+    }
+
+    // Check for duplicate by URL/IP (prevents same machine with different hostname)
+    const existingByUrl = currentHosts.find(h => isSameHost(h, host))
+    if (existingByUrl) {
+      console.warn(`[Hosts] Duplicate detected: '${host.id}' has same URL/IP as '${existingByUrl.id}'`)
+      return {
+        success: false,
+        error: `Host '${host.id}' appears to be the same machine as '${existingByUrl.id}' (same URL: ${host.url}). Use the existing host or remove it first.`,
+        existingHost: existingByUrl,
       }
     }
 

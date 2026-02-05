@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAgent, getAgentByAlias, getAgentByName, getAgentSkills, DEFAULT_AI_MAESTRO_SKILLS } from '@/lib/agent-registry'
 import { getSkillById } from '@/lib/marketplace-skills'
+import { hasKeyPair, getKeysDir, getRegistrationsDir, listRegisteredProviders } from '@/lib/amp-keys'
 import archiver from 'archiver'
 import fs from 'fs'
 import path from 'path'
@@ -171,6 +172,11 @@ export async function GET(
     // Check for hooks
     const hasHooks = !!(agent.hooks && Object.keys(agent.hooks).length > 0)
 
+    // Check for AMP keys and registrations
+    const hasKeys = hasKeyPair(agent.id)
+    const registeredProviders = listRegisteredProviders(agent.id)
+    const hasRegistrations = registeredProviders.length > 0
+
     // Detect git repositories
     const repositories: PortableRepository[] = []
 
@@ -202,7 +208,7 @@ export async function GET(
 
     // Create manifest
     const manifest: AgentExportManifest = {
-      version: '1.1.0', // Version bump for skills support
+      version: '1.2.0', // Version bump for AMP identity support
       exportedAt: new Date().toISOString(),
       exportedFrom: {
         hostname: os.hostname(),
@@ -232,7 +238,11 @@ export async function GET(
           aiMaestro: skills?.aiMaestro.enabled ? skills.aiMaestro.skills.length : 0,
           custom: skills?.custom.length || 0
         } : undefined,
-        hasHooks
+        hasHooks,
+        // AMP Identity support (v1.2.0)
+        hasKeys,
+        hasRegistrations,
+        registrationProviders: hasRegistrations ? registeredProviders : undefined
       },
       // Include detected repositories for cloning on import
       repositories: repositories.length > 0 ? repositories : undefined
@@ -332,6 +342,22 @@ export async function GET(
             archive.file(fullPath, { name: `hooks/${path.basename(scriptPath)}` })
           }
         }
+      }
+    }
+
+    // Add AMP keys if present (v1.2.0)
+    if (hasKeys) {
+      const keysDir = getKeysDir(agent.id)
+      if (fs.existsSync(keysDir)) {
+        archive.directory(keysDir, 'keys')
+      }
+    }
+
+    // Add external registrations if present (v1.2.0)
+    if (hasRegistrations) {
+      const registrationsDir = getRegistrationsDir(agent.id)
+      if (fs.existsSync(registrationsDir)) {
+        archive.directory(registrationsDir, 'registrations')
       }
     }
 

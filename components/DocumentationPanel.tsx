@@ -57,9 +57,9 @@ interface SearchResult {
 interface DocumentationPanelProps {
   sessionName: string
   agentId: string | null | undefined
-  isVisible: boolean
   workingDirectory?: string
   hostUrl?: string  // Base URL for remote hosts
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
 // Document type icons and colors
@@ -77,7 +77,7 @@ const DOC_TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; 
   doc: { icon: File, color: '#94a3b8', label: 'General Documentation' },
 }
 
-export default function DocumentationPanel({ sessionName, agentId, isVisible, workingDirectory, hostUrl }: DocumentationPanelProps) {
+export default function DocumentationPanel({ sessionName, agentId, workingDirectory, hostUrl, isActive = false }: DocumentationPanelProps) {
   const [loading, setLoading] = useState(true)
   const [indexing, setIndexing] = useState(false)
   // Base URL for API calls - empty for local, full URL for remote hosts
@@ -139,9 +139,9 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     }
   }, [agentId, baseUrl])
 
-  // Load initial data
+  // Only fetch when this agent is active (prevents API flood with many agents)
   useEffect(() => {
-    if (!isVisible || !agentId) return
+    if (!agentId || !isActive) return
 
     const loadData = async () => {
       setLoading(true)
@@ -157,7 +157,7 @@ export default function DocumentationPanel({ sessionName, agentId, isVisible, wo
     }
 
     loadData()
-  }, [agentId, isVisible, fetchStats, fetchDocuments])
+  }, [agentId, isActive])
 
   // Index documentation
   const indexDocumentation = async () => {

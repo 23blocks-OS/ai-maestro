@@ -4,7 +4,9 @@ import os from 'os'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
 import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgent } from './agent-registry'
 import { applyContentSecurity } from './content-security'
+import { queueMessage as queueToAMPRelay } from './amp-relay'
 import type { Agent } from '@/types/agent'
+import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
 /**
  * Get this host's name for messages
@@ -55,6 +57,14 @@ export interface Message {
     forwardedBy: string
     forwardedAt: string
     forwardNote?: string
+  }
+  // AMP Protocol fields (for cryptographic verification)
+  amp?: {
+    signature?: string           // Ed25519 signature of envelope (base64)
+    senderPublicKey?: string     // Sender's public key (hex)
+    signatureVerified?: boolean  // True if signature was cryptographically verified
+    ampAddress?: string          // Full AMP address (name@tenant.provider)
+    envelopeId?: string          // Original AMP envelope ID
   }
 }
 
@@ -403,6 +413,13 @@ export async function sendMessage(
     fromLabel?: string     // Pre-resolved label (from remote host)
     toLabel?: string       // Pre-resolved label (from remote host)
     fromVerified?: boolean // Explicitly set verified status (for cross-host messages)
+    // AMP Protocol fields for cryptographic verification
+    amp?: {
+      signature?: string         // Ed25519 signature (base64)
+      senderPublicKey?: string   // Sender's public key (hex)
+      ampAddress?: string        // Full AMP address
+      envelopeId?: string        // AMP envelope ID
+    }
   }
 ): Promise<Message> {
   await ensureMessageDirectories()
@@ -463,6 +480,30 @@ export async function sendMessage(
     isFromVerified = false  // Unknown sender, treat as external
   }
 
+  // AMP signature verification (if provided)
+  let signatureVerified = false
+  if (options?.amp?.signature && options?.amp?.senderPublicKey) {
+    try {
+      // Dynamically import to avoid bundling issues
+      const { verifySignature } = require('@/lib/amp-keys')
+      // Build canonical data for verification (same format as sender)
+      const canonicalData = JSON.stringify({
+        from: options.amp.ampAddress || (fromAgent?.alias || from),
+        to: options?.toAlias || toResolved.alias || to,
+        subject,
+        timestamp: new Date().toISOString().split('T')[0], // Just date for tolerance
+      })
+      signatureVerified = verifySignature(canonicalData, options.amp.signature, options.amp.senderPublicKey)
+      if (signatureVerified) {
+        console.log(`[MessageQueue] AMP signature verified for message from ${options.amp.ampAddress || from}`)
+        isFromVerified = true // Cryptographic verification trumps registry lookup
+      }
+    } catch (error) {
+      console.error('[MessageQueue] AMP signature verification failed:', error)
+      signatureVerified = false
+    }
+  }
+
   const message: Message = {
     id: generateMessageId(),
     from: fromAgent?.agentId || from,
@@ -482,6 +523,14 @@ export async function sendMessage(
     status: 'unread',
     content,
     inReplyTo: options?.inReplyTo,
+    // Include AMP fields if provided
+    amp: options?.amp ? {
+      signature: options.amp.signature,
+      senderPublicKey: options.amp.senderPublicKey,
+      signatureVerified,
+      ampAddress: options.amp.ampAddress,
+      envelopeId: options.amp.envelopeId,
+    } : undefined,
   }
 
   // Content security: wrap unverified sender content as backstop
@@ -545,9 +594,46 @@ export async function sendMessage(
       throw new Error(`Failed to deliver message to remote agent: ${error}`)
     }
   } else {
-    // Local recipient - write to filesystem using agent ID
-    const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
-    await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+    // Local recipient - check if this is an AMP external agent
+    // AMP external agents: registered via AMP API, no active tmux session
+    const recipientFullAgent = getAgent(toResolved.agentId)
+    const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
+    const hasNoActiveSession = !toResolved.sessionName ||
+      !recipientFullAgent?.sessions?.some(s => s.status === 'online')
+
+    if (isAMPExternalAgent && hasNoActiveSession) {
+      // Queue to AMP relay for external agent to poll
+      console.log(`[MessageQueue] Recipient ${toResolved.alias} is AMP external agent - queuing to relay`)
+
+      // Convert internal message to AMP format for relay
+      const ampEnvelope: AMPEnvelope = {
+        id: message.id.replace('msg-', 'msg_').replace(/-/g, '_'), // Convert to AMP format
+        from: message.fromAlias || message.from,
+        to: message.toAlias || message.to,
+        subject: message.subject,
+        priority: message.priority,
+        timestamp: message.timestamp,
+        signature: message.amp?.signature || '',
+      }
+      if (message.inReplyTo) {
+        ampEnvelope.in_reply_to = message.inReplyTo
+      }
+
+      const ampPayload: AMPPayload = {
+        type: message.content.type,
+        message: message.content.message,
+        context: message.content.context,
+      }
+
+      // Get sender's public key (for signature verification by recipient)
+      const senderPublicKey = message.amp?.senderPublicKey || ''
+
+      queueToAMPRelay(toResolved.agentId, ampEnvelope, ampPayload, senderPublicKey)
+    } else {
+      // Regular AI Maestro agent - write to filesystem using agent ID
+      const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
+      await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+    }
   }
 
   // Always write to sender's sent folder (locally) using agent ID
@@ -730,6 +816,7 @@ export async function listInboxMessages(
     status?: Message['status']
     priority?: Message['priority']
     from?: string
+    limit?: number  // Maximum number of messages to return (default: unlimited)
   }
 ): Promise<MessageSummary[]> {
   // Resolve agent
@@ -765,6 +852,11 @@ export async function listInboxMessages(
 
   // Sort by timestamp (newest first)
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  // Apply limit if specified
+  if (filter?.limit && filter.limit > 0) {
+    return allMessages.slice(0, filter.limit)
+  }
 
   return allMessages
 }
@@ -916,6 +1008,7 @@ export async function listSentMessages(
   filter?: {
     priority?: Message['priority']
     to?: string
+    limit?: number  // Maximum number of messages to return (default: unlimited)
   }
 ): Promise<MessageSummary[]> {
   const agent = resolveAgent(agentIdentifier)
@@ -949,6 +1042,12 @@ export async function listSentMessages(
   }
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  // Apply limit if specified
+  if (filter?.limit && filter.limit > 0) {
+    return allMessages.slice(0, filter.limit)
+  }
+
   return allMessages
 }
 

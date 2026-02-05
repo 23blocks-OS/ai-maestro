@@ -223,7 +223,7 @@ For AI Maestro's agent messaging system, we implemented a **Global Skill** becau
 **Location:** `~/.claude/skills/agent-messaging/SKILL.md`
 
 **Capability:** Enables Claude to send messages between AI agent sessions using:
-- File-based persistent messaging (`send-aimaestro-message.sh`)
+- File-based persistent messaging (`amp-send`)
 - Instant tmux notifications (`send-tmux-message.sh`)
 - Decision logic for choosing the right method
 
@@ -241,7 +241,7 @@ claude
 # 1. Recognizes this is a messaging request
 # 2. Activates the agent-messaging skill
 # 3. Chooses appropriate method (file-based)
-# 4. Executes: send-aimaestro-message.sh backend-architect "Need API endpoint" "..."
+# 4. Executes: amp-send backend-architect "Need API endpoint" "..."
 # 5. Confirms message sent
 
 # Example 2: Urgent notification
@@ -251,7 +251,7 @@ claude
 # 1. Detects urgency
 # 2. Uses both instant + file-based messaging
 # 3. Executes: send-tmux-message.sh frontend-dev "Build failing!"
-# 4. Then: send-aimaestro-message.sh frontend-dev "Build failed" "..." urgent notification
+# 4. Then: amp-send frontend-dev "Build failed" "..." urgent notification
 
 # Example 3: Progress update
 > Send an update to project-lead that I'm 75% done with the authentication system
@@ -259,7 +259,7 @@ claude
 # Claude automatically:
 # 1. Recognizes this as a progress update
 # 2. Chooses file-based with 'update' type
-# 3. Executes: send-aimaestro-message.sh project-lead "Auth: 75% complete" "..." normal update
+# 3. Executes: amp-send project-lead "Auth: 75% complete" "..." normal update
 ```
 
 **No explicit commands needed!** Just describe what you want to communicate.
@@ -308,7 +308,7 @@ This project uses AI Maestro for agent coordination.
 
 ### File-Based Messages (Persistent, Structured)
 ```bash
-send-aimaestro-message.sh <session> <subject> <message> [priority] [type]
+amp-send <session> <subject> <message> [priority] [type]
 ```
 
 **Parameters:**
@@ -317,8 +317,8 @@ send-aimaestro-message.sh <session> <subject> <message> [priority] [type]
 
 **Examples:**
 ```bash
-send-aimaestro-message.sh backend-architect "Need API" "Please implement POST /api/users" high request
-send-aimaestro-message.sh frontend-dev "Build failed" "Tests failing" urgent notification
+amp-send backend-architect "Need API" "Please implement POST /api/users" high request
+amp-send frontend-dev "Build failed" "Tests failing" urgent notification
 ```
 
 ### Instant Notifications (Real-time)
@@ -383,9 +383,9 @@ Send a message using AI Maestro's messaging system.
 # Urgent: Both methods
 if [urgent detected]; then
   send-tmux-message.sh $1 "🚨 Urgent: Check inbox!"
-  send-aimaestro-message.sh $1 "Urgent notification" "$message" urgent notification
+  amp-send $1 "Urgent notification" "$message" urgent notification
 else
-  send-aimaestro-message.sh $1 "Message from Claude" "$message" normal notification
+  amp-send $1 "Message from Claude" "$message" normal notification
 fi
 ```
 
@@ -507,7 +507,7 @@ claude
 # Expected behavior:
 # 1. Claude recognizes messaging intent
 # 2. Activates agent-messaging skill
-# 3. Executes: send-aimaestro-message.sh test-backend "Message from Claude" "Hello from Claude!" normal notification
+# 3. Executes: amp-send test-backend "Message from Claude" "Hello from Claude!" normal notification
 # 4. Confirms: "✅ Message sent to test-backend"
 ```
 
@@ -526,13 +526,13 @@ claude
 **Step 5: Verify messages received**
 ```bash
 # Check file-based inbox
-ls ~/.aimaestro/messages/inbox/test-backend/
+ls ~/.agent-messaging/messages/inbox/test-backend/
 
 # Check message content
-cat ~/.aimaestro/messages/inbox/test-backend/*.json | jq
+cat ~/.agent-messaging/messages/inbox/test-backend/*.json | jq
 
 # Or use the check script
-check-and-show-messages.sh
+amp-inbox
 ```
 
 ### Troubleshooting
@@ -543,7 +543,7 @@ check-and-show-messages.sh
 - Verify allowed-tools includes Bash
 
 **Commands not found?**
-- Check PATH: `which send-aimaestro-message.sh`
+- Check PATH: `which amp-send`
 - Ensure `.zshenv` includes `~/.local/bin` (see TROUBLESHOOTING.md)
 
 **AI Maestro not running?**
@@ -568,9 +568,9 @@ check-and-show-messages.sh
 
 **Shell Scripts (Installed):**
 ```
-~/.local/bin/send-aimaestro-message.sh
+~/.local/bin/amp-send
 ~/.local/bin/send-tmux-message.sh
-~/.local/bin/check-and-show-messages.sh
+~/.local/bin/amp-inbox
 ~/.local/bin/check-new-messages-arrived.sh
 ```
 

@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.19.37-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.20.11-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -108,31 +108,36 @@ Works with **any** terminal-based AI:
 - **Notes** for each agent (auto-saved to localStorage)
 - **Auto-discovery**: Detects all your tmux sessions automatically
 
-### Agent Communication System
-- **File-Based Messaging**: Persistent, structured messages between agents
-  - Priorities: urgent | high | normal | low
-  - Types: request | response | notification | update
-  - Rich context: Attach metadata, requirements, code snippets
-  - **Unread-only filtering**: Agents see only new messages
-  - **Auto-mark-as-read**: Messages marked read after retrieval
-  - **Inbox & Outbox**: Full send/receive tracking per agent
-- **Instant tmux Notifications**: Real-time alerts for urgent matters
-  - Popup notifications (non-intrusive)
-  - Terminal injections (visible in history)
-  - Formatted output (for critical alerts)
-- **CLI Tools**: Shell scripts for command-line messaging ([📁 View Scripts](./plugin/scripts))
-  - [`send-aimaestro-message.sh`](./plugin/scripts/send-aimaestro-message.sh) - Send structured messages
-  - [`forward-aimaestro-message.sh`](./plugin/scripts/forward-aimaestro-message.sh) - Forward messages between agents
-  - [`check-and-show-messages.sh`](./plugin/scripts/check-and-show-messages.sh) - Display inbox
-  - [`check-new-messages-arrived.sh`](./plugin/scripts/check-new-messages-arrived.sh) - Quick unread count
-  - [`send-tmux-message.sh`](./plugin/scripts/send-tmux-message.sh) - Instant notifications
-  - [📖 Installation Guide](./plugin/README.md)
+### Agent Messaging Protocol (AMP) - New in v0.20!
+AI Maestro now uses the **[Agent Messaging Protocol (AMP)](https://agentmessaging.org)** for inter-agent communication - like email for AI agents.
+
+- **Local-First**: Works immediately within your mesh network, no external dependencies
+- **Federation Ready**: Register with external providers (CrabMail, etc.) to message agents anywhere
+- **Cryptographic Signatures**: Ed25519 signatures ensure message authenticity
+- **CLI Tools**: Simple commands for all messaging operations
+  - `amp-init` - Initialize your agent identity
+  - `amp-send` - Send messages to other agents
+  - `amp-inbox` - Check your inbox
+  - `amp-read` - Read a specific message
+  - `amp-reply` - Reply to messages
+  - `amp-register` - Register with external providers
+- **Natural Language**: Just tell your agent "send a message to backend-api about the deployment"
+- **Instant Notifications**: Push notifications via tmux when messages arrive
 - **Web UI**: Rich inbox/compose interface in Messages tab
 - **Slack Integration**: Connect your team's Slack to AI agents ([🔗 Slack Bridge](https://github.com/23blocks-OS/aimaestro-slack-bridge))
-  - DM or @mention agents from Slack
-  - Route to specific agents with `@AIM:agent-name`
-  - Responses delivered to Slack threads
-- See [📬 Communication Docs](./docs/AGENT-COMMUNICATION-QUICKSTART.md) for 5-minute setup
+
+**Address Formats:**
+- Local: `agent-name` or `agent-name@org.aimaestro.local`
+- External: `agent@company.crabmail.ai`
+
+```bash
+# Quick start
+amp-init --auto                              # Initialize identity
+amp-send backend-api "Deploy" "Ready to go"  # Send message
+amp-inbox                                    # Check inbox
+```
+
+> 📖 **Protocol Spec:** [agentmessaging.org](https://agentmessaging.org) | **Docs:** [📬 Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)
 
 ### Agent Intelligence System (New in v0.11!)
 Your AI agents become smarter over time with persistent memory and deep code understanding.
@@ -574,9 +579,9 @@ Find your machine name in Tailscale settings (e.g., `macbook-pro`, `desktop-work
 
 ---
 
-## 📬 Inter-Agent Communication
+## 📬 Inter-Agent Communication with AMP
 
-**The next evolution in AI pair programming:** Your agents can now talk to each other.
+**The next evolution in AI pair programming:** Your agents can now talk to each other using the **[Agent Messaging Protocol (AMP)](https://agentmessaging.org)**.
 
 When you're running a `backend-architect` agent and a `frontend-developer` agent, they need to coordinate. The backend agent finishes an API endpoint and needs to notify the frontend agent. The frontend agent hits an error and needs help from the backend team. Previously, you were the middleman - copying messages, switching contexts, losing flow.
 
@@ -584,91 +589,101 @@ When you're running a `backend-architect` agent and a `frontend-developer` agent
 
 ### How It Works
 
-AI Maestro provides a **dual-channel messaging system** designed specifically for agent-to-agent communication:
+AI Maestro uses AMP - an open protocol for AI agent communication. Think of it like email for AI agents:
 
-#### 1. File-Based Messaging (Persistent & Structured)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Local Mesh (immediate)           External (federated)          │
+│  ─────────────────────           ────────────────────           │
+│  backend-api                      alice@acme.crabmail.ai        │
+│  frontend-dev@org.aimaestro.local bob@company.otherprovider.com │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-Perfect for detailed requests, specifications, and async collaboration:
+#### Quick Start
 
 ```bash
-# Backend agent tells frontend agent: "API is ready"
-send-aimaestro-message.sh frontend-dev \
-  "GET /api/users endpoint ready" \
-  "Endpoint implemented at routes/users.ts:45. Returns paginated user list. Supports ?page=1&limit=20" \
-  normal \
-  response
+# 1. Initialize your agent identity (first time only)
+amp-init --auto
 
-# Forward messages between agents with context
-forward-aimaestro-message.sh latest frontend-dev qa-tester \
-  "QA: Please verify this API endpoint"
+# 2. Send a message
+amp-send frontend-dev "API Ready" "GET /api/users implemented at routes/users.ts:45"
+
+# 3. Check inbox
+amp-inbox
+
+# 4. Read and reply
+amp-read msg_123
+amp-reply msg_123 "Thanks! Dashboard updated."
+```
+
+#### Message Options
+
+```bash
+# With priority
+amp-send ops "Deploy Alert" "Starting production deploy" --priority urgent
+
+# With type
+amp-send qa-tester "Review Request" "Please verify the login flow" --type request
+
+# With context
+amp-send backend-api "PR Review" "Check PR #42" --context '{"repo": "api", "pr": 42}'
 ```
 
 **Features:**
 - **Priorities**: `urgent` | `high` | `normal` | `low`
-- **Types**: `request` | `response` | `notification` | `update`
-- **Forwarding**: Pass messages between agents with notes and metadata preservation
-- **Inbox**: Each agent has their own inbox (Messages tab in UI)
-- **Persistent**: Messages saved to `~/.aimaestro/messages/inbox/`
-- **Searchable**: Filter by priority, type, sender, or content
+- **Types**: `request` | `response` | `notification` | `task` | `status` | `handoff`
+- **Signatures**: Ed25519 cryptographic signatures for authenticity
+- **Push Notifications**: Instant tmux alerts when messages arrive
+- **Federation**: Register with external providers to message agents anywhere
 
-#### 2. Instant tmux Notifications (Real-Time Alerts)
+### External Providers (Federation)
 
-For when agents need immediate attention:
+To message agents outside your local mesh, register with an external provider:
 
 ```bash
-# Urgent alert - pops up in the target agent's terminal
-send-tmux-message.sh backend-architect "🚨 Production database down - check inbox!"
+# Register with CrabMail (requires User Key from their dashboard)
+amp-register --provider crabmail.ai --user-key uk_your_key_here
+
+# Now you can message external agents
+amp-send alice@acme.crabmail.ai "Hello" "Reaching out from AI Maestro!"
 ```
 
-**Three delivery methods:**
-- **`display`** - Non-intrusive popup (auto-dismisses)
-- **`inject`** - Visible in terminal history
-- **`echo`** - Formatted output for critical alerts
+### Claude Code Integration
 
-### Real-World Use Case
+Every agent can use AMP automatically via the **agent-messaging skill**:
+
+```bash
+# Natural language works:
+> "Send a message to backend-architect asking them to implement POST /api/users"
+> "Check my inbox"
+> "Reply to the last message saying I'll look into it"
+
+# Claude automatically:
+# 1. Recognizes the messaging intent
+# 2. Runs the appropriate amp-* command
+# 3. Confirms delivery with message ID
+```
+
+### Real-World Example
 
 ```bash
 # Frontend agent working on user dashboard
 # Backend agent finishes the API they need
 
-# Backend sends structured message
-send-aimaestro-message.sh frontend-dev \
-  "User stats API ready" \
-  "GET /api/stats implemented. Returns {activeUsers, signups, revenue}.
-   Cached for 5min. Rate limited to 100/hour." \
-  high \
-  notification
+# Backend sends message with high priority
+amp-send frontend-dev "User Stats API Ready" \
+  "GET /api/stats implemented. Returns {activeUsers, signups, revenue}. Cached 5min." \
+  --priority high --type notification
 
-# Backend also sends instant alert so frontend sees it immediately
-send-tmux-message.sh frontend-dev "✅ User stats API is ready - check inbox for details"
+# Frontend gets instant tmux notification: "[MESSAGE] From: backend-api - User Stats API Ready"
 
-# Frontend agent checks inbox
-check-and-show-messages.sh
-# Sees the full message with context
-
-# Frontend responds after integration
-send-aimaestro-message.sh backend-architect \
-  "Re: User stats API integrated" \
-  "Dashboard updated. Works perfectly. Thanks!" \
-  normal \
-  response
+# Frontend checks inbox and replies
+amp-inbox
+amp-reply msg_xxx "Dashboard updated. Works perfectly. Thanks!"
 ```
 
-### Claude Code Integration
-
-Every agent can use the messaging system automatically via a **Claude Code skill** ([📁 View Skill](./plugin/skills/agent-messaging)):
-
-```bash
-# With any agent, just say:
-> "Send a message to backend-architect asking them to implement POST /api/users"
-> "Forward the last message to qa-tester with a note to verify the implementation"
-
-# Claude automatically:
-# 1. Recognizes the messaging/forwarding intent
-# 2. Chooses appropriate method (file-based)
-# 3. Sends or forwards message to the target agent's inbox
-# 4. Confirms delivery with metadata
-```
+> 📖 **AMP Protocol:** [agentmessaging.org](https://agentmessaging.org) | **Storage:** `~/.agent-messaging/`
 
 **No manual scripting needed** - agents understand natural language messaging commands.
 

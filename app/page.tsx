@@ -18,7 +18,7 @@ import TranscriptExport from '@/components/TranscriptExport'
 import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -28,6 +28,12 @@ import type { Session } from '@/types/session'
 // Only shown for first-time users
 const OnboardingFlow = dynamic(
   () => import('@/components/onboarding/OnboardingFlow'),
+  { ssr: false }
+)
+
+// Only shown when organization not set
+const OrganizationSetup = dynamic(
+  () => import('@/components/OrganizationSetup'),
   { ssr: false }
 )
 
@@ -108,6 +114,8 @@ export default function DashboardPage() {
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
   const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showOrganizationSetup, setShowOrganizationSetup] = useState(false)
+  const [organizationChecked, setOrganizationChecked] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
@@ -123,12 +131,36 @@ export default function DashboardPage() {
     [agents]
   )
 
-  // Check for onboarding completion on mount
+  // Check for organization and onboarding completion on mount
   useEffect(() => {
-    const completed = localStorage.getItem('aimaestro-onboarding-completed')
-    if (!completed) {
-      setShowOnboarding(true)
+    const checkOrganization = async () => {
+      try {
+        const response = await fetch('/api/organization')
+        const data = await response.json()
+
+        if (!data.isSet) {
+          // No organization set - show organization setup first
+          setShowOrganizationSetup(true)
+        } else {
+          // Organization is set, check onboarding
+          const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+          if (!onboardingCompleted) {
+            setShowOnboarding(true)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check organization:', error)
+        // On error, proceed with normal onboarding check
+        const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+        if (!onboardingCompleted) {
+          setShowOnboarding(true)
+        }
+      } finally {
+        setOrganizationChecked(true)
+      }
     }
+
+    checkOrganization()
   }, [])
 
   // Read agent from URL parameter on mount (changed from ?session= to ?agent=)
@@ -465,6 +497,32 @@ export default function DashboardPage() {
     setShowOnboarding(false)
   }
 
+  const handleOrganizationComplete = () => {
+    setShowOrganizationSetup(false)
+    // After organization is set, check if onboarding is needed
+    const onboardingCompleted = localStorage.getItem('aimaestro-onboarding-completed')
+    if (!onboardingCompleted) {
+      setShowOnboarding(true)
+    }
+  }
+
+  // Show loading while checking organization status
+  if (!organizationChecked) {
+    return (
+      <div className="fixed inset-0 bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show organization setup if not set
+  if (showOrganizationSetup) {
+    return <OrganizationSetup onComplete={handleOrganizationComplete} />
+  }
+
   // Show onboarding flow if not completed
   if (showOnboarding) {
     return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
@@ -589,9 +647,12 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* All Selectable Agents (Online + Hibernated) Mounted as Tabs - toggle visibility with CSS */}
-            {selectableAgents.map(agent => {
-              const isActive = agent.id === activeAgentId
+            {/* Only render the active agent - no need to mount all 40+ agents */}
+            {(() => {
+              const agent = selectableAgents.find(a => a.id === activeAgentId)
+              if (!agent) return null
+
+              const isActive = true  // We only render the active agent
               const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
               const session = agentToSession(agent)
 
@@ -599,11 +660,6 @@ export default function DashboardPage() {
                 <div
                   key={agent.id}
                   className="absolute inset-0 flex flex-col"
-                  style={{
-                    visibility: isActive ? 'visible' : 'hidden',
-                    pointerEvents: isActive ? 'auto' : 'none',
-                    zIndex: isActive ? 10 : 0
-                  }}
                 >
                   {/* Tab Navigation - Responsive with flex-wrap */}
                   <div className="flex flex-wrap border-b border-gray-800 bg-gray-900 flex-shrink-0">
@@ -741,11 +797,22 @@ export default function DashboardPage() {
                       <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
                       <button
                         onClick={() => handleShowAgentProfile(agent)}
-                        className="flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
                         title="View Agent Profile"
                       >
                         <User className="w-4 h-4" />
                         Agent Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          const url = `/zoom/agent?id=${encodeURIComponent(agent.id)}`
+                          window.open(url, `agent-${agent.id}`, 'width=1200,height=800,menubar=no,toolbar=no')
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-violet-400 hover:bg-gray-800/30"
+                        title="Open in new window"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Pop Out
                       </button>
                     </div>
                   </div>
@@ -814,6 +881,11 @@ export default function DashboardPage() {
                       ) : (
                         <TerminalViewNew session={session} isVisible={isActive && activeTab === 'terminal-new'} />
                       )
+                    ) : !isActive ? (
+                      // For inactive agents, don't mount heavy components - just show placeholder
+                      <div className="flex-1 flex items-center justify-center text-gray-500">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      </div>
                     ) : activeTab === 'chat' ? (
                       isHibernated ? (
                         <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -843,7 +915,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <ChatView agent={agent} isVisible={isActive && activeTab === 'chat'} />
+                        <ChatView agent={agent} isActive={true} />
                       )
                     ) : activeTab === 'messages' ? (
                       <MessageCenter
@@ -856,8 +928,8 @@ export default function DashboardPage() {
                           tmuxSessionName: a.session?.tmuxSessionName,
                           hostId: a.hostId
                         }))}
-                        isVisible={isActive && activeTab === 'messages'}
                         hostUrl={agent.hostUrl}
+                        isActive={true}
                       />
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
@@ -865,29 +937,29 @@ export default function DashboardPage() {
                         agentId={agent.id}
                         agentAlias={agent.alias}
                         hostId={agent.hostId}
-                        isVisible={isActive && activeTab === 'worktree'}
+                        isActive={true}
                       />
                     ) : activeTab === 'graph' ? (
                       <AgentGraph
                         sessionName={session.id}
                         agentId={agent.id}
-                        isVisible={isActive && activeTab === 'graph'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                        isActive={true}
                       />
                     ) : activeTab === 'memory' ? (
                       <MemoryViewer
                         agentId={agent.id}
                         hostUrl={agent.hostUrl}
-                        isVisible={isActive && activeTab === 'memory'}
+                        isActive={true}
                       />
                     ) : activeTab === 'docs' ? (
                       <DocumentationPanel
                         sessionName={session.id}
                         agentId={agent.id}
-                        isVisible={isActive && activeTab === 'docs'}
                         workingDirectory={session.workingDirectory}
                         hostUrl={agent.hostUrl}
+                        isActive={true}
                       />
                     ) : activeTab === 'search' ? (
                       <div className="flex-1 overflow-auto p-4">
@@ -918,7 +990,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )
-            })}
+            })()}
           </main>
         </div>
 

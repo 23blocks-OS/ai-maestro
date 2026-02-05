@@ -1,6 +1,6 @@
 # Agent Communication Quickstart Guide
 
-Get your AI Maestro agents talking to each other in **under 5 minutes**.
+Get your AI Maestro agents talking to each other in **under 5 minutes** using the [Agent Messaging Protocol (AMP)](https://agentmessaging.org).
 
 ---
 
@@ -47,7 +47,7 @@ Claude: *Automatically uses the messaging skill to send the message*
 **How it works:** Use shell commands directly
 
 ```bash
-send-aimaestro-message.sh backend-architect "Subject" "Message body" normal request
+amp-send backend-architect "Subject" "Message body" normal request
 ```
 
 **Visual Example:**
@@ -64,7 +64,7 @@ send-aimaestro-message.sh backend-architect "Subject" "Message body" normal requ
 - ✅ Full control over parameters
 - ✅ No dependencies on Claude Code
 
-**Requirements:** Shell scripts in PATH → [📖 Install the scripts](../plugin/scripts/README.md) (copy scripts from [`../plugin/scripts/`](../plugin/scripts) to `~/.local/bin/`)
+**Requirements:** AMP CLI tools in PATH (install via `./install-messaging.sh`) + Agent identity initialized (`amp-init --auto`)
 
 ---
 
@@ -120,7 +120,7 @@ The updater will:
 curl -s http://localhost:23000/api/sessions | jq
 
 # 2. Shell scripts in PATH? (Required for both modes)
-which send-aimaestro-message.sh
+which amp-send
 
 # 3. At least 2 tmux sessions?
 tmux list-sessions
@@ -146,7 +146,7 @@ You: "Send a message to backend-architect with subject 'Test Message'
      and say 'Hello from quickstart!'"
 
 Claude: I'll send that message for you.
-        *Uses send-aimaestro-message.sh automatically*
+        *Uses amp-send automatically*
         ✅ Message sent successfully to backend-architect
 ```
 
@@ -160,7 +160,7 @@ Ask Claude to check messages:
 You: "Check my inbox" or "Do I have any new messages?"
 
 Claude: Let me check your inbox...
-        *Uses check-and-show-messages.sh automatically*
+        *Uses amp-inbox automatically*
 
         📬 You have 2 messages:
         1. From: frontend-dev
@@ -196,7 +196,7 @@ Claude: Let me check your inbox...
 Use the command-line tool directly:
 
 ```bash
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "Test Message" \
   "Hello from quickstart!" \
   normal \
@@ -208,11 +208,11 @@ send-aimaestro-message.sh backend-architect \
 
 **Check it worked:**
 ```bash
-# View recipient's inbox
-ls ~/.aimaestro/messages/inbox/backend-architect/
+# View recipient's inbox (on the other session)
+amp-inbox
 
-# Read the message
-cat ~/.aimaestro/messages/inbox/backend-architect/*.json | jq
+# Or check the message files directly
+ls ~/.agent-messaging/messages/inbox/
 ```
 
 ![Message sent confirmation](images/no-skill-message-sent.png)
@@ -222,7 +222,7 @@ cat ~/.aimaestro/messages/inbox/backend-architect/*.json | jq
 Use the inbox checking tool:
 
 ```bash
-check-and-show-messages.sh
+amp-inbox
 ```
 
 ![Viewing inbox messages](images/no-skill-receive-messages.png)
@@ -232,10 +232,10 @@ Or review in detail:
 
 ```bash
 # Quick unread count
-check-new-messages-arrived.sh
+amp-inbox --unread
 
 # Full inbox view
-check-and-show-messages.sh
+amp-inbox
 ```
 
 ![Reviewing inbox](images/no-skill-review-inbox.png)
@@ -266,12 +266,12 @@ The recipient sees a popup notification **immediately** in their terminal.
 
 ```bash
 # Basic syntax
-send-aimaestro-message.sh <to> <subject> <message> [priority] [type]
+amp-send <to> <subject> <message> [priority] [type]
 
 # Examples
-send-aimaestro-message.sh backend "Quick Q" "What's the API endpoint?"
-send-aimaestro-message.sh frontend "Urgent!" "Deploy failed!" urgent notification
-send-aimaestro-message.sh tester "Done" "Feature complete" normal update
+amp-send backend "Quick Q" "What's the API endpoint?"
+amp-send frontend "Urgent!" "Deploy failed!" urgent notification
+amp-send tester "Done" "Feature complete" normal update
 ```
 
 **Priorities:** `low` | `normal` | `high` | `urgent`
@@ -293,10 +293,10 @@ send-tmux-message.sh backend "URGENT!" echo             # Echo to output
 
 ```bash
 # Show all messages with formatting
-check-and-show-messages.sh
+amp-inbox
 
 # Quick unread count
-check-new-messages-arrived.sh
+amp-inbox --unread
 
 # View via dashboard
 # Open http://localhost:23000 → Select session → Messages tab
@@ -321,7 +321,7 @@ Claude: *Automatically formats and sends the message*
 
 **Manual Mode (Command-Line):**
 ```bash
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "Need POST /api/users endpoint" \
   "Building user form, need API endpoint with email/password fields" \
   high \
@@ -347,7 +347,7 @@ Claude: *Sends both instant alert and detailed message*
 send-tmux-message.sh backend-architect "🚨 Check your inbox!"
 
 # Then detailed message
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "Production down!" \
   "API returning 500 errors since 2:30pm" \
   urgent \
@@ -368,7 +368,7 @@ Claude: *Sends formatted progress update*
 
 **Manual Mode (Command-Line):**
 ```bash
-send-aimaestro-message.sh orchestrator \
+amp-send orchestrator \
   "User dashboard 75% complete" \
   "Finished UI components, working on API integration" \
   normal \
@@ -390,7 +390,7 @@ Claude: *Sends reply with proper subject line*
 
 **Manual Mode (Command-Line):**
 ```bash
-send-aimaestro-message.sh frontend-dev \
+amp-send frontend-dev \
   "Re: POST /api/users endpoint" \
   "Endpoint ready at routes/users.ts:45. Accepts {email, password}, returns JWT token." \
   normal \
@@ -432,31 +432,31 @@ Need to send a message?
 ├─ Contains detailed info/context?
 │  │
 │  ├─ Skills Mode: "Send a message to... with subject..."
-│  └─ Manual Mode: send-aimaestro-message.sh session "Subject" "Details..."
+│  └─ Manual Mode: amp-send session "Subject" "Details..."
 │
 ├─ Both urgent AND detailed?
 │  │
 │  ├─ Skills Mode: "Send urgent message to... AND send tmux notification"
 │  └─ Manual Mode:
 │     1. send-tmux-message.sh session "🚨 Check inbox!"
-│     2. send-aimaestro-message.sh session "Details..." urgent
+│     2. amp-send session "Details..." urgent
 │
 └─ Just a quick FYI?
    │
    ├─ Skills Mode: "Send an update to... saying..."
-   └─ Manual Mode: send-aimaestro-message.sh session "Subject" "FYI..."
+   └─ Manual Mode: amp-send session "Subject" "FYI..."
 ```
 
 ---
 
 ## Troubleshooting
 
-### "command not found: send-aimaestro-message.sh"
+### "command not found: amp-send"
 
 **Fix:** Scripts not in PATH. Use full path:
 
 ```bash
-/Users/$(whoami)/.local/bin/send-aimaestro-message.sh ...
+/Users/$(whoami)/.local/bin/amp-send ...
 ```
 
 Or fix PATH permanently:
@@ -486,10 +486,11 @@ tmux list-sessions
 ### Messages not appearing in dashboard
 
 **Fix 1:** Refresh the browser page
-**Fix 2:** Check file permissions:
+**Fix 2:** Check your AMP status and permissions:
 ```bash
-ls -la ~/.aimaestro/messages/inbox/your-session-name/
-chmod -R u+rw ~/.aimaestro/messages/
+amp-status
+ls -la ~/.agent-messaging/messages/inbox/
+chmod -R u+rw ~/.agent-messaging/
 ```
 
 ---
@@ -507,16 +508,19 @@ yarn dev
 curl http://localhost:23000/api/sessions
 ```
 
-### 2. Shell Scripts Installed
+### 2. AMP CLI Tools Installed
 
-Scripts should be in `~/.local/bin/`:
+AMP tools should be in `~/.local/bin/`:
 
 ```bash
-ls -l ~/.local/bin/*message*.sh
+which amp-send amp-inbox amp-init
 
 # If missing, install from the repo
-# See: https://github.com/23blocks-OS/ai-maestro/tree/main/plugin/scripts
-# Or: cp ../plugin/scripts/*.sh ~/.local/bin/ && chmod +x ~/.local/bin/*.sh
+./install-messaging.sh
+
+# Or manually
+cp plugins/amp-messaging/scripts/amp-*.sh ~/.local/bin/
+chmod +x ~/.local/bin/amp-*.sh
 ```
 
 ### 3. PATH Configured
@@ -531,7 +535,7 @@ export PATH="$HOME/.local/bin:$PATH"
 source ~/.zshenv
 
 # Test
-which send-aimaestro-message.sh
+which amp-send
 ```
 
 ### 4. tmux Sessions
@@ -604,7 +608,7 @@ echo ""
 
 # Test file-based message
 echo "1️⃣ Testing file-based message..."
-send-aimaestro-message.sh "$OTHER" \
+amp-send "$OTHER" \
   "Test from quickstart" \
   "This is a test message. System is working! ✅" \
   normal \
@@ -620,7 +624,7 @@ echo ""
 echo "✅ Tests complete!"
 echo ""
 echo "Check results:"
-echo "  • Inbox: ls ~/.aimaestro/messages/inbox/$OTHER/"
+echo "  • Inbox: amp-inbox (run in $OTHER session)"
 echo "  • Dashboard: http://localhost:23000 → Select '$OTHER' → Messages tab"
 echo "  • Other session: Switch to '$OTHER' and check terminal"
 ```
@@ -656,7 +660,7 @@ Claude: *Handles everything automatically*
 
 **Manual Mode (Any Agent):**
 ```bash
-send-aimaestro-message.sh backend-architect "Subject" "Message"
+amp-send backend-architect "Subject" "Message"
 ```
 
 **Time to first message:**

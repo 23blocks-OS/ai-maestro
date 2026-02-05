@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { discoverAgentDatabases } from '@/lib/agent-startup'
+
+// Force dynamic rendering - agent count changes at runtime
+export const dynamic = 'force-dynamic'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'

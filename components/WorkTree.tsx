@@ -10,7 +10,7 @@ interface WorkTreeProps {
   agentId?: string
   agentAlias?: string  // Human-readable agent name
   hostId?: string  // Agent-centric: pass hostId directly instead of looking up via sessions
-  isVisible?: boolean
+  isActive?: boolean  // Only fetch data when active (prevents API flood with many agents)
 }
 
 interface AgentWork {
@@ -55,12 +55,11 @@ interface ClaudeSessionWork {
   claude_version?: string
 }
 
-export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isVisible = true }: WorkTreeProps) {
+export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isActive = false }: WorkTreeProps) {
   const { hosts } = useHosts()
   const [workData, setWorkData] = useState<AgentWork | null>(null)
-  const [loading, setLoading] = useState(false) // Start as false, will load when visible
+  const [loading, setLoading] = useState(true) // Start loading immediately
   const [error, setError] = useState<string | null>(null)
-  const [hasInitialized, setHasInitialized] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
@@ -213,14 +212,11 @@ export default function WorkTree({ sessionName, agentId, agentAlias, hostId, isV
     }
   }
 
-  // Only fetch when visible for the first time
+  // Only fetch when this agent is active (prevents API flood with many agents)
   useEffect(() => {
-    if (isVisible && !hasInitialized) {
-      setHasInitialized(true)
-      fetchWorkTree()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, hasInitialized])
+    if (!isActive) return
+    fetchWorkTree()
+  }, [agentId, isActive])
 
   const rebuildMemory = async () => {
     if (!agentId) {

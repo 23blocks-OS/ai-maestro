@@ -3,7 +3,7 @@
  * Types for exporting and importing agents between AI Maestro instances
  */
 
-import type { Agent, Repository } from './agent'
+import type { Agent, Repository, AMPExternalRegistration } from './agent'
 
 /**
  * Export manifest that describes the exported agent package
@@ -41,6 +41,10 @@ export interface AgentExportManifest {
       custom: number           // Number of custom skills
     }
     hasHooks?: boolean         // Has hooks directory
+    // AMP Identity support (v1.2.0)
+    hasKeys?: boolean          // Has keys directory (Ed25519 keypair)
+    hasRegistrations?: boolean // Has external provider registrations
+    registrationProviders?: string[] // List of registered providers (e.g., ["crabmail"])
   }
   // Git repositories the agent works with (for cloning on import)
   repositories?: PortableRepository[]
@@ -75,6 +79,10 @@ export interface AgentImportOptions {
   // Skills & hooks handling (v1.1.0)
   skipSkills?: boolean         // Don't import skills
   skipHooks?: boolean          // Don't import hooks
+
+  // AMP Identity handling (v1.2.0)
+  skipKeys?: boolean           // Don't import keys (will generate new ones)
+  skipRegistrations?: boolean  // Don't import external provider registrations
 }
 
 /**
@@ -104,6 +112,10 @@ export interface AgentImportResult {
     }
     repositoriesCloned?: number  // Number of repos cloned
     repositoriesSkipped?: number // Number of repos skipped
+    // AMP Identity stats (v1.2.0)
+    keysImported?: boolean       // Were keys imported?
+    keysGenerated?: boolean      // Were new keys generated?
+    registrationsImported?: number // Number of provider registrations imported
   }
   // Details about repository handling
   repositoryResults?: RepositoryImportResult[]

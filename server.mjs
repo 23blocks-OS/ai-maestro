@@ -902,6 +902,43 @@ app.prepare().then(() => {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
 
+    // Normalize agent hostIds on startup (Phase 1: AMP Protocol Fix)
+    // This ensures all agents have canonical hostIds for proper AMP addressing
+    setTimeout(async () => {
+      try {
+        const response = await fetch(`http://localhost:${port}/api/agents/normalize-hosts`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(10000)
+        })
+        if (response.ok) {
+          const result = await response.json()
+          if (result.result?.updated > 0) {
+            console.log(`[Host ID Normalization] Fixed ${result.result.updated} agent(s) with inconsistent hostIds`)
+          }
+        }
+      } catch (error) {
+        console.error('[Host ID Normalization] Startup normalization failed:', error.message)
+      }
+    }, 2000) // Run after 2 seconds to ensure routes are ready
+
+    // Sync agent directory with peers on startup (Phase 3: AMP Protocol Fix)
+    setTimeout(async () => {
+      try {
+        const response = await fetch(`http://localhost:${port}/api/agents/directory/sync`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(30000)  // 30s timeout for sync
+        })
+        if (response.ok) {
+          const result = await response.json()
+          if (result.result?.newAgents > 0) {
+            console.log(`[Agent Directory] Startup sync: discovered ${result.result.newAgents} new agent(s)`)
+          }
+        }
+      } catch (error) {
+        console.error('[Agent Directory] Startup sync failed:', error.message)
+      }
+    }, 5000) // Run after 5 seconds (after host sync has a chance to complete)
+
     // Sync with remote hosts on startup (register ourselves with known peers)
     setTimeout(async () => {
       try {

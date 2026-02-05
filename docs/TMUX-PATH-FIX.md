@@ -125,8 +125,8 @@ zsh -c 'echo $PATH' | grep '.local/bin'
 # Should output: /Users/juanpelaez/.local/bin
 
 # Test script discovery
-zsh -c 'which send-aimaestro-message.sh'
-# Should output: /Users/juanpelaez/.local/bin/send-aimaestro-message.sh
+zsh -c 'which amp-send'
+# Should output: /Users/juanpelaez/.local/bin/amp-send
 ```
 
 Then restart tmux when convenient.
@@ -144,11 +144,11 @@ echo $PATH | grep '.local/bin'
 # Should show /Users/juanpelaez/.local/bin at the beginning
 
 # Test script discovery
-which send-aimaestro-message.sh
-# Should output: /Users/juanpelaez/.local/bin/send-aimaestro-message.sh
+which amp-send
+# Should output: /Users/juanpelaez/.local/bin/amp-send
 
 # Test running the script
-send-aimaestro-message.sh --help
+amp-send --help
 # Should show the script's help text
 ```
 
@@ -198,7 +198,7 @@ For tmux-compatible environment setup:
 - **`~/.zshrc`** - Line 174 has PATH export (now redundant but kept for clarity)
 - **`~/.tmux.conf`** - Updated with documentation
 - **`~/.local/bin/restart-tmux-with-new-path.sh`** - Helper script for safe restart
-- **`~/.local/bin/send-aimaestro-message.sh`** - The script that wasn't being found
+- **`~/.local/bin/amp-send`** - The script that wasn't being found
 
 ## References
 

@@ -1,9 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2 } from 'lucide-react'
+import { Server, Plus, Trash2, Edit2, CheckCircle, X, AlertCircle, Loader2, ArrowUpCircle, Package, Users, Wifi, RefreshCw, Link2, Building2 } from 'lucide-react'
 import type { Host } from '@/types/host'
 import localVersion from '@/version.json'
+
+interface OrganizationInfo {
+  organization: string | null
+  setAt: string | null
+  setBy: string | null
+  isSet: boolean
+}
 
 interface SyncResult {
   localAdd: boolean
@@ -39,6 +46,7 @@ export default function HostsSection() {
   const [healthStatus, setHealthStatus] = useState<Record<string, 'checking' | 'online' | 'offline'>>({})
   const [hostVersions, setHostVersions] = useState<Record<string, string>>({})
   const [hostSessionCounts, setHostSessionCounts] = useState<Record<string, number>>({})
+  const [organizationInfo, setOrganizationInfo] = useState<OrganizationInfo | null>(null)
 
   // Form state
   const [formData, setFormData] = useState<Partial<Host>>({
@@ -51,10 +59,23 @@ export default function HostsSection() {
     tailscale: false,
   })
 
-  // Load hosts on mount
+  // Load hosts and organization on mount
   useEffect(() => {
     fetchHosts()
+    fetchOrganization()
   }, [])
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await fetch('/api/organization')
+      if (response.ok) {
+        const data = await response.json()
+        setOrganizationInfo(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch organization:', err)
+    }
+  }
 
   // Function to refresh all hosts health/version
   const refreshAllHosts = () => {
@@ -280,8 +301,49 @@ export default function HostsSection() {
     )
   }
 
+  // Format date for display
+  const formatDate = (isoString: string | null) => {
+    if (!isoString) return 'Unknown'
+    try {
+      return new Date(isoString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    } catch {
+      return 'Unknown'
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Organization Banner */}
+      {organizationInfo?.isSet && (
+        <div className="p-4 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500/30 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-blue-500/20 rounded-lg">
+              <Building2 className="w-5 h-5 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-lg font-semibold text-white">Organization</h2>
+                <span className="px-2 py-0.5 text-xs bg-blue-500/20 border border-blue-500/30 text-blue-300 rounded">
+                  Permanent
+                </span>
+              </div>
+              <p className="text-xl font-mono text-blue-300 mb-2">{organizationInfo.organization}</p>
+              <p className="text-xs text-gray-500">
+                Set by <span className="text-gray-400">{organizationInfo.setBy}</span> on{' '}
+                <span className="text-gray-400">{formatDate(organizationInfo.setAt)}</span>
+              </p>
+              <p className="text-xs text-gray-600 mt-2">
+                Agents are addressed as: <code className="text-blue-400">name@{organizationInfo.organization}.aimaestro.local</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

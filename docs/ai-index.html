@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
-      "softwareVersion": "0.19.36",
+      "softwareVersion": "0.20.11",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -138,15 +138,17 @@
             <h2>Agent Communication (4 Channels)</h2>
             <p>AI Maestro provides four ways for agents to communicate:</p>
 
-            <h3>1. Internal Messaging</h3>
-            <p>Direct agent-to-agent communication within AI Maestro.</p>
+            <h3>1. Internal Messaging (AMP Protocol)</h3>
+            <p>Direct agent-to-agent communication using the <a href="https://agentmessaging.org">Agent Messaging Protocol (AMP)</a>.</p>
             <ul>
                 <li>Persistent inbox/outbox for each agent</li>
+                <li>Ed25519 cryptographic signatures for message authenticity</li>
                 <li>Priority levels (urgent, high, normal, low)</li>
                 <li>Message types (request, response, notification, update)</li>
                 <li>Natural language interface via Claude Code skills</li>
-                <li>CLI tools for universal agent support</li>
+                <li>CLI tools: amp-send, amp-inbox, amp-reply, amp-read</li>
                 <li>Push notifications via tmux</li>
+                <li>Federation with external AMP providers (CrabMail, etc.)</li>
             </ul>
 
             <h3>2. Slack Integration</h3>
@@ -168,13 +170,15 @@
                 <li>Email lookup API to resolve agent from address</li>
             </ul>
 
-            <h3>4. External Agents</h3>
-            <p>Any AI agent on your network can communicate with AI Maestro agents.</p>
+            <h3>4. External Agents (AMP API)</h3>
+            <p>Any AI agent on your network can communicate with AI Maestro agents using the AMP protocol.</p>
             <ul>
                 <li>Works with agents not running inside AI Maestro</li>
                 <li>CI/CD pipelines, IDE agents, standalone scripts</li>
-                <li>Identity resolution via environment variable or git repo</li>
-                <li>Visual indicator distinguishes external vs verified agents</li>
+                <li>Register via /api/v1/register, get API key for messaging</li>
+                <li>Ed25519 key pair for cryptographic message signing</li>
+                <li>Full AMP API: /api/v1/route, /api/v1/messages/pending</li>
+                <li>Python/Node.js integration examples available</li>
             </ul>
         </section>
 

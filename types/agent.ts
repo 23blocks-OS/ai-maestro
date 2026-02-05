@@ -11,6 +11,67 @@
  */
 
 // ============================================================================
+// AMP Identity Types (Cryptographic Identity for Messaging)
+// ============================================================================
+
+/**
+ * Agent's cryptographic identity for AMP (Agent Messaging Protocol)
+ * Each agent owns their keypair - keys travel WITH the agent when transferred.
+ */
+export interface AMPAgentIdentity {
+  /** SHA256 fingerprint of public key (e.g., "SHA256:xK4f2jQ...") */
+  fingerprint: string
+
+  /** Public key in hex format (32 bytes for Ed25519) */
+  publicKeyHex: string
+
+  /** Key algorithm (always Ed25519 for now) */
+  keyAlgorithm: 'Ed25519'
+
+  /** When the keypair was generated */
+  createdAt: string
+
+  /** AMP address: name@tenant.aimaestro.local */
+  ampAddress?: string
+
+  /** Default tenant for this agent */
+  tenant?: string
+}
+
+/**
+ * External AMP provider registration (e.g., Crabmail)
+ * Stored in ~/.aimaestro/agents/{id}/registrations/{provider}.json
+ */
+export interface AMPExternalRegistration {
+  /** Provider identifier (e.g., "crabmail") */
+  provider: string
+
+  /** Provider API URL (e.g., "https://api.crabmail.ai") */
+  apiUrl: string
+
+  /** Agent name on this provider (may differ from local name) */
+  agentName: string
+
+  /** Tenant on this provider */
+  tenant: string
+
+  /** Full external address: agent@tenant.provider.tld */
+  address: string
+
+  /** API key for authentication */
+  apiKey: string
+
+  /** Agent ID assigned by provider */
+  providerAgentId: string
+
+  /** Fingerprint (must match agent's fingerprint) */
+  fingerprint: string
+
+  /** When registered */
+  registeredAt: string
+}
+
+// ============================================================================
 // Session Name Helpers
 // ============================================================================
 
@@ -89,6 +150,9 @@ export interface Agent {
   label?: string                // Optional display override (rarely used)
   avatar?: string               // Avatar URL or emoji (e.g., "🤖", "https://...")
 
+  // AMP Identity (cryptographic identity for messaging)
+  ampIdentity?: AMPAgentIdentity
+
   // Working Directory (agent-level default)
   workingDirectory?: string     // Default working directory for sessions
 
@@ -147,6 +211,9 @@ export interface Agent {
   session?: AgentSessionStatus   // Live tmux session status
   isOrphan?: boolean             // True if session exists but agent was auto-registered
   _cached?: boolean              // True if loaded from cache (remote host unreachable)
+
+  // AMP Registration Status (Phase 2: AMP Protocol)
+  ampRegistered?: boolean        // True if agent was registered via AMP protocol
 }
 
 /**

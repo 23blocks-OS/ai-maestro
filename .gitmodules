@@ -1,0 +1,3 @@
+[submodule "plugins/amp-messaging"]
+	path = plugins/amp-messaging
+	url = https://github.com/agentmessaging/claude-plugin.git

@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { loadAgents, saveAgents, getAgentByAlias, getAgentByName } from '@/lib/agent-registry'
+import { getKeysDir, getRegistrationsDir, generateKeyPair, saveKeyPair } from '@/lib/amp-keys'
 import yauzl from 'yauzl'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { execSync } from 'child_process'
-import type { Agent, Repository } from '@/types/agent'
+import type { Agent, Repository, AMPAgentIdentity } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -181,7 +182,11 @@ export async function POST(request: Request) {
       archived: 0
     },
     repositoriesCloned: 0,
-    repositoriesSkipped: 0
+    repositoriesSkipped: 0,
+    // AMP Identity stats (v1.2.0)
+    keysImported: false,
+    keysGenerated: false,
+    registrationsImported: 0
   }
   const repositoryResults: RepositoryImportResult[] = []
 
@@ -225,7 +230,8 @@ export async function POST(request: Request) {
     )
 
     // Validate manifest version
-    if (!manifest.version || manifest.version !== '1.0.0') {
+    const supportedVersions = ['1.0.0', '1.1.0', '1.2.0']
+    if (!manifest.version || !supportedVersions.includes(manifest.version)) {
       warnings.push(`Unknown manifest version: ${manifest.version}. Import may have issues.`)
     }
 
@@ -514,6 +520,105 @@ export async function POST(request: Request) {
           saveAgents(agents)
           agentToImport.hooks = updatedHooks
         }
+      }
+    }
+
+    // Import AMP keys if present (v1.2.0)
+    const keysDir = path.join(tempDir, 'keys')
+    if (fs.existsSync(keysDir) && !options.skipKeys) {
+      const targetKeysDir = getKeysDir(agentToImport.id)
+      ensureDir(targetKeysDir)
+
+      // Copy key files with proper permissions
+      const privateKeyPath = path.join(keysDir, 'private.pem')
+      const publicKeyPath = path.join(keysDir, 'public.pem')
+
+      if (fs.existsSync(privateKeyPath) && fs.existsSync(publicKeyPath)) {
+        fs.copyFileSync(privateKeyPath, path.join(targetKeysDir, 'private.pem'))
+        fs.chmodSync(path.join(targetKeysDir, 'private.pem'), 0o600)
+
+        fs.copyFileSync(publicKeyPath, path.join(targetKeysDir, 'public.pem'))
+        fs.chmodSync(path.join(targetKeysDir, 'public.pem'), 0o644)
+
+        stats.keysImported = true
+
+        // Update agent with AMP identity info from imported keys
+        try {
+          const { createPublicKey, createHash } = require('crypto')
+          const publicPem = fs.readFileSync(path.join(targetKeysDir, 'public.pem'), 'utf-8')
+          const pubKeyObj = createPublicKey(publicPem)
+          const rawPubKey = pubKeyObj.export({ type: 'spki', format: 'der' })
+          const publicKeyBytes = rawPubKey.subarray(12)
+          const publicHex = publicKeyBytes.toString('hex')
+          const fingerprint = `SHA256:${createHash('sha256').update(publicKeyBytes).digest('base64')}`
+
+          const agents = loadAgents()
+          const agentIndex = agents.findIndex(a => a.id === agentToImport.id)
+          if (agentIndex >= 0) {
+            agents[agentIndex].ampIdentity = {
+              fingerprint,
+              publicKeyHex: publicHex,
+              keyAlgorithm: 'Ed25519',
+              createdAt: new Date().toISOString(),
+              ampAddress: `${newAgentName}@default.aimaestro.local`,
+              tenant: 'default'
+            }
+            saveAgents(agents)
+            agentToImport.ampIdentity = agents[agentIndex].ampIdentity
+          }
+        } catch (error) {
+          warnings.push(`Failed to extract AMP identity from imported keys: ${error}`)
+        }
+      } else {
+        warnings.push('Keys directory exists but missing private.pem or public.pem')
+      }
+    } else if (!options.skipKeys && manifest.contents?.hasKeys) {
+      // Keys were expected but not found - generate new ones
+      try {
+        const keyPair = await generateKeyPair()
+        saveKeyPair(agentToImport.id, keyPair)
+        stats.keysGenerated = true
+        warnings.push('Original keys not found in export - generated new keypair')
+
+        // Update agent with new AMP identity
+        const agents = loadAgents()
+        const agentIndex = agents.findIndex(a => a.id === agentToImport.id)
+        if (agentIndex >= 0) {
+          agents[agentIndex].ampIdentity = {
+            fingerprint: keyPair.fingerprint,
+            publicKeyHex: keyPair.publicHex,
+            keyAlgorithm: 'Ed25519',
+            createdAt: new Date().toISOString(),
+            ampAddress: `${newAgentName}@default.aimaestro.local`,
+            tenant: 'default'
+          }
+          saveAgents(agents)
+          agentToImport.ampIdentity = agents[agentIndex].ampIdentity
+        }
+      } catch (error) {
+        warnings.push(`Failed to generate new keypair: ${error}`)
+      }
+    }
+
+    // Import external registrations if present (v1.2.0)
+    const registrationsDir = path.join(tempDir, 'registrations')
+    if (fs.existsSync(registrationsDir) && !options.skipRegistrations) {
+      const targetRegistrationsDir = getRegistrationsDir(agentToImport.id)
+      ensureDir(targetRegistrationsDir)
+
+      const registrationFiles = fs.readdirSync(registrationsDir).filter(f => f.endsWith('.json'))
+      for (const file of registrationFiles) {
+        fs.copyFileSync(
+          path.join(registrationsDir, file),
+          path.join(targetRegistrationsDir, file)
+        )
+        // Secure permissions for registration files (contain API keys)
+        fs.chmodSync(path.join(targetRegistrationsDir, file), 0o600)
+        stats.registrationsImported = (stats.registrationsImported || 0) + 1
+      }
+
+      if (stats.registrationsImported && stats.registrationsImported > 0) {
+        warnings.push(`Imported ${stats.registrationsImported} external provider registration(s). API keys may need to be re-validated.`)
       }
     }
 

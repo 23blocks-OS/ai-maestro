@@ -60,6 +60,13 @@ body {
   height: 100%;
   width: 100%;
   padding: 10px;
+  /* Prevent browser native text selection on ALL terminal DOM elements.
+     xterm.js selection is canvas-based and works independently of user-select.
+     Without this, during the first mount (uncached module imports), the browser
+     can paint the terminal DOM before WebGL loads, allowing native selection
+     (yellow highlights) on viewport/accessibility elements during the gap. */
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Mobile: reduce padding for more screen space */

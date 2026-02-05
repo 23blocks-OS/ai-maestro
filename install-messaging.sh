@@ -321,13 +321,21 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
             chmod +x ~/.local/bin/"$SCRIPT_NAME"
+
+            # Create symlink without .sh extension for convenience
+            # e.g., amp-init -> amp-init.sh
+            LINK_NAME="${SCRIPT_NAME%.sh}"
+            if [ "$LINK_NAME" != "$SCRIPT_NAME" ]; then
+                ln -sf "$SCRIPT_NAME" ~/.local/bin/"$LINK_NAME"
+            fi
+
             print_success "Installed: $SCRIPT_NAME"
             SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
         fi
     done
 
     echo ""
-    print_success "Installed $SCRIPT_COUNT AMP scripts"
+    print_success "Installed $SCRIPT_COUNT AMP scripts (with symlinks)"
 
     # Also install other AI Maestro tools (graph, memory, docs, agent management)
     echo ""

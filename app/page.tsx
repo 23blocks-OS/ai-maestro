@@ -13,9 +13,12 @@ import MobileDashboard from '@/components/MobileDashboard'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
 import { VersionChecker } from '@/components/VersionChecker'
+import AgentSearch from '@/components/AgentSearch'
+import TranscriptExport from '@/components/TranscriptExport'
+import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
-import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, ExternalLink } from 'lucide-react'
+import { Terminal, Mail, User, GitBranch, MessageSquare, Sparkles, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
@@ -105,7 +108,7 @@ export default function DashboardPage() {
   })
   const [isResizing, setIsResizing] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'terminal-new' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
@@ -116,6 +119,8 @@ export default function DashboardPage() {
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
+  const [showSearchPanel, setShowSearchPanel] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   // Derive active agent from state
   const activeAgent = agents.find(a => a.id === activeAgentId) || null
@@ -189,6 +194,27 @@ export default function DashboardPage() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Keyboard shortcuts for Phase 5 features
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when not in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Ctrl/Cmd + E - Export
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault()
+        if (activeAgentId) {
+          setShowExportDialog(true)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [activeAgentId])
 
   // Sidebar resize handler
   useEffect(() => {
@@ -730,6 +756,42 @@ export default function DashboardPage() {
                       <FileText className="w-4 h-4" />
                       Docs
                     </button>
+                    <button
+                      onClick={() => setActiveTab('search')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'search'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                      title="Search (Ctrl+K)"
+                    >
+                      <Search className="w-4 h-4" />
+                      Search
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('playback')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'playback'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                      title="Playback"
+                    >
+                      <Play className="w-4 h-4" />
+                      Playback
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('export')}
+                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        activeTab === 'export'
+                          ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-800/50'
+                          : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                      }`}
+                      title="Export (Ctrl+E)"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
                     <div className="flex-1" />
                     <div className="flex items-center">
                       <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
@@ -891,7 +953,7 @@ export default function DashboardPage() {
                         hostUrl={agent.hostUrl}
                         isActive={true}
                       />
-                    ) : (
+                    ) : activeTab === 'docs' ? (
                       <DocumentationPanel
                         sessionName={session.id}
                         agentId={agent.id}
@@ -899,7 +961,32 @@ export default function DashboardPage() {
                         hostUrl={agent.hostUrl}
                         isActive={true}
                       />
-                    )}
+                    ) : activeTab === 'search' ? (
+                      <div className="flex-1 overflow-auto p-4">
+                        <AgentSearch
+                          agentId={agent.id}
+                          agentName={agent.label || agent.name || agent.alias}
+                          className="max-w-4xl mx-auto"
+                        />
+                      </div>
+                    ) : activeTab === 'playback' ? (
+                      <div className="flex-1 overflow-auto p-4">
+                        <AgentPlayback
+                          agentId={agent.id}
+                          sessionId={session.id}
+                          agentName={agent.label || agent.name || agent.alias}
+                          className="max-w-4xl mx-auto"
+                        />
+                      </div>
+                    ) : activeTab === 'export' ? (
+                      <div className="flex-1 overflow-auto p-4">
+                        <TranscriptExport
+                          agentId={agent.id}
+                          agentName={agent.label || agent.name || agent.alias}
+                          className="max-w-4xl mx-auto"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )

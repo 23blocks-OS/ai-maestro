@@ -1,0 +1,236 @@
+# Phase 05: Polish, Testing, and Documentation
+
+This phase completes Phase 5 by adding comprehensive testing, performance optimization, documentation, and final polish. We'll ensure all new features are production-ready with proper error handling, accessibility support, and excellent user experience.
+
+## Tasks
+
+- [ ] Write comprehensive test suites:
+  - Create `tests/unit/lib/search-utility.test.ts`:
+    - Test fullTextSearch with various query patterns
+    - Test semanticSearch with mock embeddings
+    - Test hybridSearch scoring and ranking
+    - Test filter application logic
+    - Test result highlighting and context extraction
+  - Create `tests/unit/lib/transcript-export.test.ts`:
+    - Test all format exporters (JSON, MD, TXT, CSV)
+    - Test message extraction and enrichment
+    - Test export options application
+    - Test large export handling (> 1000 messages)
+  - Create `tests/unit/lib/playback-manager.test.ts`:
+    - Test PlaybackEngine state management
+    - Test play/pause/seek/setSpeed operations
+    - Test playback state persistence
+    - Test concurrent playback conflict detection
+  - Create `tests/integration/api/search.test.ts`:
+    - Test search endpoint with various queries
+    - Test pagination and sorting
+    - Test error conditions (invalid agent, empty results)
+    - Test response structure and metadata
+  - Create `tests/integration/api/export.test.ts`:
+    - Test export job creation and tracking
+    - Test export job cancellation
+    - Test export job listing and filtering
+    - Test export download endpoint
+  - Create `tests/integration/api/playback.test.ts`:
+    - Test playback state retrieval and updates
+    - Test message batch retrieval
+    - Test concurrent playback state management
+    - Test playback synchronization across tabs
+
+- [ ] Add E2E tests for Phase 5 features:
+  - Create `tests/e2e/search-flow.test.ts`:
+    - Start tmux session with sample conversation
+    - Perform search with various filters
+    - Verify search results are accurate
+    - Test keyboard shortcuts (Ctrl+K, Escape)
+  - Create `tests/e2e/export-flow.test.ts`:
+    - Start tmux session with conversation
+    - Export transcript in all formats
+    - Verify export files are valid
+    - Test export job progress tracking
+  - Create `tests/e2e/playback-flow.test.ts`:
+    - Start tmux session and capture conversation
+    - Initiate playback with controls
+    - Test play/pause, seek, speed changes
+    - Verify playback state persistence
+
+- [ ] Performance benchmarking and optimization:
+  - Create `benchmarks/search-performance.ts`:
+    - Benchmark full-text search across 1000 messages (< 500ms target)
+    - Benchmark semantic search across 1000 messages (< 1s target)
+    - Benchmark filter application on 10000 results (< 100ms target)
+    - Benchmark search cache hit rate (> 30% target)
+  - Create `benchmarks/export-performance.ts`:
+    - Benchmark JSON export of 1000 messages (< 2s target)
+    - Benchmark Markdown export of 1000 messages (< 3s target)
+    - Benchmark CSV export of 1000 messages (< 2s target)
+    - Benchmark large export (10000 messages, < 30s target)
+  - Create `benchmarks/playback-performance.ts`:
+    - Benchmark playback state load/save (< 50ms target)
+    - Benchmark message batch load (20 messages, < 200ms target)
+    - Benchmark timeline rendering for 5000 messages (< 1s target)
+    - Benchmark playback auto-advance accuracy (< 50ms drift)
+  - Optimize based on benchmarks:
+    - Identify bottlenecks and implement fixes
+    - Add caching where beneficial
+    - Optimize database queries with proper indexes
+    - Reduce unnecessary re-renders in React components
+
+- [ ] Accessibility audit and improvements:
+  - Audit all Phase 5 components for WCAG 2.1 AA compliance:
+    - Check keyboard navigation (search, export, playback)
+    - Verify ARIA labels on all interactive elements
+    - Test screen reader compatibility
+    - Check color contrast ratios (4.5:1 minimum)
+  - Fix accessibility issues:
+    - Add ARIA labels where missing
+    - Ensure focus management is correct
+    - Add keyboard shortcuts for all interactive features
+    - Improve error message clarity for screen readers
+  - Test with screen reader (NVDA or VoiceOver):
+    - Navigate search UI with keyboard
+    - Operate export dialog with screen reader
+    - Use playback controls with screen reader
+
+- [ ] Error handling and edge cases:
+  - Enhance error messages across Phase 5 features:
+    - Search: No results, invalid query, agent not found, search service down
+    - Export: Export failed, job cancelled, file write error, permission error
+    - Playback: No messages available, playback conflict, state corruption
+  - Add graceful degradation:
+    - Search falls back to basic search if semantic search unavailable
+    - Export offers simpler formats if complex ones fail
+    - Playback enters read-only mode if state save fails
+  - Add error recovery:
+    - Retry failed exports with exponential backoff
+    - Re-initialize playback state on corruption
+    - Clear search cache on errors
+
+- [ ] Documentation:
+  - Create user-facing documentation:
+    - Add Phase 5 section to `docs/FEATURES.md`:
+      - Search and Filter overview with examples
+      - Export Transcripts guide with format comparison
+      - Agent Playback walkthrough with screenshots
+    - Create `docs/SEARCH-GUIDE.md`:
+      - Search syntax and operators
+      - Advanced filtering examples
+      - Search tips and best practices
+    - Create `docs/EXPORT-GUIDE.md`:
+      - Export format comparison table
+      - Export options reference
+      - Export automation examples (CLI, API)
+    - Create `docs/PLAYBACK-GUIDE.md`:
+      - Playback controls reference
+      - Keyboard shortcuts cheat sheet
+      - Playback bookmarking and notes
+  - Update existing documentation:
+    - Update `README.md` with Phase 5 feature highlights
+    - Update `docs/API-REFERENCE.md` with new endpoints
+    - Update `CLAUDE.md` with Phase 5 implementation notes
+
+- [ ] Code quality and maintainability:
+  - Run comprehensive lint check:
+    - `yarn lint` - Fix all warnings
+    - Check for unused imports and variables
+    - Verify consistent code style
+  - Add TypeScript strict mode compliance:
+    - Ensure all new files compile without `any` types
+    - Add proper type annotations
+    - Use utility types (Pick, Omit, Partial) appropriately
+  - Add code comments for complex logic:
+    - Document search ranking algorithm
+    - Explain export format-specific logic
+    - Annotate playback state machine
+  - Refactor to reduce complexity:
+    - Break down large functions (> 50 lines)
+    - Extract reusable helper functions
+    - Reduce nested conditionals
+
+- [ ] Final integration testing:
+  - Test all Phase 5 features together:
+    - Search a session, then export results
+    - Export a session, then play it back
+    - Search during playback, verify no conflicts
+    - Export search results in different formats
+  - Test with real data:
+    - Use production-like tmux sessions (100+ messages)
+    - Test with multiple agents simultaneously
+    - Verify database performance with concurrent operations
+  - Test cross-browser compatibility:
+    - Chrome/Edge (latest)
+    - Firefox (latest)
+    - Safari (latest on macOS)
+  - Mobile responsiveness test:
+    - Test search UI on mobile viewport (375px width)
+    - Test export dialog on mobile
+    - Test playback controls on mobile
+
+- [ ] Performance monitoring and metrics:
+  - Add performance tracking:
+    - Track search response times (average, p95, p99)
+    - Track export job completion times
+    - Track playback smoothness (frame drops, auto-advance accuracy)
+  - Add user analytics:
+    - Track which search filters are most used
+    - Track export format preferences
+    - Track playback usage frequency
+  - Create performance dashboard (internal):
+    - Display key metrics over time
+    - Alert on performance degradation
+    - Track error rates per feature
+
+- [ ] Final polish and release preparation:
+  - Add loading states for all async operations:
+    - Search loading skeleton
+    - Export job progress bars
+    - Playback message loading indicator
+  - Add empty states for all features:
+    - No search results with helpful suggestions
+    - No export jobs with guidance
+    - No messages to playback with explanation
+  - Add success feedback:
+    - Export completion notification
+    - Search result count display
+    - Playback position confirmation
+  - Add keyboard shortcut cheat sheet modal:
+    - Display all shortcuts (search, export, playback)
+    - Group by feature area
+    - Highlight most-used shortcuts
+  - Update version and changelog:
+    - Run `./scripts/bump-version.sh patch` to increment version
+    - Add Phase 5 features to CHANGELOG.md
+    - Document breaking changes (if any)
+
+- [ ] Production readiness verification:
+  - Run full test suite:
+    - `yarn lint` - Pass with 0 errors
+    - `yarn build` - Build succeeds without warnings
+    - All tests pass with > 80% coverage
+  - Security audit:
+    - Check for exposed sensitive data in exports
+    - Verify input validation on all endpoints
+    - Check rate limiting on expensive operations
+  - Database optimization:
+    - Verify proper indexes for Phase 5 queries
+    - Check for slow queries (> 1s)
+    - Optimize CozoDB queries where needed
+  - Deployment checklist:
+    - Verify environment variables are set
+    - Test export file storage permissions
+    - Verify export cleanup job is running
+    - Test playback state migration from previous version
+
+- [ ] Handoff and knowledge transfer:
+  - Create `docs/PHASE5-IMPLEMENTATION.md`:
+    - Architecture decisions and rationale
+    - Key algorithms (search ranking, playback state machine)
+    - Known limitations and future improvements
+  - Add inline code documentation:
+    - Document complex functions with JSDoc
+    - Add TODO comments for future enhancements
+    - Link related code sections
+  - Create troubleshooting guide:
+    - Common search issues and solutions
+    - Export job failures and fixes
+    - Playback state corruption recovery

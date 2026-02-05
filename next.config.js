@@ -9,6 +9,15 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
 
+  // Increase memory limits for Linux systems with less RAM
+  // This helps prevent OOM crashes during builds
+  onDemandEntries: {
+    // Keep pages in memory longer (default: 15000ms)
+    maxInactiveAge: 60 * 1000,
+    // Max pages to keep in memory (default: 5)
+    pagesBufferLength: 3,
+  },
+
   // CORS headers for Manager/Worker architecture
   // Workers need to allow cross-origin requests from managers
   // Security handled by Tailscale VPN + firewall (see REMOTE-SESSIONS-ARCHITECTURE.md)

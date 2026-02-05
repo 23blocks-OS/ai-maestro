@@ -10,6 +10,61 @@ import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 
+// =============================================================================
+// GLOBAL ERROR HANDLERS - Must be first to catch all errors
+// =============================================================================
+// These handlers prevent the server from crashing on unhandled errors.
+// On Ubuntu 24.04 and other Linux systems, native modules (node-pty, cozo-node)
+// can occasionally throw errors that would otherwise crash the process.
+
+process.on('uncaughtException', (error, origin) => {
+  console.error(`[CRASH-GUARD] Uncaught exception from ${origin}:`)
+  console.error(error)
+
+  // Log to file for debugging
+  const crashLogPath = path.join(process.cwd(), 'logs', 'crash.log')
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] Uncaught exception (${origin}):\n${error.stack || error}\n\n`
+
+  try {
+    fs.appendFileSync(crashLogPath, logEntry)
+  } catch (fsError) {
+    // Ignore file write errors
+  }
+
+  // Don't exit - allow the server to continue running
+  // Only exit for truly fatal errors
+  if (error.code === 'EADDRINUSE' || error.code === 'EACCES') {
+    console.error('[CRASH-GUARD] Fatal error, exiting...')
+    process.exit(1)
+  }
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRASH-GUARD] Unhandled promise rejection:')
+  console.error('Reason:', reason)
+
+  // Log to file for debugging
+  const crashLogPath = path.join(process.cwd(), 'logs', 'crash.log')
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] Unhandled rejection:\n${reason?.stack || reason}\n\n`
+
+  try {
+    fs.appendFileSync(crashLogPath, logEntry)
+  } catch (fsError) {
+    // Ignore file write errors
+  }
+
+  // Don't exit - allow the server to continue running
+})
+
+// Catch SIGPIPE errors (common on Linux when clients disconnect abruptly)
+process.on('SIGPIPE', () => {
+  console.log('[CRASH-GUARD] SIGPIPE received (client disconnected), ignoring')
+})
+
+// =============================================================================
+
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
 const port = parseInt(process.env.PORT || '23000', 10)
@@ -619,15 +674,33 @@ app.prepare().then(() => {
     let sessionState = sessions.get(sessionName)
 
     if (!sessionState) {
+      let ptyProcess
 
       // Spawn PTY with tmux attach (removed -r flag as it was causing exits)
-      const ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd: process.env.HOME || process.cwd(),
-        env: process.env
-      })
+      // Wrapped in try-catch to handle spawn failures gracefully on Linux
+      try {
+        ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+          name: 'xterm-256color',
+          cols: 80,
+          rows: 24,
+          cwd: process.env.HOME || process.cwd(),
+          env: process.env
+        })
+      } catch (spawnError) {
+        console.error(`[PTY] Failed to spawn PTY for ${sessionName}:`, spawnError.message)
+        // Send error to client and close connection
+        try {
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
+            details: spawnError.message
+          }))
+        } catch (sendError) {
+          // Ignore send errors
+        }
+        ws.close(1011, `PTY spawn failed: ${spawnError.message}`)
+        return
+      }
 
       // Create log file for this session (only if global logging is enabled)
       let logStream = null

@@ -1,0 +1,182 @@
+# Phase 04: Agent Playback
+
+This phase implements agent conversation playback/replay capabilities, allowing users to review past agent interactions like watching a movie. We'll build a timeline-based playback system with controls for play/pause, seek, variable speed, and jump to specific messages. The playback will synchronize with the terminal view to show messages as they appeared in real-time.
+
+## Tasks
+
+- [ ] Design and implement playback data model:
+  - Extend `lib/cozo-schema-phase5.ts` with PlaybackState entity:
+    - Fields: id, agentId, sessionId, isPlaying, currentMessageIndex, playbackSpeed, lastPositionTimestamp
+    - Add unique index on (agentId, sessionId)
+  - Create PlaybackState class in `lib/playback-manager.ts`:
+    - State management with save/load from CozoDB
+    - Playback speed options: 0.5x, 1x, 2x, 5x, 10x
+    - Position tracking (message index + timestamp offset)
+    - Auto-pause on session end
+
+- [ ] Implement core playback logic:
+  - Build playback engine in `lib/playback-engine.ts`:
+    - PlaybackEngine class with play(), pause(), seek(messageIndex), setSpeed(speed) methods
+    - Message queue management (preload next 10 messages)
+    - Timing system for variable speed playback
+    - Auto-advance logic with configurable delays
+  - Add playback state synchronization:
+    - Sync playback state across browser tabs (BroadcastChannel)
+    - Persist state to localStorage for quick recovery
+    - Detect state conflicts (multiple tabs playing same session)
+
+- [ ] Create playback API routes:
+  - Implement `app/api/agents/[id]/playback/route.ts`:
+    - GET endpoint to retrieve current playback state
+    - POST endpoint to update playback state (play, pause, seek, setSpeed)
+    - Support batch operations (multiple state updates in one request)
+    - Validate playback operations (valid message index, valid speed)
+  - Add message retrieval for playback:
+    - Create `app/api/agents/[id]/playback/messages/route.ts`
+    - GET endpoint to retrieve message batch (start, end, format)
+    - Support message chunking for large conversations
+    - Include message metadata (timestamp, role, context)
+
+- [ ] Build React hooks for playback:
+  - Create `hooks/useAgentPlayback.ts`:
+    - State management: isPlaying, currentMessageIndex, playbackSpeed, totalMessages
+    - Controls: play(), pause(), seekTo(index), setSpeed(speed), jumpToStart(), jumpToEnd()
+    - Auto-fetch next message batch when approaching end of current batch
+    - Keyboard shortcuts: Space (play/pause), Left/Right arrows (seek prev/next), Up/Down (speed)
+  - Create `hooks/usePlaybackMessages.ts`:
+    - Load messages in batches (20 messages per batch)
+    - Implement message caching to reduce API calls
+    - Handle loading states and error recovery
+
+- [ ] Design and build playback UI components:
+  - Create `components/AgentPlayback.tsx` main component:
+    - Timeline slider showing conversation progress with message markers
+    - Playback controls bar: play/pause button, seek prev/next, speed dropdown
+    - Current message display with metadata (timestamp, role)
+    - Mini-preview of previous/next messages
+  - Create `components/PlaybackTimeline.tsx`:
+    - Horizontal timeline with message markers
+    - Click-to-seek functionality
+    - Current position indicator
+    - Message type color coding (user, assistant, system)
+  - Create `components/PlaybackControls.tsx`:
+    - Play/Pause button with icon toggle
+    - Previous/Next message buttons
+    - Speed selector dropdown
+    - Jump to start/end buttons
+  - Create `components/PlaybackMessageDisplay.tsx`:
+    - Current message view with formatted content
+    - Message role badge and timestamp
+    - Navigation arrows to prev/next message
+    - Message counter ("3 / 127")
+
+- [ ] Integrate playback with terminal view:
+  - Enhance `components/TerminalView.tsx`:
+    - Add playback mode overlay when active
+    - Display messages in playback mode (hide live terminal)
+    - Show playback controls below message display
+    - Support seamless toggle between live/playback modes
+  - Add playback synchronization:
+    - When playing back, auto-scroll terminal to show current message
+    - Highlight current message with visual indicator
+    - Dim previous messages to focus on current
+
+- [ ] Implement advanced playback features:
+  - Add playback history:
+    - Track recent playback positions per session
+    - Jump to last viewed position (resume playback)
+    - Clearable history with time-based expiration
+  - Add bookmarking:
+    - Create `lib/playback-bookmarks.ts`
+    - Save bookmark positions with custom labels
+    - Quick-jump to bookmark from timeline
+    - Manage bookmarks (create, rename, delete)
+  - Add playback notes:
+    - Per-message notes (linked to message index)
+    - Note display during playback
+    - Notes export/import functionality
+
+- [ ] Add playback keyboard shortcuts:
+  - Implement global playback shortcuts:
+    - Space - Toggle play/pause
+    - Left/Right arrows - Seek prev/next message
+    - Up/Down arrows - Increase/decrease playback speed
+    - Home/End - Jump to start/end of conversation
+    - B - Toggle bookmark at current position
+    - N - Add note at current position
+  - Add shortcut help modal:
+    - Display all playback shortcuts
+    - Show customizable shortcut mapping (future enhancement)
+
+- [ ] Integrate playback into agent detail views:
+  - Update `app/page.tsx`:
+    - Add "Playback" button to agent header when session has history
+    - Show playback indicator when in playback mode
+    - Persist playback mode in URL query param (?mode=playback)
+  - Update `components/SessionList.tsx`:
+    - Show playback icon for sessions with recorded history
+    - Quick-jump to last playback position
+    - Playback status indicator (playing/paused)
+
+- [ ] Implement playback performance optimizations:
+  - Add message batching and preloading:
+    - Load messages in chunks of 20 to balance memory/performance
+    - Preload next chunk when current chunk 75% consumed
+    - Unload old chunks when 2 chunks ahead to manage memory
+  - Optimize for large conversations (1000+ messages):
+    - Lazy-load timeline markers
+    - Virtualize timeline rendering for performance
+    - Debounce seek operations (150ms)
+
+- [ ] Test playback functionality comprehensively:
+  - Test basic playback controls:
+    - Play/pause toggle
+    - Seek to specific message
+    - Speed changes (0.5x, 1x, 2x, 5x, 10x)
+    - Jump to start/end
+  - Test large conversations:
+    - 100 messages - test timeline navigation
+    - 1000 messages - test performance, batching
+    - 5000+ messages - test memory usage, virtualization
+  - Test playback state persistence:
+    - Save state and refresh page - verify recovery
+    - Test across multiple browser tabs - verify sync
+    - Test state conflict resolution
+  - Test keyboard shortcuts:
+    - All shortcuts trigger correct actions
+    - Shortcuts work when playback is active
+    - Shortcuts don't conflict with existing app shortcuts
+  - Test edge cases:
+    - Play to end of conversation - auto-pause
+    - Seek beyond bounds - clamp to valid range
+    - Invalid message index - error handling
+    - No messages in session - show empty state
+
+- [ ] Playback UX and accessibility:
+  - Add playback progress indicators:
+    - Show percentage complete in timeline
+    - Display estimated time remaining
+    - Show current position / total messages
+  - Ensure accessibility:
+    - Keyboard navigation for all playback controls
+    - ARIA labels for screen readers
+    - Focus management in playback mode
+  - Add playback animations:
+    - Smooth transitions between messages
+    - Play/pause button icon animation
+    - Timeline seek animation
+
+- [ ] Documentation and polish:
+  - Add playback help modal:
+    - Explain playback concept
+    - Document keyboard shortcuts
+    - Provide usage examples
+  - Add playback indicators:
+    - Visual cue when in playback mode
+    - Show playback speed indicator
+    - Display message type legend
+  - Ensure playback UI follows design system:
+    - Consistent with other agent features
+    - Proper loading states and error display
+    - Responsive design for mobile screens
+  - Run `yarn lint` and `yarn build` to verify no regressions

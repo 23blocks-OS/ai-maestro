@@ -1,0 +1,177 @@
+# Phase 03: Export Transcripts
+
+This phase implements comprehensive transcript export functionality that allows users to export agent conversations in multiple formats (JSON, Markdown, TXT, CSV) with various customization options. We'll build an async job system for handling large exports, provide real-time progress tracking, and support exporting individual messages, full sessions, or entire agent histories.
+
+## Tasks
+
+- [ ] Implement transcript data extraction and processing:
+  - Enhance `lib/transcript-export.ts` with core export functions:
+    - extractTranscript(agentId, sessionId, options) - Fetch messages from CozoDB
+    - extractMessagesByDateRange(agentId, startDate, endDate, options) - Date-range based extraction
+    - extractAllAgentMessages(agentId, options) - Full agent history extraction
+    - filterMessages(messages, filters) - Apply inclusion/exclusion filters
+  - Implement message enrichment:
+    - enrichMessagesWithMetadata(messages, agentData) - Add agent/session metadata
+    - addTimestampFormatting(messages, format) - Format timestamps (ISO, relative, custom)
+    - addMessageGrouping(messages, groupBy) - Group messages (by conversation, by hour, by day)
+
+- [ ] Build format-specific exporters:
+  - JSON exporter in `lib/transcript-export.ts`:
+    - formatAsJSON(transcript, options) with pretty-print and compact modes
+    - Include metadata section (agent info, session info, export timestamp)
+    - Support JSON schema versioning for future compatibility
+    - Add message structure validation before export
+  - Markdown exporter in `lib/transcript-export.ts`:
+    - formatAsMarkdown(transcript, options) with configurable header levels
+    - Support message type styling (bold for user, italic for assistant, code blocks for system)
+    - Add table of contents generation for long transcripts
+    - Include code syntax highlighting for code messages
+  - Plain text exporter in `lib/transcript-export.ts`:
+    - formatAsPlainText(transcript, options) with customizable delimiters
+    - Support line wrapping and width settings
+    - Add separator lines between message groups
+    - Include minimal metadata footer
+  - CSV exporter in `lib/transcript-export.ts`:
+    - formatAsCSV(transcript, options) with configurable columns
+    - Support column ordering and custom headers
+    - Handle message content escaping (quotes, newlines)
+    - Include summary statistics row at end
+
+- [ ] Create async job system for large exports:
+  - Implement export job queue in `lib/export-queue.ts`:
+    - ExportJob class with state (pending, processing, completed, failed)
+    - JobQueue class for managing concurrent exports (max 3 concurrent jobs)
+    - Job persistence in CozoDB for resilience
+    - Job cleanup mechanism (remove completed jobs after 24 hours)
+  - Add job progress tracking:
+    - ProgressTracker class with stages (extraction, formatting, writing)
+    - Percentage calculation based on message count
+    - Estimated time remaining calculation
+    - Job log capture for debugging
+
+- [ ] Build export API routes with job management:
+  - Enhance `app/api/agents/[id]/export/route.ts`:
+    - POST endpoint with body: { format, options, dateRange, sessionId }
+    - Return jobId immediately and process export in background
+    - Support synchronous export for small transcripts (< 100 messages)
+    - Validate export options and provide helpful error messages
+  - Implement `app/api/export/jobs/[jobId]/route.ts`:
+    - GET endpoint for job status and progress
+    - Include download URL when job completes
+    - Provide job log for failed exports
+    - Support job cancellation (DELETE endpoint)
+  - Add export listing endpoint:
+    - Create `app/api/export/jobs/route.ts`
+    - List recent export jobs with status and metadata
+    - Filter by agent, status, date range
+    - Support pagination for large job lists
+
+- [ ] Implement file storage and download system:
+  - Create export file storage in `lib/export-storage.ts`:
+    - ExportStorage class for managing export files
+    - Store exports in `~/.aimaestro/exports/` directory
+    - Implement file naming convention (agent-timestamp-format.ext)
+    - Add automatic cleanup of old exports (> 7 days)
+  - Add file compression:
+    - Compress large exports (> 10MB) as gzip
+    - Store compression metadata in export job
+    - Handle decompression on download
+
+- [ ] Build export UI components:
+  - Create `components/TranscriptExport.tsx`:
+    - Export form with format selector (radio buttons with descriptions)
+    - Date range picker with presets (today, last week, custom, all time)
+    - Session selector dropdown (all sessions, specific session)
+    - Export options panel (format-specific options toggleable)
+    - Export button with loading state
+  - Create `components/ExportJobsList.tsx`:
+    - List of export jobs with status indicators (pending, processing, completed, failed)
+    - Progress bars for active jobs with percentage
+    - Download buttons for completed jobs
+    - Retry button for failed jobs
+    - Delete button for completed jobs
+  - Create `components/ExportOptions.tsx`:
+    - JSON options: pretty print, include metadata, schema version
+    - Markdown options: header level, code highlighting, TOC
+    - Plain text options: delimiter, width, line wrapping
+    - CSV options: columns, include metadata, summary row
+
+- [ ] Integrate export into agent detail views:
+  - Update `app/page.tsx`:
+    - Add "Export" button to agent header action menu
+    - Integrate export modal (triggered by button click)
+    - Show export job status in agent detail view
+    - Add notification when export completes
+  - Update `components/TerminalView.tsx`:
+    - Add export current session action
+    - Quick export from context menu (right-click in terminal)
+  - Update `components/SessionList.tsx`:
+    - Add export session action to session context menu
+    - Show export status indicator for session exports
+
+- [ ] Add export UX enhancements:
+  - Implement export preview:
+    - Show first 10 messages of export before confirming
+    - Display export file size estimate
+    - Show number of messages to be exported
+  - Add keyboard shortcuts:
+    - Ctrl+E / Cmd+E - Open export dialog for current agent
+  - Add export templates:
+    - Save common export configurations as templates
+    - Load template from export dialog
+    - Manage templates (create, rename, delete)
+
+- [ ] Test export functionality thoroughly:
+  - Test small export (10-50 messages):
+    - Test all formats (JSON, MD, TXT, CSV)
+    - Validate output structure and content
+    - Test synchronous export flow
+  - Test large export (1000+ messages):
+    - Verify async job creation
+    - Test progress updates at 25%, 50%, 75%, 100%
+    - Verify file download link appears
+    - Test job cancellation during processing
+  - Test export options:
+    - Test date range filtering
+    - Test session-specific export
+    - Test format-specific options
+    - Test export templates save/load
+  - Test error conditions:
+    - Invalid agent ID
+    - No messages in date range
+    - File write permission errors
+    - Job queue full (max 3 concurrent)
+  - Validate export file contents:
+    - JSON: valid JSON, includes all metadata
+    - MD: proper formatting, code blocks, headers
+    - TXT: correct delimiters, line wrapping
+    - CSV: valid CSV, proper escaping
+
+- [ ] Performance and scalability:
+  - Benchmark export performance:
+    - 100 messages: < 500ms (synchronous)
+    - 1000 messages: < 5s (async job)
+    - 10000 messages: < 30s (async job)
+  - Optimize for memory usage:
+    - Stream large exports instead of loading all messages
+    - Use generator functions for message iteration
+    - Clear message buffers after formatting
+  - Test concurrent exports:
+    - Verify job queue limits (max 3 concurrent)
+    - Test 4th export waits until job completes
+    - Verify no race conditions in file writing
+
+- [ ] Documentation and polish:
+  - Add export documentation modal:
+    - Explain export formats and use cases
+    - Provide export examples
+    - Document export options per format
+  - Add export FAQ:
+    - How long does export take?
+    - Where are exports stored?
+    - Can I automate exports?
+  - Ensure export UI follows design system:
+    - Consistent with agent management UI
+    - Proper loading states and error display
+    - Accessible keyboard navigation
+  - Run `yarn lint` and `yarn build` to verify no regressions

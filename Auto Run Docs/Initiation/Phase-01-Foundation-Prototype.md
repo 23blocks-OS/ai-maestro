@@ -71,19 +71,27 @@ This phase establishes the foundational infrastructure for Phase 5 features (sea
      - playbackControls (start, pause, seek, setSpeed)
      - playbackMessages loading and caching
 
-- [ ] Build basic UI scaffolding components:
-  - `components/AgentSearch.tsx`:
-    - Search input with autocomplete and filters dropdown
-    - Results list with highlighting and type indicators
-    - Pagination controls for large result sets
-  - `components/TranscriptExport.tsx`:
-    - Export format selector (JSON/MD/TXT)
-    - Date range picker for export scope
-    - Export button with progress indicator
-  - `components/AgentPlayback.tsx`:
-    - Playback controls (play/pause, seek slider, speed selector)
-    - Current message display with navigation
-    - Playback timeline visualization
+- [x] Build basic UI scaffolding components:
+   - `components/AgentSearch.tsx`:
+     - Search input with autocomplete and filters dropdown
+     - Results list with highlighting and type indicators
+     - Pagination controls for large result sets
+   - `components/TranscriptExport.tsx`:
+     - Export format selector (JSON/MD/TXT)
+     - Date range picker for export scope
+     - Export button with progress indicator
+   - `components/AgentPlayback.tsx`:
+     - Playback controls (play/pause, seek slider, speed selector)
+     - Current message display with navigation
+     - Playback timeline visualization
+
+**Implementation Notes:**
+- Created AgentSearch.tsx with search input, filters (mode, results per page), result cards with highlighting, pagination
+- Created TranscriptExport.tsx with format selector (JSON/MD/PLAINTEXT/CSV), date range picker, options (metadata, timestamps, max messages), export job tracking with progress
+- Created AgentPlayback.tsx with play/pause/seek/speed controls, current message display, keyboard shortcuts (Space, arrows, Home/End), timeline visualization
+- All components follow existing patterns: Tailwind CSS, lucide-react icons, TypeScript, proper state management
+- Components integrate with existing hooks: useAgentSearch, useTranscriptExport, useAgentPlayback
+- Linting: Only expected warning is about HTML entities in dangerouslySetInnerHTML (required for highlighting)
 
 - [ ] Integrate Phase 5 components into main page:
   - Update `app/page.tsx` to include:

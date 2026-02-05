@@ -6,8 +6,8 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.19.36-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+[![Version](https://img.shields.io/badge/version-0.19.37-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
 
@@ -244,6 +244,8 @@ Move your AI agents anywhere. Export, import, transfer, and clone agents across 
 ## 🚀 Quick Start
 
 > **Windows Users:** See [Windows Installation Guide](./docs/WINDOWS-INSTALLATION.md) for WSL2 setup (5-10 minutes)
+
+> **🐧 Ubuntu/Linux Users:** Tested on Ubuntu 24.04. Ensure `tmux` and `build-essential` are installed: `sudo apt install tmux build-essential`
 
 ### Zero to Hero (Easiest - for new users)
 
@@ -1150,6 +1152,32 @@ curl http://localhost:23000/api/sessions | jq '.sessions | group_by(.hostId)'
 
 **Full documentation:** See [GitHub Issue #24](https://github.com/23blocks-OS/ai-maestro/issues/24) for complete technical details and troubleshooting.
 
+#### Linux/Ubuntu Native Module Issues
+
+**If running on Ubuntu 24.04 or other Linux distributions, you may encounter native module compilation errors.**
+
+**Symptoms:**
+- `node-pty` fails to compile
+- `cozo-node` crashes on startup
+- Server crashes with segmentation faults
+
+**Quick Fix:**
+
+```bash
+# Install build essentials
+sudo apt install build-essential python3
+
+# Rebuild native modules
+cd ~/Maestro  # or your install directory
+rm -rf node_modules
+npm install
+```
+
+**What this does:**
+- Ensures native module build tools are available
+- Rebuilds `node-pty` and `cozo-node` for your architecture
+- Fixes most native module issues on Linux
+
 ---
 
 ### Known Limitations
@@ -1170,6 +1198,7 @@ When Claude Code updates status indicators (like "Thinking..."), you may see dup
 **Note:** This is not specific to AI Maestro - it affects all web terminals using xterm.js with tools that update status indicators in place.
 
 ### Compatibility
+- **Platforms:** macOS, Linux (Ubuntu 24.04+, Debian), Windows (via WSL2)
 - Works with **any** terminal-based AI agent
 - Not affiliated with Anthropic, OpenAI, GitHub, or any AI provider
 - Each AI agent requires separate installation/authentication

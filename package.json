@@ -25,10 +25,11 @@
     "macos"
   ],
   "scripts": {
-    "dev": "node server.mjs",
+    "dev": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
+    "dev:linux": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
     "prebuild": "npx tsx scripts/build-help-index.ts || test -f data/.help-build-success",
-    "build": "next build",
-    "start": "NODE_ENV=production node server.mjs",
+    "build": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build",
+    "start": "NODE_ENV=production NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
     "lint": "next lint"
   },
   "dependencies": {
@@ -50,6 +51,7 @@
     "minisearch": "^7.2.0",
     "next": "14.2.35",
     "node-pty": "^1.0.0",
+    "onnxruntime-node": "^1.21.0",
     "pg": "^8.16.3",
     "react": "^18.3.0",
     "react-cytoscapejs": "^2.0.0",
@@ -59,9 +61,6 @@
     "uuid": "^13.0.0",
     "ws": "^8.18.0",
     "yauzl": "^3.2.0"
-  },
-  "resolutions": {
-    "onnxruntime-node": "1.23.2"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",

@@ -162,23 +162,37 @@ export default function DashboardPage() {
     checkOrganization()
   }, [])
 
-  // Read agent from URL parameter on mount (changed from ?session= to ?agent=)
+  // Read agent from URL parameter ONCE on mount (changed from ?session= to ?agent=)
+  // CRITICAL: This must NOT depend on [agents] - that causes it to re-run every 10s
+  // when the agent list refreshes, overriding the user's manual agent selection.
+  const urlParamAppliedRef = useState(() => ({ current: false }))[0]
+
   useEffect(() => {
+    if (urlParamAppliedRef.current) return // Only apply URL params once
+
     const params = new URLSearchParams(window.location.search)
     const agentParam = params.get('agent')
     if (agentParam) {
       setActiveAgentId(decodeURIComponent(agentParam))
+      urlParamAppliedRef.current = true
+      return
     }
     // Also support legacy ?session= param for backwards compatibility
     const sessionParam = params.get('session')
-    if (sessionParam && !agentParam) {
-      // Find agent by session name
+    if (sessionParam) {
+      // Need agents to resolve session name → agent ID
       const agent = agents.find(a => a.session?.tmuxSessionName === decodeURIComponent(sessionParam))
       if (agent) {
         setActiveAgentId(agent.id)
+        urlParamAppliedRef.current = true
       }
+      // If agent not found yet, let the effect retry when agents load
+      // (but only until we successfully resolve it once)
+      return
     }
-  }, [agents])
+    // No URL params at all - mark as done so we don't keep checking
+    urlParamAppliedRef.current = true
+  }, [agents, urlParamAppliedRef])
 
   // Detect mobile screen size
   useEffect(() => {

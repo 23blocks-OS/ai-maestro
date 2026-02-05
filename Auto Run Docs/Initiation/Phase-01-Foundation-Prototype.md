@@ -93,13 +93,20 @@ This phase establishes the foundational infrastructure for Phase 5 features (sea
 - Components integrate with existing hooks: useAgentSearch, useTranscriptExport, useAgentPlayback
 - Linting: Only expected warning is about HTML entities in dangerouslySetInnerHTML (required for highlighting)
 
-- [ ] Integrate Phase 5 components into main page:
-  - Update `app/page.tsx` to include:
-    - Search panel in agent detail view (hidden by default, toggleable)
-    - Export button in agent actions menu
-    - Playback controls when viewing agent transcripts
-  - Ensure all new components use existing patterns (visibility toggling, localStorage persistence)
-  - Add keyboard shortcuts (Ctrl+K for search, Ctrl+E for export, Space for playback)
+- [x] Integrate Phase 5 components into main page:
+   - Update `app/page.tsx` to include:
+     - Search panel in agent detail view (hidden by default, toggleable)
+     - Export button in agent actions menu
+     - Playback controls when viewing agent transcripts
+   - Ensure all new components use existing patterns (visibility toggling, localStorage persistence)
+   - Add keyboard shortcuts (Ctrl+K for search, Ctrl+E for export, Space for playback)
+
+**Implementation Notes:**
+- Added three new tab buttons to tab navigation: Search, Playback, Export
+- All three new tabs render their respective components in tab content area
+- Added Ctrl+E keyboard shortcut to open Export dialog (Ctrl+K handled by AgentSearch component, Space by AgentPlayback)
+- Components follow existing tab architecture pattern with visibility toggling
+- Build passes successfully; lint passes with only expected warnings
 
 - [ ] Test and verify working prototype:
   - Create test tmux session with sample Claude Code conversation

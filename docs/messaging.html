@@ -68,15 +68,16 @@
       "name": "Agent-to-Agent Communication",
       "description": "Enable autonomous AI agents to communicate directly without human relay using persistent inboxes and instant notifications",
       "featureList": [
+        "Agent Messaging Protocol (AMP) - open standard for AI agent communication",
         "Natural language skills for Claude Code",
-        "Universal command-line tools for any agent",
-        "Persistent file-based inboxes",
-        "Instant tmux notifications",
+        "Universal command-line tools (amp-send, amp-inbox, amp-reply)",
+        "Ed25519 cryptographic signatures for message authenticity",
+        "Local-first messaging within mesh network",
+        "Federation with external providers (CrabMail, etc.)",
+        "Instant tmux push notifications",
         "Slack workspace integration",
         "Priority levels (urgent, high, normal, low)",
-        "Structured message types (request, response, notification, update)",
-        "Dual-channel system for real-time and persistent messaging",
-        "External agent integration for CI/CD, IDE extensions, and monitoring scripts"
+        "Structured message types (request, response, notification, task, handoff)"
       ],
       "isPartOf": {
         "@type": "SoftwareApplication",
@@ -109,12 +110,12 @@
         "@type": "HowToStep",
         "position": 2,
         "name": "Send First Message",
-        "text": "Ask Claude naturally: 'Send a message to backend-architect asking about the API' or use command-line: send-aimaestro-message.sh"
+        "text": "Ask Claude naturally: 'Send a message to backend-architect asking about the API' or use command-line: amp-send"
       },{
         "@type": "HowToStep",
         "position": 3,
         "name": "Check Agent Inbox",
-        "text": "Ask Claude 'Do I have any messages?' or run: check-and-show-messages.sh"
+        "text": "Ask Claude 'Do I have any messages?' or run: amp-inbox"
       }]
     }
     </script>
@@ -504,12 +505,8 @@
                     <p class="text-lg font-semibold text-slate-200 mb-4">Command-Line (Universal)</p>
 
                     <div class="bg-slate-900 p-4 rounded-lg mb-4">
-                        <p class="text-sm text-slate-400 mb-2">Direct command:</p>
-                        <pre class="font-mono text-xs bg-gray-800 text-green-400 p-3 rounded overflow-x-auto">send-aimaestro-message.sh backend-architect \
-  "API endpoint status" \
-  "What's the status?" \
-  normal \
-  request</pre>
+                        <p class="text-sm text-slate-400 mb-2">AMP Commands (<a href="https://agentmessaging.org" class="text-primary hover:underline">Agent Messaging Protocol</a>):</p>
+                        <pre class="font-mono text-xs bg-gray-800 text-green-400 p-3 rounded overflow-x-auto">amp-send backend-architect "API endpoint status" "What's the status?" --type request</pre>
                     </div>
 
                     <div class="mb-4">
@@ -894,7 +891,7 @@ export AI_MAESTRO_AGENT_ID="my-external-agent"
 
 # Or run from a git repo (auto-detected)
 cd /path/to/my-project
-send-aimaestro-message.sh backend-api \
+amp-send backend-api \
   "Build complete" "Ready for deployment" normal notification</pre>
                     </div>
                 </div>
@@ -1135,14 +1132,14 @@ Build completed successfully at 14:32.
                 <ol class="ml-6 list-decimal space-y-3">
                     <li class="text-slate-200"><strong>Install scripts:</strong> Copy scripts from <a href="https://github.com/23blocks-OS/ai-maestro/tree/main/plugin/scripts" target="_blank" class="text-primary underline">plugin/scripts/</a> to <code class="bg-slate-800 px-2 py-1 rounded text-sm">~/.local/bin/</code> (<a href="https://github.com/23blocks-OS/ai-maestro/blob/main/plugin/scripts/README.md" target="_blank" class="text-primary underline">install guide</a>)</li>
                     <li class="text-slate-200"><strong>Send a message:</strong>
-                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm overflow-x-auto">send-aimaestro-message.sh backend-architect \
+                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm overflow-x-auto">amp-send backend-architect \
   "Need API endpoint" \
   "Please implement POST /api/users" \
   high \
   request</pre>
                     </li>
                     <li class="text-slate-200"><strong>Check inbox:</strong>
-                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm">check-and-show-messages.sh</pre>
+                        <pre class="bg-gray-800 text-green-400 p-3 rounded mt-2 text-sm">amp-inbox</pre>
                     </li>
                 </ol>
                 <div class="mt-6 bg-slate-950 p-4 rounded-lg">

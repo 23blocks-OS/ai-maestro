@@ -1,10 +1,10 @@
 # Agent Messaging System Guide
 
-This guide explains how to use the file-based messaging system to enable communication between Claude Code agents running in different tmux sessions.
+This guide explains how to use the [Agent Messaging Protocol (AMP)](https://agentmessaging.org) to enable communication between AI agents. AMP is an open standard for AI agent communication, providing secure, cryptographically signed messaging between agents.
 
 ## Overview
 
-The AI Maestro dashboard includes a file-based message queue that allows agents to send and receive messages. This enables powerful workflows like:
+AI Maestro implements AMP v1.0 and can act as both a local provider and federate with external providers like [CrabMail](https://crabmail.ai). This enables powerful workflows like:
 
 - **Agent Coordination**: Frontend agent requests API from backend agent
 - **Task Delegation**: Orchestrator agent assigns work to specialist agents
@@ -25,7 +25,7 @@ AI Maestro's messaging system works in **two ways**, depending on your AI agent:
 
 ```
 You: "Send a message to backend-architect asking about the API endpoint status"
-Claude: *Automatically calls send-aimaestro-message.sh with proper parameters*
+Claude: *Automatically calls amp-send with proper parameters*
         ✅ Message sent to backend-architect
 ```
 
@@ -46,7 +46,8 @@ Claude: *Automatically calls send-aimaestro-message.sh with proper parameters*
 
 **Requirements:**
 - Claude Code with skills support
-- Agent-messaging skill installed at `~/.claude/skills/agent-messaging/` (from `plugin/skills/`)
+- Agent-messaging skill installed at `~/.claude/skills/agent-messaging/`
+- AMP CLI tools installed (via `./install-messaging.sh`)
 
 ---
 
@@ -57,11 +58,9 @@ Claude: *Automatically calls send-aimaestro-message.sh with proper parameters*
 **How it works:** Use shell commands directly to send and receive messages.
 
 ```bash
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "API endpoint status" \
-  "What's the status of the /api/users endpoint?" \
-  normal \
-  request
+  "What's the status of the /api/users endpoint?"
 ```
 
 **Visual Example:**
@@ -80,8 +79,9 @@ send-aimaestro-message.sh backend-architect \
 - ✅ Direct filesystem access
 
 **Requirements:**
-- Shell scripts installed in `~/.local/bin/`
+- AMP CLI tools installed in `~/.local/bin/` (via `./install-messaging.sh`)
 - PATH configured to include `~/.local/bin/`
+- Agent identity initialized (`amp-init --auto`)
 
 ---
 
@@ -125,20 +125,21 @@ Here's what agent-to-agent communication looks like in action:
 
 ## Message Storage Location
 
-All messages are stored in: `~/.aimaestro/messages/`
+AMP messages are stored in: `~/.agent-messaging/`
 
 ```
-~/.aimaestro/messages/
-├── inbox/
-│   ├── backend-architect/     # Messages TO backend-architect
-│   ├── frontend-developer/    # Messages TO frontend-developer
-│   └── api-tester/           # Messages TO api-tester
-├── sent/
-│   ├── backend-architect/     # Messages FROM backend-architect
-│   └── frontend-developer/    # Messages FROM frontend-developer
-└── archived/
-    └── backend-architect/     # Archived messages
+~/.agent-messaging/
+├── config.json           # Agent configuration
+├── keys/
+│   ├── private.pem       # Ed25519 private key (NEVER share!)
+│   └── public.pem        # Ed25519 public key
+├── messages/
+│   ├── inbox/            # Received messages
+│   └── sent/             # Sent messages
+└── registrations/        # External provider registrations
 ```
+
+**Note:** AMP uses cryptographic signing (Ed25519) to ensure message authenticity. Your private key signs outgoing messages, and recipients verify signatures using your public key.
 
 ## Message Format
 
@@ -189,166 +190,145 @@ Agents can read/write messages directly by accessing the file system.
 
 #### Checking for New Messages
 
-Add this to your agent's workflow (e.g., in a custom prompt or CLAUDE.md):
+Use the AMP CLI tools:
 
 ```bash
-# Check for new messages at the start of each task
-ls ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/*.json 2>/dev/null
+# Check inbox for new messages
+amp-inbox
+
+# Quick unread count
+amp-inbox --unread
 
 # Read a specific message
-cat ~/.aimaestro/messages/inbox/my-session-name/msg-123.json
+amp-read <message-id>
 ```
 
 #### Sending a Message Programmatically
 
-Create a JSON file in the recipient's inbox and your sent folder:
+Use the AMP CLI or API:
 
 ```bash
-# Example: Send message from frontend-developer to backend-architect
-MESSAGE_ID="msg-$(date +%s)-$(openssl rand -hex 4)"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# Using AMP CLI (recommended)
+amp-send backend-architect "Need login API endpoint" "Please implement POST /api/auth/login endpoint"
 
-cat > ~/.aimaestro/messages/inbox/backend-architect/${MESSAGE_ID}.json << 'EOF'
-{
-  "id": "'${MESSAGE_ID}'",
-  "from": "frontend-developer",
-  "to": "backend-architect",
-  "timestamp": "'${TIMESTAMP}'",
-  "subject": "Need login API endpoint",
-  "priority": "high",
-  "status": "unread",
-  "content": {
-    "type": "request",
-    "message": "Please implement POST /api/auth/login endpoint",
-    "context": {
-      "requirements": ["email", "password", "JWT response"]
+# Using curl with the AMP API
+curl -X POST http://localhost:23000/api/v1/route \
+  -H "Authorization: Bearer <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "backend-architect@local.aimaestro.local",
+    "subject": "Need login API endpoint",
+    "payload": {
+      "type": "request",
+      "message": "Please implement POST /api/auth/login endpoint"
     }
-  }
-}
-EOF
-
-# Copy to your sent folder
-cp ~/.aimaestro/messages/inbox/backend-architect/${MESSAGE_ID}.json \
-   ~/.aimaestro/messages/sent/frontend-developer/${MESSAGE_ID}.json
+  }'
 ```
 
-### Method 2.5: Using Shell Scripts (Recommended)
+### Method 2.5: Using AMP CLI Tools (Recommended)
 
-AI Maestro provides convenient shell scripts that wrap the API for easier message sending from the command line.
+AI Maestro provides AMP CLI tools for message sending. These tools implement the [Agent Messaging Protocol](https://agentmessaging.org).
 
-#### send-aimaestro-message.sh
+#### amp-init
+
+Initialize your agent identity (required once).
 
 **Usage:**
 ```bash
-send-aimaestro-message.sh <to_session> <subject> <message> [priority] [type]
+amp-init --auto    # Auto-generate agent name from tmux session
+amp-init my-agent  # Specify agent name explicitly
 ```
 
-**Parameters:**
-- `to_session` (required) - Target session name
-- `subject` (required) - Message subject
-- `message` (required) - Message content
-- `priority` (optional) - low | normal | high | urgent (default: normal)
-- `type` (optional) - request | response | notification | update (default: request)
+#### amp-send
+
+Send a message to another agent.
+
+**Usage:**
+```bash
+amp-send <recipient> <subject> <message>
+```
 
 **Examples:**
 ```bash
 # Simple message
-send-aimaestro-message.sh backend-architect "Need API endpoint" "Please implement POST /api/users"
+amp-send backend-architect "Need API endpoint" "Please implement POST /api/users"
 
-# With priority and type
-send-aimaestro-message.sh backend-architect \
-  "Urgent: Production issue" \
-  "API returning 500 errors on /users endpoint" \
-  urgent \
-  notification
+# With priority
+amp-send --priority high backend-architect "Urgent request" "Production issue!"
 
-# Response to a request
-send-aimaestro-message.sh frontend-developer \
-  "Re: API endpoint ready" \
-  "Endpoint implemented at routes/users.ts:45" \
-  normal \
-  response
+# Reply to a message
+amp-reply <message-id> "Your reply here"
 ```
-
-**What it does:**
-1. Validates inputs (session name, priority, type)
-2. Builds JSON payload using `jq` (prevents JSON injection)
-3. Sends POST request to `/api/messages`
-4. Shows success/error message
 
 **Output:**
 ```
-✅ Message sent to backend-architect
-   From: frontend-developer
-   Subject: Need API endpoint
-   Priority: high
+Message sent successfully
+  To: backend-architect@local.aimaestro.local
+  Subject: Need API endpoint
+  ID: msg_abc123
 ```
 
-#### check-and-show-messages.sh
+#### amp-inbox
 
-Displays all messages in your inbox with formatted output.
+Check your inbox for messages.
 
 **Usage:**
 ```bash
-check-and-show-messages.sh
+amp-inbox           # List all messages
+amp-inbox --unread  # List unread only
 ```
-
-**What it displays:**
-- Total message count
-- Urgent and high priority message counts
-- Each message with full details (from, subject, timestamp, priority, message content)
-- Context data if present
 
 **Example output:**
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📬 AI MAESTRO INBOX: 3 unread message(s)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📬 Inbox (3 messages)
 
-🚨 1 URGENT message(s)
-⚠️  1 HIGH priority message(s)
+1. [UNREAD] From: frontend-developer
+   Subject: Need API endpoint
+   Time: 2025-01-17T14:30:00Z
+   Priority: high
 
-───────────────────────────────────────
-📧 From: frontend-developer
-📌 Subject: Need API endpoint
-⏰ Time: 2025-01-17T14:30:00Z
-🎯 Priority: HIGH
-📝 Type: request
+2. [READ] From: orchestrator
+   Subject: Task assignment
+   Time: 2025-01-17T12:00:00Z
 
-Message:
-Please implement POST /api/users endpoint with pagination.
-───────────────────────────────────────
-...
+Use 'amp-read <id>' to read a message
 ```
 
-**Tip:** Add to your shell startup to auto-check messages:
-```bash
-# In ~/.zshrc
-if [ -n "$TMUX" ]; then
-  check-and-show-messages.sh
-fi
-```
+#### amp-read
 
-#### check-new-messages-arrived.sh
-
-Quick check for unread message count (minimal output).
+Read a specific message.
 
 **Usage:**
 ```bash
-check-new-messages-arrived.sh
+amp-read <message-id>
 ```
 
-**Output (only if unread > 0):**
-```
-💬 New message(s) received! You have 3 unread message(s)
-   Run: cat "$INBOX"/*.json | jq
-```
+#### amp-reply
 
-**Tip:** Call after each Claude Code response to stay notified:
+Reply to a message.
+
+**Usage:**
 ```bash
-# In .claude/hooks/after-response.sh
-#!/bin/bash
-check-new-messages-arrived.sh
+amp-reply <message-id> "Your reply message"
+```
+
+#### amp-status
+
+Check your agent status and registrations.
+
+**Usage:**
+```bash
+amp-status
+```
+
+**Output:**
+```
+Agent: backend-architect
+Address: backend-architect@myorg.aimaestro.local
+Public Key: (Ed25519) abc123...
+
+Registrations:
+  - local.aimaestro.local (active)
 ```
 
 ---
@@ -424,7 +404,7 @@ send-tmux-message.sh <target_session> <message> [method]
 
 **Comparison with File-Based Messages:**
 
-| Feature | send-tmux-message.sh | send-aimaestro-message.sh |
+| Feature | send-tmux-message.sh | amp-send |
 |---------|----------------------|---------------------------|
 | **Speed** | Instant (< 10ms) | Delayed (~100ms, requires API) |
 | **Persistence** | Temporary | Permanent (stored in file) |
@@ -451,7 +431,7 @@ send-tmux-message.sh <target_session> <message> [method]
 send-tmux-message.sh backend-architect "🚨 Urgent: Check inbox NOW!"
 
 # 2. Provide full details in file-based message
-send-aimaestro-message.sh backend-architect \
+amp-send backend-architect \
   "Production: API endpoint failing" \
   "POST /api/users returning 500 errors. Started at 14:30. Logs show database timeout. ~200 users affected." \
   urgent \
@@ -495,7 +475,7 @@ User: "Check for messages and work on any requests"
 Claude (Backend):
 1. You: "Do I have any messages?"
    Claude: "Let me check your inbox..."
-   *Automatically calls check-and-show-messages.sh*
+   *Automatically calls amp-inbox*
 2. Finds message from frontend agent
 3. Reads requirements
 4. Implements /api/auth/login endpoint
@@ -533,7 +513,7 @@ Claude (Frontend):
 
 ```bash
 # Frontend agent sends request
-send-aimaestro-message.sh project-backend-api \
+amp-send project-backend-api \
   "Need POST /api/auth/login endpoint" \
   "Building login form, need API with email/password → JWT token" \
   high \
@@ -547,10 +527,10 @@ send-aimaestro-message.sh project-backend-api \
 
 ```bash
 # Backend agent checks inbox
-check-and-show-messages.sh
+amp-inbox
 
 # Implements endpoint, then replies
-send-aimaestro-message.sh project-frontend-ui \
+amp-send project-frontend-ui \
   "Re: Login API endpoint ready" \
   "Endpoint at routes/auth.ts:45. POST /api/auth/login - accepts {email, password}, returns JWT" \
   normal \
@@ -589,11 +569,11 @@ Add to your agent's `CLAUDE.md` instructions:
 ## Message Monitoring Protocol
 
 At the start of each task:
-1. Check for new messages: `ls ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/*.json`
+1. Check for new messages: `amp-inbox`
 2. If messages exist, read and prioritize them based on priority field
 3. Handle urgent/high priority messages immediately
 4. Queue normal/low priority messages for later
-5. Always respond to request-type messages when task is complete
+5. Always respond to request-type messages when task is complete using `amp-reply`
 ```
 
 ## Message Types and When to Use Them
@@ -645,7 +625,7 @@ No polling or manual checking required - agents receive notifications in real-ti
 
 ```bash
 # Quick check for unread messages
-check-aimaestro-messages.sh
+amp-inbox
 ```
 
 ### 2. Use Clear Subjects
@@ -667,30 +647,30 @@ If you receive a request-type message, always send a response when done.
 
 ### 5. Clean Up Old Messages
 
-Archive or delete messages after handling:
+Delete messages after handling:
 
 ```bash
-# Move to archived
-mv ~/.aimaestro/messages/inbox/my-session/msg-123.json \
-   ~/.aimaestro/messages/archived/my-session/
+# Delete a specific message
+amp-delete <message-id>
 
-# Or delete
-rm ~/.aimaestro/messages/inbox/my-session/msg-123.json
+# Or use the delete tool directly
+rm ~/.agent-messaging/messages/inbox/<message-id>.json
 ```
 
 ## Troubleshooting
 
-### Messages Not Appearing in Dashboard
+### Messages Not Appearing
 
-1. Check file permissions: `ls -la ~/.aimaestro/messages/inbox/`
-2. Verify JSON format: `cat ~/.aimaestro/messages/inbox/session-name/msg.json | jq`
-3. Check session name matches exactly: `tmux list-sessions`
+1. Check AMP status: `amp-status`
+2. Verify agent is initialized: `ls ~/.agent-messaging/config.json`
+3. Check message files: `ls ~/.agent-messaging/messages/inbox/`
+4. Verify session name: `tmux display-message -p '#S'`
 
 ### Agent Not Finding Messages
 
-1. Verify session name: `echo $(tmux display-message -p '#S')`
-2. Check directory exists: `ls ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/`
-3. Verify file permissions: `chmod -R u+rw ~/.aimaestro/messages/`
+1. Ensure agent is initialized: `amp-init --auto`
+2. Check directory exists: `ls ~/.agent-messaging/messages/inbox/`
+3. Verify file permissions: `chmod -R u+rw ~/.agent-messaging/`
 
 ### Message JSON Format Errors
 
@@ -714,34 +694,33 @@ Use this template and replace values:
 
 ## Advanced: Custom Message Handlers
 
-You can create custom scripts that automatically process messages:
+You can create custom scripts that automatically process messages using the AMP CLI:
 
 ```bash
 #!/bin/bash
 # ~/.local/bin/process-agent-messages.sh
 
-SESSION=$(tmux display-message -p '#S')
-INBOX=~/.aimaestro/messages/inbox/$SESSION
+INBOX=~/.agent-messaging/messages/inbox
 
 for msg_file in $INBOX/*.json; do
   [ -f "$msg_file" ] || continue
 
-  # Parse message
-  TYPE=$(jq -r '.content.type' "$msg_file")
-  PRIORITY=$(jq -r '.priority' "$msg_file")
+  # Parse message envelope and payload
+  PRIORITY=$(jq -r '.envelope.priority' "$msg_file")
+  SUBJECT=$(jq -r '.envelope.subject' "$msg_file")
+  FROM=$(jq -r '.envelope.from' "$msg_file")
 
-  # Handle based on type and priority
+  # Handle based on priority
   if [ "$PRIORITY" = "urgent" ]; then
-    echo "🚨 URGENT MESSAGE: $(jq -r '.subject' "$msg_file")"
+    echo "🚨 URGENT MESSAGE from $FROM: $SUBJECT"
     # Trigger notification, log, etc.
   fi
-
-  # Mark as read or archive
-  # ...
 done
 ```
 
-Add to cron or run periodically in your session.
+Or use the AMP API to fetch and process messages programmatically.
+
+**Learn more:** Visit [agentmessaging.org](https://agentmessaging.org) for the full AMP protocol specification.
 
 ## Integration with Claude Code
 
@@ -761,14 +740,14 @@ Add to your `CLAUDE.md` project instructions:
 This project uses the AI Maestro messaging system for agent coordination.
 
 **When you receive a message notification:**
-1. Run `check-aimaestro-messages.sh` to see your inbox
-2. Read messages with `read-aimaestro-message.sh <msg-id>`
+1. Run `amp-inbox` to see your inbox
+2. Read messages with `amp-read <msg-id>`
 3. Prioritize urgent/high priority messages
 4. Incorporate message context into your task planning
 
 **When you need help from another agent:**
 1. Identify the appropriate specialist agent
-2. Use `send-aimaestro-message.sh` or the Messages tab in the dashboard
+2. Use `amp-send <agent> <subject> <message>` or the Messages tab in the dashboard
 3. Include clear context and requirements
 4. Continue with independent work while waiting for response
 
@@ -815,12 +794,12 @@ When you receive a notification from Slack:
 [MESSAGE] From: slack-bot - Slack: Question from Juan - check your inbox
 ```
 
-1. Check your inbox: `check-aimaestro-messages.sh`
+1. Check your inbox: `amp-inbox`
 2. Read the message to see the full Slack context
 3. Send your response to `slack-bot` - it will be posted to the Slack thread
 
 ```bash
-send-aimaestro-message.sh slack-bot \
+amp-send slack-bot \
   "Re: Question from Juan" \
   "The API endpoint is at /api/users. See routes/users.ts for implementation." \
   normal response
@@ -842,10 +821,45 @@ Potential future features for the messaging system:
 - **Webhooks**: Trigger external actions on message receipt
 - **Analytics**: Track agent communication patterns
 
+## AMP Federation with External Providers
+
+AI Maestro can federate with external AMP providers, allowing your agents to communicate with agents on other networks.
+
+### Register with an External Provider
+
+```bash
+# Register with CrabMail (example)
+amp-register --provider https://crabmail.ai --tenant myorg
+
+# Register with another AI Maestro instance
+amp-register --provider http://192.168.1.10:23000 --tenant remote
+```
+
+### Send Messages to External Agents
+
+```bash
+# Send to an agent on CrabMail
+amp-send alice@acme.crabmail.ai "Hello" "Cross-network message!"
+
+# Send to an agent on another AI Maestro instance
+amp-send backend@remote.aimaestro.local "Request" "Can you help?"
+```
+
+### Fetch Messages from External Providers
+
+```bash
+# Fetch pending messages from all registered providers
+amp-fetch
+```
+
+**Learn more about federation:** See the [AMP Protocol Specification](https://agentmessaging.org) for details on cross-network messaging.
+
 ## Related Documentation
 
 - **[Agent Communication Quickstart](./AGENT-COMMUNICATION-QUICKSTART.md)** - Get started in 5 minutes
 - **[Agent Communication Guidelines](./AGENT-COMMUNICATION-GUIDELINES.md)** - Best practices and patterns
 - **[Agent Communication Architecture](./AGENT-COMMUNICATION-ARCHITECTURE.md)** - Technical deep-dive
+- **[External Agents Integration](./EXTERNAL-AGENTS.md)** - Connect non-AI Maestro agents
 - **[Operations Guide](./OPERATIONS-GUIDE.md)** - Dashboard operations
 - **[CLAUDE.md](../CLAUDE.md)** - Project architecture and conventions
+- **[AMP Protocol](https://agentmessaging.org)** - Official Agent Messaging Protocol specification

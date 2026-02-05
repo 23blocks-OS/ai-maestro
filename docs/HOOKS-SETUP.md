@@ -12,7 +12,7 @@ Claude Code hooks are shell commands that run automatically at specific points d
 
 We'll create a hook that notifies about unread messages:
 - **When**: At the start of each agent session
-- **What**: Checks `~/.aimaestro/messages/inbox/[your-agent]/`
+- **What**: Checks `~/.agent-messaging/messages/inbox/[your-agent]/`
 - **Result**: Notifies Claude if there are any unread messages to catch up on
 
 ## Setup Instructions
@@ -31,7 +31,7 @@ Add this configuration:
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'SESSION=$(tmux display-message -p \"#S\" 2>/dev/null); if [ -n \"$SESSION\" ]; then INBOX=~/.aimaestro/messages/inbox/$SESSION; UNREAD=$(ls $INBOX/*.json 2>/dev/null | wc -l | tr -d \" \"); if [ \"$UNREAD\" -gt 0 ]; then echo \"📬 You have $UNREAD unread message(s) in your inbox at: $INBOX\" >&2; fi; fi'"
+            "command": "bash -c 'SESSION=$(tmux display-message -p \"#S\" 2>/dev/null); if [ -n \"$SESSION\" ]; then INBOX=~/.agent-messaging/messages/inbox/$SESSION; UNREAD=$(ls $INBOX/*.json 2>/dev/null | wc -l | tr -d \" \"); if [ \"$UNREAD\" -gt 0 ]; then echo \"📬 You have $UNREAD unread message(s) in your inbox at: $INBOX\" >&2; fi; fi'"
           }
         ]
       }
@@ -41,7 +41,7 @@ Add this configuration:
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'SESSION=$(tmux display-message -p \"#S\" 2>/dev/null); if [ -n \"$SESSION\" ]; then INBOX=~/.aimaestro/messages/inbox/$SESSION; UNREAD=$(ls $INBOX/*.json 2>/dev/null | wc -l | tr -d \" \"); if [ \"$UNREAD\" -gt 0 ]; then echo \"💬 Reminder: You have $UNREAD unread message(s). Check ~/.aimaestro/messages/inbox/$SESSION/\" >&2; fi; fi'"
+            "command": "bash -c 'SESSION=$(tmux display-message -p \"#S\" 2>/dev/null); if [ -n \"$SESSION\" ]; then INBOX=~/.agent-messaging/messages/inbox/$SESSION; UNREAD=$(ls $INBOX/*.json 2>/dev/null | wc -l | tr -d \" \"); if [ \"$UNREAD\" -gt 0 ]; then echo \"💬 Reminder: You have $UNREAD unread message(s). Check ~/.agent-messaging/messages/inbox/$SESSION/\" >&2; fi; fi'"
           }
         ]
       }
@@ -72,7 +72,7 @@ cat > ~/.local/bin/check-aimaestro-messages.sh << 'EOF'
 #!/bin/bash
 SESSION=$(tmux display-message -p '#S' 2>/dev/null)
 if [ -n "$SESSION" ]; then
-  INBOX=~/.aimaestro/messages/inbox/$SESSION
+  INBOX=~/.agent-messaging/messages/inbox/$SESSION
   UNREAD=$(ls $INBOX/*.json 2>/dev/null | wc -l | tr -d ' ')
 
   if [ "$UNREAD" -gt 0 ]; then
@@ -113,11 +113,11 @@ For maximum automation, create a hook that automatically shows Claude the messag
 
 ```bash
 # Create enhanced check script
-cat > ~/.local/bin/check-and-show-messages.sh << 'EOF'
+cat > ~/.local/bin/amp-inbox << 'EOF'
 #!/bin/bash
 SESSION=$(tmux display-message -p '#S' 2>/dev/null)
 if [ -n "$SESSION" ]; then
-  INBOX=~/.aimaestro/messages/inbox/$SESSION
+  INBOX=~/.agent-messaging/messages/inbox/$SESSION
   MESSAGES=$(ls $INBOX/*.json 2>/dev/null)
 
   if [ -n "$MESSAGES" ]; then
@@ -136,7 +136,7 @@ if [ -n "$SESSION" ]; then
 fi
 EOF
 
-chmod +x ~/.local/bin/check-and-show-messages.sh
+chmod +x ~/.local/bin/amp-inbox
 ```
 
 Hook configuration:
@@ -149,7 +149,7 @@ Hook configuration:
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/bin/check-and-show-messages.sh"
+            "command": "~/.local/bin/amp-inbox"
           }
         ]
       }
@@ -185,7 +185,7 @@ If the file doesn't exist, create it with the hook configuration above.
 ```
 $ claude
 
-📬 You have 2 unread message(s) in your inbox at: ~/.aimaestro/messages/inbox/23blocks-apps-aimaestro
+📬 You have 2 unread message(s) in your inbox at: ~/.agent-messaging/messages/inbox/23blocks-apps-aimaestro
 
 Welcome to Claude Code...
 ```
@@ -194,7 +194,7 @@ Welcome to Claude Code...
 ```
 You: "Help me implement this feature"
 
-💬 Reminder: You have 2 unread message(s). Check ~/.aimaestro/messages/inbox/23blocks-apps-aimaestro/
+💬 Reminder: You have 2 unread message(s). Check ~/.agent-messaging/messages/inbox/23blocks-apps-aimaestro/
 
 Claude: I'll help with that. First, let me check for any messages...
 ```
@@ -212,7 +212,7 @@ if [ -z "$SESSION" ]; then
   exit 0
 fi
 
-INBOX=~/.aimaestro/messages/inbox/$SESSION
+INBOX=~/.agent-messaging/messages/inbox/$SESSION
 MESSAGES=$(ls $INBOX/*.json 2>/dev/null)
 
 if [ -z "$MESSAGES" ]; then
@@ -289,10 +289,10 @@ chmod +x ~/.local/bin/check-aimaestro-messages.sh
 
 ```bash
 # Verify messages exist
-ls ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/
+ls ~/.agent-messaging/messages/inbox/$(tmux display-message -p '#S')/
 
 # Test the command manually
-bash -c 'SESSION=$(tmux display-message -p "#S" 2>/dev/null); echo "Session: $SESSION"; ls ~/.aimaestro/messages/inbox/$SESSION/'
+bash -c 'SESSION=$(tmux display-message -p "#S" 2>/dev/null); echo "Session: $SESSION"; ls ~/.agent-messaging/messages/inbox/$SESSION/'
 ```
 
 ## Security Considerations

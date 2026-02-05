@@ -52,62 +52,102 @@ export default function ImmersivePage() {
 
     let term: any
     let fitAddon: any
+    let webglAddon: any
+    let resizeObserver: ResizeObserver | null = null
+    let inputDisposable: any
+    let mounted = true
 
     const initTerminal = async () => {
       // Dynamically import xterm modules (client-side only)
       const { Terminal } = await import('@xterm/xterm')
       const { FitAddon } = await import('@xterm/addon-fit')
-      const { WebglAddon } = await import('@xterm/addon-webgl')
+      const { WebLinksAddon } = await import('@xterm/addon-web-links')
+
+      if (!mounted || !terminalRef.current) return
 
       // Create terminal instance
       term = new Terminal({
         cursorBlink: true,
         fontSize: 14,
-        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        fontFamily: '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", "Courier New", monospace',
         theme: {
           background: '#1a1b26',
           foreground: '#a9b1d6',
-          cursor: '#c0caf5'
+          cursor: '#c0caf5',
+          selectionBackground: '#3a3d41',
+          selectionForeground: '#ffffff',
+          selectionInactiveBackground: '#3a3d41',
         },
-        scrollback: 10000,  // Reasonable buffer for conversation context
-        convertEol: false
+        scrollback: 10000,
+        convertEol: false,
+        screenReaderMode: false,
+        macOptionIsMeta: true,
+        rightClickSelectsWord: true,
       })
 
-      // Add fit addon
+      // Add addons
       fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
+      term.loadAddon(new WebLinksAddon())
 
-      // Try to add WebGL addon for performance
+      // Load clipboard addon for OSC 52 support
       try {
-        const webglAddon = new WebglAddon()
-        term.loadAddon(webglAddon)
+        const { ClipboardAddon } = await import('@xterm/addon-clipboard')
+        term.loadAddon(new ClipboardAddon())
       } catch (e) {
-        console.warn('WebGL addon failed to load, using canvas renderer')
+        console.warn('[Immersive] ClipboardAddon not available:', e)
       }
 
       // Open terminal
       term.open(terminalRef.current!)
       fitAddon.fit()
 
+      // Load WebGL renderer inline (same pattern as useTerminal hook)
+      try {
+        const { WebglAddon } = await import('@xterm/addon-webgl')
+        webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => {
+          console.warn('[Immersive] WebGL context lost, falling back to canvas')
+          try { webglAddon.dispose() } catch { /* ignore */ }
+          webglAddon = null
+          if (term) term.refresh(0, term.rows - 1)
+        })
+        term.loadAddon(webglAddon)
+      } catch (e) {
+        console.log('[Immersive] Using canvas renderer')
+      }
+
       terminalInstanceRef.current = term
       fitAddonRef.current = fitAddon
 
-      // Handle window resize
-      const handleResize = () => {
-        fitAddon.fit()
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'resize',
-            cols: term.cols,
-            rows: term.rows
-          }))
+      // ResizeObserver instead of window resize event (handles container size changes too)
+      const debouncedFit = (() => {
+        let timer: ReturnType<typeof setTimeout> | null = null
+        return () => {
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(() => {
+            if (fitAddon && term) {
+              try {
+                fitAddon.fit()
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({
+                    type: 'resize',
+                    cols: term.cols,
+                    rows: term.rows
+                  }))
+                }
+              } catch (e) {
+                console.warn('[Immersive] Fit failed during resize:', e)
+              }
+            }
+          }, 150)
         }
-      }
+      })()
 
-      window.addEventListener('resize', handleResize)
+      resizeObserver = new ResizeObserver(() => debouncedFit())
+      resizeObserver.observe(terminalRef.current!)
 
       // Connect WebSocket using tmux session name
-      // Include hostId for remote agents (peer mesh network)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       let wsUrl = `${protocol}//${window.location.host}/term?name=${encodeURIComponent(tmuxSessionName)}`
       if (activeAgent?.hostId && activeAgent.hostId !== 'local') {
@@ -129,82 +169,60 @@ export default function ImmersivePage() {
         try {
           const parsed = JSON.parse(event.data)
           if (parsed.type === 'history-complete') {
+            // Wait for xterm.js to finish processing history, then scroll and focus
             setTimeout(() => {
-              // 1. Scroll to bottom
-              term.scrollToBottom()
-
-              // 2. Focus terminal
-              term.focus()
-
-              // 3. Clear any existing selection to activate selection layer
-              term.clearSelection()
-
-              // 4. Refresh
-              term.refresh(0, term.rows - 1)
-
-              // 5. Synthetic click to fully activate
+              fitAddon.fit()
+              const resizeMsg = JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })
+              if (ws.readyState === WebSocket.OPEN) ws.send(resizeMsg)
               setTimeout(() => {
-                const terminalElement = term.element
-                if (terminalElement) {
-                  const clickEvent = new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                  })
-                  terminalElement.dispatchEvent(clickEvent)
-                }
-
-                fitAddon.fit()
-                term.refresh(0, term.rows - 1)
+                term.scrollToBottom()
+                term.focus()
               }, 50)
             }, 100)
             return
           }
+          if (parsed.type === 'error' || parsed.type === 'status' || parsed.type === 'connected') {
+            return
+          }
         } catch {
-          // Not JSON, it's raw terminal data
-          term.write(event.data)
+          // Not JSON - raw terminal data
         }
+        term.write(event.data)
       }
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
+        console.error('[Immersive] WebSocket error:', error)
       }
 
-      ws.onclose = () => {
-      }
+      ws.onclose = () => {}
 
       // Handle terminal input
-      const disposable = term.onData((data: string) => {
+      inputDisposable = term.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(data)
         }
       })
-
-      // Store cleanup
-      return () => {
-        disposable.dispose()
-        ws.close()
-        term.dispose()
-        window.removeEventListener('resize', handleResize)
-      }
     }
 
-    // Call init and store cleanup
-    initTerminal().then(cleanup => {
-      if (cleanup) {
-        // Store cleanup for later
-        return cleanup
-      }
-    })
+    initTerminal()
 
-    // Cleanup on unmount
+    // Cleanup on unmount or session change
     return () => {
+      mounted = false
+      if (resizeObserver) resizeObserver.disconnect()
+      if (inputDisposable) inputDisposable.dispose()
       if (wsRef.current) {
         wsRef.current.close()
+        wsRef.current = null
+      }
+      if (webglAddon) {
+        try { webglAddon.dispose() } catch { /* ignore */ }
       }
       if (terminalInstanceRef.current) {
         terminalInstanceRef.current.dispose()
+        terminalInstanceRef.current = null
       }
+      fitAddonRef.current = null
     }
   }, [tmuxSessionName])
 
@@ -226,7 +244,7 @@ export default function ImmersivePage() {
       <header className="bg-gray-950 border-b border-gray-800 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
           <a
-            href={activeAgentId ? `/?agent=${encodeURIComponent(activeAgentId)}` : '/'}
+            href="/"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             ← Back to Dashboard

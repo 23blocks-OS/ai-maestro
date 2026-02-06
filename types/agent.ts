@@ -171,6 +171,7 @@ export interface Agent {
   program: string               // AI program (e.g., "Claude Code", "Aider", "Cursor")
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
+  claudeArgs?: string           // CLI arguments passed to Claude Code on launch (e.g., "--model claude-sonnet-4 --allowedTools Edit,Write")
   tags?: string[]               // Optional tags (e.g., ["backend", "api", "typescript"])
   capabilities?: string[]       // Technical capabilities (e.g., ["typescript", "postgres"])
 
@@ -449,6 +450,7 @@ export interface UpdateAgentRequest {
   avatar?: string
   model?: string
   taskDescription?: string
+  claudeArgs?: string           // CLI arguments for Claude Code launch
   tags?: string[]
   owner?: string
   team?: string

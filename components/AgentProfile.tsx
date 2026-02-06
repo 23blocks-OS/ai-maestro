@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
   GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
-  FolderTree
+  FolderTree, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
@@ -522,6 +522,13 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                       onChange={(value) => updateField('taskDescription', value)}
                       icon={<Code2 className="w-4 h-4" />}
                       multiline
+                    />
+
+                    <EditableField
+                      label="Claude CLI Arguments (e.g. --continue)"
+                      value={agent.claudeArgs || ''}
+                      onChange={(value) => updateField('claudeArgs', value)}
+                      icon={<Terminal className="w-4 h-4" />}
                     />
 
                     {/* Tags - Control sidebar tree position */}
@@ -1197,7 +1204,7 @@ function EditableField({ label, value, onChange, icon, placeholder, multiline }:
           onClick={() => setIsEditing(true)}
           className="px-3 py-2 rounded-lg hover:bg-gray-700/50 cursor-text transition-all group hover:ring-2 hover:ring-gray-600 min-h-[40px]"
         >
-          <span className="text-gray-200">{value || placeholder || 'Click to edit'}</span>
+          <span className={value ? 'text-gray-200' : 'text-gray-500'}>{value || placeholder || 'Click to edit'}</span>
           <Edit2 className="w-3 h-3 ml-2 inline opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
         </div>
       )}

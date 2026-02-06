@@ -748,21 +748,32 @@ aimaestro-agent.sh import backup.json --dir /Users/dev/projects/new-location
 
 ## PART 4: SKILL MANAGEMENT
 
-### 20. List Agent Skills
+There are two ways to manage skills:
+
+1. **Registry commands** (`list`, `add`, `remove`) — Manage skills tracked in the AI Maestro agent registry. These update the agent's metadata via the API but do not copy files.
+2. **Filesystem commands** (`install`, `uninstall`) — Install or remove skill files on disk (`.skill` archives or skill directories). These copy files into the appropriate `.claude/skills/` directory.
+
+Both can be used independently or together. Use `add`/`remove` when AI Maestro tracks which skills an agent has. Use `install`/`uninstall` when you need to actually place skill files on disk.
+
+### 20. List Agent Skills (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill list <agent>
 ```
 
+Lists skills registered in the AI Maestro agent profile.
+
 ---
 
-### 21. Add Skill to Agent
+### 21. Add Skill to Agent (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill add <agent> <skill-id> [--type marketplace|custom] [--path <path>]
 ```
+
+**What it does:** Registers a skill in the agent's AI Maestro profile. Does not copy files — the skill must already be accessible to Claude Code.
 
 **Parameters:**
 - `<agent>` - Agent name or ID
@@ -772,21 +783,111 @@ aimaestro-agent.sh skill add <agent> <skill-id> [--type marketplace|custom] [--p
 
 **Examples:**
 ```bash
-# Add marketplace skill
+# Register a marketplace skill
 aimaestro-agent.sh skill add backend-api git-workflow
 
-# Add custom skill from path
+# Register a custom skill with its path
 aimaestro-agent.sh skill add backend-api my-skill --type custom --path ~/skills/my-skill
 ```
 
 ---
 
-### 22. Remove Skill from Agent
+### 22. Remove Skill from Agent (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill remove <agent> <skill-id>
 ```
+
+**What it does:** Unregisters a skill from the agent's AI Maestro profile. Does not delete files from disk.
+
+---
+
+### 23. Install Skill (Filesystem)
+
+**Command:**
+```bash
+aimaestro-agent.sh skill install <agent> <source> [-s|--scope user|project|local] [--name <name>]
+```
+
+**What it does:** Copies skill files to the appropriate `.claude/skills/` directory. Handles both `.skill` zip archives and skill directories.
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<source>` - Path to `.skill` file (zip archive) or skill directory containing SKILL.md
+- `-s, --scope` - Install scope (default: user)
+- `--name` - Override skill folder name (default: derived from source filename)
+
+**Scopes:**
+
+| Scope | Location | Who has access | Available where |
+|-------|----------|----------------|-----------------|
+| `user` | `~/.claude/skills/<name>/` | Only you | All your projects |
+| `project` | `<agent-dir>/.claude/skills/<name>/` | All collaborators | Only this project |
+| `local` | `<agent-dir>/.claude/skills/<name>/` | Only you (gitignored) | Only this project |
+
+**Source types:**
+- `.skill` or `.zip` file — Zip archive containing SKILL.md and optional resources
+- Directory — Folder containing SKILL.md at the top level
+
+**Examples:**
+```bash
+# Install .skill file to user scope (default, all projects)
+aimaestro-agent.sh skill install my-agent ./my-skill.skill
+
+# Install skill directory to project scope (shared with collaborators)
+aimaestro-agent.sh skill install my-agent ./path/to/skill-folder --scope project
+
+# Install to local scope (only you, only this project)
+aimaestro-agent.sh skill install backend-api ./debug-skill --scope local
+
+# Install with custom name
+aimaestro-agent.sh skill install my-agent ./downloads/v2-skill.skill --name my-skill
+
+# Install to user scope (available everywhere)
+aimaestro-agent.sh skill install my-agent ./my-skill.skill --scope user
+```
+
+**Installing skills in specific projects only:**
+```bash
+# Install only for backend-api's project (local scope)
+aimaestro-agent.sh skill install backend-api ./my-skill.skill --scope local
+
+# Install only for frontend-ui's project (project scope, shared with collaborators)
+aimaestro-agent.sh skill install frontend-ui ./my-skill.skill --scope project
+
+# Other agents won't have access to these skills
+```
+
+---
+
+### 24. Uninstall Skill (Filesystem)
+
+**Command:**
+```bash
+aimaestro-agent.sh skill uninstall <agent> <skill-name> [-s|--scope user|project|local]
+```
+
+**What it does:** Removes the skill directory from disk.
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<skill-name>` - Name of the skill folder to remove
+- `-s, --scope` - Scope to uninstall from (default: user)
+
+**Examples:**
+```bash
+# Uninstall from user scope (default)
+aimaestro-agent.sh skill uninstall my-agent my-skill
+
+# Uninstall from project scope
+aimaestro-agent.sh skill uninstall my-agent my-skill --scope project
+
+# Uninstall from local scope
+aimaestro-agent.sh skill uninstall backend-api debug-skill --scope local
+```
+
+**Note:** Plugin-based skills (installed via `plugin install`) should be managed with the `plugin` commands instead.
 
 ---
 

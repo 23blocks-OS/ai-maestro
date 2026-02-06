@@ -448,10 +448,10 @@ aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] 
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name or path
-- `--scope` - Installation scope (default: local)
+- `--scope` - Installation scope (default: project)
   - `user` - Global for all projects
-  - `project` - For this project only
-  - `local` - Local only (recommended for per-agent)
+  - `project` - For this project only (recommended)
+  - `local` - Local only (narrowest scope)
 - `--plugin-dir` - Use `--plugin-dir` mode (session-only loading)
 - `--no-restart` - Don't automatically restart the agent after install
 
@@ -462,7 +462,7 @@ aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] 
 
 **Examples:**
 ```bash
-# Install plugin with local scope (auto-restart remote agents)
+# Install plugin with project scope (default, auto-restart remote agents)
 aimaestro-agent.sh plugin install backend-api my-plugin
 
 # Install with user scope
@@ -487,7 +487,7 @@ aimaestro-agent.sh plugin uninstall <agent> <plugin> [--scope user|project|local
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name
-- `--scope` - Plugin scope (default: local)
+- `--scope` - Plugin scope (default: project)
 - `--force, -f` - Force removal even if corrupt (deletes cache folder and updates config files)
 
 **Examples:**

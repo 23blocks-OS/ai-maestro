@@ -1923,7 +1923,7 @@ Subcommands:
   marketplace <action>         Manage marketplaces (add, list, remove, update)
 
 Options:
-  --scope <user|project|local>   Plugin scope (default: local)
+  --scope <user|project|local>   Plugin scope (default: project)
   --plugin-dir                   Show how to load plugin for session only
                                  (using claude --plugin-dir, no installation)
   --force, -f                    Force removal even if corrupt (uninstall only)
@@ -1935,7 +1935,7 @@ Scopes:
   local     ./.claude/plugins/ (current directory)
 
 Examples:
-  # Install plugin in default (local) scope
+  # Install plugin in default (project) scope
   aimaestro-agent.sh plugin install my-agent feature-dev
 
   # Install plugin in project scope (persists for project)
@@ -1965,7 +1965,7 @@ HELP
 }
 
 cmd_plugin_install() {
-    local agent="" plugin="" scope="local" method="install" no_restart=false
+    local agent="" plugin="" scope="project" method="install" no_restart=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1982,7 +1982,7 @@ cmd_plugin_install() {
 Usage: aimaestro-agent.sh plugin install <agent> <plugin> [options]
 
 Options:
-  --scope <user|project|local>   Plugin scope (default: local)
+  --scope <user|project|local>   Plugin scope (default: project)
   --plugin-dir                   Show how to load plugin for session only
                                  (using claude --plugin-dir, no installation)
   --no-restart                   Don't restart the agent after install
@@ -1999,7 +1999,7 @@ Notes:
   - For the current agent, you'll need to restart manually
 
 Examples:
-  # Install plugin in local scope (default)
+  # Install plugin in project scope (default)
   aimaestro-agent.sh plugin install my-agent feature-dev
 
   # Install plugin in project scope
@@ -2096,7 +2096,7 @@ HELP
 }
 
 cmd_plugin_uninstall() {
-    local agent="" plugin="" scope="local" force=false
+    local agent="" plugin="" scope="project" force=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -2265,7 +2265,7 @@ HELP
 }
 
 cmd_plugin_enable() {
-    local agent="" plugin="" scope="local"
+    local agent="" plugin="" scope="project"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -2310,7 +2310,7 @@ cmd_plugin_enable() {
 }
 
 cmd_plugin_disable() {
-    local agent="" plugin="" scope="local"
+    local agent="" plugin="" scope="project"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -2450,7 +2450,7 @@ HELP
 }
 
 cmd_plugin_reinstall() {
-    local agent="" plugin="" scope="user"
+    local agent="" plugin="" scope="project"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in

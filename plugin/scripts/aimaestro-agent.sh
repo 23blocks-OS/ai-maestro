@@ -2717,9 +2717,12 @@ HELP
     echo ""
     echo "   cd \"$agent_dir\" && claude${plugin_dir_flags}"
     echo ""
-    print_info "Or wake the agent with programArgs including the --plugin-dir flag(s):"
+    print_info "Or set it as permanent programArgs, wake, then clear:"
     echo ""
-    echo "   aimaestro-agent.sh wake $RESOLVED_ALIAS --${plugin_dir_flags}"
+    echo "   aimaestro-agent.sh update $RESOLVED_ALIAS --args \"${plugin_dir_flags# }\""
+    echo "   aimaestro-agent.sh wake $RESOLVED_ALIAS"
+    echo "   # To remove after testing:"
+    echo "   aimaestro-agent.sh update $RESOLVED_ALIAS --args \"\""
     echo ""
     print_warning "Note: Session-only plugins are not installed and won't appear in 'plugin list'."
     print_warning "For persistent installation, use: aimaestro-agent.sh plugin install"
@@ -2925,7 +2928,7 @@ Usage: aimaestro-agent.sh plugin reinstall <agent> <plugin> [options]
 Reinstall a plugin while preserving its enabled/disabled state.
 
 Options:
-  --scope <user|project|local>   Plugin scope (default: user)
+  --scope <user|project|local>   Plugin scope (default: local)
 
 This is useful for:
   - Fixing corrupt plugin installations

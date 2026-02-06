@@ -167,6 +167,10 @@ export async function POST(
           startCommand = 'aider'
         } else if (program.includes('cursor')) {
           startCommand = 'cursor'
+        } else if (program.includes('gemini')) {
+          startCommand = 'gemini'
+        } else if (program.includes('opencode')) {
+          startCommand = 'opencode'
         } else {
           // Default to claude for unknown programs
           startCommand = 'claude'

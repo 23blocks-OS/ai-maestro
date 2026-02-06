@@ -4,7 +4,7 @@ description: Create, manage, and orchestrate AI agents using the AI Maestro CLI.
 allowed-tools: Bash
 metadata:
   author: 23blocks
-  version: "1.0"
+  version: "2.0"
 ---
 
 # AI Maestro Agent Management

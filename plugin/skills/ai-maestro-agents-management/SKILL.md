@@ -442,17 +442,16 @@ aimaestro-agent.sh session exec backend-api "git status"
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] [--plugin-dir] [--no-restart]
+aimaestro-agent.sh plugin install <agent> <plugin> [-s|--scope user|project|local] [--no-restart]
 ```
 
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name or path
-- `--scope` - Installation scope (default: project)
+- `-s, --scope` - Installation scope (default: local)
   - `user` - Global for all projects
-  - `project` - For this project only (recommended)
-  - `local` - Local only (narrowest scope)
-- `--plugin-dir` - Use `--plugin-dir` mode (session-only loading)
+  - `project` - For this project only
+  - `local` - Local only (narrowest scope, recommended)
 - `--no-restart` - Don't automatically restart the agent after install
 
 **Restart Behavior:**
@@ -462,14 +461,11 @@ aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] 
 
 **Examples:**
 ```bash
-# Install plugin with project scope (default, auto-restart remote agents)
+# Install plugin with local scope (default, auto-restart remote agents)
 aimaestro-agent.sh plugin install backend-api my-plugin
 
 # Install with user scope
 aimaestro-agent.sh plugin install backend-api my-plugin --scope user
-
-# Session-only loading (doesn't persist)
-aimaestro-agent.sh plugin install backend-api /path/to/plugin --plugin-dir
 
 # Install without automatic restart
 aimaestro-agent.sh plugin install backend-api my-plugin --no-restart
@@ -481,13 +477,13 @@ aimaestro-agent.sh plugin install backend-api my-plugin --no-restart
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin uninstall <agent> <plugin> [--scope user|project|local] [--force|-f]
+aimaestro-agent.sh plugin uninstall <agent> <plugin> [-s|--scope user|project|local] [--force|-f]
 ```
 
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name
-- `--scope` - Plugin scope (default: project)
+- `-s, --scope` - Plugin scope (default: local)
 - `--force, -f` - Force removal even if corrupt (deletes cache folder and updates config files)
 
 **Examples:**
@@ -500,6 +496,58 @@ aimaestro-agent.sh plugin uninstall backend-api my-plugin --force
 # or
 aimaestro-agent.sh plugin uninstall backend-api my-plugin -f
 ```
+
+---
+
+### 11a. Update Plugin
+
+**Command:**
+```bash
+aimaestro-agent.sh plugin update <agent> <plugin> [-s|--scope user|project|local]
+```
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<plugin>` - Plugin name (e.g. `plugin-name@marketplace-name`)
+- `-s, --scope` - Plugin scope (default: local)
+
+**Examples:**
+```bash
+# Update plugin to latest version
+aimaestro-agent.sh plugin update backend-api feature-dev@my-marketplace
+
+# Update plugin in user scope
+aimaestro-agent.sh plugin update backend-api my-plugin --scope user
+```
+
+---
+
+### 11b. Load Plugin from Directory (Session Only)
+
+**Command:**
+```bash
+aimaestro-agent.sh plugin load <agent> <path> [<path>...]
+```
+
+**What it does:**
+- Shows how to load plugin(s) from local directories for the current session only
+- Does NOT install the plugin — it is only available while the session runs
+- Useful for plugin development and testing
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<path>` - Path to plugin directory (can specify multiple)
+
+**Examples:**
+```bash
+# Load a plugin for development
+aimaestro-agent.sh plugin load backend-api ./my-plugin-dev
+
+# Load multiple plugins
+aimaestro-agent.sh plugin load backend-api ./plugin-one ./plugin-two
+```
+
+**Note:** Session-only plugins don't appear in `plugin list` and won't persist across restarts. For persistent installation, use `plugin install`.
 
 ---
 
@@ -524,8 +572,8 @@ aimaestro-agent.sh plugin list backend-api
 
 **Commands:**
 ```bash
-aimaestro-agent.sh plugin enable <agent> <plugin> [--scope user|project|local]
-aimaestro-agent.sh plugin disable <agent> <plugin> [--scope user|project|local]
+aimaestro-agent.sh plugin enable <agent> <plugin> [-s|--scope user|project|local]
+aimaestro-agent.sh plugin disable <agent> <plugin> [-s|--scope user|project|local]
 ```
 
 **Examples:**
@@ -557,7 +605,7 @@ aimaestro-agent.sh plugin validate <agent> <plugin-path>
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin reinstall <agent> <plugin> [--scope user|project|local]
+aimaestro-agent.sh plugin reinstall <agent> <plugin> [-s|--scope user|project|local]
 ```
 
 **What it does:**
@@ -591,7 +639,7 @@ aimaestro-agent.sh plugin clean <agent> [--dry-run|-n]
 **Commands:**
 ```bash
 aimaestro-agent.sh plugin marketplace list <agent>
-aimaestro-agent.sh plugin marketplace add <agent> <url> [--no-restart]
+aimaestro-agent.sh plugin marketplace add <agent> <source> [--no-restart]
 aimaestro-agent.sh plugin marketplace remove <agent> <name> [--force|-f]
 aimaestro-agent.sh plugin marketplace update <agent> [<name>]
 ```
@@ -609,11 +657,29 @@ aimaestro-agent.sh plugin marketplace update <agent> [<name>]
 # List known marketplaces for agent
 aimaestro-agent.sh plugin marketplace list backend-api
 
-# Add a marketplace (auto-restart remote agents)
-aimaestro-agent.sh plugin marketplace add backend-api github:owner/marketplace
+# Add from GitHub (short form)
+aimaestro-agent.sh plugin marketplace add backend-api owner/repo
 
-# Add a marketplace without auto-restart
-aimaestro-agent.sh plugin marketplace add backend-api https://example.com/marketplace --no-restart
+# Add from GitHub (explicit)
+aimaestro-agent.sh plugin marketplace add backend-api github:owner/repo
+
+# Add from GitLab (HTTPS)
+aimaestro-agent.sh plugin marketplace add backend-api https://gitlab.com/company/plugins.git
+
+# Add from GitLab (SSH)
+aimaestro-agent.sh plugin marketplace add backend-api git@gitlab.com:company/plugins.git
+
+# Add specific branch/tag
+aimaestro-agent.sh plugin marketplace add backend-api https://github.com/o/r.git#v1.0.0
+
+# Add from local directory
+aimaestro-agent.sh plugin marketplace add backend-api ./my-marketplace
+
+# Add from remote URL
+aimaestro-agent.sh plugin marketplace add backend-api https://example.com/marketplace.json
+
+# Add without automatic restart
+aimaestro-agent.sh plugin marketplace add backend-api owner/repo --no-restart
 
 # Update all marketplaces
 aimaestro-agent.sh plugin marketplace update backend-api

@@ -517,7 +517,18 @@ export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
       fs.mkdirSync(configDir, { recursive: true })
     }
 
-    const config: HostsConfig = { hosts }
+    // Read existing config to preserve non-hosts fields (organization, etc.)
+    let existing: HostsConfig = { hosts: [] }
+    if (fs.existsSync(HOSTS_CONFIG_PATH)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(HOSTS_CONFIG_PATH, 'utf-8')) as HostsConfig
+      } catch {
+        // Corrupted file — start fresh but log it
+        console.warn('[Hosts] Could not parse existing hosts.json, preserving only hosts array')
+      }
+    }
+
+    const config: HostsConfig = { ...existing, hosts }
     fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
     clearHostsCache()
 

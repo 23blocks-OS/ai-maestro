@@ -7,8 +7,8 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X, ExternalLink, Search, Mail } from 'lucide-react'
 import { VersionChecker } from '@/components/VersionChecker'
+import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import type { Session } from '@/types/session'
 import './zoom.css'
 
 // Dynamic import for AgentCard to reduce initial bundle
@@ -34,25 +34,6 @@ const AgentCardView = dynamic(
     )
   }
 )
-
-// Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: Agent): Session {
-  // CRITICAL: session.id must be the tmux session name for WebSocket to connect
-  // Use tmuxSessionName if available, otherwise fall back to agent.id (matching main dashboard)
-  const sessionId = agent.session?.tmuxSessionName || agent.id
-
-  return {
-    id: sessionId,
-    name: agent.label || agent.name || agent.alias || '',
-    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
-    status: 'active' as const,
-    createdAt: agent.createdAt,
-    lastActivity: agent.lastActive || agent.createdAt,
-    windows: 1,
-    agentId: agent.id,
-    hostId: agent.hostId,
-  }
-}
 
 // Helper: Check if agent has a valid terminal session
 function hasValidTerminalSession(agent: Agent): boolean {

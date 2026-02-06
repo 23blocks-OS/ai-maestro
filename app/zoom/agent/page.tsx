@@ -7,8 +7,8 @@ import Link from 'next/link'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, AlertCircle, X } from 'lucide-react'
+import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import type { Session } from '@/types/session'
 
 // Dynamic import for AgentCardView
 const AgentCardView = dynamic(
@@ -22,23 +22,6 @@ const AgentCardView = dynamic(
     )
   }
 )
-
-// Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: Agent): Session {
-  const sessionId = agent.session?.tmuxSessionName || agent.id
-
-  return {
-    id: sessionId,
-    name: agent.label || agent.name || agent.alias || '',
-    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
-    status: 'active' as const,
-    createdAt: agent.createdAt,
-    lastActivity: agent.lastActive || agent.createdAt,
-    windows: 1,
-    agentId: agent.id,
-    hostId: agent.hostId,
-  }
-}
 
 function ZoomAgentContent() {
   const searchParams = useSearchParams()

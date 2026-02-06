@@ -509,9 +509,15 @@ if [ -n "$INSTALL_DIR" ]; then
         print_success "Repository cloned"
     fi
 
+    cd "$INSTALL_DIR"
+
+    # Initialize git submodules (AMP messaging plugin, etc.)
+    print_step "Initializing git submodules..."
+    git submodule update --init --recursive
+    print_success "Git submodules initialized"
+
     echo ""
     print_step "Installing dependencies..."
-    cd "$INSTALL_DIR"
     yarn install
     print_success "Dependencies installed"
 

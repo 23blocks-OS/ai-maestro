@@ -89,15 +89,30 @@ print_info() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "plugins/amp-messaging" ]; then
-    print_error "Error: AMP plugin not found. Run from AI Maestro root directory."
-    echo ""
-    echo "If this is a fresh clone, initialize submodules:"
-    echo "  git submodule update --init --recursive"
-    echo ""
-    echo "Then run:"
-    echo "  ./install-messaging.sh"
-    exit 1
+if [ ! -d "plugins/amp-messaging" ] || [ ! -f "plugins/amp-messaging/plugin.json" ]; then
+    # Try to auto-initialize the submodule
+    if [ -f ".gitmodules" ] && command -v git &> /dev/null; then
+        print_warning "AMP plugin submodule not initialized. Initializing now..."
+        git submodule update --init --recursive
+        if [ -d "plugins/amp-messaging" ] && [ -f "plugins/amp-messaging/plugin.json" ]; then
+            print_success "Submodule initialized"
+        else
+            print_error "Error: Failed to initialize AMP plugin submodule."
+            echo ""
+            echo "Try manually:"
+            echo "  git submodule update --init --recursive"
+            exit 1
+        fi
+    else
+        print_error "Error: AMP plugin not found. Run from AI Maestro root directory."
+        echo ""
+        echo "If this is a fresh clone, initialize submodules:"
+        echo "  git submodule update --init --recursive"
+        echo ""
+        echo "Then run:"
+        echo "  ./install-messaging.sh"
+        exit 1
+    fi
 fi
 
 # Migration function

@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.20.17"
+VERSION="0.20.18"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 
@@ -285,6 +285,7 @@ install() {
                 print_info "Updating..."
                 cd "$INSTALL_DIR"
                 git pull origin main
+                git submodule update --init --recursive
                 yarn install
                 yarn build
                 print_success "Updated to latest version"
@@ -316,6 +317,11 @@ install() {
     print_success "Repository cloned"
 
     cd "$INSTALL_DIR"
+
+    # Initialize git submodules (AMP messaging plugin, etc.)
+    print_info "Initializing git submodules..."
+    git submodule update --init --recursive
+    print_success "Submodules initialized"
 
     # Run the full installer
     if [ -f "install.sh" ]; then

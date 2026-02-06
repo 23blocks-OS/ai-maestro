@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3 } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -40,6 +40,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
               Help
             </button>
           )}
+          <a
+            href="/team-meeting"
+            className="text-sm px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Team Meeting"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Team Meeting
+          </a>
           <a
             href={zoomUrl}
             className="text-sm px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1.5"

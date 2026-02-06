@@ -7,8 +7,8 @@ import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
+import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import type { Session } from '@/types/session'
 import { useHosts } from '@/hooks/useHosts'
 import versionInfo from '@/version.json'
 
@@ -17,21 +17,6 @@ interface MobileDashboardProps {
   loading: boolean
   error: string | null
   onRefresh: () => void
-}
-
-// Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: Agent): Session {
-  return {
-    id: agent.session?.tmuxSessionName || agent.id,
-    name: agent.label || agent.name || agent.alias || '',
-    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
-    status: 'active' as const,
-    createdAt: agent.createdAt,
-    lastActivity: agent.lastActive || agent.createdAt,
-    windows: 1,
-    agentId: agent.id,
-    hostId: agent.hostId,
-  }
 }
 
 export default function MobileDashboard({

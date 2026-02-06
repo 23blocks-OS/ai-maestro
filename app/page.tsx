@@ -18,8 +18,8 @@ import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
+import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
-import type { Session } from '@/types/session'
 
 // Dynamic imports for heavy components that are conditionally rendered
 // This reduces initial bundle size by ~100KB+
@@ -77,21 +77,6 @@ const DocumentationPanel = dynamic(
   () => import('@/components/DocumentationPanel'),
   { ssr: false }
 )
-
-// Helper: Convert agent to session-like object for TerminalView compatibility
-function agentToSession(agent: Agent): Session {
-  return {
-    id: agent.session?.tmuxSessionName || agent.id,
-    name: agent.label || agent.name || agent.alias || '',
-    workingDirectory: agent.session?.workingDirectory || agent.preferences?.defaultWorkingDirectory || '',
-    status: 'active' as const,
-    createdAt: agent.createdAt,
-    lastActivity: agent.lastActive || agent.createdAt,
-    windows: 1,
-    agentId: agent.id,
-    hostId: agent.hostId,  // Now directly on agent
-  }
-}
 
 export default function DashboardPage() {
   // Agent-centric: Primary hook is useAgents

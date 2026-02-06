@@ -134,6 +134,7 @@ aimaestro-agent.sh show backend-api --format json
   Working Dir:  /Users/dev/projects/backend
 
   Task:         Implement REST API endpoints for user management
+  Args:         --continue --chrome
 
   Tags:         api, production, critical
 
@@ -226,6 +227,7 @@ aimaestro-agent.sh update <agent> [options]
 - `--tags <tag1,tag2,...>` - Replace all tags
 - `--add-tag <tag>` - Add a single tag
 - `--remove-tag <tag>` - Remove a single tag
+- `--args <arguments>` - Update program arguments passed to the program on launch (e.g., `--continue --chrome`)
 
 **Examples:**
 ```bash
@@ -243,6 +245,9 @@ aimaestro-agent.sh update backend-api --add-tag "critical"
 
 # Remove a tag
 aimaestro-agent.sh update backend-api --remove-tag "deprecated"
+
+# Update program arguments
+aimaestro-agent.sh update backend-api --args "--continue --chrome"
 ```
 
 ---
@@ -350,6 +355,17 @@ aimaestro-agent.sh wake backend-api
 # Wake and attach to session
 aimaestro-agent.sh wake backend-api --attach
 ```
+
+**First-Launch Behavior:**
+When an agent is woken for the first time (`launchCount` is 0), resume/continue flags are automatically stripped from `programArgs` since there is no prior session to resume. This applies per-program:
+- **Claude Code**: `--continue`, `-c`, `--resume`, `-r` are stripped
+- **Codex**: `resume --last`, `resume` are stripped
+- **Gemini CLI**: `--resume` is stripped
+- **Aider**: `--restore-chat-history` is stripped
+- **OpenCode**: `--continue`, `-c`, `--session`, `-s` are stripped
+- **Cursor**: `--resume`, `resume` are stripped
+
+On subsequent wakes (`launchCount` >= 1), full `programArgs` are used.
 
 ---
 

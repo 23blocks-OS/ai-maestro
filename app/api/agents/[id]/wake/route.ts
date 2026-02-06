@@ -172,12 +172,49 @@ export async function POST(
           startCommand = 'claude'
         }
 
+        // Per-program resume patterns to strip on first launch
+        const RESUME_PATTERNS: Record<string, RegExp[]> = {
+          'claude':   [/\s*--continue\b/, /\s*-c\b(?!\s*\S)/, /\s*--resume\b(\s+\S+)?/, /\s*-r\b(\s+\S+)?/],
+          'codex':    [/\s*resume\s+--last\b/, /\s*resume\b(\s+\S+)?/],
+          'gemini':   [/\s*--resume\b(\s+\S+)?/],
+          'aider':    [/\s*--restore-chat-history\b/],
+          'opencode': [/\s*--continue\b/, /\s*-c\b(?!\s*\S)/, /\s*--session\b(\s+\S+)?/, /\s*-s\b(\s+\S+)?/],
+          'cursor':   [/\s*--resume\b(\s+\S+)?/, /\s*resume\b/],
+        }
+
+        function stripResumeFlags(argsStr: string, program: string): string {
+          const patterns = RESUME_PATTERNS[program] || []
+          let result = argsStr
+          for (const pattern of patterns) {
+            result = result.replace(pattern, '')
+          }
+          return result.trim()
+        }
+
+        // Build the full command with programArgs
+        let fullCommand = startCommand
+        if (agent.programArgs) {
+          let args = agent.programArgs
+          // Strip resume flags on first launch (no session to resume)
+          const isFirstLaunch = !agent.launchCount || agent.launchCount === 0
+          if (isFirstLaunch) {
+            const programKey = Object.keys(RESUME_PATTERNS).find(k => startCommand.includes(k)) || ''
+            if (programKey) {
+              args = stripResumeFlags(args, programKey)
+              console.log(`[Wake] First launch: stripped resume flags. Original: "${agent.programArgs}", Filtered: "${args}"`)
+            }
+          }
+          if (args.trim()) {
+            fullCommand = `${startCommand} ${args.trim()}`
+          }
+        }
+
         // Small delay to let the session initialize
         await new Promise(resolve => setTimeout(resolve, 300))
 
         // Send the command to start the program
         try {
-          await execAsync(`tmux send-keys -t "${sessionName}" "${startCommand}" Enter`)
+          await execAsync(`tmux send-keys -t "${sessionName}" "${fullCommand}" Enter`)
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
           // Don't fail the whole operation, session is still created
@@ -208,6 +245,7 @@ export async function POST(
       }
       agents[index].status = 'active'
       agents[index].lastActive = new Date().toISOString()
+      agents[index].launchCount = (agents[index].launchCount || 0) + 1
       saveAgents(agents)
     }
 

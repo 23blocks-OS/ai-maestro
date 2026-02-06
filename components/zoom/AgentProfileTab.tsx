@@ -402,9 +402,9 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
               />
 
               <EditableField
-                label="Claude CLI Arguments (e.g. --continue)"
-                value={agent.claudeArgs || ''}
-                onChange={(value) => updateField('claudeArgs', value)}
+                label="Program Arguments (e.g. --continue)"
+                value={agent.programArgs || ''}
+                onChange={(value) => updateField('programArgs', value)}
                 icon={<Terminal className="w-4 h-4" />}
               />
 

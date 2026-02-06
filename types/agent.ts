@@ -171,7 +171,8 @@ export interface Agent {
   program: string               // AI program (e.g., "Claude Code", "Aider", "Cursor")
   model?: string                // Model version (e.g., "Opus 4.1", "GPT-4")
   taskDescription: string       // What this agent is working on
-  claudeArgs?: string           // CLI arguments passed to Claude Code on launch (e.g., "--model claude-sonnet-4 --allowedTools Edit,Write")
+  programArgs?: string          // CLI arguments passed to the program on launch (e.g., "--continue --chrome")
+  launchCount?: number          // Number of times agent has been woken/launched (0 = never launched)
   tags?: string[]               // Optional tags (e.g., ["backend", "api", "typescript"])
   capabilities?: string[]       // Technical capabilities (e.g., ["typescript", "postgres"])
 
@@ -426,6 +427,7 @@ export interface CreateAgentRequest {
   program: string
   model?: string
   taskDescription: string
+  programArgs?: string          // CLI arguments passed to the program on launch
   tags?: string[]
   workingDirectory?: string
   createSession?: boolean       // Auto-create tmux session
@@ -450,7 +452,7 @@ export interface UpdateAgentRequest {
   avatar?: string
   model?: string
   taskDescription?: string
-  claudeArgs?: string           // CLI arguments for Claude Code launch
+  programArgs?: string          // CLI arguments passed to the program on launch
   tags?: string[]
   owner?: string
   team?: string

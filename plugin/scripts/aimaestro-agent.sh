@@ -1134,11 +1134,10 @@ HELP
     [[ -n "$model" ]] && payload=$(echo "$payload" | jq --arg m "$model" '. + {model: $m}')
     [[ -n "$task" ]] && payload=$(echo "$payload" | jq --arg t "$task" '. + {taskDescription: $t}')
     [[ -n "$tags" ]] && payload=$(echo "$payload" | jq --arg t "$tags" '. + {tags: ($t | split(","))}')
-    # Program arguments (passed after --)
+    # Program arguments (passed after --) - sent as string
     if [[ ${#program_args[@]} -gt 0 ]]; then
-        local args_json
-        args_json=$(printf '%s\n' "${program_args[@]}" | jq -R . | jq -s .)
-        payload=$(echo "$payload" | jq --argjson args "$args_json" '. + {programArgs: $args}')
+        local args_str="${program_args[*]}"
+        payload=$(echo "$payload" | jq --arg a "$args_str" '. + {programArgs: $a}')
     fi
 
     # Call API
@@ -1262,7 +1261,7 @@ HELP
 # ============================================================================
 
 cmd_update() {
-    local agent="" task="" tags="" add_tag="" remove_tag="" model=""
+    local agent="" task="" tags="" add_tag="" remove_tag="" model="" args=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1281,6 +1280,9 @@ cmd_update() {
             --remove-tag)
                 [[ $# -lt 2 ]] && { print_error "--remove-tag requires a value"; return 1; }
                 remove_tag="$2"; shift 2 ;;
+            --args)
+                [[ $# -lt 2 ]] && { print_error "--args requires a value"; return 1; }
+                args="$2"; shift 2 ;;
             -h|--help)
                 cat << 'HELP'
 Usage: aimaestro-agent.sh update <agent> [options]
@@ -1288,6 +1290,7 @@ Usage: aimaestro-agent.sh update <agent> [options]
 Options:
   -t, --task <desc>      Update task description
   -m, --model <model>    Update AI model
+  --args <arguments>     Update program arguments (e.g. "--continue --chrome")
   --tags <t1,t2>         Replace all tags
   --add-tag <tag>        Add a single tag
   --remove-tag <tag>     Remove a single tag
@@ -1317,6 +1320,7 @@ HELP
     [[ -n "$task" ]] && payload=$(echo "$payload" | jq --arg t "$task" '. + {taskDescription: $t}')
     [[ -n "$model" ]] && payload=$(echo "$payload" | jq --arg m "$model" '. + {model: $m}')
     [[ -n "$tags" ]] && payload=$(echo "$payload" | jq --arg t "$tags" '. + {tags: ($t | split(","))}')
+    [[ -n "$args" ]] && payload=$(echo "$payload" | jq --arg a "$args" '. + {programArgs: $a}')
 
     # Handle add/remove tag (need to get current tags first)
     if [[ -n "$add_tag" ]] || [[ -n "$remove_tag" ]]; then

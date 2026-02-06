@@ -146,7 +146,23 @@ export function loadAgents(): Agent[] {
     const data = fs.readFileSync(REGISTRY_FILE, 'utf-8')
     const agents = JSON.parse(data)
 
-    return Array.isArray(agents) ? agents : []
+    if (!Array.isArray(agents)) return []
+
+    // Migrate claudeArgs → programArgs (field was renamed)
+    let needsMigration = false
+    for (const agent of agents) {
+      if ((agent as any).claudeArgs && !agent.programArgs) {
+        agent.programArgs = (agent as any).claudeArgs
+        delete (agent as any).claudeArgs
+        needsMigration = true
+      }
+    }
+    if (needsMigration) {
+      saveAgents(agents)
+      console.log('[Agent Registry] Migrated claudeArgs → programArgs')
+    }
+
+    return agents
   } catch (error) {
     console.error('Failed to load agents:', error)
     return []
@@ -340,6 +356,8 @@ export function createAgent(request: CreateAgentRequest): Agent {
     program: request.program,
     model: request.model,
     taskDescription: request.taskDescription,
+    programArgs: request.programArgs || '',
+    launchCount: 0,
     tags: normalizeTags(request.tags),
     capabilities: [],
     owner: request.owner,

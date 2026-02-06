@@ -4,7 +4,7 @@ description: Create, manage, and orchestrate AI agents using the AI Maestro CLI.
 allowed-tools: Bash
 metadata:
   author: 23blocks
-  version: "1.0"
+  version: "2.0"
 ---
 
 # AI Maestro Agent Management
@@ -134,6 +134,7 @@ aimaestro-agent.sh show backend-api --format json
   Working Dir:  /Users/dev/projects/backend
 
   Task:         Implement REST API endpoints for user management
+  Args:         --continue --chrome
 
   Tags:         api, production, critical
 
@@ -226,6 +227,7 @@ aimaestro-agent.sh update <agent> [options]
 - `--tags <tag1,tag2,...>` - Replace all tags
 - `--add-tag <tag>` - Add a single tag
 - `--remove-tag <tag>` - Remove a single tag
+- `--args <arguments>` - Update program arguments passed to the program on launch (e.g., `--continue --chrome`)
 
 **Examples:**
 ```bash
@@ -243,6 +245,9 @@ aimaestro-agent.sh update backend-api --add-tag "critical"
 
 # Remove a tag
 aimaestro-agent.sh update backend-api --remove-tag "deprecated"
+
+# Update program arguments
+aimaestro-agent.sh update backend-api --args "--continue --chrome"
 ```
 
 ---
@@ -351,6 +356,17 @@ aimaestro-agent.sh wake backend-api
 aimaestro-agent.sh wake backend-api --attach
 ```
 
+**First-Launch Behavior:**
+When an agent is woken for the first time (`launchCount` is 0), resume/continue flags are automatically stripped from `programArgs` since there is no prior session to resume. This applies per-program:
+- **Claude Code**: `--continue`, `-c`, `--resume`, `-r` are stripped
+- **Codex**: `resume --last`, `resume` are stripped
+- **Gemini CLI**: `--resume` is stripped
+- **Aider**: `--restore-chat-history` is stripped
+- **OpenCode**: `--continue`, `-c`, `--session`, `-s` are stripped
+- **Cursor**: `--resume`, `resume` are stripped
+
+On subsequent wakes (`launchCount` >= 1), full `programArgs` are used.
+
 ---
 
 ### 8a. Restart Agent
@@ -426,17 +442,16 @@ aimaestro-agent.sh session exec backend-api "git status"
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] [--plugin-dir] [--no-restart]
+aimaestro-agent.sh plugin install <agent> <plugin> [-s|--scope user|project|local] [--no-restart]
 ```
 
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name or path
-- `--scope` - Installation scope (default: local)
+- `-s, --scope` - Installation scope (default: local)
   - `user` - Global for all projects
   - `project` - For this project only
-  - `local` - Local only (recommended for per-agent)
-- `--plugin-dir` - Use `--plugin-dir` mode (session-only loading)
+  - `local` - Local only (narrowest scope, recommended)
 - `--no-restart` - Don't automatically restart the agent after install
 
 **Restart Behavior:**
@@ -446,14 +461,11 @@ aimaestro-agent.sh plugin install <agent> <plugin> [--scope user|project|local] 
 
 **Examples:**
 ```bash
-# Install plugin with local scope (auto-restart remote agents)
+# Install plugin with local scope (default, auto-restart remote agents)
 aimaestro-agent.sh plugin install backend-api my-plugin
 
 # Install with user scope
 aimaestro-agent.sh plugin install backend-api my-plugin --scope user
-
-# Session-only loading (doesn't persist)
-aimaestro-agent.sh plugin install backend-api /path/to/plugin --plugin-dir
 
 # Install without automatic restart
 aimaestro-agent.sh plugin install backend-api my-plugin --no-restart
@@ -465,13 +477,13 @@ aimaestro-agent.sh plugin install backend-api my-plugin --no-restart
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin uninstall <agent> <plugin> [--scope user|project|local] [--force|-f]
+aimaestro-agent.sh plugin uninstall <agent> <plugin> [-s|--scope user|project|local] [--force|-f]
 ```
 
 **Parameters:**
 - `<agent>` - Agent name or ID
 - `<plugin>` - Plugin name
-- `--scope` - Plugin scope (default: local)
+- `-s, --scope` - Plugin scope (default: local)
 - `--force, -f` - Force removal even if corrupt (deletes cache folder and updates config files)
 
 **Examples:**
@@ -484,6 +496,58 @@ aimaestro-agent.sh plugin uninstall backend-api my-plugin --force
 # or
 aimaestro-agent.sh plugin uninstall backend-api my-plugin -f
 ```
+
+---
+
+### 11a. Update Plugin
+
+**Command:**
+```bash
+aimaestro-agent.sh plugin update <agent> <plugin> [-s|--scope user|project|local]
+```
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<plugin>` - Plugin name (e.g. `plugin-name@marketplace-name`)
+- `-s, --scope` - Plugin scope (default: local)
+
+**Examples:**
+```bash
+# Update plugin to latest version
+aimaestro-agent.sh plugin update backend-api feature-dev@my-marketplace
+
+# Update plugin in user scope
+aimaestro-agent.sh plugin update backend-api my-plugin --scope user
+```
+
+---
+
+### 11b. Load Plugin from Directory (Session Only)
+
+**Command:**
+```bash
+aimaestro-agent.sh plugin load <agent> <path> [<path>...]
+```
+
+**What it does:**
+- Shows how to load plugin(s) from local directories for the current session only
+- Does NOT install the plugin — it is only available while the session runs
+- Useful for plugin development and testing
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<path>` - Path to plugin directory (can specify multiple)
+
+**Examples:**
+```bash
+# Load a plugin for development
+aimaestro-agent.sh plugin load backend-api ./my-plugin-dev
+
+# Load multiple plugins
+aimaestro-agent.sh plugin load backend-api ./plugin-one ./plugin-two
+```
+
+**Note:** Session-only plugins don't appear in `plugin list` and won't persist across restarts. For persistent installation, use `plugin install`.
 
 ---
 
@@ -508,8 +572,8 @@ aimaestro-agent.sh plugin list backend-api
 
 **Commands:**
 ```bash
-aimaestro-agent.sh plugin enable <agent> <plugin> [--scope user|project|local]
-aimaestro-agent.sh plugin disable <agent> <plugin> [--scope user|project|local]
+aimaestro-agent.sh plugin enable <agent> <plugin> [-s|--scope user|project|local]
+aimaestro-agent.sh plugin disable <agent> <plugin> [-s|--scope user|project|local]
 ```
 
 **Examples:**
@@ -541,7 +605,7 @@ aimaestro-agent.sh plugin validate <agent> <plugin-path>
 
 **Command:**
 ```bash
-aimaestro-agent.sh plugin reinstall <agent> <plugin> [--scope user|project|local]
+aimaestro-agent.sh plugin reinstall <agent> <plugin> [-s|--scope user|project|local]
 ```
 
 **What it does:**
@@ -575,7 +639,7 @@ aimaestro-agent.sh plugin clean <agent> [--dry-run|-n]
 **Commands:**
 ```bash
 aimaestro-agent.sh plugin marketplace list <agent>
-aimaestro-agent.sh plugin marketplace add <agent> <url> [--no-restart]
+aimaestro-agent.sh plugin marketplace add <agent> <source> [--no-restart]
 aimaestro-agent.sh plugin marketplace remove <agent> <name> [--force|-f]
 aimaestro-agent.sh plugin marketplace update <agent> [<name>]
 ```
@@ -593,11 +657,29 @@ aimaestro-agent.sh plugin marketplace update <agent> [<name>]
 # List known marketplaces for agent
 aimaestro-agent.sh plugin marketplace list backend-api
 
-# Add a marketplace (auto-restart remote agents)
-aimaestro-agent.sh plugin marketplace add backend-api github:owner/marketplace
+# Add from GitHub (short form)
+aimaestro-agent.sh plugin marketplace add backend-api owner/repo
 
-# Add a marketplace without auto-restart
-aimaestro-agent.sh plugin marketplace add backend-api https://example.com/marketplace --no-restart
+# Add from GitHub (explicit)
+aimaestro-agent.sh plugin marketplace add backend-api github:owner/repo
+
+# Add from GitLab (HTTPS)
+aimaestro-agent.sh plugin marketplace add backend-api https://gitlab.com/company/plugins.git
+
+# Add from GitLab (SSH)
+aimaestro-agent.sh plugin marketplace add backend-api git@gitlab.com:company/plugins.git
+
+# Add specific branch/tag
+aimaestro-agent.sh plugin marketplace add backend-api https://github.com/o/r.git#v1.0.0
+
+# Add from local directory
+aimaestro-agent.sh plugin marketplace add backend-api ./my-marketplace
+
+# Add from remote URL
+aimaestro-agent.sh plugin marketplace add backend-api https://example.com/marketplace.json
+
+# Add without automatic restart
+aimaestro-agent.sh plugin marketplace add backend-api owner/repo --no-restart
 
 # Update all marketplaces
 aimaestro-agent.sh plugin marketplace update backend-api
@@ -666,21 +748,32 @@ aimaestro-agent.sh import backup.json --dir /Users/dev/projects/new-location
 
 ## PART 4: SKILL MANAGEMENT
 
-### 20. List Agent Skills
+There are two ways to manage skills:
+
+1. **Registry commands** (`list`, `add`, `remove`) — Manage skills tracked in the AI Maestro agent registry. These update the agent's metadata via the API but do not copy files.
+2. **Filesystem commands** (`install`, `uninstall`) — Install or remove skill files on disk (`.skill` archives or skill directories). These copy files into the appropriate `.claude/skills/` directory.
+
+Both can be used independently or together. Use `add`/`remove` when AI Maestro tracks which skills an agent has. Use `install`/`uninstall` when you need to actually place skill files on disk.
+
+### 20. List Agent Skills (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill list <agent>
 ```
 
+Lists skills registered in the AI Maestro agent profile.
+
 ---
 
-### 21. Add Skill to Agent
+### 21. Add Skill to Agent (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill add <agent> <skill-id> [--type marketplace|custom] [--path <path>]
 ```
+
+**What it does:** Registers a skill in the agent's AI Maestro profile. Does not copy files — the skill must already be accessible to Claude Code.
 
 **Parameters:**
 - `<agent>` - Agent name or ID
@@ -690,21 +783,111 @@ aimaestro-agent.sh skill add <agent> <skill-id> [--type marketplace|custom] [--p
 
 **Examples:**
 ```bash
-# Add marketplace skill
+# Register a marketplace skill
 aimaestro-agent.sh skill add backend-api git-workflow
 
-# Add custom skill from path
+# Register a custom skill with its path
 aimaestro-agent.sh skill add backend-api my-skill --type custom --path ~/skills/my-skill
 ```
 
 ---
 
-### 22. Remove Skill from Agent
+### 22. Remove Skill from Agent (Registry)
 
 **Command:**
 ```bash
 aimaestro-agent.sh skill remove <agent> <skill-id>
 ```
+
+**What it does:** Unregisters a skill from the agent's AI Maestro profile. Does not delete files from disk.
+
+---
+
+### 23. Install Skill (Filesystem)
+
+**Command:**
+```bash
+aimaestro-agent.sh skill install <agent> <source> [-s|--scope user|project|local] [--name <name>]
+```
+
+**What it does:** Copies skill files to the appropriate `.claude/skills/` directory. Handles both `.skill` zip archives and skill directories.
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<source>` - Path to `.skill` file (zip archive) or skill directory containing SKILL.md
+- `-s, --scope` - Install scope (default: user)
+- `--name` - Override skill folder name (default: derived from source filename)
+
+**Scopes:**
+
+| Scope | Location | Who has access | Available where |
+|-------|----------|----------------|-----------------|
+| `user` | `~/.claude/skills/<name>/` | Only you | All your projects |
+| `project` | `<agent-dir>/.claude/skills/<name>/` | All collaborators | Only this project |
+| `local` | `<agent-dir>/.claude/skills/<name>/` | Only you (gitignored) | Only this project |
+
+**Source types:**
+- `.skill` or `.zip` file — Zip archive containing SKILL.md and optional resources
+- Directory — Folder containing SKILL.md at the top level
+
+**Examples:**
+```bash
+# Install .skill file to user scope (default, all projects)
+aimaestro-agent.sh skill install my-agent ./my-skill.skill
+
+# Install skill directory to project scope (shared with collaborators)
+aimaestro-agent.sh skill install my-agent ./path/to/skill-folder --scope project
+
+# Install to local scope (only you, only this project)
+aimaestro-agent.sh skill install backend-api ./debug-skill --scope local
+
+# Install with custom name
+aimaestro-agent.sh skill install my-agent ./downloads/v2-skill.skill --name my-skill
+
+# Install to user scope (available everywhere)
+aimaestro-agent.sh skill install my-agent ./my-skill.skill --scope user
+```
+
+**Installing skills in specific projects only:**
+```bash
+# Install only for backend-api's project (local scope)
+aimaestro-agent.sh skill install backend-api ./my-skill.skill --scope local
+
+# Install only for frontend-ui's project (project scope, shared with collaborators)
+aimaestro-agent.sh skill install frontend-ui ./my-skill.skill --scope project
+
+# Other agents won't have access to these skills
+```
+
+---
+
+### 24. Uninstall Skill (Filesystem)
+
+**Command:**
+```bash
+aimaestro-agent.sh skill uninstall <agent> <skill-name> [-s|--scope user|project|local]
+```
+
+**What it does:** Removes the skill directory from disk.
+
+**Parameters:**
+- `<agent>` - Agent name or ID
+- `<skill-name>` - Name of the skill folder to remove
+- `-s, --scope` - Scope to uninstall from (default: user)
+
+**Examples:**
+```bash
+# Uninstall from user scope (default)
+aimaestro-agent.sh skill uninstall my-agent my-skill
+
+# Uninstall from project scope
+aimaestro-agent.sh skill uninstall my-agent my-skill --scope project
+
+# Uninstall from local scope
+aimaestro-agent.sh skill uninstall backend-api debug-skill --scope local
+```
+
+**Note:** Plugin-based skills (installed via `plugin install`) should be managed with the `plugin` commands instead.
 
 ---
 

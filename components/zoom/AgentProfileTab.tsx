@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Trash2,
   Cloud, Monitor, Wifi, WifiOff, Folder, Download, Send,
   GitBranch, FolderGit2, RefreshCw, AlertTriangle,
-  FolderTree, X
+  FolderTree, X, Terminal
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, Repository } from '@/types/agent'
 import TransferAgentDialog from '@/components/TransferAgentDialog'
@@ -399,6 +399,13 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                 onChange={(value) => updateField('taskDescription', value)}
                 icon={<Code2 className="w-4 h-4" />}
                 multiline
+              />
+
+              <EditableField
+                label="Program Arguments (e.g. --continue)"
+                value={agent.programArgs || ''}
+                onChange={(value) => updateField('programArgs', value)}
+                icon={<Terminal className="w-4 h-4" />}
               />
 
               {/* Tags */}

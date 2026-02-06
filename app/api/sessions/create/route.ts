@@ -49,7 +49,7 @@ async function httpPost(url: string, body: any, timeout: number = 10000): Promis
 
 export async function POST(request: Request) {
   try {
-    const { name, workingDirectory, agentId, hostId, label, avatar } = await request.json()
+    const { name, workingDirectory, agentId, hostId, label, avatar, programArgs } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Session name is required' }, { status: 400 })
@@ -169,7 +169,8 @@ export async function POST(request: Request) {
           tags,
           owner: os.userInfo().username,
           createSession: true,
-          workingDirectory: cwd
+          workingDirectory: cwd,
+          programArgs: programArgs || '',
         })
         console.log(`[Sessions] Registered new agent: ${agentName} (${registeredAgent.id})`)
       } catch (createError) {

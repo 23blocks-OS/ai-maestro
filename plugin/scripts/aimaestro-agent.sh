@@ -1134,11 +1134,10 @@ HELP
     [[ -n "$model" ]] && payload=$(echo "$payload" | jq --arg m "$model" '. + {model: $m}')
     [[ -n "$task" ]] && payload=$(echo "$payload" | jq --arg t "$task" '. + {taskDescription: $t}')
     [[ -n "$tags" ]] && payload=$(echo "$payload" | jq --arg t "$tags" '. + {tags: ($t | split(","))}')
-    # Program arguments (passed after --)
+    # Program arguments (passed after --) - sent as string
     if [[ ${#program_args[@]} -gt 0 ]]; then
-        local args_json
-        args_json=$(printf '%s\n' "${program_args[@]}" | jq -R . | jq -s .)
-        payload=$(echo "$payload" | jq --argjson args "$args_json" '. + {programArgs: $args}')
+        local args_str="${program_args[*]}"
+        payload=$(echo "$payload" | jq --arg a "$args_str" '. + {programArgs: $a}')
     fi
 
     # Call API
@@ -1262,7 +1261,7 @@ HELP
 # ============================================================================
 
 cmd_update() {
-    local agent="" task="" tags="" add_tag="" remove_tag="" model=""
+    local agent="" task="" tags="" add_tag="" remove_tag="" model="" args=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1281,6 +1280,9 @@ cmd_update() {
             --remove-tag)
                 [[ $# -lt 2 ]] && { print_error "--remove-tag requires a value"; return 1; }
                 remove_tag="$2"; shift 2 ;;
+            --args)
+                [[ $# -lt 2 ]] && { print_error "--args requires a value"; return 1; }
+                args="$2"; shift 2 ;;
             -h|--help)
                 cat << 'HELP'
 Usage: aimaestro-agent.sh update <agent> [options]
@@ -1288,6 +1290,7 @@ Usage: aimaestro-agent.sh update <agent> [options]
 Options:
   -t, --task <desc>      Update task description
   -m, --model <model>    Update AI model
+  --args <arguments>     Update program arguments (e.g. "--continue --chrome")
   --tags <t1,t2>         Replace all tags
   --add-tag <tag>        Add a single tag
   --remove-tag <tag>     Remove a single tag
@@ -1317,6 +1320,7 @@ HELP
     [[ -n "$task" ]] && payload=$(echo "$payload" | jq --arg t "$task" '. + {taskDescription: $t}')
     [[ -n "$model" ]] && payload=$(echo "$payload" | jq --arg m "$model" '. + {model: $m}')
     [[ -n "$tags" ]] && payload=$(echo "$payload" | jq --arg t "$tags" '. + {tags: ($t | split(","))}')
+    [[ -n "$args" ]] && payload=$(echo "$payload" | jq --arg a "$args" '. + {programArgs: $a}')
 
     # Handle add/remove tag (need to get current tags first)
     if [[ -n "$add_tag" ]] || [[ -n "$remove_tag" ]]; then
@@ -1746,18 +1750,49 @@ cmd_skill() {
         list) cmd_skill_list "$@" ;;
         add) cmd_skill_add "$@" ;;
         remove) cmd_skill_remove "$@" ;;
+        install) cmd_skill_install "$@" ;;
+        uninstall) cmd_skill_uninstall "$@" ;;
         help|--help|-h)
             cat << 'HELP'
 Usage: aimaestro-agent.sh skill <subcommand> [options]
 
-Subcommands:
-  list <agent>                      List agent's skills
-  add <agent> <skill-id>            Add skill to agent
-  remove <agent> <skill-id>         Remove skill from agent
+Manage skills for an agent.
 
-Options for add:
-  --type <marketplace|custom>       Skill type (default: marketplace)
-  --path <path>                     Path for custom skill
+Registry commands (via AI Maestro API):
+  list <agent>                      List agent's registered skills
+  add <agent> <skill-id>            Register skill in agent's profile
+  remove <agent> <skill-id>         Unregister skill from agent's profile
+
+Filesystem commands (install/uninstall skill files):
+  install <agent> <source>          Install skill to agent's Claude Code
+  uninstall <agent> <skill-name>    Uninstall skill from agent's Claude Code
+
+Install methods:
+  Plugin-based skills are installed via 'plugin install' (see plugin help).
+  The 'skill install' command handles .skill files and skill directories.
+
+Scopes:
+  --scope user       ~/.claude/skills/ (all your projects)
+  --scope project    .claude/skills/ (shared with collaborators, committed)
+  --scope local      .claude/skills/ (only you, gitignored)
+                     Note: project and local both use .claude/skills/ but differ
+                     in whether they are committed to git.
+
+Examples:
+  # Install a .skill file (zip archive) to user scope
+  aimaestro-agent.sh skill install my-agent ./my-skill.skill
+
+  # Install a skill directory to project scope
+  aimaestro-agent.sh skill install my-agent ./path/to/skill-folder --scope project
+
+  # Install to user scope (available in all projects)
+  aimaestro-agent.sh skill install my-agent ./my-skill.skill --scope user
+
+  # Uninstall a skill
+  aimaestro-agent.sh skill uninstall my-agent my-skill-name
+
+  # Uninstall from specific scope
+  aimaestro-agent.sh skill uninstall my-agent my-skill-name --scope project
 HELP
             ;;
         *)
@@ -1882,6 +1917,279 @@ cmd_skill_remove() {
     print_success "Skill removed: $skill_id"
 }
 
+cmd_skill_install() {
+    local agent="" source="" scope="user" skill_name=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -s|--scope)
+                [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
+                scope="$2"; shift 2 ;;
+            --name)
+                [[ $# -lt 2 ]] && { print_error "--name requires a value"; return 1; }
+                skill_name="$2"; shift 2 ;;
+            -h|--help)
+                cat << 'HELP'
+Usage: aimaestro-agent.sh skill install <agent> <source> [options]
+
+Install a skill from a .skill file (zip archive) or a skill directory.
+
+Arguments:
+  agent    Agent name or ID
+  source   Path to .skill file (zip) or skill directory containing SKILL.md
+
+Options:
+  -s, --scope <user|project|local>   Install scope (default: user)
+  --name <name>                      Override skill folder name (default: derived
+                                     from source filename or directory name)
+
+Scopes:
+  user      ~/.claude/skills/<name>/ (all your projects)
+  project   <agent-dir>/.claude/skills/<name>/ (shared with collaborators)
+  local     <agent-dir>/.claude/skills/<name>/ (only you, gitignored)
+
+Source types:
+  .skill file    Zip archive containing SKILL.md and optional resources
+  directory      Folder containing SKILL.md at the top level
+
+Examples:
+  # Install .skill file to user scope (default)
+  aimaestro-agent.sh skill install my-agent ./my-skill.skill
+
+  # Install skill directory to project scope
+  aimaestro-agent.sh skill install my-agent ./path/to/skill-folder --scope project
+
+  # Install with custom name
+  aimaestro-agent.sh skill install my-agent ./downloads/v2-skill.skill --name my-skill
+
+  # Install to a specific agent's project (local scope)
+  aimaestro-agent.sh skill install backend-api ./debug-skill --scope local
+HELP
+                return 0 ;;
+            -*) print_error "Unknown option: $1"; return 1 ;;
+            *)
+                if [[ -z "$agent" ]]; then agent="$1"
+                elif [[ -z "$source" ]]; then source="$1"
+                fi
+                shift ;;
+        esac
+    done
+
+    [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
+    [[ -z "$source" ]] && { print_error "Skill source required (path to .skill file or directory)"; return 1; }
+
+    resolve_agent "$agent" || return 1
+
+    local agent_dir
+    agent_dir=$(get_agent_working_dir "$RESOLVED_AGENT_ID")
+
+    # Determine skill name from source if not provided
+    if [[ -z "$skill_name" ]]; then
+        # Strip path and extension
+        skill_name=$(basename "$source")
+        skill_name="${skill_name%.skill}"
+        skill_name="${skill_name%.zip}"
+    fi
+
+    # Determine target directory based on scope
+    local target_dir
+    case "$scope" in
+        user)
+            target_dir="$HOME/.claude/skills/$skill_name"
+            ;;
+        project|local)
+            if [[ -z "$agent_dir" ]] || [[ ! -d "$agent_dir" ]]; then
+                print_error "Agent working directory not found: $agent_dir"
+                return 1
+            fi
+            target_dir="$agent_dir/.claude/skills/$skill_name"
+            ;;
+        *)
+            print_error "Invalid scope: $scope (must be user, project, or local)"
+            return 1
+            ;;
+    esac
+
+    # Check if already installed
+    if [[ -d "$target_dir" ]] && [[ -f "$target_dir/SKILL.md" ]]; then
+        print_warning "Skill '$skill_name' already exists at: $target_dir"
+        print_warning "Use 'skill uninstall' first to replace it."
+        return 1
+    fi
+
+    # Install based on source type
+    if [[ -f "$source" ]] && [[ "$source" == *.skill || "$source" == *.zip ]]; then
+        # .skill file (zip archive)
+        print_info "Installing skill '$skill_name' from archive (scope: $scope)..."
+
+        # Create target directory
+        mkdir -p "$target_dir"
+
+        # Extract
+        if command -v unzip &>/dev/null; then
+            unzip -o -q "$source" -d "$target_dir"
+        else
+            print_error "unzip not found. Install it: brew install unzip"
+            rm -rf "$target_dir"
+            return 1
+        fi
+
+        # Verify SKILL.md exists after extraction
+        if [[ ! -f "$target_dir/SKILL.md" ]]; then
+            print_error "Archive does not contain SKILL.md at the top level"
+            # Check if it's nested one level deep
+            local nested
+            nested=$(find "$target_dir" -maxdepth 2 -name "SKILL.md" -print -quit 2>/dev/null)
+            if [[ -n "$nested" ]]; then
+                local nested_dir
+                nested_dir=$(dirname "$nested")
+                print_info "Found SKILL.md in subdirectory, moving contents up..."
+                # Move contents from nested dir to target
+                mv "$nested_dir"/* "$target_dir"/ 2>/dev/null || true
+                mv "$nested_dir"/.* "$target_dir"/ 2>/dev/null || true
+                rmdir "$nested_dir" 2>/dev/null || true
+            else
+                print_error "No SKILL.md found in archive. Invalid skill package."
+                rm -rf "$target_dir"
+                return 1
+            fi
+        fi
+
+    elif [[ -d "$source" ]]; then
+        # Skill directory
+        if [[ ! -f "$source/SKILL.md" ]]; then
+            print_error "Directory does not contain SKILL.md: $source"
+            return 1
+        fi
+
+        print_info "Installing skill '$skill_name' from directory (scope: $scope)..."
+
+        # Create parent directory
+        mkdir -p "$(dirname "$target_dir")"
+
+        # Copy the directory
+        cp -r "$source" "$target_dir"
+
+    else
+        print_error "Source not found or unsupported type: $source"
+        print_error "Expected: .skill file (zip), .zip file, or directory containing SKILL.md"
+        return 1
+    fi
+
+    print_success "Skill installed: $skill_name"
+    print_info "  Location: $target_dir"
+    print_info "  Scope: $scope"
+
+    # Reminder about scope behavior
+    case "$scope" in
+        user)
+            print_info "  Available in all your projects." ;;
+        project)
+            print_info "  Available in agent's project (committed to git)." ;;
+        local)
+            print_info "  Available in agent's project (gitignored, only you)." ;;
+    esac
+}
+
+cmd_skill_uninstall() {
+    local agent="" skill_name="" scope="user"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -s|--scope)
+                [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
+                scope="$2"; shift 2 ;;
+            -h|--help)
+                cat << 'HELP'
+Usage: aimaestro-agent.sh skill uninstall <agent> <skill-name> [options]
+
+Uninstall a skill by removing its directory.
+
+Arguments:
+  agent         Agent name or ID
+  skill-name    Name of the skill folder to remove
+
+Options:
+  -s, --scope <user|project|local>   Scope to uninstall from (default: user)
+
+Scopes:
+  user      Removes from ~/.claude/skills/<name>/
+  project   Removes from <agent-dir>/.claude/skills/<name>/
+  local     Removes from <agent-dir>/.claude/skills/<name>/
+
+Examples:
+  # Uninstall from user scope (default)
+  aimaestro-agent.sh skill uninstall my-agent my-skill
+
+  # Uninstall from project scope
+  aimaestro-agent.sh skill uninstall my-agent my-skill --scope project
+HELP
+                return 0 ;;
+            -*) print_error "Unknown option: $1"; return 1 ;;
+            *)
+                if [[ -z "$agent" ]]; then agent="$1"
+                elif [[ -z "$skill_name" ]]; then skill_name="$1"
+                fi
+                shift ;;
+        esac
+    done
+
+    [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
+    [[ -z "$skill_name" ]] && { print_error "Skill name required"; return 1; }
+
+    resolve_agent "$agent" || return 1
+
+    local agent_dir
+    agent_dir=$(get_agent_working_dir "$RESOLVED_AGENT_ID")
+
+    # Determine target directory based on scope
+    local target_dir
+    case "$scope" in
+        user)
+            target_dir="$HOME/.claude/skills/$skill_name"
+            ;;
+        project|local)
+            if [[ -z "$agent_dir" ]] || [[ ! -d "$agent_dir" ]]; then
+                print_error "Agent working directory not found: $agent_dir"
+                return 1
+            fi
+            target_dir="$agent_dir/.claude/skills/$skill_name"
+            ;;
+        *)
+            print_error "Invalid scope: $scope (must be user, project, or local)"
+            return 1
+            ;;
+    esac
+
+    if [[ ! -d "$target_dir" ]]; then
+        print_error "Skill not found at: $target_dir"
+        print_info "Check if the skill was installed in a different scope."
+        return 1
+    fi
+
+    # Safety: verify the path is under a .claude/skills/ directory
+    case "$target_dir" in
+        */.claude/skills/*)
+            ;; # Valid path
+        *)
+            print_error "Safety check failed: target is not under .claude/skills/"
+            return 1
+            ;;
+    esac
+
+    print_info "Uninstalling skill '$skill_name' (scope: $scope)..."
+    print_info "  Removing: $target_dir"
+
+    rm -rf "$target_dir"
+
+    if [[ ! -d "$target_dir" ]]; then
+        print_success "Skill uninstalled: $skill_name"
+    else
+        print_error "Failed to remove skill directory"
+        return 1
+    fi
+}
+
 # ============================================================================
 # PLUGIN (Claude Code plugins)
 # ============================================================================
@@ -1893,6 +2201,8 @@ cmd_plugin() {
     case "$subcmd" in
         install) cmd_plugin_install "$@" ;;
         uninstall) cmd_plugin_uninstall "$@" ;;
+        update) cmd_plugin_update "$@" ;;
+        load) cmd_plugin_load "$@" ;;
         enable) cmd_plugin_enable "$@" ;;
         disable) cmd_plugin_disable "$@" ;;
         list) cmd_plugin_list "$@" ;;
@@ -1904,53 +2214,55 @@ cmd_plugin() {
             cat << 'HELP'
 Usage: aimaestro-agent.sh plugin <subcommand> [options]
 
-Manage Claude Code plugins for an agent. Plugins are installed in the agent's
-working directory (local scope) by default.
+Manage Claude Code plugins for an agent.
 
 Subcommands:
-  install <agent> <plugin>     Install plugin for agent
-  uninstall <agent> <plugin>   Uninstall plugin from agent (use --force for corrupt)
-  enable <agent> <plugin>      Enable plugin for agent
-  disable <agent> <plugin>     Disable plugin for agent
+  install <agent> <plugin>     Install plugin (persistent)
+  uninstall <agent> <plugin>   Uninstall plugin
+  update <agent> <plugin>      Update plugin to latest version
+  load <agent> <path>          Load plugin from local directory (session only)
+  enable <agent> <plugin>      Enable a disabled plugin
+  disable <agent> <plugin>     Disable plugin without uninstalling
   list <agent>                 List plugins for agent
-  validate <agent> <plugin>    Validate plugin before install/enable
-  reinstall <agent> <plugin>   Reinstall plugin preserving enabled state
+  validate <agent> <path>      Validate plugin before install
+  reinstall <agent> <plugin>   Uninstall + reinstall (preserves state)
   clean <agent>                Clean up corrupt/orphaned plugin data
   marketplace <action>         Manage marketplaces (add, list, remove, update)
 
-Options:
-  --scope <user|project|local>   Plugin scope (default: local)
-  --plugin-dir                   Show how to load plugin for session only
-                                 (using claude --plugin-dir, no installation)
-  --force, -f                    Force removal even if corrupt (uninstall only)
-  --validate                     Validate before install/enable (recommended)
+Scopes (for install/uninstall/update/enable/disable/reinstall):
+  --scope local      Only you, only this repo (.claude/plugins/, gitignored)
+                     This is the default scope.
+  --scope project    Shared with collaborators (.claude/settings.json, committed)
+  --scope user       All your projects (~/.claude.json, user-global)
 
-Scopes:
-  user      ~/.claude/plugins/cache/ (all projects)
-  project   <project>/.claude/plugins/ (project only)
-  local     ./.claude/plugins/ (current directory)
+Plugin format:
+  plugin-name@marketplace-name   Full qualified name
+  plugin-name                    Short name (searched across marketplaces)
 
 Examples:
-  # Install plugin in default (local) scope
-  aimaestro-agent.sh plugin install my-agent feature-dev
+  # Install plugin in local scope (default)
+  aimaestro-agent.sh plugin install my-agent feature-dev@my-marketplace
 
-  # Install plugin in project scope (persists for project)
+  # Install with project scope (shared with collaborators)
   aimaestro-agent.sh plugin install my-agent my-plugin --scope project
 
-  # Install plugin in user scope (available to all projects)
+  # Install with user scope (available in all your projects)
   aimaestro-agent.sh plugin install my-agent my-plugin --scope user
 
-  # Show how to load plugin for one session only (no install)
-  aimaestro-agent.sh plugin install my-agent /path/to/plugin --plugin-dir
+  # Load plugin from local directory for one session only (no install)
+  aimaestro-agent.sh plugin load my-agent /path/to/plugin
 
-  # List all plugins for an agent
-  aimaestro-agent.sh plugin list my-agent
+  # Update a plugin to latest version
+  aimaestro-agent.sh plugin update my-agent my-plugin@my-marketplace
 
   # Uninstall a plugin
   aimaestro-agent.sh plugin uninstall my-agent feature-dev
 
   # Force uninstall (even if corrupt)
   aimaestro-agent.sh plugin uninstall my-agent broken-plugin --force
+
+  # List all plugins for an agent
+  aimaestro-agent.sh plugin list my-agent
 HELP
             ;;
         *)
@@ -1961,51 +2273,50 @@ HELP
 }
 
 cmd_plugin_install() {
-    local agent="" plugin="" scope="local" method="install" no_restart=false
+    local agent="" plugin="" scope="local" no_restart=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --scope)
+            -s|--scope)
                 [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
                 scope="$2"; shift 2 ;;
-            --plugin-dir)
-                # Use claude --plugin-dir for session-only loading (no install)
-                method="dir"; shift ;;
             --no-restart)
                 no_restart=true; shift ;;
             -h|--help)
                 cat << 'HELP'
 Usage: aimaestro-agent.sh plugin install <agent> <plugin> [options]
 
+Install a plugin persistently for an agent.
+
 Options:
-  --scope <user|project|local>   Plugin scope (default: local)
-  --plugin-dir                   Show how to load plugin for session only
-                                 (using claude --plugin-dir, no installation)
-  --no-restart                   Don't restart the agent after install
+  -s, --scope <user|project|local>   Plugin scope (default: local)
+  --no-restart                       Don't restart the agent after install
 
 Scopes:
-  user      ~/.claude/plugins/cache/ (all projects)
-  project   <project>/.claude/plugins/ (project only)
-  local     ./.claude/plugins/ (current directory)
+  local     Only you, only this repo (.claude/plugins/, gitignored)
+  project   Shared with collaborators (.claude/settings.json, committed)
+  user      All your projects (~/.claude.json, user-global)
+
+Plugin format:
+  plugin-name@marketplace-name   Full qualified name
+  plugin-name                    Short name
 
 Notes:
   - If the plugin is already installed, the command continues without error
-  - After installing, Claude Code may need restart for changes to take effect
-  - For remote agents, the script will hibernate and wake the agent automatically
+  - After installing, Claude Code needs restart for changes to take effect
+  - For remote agents, the script hibernates and wakes the agent automatically
   - For the current agent, you'll need to restart manually
+  - To load a plugin for one session only, use: plugin load
 
 Examples:
-  # Install plugin in local scope (default)
-  aimaestro-agent.sh plugin install my-agent feature-dev
+  # Install in local scope (default)
+  aimaestro-agent.sh plugin install my-agent feature-dev@my-marketplace
 
-  # Install plugin in project scope
+  # Install in project scope (shared with collaborators)
   aimaestro-agent.sh plugin install my-agent my-plugin --scope project
 
-  # Install plugin in user scope (all projects)
+  # Install in user scope (all your projects)
   aimaestro-agent.sh plugin install my-agent my-plugin --scope user
-
-  # Show how to load plugin for session only (no install)
-  aimaestro-agent.sh plugin install my-agent /path/to/plugin --plugin-dir
 
   # Install without automatic restart
   aimaestro-agent.sh plugin install my-agent my-plugin --no-restart
@@ -2031,20 +2342,6 @@ HELP
     if [[ -z "$agent_dir" ]] || [[ ! -d "$agent_dir" ]]; then
         print_error "Agent working directory not found: $agent_dir"
         return 1
-    fi
-
-    if [[ "$method" == "dir" ]]; then
-        # Show how to use --plugin-dir for session-only loading
-        print_info "To load plugin for session only (without installing), start Claude Code with:"
-        echo ""
-        echo "   cd \"$agent_dir\" && claude --plugin-dir \"$plugin\""
-        echo ""
-        print_info "Or wake the agent with programArgs:"
-        echo ""
-        echo "   aimaestro-agent.sh wake $RESOLVED_ALIAS -- --plugin-dir \"$plugin\""
-        echo ""
-        print_warning "Note: The plugin path must be absolute or relative to the working directory."
-        return 0
     fi
 
     print_info "Installing plugin '$plugin' (scope: $scope) for agent '$RESOLVED_ALIAS'..."
@@ -2096,7 +2393,7 @@ cmd_plugin_uninstall() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --scope)
+            -s|--scope)
                 [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
                 scope="$2"; shift 2 ;;
             --force|-f)
@@ -2105,15 +2402,28 @@ cmd_plugin_uninstall() {
                 cat << 'HELP'
 Usage: aimaestro-agent.sh plugin uninstall <agent> <plugin> [options]
 
+Uninstall a plugin from an agent.
+
 Options:
-  --scope <user|project|local>   Plugin scope (default: local)
-  --force, -f                    Force removal: delete cache folder and update
-                                 config files even if normal uninstall fails
+  -s, --scope <user|project|local>   Plugin scope (default: local)
+  --force, -f                        Force removal: delete cache folder and
+                                     update config files even if normal
+                                     uninstall fails
 
 Force removal is useful when:
   - Plugin is corrupt and can't be uninstalled normally
   - Plugin files were manually modified
   - Need to clean up orphaned plugin data
+
+Examples:
+  # Uninstall plugin (local scope)
+  aimaestro-agent.sh plugin uninstall my-agent feature-dev
+
+  # Uninstall from user scope
+  aimaestro-agent.sh plugin uninstall my-agent my-plugin --scope user
+
+  # Force uninstall (even if corrupt)
+  aimaestro-agent.sh plugin uninstall my-agent broken-plugin --force
 HELP
                 return 0 ;;
             -*) print_error "Unknown option: $1"; return 1 ;;
@@ -2260,12 +2570,170 @@ HELP
     fi
 }
 
+cmd_plugin_update() {
+    local agent="" plugin="" scope="local"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -s|--scope)
+                [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
+                scope="$2"; shift 2 ;;
+            -h|--help)
+                cat << 'HELP'
+Usage: aimaestro-agent.sh plugin update <agent> <plugin> [options]
+
+Update a plugin to the latest version from its marketplace.
+
+Options:
+  -s, --scope <user|project|local>   Plugin scope (default: local)
+
+Plugin format:
+  plugin-name@marketplace-name   Full qualified name
+  plugin-name                    Short name
+
+Examples:
+  # Update plugin (local scope)
+  aimaestro-agent.sh plugin update my-agent feature-dev@my-marketplace
+
+  # Update plugin in user scope
+  aimaestro-agent.sh plugin update my-agent my-plugin --scope user
+HELP
+                return 0 ;;
+            -*) print_error "Unknown option: $1"; return 1 ;;
+            *)
+                if [[ -z "$agent" ]]; then agent="$1"
+                elif [[ -z "$plugin" ]]; then plugin="$1"
+                fi
+                shift ;;
+        esac
+    done
+
+    [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
+    [[ -z "$plugin" ]] && { print_error "Plugin name required"; return 1; }
+
+    resolve_agent "$agent" || return 1
+
+    local agent_dir
+    agent_dir=$(get_agent_working_dir "$RESOLVED_AGENT_ID")
+
+    if [[ -z "$agent_dir" ]] || [[ ! -d "$agent_dir" ]]; then
+        print_error "Agent working directory not found: $agent_dir"
+        return 1
+    fi
+
+    require_claude || return 1
+
+    print_info "Updating plugin '$plugin' (scope: $scope) for agent '$RESOLVED_ALIAS'..."
+
+    local output exit_code
+    output=$(run_claude_command "$agent_dir" plugin update "$plugin" --scope "$scope" 2>&1)
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        print_success "Plugin updated: $plugin"
+        return 0
+    fi
+
+    print_error "Failed to update plugin"
+    if [[ -n "$output" ]]; then
+        echo ""
+        echo "${RED}Claude CLI error:${NC}"
+        echo "$output"
+    fi
+    return 1
+}
+
+cmd_plugin_load() {
+    local agent="" plugin_path=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                cat << 'HELP'
+Usage: aimaestro-agent.sh plugin load <agent> <path> [<path>...]
+
+Load plugin(s) from local directory for the current session only.
+This does NOT install the plugin — it is available only while the
+session is running. Useful for development and testing.
+
+Arguments:
+  agent    Agent name or ID
+  path     Path to plugin directory (must contain .claude-plugin/plugin.json)
+           Can specify multiple paths.
+
+How it works:
+  The plugin directory is passed to Claude Code via --plugin-dir at startup.
+  For running agents, the agent must be restarted with the --plugin-dir flag
+  added to programArgs.
+
+Examples:
+  # Load a plugin for development/testing
+  aimaestro-agent.sh plugin load my-agent ./my-plugin-dev
+
+  # Load multiple plugins
+  aimaestro-agent.sh plugin load my-agent ./plugin-one ./plugin-two
+HELP
+                return 0 ;;
+            -*) print_error "Unknown option: $1"; return 1 ;;
+            *)
+                if [[ -z "$agent" ]]; then
+                    agent="$1"
+                else
+                    # Collect all remaining args as plugin paths
+                    plugin_path="${plugin_path:+$plugin_path }$1"
+                fi
+                shift ;;
+        esac
+    done
+
+    [[ -z "$agent" ]] && { print_error "Agent name required"; return 1; }
+    [[ -z "$plugin_path" ]] && { print_error "Plugin path required"; return 1; }
+
+    resolve_agent "$agent" || return 1
+
+    local agent_dir
+    agent_dir=$(get_agent_working_dir "$RESOLVED_AGENT_ID")
+
+    if [[ -z "$agent_dir" ]] || [[ ! -d "$agent_dir" ]]; then
+        print_error "Agent working directory not found: $agent_dir"
+        return 1
+    fi
+
+    # Build --plugin-dir flags
+    local plugin_dir_flags=""
+    for p in $plugin_path; do
+        # Resolve relative paths
+        if [[ ! "$p" = /* ]]; then
+            p="$agent_dir/$p"
+        fi
+        if [[ ! -d "$p" ]]; then
+            print_error "Plugin directory not found: $p"
+            return 1
+        fi
+        plugin_dir_flags="${plugin_dir_flags} --plugin-dir \"$p\""
+    done
+
+    print_info "To load plugin(s) for this session only, start Claude Code with:"
+    echo ""
+    echo "   cd \"$agent_dir\" && claude${plugin_dir_flags}"
+    echo ""
+    print_info "Or set it as permanent programArgs, wake, then clear:"
+    echo ""
+    echo "   aimaestro-agent.sh update $RESOLVED_ALIAS --args \"${plugin_dir_flags# }\""
+    echo "   aimaestro-agent.sh wake $RESOLVED_ALIAS"
+    echo "   # To remove after testing:"
+    echo "   aimaestro-agent.sh update $RESOLVED_ALIAS --args \"\""
+    echo ""
+    print_warning "Note: Session-only plugins are not installed and won't appear in 'plugin list'."
+    print_warning "For persistent installation, use: aimaestro-agent.sh plugin install"
+}
+
 cmd_plugin_enable() {
     local agent="" plugin="" scope="local"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --scope)
+            -s|--scope)
                 [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
                 scope="$2"; shift 2 ;;
             -*) print_error "Unknown option: $1"; return 1 ;;
@@ -2310,7 +2778,7 @@ cmd_plugin_disable() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --scope)
+            -s|--scope)
                 [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
                 scope="$2"; shift 2 ;;
             -*) print_error "Unknown option: $1"; return 1 ;;
@@ -2446,11 +2914,11 @@ HELP
 }
 
 cmd_plugin_reinstall() {
-    local agent="" plugin="" scope="user"
+    local agent="" plugin="" scope="local"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --scope)
+            -s|--scope)
                 [[ $# -lt 2 ]] && { print_error "--scope requires a value"; return 1; }
                 scope="$2"; shift 2 ;;
             -h|--help)
@@ -2460,7 +2928,7 @@ Usage: aimaestro-agent.sh plugin reinstall <agent> <plugin> [options]
 Reinstall a plugin while preserving its enabled/disabled state.
 
 Options:
-  --scope <user|project|local>   Plugin scope (default: user)
+  --scope <user|project|local>   Plugin scope (default: local)
 
 This is useful for:
   - Fixing corrupt plugin installations
@@ -2720,21 +3188,49 @@ cmd_marketplace_add() {
                 cat << 'HELP'
 Usage: aimaestro-agent.sh plugin marketplace add <agent> <source> [options]
 
-Add a marketplace from URL, path, or GitHub repo.
+Add a plugin marketplace to an agent.
 
 Options:
-  --no-restart    Don't restart the agent after adding (manual restart needed)
+  --no-restart    Don't restart the agent after adding
 
 Source formats:
-  github:owner/repo    GitHub repository
-  https://...          URL to marketplace.json
-  /path/to/dir         Local directory path
+  owner/repo                    GitHub repository (short form)
+  github:owner/repo             GitHub repository (explicit)
+  https://github.com/o/r.git    GitHub HTTPS clone URL
+  https://gitlab.com/o/r.git    GitLab or other Git host (HTTPS)
+  git@gitlab.com:o/r.git        GitLab or other Git host (SSH)
+  https://host/repo.git#v1.0    Specific branch or tag
+  ./my-marketplace               Local directory
+  ./path/to/marketplace.json     Direct path to marketplace.json
+  https://example.com/mp.json    Remote URL to marketplace.json
 
 Notes:
   - If the marketplace is already installed, the command continues without error
-  - After adding a marketplace, Claude Code needs to be restarted for changes to take effect
-  - For remote agents, the script will hibernate and wake the agent automatically
+  - After adding, Claude Code needs restart for changes to take effect
+  - For remote agents, the script hibernates and wakes the agent automatically
   - For the current agent, you'll need to restart manually
+
+Examples:
+  # Add from GitHub
+  aimaestro-agent.sh plugin marketplace add my-agent owner/repo
+
+  # Add from GitLab (HTTPS)
+  aimaestro-agent.sh plugin marketplace add my-agent https://gitlab.com/company/plugins.git
+
+  # Add from GitLab (SSH)
+  aimaestro-agent.sh plugin marketplace add my-agent git@gitlab.com:company/plugins.git
+
+  # Add specific branch/tag
+  aimaestro-agent.sh plugin marketplace add my-agent https://github.com/o/r.git#v1.0.0
+
+  # Add from local directory
+  aimaestro-agent.sh plugin marketplace add my-agent ./my-marketplace
+
+  # Add from remote URL
+  aimaestro-agent.sh plugin marketplace add my-agent https://example.com/marketplace.json
+
+  # Add without automatic restart
+  aimaestro-agent.sh plugin marketplace add my-agent owner/repo --no-restart
 HELP
                 return 0 ;;
             -*) print_error "Unknown option: $1"; return 1 ;;

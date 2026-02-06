@@ -612,14 +612,14 @@ export default function AgentList({
     }
   }
 
-  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string): Promise<boolean> => {
+  const handleCreateAgent = async (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string): Promise<boolean> => {
     setActionLoading(true)
 
     try {
       const response = await fetch('/api/sessions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, workingDirectory, hostId, label, avatar }),
+        body: JSON.stringify({ name, workingDirectory, hostId, label, avatar, programArgs }),
       })
 
       if (!response.ok) {
@@ -1569,13 +1569,14 @@ function CreateAgentModal({
   loading,
 }: {
   onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string) => Promise<boolean>
+  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string) => Promise<boolean>
   onComplete: () => void
   loading: boolean
 }) {
   const { hosts } = useHosts()
   const [name, setName] = useState('')
   const [workingDirectory, setWorkingDirectory] = useState('')
+  const [programArgs, setProgramArgs] = useState('')
   const [selectedHostId, setSelectedHostId] = useState<string>('')
   const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
 
@@ -1714,7 +1715,7 @@ function CreateAgentModal({
       const personaName = getRandomAlias(name.trim())
       const avatarUrl = getPreviewAvatarUrl(name.trim())
       // Pass selectedHostId to create agent on the chosen host
-      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined, personaName, avatarUrl)
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined, personaName, avatarUrl, programArgs.trim() || undefined)
       if (success) {
         setCreationSuccess(true)
         // Animation continues, user will click "Let's Go!" to close
@@ -1802,6 +1803,22 @@ function CreateAgentModal({
                     placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
+                </div>
+                <div>
+                  <label htmlFor="program-args" className="block text-sm font-medium text-gray-300 mb-1">
+                    Program Arguments (optional)
+                  </label>
+                  <input
+                    id="program-args"
+                    type="text"
+                    value={programArgs}
+                    onChange={(e) => setProgramArgs(e.target.value)}
+                    placeholder="--continue --chrome"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    CLI flags passed to the program on launch (e.g. --continue --chrome)
+                  </p>
                 </div>
                 {hosts.length > 1 && (
                   <HostSelector

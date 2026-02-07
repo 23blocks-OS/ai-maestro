@@ -26,6 +26,9 @@ export type MeetingPhase = 'idle' | 'selecting' | 'ringing' | 'active'
 /** Sidebar display mode during active meeting */
 export type SidebarMode = 'grid' | 'list'
 
+/** Right panel tab for active meetings */
+export type RightPanelTab = 'tasks' | 'chat'
+
 /** State for the team meeting page */
 export interface TeamMeetingState {
   phase: MeetingPhase
@@ -35,6 +38,10 @@ export interface TeamMeetingState {
   activeAgentId: string | null
   joinedAgentIds: string[]
   sidebarMode: SidebarMode
+  meetingId: string | null
+  rightPanelOpen: boolean
+  rightPanelTab: RightPanelTab
+  kanbanOpen: boolean
 }
 
 /** Actions for the team meeting reducer */
@@ -51,3 +58,8 @@ export type TeamMeetingAction =
   | { type: 'SET_TEAM_NAME'; name: string }
   | { type: 'SET_NOTIFY_AMP'; enabled: boolean }
   | { type: 'ADD_AGENT'; agentId: string }
+  | { type: 'TOGGLE_RIGHT_PANEL' }
+  | { type: 'SET_RIGHT_PANEL_TAB'; tab: RightPanelTab }
+  | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }
+  | { type: 'OPEN_KANBAN' }
+  | { type: 'CLOSE_KANBAN' }

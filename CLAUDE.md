@@ -386,7 +386,25 @@ const getCategoryColor = (category: string) => {
 - Always use `e.stopPropagation()` for nested interactive elements
 - Keep hover states smooth with `transition-all duration-200`
 
-### 7. TypeScript Type System Organization
+### 7. Team Meeting Architecture (v0.20.19+)
+
+**State machine pattern:** Team meetings use a `useReducer` with a `TeamMeetingState` that tracks meeting phase (`idle` → `selecting` → `ringing` → `active`), selected agents, and UI state (sidebar mode, right panel, kanban open).
+
+**Task system:**
+- Tasks stored per-team in `~/.aimaestro/teams/tasks-{teamId}.json`
+- 5 statuses: `backlog` → `pending` → `in_progress` → `review` → `completed`
+- Dependency chains: tasks can block other tasks, auto-unblock on completion
+- `useTasks` hook polls every 5s for multi-tab sync
+
+**Kanban board:**
+- Full-screen overlay (`fixed inset-0 z-40`) matching agent picker overlay pattern
+- Native HTML5 drag-and-drop (same pattern as AgentList.tsx)
+- `KanbanCard`: `draggable={!task.isBlocked}`, stores taskId in `dataTransfer`
+- `KanbanColumn`: `onDragOver`/`onDrop` handlers update task status
+- Escape key closes modals in priority order: detail view → quick-add → board
+- Blocked tasks show lock icon, not draggable
+
+### 8. TypeScript Type System Organization
 
 **Strict separation by domain:**
 
@@ -427,11 +445,27 @@ components/
   SessionList.tsx       - Hierarchical sidebar with icons, colors, session management
   TerminalView.tsx      - Terminal display with collapsible notes area
   [Other components]    - Keep them small, single responsibility
+  team-meeting/
+    MeetingHeader.tsx         - Meeting header with status, controls, kanban toggle
+    MeetingSidebar.tsx        - Agent list sidebar during meetings
+    MeetingTerminalArea.tsx   - Terminal grid for active meeting agents
+    MeetingRightPanel.tsx     - Right panel wrapper (tasks + chat tabs)
+    MeetingChatPanel.tsx      - Meeting chat using AMP messages
+    TaskPanel.tsx             - Task list panel with filtering and quick-add
+    TaskCard.tsx              - Task card with status, assignee, dependencies
+    TaskCreateForm.tsx        - Full task creation form with all fields
+    TaskDetailView.tsx        - Detailed task view with edit capabilities
+    TaskKanbanBoard.tsx       - Full-screen kanban overlay with 5 columns + drag-and-drop
+    KanbanColumn.tsx          - Single kanban column with drop zone
+    KanbanCard.tsx            - Compact draggable task card for kanban
+    DependencyPicker.tsx      - Dependency selection for task relationships
 
 hooks/
   useWebSocket.ts       - WebSocket connection (reconnection, heartbeat)
   useTerminal.ts        - xterm.js lifecycle (init, fit, dispose)
   useSessions.ts        - Session list fetching + auto-refresh
+  useTasks.ts           - Task CRUD with tasksByStatus, optimistic updates, 5s polling
+  useMeetingMessages.ts - Meeting chat messages via AMP with 7s polling
 
 lib/
   api.ts                - Fetch wrappers for /api/sessions
@@ -866,6 +900,15 @@ When implementing features:
 7. `hooks/useWebSocket.ts` - WebSocket connection management
 8. `hooks/useTerminal.ts` - xterm.js lifecycle management
 9. `app/api/sessions/route.ts` - tmux session discovery logic
+
+**Team Meeting & Kanban (v0.20.19+):**
+10. `app/team-meeting/page.tsx` - Team meeting page with reducer state machine
+11. `components/team-meeting/TaskKanbanBoard.tsx` - Full-screen kanban overlay with 5 columns + drag-and-drop
+12. `components/team-meeting/KanbanColumn.tsx` - Single kanban column with drop zone
+13. `components/team-meeting/KanbanCard.tsx` - Compact draggable task card
+14. `types/task.ts` - Task types with 5 statuses: backlog, pending, in_progress, review, completed
+15. `lib/task-registry.ts` - File-based CRUD for team task persistence
+16. `hooks/useTasks.ts` - Task hook with tasksByStatus, optimistic updates, polling
 
 **Read these in order** to understand agents and data flow.
 

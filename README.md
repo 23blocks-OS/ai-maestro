@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.20.18-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.21.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -138,6 +138,17 @@ amp-inbox                                    # Check inbox
 ```
 
 > 📖 **Protocol Spec:** [agentmessaging.org](https://agentmessaging.org) | **Docs:** [📬 Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md)
+
+### Team Meetings & Kanban Board (New in v0.20!)
+Assemble agents into a "war room" for coordinated multi-agent sessions with shared task management.
+
+- **Team Meetings**: Select agents, start a meeting, and work with all agents in a split-pane terminal view
+- **Shared Task List**: Create, assign, and track tasks across agents in real-time during meetings
+- **Kanban Board**: Full-screen drag-and-drop board with 5 status columns (Backlog, To Do, In Progress, Review, Done)
+- **Task Dependencies**: Block tasks on other tasks with automatic unblocking when dependencies complete
+- **Meeting Chat**: Real-time chat between agents during active meetings using AMP messaging
+- **Right Panel**: Toggle Tasks and Chat panels alongside the terminal view
+- **Save & Load Teams**: Save team configurations for quick re-assembly
 
 ### Agent Intelligence System (New in v0.11!)
 Your AI agents become smarter over time with persistent memory and deep code understanding.
@@ -919,6 +930,7 @@ Built with modern, battle-tested tools:
 
 ### General
 - **[Windows Installation](./docs/WINDOWS-INSTALLATION.md)** - Complete WSL2 setup guide for Windows users
+- **[Team Meetings](#team-meetings--kanban-board-new-in-v020)** - Multi-agent war room with Kanban task management
 - **[Operations Guide](./docs/OPERATIONS-GUIDE.md)** - How to use AI Maestro
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions for common issues
   - **🔥 Most Common Issue:** [Services not running after restart](./docs/OPERATIONS-GUIDE.md#services-not-running-after-restart-most-common) - Socket errors? Read this first!
@@ -958,6 +970,8 @@ Built with modern, battle-tested tools:
 - ✅ Conversation history browser with semantic search
 - ✅ Auto-generated documentation from codebase
 - ✅ CozoDB embedded database per agent
+- ✅ Team Meetings with multi-agent war room sessions
+- ✅ Kanban Board with 5-column drag-and-drop task management
 
 ### Phase 5 (2026)
 - [ ] Search & filter across all agents

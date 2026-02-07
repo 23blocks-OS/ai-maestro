@@ -1,6 +1,7 @@
 'use client'
 
-import { Users, Plus, PhoneOff } from 'lucide-react'
+import Link from 'next/link'
+import { Users, Plus, PhoneOff, ArrowLeft, ListTodo, MessageSquare, LayoutGrid, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 interface MeetingHeaderProps {
   teamName: string
@@ -8,6 +9,13 @@ interface MeetingHeaderProps {
   onSetTeamName: (name: string) => void
   onAddAgent: () => void
   onEndMeeting: () => void
+  rightPanelOpen?: boolean
+  onToggleRightPanel?: () => void
+  onOpenTasks?: () => void
+  onOpenChat?: () => void
+  onOpenKanban?: () => void
+  taskCount?: number
+  chatUnreadCount?: number
 }
 
 export default function MeetingHeader({
@@ -16,9 +24,24 @@ export default function MeetingHeader({
   onSetTeamName,
   onAddAgent,
   onEndMeeting,
+  rightPanelOpen,
+  onToggleRightPanel,
+  onOpenTasks,
+  onOpenChat,
+  onOpenKanban,
+  taskCount = 0,
+  chatUnreadCount = 0,
 }: MeetingHeaderProps) {
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 bg-gray-950 flex-shrink-0">
+      <Link
+        href="/"
+        className="p-1 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-300"
+        title="Back to Dashboard"
+      >
+        <ArrowLeft className="w-4 h-4" />
+      </Link>
+
       <div className="flex items-center gap-2 text-emerald-400">
         <Users className="w-4 h-4" />
         <span className="text-xs font-medium uppercase tracking-wider">Meeting</span>
@@ -38,6 +61,71 @@ export default function MeetingHeader({
       </span>
 
       <div className="flex-1" />
+
+      {/* Kanban button */}
+      {onOpenKanban && (
+        <button
+          onClick={onOpenKanban}
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+          title="Kanban Board"
+        >
+          <LayoutGrid className="w-3.5 h-3.5" />
+          Kanban
+        </button>
+      )}
+
+      {/* Tasks button */}
+      {onOpenTasks && (
+        <button
+          onClick={onOpenTasks}
+          className="relative flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+          title="Tasks"
+        >
+          <ListTodo className="w-3.5 h-3.5" />
+          Tasks
+          {taskCount > 0 && (
+            <span className="text-[10px] bg-gray-700 text-gray-400 rounded-full px-1.5 min-w-[16px] text-center">
+              {taskCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Chat button */}
+      {onOpenChat && (
+        <button
+          onClick={onOpenChat}
+          className="relative flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+          title="Chat"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Chat
+          {chatUnreadCount > 0 && (
+            <span className="text-[10px] bg-emerald-600 text-white rounded-full px-1.5 min-w-[16px] text-center">
+              {chatUnreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Panel toggle */}
+      {onToggleRightPanel && (
+        <button
+          onClick={onToggleRightPanel}
+          className={`p-1.5 rounded transition-colors ${
+            rightPanelOpen
+              ? 'bg-gray-700 text-gray-200'
+              : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+          }`}
+          title={rightPanelOpen ? 'Close panel' : 'Open panel'}
+        >
+          {rightPanelOpen ? (
+            <PanelRightClose className="w-4 h-4" />
+          ) : (
+            <PanelRightOpen className="w-4 h-4" />
+          )}
+        </button>
+      )}
 
       <button
         onClick={onAddAgent}

@@ -12,65 +12,6 @@ import * as sessionMessaging from './messageQueue'
  */
 
 /**
- * Send a message from one agent to another
- * Accepts agent IDs or aliases
- */
-export async function sendAgentMessage(
-  from: string,  // Agent ID or alias
-  to: string,    // Agent ID or alias
-  subject: string,
-  content: sessionMessaging.Message['content'],
-  options?: {
-    priority?: sessionMessaging.Message['priority']
-    inReplyTo?: string
-  }
-): Promise<sessionMessaging.Message> {
-  // Resolve from and to to actual agents
-  const fromAgentId = resolveAlias(from) || from
-  const toAgentId = resolveAlias(to) || to
-
-  const fromAgent = getAgent(fromAgentId)
-  const toAgent = getAgent(toAgentId)
-
-  if (!fromAgent) {
-    throw new Error(`Sender agent not found: ${from}`)
-  }
-
-  if (!toAgent) {
-    throw new Error(`Recipient agent not found: ${to}`)
-  }
-
-  return sessionMessaging.sendMessage(fromAgentId, toAgentId, subject, content, options)
-}
-
-/**
- * Forward a message from one agent to another
- */
-export async function forwardAgentMessage(
-  originalMessageId: string,
-  fromAgent: string,  // Agent ID or alias
-  toAgent: string,    // Agent ID or alias
-  forwardNote?: string
-): Promise<sessionMessaging.Message> {
-  const fromAgentId = resolveAlias(fromAgent) || fromAgent
-  const toAgentId = resolveAlias(toAgent) || toAgent
-
-  const from = getAgent(fromAgentId)
-  const to = getAgent(toAgentId)
-
-  if (!from) {
-    throw new Error(`Sender agent not found: ${fromAgent}`)
-  }
-
-  if (!to) {
-    throw new Error(`Recipient agent not found: ${toAgent}`)
-  }
-
-  // Use agent IDs for message storage
-  return sessionMessaging.forwardMessage(originalMessageId, fromAgentId, toAgentId, forwardNote)
-}
-
-/**
  * List inbox messages for an agent
  */
 export async function listAgentInboxMessages(

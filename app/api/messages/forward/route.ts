@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { forwardMessage } from '@/lib/messageQueue'
+import { forwardFromUI } from '@/lib/message-send'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,23 +24,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward the message
-    // If originalMessage is provided (remote forward), use it directly
-    // Otherwise use messageId (local forward)
-    const forwardedMessage = await forwardMessage(
-      messageId,
-      fromSession,
-      toSession,
-      forwardNote || undefined,
-      originalMessage || undefined
-    )
+    const result = await forwardFromUI({
+      originalMessageId: messageId,
+      fromAgent: fromSession,
+      toAgent: toSession,
+      forwardNote: forwardNote || undefined,
+      providedOriginalMessage: originalMessage || undefined,
+    })
 
     return NextResponse.json({
       success: true,
       message: 'Message forwarded successfully',
       forwardedMessage: {
-        id: forwardedMessage.id,
-        to: forwardedMessage.to,
-        subject: forwardedMessage.subject,
+        id: result.message.id,
+        to: result.message.to,
+        subject: result.message.subject,
       },
     })
   } catch (error) {

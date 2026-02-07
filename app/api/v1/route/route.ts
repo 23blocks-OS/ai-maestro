@@ -32,10 +32,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/amp-auth'
 import { loadKeyPair, verifySignature } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
-import { sendMessage } from '@/lib/messageQueue'
 import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
+import { deliver } from '@/lib/message-delivery'
 import { getAgent, getAgentByName, checkMeshAgentExists } from '@/lib/agent-registry'
-import { notifyAgent } from '@/lib/notification-service'
 import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
 import { getAMPProviderDomain } from '@/lib/types/amp'
 import type {
@@ -187,68 +186,24 @@ interface LocalDeliveryOptions {
 /**
  * Deliver a message to a local agent.
  *
- * Always writes to the per-agent AMP inbox (primary delivery for CLI scripts).
- * If the agent is online (has active tmux session):
- *   - Writes to the web UI messageQueue (if sender is a local agent)
- *   - Sends a tmux notification with the real sender name
+ * Uses the unified deliver() function which:
+ *   1. Writes to the per-agent AMP inbox (primary delivery)
+ *   2. Sends a tmux notification
  */
 async function deliverLocally(opts: LocalDeliveryOptions): Promise<void> {
   const { envelope, payload, localAgent, recipientAgentName, senderAgent, senderName, forwardedFrom, senderPublicKeyHex, body } = opts
 
-  // 1. Write to per-agent AMP inbox (always — agent doesn't need to be online)
-  await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex)
-
-  // 2. If agent is online, push to web UI queue and send tmux notification
-  const isOnline = localAgent.sessions?.some(s => s.status === 'online')
-  if (!isOnline) return
-
-  // Web UI integration (non-fatal — AMP inbox already has the message)
-  if (senderAgent) {
-    try {
-      const contentType = payload.type === 'system' ? 'notification' : payload.type
-      await sendMessage(
-        senderAgent.id,
-        localAgent.id,
-        body.subject,
-        {
-          type: contentType as 'request' | 'response' | 'notification' | 'update',
-          message: payload.message,
-          context: {
-            ...payload.context,
-            amp: {
-              envelope_id: envelope.id,
-              signature: envelope.signature,
-              sender_address: envelope.from,
-              recipient_address: envelope.to
-            }
-          },
-          attachments: payload.attachments?.map(a => ({
-            name: a.name,
-            path: a.path || a.url || '',
-            type: a.type
-          }))
-        },
-        {
-          priority: body.priority,
-          inReplyTo: body.in_reply_to,
-          fromVerified: true
-        }
-      )
-    } catch (sendError) {
-      console.warn('[AMP Route] sendMessage failed (non-fatal, AMP inbox has message):', sendError)
-    }
-  }
-
-  // tmux notification
-  await notifyAgent({
-    agentId: localAgent.id,
-    agentName: recipientAgentName,
-    fromName: senderName,
-    fromHost: senderAgent?.hostId || forwardedFrom || 'unknown',
+  await deliver({
+    envelope,
+    payload,
+    recipientAgentName,
+    senderPublicKeyHex,
+    senderName,
+    senderHost: senderAgent?.hostId || forwardedFrom || 'unknown',
+    recipientAgentId: localAgent.id,
     subject: body.subject,
-    messageId: envelope.id,
     priority: body.priority,
-    messageType: payload.type
+    messageType: payload.type,
   })
 }
 

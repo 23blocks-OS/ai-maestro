@@ -88,8 +88,27 @@ function generateMessageId(): string {
 export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteResponse | AMPError>> {
   try {
     // Authenticate request
+    // Support two auth methods:
+    // 1. Bearer token (API key) - for direct agent requests
+    // 2. X-Forwarded-From header - for mesh-forwarded requests from known hosts
     const authHeader = request.headers.get('Authorization')
-    const auth = authenticateRequest(authHeader)
+    const forwardedFrom = request.headers.get('X-Forwarded-From')
+    let auth = authenticateRequest(authHeader)
+
+    if (!auth.authenticated && forwardedFrom) {
+      // Check if the forwarding host is a known mesh host
+      const forwardingHost = getHostById(forwardedFrom)
+      if (forwardingHost) {
+        // Trust forwarded requests from known mesh hosts
+        auth = {
+          authenticated: true,
+          agentId: `mesh-${forwardedFrom}`,
+          tenantId: getOrganization() || 'default',
+          address: `mesh@${forwardedFrom}`
+        }
+        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom}`)
+      }
+    }
 
     if (!auth.authenticated) {
       return NextResponse.json({

@@ -21,16 +21,6 @@ export type { AMPAgentIdentity, AMPExternalRegistration }
 // ============================================================================
 
 /**
- * Storage path for AMP messages and relay queue
- * Uses ~/.aimaestro by default for backward compatibility,
- * but supports AMP_STORAGE_PATH env var for protocol compliance
- *
- * Protocol-compliant path: ~/.agent-messaging/
- * AI Maestro legacy path: ~/.aimaestro/messages/
- */
-export const AMP_STORAGE_PATH = process.env.AMP_STORAGE_PATH || '~/.aimaestro'
-
-/**
  * Default relay TTL in days (7 days per protocol spec)
  */
 export const AMP_RELAY_TTL_DAYS = 7

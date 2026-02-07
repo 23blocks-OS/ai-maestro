@@ -9,8 +9,7 @@
  * environment variable set in their tmux session. This allows
  * amp-inbox.sh and other AMP scripts to work correctly per-agent.
  *
- * The server also writes to ~/.aimaestro/messages/ via messageQueue.ts
- * for backward compatibility with the web UI.
+ * messageQueue.ts reads and writes exclusively from these AMP directories.
  */
 
 import { promises as fs } from 'fs'

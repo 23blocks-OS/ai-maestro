@@ -1,17 +1,14 @@
-import { resolveAlias, getAgent, getAgentBySession } from './agent-registry'
+import { resolveAlias, getAgent } from './agent-registry'
 import * as sessionMessaging from './messageQueue'
 
 /**
  * Agent-based messaging layer
  *
- * Messages are stored by agent ID in the new architecture.
- * For backward compatibility, symlinks are created from session names to agent IDs.
- * This allows the system to work with both old session-based paths and new agent-based paths.
+ * Messages are stored in AMP per-agent directories:
+ *   ~/.agent-messaging/agents/<agentName>/messages/inbox/
+ *   ~/.agent-messaging/agents/<agentName>/messages/sent/
  *
- * Migration process:
- * 1. Messages are moved from ~/.aimaestro/messages/<box>/<session-name>/ to /<agent-id>/
- * 2. Symlinks are created from old session paths to new agent paths
- * 3. New messages are always stored by agent ID
+ * This layer resolves agent aliases/IDs and delegates to messageQueue.ts.
  */
 
 /**
@@ -43,8 +40,6 @@ export async function sendAgentMessage(
     throw new Error(`Recipient agent not found: ${to}`)
   }
 
-  // Use agent IDs for message storage (not session names)
-  // This stores messages in ~/.aimaestro/messages/<box>/<agent-id>/
   return sessionMessaging.sendMessage(fromAgentId, toAgentId, subject, content, options)
 }
 

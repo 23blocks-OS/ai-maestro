@@ -84,15 +84,52 @@ function generateNameSuggestions(baseName: string): string[] {
   return suggestions.slice(0, 3)
 }
 
+/**
+ * Decode a User Key (uk_...) to extract owner and tenant info.
+ * Format: uk_{base64({owner_id}:{tenant_id}:{random})}
+ * Returns null if the key is not a valid User Key format.
+ */
+function decodeUserKey(token: string): { ownerId: string; tenantId: string } | null {
+  if (!token.startsWith('uk_')) return null
+
+  try {
+    const decoded = Buffer.from(token.substring(3), 'base64').toString('utf-8')
+    const parts = decoded.split(':')
+    if (parts.length >= 2) {
+      return { ownerId: parts[0], tenantId: parts[1] }
+    }
+  } catch {
+    // Invalid format
+  }
+  return null
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<AMPRegistrationResponse | AMPError | AMPNameTakenError>> {
   try {
     const body = await request.json() as AMPRegistrationRequest
+
+    // Check for User Key authentication (D5)
+    const authHeader = request.headers.get('Authorization')
+    let userKeyInfo: { ownerId: string; tenantId: string } | null = null
+    if (authHeader?.startsWith('Bearer uk_')) {
+      userKeyInfo = decodeUserKey(authHeader.substring(7))
+      if (!userKeyInfo) {
+        return NextResponse.json({
+          error: 'unauthorized',
+          message: 'Invalid User Key format'
+        } as AMPError, { status: 401 })
+      }
+      // When User Key is present, tenant is derived from the key
+      if (!body.tenant) {
+        body.tenant = userKeyInfo.tenantId
+      }
+    }
 
     // Validate required fields
     if (!body.tenant || typeof body.tenant !== 'string') {
       return NextResponse.json({
         error: 'missing_field',
-        message: 'tenant is required',
+        message: 'tenant is required (or provide a User Key via Authorization header)',
         field: 'tenant'
       } as AMPError, { status: 400 })
     }
@@ -279,6 +316,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
       local_name: normalizedName,
       agent_id: agent.id,
       tenant_id: tenant,
+      tenant,  // S12 fix: CLI scripts expect 'tenant' field
       api_key: apiKey,
       provider: {
         name: providerDomain,

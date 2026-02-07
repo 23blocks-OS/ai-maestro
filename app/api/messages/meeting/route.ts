@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
   for (const participantId of allParticipants) {
     try {
       const [inbox, sent] = await Promise.all([
-        listInboxMessages(participantId, { limit: 0 }),
-        listSentMessages(participantId, { limit: 0 }),
+        listInboxMessages(participantId, { limit: 0, previewLength: 2000 }),
+        listSentMessages(participantId, { limit: 0, previewLength: 2000 }),
       ])
 
       const allMessages = [...inbox, ...sent]

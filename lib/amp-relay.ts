@@ -60,7 +60,10 @@ export function queueMessage(
   ensureRelayDir(agentId)
 
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + AMP_RELAY_TTL_DAYS * 24 * 60 * 60 * 1000)
+  // Use envelope's expires_at if provided, otherwise fall back to configured TTL
+  const expiresAt = envelope.expires_at
+    ? new Date(envelope.expires_at)
+    : new Date(now.getTime() + AMP_RELAY_TTL_DAYS * 24 * 60 * 60 * 1000)
 
   const pendingMessage: AMPPendingMessage = {
     id: envelope.id,

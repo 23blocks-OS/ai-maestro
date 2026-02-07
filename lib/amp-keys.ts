@@ -448,7 +448,8 @@ export function verifySignature(
     const signatureBuffer = Buffer.from(signature, 'base64')
     return verify(null, Buffer.from(message), publicKey, signatureBuffer)
   } catch (error) {
-    console.error(`[AMP Keys] Failed to verify signature:`, error)
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.warn(`[AMP Keys] Signature verification failed: ${errMsg} (publicKeyHex length: ${publicKeyHex?.length || 0})`)
     return false
   }
 }

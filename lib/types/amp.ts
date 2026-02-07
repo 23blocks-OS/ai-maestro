@@ -21,9 +21,9 @@ export type { AMPAgentIdentity, AMPExternalRegistration }
 // ============================================================================
 
 /**
- * Default relay TTL in days (7 days per protocol spec)
+ * Relay TTL in days (default 7 per protocol spec, configurable via AMP_RELAY_TTL_DAYS env)
  */
-export const AMP_RELAY_TTL_DAYS = 7
+export const AMP_RELAY_TTL_DAYS = parseInt(process.env.AMP_RELAY_TTL_DAYS || '7', 10)
 
 /**
  * API key prefix format: amp_<environment>_<type>_<random>
@@ -107,6 +107,9 @@ export function parseAMPAddress(address: string): {
  * Contains routing, authentication, and metadata for message delivery
  */
 export interface AMPEnvelope {
+  /** Protocol version (e.g., "amp/0.1") */
+  version: string
+
   /** Unique message ID: msg_{timestamp}_{random} */
   id: string
 
@@ -125,14 +128,17 @@ export interface AMPEnvelope {
   /** ISO 8601 timestamp */
   timestamp: string
 
+  /** ISO 8601 expiration time; agents and providers SHOULD reject expired messages */
+  expires_at?: string
+
   /** Ed25519 signature of canonical envelope (base64) */
   signature: string
 
   /** Original message ID if this is a reply */
   in_reply_to?: string
 
-  /** Thread ID for conversation tracking */
-  thread_id?: string
+  /** Thread ID for conversation tracking (ID of first message in thread) */
+  thread_id: string
 }
 
 /**
@@ -141,7 +147,7 @@ export interface AMPEnvelope {
  */
 export interface AMPPayload {
   /** Content type */
-  type: 'request' | 'response' | 'notification' | 'update' | 'system'
+  type: 'request' | 'response' | 'notification' | 'alert' | 'task' | 'status' | 'handoff' | 'ack' | 'update' | 'system'
 
   /** Main message body */
   message: string
@@ -235,6 +241,9 @@ export interface AMPRegistrationResponse {
   /** Tenant ID */
   tenant_id: string
 
+  /** Tenant name (alias for tenant_id, for CLI compatibility) */
+  tenant?: string
+
   /** API key (shown ONLY ONCE) */
   api_key: string
 
@@ -317,6 +326,9 @@ export interface AMPRouteRequest {
 
   /** Reply reference */
   in_reply_to?: string
+
+  /** ISO 8601 expiration time for the message */
+  expires_at?: string
 
   /** Message payload */
   payload: AMPPayload
@@ -420,6 +432,9 @@ export type AMPErrorCode =
   | 'tenant_access_denied'
   | 'organization_not_set'  // Phase 2: Organization required for AMP registration
   | 'external_provider'     // Recipient is on external provider — client must send directly
+  | 'payload_too_large'     // Message payload exceeds size limit
+  | 'missing_header'        // Required HTTP header is missing
+  | 'duplicate_message'     // Message ID has already been delivered (replay protection)
 
 /**
  * AMP error response

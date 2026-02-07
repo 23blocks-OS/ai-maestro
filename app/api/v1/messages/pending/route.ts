@@ -43,8 +43,27 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   const limitParam = searchParams.get('limit')
   const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 10
 
-  // Get pending messages for this agent
-  const result = getPendingMessages(auth.agentId!, limit)
+  // Get pending messages for this agent (check by ID and by name)
+  // Relay queue may use agent name or UUID as directory key
+  let result = getPendingMessages(auth.agentId!, limit)
+
+  // Also check by agent name (extracted from address)
+  if (auth.address && result.count === 0) {
+    const atIndex = auth.address.indexOf('@')
+    if (atIndex > 0) {
+      const agentName = auth.address.substring(0, atIndex)
+      result = getPendingMessages(agentName, limit)
+    }
+  }
+
+  // Also check by name@tenant format (legacy relay key format)
+  if (auth.address && auth.tenantId && result.count === 0) {
+    const atIndex = auth.address.indexOf('@')
+    if (atIndex > 0) {
+      const agentName = auth.address.substring(0, atIndex)
+      result = getPendingMessages(`${agentName}@${auth.tenantId}`, limit)
+    }
+  }
 
   return NextResponse.json(result, {
     status: 200,
@@ -82,8 +101,19 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge the message
-  const acknowledged = acknowledgeMessage(auth.agentId!, messageId)
+  // Acknowledge the message (try by ID, then by name, then by name@tenant)
+  let acknowledged = acknowledgeMessage(auth.agentId!, messageId)
+
+  if (!acknowledged && auth.address) {
+    const atIndex = auth.address.indexOf('@')
+    if (atIndex > 0) {
+      const agentName = auth.address.substring(0, atIndex)
+      acknowledged = acknowledgeMessage(agentName, messageId)
+      if (!acknowledged && auth.tenantId) {
+        acknowledged = acknowledgeMessage(`${agentName}@${auth.tenantId}`, messageId)
+      }
+    }
+  }
 
   if (!acknowledged) {
     return NextResponse.json({
@@ -141,8 +171,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge messages
-  const acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
+  // Acknowledge messages (try by ID, then by name, then by name@tenant)
+  let acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
+
+  if (acknowledged === 0 && auth.address) {
+    const atIndex = auth.address.indexOf('@')
+    if (atIndex > 0) {
+      const agentName = auth.address.substring(0, atIndex)
+      acknowledged = acknowledgeMessages(agentName, body.ids)
+      if (acknowledged === 0 && auth.tenantId) {
+        acknowledged = acknowledgeMessages(`${agentName}@${auth.tenantId}`, body.ids)
+      }
+    }
+  }
 
   return NextResponse.json({ acknowledged })
 }

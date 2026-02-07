@@ -1,12 +1,16 @@
 /**
  * AMP Relay Queue
  *
- * Implements store-and-forward for offline agents.
- * Messages are queued when the recipient is not online and can be
+ * Implements store-and-forward for agents not yet registered locally.
+ * Messages are queued when the recipient cannot be found and can be
  * picked up later via the /v1/messages/pending endpoint.
  *
- * Storage: ~/.aimaestro/relay/{agentId}/*.json
+ * Storage: ~/.agent-messaging/relay/{agentName}/*.json
  * TTL: 7 days (configurable via AMP_RELAY_TTL_DAYS)
+ *
+ * Note: For locally registered agents, messages are written directly
+ * to their per-agent AMP inbox (~/.agent-messaging/agents/<name>/messages/inbox/).
+ * The relay queue is only for agents not yet found on any host.
  */
 
 import fs from 'fs'
@@ -15,8 +19,8 @@ import os from 'os'
 import { AMP_RELAY_TTL_DAYS } from './types/amp'
 import type { AMPEnvelope, AMPPayload, AMPPendingMessage, AMPPendingMessagesResponse } from './types/amp'
 
-const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
-const RELAY_DIR = path.join(AIMAESTRO_DIR, 'relay')
+const AMP_BASE_DIR = path.join(os.homedir(), '.agent-messaging')
+const RELAY_DIR = path.join(AMP_BASE_DIR, 'relay')
 
 // ============================================================================
 // Directory Helpers

@@ -301,6 +301,9 @@ export interface AMPPendingMessagesResponse {
  * POST /v1/route
  */
 export interface AMPRouteRequest {
+  /** Original sender address (used in mesh-forwarded requests) */
+  from?: string
+
   /** Recipient address */
   to: string
 

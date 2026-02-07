@@ -183,17 +183,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
       // Agent exists - check if already AMP-registered
       const hasAMP = existingAgent.metadata?.amp?.registeredVia
       if (hasAMP) {
-        return NextResponse.json({
-          error: 'name_taken',
-          message: `Agent name '${normalizedName}' is already registered`,
-          suggestions: generateNameSuggestions(normalizedName)
-        } as AMPNameTakenError, { status: 409 })
+        // Verify if the same key is being re-registered (lost registration file scenario)
+        // If the fingerprint matches, re-issue the API key instead of rejecting
+        const existingFingerprint = existingAgent.metadata?.amp?.fingerprint
+        if (existingFingerprint && existingFingerprint === fingerprint) {
+          // Same key = same agent re-registering. Re-issue API key.
+          agent = existingAgent
+          console.log(`[AMP Register] Re-registering agent '${normalizedName}' (same key fingerprint, re-issuing API key)`)
+        } else {
+          return NextResponse.json({
+            error: 'name_taken',
+            message: `Agent name '${normalizedName}' is already registered`,
+            suggestions: generateNameSuggestions(normalizedName)
+          } as AMPNameTakenError, { status: 409 })
+        }
+      } else {
+        // Agent exists (e.g. from tmux discovery) but not AMP-registered
+        // Adopt it: add AMP metadata and issue an API key
+        agent = existingAgent
+        console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
       }
-
-      // Agent exists (e.g. from tmux discovery) but not AMP-registered
-      // Adopt it: add AMP metadata and issue an API key
-      agent = existingAgent
-      console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
     } else {
       // Create new agent in the registry
       try {

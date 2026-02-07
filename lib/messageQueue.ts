@@ -7,6 +7,7 @@ import { applyContentSecurity } from './content-security'
 import { queueMessage as queueToAMPRelay } from './amp-relay'
 import type { Agent } from '@/types/agent'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
+import { writeToAMPInbox, writeToAMPSent } from '@/lib/amp-inbox-writer'
 
 /**
  * Get this host's name for messages
@@ -98,6 +99,7 @@ interface ResolvedAgent {
 }
 
 const MESSAGE_DIR = path.join(os.homedir(), '.aimaestro', 'messages')
+const AMP_AGENTS_DIR = path.join(os.homedir(), '.agent-messaging', 'agents')
 
 /**
  * GAP8 FIX: Track legacy location access for deprecation monitoring
@@ -125,6 +127,245 @@ export function getLegacyAccessStats(): Record<string, number> {
     stats[key] = count
   })
   return stats
+}
+
+// === AMP Per-Agent Directory Support (AMP Protocol) ===
+
+function getAMPInboxDir(agentName: string): string {
+  return path.join(AMP_AGENTS_DIR, agentName, 'messages', 'inbox')
+}
+
+function getAMPSentDir(agentName: string): string {
+  return path.join(AMP_AGENTS_DIR, agentName, 'messages', 'sent')
+}
+
+function extractAgentNameFromAddress(address: string): string {
+  const atIndex = address.indexOf('@')
+  if (atIndex === -1) return address
+  return address.substring(0, atIndex)
+}
+
+function extractHostFromAddress(address: string): string | undefined {
+  const atIndex = address.indexOf('@')
+  if (atIndex === -1) return undefined
+  const hostPart = address.substring(atIndex + 1)
+  return hostPart.split('.')[0]
+}
+
+/** Normalize AMP message IDs (underscores) to internal format (dashes) */
+function normalizeMessageId(id: string): string {
+  return id.replace(/_/g, '-')
+}
+
+/** Convert an AMP envelope-format message to internal Message format */
+function convertAMPToMessage(ampMsg: any): Message | null {
+  const envelope = ampMsg.envelope
+  const payload = ampMsg.payload
+  if (!envelope || !payload) return null
+
+  const fromName = extractAgentNameFromAddress(envelope.from)
+  const toName = extractAgentNameFromAddress(envelope.to)
+  const fromHost = extractHostFromAddress(envelope.from)
+  const toHost = extractHostFromAddress(envelope.to)
+  const id = normalizeMessageId(envelope.id)
+  const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
+
+  return {
+    id,
+    from: fromName,
+    fromAlias: fromName,
+    fromHost,
+    to: toName,
+    toAlias: toName,
+    toHost,
+    timestamp: envelope.timestamp,
+    subject: envelope.subject,
+    priority: envelope.priority || 'normal',
+    status: status as Message['status'],
+    content: {
+      type: payload.type || 'notification',
+      message: payload.message || '',
+      context: payload.context || undefined,
+    },
+    inReplyTo: envelope.in_reply_to || undefined,
+  }
+}
+
+/**
+ * Collect messages from an AMP per-agent directory (inbox or sent).
+ * AMP directories have sender/recipient subdirectories containing JSON files.
+ */
+async function collectMessagesFromAMPDir(
+  ampDir: string,
+  filter: {
+    status?: Message['status']
+    priority?: Message['priority']
+    from?: string
+    to?: string
+  } | undefined,
+  results: MessageSummary[],
+  seenIds: Set<string>,
+): Promise<void> {
+  let entries: string[]
+  try {
+    entries = await fs.readdir(ampDir)
+  } catch {
+    return // Directory doesn't exist
+  }
+
+  for (const entry of entries) {
+    const entryPath = path.join(ampDir, entry)
+    let stat
+    try {
+      stat = await fs.stat(entryPath)
+    } catch {
+      continue
+    }
+
+    const filesToRead: string[] = []
+
+    if (stat.isDirectory()) {
+      try {
+        const files = await fs.readdir(entryPath)
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            filesToRead.push(path.join(entryPath, file))
+          }
+        }
+      } catch { continue }
+    } else if (entry.endsWith('.json')) {
+      filesToRead.push(entryPath)
+    }
+
+    for (const filePath of filesToRead) {
+      try {
+        const content = await fs.readFile(filePath, 'utf-8')
+        const ampMsg = JSON.parse(content)
+
+        let summary: MessageSummary | null = null
+
+        if (ampMsg.envelope && ampMsg.payload) {
+          // AMP envelope format
+          const msg = convertAMPToMessage(ampMsg)
+          if (!msg) continue
+          summary = {
+            id: msg.id,
+            from: msg.from,
+            fromAlias: msg.fromAlias,
+            fromHost: msg.fromHost,
+            to: msg.to,
+            toAlias: msg.toAlias,
+            toHost: msg.toHost,
+            timestamp: msg.timestamp,
+            subject: msg.subject,
+            priority: msg.priority,
+            status: msg.status,
+            type: msg.content.type,
+            preview: msg.content.message.substring(0, 100),
+          }
+        } else if (ampMsg.id && ampMsg.subject) {
+          // Old flat format (backward compat)
+          summary = {
+            id: ampMsg.id,
+            from: ampMsg.from,
+            fromAlias: ampMsg.fromAlias,
+            fromLabel: ampMsg.fromLabel,
+            fromHost: ampMsg.fromHost,
+            fromVerified: ampMsg.fromVerified,
+            to: ampMsg.to,
+            toAlias: ampMsg.toAlias,
+            toLabel: ampMsg.toLabel,
+            toHost: ampMsg.toHost,
+            timestamp: ampMsg.timestamp,
+            subject: ampMsg.subject,
+            priority: ampMsg.priority || 'normal',
+            status: ampMsg.status || 'unread',
+            type: ampMsg.content?.type || 'notification',
+            preview: (ampMsg.content?.message || '').substring(0, 100),
+          }
+        }
+
+        if (!summary) continue
+
+        // Deduplicate across ID formats (dashes vs underscores)
+        const normalizedId = normalizeMessageId(summary.id)
+        const altId = summary.id.replace(/-/g, '_')
+        if (seenIds.has(normalizedId) || seenIds.has(altId)) continue
+
+        // Apply filters
+        if (filter?.status && summary.status !== filter.status) continue
+        if (filter?.priority && summary.priority !== filter.priority) continue
+        if (filter?.from) {
+          if (summary.from !== filter.from && summary.fromAlias !== filter.from) continue
+        }
+        if (filter?.to) {
+          if (summary.to !== filter.to && summary.toAlias !== filter.to) continue
+        }
+
+        seenIds.add(normalizedId)
+        seenIds.add(altId)
+        summary.id = normalizedId
+        results.push(summary)
+      } catch {
+        // Skip malformed files
+      }
+    }
+  }
+}
+
+/**
+ * Find a message file in an AMP per-agent directory by message ID.
+ * Searches through sender/recipient subdirectories.
+ * Returns the file path and whether it's in AMP envelope format.
+ */
+async function findMessageInAMPDir(
+  ampDir: string,
+  messageId: string,
+): Promise<{ path: string; isAMP: boolean } | null> {
+  const normalizedId = normalizeMessageId(messageId)
+  const ampId = messageId.replace(/-/g, '_')
+  const possibleFilenames = [`${normalizedId}.json`, `${ampId}.json`]
+
+  let entries: string[]
+  try {
+    entries = await fs.readdir(ampDir)
+  } catch {
+    return null
+  }
+
+  for (const entry of entries) {
+    const entryPath = path.join(ampDir, entry)
+    let stat
+    try {
+      stat = await fs.stat(entryPath)
+    } catch {
+      continue
+    }
+
+    if (stat.isDirectory()) {
+      for (const filename of possibleFilenames) {
+        const filePath = path.join(entryPath, filename)
+        try {
+          await fs.access(filePath)
+          const content = await fs.readFile(filePath, 'utf-8')
+          const msg = JSON.parse(content)
+          return { path: filePath, isAMP: !!(msg.envelope && msg.payload) }
+        } catch {
+          continue
+        }
+      }
+    } else if (possibleFilenames.includes(entry)) {
+      try {
+        const content = await fs.readFile(entryPath, 'utf-8')
+        const msg = JSON.parse(content)
+        return { path: entryPath, isAMP: !!(msg.envelope && msg.payload) }
+      } catch {
+        continue
+      }
+    }
+  }
+
+  return null
 }
 
 /**
@@ -633,6 +874,30 @@ export async function sendMessage(
       // Regular AI Maestro agent - write to filesystem using agent ID
       const inboxPath = path.join(getInboxDir(toResolved.agentId), `${message.id}.json`)
       await fs.writeFile(inboxPath, JSON.stringify(message, null, 2))
+
+      // Also write to per-agent AMP directory (AMP Protocol)
+      const recipientName = toResolved.alias || toResolved.agentId
+      const selfHostIdForAMP = getSelfHostId() || getSelfHostName()
+      const ampEnvelope: AMPEnvelope = {
+        id: message.id.replace(/-/g, '_'),
+        from: `${message.fromAlias || message.from}@${selfHostIdForAMP}.aimaestro.local`,
+        to: `${message.toAlias || message.to}@${selfHostIdForAMP}.aimaestro.local`,
+        subject: message.subject,
+        priority: message.priority,
+        timestamp: message.timestamp,
+        signature: message.amp?.signature || '',
+      }
+      if (message.inReplyTo) {
+        ampEnvelope.in_reply_to = message.inReplyTo
+      }
+      const ampPayload: AMPPayload = {
+        type: message.content.type,
+        message: message.content.message,
+        context: message.content.context,
+      }
+      writeToAMPInbox(ampEnvelope, ampPayload, recipientName).catch(err => {
+        console.error('[MessageQueue] AMP inbox write failed:', err)
+      })
     }
   }
 
@@ -642,6 +907,30 @@ export async function sendMessage(
   await ensureAgentDirectories(senderAgentId)
   const sentPath = path.join(getSentDir(senderAgentId), `${message.id}.json`)
   await fs.writeFile(sentPath, JSON.stringify(message, null, 2))
+
+  // Also write to sender's per-agent AMP sent directory
+  const senderName = fromAgent?.alias || message.fromAlias || message.from
+  const senderHostId = getSelfHostId() || getSelfHostName()
+  const ampSentEnvelope: AMPEnvelope = {
+    id: message.id.replace(/-/g, '_'),
+    from: `${message.fromAlias || message.from}@${senderHostId}.aimaestro.local`,
+    to: `${message.toAlias || message.to}@${(message.toHost || senderHostId)}.aimaestro.local`,
+    subject: message.subject,
+    priority: message.priority,
+    timestamp: message.timestamp,
+    signature: message.amp?.signature || '',
+  }
+  if (message.inReplyTo) {
+    ampSentEnvelope.in_reply_to = message.inReplyTo
+  }
+  const ampSentPayload: AMPPayload = {
+    type: message.content.type,
+    message: message.content.message,
+    context: message.content.context,
+  }
+  writeToAMPSent(ampSentEnvelope, ampSentPayload, senderName).catch(err => {
+    console.error('[MessageQueue] AMP sent write failed:', err)
+  })
 
   return message
 }
@@ -850,6 +1139,12 @@ export async function listInboxMessages(
     await collectMessagesFromDir(identifierDir, filter, allMessages, seenIds, true)
   }
 
+  // Location 4: Per-agent AMP directory (AMP Protocol - primary source)
+  if (agent.alias) {
+    const ampInboxDir = getAMPInboxDir(agent.alias)
+    await collectMessagesFromAMPDir(ampInboxDir, filter, allMessages, seenIds)
+  }
+
   // Sort by timestamp (newest first)
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
@@ -1039,6 +1334,12 @@ export async function listSentMessages(
   if (agentIdentifier !== agent.agentId && agentIdentifier !== agent.sessionName) {
     const identifierDir = path.join(MESSAGE_DIR, 'sent', agentIdentifier)
     await collectSentMessagesFromDir(identifierDir, filter, allMessages, seenIds, true)
+  }
+
+  // Location 4: Per-agent AMP directory (AMP Protocol)
+  if (agent.alias) {
+    const ampSentDir = getAMPSentDir(agent.alias)
+    await collectMessagesFromAMPDir(ampSentDir, filter, allMessages, seenIds)
   }
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -1238,6 +1539,24 @@ export async function getMessage(
     }
   }
 
+  // 4. Per-agent AMP directory (AMP Protocol)
+  if (agent?.alias) {
+    const ampDir = box === 'sent' ? getAMPSentDir(agent.alias) : getAMPInboxDir(agent.alias)
+    const found = await findMessageInAMPDir(ampDir, messageId)
+    if (found) {
+      try {
+        const content = await fs.readFile(found.path, 'utf-8')
+        const ampMsg = JSON.parse(content)
+        if (found.isAMP) {
+          return convertAMPToMessage(ampMsg)
+        }
+        return ampMsg as Message
+      } catch {
+        // Continue
+      }
+    }
+  }
+
   return null
 }
 
@@ -1246,17 +1565,25 @@ export async function getMessage(
  * Finds message in any legacy location and updates it in place
  */
 export async function markMessageAsRead(agentIdentifier: string, messageId: string): Promise<boolean> {
-  const message = await getMessage(agentIdentifier, messageId)
-  if (!message) return false
-
-  message.status = 'read'
-
   // Find where the message actually exists
   const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!messagePath) return false
 
   try {
-    await fs.writeFile(messagePath, JSON.stringify(message, null, 2))
+    const content = await fs.readFile(messagePath, 'utf-8')
+    const raw = JSON.parse(content)
+
+    // Handle AMP envelope format vs old flat format
+    if (raw.envelope && raw.payload) {
+      // AMP format - update status in metadata and local sections
+      if (raw.metadata) raw.metadata.status = 'read'
+      if (raw.local) raw.local.status = 'read'
+    } else {
+      // Old flat format
+      raw.status = 'read'
+    }
+
+    await fs.writeFile(messagePath, JSON.stringify(raw, null, 2))
     return true
   } catch (error) {
     return false
@@ -1308,6 +1635,15 @@ async function findMessagePath(
     }
   }
 
+  // 4. Per-agent AMP directory (AMP Protocol)
+  if (agent?.alias) {
+    const ampDir = box === 'sent' ? getAMPSentDir(agent.alias) : getAMPInboxDir(agent.alias)
+    const found = await findMessageInAMPDir(ampDir, messageId)
+    if (found) {
+      return found.path
+    }
+  }
+
   return null
 }
 
@@ -1316,23 +1652,29 @@ async function findMessagePath(
  * Finds message in any legacy location, moves to archive
  */
 export async function archiveMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
-  const message = await getMessage(agentIdentifier, messageId)
-  if (!message) return false
-
-  message.status = 'archived'
-
   // Find where the message actually exists
   const inboxPath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!inboxPath) return false
 
-  const agent = resolveAgent(agentIdentifier)
-  const agentId = agent?.agentId || agentIdentifier
-  const archivedPath = path.join(getArchivedDir(agentId), `${messageId}.json`)
-
   try {
-    await fs.mkdir(path.dirname(archivedPath), { recursive: true })
-    await fs.writeFile(archivedPath, JSON.stringify(message, null, 2))
-    await fs.unlink(inboxPath)
+    const content = await fs.readFile(inboxPath, 'utf-8')
+    const raw = JSON.parse(content)
+
+    if (raw.envelope && raw.payload) {
+      // AMP format - update status in place (no separate archive dir in AMP)
+      if (raw.metadata) raw.metadata.status = 'archived'
+      if (raw.local) raw.local.status = 'archived'
+      await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
+    } else {
+      // Old flat format - move to archive dir
+      raw.status = 'archived'
+      const agent = resolveAgent(agentIdentifier)
+      const agentId = agent?.agentId || agentIdentifier
+      const archivedPath = path.join(getArchivedDir(agentId), `${messageId}.json`)
+      await fs.mkdir(path.dirname(archivedPath), { recursive: true })
+      await fs.writeFile(archivedPath, JSON.stringify(raw, null, 2))
+      await fs.unlink(inboxPath)
+    }
     return true
   } catch (error) {
     return false

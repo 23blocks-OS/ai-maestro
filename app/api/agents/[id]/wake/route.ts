@@ -4,6 +4,7 @@ import { promisify } from 'util'
 import { getAgent, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { persistSession } from '@/lib/session-persistence'
 import { computeSessionName, AgentSession } from '@/types/agent'
+import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 
 const execAsync = promisify(exec)
 
@@ -146,6 +147,21 @@ export async function POST(
       createdAt: new Date().toISOString(),
       agentId: id
     })
+
+    // Initialize per-agent AMP directory and set AMP_DIR in tmux session
+    // This ensures amp-inbox.sh reads from this agent's own inbox
+    try {
+      await initAgentAMPHome(agentName)
+      const ampDir = getAgentAMPDir(agentName)
+      // Set AMP_DIR for the tmux session environment (new panes/windows inherit it)
+      await execAsync(`tmux set-environment -t "${sessionName}" AMP_DIR "${ampDir}"`)
+      // Also export it in the current shell so the agent's program has it
+      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}'" Enter`)
+      console.log(`[Wake] Set AMP_DIR=${ampDir} for agent ${agentName}`)
+    } catch (ampError) {
+      // Non-fatal: agent still works without AMP
+      console.warn(`[Wake] Could not set up AMP for ${agentName}:`, ampError)
+    }
 
     // Start the AI program if requested
     if (startProgram) {

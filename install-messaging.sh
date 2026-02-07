@@ -352,6 +352,33 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo ""
     print_success "Installed $SCRIPT_COUNT AMP scripts (with symlinks)"
 
+    # Remove old messaging scripts that have been replaced by AMP
+    echo ""
+    print_info "Cleaning up old messaging scripts..."
+    OLD_SCRIPTS=(
+        "send-aimaestro-message.sh"
+        "check-aimaestro-messages.sh"
+        "read-aimaestro-message.sh"
+        "aimaestro-message-send.sh"
+        "aimaestro-message-check.sh"
+        "check-and-show-messages.sh"
+        "check-new-messages-arrived.sh"
+        "send-tmux-message.sh"
+    )
+    OLD_REMOVED=0
+    for old_script in "${OLD_SCRIPTS[@]}"; do
+        if [ -f "$HOME/.local/bin/$old_script" ]; then
+            rm -f "$HOME/.local/bin/$old_script"
+            print_success "Removed old script: $old_script"
+            OLD_REMOVED=$((OLD_REMOVED + 1))
+        fi
+    done
+    if [ "$OLD_REMOVED" -gt 0 ]; then
+        print_success "Removed $OLD_REMOVED old messaging script(s)"
+    else
+        echo "  No old scripts found"
+    fi
+
     # Also install other AI Maestro tools (graph, memory, docs, agent management)
     echo ""
     print_info "Installing additional AI Maestro tools..."

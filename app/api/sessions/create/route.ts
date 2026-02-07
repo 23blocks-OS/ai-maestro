@@ -6,6 +6,7 @@ import { persistSession } from '@/lib/session-persistence'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config'
 import { getAgentByName, createAgent } from '@/lib/agent-registry'
 import { parseNameForDisplay } from '@/types/agent'
+import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 
 const execAsync = promisify(exec)
 
@@ -188,6 +189,17 @@ export async function POST(request: Request) {
       ...(agentId && { agentId }),
       ...(registeredAgent && { agentId: registeredAgent.id })
     })
+
+    // Initialize per-agent AMP directory and set AMP_DIR in tmux session
+    try {
+      await initAgentAMPHome(agentName)
+      const ampDir = getAgentAMPDir(agentName)
+      await execAsync(`tmux set-environment -t "${actualSessionName}" AMP_DIR "${ampDir}"`)
+      await execAsync(`tmux send-keys -t "${actualSessionName}" "export AMP_DIR='${ampDir}'" Enter`)
+      console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
+    } catch (ampError) {
+      console.warn(`[Sessions] Could not set up AMP for ${agentName}:`, ampError)
+    }
 
     return NextResponse.json({
       success: true,

@@ -18,6 +18,7 @@ import { authenticateRequest } from '@/lib/amp-auth'
 import { loadKeyPair, verifySignature } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
 import { sendMessage, resolveAgentIdentifier } from '@/lib/messageQueue'
+import { writeToAMPInbox, isAMPInitialized } from '@/lib/amp-inbox-writer'
 import { getAgent, getAgentByName, getAgentByNameAnyHost } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
@@ -458,6 +459,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
               fromVerified: true
             }
           )
+
+          // Dual-write: also write to per-agent AMP directory for AMP CLI scripts
+          // Path: ~/.agent-messaging/agents/<recipientName>/messages/inbox/
+          if (await isAMPInitialized()) {
+            const recipientAgentName = recipientAgent.name || recipientAgent.alias || recipientName
+            await writeToAMPInbox(envelope, body.payload, recipientAgentName, senderKeyPair?.publicHex)
+          }
 
           // Notify recipient
           await notifyAgent({

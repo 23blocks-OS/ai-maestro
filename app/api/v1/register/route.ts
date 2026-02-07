@@ -176,45 +176,54 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
     }
 
     // Check if name already exists in this tenant (on this host)
-    // For now, tenant is ignored for name uniqueness (single-tenant mode)
     const existingAgent = getAgentByName(normalizedName, selfHostId)
-    if (existingAgent) {
-      return NextResponse.json({
-        error: 'name_taken',
-        message: `Agent name '${normalizedName}' is already registered`,
-        suggestions: generateNameSuggestions(normalizedName)
-      } as AMPNameTakenError, { status: 409 })
-    }
+    let agent: ReturnType<typeof createAgent>
 
-    // Create the agent in the registry
-    let agent
-    try {
-      agent = createAgent({
-        name: normalizedName,
-        label: body.alias,
-        program: 'Claude Code',
-        model: 'Claude',
-        taskDescription: body.metadata?.description as string || `AMP-registered agent: ${normalizedName}`,
-        workingDirectory: body.metadata?.working_directory as string || undefined,
-        createSession: false, // AMP agents don't auto-create tmux sessions
-        metadata: {
-          amp: {
-            tenant,
-            scope: body.scope,
-            delivery: body.delivery,
-            fingerprint,
-            registeredVia: 'amp-v1-api',
-            registeredAt: new Date().toISOString()
-          },
-          ...body.metadata
-        }
-      })
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create agent'
-      return NextResponse.json({
-        error: 'internal_error',
-        message: errorMessage
-      } as AMPError, { status: 500 })
+    if (existingAgent) {
+      // Agent exists - check if already AMP-registered
+      const hasAMP = existingAgent.metadata?.amp?.registeredVia
+      if (hasAMP) {
+        return NextResponse.json({
+          error: 'name_taken',
+          message: `Agent name '${normalizedName}' is already registered`,
+          suggestions: generateNameSuggestions(normalizedName)
+        } as AMPNameTakenError, { status: 409 })
+      }
+
+      // Agent exists (e.g. from tmux discovery) but not AMP-registered
+      // Adopt it: add AMP metadata and issue an API key
+      agent = existingAgent
+      console.log(`[AMP Register] Adopting existing agent '${normalizedName}' (${agent.id.substring(0, 8)}...)`)
+    } else {
+      // Create new agent in the registry
+      try {
+        agent = createAgent({
+          name: normalizedName,
+          label: body.alias,
+          program: 'Claude Code',
+          model: 'Claude',
+          taskDescription: body.metadata?.description as string || `AMP-registered agent: ${normalizedName}`,
+          workingDirectory: body.metadata?.working_directory as string || undefined,
+          createSession: false, // AMP agents don't auto-create tmux sessions
+          metadata: {
+            amp: {
+              tenant,
+              scope: body.scope,
+              delivery: body.delivery,
+              fingerprint,
+              registeredVia: 'amp-v1-api',
+              registeredAt: new Date().toISOString()
+            },
+            ...body.metadata
+          }
+        })
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create agent'
+        return NextResponse.json({
+          error: 'internal_error',
+          message: errorMessage
+        } as AMPError, { status: 500 })
+      }
     }
 
     // Store the public key for this agent

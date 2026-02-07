@@ -846,7 +846,25 @@ Set via `.env.local` (gitignored). Never commit `.env.local`.
 6. Kill session: `tmux kill-session -t test1`
 7. Verify: Session removed after refresh
 
-**No automated tests yet.** Phase 1 focuses on getting the core working.
+### AMP Messaging Test Suites
+
+Two test scripts exist for validating the Agent Messaging Protocol:
+
+```bash
+# Local routing tests (single host)
+# Tests: health, registration, internal→internal, external polling, federation, acknowledgment
+./scripts/test-amp-routing.sh
+
+# Cross-host mesh tests (multi-host via Tailscale)
+# Tests: host health, agent registration on each host, cross-host delivery, replies, inbox counts
+./scripts/test-amp-cross-host.sh              # Auto-detect hosts from ~/.aimaestro/hosts.json
+./scripts/test-amp-cross-host.sh --local-only  # Only test local→remote
+./scripts/test-amp-cross-host.sh --skip-inbox  # Skip inbox verification
+```
+
+**Prerequisites:** AI Maestro running on localhost:23000, jq installed, AMP scripts installed (`./install-messaging.sh -y`).
+
+**No other automated tests yet.** Phase 1 focuses on getting the core working.
 
 ## Documentation References
 

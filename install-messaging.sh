@@ -116,81 +116,309 @@ if [ ! -d "plugins/amp-messaging" ] || [ ! -f "plugins/amp-messaging/plugin.json
 fi
 
 # Migration function
+# Extract the recipient agent name from a message JSON file (for inbox placement)
+# Checks: toAlias, toSession, .to (plain name), envelope.to (extract name before @)
+_extract_recipient() {
+    local msg_file="$1"
+    local recipient=""
+
+    # Try toAlias first (old flat format)
+    recipient=$(jq -r '.toAlias // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+
+    # Try toSession (some messages have this)
+    recipient=$(jq -r '.toSession // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+
+    # Try .to as plain agent name (old format where to is a name, not UUID)
+    local to_val
+    to_val=$(jq -r '.to // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$to_val" ] && ! echo "$to_val" | grep -qE '^[0-9a-f]{8}-'; then
+        # Not a UUID, treat as agent name
+        # Strip @domain if present
+        recipient=$(echo "$to_val" | cut -d'@' -f1)
+        if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+    fi
+
+    # Try AMP envelope format
+    local env_to
+    env_to=$(jq -r '.envelope.to // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$env_to" ]; then
+        recipient=$(echo "$env_to" | cut -d'@' -f1)
+        if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+    fi
+
+    echo ""
+}
+
+# Extract the sender agent name from a message JSON file (for inbox subdirectory)
+# Checks: fromAlias, .from (plain name), envelope.from (extract name before @)
+_extract_sender() {
+    local msg_file="$1"
+    local sender=""
+
+    # Try fromAlias first (old flat format)
+    sender=$(jq -r '.fromAlias // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$sender" ]; then echo "$sender"; return; fi
+
+    # Try .from as plain agent name
+    local from_val
+    from_val=$(jq -r '.from // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$from_val" ] && ! echo "$from_val" | grep -qE '^[0-9a-f]{8}-'; then
+        sender=$(echo "$from_val" | cut -d'@' -f1)
+        if [ -n "$sender" ]; then echo "$sender"; return; fi
+    fi
+
+    # Try AMP envelope format
+    local env_from
+    env_from=$(jq -r '.envelope.from // empty' "$msg_file" 2>/dev/null)
+    if [ -n "$env_from" ]; then
+        sender=$(echo "$env_from" | cut -d'@' -f1)
+        if [ -n "$sender" ]; then echo "$sender"; return; fi
+    fi
+
+    echo ""
+}
+
+# Distribute messages from shared directory to per-agent directories
+# This is the critical Phase 2 that ensures messages end up where agents read them
+# Convert old flat-format message to AMP envelope format
+# If message already has .envelope, returns it unchanged
+_convert_to_amp_format() {
+    local msg_file="$1"
+    local now_ts
+    now_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Check if already in AMP envelope format
+    local has_envelope
+    has_envelope=$(jq -r 'has("envelope")' "$msg_file" 2>/dev/null)
+    if [ "$has_envelope" = "true" ]; then
+        cat "$msg_file"
+        return
+    fi
+
+    # Convert old flat format to AMP envelope
+    jq --arg now "$now_ts" '
+    {
+        envelope: {
+            version: "amp/0.1",
+            id: .id,
+            from: ((.fromAlias // .from // "unknown") + "@local"),
+            to: ((.toAlias // .to // "unknown") + "@local"),
+            subject: (.subject // ""),
+            priority: (.priority // "normal"),
+            timestamp: (.timestamp // $now),
+            thread_id: (.inReplyTo // .id),
+            in_reply_to: (.inReplyTo // null),
+            expires_at: null,
+            signature: null
+        },
+        payload: (
+            if (.content | type) == "object" then
+                {
+                    type: (.content.type // .type // "notification"),
+                    message: (.content.message // ""),
+                    context: (.content.context // null)
+                }
+            elif (.content | type) == "string" then
+                {
+                    type: (.type // "notification"),
+                    message: .content,
+                    context: null
+                }
+            else
+                {
+                    type: (.type // "notification"),
+                    message: "",
+                    context: null
+                }
+            end
+        ),
+        metadata: {
+            status: (.status // "unread"),
+            migrated_from: "flat_format",
+            migrated_at: $now
+        },
+        local: {
+            status: (.status // "unread"),
+            received_at: (.timestamp // $now)
+        }
+    }' "$msg_file" 2>/dev/null
+}
+
+distribute_shared_to_per_agent() {
+    local SHARED_INBOX="$HOME/.agent-messaging/messages/inbox"
+    local SHARED_SENT="$HOME/.agent-messaging/messages/sent"
+    local AGENTS_BASE="$HOME/.agent-messaging/agents"
+    local DISTRIBUTED=0
+    local SKIPPED=0
+
+    # Distribute inbox messages
+    if [ -d "$SHARED_INBOX" ]; then
+        while IFS= read -r msg_file; do
+            local recipient
+            recipient=$(_extract_recipient "$msg_file")
+            local sender
+            sender=$(_extract_sender "$msg_file")
+
+            if [ -n "$recipient" ] && [ -n "$sender" ]; then
+                local dest_dir="$AGENTS_BASE/$recipient/messages/inbox/$sender"
+                local msg_basename
+                msg_basename=$(basename "$msg_file")
+
+                # Skip if already exists in destination
+                if [ -f "$dest_dir/$msg_basename" ]; then
+                    continue
+                fi
+
+                mkdir -p "$dest_dir"
+                # Convert to AMP format and write
+                _convert_to_amp_format "$msg_file" > "$dest_dir/$msg_basename"
+                DISTRIBUTED=$((DISTRIBUTED + 1))
+            else
+                SKIPPED=$((SKIPPED + 1))
+            fi
+        done < <(find "$SHARED_INBOX" -name "*.json" -type f 2>/dev/null)
+    fi
+
+    # Distribute sent messages
+    if [ -d "$SHARED_SENT" ]; then
+        while IFS= read -r msg_file; do
+            local sender
+            sender=$(_extract_sender "$msg_file")
+            local recipient
+            recipient=$(_extract_recipient "$msg_file")
+
+            if [ -n "$sender" ] && [ -n "$recipient" ]; then
+                local dest_dir="$AGENTS_BASE/$sender/messages/sent/$recipient"
+                local msg_basename
+                msg_basename=$(basename "$msg_file")
+
+                if [ -f "$dest_dir/$msg_basename" ]; then
+                    continue
+                fi
+
+                mkdir -p "$dest_dir"
+                _convert_to_amp_format "$msg_file" > "$dest_dir/$msg_basename"
+                DISTRIBUTED=$((DISTRIBUTED + 1))
+            else
+                SKIPPED=$((SKIPPED + 1))
+            fi
+        done < <(find "$SHARED_SENT" -name "*.json" -type f 2>/dev/null)
+    fi
+
+    if [ "$DISTRIBUTED" -gt 0 ]; then
+        print_success "Distributed $DISTRIBUTED messages to per-agent directories (AMP format)"
+    fi
+    if [ "$SKIPPED" -gt 0 ]; then
+        print_warning "Skipped $SKIPPED messages (could not determine recipient/sender)"
+    fi
+
+    echo "$DISTRIBUTED"
+}
+
 migrate_old_messages() {
     echo ""
-    print_info "Checking for existing messages to migrate..."
+    print_info "Checking for messages to migrate..."
 
-    OLD_INBOX="$HOME/.aimaestro/messages/inbox"
-    OLD_SENT="$HOME/.aimaestro/messages/sent"
-    NEW_INBOX="$HOME/.agent-messaging/messages/inbox"
-    NEW_SENT="$HOME/.agent-messaging/messages/sent"
+    local OLD_INBOX="$HOME/.aimaestro/messages/inbox"
+    local OLD_SENT="$HOME/.aimaestro/messages/sent"
+    local SHARED_INBOX="$HOME/.agent-messaging/messages/inbox"
+    local SHARED_SENT="$HOME/.agent-messaging/messages/sent"
+    local PHASE1_DONE=false
 
+    # ── Phase 1: Migrate from old ~/.aimaestro/messages/ to shared location ──
     if [ -d "$OLD_INBOX" ] || [ -d "$OLD_SENT" ]; then
-        OLD_COUNT=0
+        local OLD_COUNT=0
         if [ -d "$OLD_INBOX" ]; then
             OLD_COUNT=$(find "$OLD_INBOX" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
         fi
+        local OLD_SENT_COUNT=0
+        if [ -d "$OLD_SENT" ]; then
+            OLD_SENT_COUNT=$(find "$OLD_SENT" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+        fi
 
-        if [ "$OLD_COUNT" -gt 0 ]; then
-            print_warning "Found $OLD_COUNT messages in old format (~/.aimaestro/messages/)"
-            echo ""
-            echo "  The new AMP system uses ~/.agent-messaging/"
-            echo "  Your old messages can be migrated to the new location."
-            echo ""
+        if [ "$((OLD_COUNT + OLD_SENT_COUNT))" -gt 0 ]; then
+            print_warning "Found $((OLD_COUNT + OLD_SENT_COUNT)) messages in old format (~/.aimaestro/messages/)"
 
             if [ "$NON_INTERACTIVE" = true ]; then
-                MIGRATE_CHOICE="y"
+                local MIGRATE_CHOICE="y"
             else
-                read -p "Migrate old messages to AMP format? [Y/n]: " MIGRATE_CHOICE
+                echo ""
+                echo "  Messages will be migrated to per-agent directories."
+                echo ""
+                read -p "Migrate old messages? [Y/n]: " MIGRATE_CHOICE
                 MIGRATE_CHOICE=${MIGRATE_CHOICE:-Y}
             fi
 
             if [[ "$MIGRATE_CHOICE" =~ ^[Yy]$ ]]; then
-                mkdir -p "$NEW_INBOX" "$NEW_SENT"
+                mkdir -p "$SHARED_INBOX" "$SHARED_SENT"
 
-                # Migrate inbox
+                # Copy inbox messages to shared (preserving them for Phase 2)
                 if [ -d "$OLD_INBOX" ]; then
                     for agent_dir in "$OLD_INBOX"/*; do
                         if [ -d "$agent_dir" ]; then
-                            agent_name=$(basename "$agent_dir")
-                            mkdir -p "$NEW_INBOX"
                             for msg in "$agent_dir"/*.json; do
                                 if [ -f "$msg" ]; then
-                                    cp "$msg" "$NEW_INBOX/"
+                                    cp -n "$msg" "$SHARED_INBOX/" 2>/dev/null || true
                                 fi
                             done
                         fi
                     done
                 fi
 
-                # Migrate sent
+                # Copy sent messages to shared
                 if [ -d "$OLD_SENT" ]; then
                     for agent_dir in "$OLD_SENT"/*; do
                         if [ -d "$agent_dir" ]; then
                             for msg in "$agent_dir"/*.json; do
                                 if [ -f "$msg" ]; then
-                                    cp "$msg" "$NEW_SENT/"
+                                    cp -n "$msg" "$SHARED_SENT/" 2>/dev/null || true
                                 fi
                             done
                         fi
                     done
                 fi
 
-                MIGRATED=$(find "$NEW_INBOX" "$NEW_SENT" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
-                print_success "Migrated $MIGRATED messages to ~/.agent-messaging/"
-
                 # Backup old messages
-                BACKUP_DIR="$HOME/.aimaestro/messages.backup.$(date +%Y%m%d)"
-                mv "$HOME/.aimaestro/messages" "$BACKUP_DIR"
-                print_info "Old messages backed up to: $BACKUP_DIR"
-            else
-                print_info "Skipping migration. Old messages remain in ~/.aimaestro/messages/"
+                local BACKUP_DIR="$HOME/.aimaestro/messages.backup.$(date +%Y%m%d-%H%M%S)"
+                if [ -d "$HOME/.aimaestro/messages" ]; then
+                    mv "$HOME/.aimaestro/messages" "$BACKUP_DIR"
+                    print_info "Old messages backed up to: $BACKUP_DIR"
+                fi
+                PHASE1_DONE=true
             fi
-        else
-            print_info "No old messages found to migrate."
+        fi
+    fi
+
+    # ── Phase 2: Distribute from shared to per-agent directories ──
+    # This runs regardless of Phase 1 - catches messages that were
+    # previously migrated to shared but never distributed
+    local SHARED_COUNT=0
+    if [ -d "$SHARED_INBOX" ]; then
+        SHARED_COUNT=$(find "$SHARED_INBOX" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+    local SHARED_SENT_COUNT=0
+    if [ -d "$SHARED_SENT" ]; then
+        SHARED_SENT_COUNT=$(find "$SHARED_SENT" -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
+    if [ "$((SHARED_COUNT + SHARED_SENT_COUNT))" -gt 0 ]; then
+        print_info "Distributing $((SHARED_COUNT + SHARED_SENT_COUNT)) messages to per-agent directories..."
+        local result
+        result=$(distribute_shared_to_per_agent)
+
+        if [ "$result" -gt 0 ] 2>/dev/null; then
+            # Backup shared messages and clean up
+            local SHARED_BACKUP="$HOME/.agent-messaging/messages.backup.$(date +%Y%m%d-%H%M%S)"
+            mv "$HOME/.agent-messaging/messages" "$SHARED_BACKUP"
+            print_info "Shared messages backed up to: $SHARED_BACKUP"
+            print_success "Messages are now in per-agent directories (~/.agent-messaging/agents/<name>/messages/)"
         fi
     else
-        print_info "No old messaging system detected."
+        if [ "$PHASE1_DONE" != true ]; then
+            print_info "No messages to migrate."
+        fi
     fi
 }
 
@@ -267,8 +495,9 @@ if [ "$PREREQUISITES_OK" = false ]; then
     exit 1
 fi
 
-# Check for old messaging system
-if [ -d "$HOME/.aimaestro/messages" ]; then
+# Migrate messages: old format → shared → per-agent directories
+# Runs if old messages exist OR if shared messages need distribution
+if [ -d "$HOME/.aimaestro/messages" ] || [ -d "$HOME/.agent-messaging/messages/inbox" ] || [ -d "$HOME/.agent-messaging/messages/sent" ]; then
     migrate_old_messages
 fi
 

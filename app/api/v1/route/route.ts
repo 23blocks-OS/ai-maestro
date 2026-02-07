@@ -335,7 +335,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     let resolvedHostId: string | undefined
     let resolvedAgentId: string | undefined
 
-    if (isExplicitRemote) {
+    if (isMeshForwarded) {
+      // LOOP GUARD: this request was already forwarded from another host.
+      // Only attempt local delivery — never re-forward to avoid infinite loops.
+      const meshResult = await checkMeshAgentExists(recipientName, 3000)
+      if (meshResult.exists && meshResult.host && isSelf(meshResult.host)) {
+        resolvedHostId = meshResult.host
+        resolvedAgentId = meshResult.agent?.id
+      }
+      // If not found locally, resolvedHostId stays undefined → falls to queue/relay
+    } else if (isExplicitRemote) {
       // Address explicitly names a remote host — trust it, skip discovery
       resolvedHostId = targetHostId
     } else {

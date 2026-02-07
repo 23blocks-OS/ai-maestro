@@ -171,6 +171,19 @@ async function forwardToHost(
   }
 }
 
+/** Options for deliverLocally() */
+interface LocalDeliveryOptions {
+  envelope: AMPEnvelope
+  payload: AMPPayload
+  localAgent: { id: string; name?: string; alias?: string; hostId?: string; sessions?: Array<{ status: string }> }
+  recipientAgentName: string
+  senderAgent: { id: string; hostId?: string } | null
+  senderName: string
+  forwardedFrom: string | null
+  senderPublicKeyHex: string | undefined
+  body: AMPRouteRequest
+}
+
 /**
  * Deliver a message to a local agent.
  *
@@ -179,17 +192,9 @@ async function forwardToHost(
  *   - Writes to the web UI messageQueue (if sender is a local agent)
  *   - Sends a tmux notification with the real sender name
  */
-async function deliverLocally(
-  envelope: AMPEnvelope,
-  payload: AMPPayload,
-  localAgent: { id: string; name?: string; alias?: string; hostId?: string; sessions?: Array<{ status: string }> },
-  recipientAgentName: string,
-  senderAgent: { id: string; hostId?: string } | null,
-  senderName: string,
-  forwardedFrom: string | null,
-  senderPublicKeyHex: string | undefined,
-  body: AMPRouteRequest
-): Promise<void> {
+async function deliverLocally(opts: LocalDeliveryOptions): Promise<void> {
+  const { envelope, payload, localAgent, recipientAgentName, senderAgent, senderName, forwardedFrom, senderPublicKeyHex, body } = opts
+
   // 1. Write to per-agent AMP inbox (always — agent doesn't need to be online)
   await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex)
 
@@ -341,7 +346,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     //   - Server verifies if it has the sender's public key (optional for mesh)
     //   - Signature is forwarded to recipient unchanged
 
-    const senderKeyPair = loadKeyPair(auth.agentId!)
+    // Skip key lookup for mesh-forwarded requests — the synthetic "mesh-<host>"
+    // agentId has no keypair on disk, so loading would be wasted file I/O.
+    const senderKeyPair = isMeshForwarded ? null : loadKeyPair(auth.agentId!)
 
     if (body.signature) {
       // Verify client-provided signature if we have the public key
@@ -389,12 +396,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
     // ── Recipient Resolution ───────────────────────────────────────────
     const recipientName = recipientParsed?.name || body.to.split('@')[0]
-    const targetHostId = recipientParsed?.tenant
     const selfHostId = getSelfHostId()
 
-    const isExplicitRemote = targetHostId
-      && !isSelf(targetHostId)
-      && targetHostId !== organization
+    // The "tenant" in an AMP address serves double duty:
+    //   - For mesh addresses: it's the host ID (e.g. "juans-macbook-pro" in alice@juans-macbook-pro.aimaestro.local)
+    //   - For org addresses: it's the organization name (e.g. "rnd23blocks" in alice@rnd23blocks.aimaestro.local)
+    // It's "explicitly remote" only when it's neither this host nor the org name.
+    const targetTenant = recipientParsed?.tenant
+
+    const isExplicitRemote = targetTenant
+      && !isSelf(targetTenant)
+      && targetTenant !== organization
 
     let resolvedHostId: string | undefined
     let resolvedAgentId: string | undefined
@@ -409,7 +421,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       }
     } else if (isExplicitRemote) {
       // Address explicitly names a remote host — trust it, skip discovery
-      resolvedHostId = targetHostId
+      resolvedHostId = targetTenant
     } else {
       // Discover: checks local registry first, then queries all mesh peers
       const meshResult = await checkMeshAgentExists(recipientName, MESH_DISCOVERY_TIMEOUT_MS)
@@ -465,10 +477,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
 
     try {
-      await deliverLocally(
-        envelope, body.payload, localAgent, recipientAgentName,
-        senderAgent, senderName, forwardedFrom, senderKeyPair?.publicHex, body
-      )
+      await deliverLocally({
+        envelope, payload: body.payload, localAgent, recipientAgentName,
+        senderAgent, senderName, forwardedFrom, senderPublicKeyHex: senderKeyPair?.publicHex, body
+      })
 
       return NextResponse.json({
         id: messageId, status: 'delivered', method: 'local', delivered_at: now

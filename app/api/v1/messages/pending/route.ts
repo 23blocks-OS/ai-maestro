@@ -18,8 +18,20 @@ import { authenticateRequest } from '@/lib/amp-auth'
 import {
   getPendingMessages,
   acknowledgeMessage,
-  acknowledgeMessages
+  acknowledgeMessages,
+  cleanupAllExpiredMessages
 } from '@/lib/amp-relay'
+
+// Lazy cleanup: run at most once per hour (S14 fix)
+let _lastCleanupAt = 0
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000
+function lazyCleanup() {
+  const now = Date.now()
+  if (now - _lastCleanupAt > CLEANUP_INTERVAL_MS) {
+    _lastCleanupAt = now
+    try { cleanupAllExpiredMessages() } catch { /* non-fatal */ }
+  }
+}
 import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
 
 /**
@@ -27,6 +39,9 @@ import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
  * List pending messages for the authenticated agent
  */
 export async function GET(request: NextRequest): Promise<NextResponse<AMPPendingMessagesResponse | AMPError>> {
+  // Lazy cleanup of expired relay messages (runs at most once per hour)
+  lazyCleanup()
+
   // Authenticate request
   const authHeader = request.headers.get('Authorization')
   const auth = authenticateRequest(authHeader)
@@ -43,26 +58,18 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   const limitParam = searchParams.get('limit')
   const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 10
 
-  // Get pending messages for this agent (check by ID and by name)
-  // Relay queue may use agent name or UUID as directory key
-  let result = getPendingMessages(auth.agentId!, limit)
+  // Get pending messages for this agent
+  // Only check relay keys that belong to the authenticated agent (S3 fix)
+  const agentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
 
-  // Also check by agent name (extracted from address)
-  if (auth.address && result.count === 0) {
-    const atIndex = auth.address.indexOf('@')
-    if (atIndex > 0) {
-      const agentName = auth.address.substring(0, atIndex)
-      result = getPendingMessages(agentName, limit)
-    }
-  }
+  // Try by agent name first (standardized relay key), then by agent ID
+  let result = agentName
+    ? getPendingMessages(agentName, limit)
+    : getPendingMessages(auth.agentId!, limit)
 
-  // Also check by name@tenant format (legacy relay key format)
-  if (auth.address && auth.tenantId && result.count === 0) {
-    const atIndex = auth.address.indexOf('@')
-    if (atIndex > 0) {
-      const agentName = auth.address.substring(0, atIndex)
-      result = getPendingMessages(`${agentName}@${auth.tenantId}`, limit)
-    }
+  // Fallback: try by agent ID if name lookup found nothing
+  if (result.count === 0 && agentName) {
+    result = getPendingMessages(auth.agentId!, limit)
   }
 
   return NextResponse.json(result, {
@@ -101,18 +108,15 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge the message (try by ID, then by name, then by name@tenant)
-  let acknowledged = acknowledgeMessage(auth.agentId!, messageId)
+  // Acknowledge the message — only check relay keys belonging to this agent
+  const ackAgentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
+  let acknowledged = ackAgentName
+    ? acknowledgeMessage(ackAgentName, messageId)
+    : acknowledgeMessage(auth.agentId!, messageId)
 
-  if (!acknowledged && auth.address) {
-    const atIndex = auth.address.indexOf('@')
-    if (atIndex > 0) {
-      const agentName = auth.address.substring(0, atIndex)
-      acknowledged = acknowledgeMessage(agentName, messageId)
-      if (!acknowledged && auth.tenantId) {
-        acknowledged = acknowledgeMessage(`${agentName}@${auth.tenantId}`, messageId)
-      }
-    }
+  // Fallback: try by agent ID
+  if (!acknowledged && ackAgentName) {
+    acknowledged = acknowledgeMessage(auth.agentId!, messageId)
   }
 
   if (!acknowledged) {
@@ -171,18 +175,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge messages (try by ID, then by name, then by name@tenant)
-  let acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
+  // Acknowledge messages — only check relay keys belonging to this agent
+  const batchAgentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
+  let acknowledged = batchAgentName
+    ? acknowledgeMessages(batchAgentName, body.ids)
+    : acknowledgeMessages(auth.agentId!, body.ids)
 
-  if (acknowledged === 0 && auth.address) {
-    const atIndex = auth.address.indexOf('@')
-    if (atIndex > 0) {
-      const agentName = auth.address.substring(0, atIndex)
-      acknowledged = acknowledgeMessages(agentName, body.ids)
-      if (acknowledged === 0 && auth.tenantId) {
-        acknowledged = acknowledgeMessages(`${agentName}@${auth.tenantId}`, body.ids)
-      }
-    }
+  if (acknowledged === 0 && batchAgentName) {
+    acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
   }
 
   return NextResponse.json({ acknowledged })

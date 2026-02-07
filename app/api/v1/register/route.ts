@@ -279,6 +279,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
       local_name: normalizedName,
       agent_id: agent.id,
       tenant_id: tenant,
+      tenant,  // S12 fix: CLI scripts expect 'tenant' field
       api_key: apiKey,
       provider: {
         name: providerDomain,

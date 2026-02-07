@@ -11,6 +11,7 @@
 
 import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
 import { notifyAgent } from '@/lib/notification-service'
+import { applyContentSecurity } from '@/lib/content-security'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 
 export interface DeliveryInput {
@@ -43,8 +44,21 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     subject, priority, messageType,
   } = input
 
-  // 1. Write to recipient's AMP per-agent inbox
-  const inboxPath = await writeToAMPInbox(envelope, payload, recipientAgentName, senderPublicKeyHex)
+  // 1a. Apply content security (S6 fix — previously only applied on Web UI path)
+  const fromVerified = !!senderPublicKeyHex
+  const { content: securedPayload } = applyContentSecurity(
+    { type: payload.type, message: payload.message, ...payload.context ? { context: payload.context } : {} },
+    fromVerified,
+    senderName,
+    senderHost
+  )
+  const securedEnvelopePayload: AMPPayload = { ...payload, message: securedPayload.message }
+  if (securedPayload.security) {
+    (securedEnvelopePayload as any).security = securedPayload.security
+  }
+
+  // 1b. Write to recipient's AMP per-agent inbox
+  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex)
   if (!inboxPath) {
     return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
   }

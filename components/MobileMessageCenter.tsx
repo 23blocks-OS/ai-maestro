@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Edit, MoreVertical, Server, ShieldCheck, Globe, HelpCircle } from 'lucide-react'
+import { Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, Edit, MoreVertical, Server, ShieldCheck, Globe, HelpCircle } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 import type { AgentRecipient } from './MessageCenter'
 
@@ -77,6 +77,16 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   const toInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
+  // Toast notification state (replaces native alert/confirm)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+
+  // Show a toast notification that auto-dismisses
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
   // External agent info toggle
   const [showExternalAgentInfo, setShowExternalAgentInfo] = useState(false)
 
@@ -84,6 +94,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   const fetchMessages = useCallback(async () => {
     try {
       const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox`)
+      if (!response.ok) return
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
@@ -95,6 +106,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   const fetchSentMessages = useCallback(async () => {
     try {
       const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent`)
+      if (!response.ok) return
       const data = await response.json()
       setSentMessages(data.messages || [])
     } catch (error) {
@@ -106,6 +118,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
+      if (!response.ok) return
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
@@ -117,6 +130,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
       const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
+      if (!response.ok) return
       const message = await response.json()
       setSelectedMessage(message)
 
@@ -136,7 +150,7 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   // Send message
   const sendMessage = async () => {
     if (!composeTo || !composeSubject || !composeMessage) {
-      alert('Please fill in all fields')
+      showToast('Please fill in all fields', 'error')
       return
     }
 
@@ -165,12 +179,12 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
           setIsForwarding(false)
           setForwardingOriginalMessage(null)
           setView('inbox')
-          alert('Message forwarded successfully!')
+          showToast('Message forwarded!', 'success')
           fetchMessages()
           fetchUnreadCount()
         } else {
           const error = await response.json()
-          alert(`Failed to forward message: ${error.error}`)
+          showToast(`Failed to forward: ${error.error}`, 'error')
         }
       } else {
         const response = await fetchWithTimeout(`${apiBaseUrl}/api/messages`, {
@@ -195,23 +209,31 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
           setComposePriority('normal')
           setComposeType('request')
           setView('inbox')
-          alert('Message sent successfully!')
+          showToast('Message sent!', 'success')
         } else {
-          alert('Failed to send message')
+          showToast('Failed to send message', 'error')
         }
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      alert('Error sending message')
+      showToast('Error sending message', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  // Delete message
+  // Delete message (with confirmation via pendingDelete state)
   const deleteMessage = async (messageId: string) => {
-    if (!confirm('Are you sure you want to delete this message?')) return
+    if (pendingDelete !== messageId) {
+      // First click: show confirmation
+      setPendingDelete(messageId)
+      showToast('Tap delete again to confirm', 'info')
+      setTimeout(() => setPendingDelete(null), 5000)
+      return
+    }
 
+    // Second click: actually delete
+    setPendingDelete(null)
     try {
       await fetchWithTimeout(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
@@ -220,8 +242,10 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
       setShowActionsMenu(false)
       fetchMessages()
       fetchUnreadCount()
+      showToast('Message deleted', 'success')
     } catch (error) {
       console.error('Error deleting message:', error)
+      showToast('Failed to delete message', 'error')
     }
   }
 
@@ -426,7 +450,18 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-900">
+    <div className="flex flex-col h-full w-full bg-gray-900 relative">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md text-sm font-medium shadow-lg ${
+          toast.type === 'success' ? 'bg-green-800 text-green-200' :
+          toast.type === 'error' ? 'bg-red-800 text-red-200' :
+          'bg-gray-700 text-gray-200'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Header - Help Button + Navigation Tabs */}
       <div className="flex-shrink-0 border-b border-gray-800 bg-gray-950">
         {/* Help Button Row */}
@@ -648,8 +683,9 @@ export default function MobileMessageCenter({ sessionName, agentId, allAgents, h
                     <>
                       <button
                         onClick={() => {
-                          // Use alias for reply if available, with host suffix for remote agents
-                          setComposeTo(formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost))
+                          // Use technical name (from) for routing, not display alias
+                          const replyHost = selectedMessage.fromHost || 'unknown-host'
+                          setComposeTo(`${selectedMessage.from}@${replyHost}`)
                           setComposeSubject(`Re: ${selectedMessage.subject}`)
                           setComposeType('response')
                           setIsForwarding(false)

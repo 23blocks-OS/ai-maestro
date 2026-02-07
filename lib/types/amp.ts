@@ -21,9 +21,9 @@ export type { AMPAgentIdentity, AMPExternalRegistration }
 // ============================================================================
 
 /**
- * Default relay TTL in days (7 days per protocol spec)
+ * Relay TTL in days (default 7 per protocol spec, configurable via AMP_RELAY_TTL_DAYS env)
  */
-export const AMP_RELAY_TTL_DAYS = 7
+export const AMP_RELAY_TTL_DAYS = parseInt(process.env.AMP_RELAY_TTL_DAYS || '7', 10)
 
 /**
  * API key prefix format: amp_<environment>_<type>_<random>
@@ -235,6 +235,9 @@ export interface AMPRegistrationResponse {
   /** Tenant ID */
   tenant_id: string
 
+  /** Tenant name (alias for tenant_id, for CLI compatibility) */
+  tenant?: string
+
   /** API key (shown ONLY ONCE) */
   api_key: string
 
@@ -420,6 +423,7 @@ export type AMPErrorCode =
   | 'tenant_access_denied'
   | 'organization_not_set'  // Phase 2: Organization required for AMP registration
   | 'external_provider'     // Recipient is on external provider — client must send directly
+  | 'payload_too_large'     // Message payload exceeds size limit
 
 /**
  * AMP error response

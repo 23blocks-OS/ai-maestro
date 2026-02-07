@@ -169,10 +169,12 @@ async function collectMessagesFromAMPDir(
     priority?: Message['priority']
     from?: string
     to?: string
+    previewLength?: number  // Max chars for preview (default: 100)
   } | undefined,
   results: MessageSummary[],
   seenIds: Set<string>,
 ): Promise<void> {
+  const maxPreview = filter?.previewLength ?? 100
   let entries: string[]
   try {
     entries = await fs.readdir(ampDir)
@@ -228,7 +230,7 @@ async function collectMessagesFromAMPDir(
             priority: msg.priority,
             status: msg.status,
             type: msg.content.type,
-            preview: msg.content.message.substring(0, 100),
+            preview: msg.content.message.substring(0, maxPreview),
           }
         } else if (ampMsg.id && ampMsg.subject) {
           // Old flat format (backward compat)
@@ -248,7 +250,7 @@ async function collectMessagesFromAMPDir(
             priority: ampMsg.priority || 'normal',
             status: ampMsg.status || 'unread',
             type: ampMsg.content?.type || 'notification',
-            preview: (ampMsg.content?.message || '').substring(0, 100),
+            preview: (ampMsg.content?.message || '').substring(0, maxPreview),
           }
         }
 
@@ -453,6 +455,7 @@ export async function listInboxMessages(
     priority?: Message['priority']
     from?: string
     limit?: number  // Maximum number of messages to return (default: unlimited)
+    previewLength?: number  // Max chars for preview (default: 100)
   }
 ): Promise<MessageSummary[]> {
   // Resolve agent
@@ -499,6 +502,7 @@ export async function listSentMessages(
     priority?: Message['priority']
     to?: string
     limit?: number  // Maximum number of messages to return (default: unlimited)
+    previewLength?: number  // Max chars for preview (default: 100)
   }
 ): Promise<MessageSummary[]> {
   const agent = resolveAgent(agentIdentifier)

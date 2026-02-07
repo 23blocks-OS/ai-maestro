@@ -154,6 +154,10 @@ export function createApiKey(
  * Validate an API key and return the associated record
  * Returns null if invalid or expired
  */
+// Debounce lastUsed writes: only save at most once per 60 seconds per key
+const _lastUsedWriteTimestamps = new Map<string, number>()
+const LAST_USED_WRITE_INTERVAL_MS = 60_000
+
 export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   if (!isValidApiKeyFormat(apiKey)) {
     return null
@@ -169,9 +173,14 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   )
 
   if (record) {
-    // Update last_used_at
-    record.last_used_at = new Date().toISOString()
-    saveApiKeys(keys)
+    // Debounce last_used_at disk writes (S8 fix)
+    const now = Date.now()
+    const lastWrite = _lastUsedWriteTimestamps.get(keyHash) || 0
+    if (now - lastWrite > LAST_USED_WRITE_INTERVAL_MS) {
+      record.last_used_at = new Date().toISOString()
+      saveApiKeys(keys)
+      _lastUsedWriteTimestamps.set(keyHash, now)
+    }
   }
 
   return record || null

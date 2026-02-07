@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle, ExternalLink } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 /**
@@ -60,6 +60,16 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const toInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
+  // Toast notification state (replaces native alert/confirm)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+
+  // Show a toast notification that auto-dismisses
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
   // External agent info toggle
   const [showExternalAgentInfo, setShowExternalAgentInfo] = useState(false)
 
@@ -68,6 +78,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     try {
       const fetchLimit = limit ?? inboxLimit
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=inbox&limit=${fetchLimit}`)
+      if (!response.ok) return
       const data = await response.json()
       const msgs = data.messages || []
       setMessages(msgs)
@@ -83,6 +94,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     try {
       const fetchLimit = limit ?? sentLimit
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&box=sent&limit=${fetchLimit}`)
+      if (!response.ok) return
       const data = await response.json()
       const msgs = data.messages || []
       setSentMessages(msgs)
@@ -111,6 +123,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=unread-count`)
+      if (!response.ok) return
       const data = await response.json()
       setUnreadCount(data.count || 0)
     } catch (error) {
@@ -122,6 +135,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const fetchSentCount = useCallback(async () => {
     try {
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=sent-count`)
+      if (!response.ok) return
       const data = await response.json()
       setSentCount(data.count || 0)
     } catch (error) {
@@ -133,6 +147,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
+      if (!response.ok) return
       const message = await response.json()
       setSelectedMessage(message)
 
@@ -152,7 +167,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   // Send message
   const sendMessage = async () => {
     if (!composeTo || !composeSubject || !composeMessage) {
-      alert('Please fill in all fields')
+      showToast('Please fill in all fields', 'error')
       return
     }
 
@@ -168,7 +183,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messageId: forwardingOriginalMessage.id,
-            fromSession: sessionName,
+            fromSession: messageIdentifier,
             toSession: composeTo,
             forwardNote: forwardNote || undefined,
           }),
@@ -184,12 +199,12 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           setIsForwarding(false)
           setForwardingOriginalMessage(null)
           setView('inbox')
-          alert('Message forwarded successfully!')
+          showToast('Message forwarded successfully!', 'success')
           fetchMessages()
           fetchUnreadCount()
         } else {
           const error = await response.json()
-          alert(`Failed to forward message: ${error.error}`)
+          showToast(`Failed to forward: ${error.error}`, 'error')
         }
       } else {
         // Regular message send
@@ -216,23 +231,31 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           setComposePriority('normal')
           setComposeType('request')
           setView('inbox')
-          alert('Message sent successfully!')
+          showToast('Message sent successfully!', 'success')
         } else {
-          alert('Failed to send message')
+          showToast('Failed to send message', 'error')
         }
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      alert('Error sending message')
+      showToast('Error sending message', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  // Delete message
+  // Delete message (with confirmation via pendingDelete state)
   const deleteMessage = async (messageId: string) => {
-    if (!confirm('Are you sure you want to delete this message?')) return
+    if (pendingDelete !== messageId) {
+      // First click: show confirmation
+      setPendingDelete(messageId)
+      showToast('Click delete again to confirm', 'info')
+      setTimeout(() => setPendingDelete(null), 5000) // Reset after 5s
+      return
+    }
 
+    // Second click: actually delete
+    setPendingDelete(null)
     try {
       await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}`, {
         method: 'DELETE',
@@ -240,8 +263,10 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
       setSelectedMessage(null)
       fetchMessages()
       fetchUnreadCount()
+      showToast('Message deleted', 'success')
     } catch (error) {
       console.error('Error deleting message:', error)
+      showToast('Failed to delete message', 'error')
     }
   }
 
@@ -478,14 +503,6 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     return `${displayName}@${hostName}`
   }
 
-  // Get agent display parts - display name and technical address separately
-  const getAgentDisplayParts = (agentId: string, alias?: string, host?: string) => {
-    const displayName = alias || agentId
-    const hostName = host || 'unknown-host'
-    const technicalAddress = `${agentId}@${hostName}`
-    return { displayName, technicalAddress }
-  }
-
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'text-red-600 bg-red-100'
@@ -518,7 +535,18 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-900">
+    <div className="flex flex-col h-full w-full bg-gray-900 relative">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`absolute top-2 right-2 z-50 px-4 py-2 rounded-md text-sm font-medium shadow-lg transition-opacity ${
+          toast.type === 'success' ? 'bg-green-800 text-green-200' :
+          toast.type === 'error' ? 'bg-red-800 text-red-200' :
+          'bg-gray-700 text-gray-200'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-3">
@@ -842,8 +870,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                 <div className="mt-6 pt-4 border-t border-gray-800 flex gap-3">
                   <button
                     onClick={() => {
-                      // Use alias for reply if available, with host suffix for remote agents
-                      setComposeTo(formatAgentName(selectedMessage.from, selectedMessage.fromAlias, selectedMessage.fromHost))
+                      // Use technical name (from) for routing, not display alias
+                      const replyHost = selectedMessage.fromHost || 'unknown-host'
+                      setComposeTo(`${selectedMessage.from}@${replyHost}`)
                       setComposeSubject(`Re: ${selectedMessage.subject}`)
                       setComposeType('response')
                       setIsForwarding(false)
@@ -1063,7 +1092,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
 
           <div className="space-y-4 max-w-2xl">
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="compose-to" className="block text-sm font-medium text-gray-300 mb-1">
                 To (Agent Name):
               </label>
               <input
@@ -1071,6 +1100,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                 id="compose-to"
                 name="to"
                 type="text"
+                aria-label="Recipient agent name"
+                aria-autocomplete="list"
+                aria-expanded={showAgentSuggestions}
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
                 onKeyDown={handleToKeyDown}
@@ -1084,6 +1116,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
               {showAgentSuggestions && filteredAgents.length > 0 && (
                 <div
                   ref={suggestionsRef}
+                  role="listbox"
+                  aria-label="Agent suggestions"
                   className="absolute z-20 w-full mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
                 >
                   {filteredAgents.map((agent, index) => {
@@ -1131,13 +1165,14 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="compose-subject" className="block text-sm font-medium text-gray-300 mb-1">
                 Subject:
               </label>
               <input
                 id="compose-subject"
                 name="subject"
                 type="text"
+                aria-label="Message subject"
                 value={composeSubject}
                 onChange={(e) => setComposeSubject(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1186,6 +1221,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
               <textarea
                 id="compose-message"
                 name="message"
+                aria-label="Message body"
                 value={composeMessage}
                 onChange={(e) => setComposeMessage(e.target.value)}
                 rows={10}

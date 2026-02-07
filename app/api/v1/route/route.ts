@@ -32,7 +32,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/amp-auth'
 import { loadKeyPair, verifySignature } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
-import { writeToAMPInbox } from '@/lib/amp-inbox-writer'
 import { deliver } from '@/lib/message-delivery'
 import { getAgent, getAgentByName, checkMeshAgentExists } from '@/lib/agent-registry'
 import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
@@ -54,6 +53,36 @@ const MESH_DISCOVERY_TIMEOUT_MS = 3000
 
 /** Timeout for HTTP forwarding to remote mesh hosts */
 const FORWARD_TIMEOUT_MS = 10000
+
+/** Maximum message payload size in bytes (1 MB) */
+const MAX_PAYLOAD_SIZE = 1024 * 1024
+
+/** Rate limit: max requests per agent per window */
+const RATE_LIMIT_MAX = 60
+const RATE_LIMIT_WINDOW_MS = 60_000
+
+// ============================================================================
+// Rate Limiter (in-memory, per-agent)
+// ============================================================================
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(agentId: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(agentId)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(agentId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false
+  }
+
+  entry.count++
+  return true
+}
 
 // ============================================================================
 // Helpers
@@ -227,7 +256,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
           tenantId: getOrganization() || 'default',
           address: `mesh@${forwardedFrom}`
         }
-        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom}`)
+        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom} (signature NOT verified — trusted host)`)
       }
     }
 
@@ -236,6 +265,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
         error: auth.error || 'unauthorized',
         message: auth.message || 'Authentication required'
       } as AMPError, { status: 401 })
+    }
+
+    // ── Rate Limiting (S2) ────────────────────────────────────────────
+    const rateLimitKey = auth.agentId || forwardedFrom || 'unknown'
+    if (!checkRateLimit(rateLimitKey)) {
+      return NextResponse.json({
+        error: 'rate_limited',
+        message: `Rate limit exceeded: ${RATE_LIMIT_MAX} requests per minute`
+      } as AMPError, { status: 429 })
+    }
+
+    // ── Payload Size Limit (S10) ──────────────────────────────────────
+    const contentLength = request.headers.get('Content-Length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_PAYLOAD_SIZE) {
+      return NextResponse.json({
+        error: 'payload_too_large',
+        message: `Payload exceeds maximum size of ${MAX_PAYLOAD_SIZE} bytes`
+      } as AMPError, { status: 413 })
     }
 
     // ── Body Validation ────────────────────────────────────────────────
@@ -389,11 +436,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     // ── Remote Delivery ────────────────────────────────────────────────
     if (resolvedHostId && !isSelf(resolvedHostId)) {
       const remoteHost = getHostById(resolvedHostId)
-      const queueAddr = `${recipientName}@${resolvedHostId}`
 
       if (!remoteHost) {
         console.log(`[AMP Route] Host '${resolvedHostId}' not in config, queuing for relay`)
-        queueMessage(queueAddr, envelope, body.payload, senderKeyPair?.publicHex || '')
+        // Always use recipientName as relay key for consistent lookup
+        queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
         return NextResponse.json({
           id: messageId, status: 'queued', method: 'relay', queued_at: now
         } as AMPRouteResponse, { status: 200 })
@@ -410,7 +457,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       }
 
       console.error(`[AMP Route] Mesh delivery to ${resolvedHostId} failed: ${fwd.error}`)
-      queueMessage(queueAddr, envelope, body.payload, senderKeyPair?.publicHex || '')
+      // Always use recipientName as relay key for consistent lookup
+      queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now,
         error: `Mesh delivery to ${resolvedHostId} failed, queued for retry`
@@ -421,8 +469,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const localAgent = resolvedAgentId ? getAgent(resolvedAgentId) : null
 
     if (!localAgent) {
-      // Not found on any host — write to inbox dir (may exist) + queue relay
-      await writeToAMPInbox(envelope, body.payload, recipientName, senderKeyPair?.publicHex)
+      // Not found on any host — queue for relay (S13 fix: removed redundant inbox write)
       queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now

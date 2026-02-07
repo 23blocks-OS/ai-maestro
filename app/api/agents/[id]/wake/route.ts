@@ -155,8 +155,9 @@ export async function POST(
       const ampDir = getAgentAMPDir(agentName)
       // Set AMP_DIR for the tmux session environment (new panes/windows inherit it)
       await execAsync(`tmux set-environment -t "${sessionName}" AMP_DIR "${ampDir}"`)
-      // Also export it in the current shell so the agent's program has it
-      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}'" Enter`)
+      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
+      // Also export in the current shell so the agent's program has it
+      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}'" Enter`)
       console.log(`[Wake] Set AMP_DIR=${ampDir} for agent ${agentName}`)
     } catch (ampError) {
       // Non-fatal: agent still works without AMP

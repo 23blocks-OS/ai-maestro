@@ -16,7 +16,6 @@ import {
 import { searchAgents } from '@/lib/agent-registry'
 import { getSelfHostId, getSelfHost } from '@/lib/hosts-config-server.mjs'
 import { notifyAgent } from '@/lib/notification-service'
-import { writeToAMPInbox, isAMPInitialized } from '@/lib/amp-inbox-writer'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -169,40 +168,6 @@ export async function POST(request: NextRequest) {
       toLabel,
       fromVerified,
     })
-
-    // Dual-write: also write to per-agent AMP directory for AMP CLI scripts
-    // Path: ~/.agent-messaging/agents/<recipientName>/messages/inbox/
-    if (await isAMPInitialized()) {
-      const selfHostId = getSelfHostId()
-      const senderAddr = `${message.fromAlias || from}@${selfHostId}.aimaestro.local`
-      const recipientAddr = `${message.toAlias || to}@${selfHostId}.aimaestro.local`
-      // Convert old ID format (msg-xxx-xxx) to AMP format (msg_xxx_xxx)
-      const ampId = message.id.replace(/-/g, '_')
-      // Recipient agent name for per-agent directory
-      const recipientAgentName = message.toAlias || to
-
-      await writeToAMPInbox(
-        {
-          id: ampId,
-          from: senderAddr,
-          to: recipientAddr,
-          subject: message.subject,
-          priority: message.priority,
-          timestamp: message.timestamp,
-          signature: '',
-          in_reply_to: message.inReplyTo
-        },
-        {
-          type: content.type,
-          message: content.message,
-          context: content.context
-        },
-        recipientAgentName
-      ).catch(err => {
-        // Non-fatal: don't break old API if AMP write fails
-        console.error('[Messages API] AMP dual-write failed:', err)
-      })
-    }
 
     // Notify target agent immediately (fire-and-forget, doesn't block response)
     const notificationResult = await notifyAgent({

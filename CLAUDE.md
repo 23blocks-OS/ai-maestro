@@ -631,22 +631,16 @@ When a message is routed to a local agent, AI Maestro sends a push notification 
 - `NOTIFICATIONS_ENABLED=false` - Disable push notifications
 - `NOTIFICATION_FORMAT` - Customize notification format
 
-### Migration from Old System
+### Message Storage
 
-If you have messages in the old format (`~/.aimaestro/messages/`):
-
-```bash
-# Run the migration script
-./scripts/migrate-to-amp.sh
-
-# Or use dry-run to preview
-./scripts/migrate-to-amp.sh --dry-run
+All messages are stored in AMP per-agent directories:
+```
+~/.agent-messaging/agents/<agentName>/messages/inbox/
+~/.agent-messaging/agents/<agentName>/messages/sent/
 ```
 
-The migration:
-1. Copies messages to `~/.agent-messaging/messages/`
-2. Backs up old messages (doesn't delete)
-3. Preserves message content
+Per-agent directories are auto-created when agents first use AMP commands.
+The old `~/.aimaestro/messages/` system is no longer used.
 
 ### Claude Code Skill
 

@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import {
   listAgentInboxMessages,
   listAgentSentMessages,
-  sendAgentMessage,
   getAgentMessageStats
 } from '@/lib/agent-messaging'
+import { sendFromUI } from '@/lib/message-send'
 
 /**
  * GET /api/agents/[id]/messages
@@ -64,15 +64,16 @@ export async function POST(
       )
     }
 
-    const message = await sendAgentMessage(
-      params.id,
+    const result = await sendFromUI({
+      from: params.id,
       to,
       subject,
       content,
-      { priority, inReplyTo }
-    )
+      priority,
+      inReplyTo,
+    })
 
-    return NextResponse.json({ message }, { status: 201 })
+    return NextResponse.json({ message: result.message, notified: result.notified }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send message'
     console.error('Failed to send message:', error)

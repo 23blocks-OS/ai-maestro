@@ -4,8 +4,8 @@ import {
   markAgentMessageAsRead,
   archiveAgentMessage,
   deleteAgentMessage,
-  forwardAgentMessage
 } from '@/lib/agent-messaging'
+import { forwardFromUI } from '@/lib/message-send'
 
 /**
  * GET /api/agents/[id]/messages/[messageId]
@@ -104,9 +104,14 @@ export async function POST(
       return NextResponse.json({ error: 'Missing required field: to' }, { status: 400 })
     }
 
-    const message = await forwardAgentMessage(params.messageId, params.id, to, note)
+    const result = await forwardFromUI({
+      originalMessageId: params.messageId,
+      fromAgent: params.id,
+      toAgent: to,
+      forwardNote: note,
+    })
 
-    return NextResponse.json({ message }, { status: 201 })
+    return NextResponse.json({ message: result.message }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to forward message'
     console.error('Failed to forward message:', error)

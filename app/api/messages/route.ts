@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  sendMessage,
   listInboxMessages,
   listSentMessages,
   getSentCount,
@@ -13,9 +12,9 @@ import {
   listAgentsWithMessages,
   resolveAgentIdentifier,
 } from '@/lib/messageQueue'
+import { sendFromUI } from '@/lib/message-send'
 import { searchAgents } from '@/lib/agent-registry'
 import { getSelfHostId, getSelfHost } from '@/lib/hosts-config-server.mjs'
-import { notifyAgent } from '@/lib/notification-service'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -157,34 +156,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const message = await sendMessage(from, to, subject, content, {
-      priority,
-      inReplyTo,
-      fromHost,
-      toHost,
-      fromAlias,
-      toAlias,
-      fromLabel,
-      toLabel,
+    const result = await sendFromUI({
+      from, to, subject, content,
+      priority, inReplyTo,
+      fromHost, toHost,
+      fromAlias, toAlias,
+      fromLabel, toLabel,
       fromVerified,
     })
 
-    // Notify target agent immediately (fire-and-forget, doesn't block response)
-    const notificationResult = await notifyAgent({
-      agentId: message.to,
-      agentName: message.toAlias || message.to,
-      agentHost: message.toHost || 'local',
-      fromName: message.fromAlias || message.from,
-      fromHost: message.fromHost,
-      subject: message.subject,
-      messageId: message.id,
-      priority: message.priority,
-      messageType: content.type,
-    })
-
     return NextResponse.json({
-      message,
-      notified: notificationResult.notified,
+      message: result.message,
+      notified: result.notified,
     }, { status: 201 })
   } catch (error) {
     console.error('Error sending message:', error)

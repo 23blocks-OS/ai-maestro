@@ -39,7 +39,7 @@ export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTe
         return (
           <div
             key={agent.id}
-            className="absolute inset-0 flex flex-col"
+            className="absolute inset-0 flex flex-col overflow-hidden"
             style={{
               visibility: isActive ? 'visible' : 'hidden',
               pointerEvents: isActive ? 'auto' : 'none',
@@ -48,7 +48,7 @@ export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTe
           >
             <TerminalView
               session={session}
-              isVisible={true}
+              isVisible={isActive}
               hideFooter={true}
               hideHeader={true}
             />

@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
-      "softwareVersion": "0.20.18",
+      "softwareVersion": "0.21.0",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -59,7 +59,9 @@
         "Peer mesh network across multiple machines",
         "Docker containerized agents (local and cloud)",
         "Portable agents (export, import, clone, transfer)",
-        "Webhook subscriptions for external integrations"
+        "Webhook subscriptions for external integrations",
+        "Team Meetings with multi-agent war room sessions",
+        "Kanban Board with 5-column drag-and-drop task management"
       ],
       "installUrl": "https://github.com/23blocks-OS/ai-maestro#installation",
       "requirements": "Node.js 18.17+/20.x, tmux 3.0+, macOS 12.0+ or Windows 10/11 (WSL2) or Linux"
@@ -131,6 +133,8 @@
                 <li><strong>Peer Mesh Network:</strong> Control agents across multiple computers and cloud servers.</li>
                 <li><strong>Mobile Access:</strong> Touch-optimized interface with secure Tailscale VPN.</li>
                 <li><strong>Portable Agents:</strong> Export/import agents as .zip files for cross-host transfer and cloning.</li>
+                <li><strong>Team Meetings:</strong> Assemble agents into a war room with shared terminal views, task lists, and meeting chat.</li>
+                <li><strong>Kanban Board:</strong> Full-screen drag-and-drop board with 5 columns (Backlog, To Do, In Progress, Review, Done) and task dependency tracking.</li>
             </ul>
         </section>
 
@@ -179,6 +183,41 @@
                 <li>Ed25519 key pair for cryptographic message signing</li>
                 <li>Full AMP API: /api/v1/route, /api/v1/messages/pending</li>
                 <li>Python/Node.js integration examples available</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Team Meetings & Kanban Board</h2>
+            <p>Assemble agents into a "war room" for coordinated multi-agent sessions with shared task management.</p>
+
+            <h3>Team Meetings</h3>
+            <ul>
+                <li>Select agents and start a meeting with split-pane terminal views</li>
+                <li>Grid or list sidebar to switch between agent terminals</li>
+                <li>Save and load team configurations for quick re-assembly</li>
+                <li>Add agents to an active meeting on the fly</li>
+                <li>Meeting chat using AMP messaging between participants</li>
+            </ul>
+
+            <h3>Kanban Board</h3>
+            <ul>
+                <li>Full-screen overlay with 5 status columns: Backlog, To Do, In Progress, Review, Done</li>
+                <li>HTML5 drag-and-drop to move tasks between columns</li>
+                <li>Task dependency chains with automatic unblocking</li>
+                <li>Assign tasks to specific agents</li>
+                <li>Quick-add tasks from any column</li>
+                <li>Click any card to open detailed task editor</li>
+                <li>Keyboard shortcut (Escape) to close overlays</li>
+                <li>Tasks persist per team in file-based storage</li>
+            </ul>
+
+            <h3>Task Statuses</h3>
+            <ul>
+                <li><strong>Backlog:</strong> Ideas and future work items</li>
+                <li><strong>To Do (Pending):</strong> Ready to be picked up</li>
+                <li><strong>In Progress:</strong> Currently being worked on</li>
+                <li><strong>Review:</strong> Waiting for review or validation</li>
+                <li><strong>Done (Completed):</strong> Finished work</li>
             </ul>
         </section>
 

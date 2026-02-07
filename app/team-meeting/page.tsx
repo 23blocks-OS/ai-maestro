@@ -1,18 +1,22 @@
 'use client'
 
-import { useReducer, useCallback, useState } from 'react'
+import { useReducer, useCallback, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAgents } from '@/hooks/useAgents'
+import { useTasks } from '@/hooks/useTasks'
+import { useMeetingMessages } from '@/hooks/useMeetingMessages'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import AgentPicker from '@/components/team-meeting/AgentPicker'
 import SelectedAgentsBar from '@/components/team-meeting/SelectedAgentsBar'
 import MeetingHeader from '@/components/team-meeting/MeetingHeader'
 import MeetingSidebar from '@/components/team-meeting/MeetingSidebar'
 import MeetingTerminalArea from '@/components/team-meeting/MeetingTerminalArea'
+import MeetingRightPanel from '@/components/team-meeting/MeetingRightPanel'
+import TaskKanbanBoard from '@/components/team-meeting/TaskKanbanBoard'
 import RingingAnimation from '@/components/team-meeting/RingingAnimation'
-import type { TeamMeetingState, TeamMeetingAction, Team } from '@/types/team'
+import type { TeamMeetingState, TeamMeetingAction, Team, RightPanelTab } from '@/types/team'
 
 const TeamSaveDialog = dynamic(
   () => import('@/components/team-meeting/TeamSaveDialog'),
@@ -24,6 +28,10 @@ const TeamLoadDialog = dynamic(
   { ssr: false }
 )
 
+function generateMeetingId(): string {
+  return `meeting-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
 // State machine initial state
 const initialState: TeamMeetingState = {
   phase: 'idle',
@@ -33,6 +41,10 @@ const initialState: TeamMeetingState = {
   activeAgentId: null,
   joinedAgentIds: [],
   sidebarMode: 'grid',
+  meetingId: null,
+  rightPanelOpen: false,
+  rightPanelTab: 'tasks',
+  kanbanOpen: false,
 }
 
 // Reducer for clean state transitions
@@ -78,6 +90,7 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
         ...state,
         phase: 'ringing',
         joinedAgentIds: [],
+        meetingId: generateMeetingId(),
       }
 
     case 'AGENT_JOINED':
@@ -118,6 +131,21 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
           : state.joinedAgentIds,
       }
 
+    case 'TOGGLE_RIGHT_PANEL':
+      return { ...state, rightPanelOpen: !state.rightPanelOpen }
+
+    case 'SET_RIGHT_PANEL_TAB':
+      return { ...state, rightPanelTab: action.tab }
+
+    case 'OPEN_RIGHT_PANEL':
+      return { ...state, rightPanelOpen: true, rightPanelTab: action.tab }
+
+    case 'OPEN_KANBAN':
+      return { ...state, kanbanOpen: true }
+
+    case 'CLOSE_KANBAN':
+      return { ...state, kanbanOpen: false }
+
     default:
       return state
   }
@@ -130,9 +158,64 @@ export default function TeamMeetingPage() {
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showAgentPickerInMeeting, setShowAgentPickerInMeeting] = useState(false)
 
+  // We need a stable teamId for task persistence.
+  // Use the team name as a lookup key once meeting starts, or generate a temp one.
+  const [teamId, setTeamId] = useState<string | null>(null)
+
+  // Look up or create team ID when meeting starts
+  useEffect(() => {
+    if (state.phase === 'active' && !teamId && state.teamName) {
+      // Try to find existing team by name
+      fetch('/api/teams')
+        .then(r => r.json())
+        .then(data => {
+          const existing = (data.teams || []).find((t: Team) => t.name === state.teamName)
+          if (existing) {
+            setTeamId(existing.id)
+          } else {
+            // Create a temporary team for task persistence
+            fetch('/api/teams', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: state.teamName || 'Untitled Meeting',
+                agentIds: state.selectedAgentIds,
+              }),
+            })
+              .then(r => r.json())
+              .then(data => setTeamId(data.team?.id || null))
+              .catch(() => {})
+          }
+        })
+        .catch(() => {})
+    }
+    if (state.phase === 'idle') {
+      setTeamId(null)
+    }
+  }, [state.phase, state.teamName, state.selectedAgentIds, teamId])
+
   const selectedAgents = state.selectedAgentIds
     .map(id => agents.find(a => a.id === id))
     .filter(Boolean) as typeof agents
+
+  // Task hook
+  const taskHook = useTasks(teamId)
+
+  // Meeting messages hook
+  const chatHook = useMeetingMessages({
+    meetingId: state.meetingId,
+    participantIds: state.selectedAgentIds,
+    teamName: state.teamName || 'Meeting',
+    isActive: state.phase === 'active',
+  })
+
+  // Trigger terminal resize when right panel toggles
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [state.rightPanelOpen])
 
   const handleToggleAgent = useCallback((agentId: string) => {
     dispatch({ type: 'SELECT_AGENT', agentId })
@@ -172,6 +255,7 @@ export default function TeamMeetingPage() {
 
   const handleLoadTeam = useCallback((team: Team) => {
     dispatch({ type: 'LOAD_TEAM', agentIds: team.agentIds, teamName: team.name })
+    setTeamId(team.id)
     setShowLoadDialog(false)
   }, [])
 
@@ -193,6 +277,7 @@ export default function TeamMeetingPage() {
 
   const isActive = state.phase === 'active'
   const isRinging = state.phase === 'ringing'
+  const activeTaskCount = taskHook.tasks.filter(t => t.status !== 'completed').length
 
   return (
     <TerminalProvider key="team-meeting">
@@ -207,6 +292,13 @@ export default function TeamMeetingPage() {
               onSetTeamName={(name) => dispatch({ type: 'SET_TEAM_NAME', name })}
               onAddAgent={() => setShowAgentPickerInMeeting(true)}
               onEndMeeting={() => dispatch({ type: 'END_MEETING' })}
+              rightPanelOpen={state.rightPanelOpen}
+              onToggleRightPanel={() => dispatch({ type: 'TOGGLE_RIGHT_PANEL' })}
+              onOpenKanban={() => dispatch({ type: 'OPEN_KANBAN' })}
+              onOpenTasks={() => dispatch({ type: 'OPEN_RIGHT_PANEL', tab: 'tasks' })}
+              onOpenChat={() => dispatch({ type: 'OPEN_RIGHT_PANEL', tab: 'chat' })}
+              taskCount={activeTaskCount}
+              chatUnreadCount={chatHook.unreadCount}
             />
 
             <div className="flex flex-1 overflow-hidden">
@@ -217,12 +309,34 @@ export default function TeamMeetingPage() {
                 onSelectAgent={(id) => dispatch({ type: 'SET_ACTIVE_AGENT', agentId: id })}
                 onToggleMode={() => dispatch({ type: 'TOGGLE_SIDEBAR_MODE' })}
                 onAddAgent={() => setShowAgentPickerInMeeting(true)}
+                tasksByAgent={taskHook.tasksByAgent}
               />
 
               <MeetingTerminalArea
                 agents={selectedAgents}
                 activeAgentId={state.activeAgentId}
               />
+
+              {state.rightPanelOpen && teamId && (
+                <MeetingRightPanel
+                  activeTab={state.rightPanelTab}
+                  onTabChange={(tab: RightPanelTab) => dispatch({ type: 'SET_RIGHT_PANEL_TAB', tab })}
+                  onClose={() => dispatch({ type: 'TOGGLE_RIGHT_PANEL' })}
+                  agents={selectedAgents}
+                  tasks={taskHook.tasks}
+                  pendingTasks={taskHook.pendingTasks}
+                  inProgressTasks={taskHook.inProgressTasks}
+                  completedTasks={taskHook.completedTasks}
+                  onCreateTask={taskHook.createTask}
+                  onUpdateTask={taskHook.updateTask}
+                  onDeleteTask={taskHook.deleteTask}
+                  chatMessages={chatHook.messages}
+                  chatUnreadCount={chatHook.unreadCount}
+                  onSendToAgent={chatHook.sendToAgent}
+                  onBroadcastToAll={chatHook.broadcastToAll}
+                  onMarkChatRead={chatHook.markAsRead}
+                />
+              )}
             </div>
 
             {showAgentPickerInMeeting && (
@@ -244,6 +358,19 @@ export default function TeamMeetingPage() {
                   />
                 </div>
               </div>
+            )}
+
+            {state.kanbanOpen && teamId && (
+              <TaskKanbanBoard
+                agents={selectedAgents}
+                tasks={taskHook.tasks}
+                tasksByStatus={taskHook.tasksByStatus}
+                onUpdateTask={taskHook.updateTask}
+                onDeleteTask={taskHook.deleteTask}
+                onCreateTask={taskHook.createTask}
+                onClose={() => dispatch({ type: 'CLOSE_KANBAN' })}
+                teamName={state.teamName}
+              />
             )}
           </>
         )}

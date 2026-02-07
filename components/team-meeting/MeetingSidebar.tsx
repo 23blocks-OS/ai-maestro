@@ -1,8 +1,9 @@
 'use client'
 
-import { LayoutGrid, List, Plus } from 'lucide-react'
+import { LayoutGrid, List, Plus, ListTodo } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { SidebarMode } from '@/types/team'
+import type { TaskWithDeps } from '@/types/task'
 
 interface MeetingSidebarProps {
   agents: Agent[]
@@ -11,6 +12,7 @@ interface MeetingSidebarProps {
   onSelectAgent: (agentId: string) => void
   onToggleMode: () => void
   onAddAgent: () => void
+  tasksByAgent?: Record<string, TaskWithDeps[]>
 }
 
 export default function MeetingSidebar({
@@ -20,6 +22,7 @@ export default function MeetingSidebar({
   onSelectAgent,
   onToggleMode,
   onAddAgent,
+  tasksByAgent = {},
 }: MeetingSidebarProps) {
   return (
     <div className="flex flex-col h-full bg-gray-900 border-r border-gray-800" style={{ width: 300 }}>
@@ -54,6 +57,8 @@ export default function MeetingSidebar({
           const isActive = agent.id === activeAgentId
           const displayName = agent.label || agent.name || agent.alias || agent.id.slice(0, 8)
           const isOnline = agent.session?.status === 'online'
+          const agentTasks = tasksByAgent[agent.id] || []
+          const activeTaskCount = agentTasks.filter(t => t.status !== 'completed').length
 
           if (sidebarMode === 'grid') {
             return (
@@ -87,6 +92,12 @@ export default function MeetingSidebar({
                 }`}>
                   {displayName}
                 </span>
+                {activeTaskCount > 0 && (
+                  <span className="flex items-center gap-0.5 text-[9px] text-gray-500">
+                    <ListTodo className="w-2.5 h-2.5" />
+                    {activeTaskCount}
+                  </span>
+                )}
               </div>
             )
           }
@@ -128,6 +139,12 @@ export default function MeetingSidebar({
                   {agent.name || agent.alias}
                 </span>
               </div>
+              {activeTaskCount > 0 && (
+                <span className="flex items-center gap-0.5 text-[9px] text-gray-500 flex-shrink-0">
+                  <ListTodo className="w-2.5 h-2.5" />
+                  {activeTaskCount}
+                </span>
+              )}
             </div>
           )
         })}

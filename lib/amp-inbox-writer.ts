@@ -170,16 +170,16 @@ export async function writeToAMPInbox(
 
     const ampMessage = {
       envelope: {
-        version: 'amp/0.1',
+        version: envelope.version || 'amp/0.1',
         id: envelope.id,
         from: envelope.from,
         to: envelope.to,
         subject: envelope.subject,
         priority: envelope.priority || 'normal',
         timestamp: envelope.timestamp,
-        thread_id: envelope.in_reply_to || envelope.id,
+        thread_id: envelope.thread_id || envelope.in_reply_to || envelope.id,
         in_reply_to: envelope.in_reply_to || null,
-        expires_at: null,
+        expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },
       payload: {
@@ -238,16 +238,16 @@ export async function writeToAMPSent(
 
     const ampMessage = {
       envelope: {
-        version: 'amp/0.1',
+        version: envelope.version || 'amp/0.1',
         id: envelope.id,
         from: envelope.from,
         to: envelope.to,
         subject: envelope.subject,
         priority: envelope.priority || 'normal',
         timestamp: envelope.timestamp,
-        thread_id: envelope.in_reply_to || envelope.id,
+        thread_id: envelope.thread_id || envelope.in_reply_to || envelope.id,
         in_reply_to: envelope.in_reply_to || null,
-        expires_at: null,
+        expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },
       payload: {

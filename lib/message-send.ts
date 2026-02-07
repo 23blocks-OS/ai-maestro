@@ -73,14 +73,17 @@ function getHostName(): string {
  */
 function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: AMPPayload } {
   const selfHostId = getSelfHostId() || getHostName()
+  const msgIdNormalized = message.id.replace(/-/g, '_')
   const envelope: AMPEnvelope = {
-    id: message.id.replace(/-/g, '_'),
+    version: 'amp/0.1',
+    id: msgIdNormalized,
     from: `${message.fromAlias || message.from}@${selfHostId}.aimaestro.local`,
     to: `${message.toAlias || message.to}@${(message.toHost || selfHostId)}.aimaestro.local`,
     subject: message.subject,
     priority: message.priority,
     timestamp: message.timestamp,
     signature: message.amp?.signature || '',
+    thread_id: message.inReplyTo || msgIdNormalized,
   }
   if (message.inReplyTo) {
     envelope.in_reply_to = message.inReplyTo

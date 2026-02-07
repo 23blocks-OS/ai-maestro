@@ -580,6 +580,20 @@ app.prepare().then(() => {
   // NOTE: Container agent handling removed - not yet implemented
   // Future: Add handleContainerAgent() when cloud deployment is supported
 
+  // WebSocket server for AMP real-time delivery (/v1/ws)
+  const ampWss = new WebSocketServer({ noServer: true })
+
+  ampWss.on('connection', async (ws) => {
+    try {
+      // Dynamically import the AMP WebSocket handler (compiled from TypeScript)
+      const { handleAMPWebSocket } = await import('./lib/amp-websocket.ts')
+      handleAMPWebSocket(ws)
+    } catch (err) {
+      console.error('[AMP-WS] Failed to load handler:', err)
+      ws.close(1011, 'Internal error')
+    }
+  })
+
   // WebSocket server for status updates
   const statusWss = new WebSocketServer({ noServer: true })
 
@@ -626,6 +640,10 @@ app.prepare().then(() => {
     } else if (pathname === '/status') {
       statusWss.handleUpgrade(request, socket, head, (ws) => {
         statusWss.emit('connection', ws)
+      })
+    } else if (pathname === '/v1/ws') {
+      ampWss.handleUpgrade(request, socket, head, (ws) => {
+        ampWss.emit('connection', ws)
       })
     } else {
       socket.destroy()

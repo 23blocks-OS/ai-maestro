@@ -67,21 +67,28 @@ const RATE_LIMIT_WINDOW_MS = 60_000
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 
-function checkRateLimit(agentId: string): boolean {
+interface RateLimitResult {
+  allowed: boolean
+  limit: number
+  remaining: number
+  resetAt: number
+}
+
+function checkRateLimit(agentId: string): RateLimitResult {
   const now = Date.now()
   const entry = rateLimitMap.get(agentId)
 
   if (!entry || now > entry.resetAt) {
     rateLimitMap.set(agentId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return true
+    return { allowed: true, limit: RATE_LIMIT_MAX, remaining: RATE_LIMIT_MAX - 1, resetAt: now + RATE_LIMIT_WINDOW_MS }
   }
 
   if (entry.count >= RATE_LIMIT_MAX) {
-    return false
+    return { allowed: false, limit: RATE_LIMIT_MAX, remaining: 0, resetAt: entry.resetAt }
   }
 
   entry.count++
-  return true
+  return { allowed: true, limit: RATE_LIMIT_MAX, remaining: RATE_LIMIT_MAX - entry.count, resetAt: entry.resetAt }
 }
 
 // ============================================================================
@@ -269,11 +276,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
     // ── Rate Limiting (S2) ────────────────────────────────────────────
     const rateLimitKey = auth.agentId || forwardedFrom || 'unknown'
-    if (!checkRateLimit(rateLimitKey)) {
+    const rateLimit = checkRateLimit(rateLimitKey)
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': String(rateLimit.limit),
+      'X-RateLimit-Remaining': String(rateLimit.remaining),
+      'X-RateLimit-Reset': String(Math.ceil(rateLimit.resetAt / 1000)),
+    }
+
+    if (!rateLimit.allowed) {
       return NextResponse.json({
         error: 'rate_limited',
         message: `Rate limit exceeded: ${RATE_LIMIT_MAX} requests per minute`
-      } as AMPError, { status: 429 })
+      } as AMPError, { status: 429, headers: rateLimitHeaders })
     }
 
     // ── Payload Size Limit (S10) ──────────────────────────────────────
@@ -324,6 +338,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const senderName = senderAgent?.name || senderAgent?.alias
       || (isMeshForwarded && body.from ? body.from.split('@')[0] : 'unknown')
 
+    // ── Sender Address Validation for Mesh (D16) ──────────────────────
+    if (isMeshForwarded && body.from) {
+      const senderParsed = parseAMPAddress(body.from)
+      if (senderParsed) {
+        const forwardingHost = getHostById(forwardedFrom!)
+        const expectedHostName = forwardingHost?.name || forwardedFrom
+        // Warn if the sender's domain tenant doesn't match the forwarding host
+        if (senderParsed.tenant !== forwardedFrom && senderParsed.tenant !== expectedHostName) {
+          console.warn(`[AMP Route] Sender address tenant "${senderParsed.tenant}" does not match forwarding host "${forwardedFrom}" — possible address spoofing`)
+        }
+      }
+    }
+
     // ── Envelope Construction ──────────────────────────────────────────
     const recipientParsed = parseAMPAddress(body.to)
     const messageId = generateMessageId()
@@ -331,14 +358,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const senderAddress = (isMeshForwarded && body.from) ? body.from : auth.address!
 
     const envelope: AMPEnvelope = {
+      version: 'amp/0.1',
       id: messageId,
       from: senderAddress,
       to: body.to,
       subject: body.subject,
       priority: body.priority || 'normal',
       timestamp: now,
+      expires_at: body.expires_at,
       signature: '',
-      in_reply_to: body.in_reply_to
+      in_reply_to: body.in_reply_to,
+      thread_id: body.in_reply_to || messageId,
     }
 
     // ── Signature Handling ─────────────────────────────────────────────
@@ -443,7 +473,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
         queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
         return NextResponse.json({
           id: messageId, status: 'queued', method: 'relay', queued_at: now
-        } as AMPRouteResponse, { status: 200 })
+        } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
       }
 
       console.log(`[AMP Route] Forwarding to ${recipientName}@${resolvedHostId} via ${remoteHost.url}`)
@@ -453,7 +483,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
         return NextResponse.json({
           id: (fwd.result?.id as string) || messageId,
           status: 'delivered', method: 'mesh', delivered_at: now, remote_host: resolvedHostId
-        } as AMPRouteResponse, { status: 200 })
+        } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
       }
 
       console.error(`[AMP Route] Mesh delivery to ${resolvedHostId} failed: ${fwd.error}`)
@@ -462,7 +492,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now,
         error: `Mesh delivery to ${resolvedHostId} failed, queued for retry`
-      } as AMPRouteResponse, { status: 200 })
+      } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
     }
 
     // ── Local Delivery ─────────────────────────────────────────────────
@@ -486,7 +516,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
       return NextResponse.json({
         id: messageId, status: 'delivered', method: 'local', delivered_at: now
-      } as AMPRouteResponse, { status: 200 })
+      } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
 
     } catch (error) {
       console.error('[AMP Route] Local delivery failed:', error)
@@ -494,7 +524,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now,
         error: 'Direct delivery failed, queued for relay'
-      } as AMPRouteResponse, { status: 200 })
+      } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
     }
 
   } catch (error) {

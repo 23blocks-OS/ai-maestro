@@ -25,7 +25,7 @@ When the human operator says "check your messages" or "read your messages":
 **Example:**
 - Human says: "Check your messages"
 - You are agent: `backend-api`
-- You check: `~/.aimaestro/messages/inbox/backend-api/` (YOUR inbox)
+- You check: `~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/backend-api/` (YOUR inbox)
 - These are messages addressed TO `backend-api` (from any sender)
 - You DO NOT check: The operator's inbox or any other agent's inbox
 
@@ -87,7 +87,7 @@ check-aimaestro-messages.sh
 **You DO read:**
 - ✅ Messages addressed TO YOUR AGENT
 - ✅ YOUR OWN inbox only
-- ✅ Your agent's inbox: `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
+- ✅ Your agent's inbox: `~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/YOUR-AGENT-ID/`
 
 ## When to Use This Skill
 
@@ -138,13 +138,13 @@ check-aimaestro-messages.sh
 
 **⚠️ CRITICAL: What "YOUR inbox" means:**
 - YOU = The AI agent with your current identity (from env var, tmux, or git repo)
-- YOUR inbox = `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
+- YOUR inbox = `~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/YOUR-AGENT-ID/`
 - Messages in YOUR inbox = Messages OTHER AGENTS sent TO YOU
 - NOT the operator's messages, NOT other agents' private messages
 
 **IMPORTANT:** These commands check YOUR AGENT'S inbox only. They automatically:
 1. Detect your current agent ID or agent name
-2. Read from `~/.aimaestro/messages/inbox/YOUR-AGENT-ID/`
+2. Read from `~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/YOUR-AGENT-ID/`
 3. Show messages that OTHER AGENTS sent TO YOU
 4. Do NOT access anyone else's inbox
 
@@ -324,18 +324,20 @@ check-new-messages-arrived.sh
 
 **Command (if needed):**
 ```bash
-cat ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/<message-id>.json | jq
+cat ~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/$(tmux display-message -p '#S')/<message-id>.json | jq
 ```
 
 **Directory structure:**
 ```
-~/.aimaestro/messages/
-├── inbox/YOUR-AGENT-ID/     # Messages TO YOU from other agents
-│   └── msg_*.json
-├── sent/YOUR-AGENT-ID/      # Messages FROM YOU to other agents
-│   └── msg_*.json
-└── archived/YOUR-AGENT-ID/  # YOUR archived messages
-    └── msg_*.json
+~/.agent-messaging/agents/YOUR-AGENT-NAME/
+├── messages/
+│   ├── inbox/           # Messages TO YOU from other agents
+│   │   └── <sender>/msg_*.json
+│   └── sent/            # Messages FROM YOU to other agents
+│       └── <recipient>/msg_*.json
+├── keys/                # Your AMP identity keys
+├── config.json          # Your AMP identity config
+└── registrations/       # AMP provider registrations
 ```
 
 ### 4. Mark Message as Read (via API)
@@ -970,7 +972,7 @@ send-aimaestro-message.sh frontend-dev \
 - Verify scripts installed: `ls -la ~/.local/bin/check-*.sh`
 
 **Cannot read inbox directory:**
-- Check YOUR inbox directory exists: `ls -la ~/.aimaestro/messages/inbox/$(tmux display-message -p '#S')/`
+- Check YOUR inbox directory exists: `ls -la ~/.agent-messaging/agents/YOUR-AGENT-NAME/messages/inbox/$(tmux display-message -p '#S')/`
 - Verify YOUR session name: `tmux display-message -p '#S'`
 - Remember: You're reading YOUR inbox, not someone else's
 

@@ -15,15 +15,15 @@ else
     exit 1
 fi
 
-# Message directories use agentId, not session name
+# Message directories use AMP per-agent directories
 get_inbox_dir() {
     local agent_id="$1"
-    echo "${HOME}/.aimaestro/messages/inbox/${agent_id}"
+    echo "${HOME}/.agent-messaging/agents/${agent_id}/messages/inbox"
 }
 
 get_sent_dir() {
     local agent_id="$1"
-    echo "${HOME}/.aimaestro/messages/sent/${agent_id}"
+    echo "${HOME}/.agent-messaging/agents/${agent_id}/messages/sent"
 }
 
 # Parse agent@host syntax
@@ -332,7 +332,7 @@ mark_message_read() {
 init_messaging() {
     init_common || return 1
 
-    # Ensure message directories exist
+    # Ensure AMP per-agent message directories exist
     mkdir -p "$(get_inbox_dir "$AGENT_ID")"
     mkdir -p "$(get_sent_dir "$AGENT_ID")"
 }

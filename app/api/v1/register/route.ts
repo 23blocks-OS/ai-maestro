@@ -282,7 +282,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
       api_key: apiKey,
       provider: {
         name: providerDomain,
-        endpoint: `${hostEndpoint}/api/v1`
+        endpoint: `${hostEndpoint}/api/v1`,
+        route_url: `${hostEndpoint}/api/v1/route`
       },
       fingerprint,
       registered_at: registeredAt

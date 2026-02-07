@@ -242,6 +242,8 @@ export interface AMPRegistrationResponse {
   provider: {
     name: string
     endpoint: string
+    /** Full URL for routing messages (POST). Clients MUST use this instead of hardcoding paths. */
+    route_url: string
   }
 
   /** Public key fingerprint */
@@ -417,6 +419,7 @@ export type AMPErrorCode =
   | 'agent_not_found'
   | 'tenant_access_denied'
   | 'organization_not_set'  // Phase 2: Organization required for AMP registration
+  | 'external_provider'     // Recipient is on external provider — client must send directly
 
 /**
  * AMP error response

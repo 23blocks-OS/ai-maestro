@@ -339,14 +339,14 @@ test_cross_provider_federation() {
     local error
     error=$(echo "$send_response" | jq -r '.error // empty')
 
-    if [ "$error" = "forbidden" ]; then
-        log_warn "Federation correctly rejected (not yet supported): $(echo "$send_response" | jq -r '.message')"
+    if [ "$error" = "external_provider" ] || [ "$error" = "forbidden" ]; then
+        log_warn "Correctly rejected — client must send directly to external provider: $(echo "$send_response" | jq -r '.message')"
         return 0
     elif [ -n "$error" ]; then
-        log_warn "Federation failed with error: $error"
+        log_warn "External provider send failed with error: $error"
         return 0
     else
-        log_success "Federation attempt returned: $(echo "$send_response" | jq -c .)"
+        log_success "External provider attempt returned: $(echo "$send_response" | jq -c .)"
         return 0
     fi
 }

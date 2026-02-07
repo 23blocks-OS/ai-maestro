@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.21.9",
+  "version": "0.21.10",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",

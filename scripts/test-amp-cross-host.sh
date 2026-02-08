@@ -50,6 +50,7 @@ declare -a HOST_NAMES
 declare -a HOST_URLS
 declare -a HOST_AGENT_NAMES
 declare -a HOST_API_KEYS
+declare -a HOST_AGENT_IDS
 
 # =============================================================================
 # CLI Arguments
@@ -332,20 +333,25 @@ test_cross_host_reply() {
     fi
 }
 
-# Check inbox on a remote host via its /api/v1/messages/pending endpoint
+# Check inbox on a host via its /api/messages?action=unread-count endpoint
+# Note: Mesh-delivered messages go to the file inbox (via AMP Inbox Writer),
+# NOT the relay pending queue (/api/v1/messages/pending). We must use the
+# internal messages API which reads from the actual inbox directory.
 test_inbox_count() {
-    local api_key="$1"
-    local agent_name="$2"
+    local agent_name="$1"
+    local agent_id="$2"
     local host_url="$3"
     local host_name="$4"
     local expected_min="$5"
 
     TESTS_RUN=$((TESTS_RUN + 1))
 
+    # Use agent name as identifier (registered agents are in the agent registry)
+    local identifier="${agent_id:-$agent_name}"
+
     local response
     response=$(curl -s --connect-timeout "$CURL_CONNECT_TIMEOUT" -m "$CURL_TIMEOUT" \
-        -X GET "${host_url}/api/v1/messages/pending" \
-        -H "Authorization: Bearer ${api_key}")
+        -X GET "${host_url}/api/messages?agent=${identifier}&action=unread-count")
 
     local count
     count=$(echo "$response" | jq -r '.count // 0' 2>/dev/null)
@@ -424,11 +430,16 @@ main() {
         # Run registration directly (no subshell — counters update correctly)
         register_agent_on_host "$agent_name" "${HOST_URLS[$i]}" "${HOST_NAMES[$i]}" "$agent_dir" "$tenant" > /dev/null
 
-        # Read the key from the file written by register_agent_on_host
+        # Read the key and agent_id from the files written by register_agent_on_host
         local key_file="${agent_dir}/api_key-${HOST_NAMES[$i]}"
+        local reg_file="${agent_dir}/registration-${HOST_NAMES[$i]}.json"
         if [ -f "$key_file" ]; then
             HOST_AGENT_NAMES[$i]="$agent_name"
             HOST_API_KEYS[$i]=$(cat "$key_file")
+            # Store agent_id for inbox verification via /api/messages endpoint
+            if [ -f "$reg_file" ]; then
+                HOST_AGENT_IDS[$i]=$(jq -r '.agent_id // empty' "$reg_file")
+            fi
         else
             log_warn "Skipping host ${HOST_NAMES[$i]} - registration failed"
         fi
@@ -532,8 +543,8 @@ main() {
 
             if [ "$expected" -gt 0 ]; then
                 test_inbox_count \
-                    "${HOST_API_KEYS[$i]}" \
                     "${HOST_AGENT_NAMES[$i]}" \
+                    "${HOST_AGENT_IDS[$i]}" \
                     "${HOST_URLS[$i]}" \
                     "${HOST_NAMES[$i]}" \
                     "$expected"

@@ -13,7 +13,7 @@
  * - Each agent is truly autonomous and self-sufficient
  */
 
-import { AgentDatabase, AgentDatabaseConfig } from './cozo-db'
+import { AgentDatabase } from './cozo-db'
 import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
 import { getSelfHost } from './hosts-config'
@@ -403,34 +403,25 @@ class AgentSubconscious {
 
   /**
    * Maintain memory by indexing new conversation content
+   * Calls runIndexDelta directly (no HTTP self-fetch) to eliminate TCP overhead
    */
   private async maintainMemory() {
     this.totalMemoryRuns++
     this.lastMemoryRun = Date.now()
 
     try {
-      // Call the index-delta API - it handles checking if indexing is needed
-      const response = await fetch(`${getSelfApiBase()}/api/agents/${this.agentId}/index-delta`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
+      // Direct function call — no HTTP round-trip, no TCP connection, no JSON serialization
+      const { runIndexDelta } = await import('./index-delta')
+      const result = await runIndexDelta(this.agentId)
 
-      if (!response.ok) {
-        this.lastMemoryResult = { success: false, error: `HTTP ${response.status}` }
-        console.error(`[Agent ${this.agentId.substring(0, 8)}] Index failed: ${response.status}`)
-        return
-      }
-
-      const result = await response.json()
       const messagesProcessed = result.total_messages_processed || 0
       const conversationsDiscovered = result.new_conversations_discovered || 0
 
-      // Accumulate cumulative totals
       this.cumulativeMessagesIndexed += messagesProcessed
       this.cumulativeConversationsIndexed += conversationsDiscovered
 
       this.lastMemoryResult = {
-        success: true,
+        success: result.success,
         messagesProcessed,
         conversationsDiscovered
       }
@@ -438,12 +429,14 @@ class AgentSubconscious {
       if (result.success && messagesProcessed > 0) {
         console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Indexed ${messagesProcessed} new message(s) (cumulative: ${this.cumulativeMessagesIndexed})`)
       }
+      if (!result.success && result.error) {
+        console.error(`[Agent ${this.agentId.substring(0, 8)}] Index failed: ${result.error}`)
+      }
     } catch (error) {
       this.lastMemoryResult = { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory maintenance error:`, error)
     }
 
-    // Update status file after memory run
     this.writeStatusFile()
   }
 

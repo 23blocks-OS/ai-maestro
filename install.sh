@@ -26,6 +26,12 @@ PACKAGE="📦"
 SKIP_TOOLS=false
 NON_INTERACTIVE=false
 
+SKIP_MEMORY=false
+SKIP_GRAPH=false
+SKIP_DOCS=false
+SKIP_HOOKS=false
+SKIP_AGENT_CLI=false
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-tools)
@@ -34,6 +40,26 @@ while [[ $# -gt 0 ]]; do
             ;;
         --non-interactive|-y)
             NON_INTERACTIVE=true
+            shift
+            ;;
+        --skip-memory)
+            SKIP_MEMORY=true
+            shift
+            ;;
+        --skip-graph)
+            SKIP_GRAPH=true
+            shift
+            ;;
+        --skip-docs)
+            SKIP_DOCS=true
+            shift
+            ;;
+        --skip-hooks)
+            SKIP_HOOKS=true
+            shift
+            ;;
+        --skip-agent-cli)
+            SKIP_AGENT_CLI=true
             shift
             ;;
         *)
@@ -586,82 +612,145 @@ if [ -n "$INSTALL_DIR" ]; then
     fi
 fi
 
-# Install agent tools (messaging, memory, graph, docs)
+# Install agent tools (messaging, memory, graph, docs, hooks, agent CLI)
 if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     echo ""
     print_header "STEP 4: Install Agent Tools"
 
-    echo "AI Maestro includes powerful tools for agent collaboration and intelligence:"
-    echo ""
-    echo "  📨 Messaging    - Agent-to-agent communication"
-    echo "  🧠 Memory       - Search conversation history for context"
-    echo "  🔗 Graph        - Query code relationships and dependencies"
-    echo "  📚 Docs         - Search auto-generated documentation"
-    echo "  🪝 Hooks        - Claude Code integration for Chat interface"
-    echo ""
-    if command -v claude &> /dev/null; then
-        echo "  Claude Code skills will be installed for natural language access."
-    fi
-    echo ""
+    # Component selection — all enabled by default, --skip-* flags can disable
+    INSTALL_MESSAGING=true
+    INSTALL_MEMORY=true
+    INSTALL_GRAPH=true
+    INSTALL_DOCS=true
+    INSTALL_HOOKS=true
+    INSTALL_AGENT_CLI=true
 
-    INSTALL_TOOLS_ANSWER="y"
+    # Apply per-component skip flags from CLI arguments
+    if [ "$SKIP_MEMORY" = true ]; then INSTALL_MEMORY=false; fi
+    if [ "$SKIP_GRAPH" = true ]; then INSTALL_GRAPH=false; fi
+    if [ "$SKIP_DOCS" = true ]; then INSTALL_DOCS=false; fi
+    if [ "$SKIP_HOOKS" = true ]; then INSTALL_HOOKS=false; fi
+    if [ "$SKIP_AGENT_CLI" = true ]; then INSTALL_AGENT_CLI=false; fi
+
+    # Helper to display toggle state
+    _check() { if [ "$1" = true ]; then echo "✓"; else echo " "; fi; }
+
     if [ "$NON_INTERACTIVE" != true ]; then
-        read -p "Install agent tools? (y/n): " INSTALL_TOOLS_ANSWER
+        # Interactive component selection menu
+        while true; do
+            echo ""
+            echo "  Agent tools to install:"
+            echo ""
+            echo "    1) [$(_check $INSTALL_MESSAGING)]  AMP Messaging     Agent-to-agent communication"
+            echo "    2) [$(_check $INSTALL_MEMORY)]  Memory Search     Search conversation history"
+            echo "    3) [$(_check $INSTALL_GRAPH)]  Code Graph        Query code relationships"
+            echo "    4) [$(_check $INSTALL_DOCS)]  Documentation     Search auto-generated docs"
+            echo "    5) [$(_check $INSTALL_HOOKS)]  Claude Hooks      Claude Code integration"
+            echo "    6) [$(_check $INSTALL_AGENT_CLI)]  Agent CLI         Agent management from terminal"
+            echo ""
+            echo "  Toggle: 1-6  |  a) All  n) None  Enter) Install selected"
+            read -p "  > " choice
+            case $choice in
+                1) if [ "$INSTALL_MESSAGING" = true ]; then INSTALL_MESSAGING=false; else INSTALL_MESSAGING=true; fi ;;
+                2) if [ "$INSTALL_MEMORY" = true ]; then INSTALL_MEMORY=false; else INSTALL_MEMORY=true; fi ;;
+                3) if [ "$INSTALL_GRAPH" = true ]; then INSTALL_GRAPH=false; else INSTALL_GRAPH=true; fi ;;
+                4) if [ "$INSTALL_DOCS" = true ]; then INSTALL_DOCS=false; else INSTALL_DOCS=true; fi ;;
+                5) if [ "$INSTALL_HOOKS" = true ]; then INSTALL_HOOKS=false; else INSTALL_HOOKS=true; fi ;;
+                6) if [ "$INSTALL_AGENT_CLI" = true ]; then INSTALL_AGENT_CLI=false; else INSTALL_AGENT_CLI=true; fi ;;
+                a|A) INSTALL_MESSAGING=true; INSTALL_MEMORY=true; INSTALL_GRAPH=true; INSTALL_DOCS=true; INSTALL_HOOKS=true; INSTALL_AGENT_CLI=true ;;
+                n|N) INSTALL_MESSAGING=false; INSTALL_MEMORY=false; INSTALL_GRAPH=false; INSTALL_DOCS=false; INSTALL_HOOKS=false; INSTALL_AGENT_CLI=false ;;
+                "") break ;;
+                *) echo "  Invalid choice. Use 1-6, a, n, or Enter." ;;
+            esac
+        done
     fi
 
-    if [[ "$INSTALL_TOOLS_ANSWER" =~ ^[Yy]$ ]]; then
-        cd "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    TOOLS_INSTALLED=0
 
-        # Install messaging
-        if [ -f "install-messaging.sh" ]; then
-            echo ""
-            print_step "Installing messaging tools..."
-            if [ "$NON_INTERACTIVE" = true ]; then
-                ./install-messaging.sh -y
-            else
-                ./install-messaging.sh
-            fi
+    # Install messaging (AMP + all plugin/scripts/* tools + skills)
+    if [ "$INSTALL_MESSAGING" = true ] && [ -f "install-messaging.sh" ]; then
+        echo ""
+        print_step "Installing messaging tools..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./install-messaging.sh -y
+        else
+            ./install-messaging.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        # Install memory tools
-        if [ -f "install-memory-tools.sh" ]; then
-            echo ""
-            print_step "Installing memory tools..."
+    # Install memory tools
+    if [ "$INSTALL_MEMORY" = true ] && [ -f "install-memory-tools.sh" ]; then
+        echo ""
+        print_step "Installing memory tools..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./install-memory-tools.sh -y
+        else
             ./install-memory-tools.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        # Install graph tools
-        if [ -f "install-graph-tools.sh" ]; then
-            echo ""
-            print_step "Installing graph tools..."
+    # Install graph tools
+    if [ "$INSTALL_GRAPH" = true ] && [ -f "install-graph-tools.sh" ]; then
+        echo ""
+        print_step "Installing graph tools..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./install-graph-tools.sh -y
+        else
             ./install-graph-tools.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        # Install doc tools
-        if [ -f "install-doc-tools.sh" ]; then
-            echo ""
-            print_step "Installing doc tools..."
+    # Install doc tools
+    if [ "$INSTALL_DOCS" = true ] && [ -f "install-doc-tools.sh" ]; then
+        echo ""
+        print_step "Installing doc tools..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./install-doc-tools.sh -y
+        else
             ./install-doc-tools.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        # Install Claude Code hooks
-        if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
-            echo ""
-            print_step "Installing Claude Code hooks..."
+    # Install Claude Code hooks
+    if [ "$INSTALL_HOOKS" = true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+        echo ""
+        print_step "Installing Claude Code hooks..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./scripts/claude-hooks/install-hooks.sh -y
+        else
             ./scripts/claude-hooks/install-hooks.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        # Install agent management CLI
-        # This installs aimaestro-agent.sh and the ai-maestro-agents-management skill
-        if [ -f "install-agent-cli.sh" ]; then
-            echo ""
-            print_step "Installing agent management CLI..."
+    # Install agent management CLI
+    if [ "$INSTALL_AGENT_CLI" = true ] && [ -f "install-agent-cli.sh" ]; then
+        echo ""
+        print_step "Installing agent management CLI..."
+        if [ "$NON_INTERACTIVE" = true ]; then
+            ./install-agent-cli.sh -y
+        else
             ./install-agent-cli.sh
         fi
+        TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
 
-        print_success "All agent tools installed"
+    if [ $TOOLS_INSTALLED -gt 0 ]; then
+        print_success "$TOOLS_INSTALLED agent tool(s) installed"
+
+        # Verify installation
+        if [ -f "verify-installation.sh" ]; then
+            echo ""
+            print_step "Verifying installation..."
+            ./verify-installation.sh || true
+        fi
     else
-        print_info "Skipping agent tools (you can install later with individual install-*.sh scripts)"
+        print_info "No agent tools selected"
     fi
 elif [ "$SKIP_TOOLS" = true ]; then
     print_info "Skipping agent tools (--skip-tools flag set)"

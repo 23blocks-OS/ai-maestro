@@ -9,6 +9,16 @@ INSTALL_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/graph-query"
 SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
+# Parse arguments (v0.21.26: added -y for consistency with other installers)
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
+        -h|--help) echo "Usage: ./install-graph-tools.sh [-y]"; exit 0 ;;
+        *) shift ;;
+    esac
+done
+
 echo "AI Maestro Graph Tools Installer"
 echo "================================="
 echo ""
@@ -27,7 +37,8 @@ echo "  Installed: common.sh"
 echo ""
 # Install graph scripts
 echo "Installing graph scripts to $INSTALL_DIR..."
-for script in "$SCRIPT_DIR/graph_scripts"/*.sh; do
+# v0.21.26 fix: graph_scripts/ never existed; actual scripts are in plugin/scripts/
+for script in "$SCRIPT_DIR/plugin/scripts"/graph-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"
@@ -81,3 +92,7 @@ echo ""
 echo "Example:"
 echo "  graph-describe.sh User"
 echo "  graph-find-callers.sh authenticate"
+
+# Standalone hint
+echo ""
+echo "ℹ️  For a full update (server + all tools), run: ./update-aimaestro.sh"

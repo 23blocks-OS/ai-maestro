@@ -1,6 +1,10 @@
 #!/bin/bash
 # AI Maestro - Installation Verification Script
 # Run this after installation to verify everything works
+#
+# v0.21.26: Updated to check AMP scripts (post-migration) instead of
+#           old messaging scripts that were removed by install-messaging.sh.
+#           Added planning skill check. Fixed runtime tests.
 
 # Don't use set -e - we want to continue on failures
 
@@ -35,32 +39,45 @@ echo "║           AI Maestro - Installation Verification               ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# 1. Check common.sh is installed
+# 1. Check shell helpers are installed
 echo "1. Checking shell helpers..."
 if [ -f "$HOME/.local/share/aimaestro/shell-helpers/common.sh" ]; then
     pass "common.sh installed"
 else
-    fail "common.sh NOT installed - run any installer to fix"
+    fail "common.sh NOT installed - run install-messaging.sh"
 fi
 
-# Check docs-helper.sh in share dir (installed by install-doc-tools.sh)
+if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
+    pass "agent-helper.sh installed (share dir)"
+else
+    warn "agent-helper.sh not in share dir - run install-agent-cli.sh"
+fi
+
 if [ -f "$HOME/.local/share/aimaestro/shell-helpers/docs-helper.sh" ]; then
     pass "docs-helper.sh installed (share dir)"
 else
     warn "docs-helper.sh not in share dir - run install-doc-tools.sh"
 fi
 
-# 2. Check messaging scripts
+# 2. Check AMP messaging scripts (post-AMP migration)
 echo ""
-echo "2. Checking messaging scripts..."
-MESSAGING_SCRIPTS=(
-    "check-aimaestro-messages.sh"
-    "send-aimaestro-message.sh"
-    "read-aimaestro-message.sh"
-    "messaging-helper.sh"
+echo "2. Checking AMP messaging scripts..."
+AMP_SCRIPTS=(
+    "amp-init.sh"
+    "amp-send.sh"
+    "amp-inbox.sh"
+    "amp-read.sh"
+    "amp-reply.sh"
+    "amp-status.sh"
+    "amp-register.sh"
+    "amp-fetch.sh"
+    "amp-delete.sh"
+    "amp-identity.sh"
+    "amp-helper.sh"
+    "amp-security.sh"
 )
 
-for script in "${MESSAGING_SCRIPTS[@]}"; do
+for script in "${AMP_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
@@ -80,7 +97,7 @@ for script in "${MEMORY_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-memory-tools.sh"
+        fail "$script NOT installed - run install-messaging.sh"
     fi
 done
 
@@ -100,7 +117,7 @@ for script in "${GRAPH_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-graph-tools.sh"
+        fail "$script NOT installed - run install-messaging.sh"
     fi
 done
 
@@ -120,19 +137,35 @@ for script in "${DOCS_SCRIPTS[@]}"; do
     if [ -x "$HOME/.local/bin/$script" ]; then
         pass "$script"
     else
-        fail "$script NOT installed - run install-doc-tools.sh"
+        fail "$script NOT installed - run install-messaging.sh"
     fi
 done
 
-# 6. Check skills
+# 6. Check agent CLI
 echo ""
-echo "6. Checking Claude Code skills..."
+echo "6. Checking agent CLI..."
+if [ -x "$HOME/.local/bin/aimaestro-agent.sh" ]; then
+    pass "aimaestro-agent.sh"
+else
+    fail "aimaestro-agent.sh NOT installed - run install-agent-cli.sh"
+fi
+
+if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
+    pass "agent-helper.sh (helpers dir)"
+else
+    fail "agent-helper.sh NOT in helpers dir - run install-agent-cli.sh"
+fi
+
+# 7. Check Claude Code skills
+echo ""
+echo "7. Checking Claude Code skills..."
 SKILLS=(
     "agent-messaging"
     "memory-search"
     "docs-search"
     "graph-query"
     "ai-maestro-agents-management"
+    "planning"
 )
 
 for skill in "${SKILLS[@]}"; do
@@ -143,126 +176,90 @@ for skill in "${SKILLS[@]}"; do
     fi
 done
 
-# 6.5 Check agent CLI scripts
+# 8. Check PATH
 echo ""
-echo "6.5. Checking agent CLI scripts..."
-
-if [ -x "$HOME/.local/bin/aimaestro-agent.sh" ]; then
-    pass "aimaestro-agent.sh"
-else
-    warn "Agent CLI not installed - run install-agent-cli.sh"
-fi
-
-# Check agent-helper.sh
-if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
-    pass "agent-helper.sh"
-else
-    warn "agent-helper.sh not found"
-fi
-
-# 7. Check PATH
-echo ""
-echo "7. Checking PATH..."
+echo "8. Checking PATH..."
 if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
     pass "~/.local/bin is in PATH"
 else
-    warn "~/.local/bin is NOT in PATH - add to ~/.zshrc"
+    warn "~/.local/bin is NOT in PATH - add to ~/.zshrc or ~/.bashrc"
 fi
 
-# 8. Test scripts can source dependencies
+# 9. Test script syntax (bash -n)
 echo ""
-echo "8. Testing script dependencies..."
+echo "9. Testing script syntax..."
 
-# Test messaging-helper.sh
-if [ -f "$HOME/.local/bin/messaging-helper.sh" ]; then
-    if bash -n "$HOME/.local/bin/messaging-helper.sh" 2>/dev/null; then
-        pass "messaging-helper.sh syntax OK"
-    else
-        fail "messaging-helper.sh has syntax errors"
+# Helpers in share dir
+for helper in common.sh agent-helper.sh docs-helper.sh; do
+    local_path="$HOME/.local/share/aimaestro/shell-helpers/$helper"
+    if [ -f "$local_path" ]; then
+        if bash -n "$local_path" 2>/dev/null; then
+            pass "$helper syntax OK"
+        else
+            fail "$helper has syntax errors"
+        fi
     fi
-fi
+done
 
-# Test memory-helper.sh
-if [ -f "$HOME/.local/bin/memory-helper.sh" ]; then
-    if bash -n "$HOME/.local/bin/memory-helper.sh" 2>/dev/null; then
-        pass "memory-helper.sh syntax OK"
-    else
-        fail "memory-helper.sh has syntax errors"
+# Key scripts in bin
+for script in aimaestro-agent.sh messaging-helper.sh memory-helper.sh graph-helper.sh; do
+    local_path="$HOME/.local/bin/$script"
+    if [ -f "$local_path" ]; then
+        if bash -n "$local_path" 2>/dev/null; then
+            pass "$script syntax OK"
+        else
+            fail "$script has syntax errors"
+        fi
     fi
-fi
+done
 
-# Test graph-helper.sh
-if [ -f "$HOME/.local/bin/graph-helper.sh" ]; then
-    if bash -n "$HOME/.local/bin/graph-helper.sh" 2>/dev/null; then
-        pass "graph-helper.sh syntax OK"
-    else
-        fail "graph-helper.sh has syntax errors"
-    fi
-fi
-
-# Test docs-helper.sh (in share dir)
-if [ -f "$HOME/.local/share/aimaestro/shell-helpers/docs-helper.sh" ]; then
-    if bash -n "$HOME/.local/share/aimaestro/shell-helpers/docs-helper.sh" 2>/dev/null; then
-        pass "docs-helper.sh syntax OK"
-    else
-        fail "docs-helper.sh has syntax errors"
-    fi
-fi
-
-# Test agent-helper.sh (in share dir)
-if [ -f "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" ]; then
-    if bash -n "$HOME/.local/share/aimaestro/shell-helpers/agent-helper.sh" 2>/dev/null; then
-        pass "agent-helper.sh syntax OK"
-    else
-        fail "agent-helper.sh has syntax errors"
-    fi
-fi
-
-# Test aimaestro-agent.sh
-if [ -f "$HOME/.local/bin/aimaestro-agent.sh" ]; then
-    if bash -n "$HOME/.local/bin/aimaestro-agent.sh" 2>/dev/null; then
-        pass "aimaestro-agent.sh syntax OK"
-    else
-        fail "aimaestro-agent.sh has syntax errors"
-    fi
-fi
-
-# 9. Test scripts can run (with --help or graceful failure)
+# 10. Runtime tests (only inside tmux with API running)
 echo ""
-echo "9. Testing script execution..."
+echo "10. Testing script execution..."
 
 if [ -n "$TMUX" ]; then
-    # In tmux - can do fuller tests
-    if memory-search.sh "test" >/dev/null 2>&1; then
-        pass "memory-search.sh runs"
-    else
-        warn "memory-search.sh failed (may need API running)"
-    fi
-
-    if check-aimaestro-messages.sh >/dev/null 2>&1; then
-        pass "check-aimaestro-messages.sh runs"
-    else
-        warn "check-aimaestro-messages.sh failed (may need API running)"
-    fi
-
-    if graph-describe.sh "test" >/dev/null 2>&1; then
-        pass "graph-describe.sh runs"
-    else
-        warn "graph-describe.sh failed (may need API running)"
-    fi
-
-    if docs-stats.sh >/dev/null 2>&1; then
-        pass "docs-stats.sh runs"
-    else
-        warn "docs-stats.sh failed (may need API running)"
-    fi
-
     # Test agent CLI
     if [ -x "$HOME/.local/bin/aimaestro-agent.sh" ]; then
         if "$HOME/.local/bin/aimaestro-agent.sh" list >/dev/null 2>&1; then
             pass "aimaestro-agent.sh runs"
         else
-            warn "aimaestro-agent.sh failed (may need API running)"
+            warn "aimaestro-agent.sh failed (may need API running at localhost:23000)"
+        fi
+    fi
+
+    # Test AMP inbox
+    if [ -x "$HOME/.local/bin/amp-inbox.sh" ]; then
+        if "$HOME/.local/bin/amp-inbox.sh" >/dev/null 2>&1; then
+            pass "amp-inbox.sh runs"
+        else
+            warn "amp-inbox.sh failed (may need AMP initialized)"
+        fi
+    fi
+
+    # Test memory search
+    if command -v memory-search.sh &>/dev/null; then
+        if memory-search.sh "test" >/dev/null 2>&1; then
+            pass "memory-search.sh runs"
+        else
+            warn "memory-search.sh failed (may need API running)"
+        fi
+    fi
+
+    # Test graph describe
+    if command -v graph-describe.sh &>/dev/null; then
+        if graph-describe.sh "test" >/dev/null 2>&1; then
+            pass "graph-describe.sh runs"
+        else
+            warn "graph-describe.sh failed (may need API running)"
+        fi
+    fi
+
+    # Test docs stats
+    if command -v docs-stats.sh &>/dev/null; then
+        if docs-stats.sh >/dev/null 2>&1; then
+            pass "docs-stats.sh runs"
+        else
+            warn "docs-stats.sh failed (may need API running)"
         fi
     fi
 else
@@ -278,10 +275,11 @@ echo ""
 
 if [ $FAIL -gt 0 ]; then
     echo -e "${RED}Some checks failed. Run the appropriate installer:${NC}"
-    echo "  ./install-messaging.sh    - For messaging scripts"
-    echo "  ./install-memory-tools.sh - For memory search"
-    echo "  ./install-graph-tools.sh  - For graph query"
-    echo "  ./install-doc-tools.sh    - For docs search"
+    echo "  ./install-messaging.sh    - AMP scripts + memory/graph/docs tools + skills"
+    echo "  ./install-agent-cli.sh    - Agent management CLI"
+    echo ""
+    echo "Or run the full updater to fix everything at once:"
+    echo "  ./update-aimaestro.sh"
     exit 1
 elif [ $WARN -gt 0 ]; then
     echo -e "${YELLOW}Some optional features are missing.${NC}"

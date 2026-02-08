@@ -8,6 +8,16 @@ INSTALL_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/memory-search"
 SHARE_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 
+# Parse arguments (v0.21.26: added -y for consistency with other installers)
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
+        -h|--help) echo "Usage: ./install-memory-tools.sh [-y]"; exit 0 ;;
+        *) shift ;;
+    esac
+done
+
 echo "AI Maestro Memory Tools Installer"
 echo "=================================="
 echo ""
@@ -34,7 +44,8 @@ echo "  Installed: common.sh"
 
 echo ""
 echo "Installing memory scripts to $INSTALL_DIR..."
-for script in "$SCRIPT_DIR/memory_scripts"/*.sh; do
+# v0.21.26 fix: memory_scripts/ never existed; actual scripts are in plugin/scripts/
+for script in "$SCRIPT_DIR/plugin/scripts"/memory-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"
@@ -67,3 +78,7 @@ if command -v memory-search.sh &> /dev/null; then
 else
     echo "⚠️  Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
 fi
+
+# Standalone hint
+echo ""
+echo "ℹ️  For a full update (server + all tools), run: ./update-aimaestro.sh"

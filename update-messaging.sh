@@ -1,173 +1,64 @@
 #!/bin/bash
 # AI Maestro - Agent Messaging System Updater
-# Updates messaging scripts and Claude Code skill
+#
+# v0.21.26: Simplified to delegate to install-messaging.sh (single source of truth).
+# Previously this script iterated messaging_scripts/ which no longer exists.
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Icons
-CHECK="✅"
-CROSS="❌"
-INFO="ℹ️ "
-WARN="⚠️ "
+# Parse arguments
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
+        -h|--help)
+            echo "Usage: ./update-messaging.sh [-y|--yes]"
+            echo "Updates messaging scripts and skills via install-messaging.sh"
+            exit 0
+            ;;
+        *) shift ;;
+    esac
+done
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║                                                                ║"
 echo "║           AI Maestro - Agent Messaging Updater                ║"
-echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Function to print colored messages
-print_success() {
-    echo -e "${GREEN}${CHECK} $1${NC}"
-}
-
-print_error() {
-    echo -e "${RED}${CROSS} $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}${WARN} $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}${INFO}$1${NC}"
-}
-
-# Check if we're in the right directory
-if [ ! -d "messaging_scripts" ] || [ ! -d "skills" ]; then
-    print_error "Error: This script must be run from the AI Maestro root directory"
-    echo ""
-    echo "Usage:"
-    echo "  cd /path/to/ai-maestro"
-    echo "  ./update-messaging.sh"
+# Check we're in the right directory
+if [ ! -f "install-messaging.sh" ]; then
+    echo -e "${YELLOW}⚠️  install-messaging.sh not found in current directory${NC}" >&2
+    echo "   Run this from the AI Maestro root directory:" >&2
+    echo "   cd ~/ai-maestro && ./update-messaging.sh" >&2
     exit 1
 fi
 
-echo "🔍 Checking current installation..."
-echo ""
-
-# Check if scripts are installed
-SCRIPTS_INSTALLED=false
-if [ -f ~/.local/bin/check-aimaestro-messages.sh ]; then
-    SCRIPTS_INSTALLED=true
-    print_success "Messaging scripts found in ~/.local/bin/"
-else
-    print_warning "Messaging scripts not found in ~/.local/bin/"
-    echo "         Run ./install-messaging.sh for initial installation"
-fi
-
-# Check if skill is installed
-SKILL_INSTALLED=false
-if [ -d ~/.claude/skills/agent-messaging ]; then
-    SKILL_INSTALLED=true
-    print_success "Agent messaging skill found in ~/.claude/skills/"
-else
-    print_warning "Agent messaging skill not found in ~/.claude/skills/"
-    echo "         Run ./install-messaging.sh for initial installation"
-fi
-
-echo ""
-
-# Exit if nothing is installed
-if [ "$SCRIPTS_INSTALLED" = false ] && [ "$SKILL_INSTALLED" = false ]; then
-    print_error "Nothing to update - messaging system not installed"
+# Confirm unless non-interactive
+if [ "$NON_INTERACTIVE" != true ]; then
+    echo -e "${BLUE}ℹ️  This will reinstall AMP messaging scripts and skills.${NC}"
     echo ""
-    echo "Run ./install-messaging.sh to install the messaging system"
-    exit 1
-fi
-
-# Ask for confirmation
-echo "📦 This will update:"
-if [ "$SCRIPTS_INSTALLED" = true ]; then
-    echo "   • Messaging scripts in ~/.local/bin/"
-fi
-if [ "$SKILL_INSTALLED" = true ]; then
-    echo "   • Agent messaging skill in ~/.claude/skills/"
-fi
-echo ""
-
-read -p "Continue with update? (y/n): " CONFIRM
-if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-    print_warning "Update cancelled"
-    exit 0
-fi
-
-echo ""
-echo "🚀 Starting update..."
-echo ""
-
-# Update scripts
-if [ "$SCRIPTS_INSTALLED" = true ]; then
-    print_info "Updating messaging scripts..."
-
-    SCRIPT_COUNT=0
-    for script in messaging_scripts/*.sh; do
-        if [ -f "$script" ]; then
-            SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
-            print_success "Updated: $SCRIPT_NAME"
-            SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
-        fi
-    done
-
-    echo ""
-    print_success "Updated $SCRIPT_COUNT messaging scripts"
-fi
-
-# Update skill
-if [ "$SKILL_INSTALLED" = true ]; then
-    echo ""
-    print_info "Updating Claude Code skill..."
-
-    if [ -d "plugin/skills/agent-messaging" ]; then
-        # Backup old version
-        if [ -d ~/.claude/skills/agent-messaging ]; then
-            BACKUP_DIR=~/.claude/skills/agent-messaging.backup.$(date +%Y%m%d_%H%M%S)
-            mv ~/.claude/skills/agent-messaging "$BACKUP_DIR"
-            print_info "Backed up old version to: $BACKUP_DIR"
-        fi
-
-        # Install new version
-        cp -r plugin/skills/agent-messaging ~/.claude/skills/
-        print_success "Updated: agent-messaging skill"
-
-        # Verify skill file exists
-        if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
-            SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
-            print_success "Skill file verified (${SKILL_SIZE} bytes)"
-        else
-            print_error "Skill file not found after update"
-        fi
-    else
-        print_error "Skill source directory not found: plugin/skills/agent-messaging"
+    read -p "Continue with update? (y/n): " CONFIRM
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}⚠️  Update cancelled${NC}"
+        exit 0
     fi
 fi
 
+# Delegate to install-messaging.sh (the single source of truth)
 echo ""
-echo "✅ Update complete!"
+./install-messaging.sh -y
+
 echo ""
-
-# Remind about Claude session restart
-if [ "$SKILL_INSTALLED" = true ]; then
-    print_warning "IMPORTANT: Restart your Claude Code sessions to reload the updated skill"
-    echo ""
-    echo "   In each tmux session:"
-    echo "   1. Exit Claude Code (type 'exit' or Ctrl+D)"
-    echo "   2. Restart Claude Code (type 'claude')"
-    echo ""
-fi
-
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║                     Update successful!                         ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${GREEN}✅ Messaging update complete!${NC}"
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANT: Restart Claude Code sessions to reload updated skills${NC}"
+echo ""
+echo -e "${BLUE}ℹ️  For a full update (server + all tools), run: ./update-aimaestro.sh${NC}"
 echo ""

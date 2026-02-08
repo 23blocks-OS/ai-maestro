@@ -75,8 +75,27 @@ esac
 echo -e "${GREEN}New version: ${NEW_VERSION}${NC}"
 echo ""
 
+# Early exit if version is already at target (v0.21.25 fix).
+# Without this guard, running `bump-version.sh 0.21.25` when already at 0.21.25
+# would proceed to sed replacements where pattern == replacement, which on some
+# BSD sed versions causes confusing errors.
+if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+    echo -e "${YELLOW}Version is already ${NEW_VERSION}, nothing to do${NC}"
+    exit 0
+fi
+
 # Files to update
 FILES_UPDATED=0
+
+# Portable in-place sed — works on both macOS (BSD) and Linux (GNU).
+# The old `sed -i '' ...` syntax is BSD-specific and breaks on Linux.
+# Using `sed -i.bak` creates a temporary backup file (works everywhere),
+# then we remove the .bak file immediately after.
+_sed_inplace() {
+    local file="$1"
+    shift
+    sed -i.bak "$@" "$file" && rm -f "${file}.bak"
+}
 
 update_file() {
     local file="$1"
@@ -86,7 +105,7 @@ update_file() {
 
     if [ -f "$file" ]; then
         if grep -q "$pattern" "$file" 2>/dev/null; then
-            sed -i '' "s|$pattern|$replacement|g" "$file"
+            _sed_inplace "$file" "s|$pattern|$replacement|g"
             echo -e "  ${GREEN}✓${NC} $description"
             FILES_UPDATED=$((FILES_UPDATED + 1))
         fi
@@ -97,8 +116,8 @@ echo "Updating files..."
 echo ""
 
 # 1. version.json
-sed -i '' "s|\"version\": \"$CURRENT_VERSION\"|\"version\": \"$NEW_VERSION\"|g" "$VERSION_FILE"
-sed -i '' "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date +%Y-%m-%d)\"|g" "$VERSION_FILE"
+_sed_inplace "$VERSION_FILE" "s|\"version\": \"$CURRENT_VERSION\"|\"version\": \"$NEW_VERSION\"|g"
+_sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date +%Y-%m-%d)\"|g"
 echo -e "  ${GREEN}✓${NC} version.json"
 FILES_UPDATED=$((FILES_UPDATED + 1))
 
@@ -140,7 +159,7 @@ update_file "$PROJECT_ROOT/docs/ai-index.html" \
 
 # 8. docs/BACKLOG.md (current version header)
 if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then
-    sed -i '' "s|\*\*Current Version:\*\* v$CURRENT_VERSION|\*\*Current Version:\*\* v$NEW_VERSION|g" "$PROJECT_ROOT/docs/BACKLOG.md"
+    _sed_inplace "$PROJECT_ROOT/docs/BACKLOG.md" "s|\*\*Current Version:\*\* v$CURRENT_VERSION|\*\*Current Version:\*\* v$NEW_VERSION|g"
     echo -e "  ${GREEN}✓${NC} docs/BACKLOG.md (header)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi

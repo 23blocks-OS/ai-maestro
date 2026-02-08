@@ -481,95 +481,246 @@ print_table_sep() {
 }
 
 # ============================================================================
-# Agent Resolution (simpler than messaging resolve_agent)
+# Unified Agent Resolution (v0.21.25 — consolidation)
 # ============================================================================
-
-# Resolve agent by name, alias, or ID
-# Sets: RESOLVED_AGENT_ID, RESOLVED_ALIAS (global variables)
-# Args: agent_query
-# Returns: 0 if found, 1 if not found
 #
-# MEDIUM-4: Global variables are used here to return multiple values from the function.
-# This is a bash limitation - nameref pattern would require bash 4.3+ and break compatibility.
-# Callers should use these globals immediately after calling resolve_agent_simple().
-# Future refactor: return JSON and parse with jq if multiple values needed.
+# HISTORY: Previously there were THREE separate agent resolution code paths:
+#
+#   1. resolve_agent_simple() in this file — local API only (/api/agents?q=)
+#   2. resolve_agent() in messaging-helper.sh — multi-host only (searched
+#      all hosts via /api/messages?action=resolve but skipped local /api/agents)
+#   3. Inline curl calls in cmd_show() in aimaestro-agent.sh — duplicate
+#      of resolve_agent_simple
+#
+# This caused bugs:
+#   - messaging-helper's resolve_agent used HOST_URLS array that was removed
+#     when load_hosts_config() became a no-op → unbound variable crash
+#   - cmd_show had different error messages than all other commands
+#   - Multi-host search didn't always include localhost in its search
+#   - No input sanitization on the @host part (only agent part was validated)
+#
+# CONSOLIDATION: This single resolve_agent() replaces all three. It uses a
+# three-phase strategy:
+#   Phase 1: If @host specified → query that specific host only
+#   Phase 2: Try local API first (/api/agents) — fast, covers 99% of CLI use
+#   Phase 3: If local fails → fall back to multi-host search via
+#            search_agent_all_hosts() from messaging-helper.sh (if loaded)
+#
+# The multi-host search uses different API endpoints (/api/messages?action=resolve
+# and ?action=search) than the local search (/api/agents), so an agent not found
+# locally might still be found via multi-host search on a different endpoint.
+#
+# Resolve agent by name, alias, or ID — single resolver for all scripts.
+# Supports "agent", "agent@host", or raw UUID.
+#
+# Sets globals (use immediately after calling):
+#   RESOLVED_AGENT_ID   - Agent UUID
+#   RESOLVED_ALIAS      - Agent display name / alias
+#   RESOLVED_HOST_ID    - Host ID where agent was found
+#   RESOLVED_HOST_URL   - API URL of the host where agent was found
+#   RESOLVED_NAME       - Agent display name (for messaging compatibility)
+#
+# Returns: 0 if found, 1 if not found
 declare -g RESOLVED_AGENT_ID=""
 declare -g RESOLVED_ALIAS=""
+declare -g RESOLVED_HOST_ID=""
+declare -g RESOLVED_HOST_URL=""
+declare -g RESOLVED_NAME=""
 
-resolve_agent_simple() {
+resolve_agent() {
     local agent_query="${1:-}"
-    
+
     if [[ -z "$agent_query" ]]; then
         print_error "Agent identifier is required"
         return 1
     fi
-    
-    local api_base
-    _validate_api_base api_base || return 1
 
-    # Validate agent_query format for path safety (CRITICAL-2 fix)
-    if [[ ! "$agent_query" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        print_error "Invalid agent identifier format: must contain only letters, numbers, hyphens, underscores"
+    # Reset all globals
+    RESOLVED_AGENT_ID=""
+    RESOLVED_ALIAS=""
+    RESOLVED_HOST_ID=""
+    RESOLVED_HOST_URL=""
+    RESOLVED_NAME=""
+
+    # Parse agent@host syntax (inline — no dependency on messaging-helper)
+    local agent_part="$agent_query"
+    local host_part=""
+    if [[ "$agent_query" == *"@"* ]]; then
+        agent_part="${agent_query%%@*}"
+        host_part="${agent_query#*@}"
+    fi
+
+    # Input sanitization — prevents shell injection via crafted agent/host names.
+    # Agent names: only alphanumeric, hyphens, underscores (matches tmux session name rules)
+    # Host names: same plus dots (for hostnames like "juans-mbp.local")
+    # These are used in URLs and shell commands, so strict validation is critical.
+    if [[ ! "$agent_part" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        print_error "Invalid agent identifier: must contain only letters, numbers, hyphens, underscores"
+        return 1
+    fi
+    if [[ -n "$host_part" ]] && [[ ! "$host_part" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
+        print_error "Invalid host identifier: must contain only letters, numbers, hyphens, underscores, dots"
         return 1
     fi
 
-    # URL-encode the query for search parameter (CRITICAL-1 fix)
-    local encoded_query
-    encoded_query=$(printf '%s' "$agent_query" | jq -sRr @uri 2>/dev/null)
+    # --- PHASE 1: Host explicitly specified (e.g. "myagent@mac-mini") ---
+    # Query only the specified host via its messaging resolve endpoint.
+    # This path is used when the user disambiguates after a multi-host match.
+    if [[ -n "$host_part" ]]; then
+        # get_host_url resolves host ID → API URL via hosts.json (from common.sh)
+        local target_api
+        target_api=$(get_host_url "$host_part" 2>/dev/null)
+        if [[ -z "$target_api" ]]; then
+            print_error "Unknown host '${host_part}'"
+            if type list_hosts &>/dev/null; then
+                echo "Available hosts:" >&2
+                list_hosts | sed 's/^/   /' >&2
+            fi
+            return 1
+        fi
+        local response
+        response=$(curl -s --max-time 10 "${target_api}/api/messages?action=resolve&agent=${agent_part}" 2>/dev/null)
+        if [[ -z "$response" ]]; then
+            print_error "Cannot connect to AI Maestro at ${target_api}"
+            return 1
+        fi
+        local resolved
+        resolved=$(echo "$response" | jq -r '.resolved // empty' 2>/dev/null)
+        if [[ -z "$resolved" ]] || [[ "$resolved" == "null" ]]; then
+            print_error "Agent '${agent_part}' not found on host '${host_part}'"
+            return 1
+        fi
+        RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.resolved.agentId' 2>/dev/null)
+        RESOLVED_HOST_ID="$host_part"
+        RESOLVED_HOST_URL="$target_api"
+        RESOLVED_ALIAS=$(echo "$response" | jq -r '.resolved.alias // ""' 2>/dev/null)
+        RESOLVED_NAME=$(echo "$response" | jq -r '.resolved.displayName // .resolved.alias // ""' 2>/dev/null)
+        return 0
+    fi
 
-    # Try search by name/alias
-    local search_response
+    # --- PHASE 2: No host specified — try local API first (fast path) ---
+    # Most CLI commands (show, update, wake, hibernate, etc.) operate on local
+    # agents only, so this fast local lookup covers 99% of use cases.
+    # Uses /api/agents?q= (search) and /api/agents/{id} (direct lookup).
+    local api_base
+    _validate_api_base api_base || return 1
+
+    # URL-encode the query to prevent injection in URL parameters (CRITICAL-1)
+    local encoded_query
+    encoded_query=$(printf '%s' "$agent_part" | jq -sRr @uri 2>/dev/null)
+
+    # Step 2a: Search by name/alias on local API
+    local search_response jq_result
     search_response=$(_api_request "${api_base}/api/agents?q=${encoded_query}" "Search agents") || search_response=""
 
-    # MEDIUM-2: Log debug info if DEBUG is set, otherwise suppress jq errors
-    local jq_result
     if ! jq_result=$(echo "$search_response" | jq -r '.agents[0].id // empty' 2>&1); then
-        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning (search id): $jq_result" >&2
+        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning: $jq_result" >&2
         jq_result=""
     fi
     RESOLVED_AGENT_ID="$jq_result"
 
-    if ! jq_result=$(echo "$search_response" | jq -r '.agents[0].alias // .agents[0].name // empty' 2>&1); then
-        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning (search alias): $jq_result" >&2
-        jq_result=""
-    fi
-    RESOLVED_ALIAS="$jq_result"
-
     if [[ -n "$RESOLVED_AGENT_ID" ]]; then
+        if ! jq_result=$(echo "$search_response" | jq -r '.agents[0].alias // .agents[0].name // empty' 2>&1); then
+            jq_result=""
+        fi
+        RESOLVED_ALIAS="$jq_result"
+        RESOLVED_HOST_ID=$(get_self_host_id 2>/dev/null || echo "localhost")
+        RESOLVED_HOST_URL="$api_base"
+        RESOLVED_NAME="$RESOLVED_ALIAS"
         return 0
     fi
 
-    # Try direct ID lookup (agent_query already validated above)
+    # Step 2b: Try direct ID lookup on local API (for UUID-based lookups)
     local direct_response
-    direct_response=$(_api_request "${api_base}/api/agents/${agent_query}" "Get agent by ID") || direct_response=""
+    direct_response=$(_api_request "${api_base}/api/agents/${agent_part}" "Get agent by ID") || direct_response=""
 
-    # MEDIUM-2: Log debug info if DEBUG is set, otherwise suppress jq errors
     if ! jq_result=$(echo "$direct_response" | jq -r '.agent.id // empty' 2>&1); then
-        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning (direct id): $jq_result" >&2
+        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning: $jq_result" >&2
         jq_result=""
     fi
     RESOLVED_AGENT_ID="$jq_result"
 
-    if ! jq_result=$(echo "$direct_response" | jq -r '.agent.alias // .agent.name // empty' 2>&1); then
-        [[ "${DEBUG:-}" == "true" ]] && print_warning "JSON parse warning (direct alias): $jq_result" >&2
-        jq_result=""
-    fi
-    RESOLVED_ALIAS="$jq_result"
-
     if [[ -n "$RESOLVED_AGENT_ID" ]]; then
+        if ! jq_result=$(echo "$direct_response" | jq -r '.agent.alias // .agent.name // empty' 2>&1); then
+            jq_result=""
+        fi
+        RESOLVED_ALIAS="$jq_result"
+        RESOLVED_HOST_ID=$(get_self_host_id 2>/dev/null || echo "localhost")
+        RESOLVED_HOST_URL="$api_base"
+        RESOLVED_NAME="$RESOLVED_ALIAS"
         return 0
     fi
 
+    # --- PHASE 3: Local search failed — try multi-host search if available ---
+    # search_agent_all_hosts() is defined in messaging-helper.sh, which is sourced
+    # at the top of this file (lines 50-53). If messaging-helper failed to load
+    # (e.g. common.sh not found), this function won't exist and we skip to the
+    # "not found" error below.
+    #
+    # Multi-host search queries /api/messages?action=resolve on every configured
+    # host (from hosts.json) plus localhost:23000 (always injected). This uses
+    # different API endpoints than Phase 2, so agents discoverable via messaging
+    # but not via /api/agents will still be found.
+    if type search_agent_all_hosts &>/dev/null; then
+        search_agent_all_hosts "$agent_part"
+
+        if [[ "$SEARCH_COUNT" -eq 1 ]]; then
+            RESOLVED_AGENT_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].agentId')
+            RESOLVED_HOST_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostId')
+            RESOLVED_HOST_URL=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostUrl')
+            RESOLVED_ALIAS=$(echo "$SEARCH_RESULTS" | jq -r '.[0].alias')
+            RESOLVED_NAME=$(echo "$SEARCH_RESULTS" | jq -r '.[0].name')
+            if [[ "$SEARCH_IS_FUZZY" -eq 1 ]]; then
+                echo "Found partial match: ${RESOLVED_ALIAS}@${RESOLVED_HOST_ID}" >&2
+            fi
+            return 0
+        elif [[ "$SEARCH_COUNT" -gt 1 ]]; then
+            # Multiple matches across hosts — ask user to disambiguate
+            if [[ "$SEARCH_IS_FUZZY" -eq 1 ]]; then
+                echo "Found ${SEARCH_COUNT} partial matches for '${agent_part}':" >&2
+            else
+                echo "Agent '${agent_part}' found on multiple hosts:" >&2
+            fi
+            echo "" >&2
+            local i=0
+            while [[ $i -lt "$SEARCH_COUNT" ]]; do
+                local h_alias h_id
+                h_alias=$(echo "$SEARCH_RESULTS" | jq -r ".[$i].alias")
+                h_id=$(echo "$SEARCH_RESULTS" | jq -r ".[$i].hostId")
+                echo "   ${h_alias}@${h_id}" >&2
+                i=$((i + 1))
+            done
+            echo "" >&2
+            echo "Specify the full agent address: <agent-name>@<host-id>" >&2
+            return 1
+        fi
+    fi
+
+    # --- Not found on any host ---
+    # Error messages are designed to be non-interactive so AI agents can parse
+    # them and retry with the correct agent@host address automatically.
     print_error "Agent not found: $agent_query"
+    # Show helpful context: which hosts were searched and what agents exist
+    if type search_agent_all_hosts &>/dev/null; then
+        echo "" >&2
+        if type list_hosts &>/dev/null; then
+            echo "Hosts searched:" >&2
+            list_hosts | sed 's/^/   /' >&2
+            echo "" >&2
+        fi
+        # List agents on localhost so the caller can retry with the correct name
+        local agent_list
+        agent_list=$(curl -s --max-time 3 "http://localhost:23000/api/agents" 2>/dev/null \
+            | jq -r '.agents[].name // empty' 2>/dev/null | sort -u)
+        if [[ -n "$agent_list" ]]; then
+            echo "Agents on localhost:" >&2
+            echo "$agent_list" | sed 's/^/   /' >&2
+            echo "" >&2
+        fi
+        echo "To retry with a specific host: <agent-name>@<host-id>" >&2
+    fi
     return 1
 }
-
-# Override resolve_agent if messaging helpers not fully loaded
-if ! type resolve_agent &>/dev/null; then
-    resolve_agent() {
-        resolve_agent_simple "$@"
-    }
-fi
 
 # ============================================================================
 # Validation

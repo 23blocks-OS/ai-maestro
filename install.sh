@@ -627,28 +627,44 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         if [ -f "install-memory-tools.sh" ]; then
             echo ""
             print_step "Installing memory tools..."
-            ./install-memory-tools.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./install-memory-tools.sh -y
+            else
+                ./install-memory-tools.sh
+            fi
         fi
 
         # Install graph tools
         if [ -f "install-graph-tools.sh" ]; then
             echo ""
             print_step "Installing graph tools..."
-            ./install-graph-tools.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./install-graph-tools.sh -y
+            else
+                ./install-graph-tools.sh
+            fi
         fi
 
         # Install doc tools
         if [ -f "install-doc-tools.sh" ]; then
             echo ""
             print_step "Installing doc tools..."
-            ./install-doc-tools.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./install-doc-tools.sh -y
+            else
+                ./install-doc-tools.sh
+            fi
         fi
 
         # Install Claude Code hooks
         if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
             echo ""
             print_step "Installing Claude Code hooks..."
-            ./scripts/claude-hooks/install-hooks.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./scripts/claude-hooks/install-hooks.sh -y
+            else
+                ./scripts/claude-hooks/install-hooks.sh
+            fi
         fi
 
         # Install agent management CLI
@@ -656,10 +672,21 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         if [ -f "install-agent-cli.sh" ]; then
             echo ""
             print_step "Installing agent management CLI..."
-            ./install-agent-cli.sh
+            if [ "$NON_INTERACTIVE" = true ]; then
+                ./install-agent-cli.sh -y
+            else
+                ./install-agent-cli.sh
+            fi
         fi
 
         print_success "All agent tools installed"
+
+        # Verify installation
+        if [ -f "verify-installation.sh" ]; then
+            echo ""
+            print_step "Verifying installation..."
+            ./verify-installation.sh || true
+        fi
     else
         print_info "Skipping agent tools (you can install later with individual install-*.sh scripts)"
     fi

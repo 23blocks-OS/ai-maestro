@@ -177,51 +177,47 @@ yarn build
 print_success "Build complete"
 
 echo ""
-print_step "$ROCKET" "Installing scripts and skills..."
+print_step "$ROCKET" "Reinstalling scripts and skills..."
 
-# Install messaging scripts
-if [ -d "messaging_scripts" ]; then
-    print_info "Installing messaging scripts..."
-    mkdir -p ~/.local/bin
-    for script in messaging_scripts/*.sh; do
-        if [ -f "$script" ]; then
-            SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
-        fi
-    done
-    print_success "Messaging scripts installed"
+# ── v0.21.26 fix: delegate to component installers ──────────────────────
+# Previously this section iterated messaging_scripts/ and docs_scripts/
+# directories that no longer exist (migrated to plugin/scripts/ and
+# plugins/amp-messaging/scripts/). The component installers are the
+# single source of truth for each tool category.
+# ─────────────────────────────────────────────────────────────────────────
+
+# 1. AMP messaging scripts + all plugin/scripts/* tools + skills
+if [ -f "install-messaging.sh" ]; then
+    print_info "Reinstalling AMP messaging & CLI tools..."
+    ./install-messaging.sh -y
+    print_success "Messaging & CLI tools reinstalled"
+else
+    print_warning "install-messaging.sh not found - skipping messaging tools"
 fi
 
-# Install docs scripts
-if [ -d "docs_scripts" ]; then
-    print_info "Installing docs scripts..."
-    mkdir -p ~/.local/bin
-    for script in docs_scripts/*.sh; do
-        if [ -f "$script" ]; then
-            SCRIPT_NAME=$(basename "$script")
-            cp "$script" ~/.local/bin/
-            chmod +x ~/.local/bin/"$SCRIPT_NAME"
-        fi
-    done
-    print_success "Docs scripts installed"
+# 2. Agent CLI (aimaestro-agent.sh + agent-helper.sh + skill)
+if [ -f "install-agent-cli.sh" ]; then
+    print_info "Reinstalling agent management CLI..."
+    ./install-agent-cli.sh
+    print_success "Agent CLI reinstalled"
+else
+    print_warning "install-agent-cli.sh not found - skipping agent CLI"
 fi
 
-# Install skills
-if [ -d "skills" ]; then
-    print_info "Installing Claude Code skills..."
-    for skill_dir in skills/*/; do
-        if [ -d "$skill_dir" ]; then
-            SKILL_NAME=$(basename "$skill_dir")
-            # Remove old version if exists
-            if [ -d ~/.claude/skills/"$SKILL_NAME" ]; then
-                rm -rf ~/.claude/skills/"$SKILL_NAME"
-            fi
-            mkdir -p ~/.claude/skills
-            cp -r "$skill_dir" ~/.claude/skills/
-            print_success "Installed skill: $SKILL_NAME"
-        fi
-    done
+# 3. Claude Code hooks (session lifecycle integration)
+if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+    print_info "Reinstalling Claude Code hooks..."
+    ./scripts/claude-hooks/install-hooks.sh
+    print_success "Claude Code hooks reinstalled"
+else
+    print_warning "install-hooks.sh not found - skipping hooks"
+fi
+
+# 4. Verify the installation
+if [ -f "verify-installation.sh" ]; then
+    echo ""
+    print_info "Running installation verification..."
+    ./verify-installation.sh || true
 fi
 
 # Check if PM2 is managing ai-maestro
@@ -265,9 +261,11 @@ fi
 
 echo ""
 print_info "What's updated:"
-echo "   • Application code and dependencies"
-echo "   • CLI scripts (messaging, docs, etc.)"
-echo "   • Claude Code skills"
+echo "   • Application code and dependencies (git pull + yarn build)"
+echo "   • AMP messaging scripts (amp-*.sh)"
+echo "   • Agent CLI (aimaestro-agent.sh, agent-helper.sh)"
+echo "   • Memory, graph, and docs CLI tools"
+echo "   • Claude Code skills and hooks"
 echo ""
 
 print_warning "IMPORTANT: Restart your Claude Code sessions to reload updated skills"

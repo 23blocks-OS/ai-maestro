@@ -458,6 +458,9 @@ cmd_install() {
     echo "  To uninstall:"
     echo "    ./install-agent-cli.sh --uninstall"
     echo ""
+    echo "  For a full update (server + all tools):"
+    echo "    ./update-aimaestro.sh"
+    echo ""
 
     return 0
 }
@@ -774,6 +777,12 @@ main() {
             ;;
         --version|-v)
             echo "AI Maestro Agent CLI Installer (Bash) v${INSTALLER_VERSION}"
+            ;;
+        # v0.21.26: Accept -y/--yes/--non-interactive for consistency.
+        # This installer has no interactive prompts, so the flag is a no-op,
+        # but accepting it prevents errors when called from install.sh -y.
+        -y|--yes|--non-interactive)
+            cmd_install
             ;;
         "")
             cmd_install

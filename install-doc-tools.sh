@@ -8,6 +8,16 @@ INSTALL_DIR="$HOME/.local/bin"
 HELPER_DIR="$HOME/.local/share/aimaestro/shell-helpers"
 SKILL_DIR="$HOME/.claude/skills/docs-search"
 
+# Parse arguments (v0.21.26: added -y for consistency with other installers)
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
+        -h|--help) echo "Usage: ./install-doc-tools.sh [-y]"; exit 0 ;;
+        *) shift ;;
+    esac
+done
+
 echo "AI Maestro Doc Tools Installer"
 echo "==============================="
 
@@ -106,7 +116,8 @@ echo "  Installed: docs-helper.sh"
 # Install doc scripts (modified to use installed helper)
 echo ""
 echo "Installing doc scripts to $INSTALL_DIR..."
-for script in "$SCRIPT_DIR/docs_scripts"/*.sh; do
+# v0.21.26 fix: docs_scripts/ never existed; actual scripts are in plugin/scripts/
+for script in "$SCRIPT_DIR/plugin/scripts"/docs-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         # Skip the helper (already installed separately)
@@ -164,3 +175,7 @@ if command -v docs-search.sh &> /dev/null; then
 else
     echo "⚠️  Restart terminal or run: source ~/.bashrc (or ~/.zshrc)"
 fi
+
+# Standalone hint
+echo ""
+echo "ℹ️  For a full update (server + all tools), run: ./update-aimaestro.sh"

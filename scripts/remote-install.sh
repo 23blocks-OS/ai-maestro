@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.21.24"
+VERSION="0.21.26"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 
@@ -289,6 +289,28 @@ install() {
                 yarn install
                 yarn build
                 print_success "Updated to latest version"
+
+                # ── v0.21.26 fix: reinstall CLI tools after update ──────
+                # Previously the update path only did git pull + build
+                # but never reinstalled CLI scripts to ~/.local/bin/,
+                # leaving users with stale tools.
+                # ────────────────────────────────────────────────────────
+                print_info "Reinstalling CLI tools..."
+                if [ -f "install-messaging.sh" ]; then
+                    ./install-messaging.sh -y
+                fi
+                if [ -f "install-agent-cli.sh" ]; then
+                    ./install-agent-cli.sh
+                fi
+                if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+                    ./scripts/claude-hooks/install-hooks.sh
+                fi
+                print_success "CLI tools reinstalled"
+
+                # Verify installation
+                if [ -f "verify-installation.sh" ]; then
+                    ./verify-installation.sh || true
+                fi
 
                 # Restart if running
                 if command -v pm2 &> /dev/null && pm2 list | grep -q "ai-maestro"; then

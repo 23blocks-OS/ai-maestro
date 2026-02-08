@@ -150,15 +150,17 @@ export async function POST(
 
     // Initialize per-agent AMP directory and set AMP_DIR in tmux session
     // This ensures amp-inbox.sh reads from this agent's own inbox
+    // Uses UUID-keyed directory for stability across renames
     try {
-      await initAgentAMPHome(agentName)
-      const ampDir = getAgentAMPDir(agentName)
+      await initAgentAMPHome(agentName, id)
+      const ampDir = getAgentAMPDir(agentName, id)
       // Set AMP_DIR for the tmux session environment (new panes/windows inherit it)
       await execAsync(`tmux set-environment -t "${sessionName}" AMP_DIR "${ampDir}"`)
       await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
+      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_ID "${id}"`)
       // Also export in the current shell so the agent's program has it
-      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}'" Enter`)
-      console.log(`[Wake] Set AMP_DIR=${ampDir} for agent ${agentName}`)
+      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${id}'" Enter`)
+      console.log(`[Wake] Set AMP_DIR=${ampDir} CLAUDE_AGENT_ID=${id} for agent ${agentName}`)
     } catch (ampError) {
       // Non-fatal: agent still works without AMP
       console.warn(`[Wake] Could not set up AMP for ${agentName}:`, ampError)

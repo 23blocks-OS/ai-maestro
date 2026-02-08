@@ -191,11 +191,20 @@ export async function POST(request: Request) {
     })
 
     // Initialize per-agent AMP directory and set AMP_DIR in tmux session
+    // Uses UUID-keyed directory for stability across renames
+    const registeredAgentId = registeredAgent?.id
     try {
-      await initAgentAMPHome(agentName)
-      const ampDir = getAgentAMPDir(agentName)
+      await initAgentAMPHome(agentName, registeredAgentId)
+      const ampDir = getAgentAMPDir(agentName, registeredAgentId)
       await execAsync(`tmux set-environment -t "${actualSessionName}" AMP_DIR "${ampDir}"`)
-      await execAsync(`tmux send-keys -t "${actualSessionName}" "export AMP_DIR='${ampDir}'" Enter`)
+      await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
+      if (registeredAgentId) {
+        await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_ID "${registeredAgentId}"`)
+      }
+      const exportCmd = registeredAgentId
+        ? `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${registeredAgentId}'`
+        : `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}'`
+      await execAsync(`tmux send-keys -t "${actualSessionName}" "${exportCmd}" Enter`)
       console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
     } catch (ampError) {
       console.warn(`[Sessions] Could not set up AMP for ${agentName}:`, ampError)

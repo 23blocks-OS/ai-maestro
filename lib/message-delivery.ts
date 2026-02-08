@@ -71,7 +71,8 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   }
 
   // 1c. Write to recipient's AMP per-agent inbox (always, for persistence)
-  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex)
+  // Prefer UUID-based directory for stability across renames
+  const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex, recipientAgentId)
   if (!inboxPath) {
     return { delivered: wsDelivered, notified: false, error: 'Failed to write to AMP inbox' }
   }

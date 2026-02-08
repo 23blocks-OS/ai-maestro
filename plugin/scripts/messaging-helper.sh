@@ -54,17 +54,33 @@ search_agent_all_hosts() {
     SEARCH_COUNT=0
     SEARCH_IS_FUZZY=0
 
-    # Get list of all enabled hosts
+    # Get list of all enabled hosts, always including localhost
     local hosts_json
     if [ -f "$hosts_config" ]; then
         hosts_json=$(jq -c '[.hosts[] | select(.enabled == true) | {id: .id, url: .url}]' "$hosts_config" 2>/dev/null)
     else
-        # Only local host available
-        local self_url
-        self_url=$(get_self_host_url)
-        local self_id
-        self_id=$(get_self_host_id)
-        hosts_json="[{\"id\": \"$self_id\", \"url\": \"$self_url\"}]"
+        hosts_json="[]"
+    fi
+
+    # Always ensure localhost:23000 is in the search list (v0.21.25 fix).
+    # hosts.json may only contain remote/Tailscale entries (e.g. mac-mini at
+    # 100.80.12.6:23000) without an explicit localhost entry. Without this
+    # injection, agents on the local machine would not be found when searching
+    # "all hosts". We probe the local API to get its actual host ID so the
+    # search results include the correct hostId for disambiguation.
+    local localhost_url="http://localhost:23000"
+    local has_localhost
+    has_localhost=$(echo "$hosts_json" | jq --arg u "$localhost_url" '[.[] | select(.url == $u)] | length' 2>/dev/null)
+    if [ "${has_localhost:-0}" -eq 0 ]; then
+        # Probe localhost to get its host ID
+        local local_identity
+        local_identity=$(curl -s --max-time 3 "${localhost_url}/api/hosts/identity" 2>/dev/null)
+        if [ -n "$local_identity" ]; then
+            local local_id
+            local_id=$(echo "$local_identity" | jq -r '.host.id // "localhost"' 2>/dev/null)
+            hosts_json=$(echo "$hosts_json" | jq --arg id "$local_id" --arg url "$localhost_url" \
+                '. + [{"id": $id, "url": $url}]' 2>/dev/null)
+        fi
     fi
 
     if [ -z "$hosts_json" ] || [ "$hosts_json" = "[]" ]; then
@@ -150,119 +166,25 @@ search_agent_all_hosts() {
     return 0
 }
 
-# Resolve agent alias to agentId and hostId
-# Supports: "alias", "alias@host", "agentId", "agentId@host"
-# Usage: resolve_agent "alias-or-id[@host]"
-# Sets: RESOLVED_AGENT_ID, RESOLVED_HOST_ID, RESOLVED_HOST_URL, RESOLVED_ALIAS, RESOLVED_NAME
+# NOTE (v0.21.25): resolve_agent() was removed from this file and consolidated
+# into agent-helper.sh as a single unified resolver for all scripts.
 #
-# SMART LOOKUP: When no host is specified, searches ALL enabled hosts:
-#   - If found on exactly 1 host → uses that host automatically
-#   - If found on multiple hosts → returns error with disambiguation options
-#   - If not found anywhere → returns helpful error
-resolve_agent() {
-    local alias_or_id="$1"
-
-    # Parse agent@host syntax
-    parse_agent_host "$alias_or_id"
-    local agent_part="$PARSED_AGENT"
-    local host_part="$PARSED_HOST"
-
-    # Load hosts config if not already loaded
-    if [ ${#HOST_URLS[@]} -eq 0 ]; then
-        load_hosts_config
-    fi
-
-    # If no host specified, search all hosts
-    if [ -z "$host_part" ]; then
-        search_agent_all_hosts "$agent_part"
-
-        if [ "$SEARCH_COUNT" -eq 0 ]; then
-            echo "❌ Agent '${agent_part}' not found on any host" >&2
-            echo "" >&2
-            echo "Available hosts:" >&2
-            list_hosts | sed 's/^/   /' >&2
-            echo "" >&2
-            echo "To see agents on a specific host, run:" >&2
-            echo "   list-agents.sh [host-id]" >&2
-            return 1
-        elif [ "$SEARCH_COUNT" -eq 1 ]; then
-            # Found exactly one match
-            RESOLVED_AGENT_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].agentId')
-            RESOLVED_HOST_ID=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostId')
-            RESOLVED_HOST_URL=$(echo "$SEARCH_RESULTS" | jq -r '.[0].hostUrl')
-            RESOLVED_ALIAS=$(echo "$SEARCH_RESULTS" | jq -r '.[0].alias')
-            RESOLVED_NAME=$(echo "$SEARCH_RESULTS" | jq -r '.[0].name')
-
-            # If fuzzy match, show what we found (for transparency)
-            if [ "$SEARCH_IS_FUZZY" -eq 1 ]; then
-                echo "🔍 Found partial match: ${RESOLVED_ALIAS}@${RESOLVED_HOST_ID}" >&2
-            fi
-            return 0
-        else
-            # Multiple matches - show them all and ask for clarification
-            if [ "$SEARCH_IS_FUZZY" -eq 1 ]; then
-                echo "🔍 Found ${SEARCH_COUNT} partial matches for '${agent_part}':" >&2
-            else
-                echo "❌ Agent '${agent_part}' found on multiple hosts:" >&2
-            fi
-            echo "" >&2
-            local i=0
-            while [ $i -lt "$SEARCH_COUNT" ]; do
-                local h_id h_alias h_name
-                h_id=$(echo "$SEARCH_RESULTS" | jq -r ".[$i].hostId")
-                h_alias=$(echo "$SEARCH_RESULTS" | jq -r ".[$i].alias")
-                h_name=$(echo "$SEARCH_RESULTS" | jq -r ".[$i].name")
-                echo "   ${h_alias}@${h_id}" >&2
-                i=$((i + 1))
-            done
-            echo "" >&2
-            echo "Please specify the full agent name:" >&2
-            echo "   send-aimaestro-message.sh <agent-alias>@<host-id> ..." >&2
-            return 1
-        fi
-    fi
-
-    # Host was explicitly specified - query that host only
-    local target_api
-    target_api=$(get_host_url "$host_part" 2>/dev/null)
-
-    if [ -z "$target_api" ]; then
-        echo "❌ Unknown host '$host_part'" >&2
-        echo "" >&2
-        echo "Available hosts:" >&2
-        list_hosts | sed 's/^/   /' >&2
-        return 1
-    fi
-
-    # Query the target host's API to resolve the agent
-    local response
-    response=$(curl -s --max-time 10 "${target_api}/api/messages?action=resolve&agent=${agent_part}" 2>/dev/null)
-
-    if [ -z "$response" ]; then
-        echo "❌ Cannot connect to AI Maestro at ${target_api}" >&2
-        return 1
-    fi
-
-    # Check if resolved object exists (API returns { resolved: { ... } })
-    local resolved
-    resolved=$(echo "$response" | jq -r '.resolved // empty' 2>/dev/null)
-
-    if [ -z "$resolved" ] || [ "$resolved" = "null" ]; then
-        echo "❌ Agent '${agent_part}' not found on host '${host_part}'" >&2
-        echo "" >&2
-        echo "To see agents on this host, run:" >&2
-        echo "   list-agents.sh ${host_part}" >&2
-        return 1
-    fi
-
-    RESOLVED_AGENT_ID=$(echo "$response" | jq -r '.resolved.agentId' 2>/dev/null)
-    RESOLVED_HOST_ID="$host_part"
-    RESOLVED_HOST_URL="$target_api"
-    RESOLVED_ALIAS=$(echo "$response" | jq -r '.resolved.alias // ""' 2>/dev/null)
-    RESOLVED_NAME=$(echo "$response" | jq -r '.resolved.displayName // .resolved.alias // ""' 2>/dev/null)
-
-    return 0
-}
+# Previously, this file defined its own resolve_agent() that ONLY did multi-host
+# search (via search_agent_all_hosts above), while agent-helper.sh had a separate
+# resolve_agent_simple() that ONLY did local search. This caused:
+#   - The HOST_URLS unbound variable crash (GitHub issue #190)
+#   - Inconsistent error messages between commands
+#   - localhost not being searched when hosts.json only had remote entries
+#
+# The unified resolve_agent() in agent-helper.sh now:
+#   1. Tries local /api/agents first (fast, covers CLI commands)
+#   2. Falls back to search_agent_all_hosts() (defined above) for multi-host
+#   3. Sets all globals needed by both CLI and messaging functions
+#
+# Functions below (get_my_name, send_message) call resolve_agent() which is
+# defined in agent-helper.sh. This works because bash resolves function names
+# at call time, not at source time — and agent-helper.sh finishes loading
+# after this file is sourced.
 
 # Get current agent's display name (agent@host format)
 get_my_name() {

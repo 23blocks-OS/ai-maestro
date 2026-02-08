@@ -168,12 +168,16 @@ jobs:
           fi
           echo "✓ agent-helper.sh installed to share dir"
 
-          # Verify skill was installed
-          if [ ! -f ~/.claude/skills/ai-maestro-agents-management/SKILL.md ]; then
-            echo "ERROR: ai-maestro-agents-management skill not installed"
-            exit 1
+          # Verify skill was installed (requires claude CLI to be present)
+          if command -v claude &> /dev/null; then
+            if [ ! -f ~/.claude/skills/ai-maestro-agents-management/SKILL.md ]; then
+              echo "ERROR: ai-maestro-agents-management skill not installed"
+              exit 1
+            fi
+            echo "✓ ai-maestro-agents-management skill installed"
+          else
+            echo "⚠ Claude Code not installed - skill installation skipped (expected)"
           fi
-          echo "✓ ai-maestro-agents-management skill installed"
 
       - name: Test scripts can source common.sh
         run: |

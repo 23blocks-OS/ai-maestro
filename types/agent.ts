@@ -292,6 +292,9 @@ export interface AgentTools {
   // Email tool (for async communication)
   email?: EmailTool
 
+  // AMP tool (inter-agent messaging via AMP protocol)
+  amp?: AMPTool
+
   // Cloud tool (for autonomous work)
   cloud?: CloudTool
 
@@ -350,6 +353,34 @@ export interface EmailTool {
   // Remove after all agents migrated to addresses[]
   address?: string              // @deprecated Use addresses[] instead
   provider?: 'local' | 'smtp'   // @deprecated Gateway concern, not identity
+}
+
+// ============================================================================
+// AMP Address Types
+// ============================================================================
+
+/**
+ * An AMP address identity for an agent
+ * Like email addresses but for inter-agent messaging via AMP protocol
+ */
+export interface AMPAddress {
+  address: string              // "alice@acme.aimaestro.local"
+  provider: string             // "aimaestro.local" or "crabmail.ai"
+  type: 'local' | 'cloud'     // UI marker: local (free) vs cloud (paid provider)
+  primary?: boolean
+  tenant?: string
+  registeredAt?: string
+  displayName?: string
+  metadata?: Record<string, string>
+}
+
+/**
+ * AMP tool configuration for an agent
+ * Supports multiple AMP addresses per agent (local + external providers)
+ */
+export interface AMPTool {
+  enabled: boolean
+  addresses: AMPAddress[]
 }
 
 export interface CloudTool {
@@ -594,6 +625,35 @@ export interface EmailConflictError {
     agentName: string
     hostId: string
   }
+}
+
+// ============================================================================
+// AMP Address API Types
+// ============================================================================
+
+/**
+ * Request to add an AMP address to an agent
+ * POST /api/agents/:id/amp/addresses
+ */
+export interface AddAMPAddressRequest {
+  address: string
+  provider: string
+  type: 'local' | 'cloud'
+  tenant?: string
+  primary?: boolean
+  displayName?: string
+  metadata?: Record<string, string>
+}
+
+/**
+ * Entry in the AMP address index - maps AMP address to agent identity
+ */
+export interface AMPAddressIndexEntry {
+  agentId: string
+  agentName: string
+  hostId: string
+  provider: string
+  type: 'local' | 'cloud'
 }
 
 // ============================================================================

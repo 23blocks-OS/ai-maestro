@@ -16,20 +16,64 @@ import { getSelfHostId } from '@/lib/hosts-config-server.mjs'
 import { verifySignature } from '@/lib/amp-keys'
 import type { AMPEnvelope, AMPPayload, AMPError } from '@/lib/types/amp'
 
-/** Track delivered message IDs for replay protection (in-memory, bounded) */
-const deliveredMessageIds = new Set<string>()
-const MAX_REPLAY_CACHE = 10_000
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+
+/** File-based replay protection — survives process restarts */
+const FEDERATION_DIR = path.join(os.homedir(), '.aimaestro', 'federation', 'delivered')
+let lastCleanup = 0
+const CLEANUP_INTERVAL = 3600_000 // 1 hour
+const MAX_AGE = 86400_000 // 24 hours
+
+function ensureFederationDir() {
+  if (!fs.existsSync(FEDERATION_DIR)) {
+    fs.mkdirSync(FEDERATION_DIR, { recursive: true })
+  }
+}
+
+/** Lazy cleanup of entries older than 24h (runs at most once per hour) */
+function cleanupOldEntries() {
+  const now = Date.now()
+  if (now - lastCleanup < CLEANUP_INTERVAL) return
+  lastCleanup = now
+
+  try {
+    const files = fs.readdirSync(FEDERATION_DIR)
+    for (const file of files) {
+      const filePath = path.join(FEDERATION_DIR, file)
+      try {
+        const stat = fs.statSync(filePath)
+        if (now - stat.mtimeMs > MAX_AGE) {
+          fs.unlinkSync(filePath)
+        }
+      } catch {
+        // Ignore individual file errors
+      }
+    }
+  } catch {
+    // Directory may not exist yet
+  }
+}
 
 function trackMessageId(id: string): boolean {
-  if (deliveredMessageIds.has(id)) {
+  ensureFederationDir()
+  cleanupOldEntries()
+
+  // Use URL-safe base64 of the ID as filename to avoid path issues
+  const safeFilename = Buffer.from(id).toString('base64url')
+  const filePath = path.join(FEDERATION_DIR, safeFilename)
+
+  if (fs.existsSync(filePath)) {
     return false // Replay detected
   }
-  deliveredMessageIds.add(id)
-  // Evict oldest if cache is full (simple approach — Set iteration order is insertion order)
-  if (deliveredMessageIds.size > MAX_REPLAY_CACHE) {
-    const first = deliveredMessageIds.values().next().value
-    if (first) deliveredMessageIds.delete(first)
+
+  try {
+    fs.writeFileSync(filePath, id, 'utf-8')
+  } catch {
+    // If write fails, allow message through (fail open for delivery)
   }
+
   return true
 }
 

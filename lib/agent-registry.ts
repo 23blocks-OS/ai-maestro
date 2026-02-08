@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgentRequest, UpdateAgentMetricsRequest, DeploymentType } from '@/types/agent'
 import { parseSessionName, computeSessionName } from '@/types/agent'
 import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
+import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -591,7 +592,7 @@ export function deleteAgent(id: string): boolean {
     }
   }
 
-  // Clean up message directories for this agent
+  // Clean up message directories for this agent (legacy location)
   const messageBaseDir = path.join(AIMAESTRO_DIR, 'messages')
   const messageBoxes = ['inbox', 'sent', 'archived']
 
@@ -605,6 +606,26 @@ export function deleteAgent(id: string): boolean {
         console.error(`[Agent Registry] Failed to clean up ${box} messages for agent ${id}:`, error)
       }
     }
+  }
+
+  // Clean up AMP directory (UUID dir) and remove from index
+  try {
+    const ampAgentsDir = path.join(os.homedir(), '.agent-messaging', 'agents')
+    const uuidDir = path.join(ampAgentsDir, id)
+
+    // Remove UUID directory
+    if (fs.existsSync(uuidDir)) {
+      fs.rmSync(uuidDir, { recursive: true })
+      console.log(`[Agent Registry] Cleaned up AMP UUID dir for agent ${id}`)
+    }
+
+    // Remove from name→UUID index
+    if (agentName) {
+      removeFromIndex(agentName)
+      console.log(`[Agent Registry] Removed ${agentName} from AMP index`)
+    }
+  } catch (ampError) {
+    console.warn(`[Agent Registry] Could not clean up AMP directories for agent ${id}:`, ampError)
   }
 
   return true
@@ -875,7 +896,40 @@ export function renameAgent(agentId: string, newName: string): boolean {
   delete agents[index].alias
   agents[index].lastActive = new Date().toISOString()
 
-  return saveAgents(agents)
+  const saved = saveAgents(agents)
+
+  // Update AMP name→UUID index and config.json
+  if (saved && oldName) {
+    try {
+      renameInIndex(oldName, normalizedNewName, agentId)
+      console.log(`[Agent Registry] Updated AMP index: ${oldName} -> ${normalizedNewName} (${agentId})`)
+
+      // Update config.json name field inside the UUID dir
+      const ampAgentsDir = path.join(os.homedir(), '.agent-messaging', 'agents')
+      const configPath = path.join(ampAgentsDir, agentId, 'config.json')
+      if (fs.existsSync(configPath)) {
+        try {
+          const configData = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+          if (configData.agent) {
+            configData.agent.name = normalizedNewName
+            if (configData.agent.address && typeof configData.agent.address === 'string') {
+              const atIdx = configData.agent.address.indexOf('@')
+              if (atIdx !== -1) {
+                configData.agent.address = `${normalizedNewName}${configData.agent.address.substring(atIdx)}`
+              }
+            }
+          }
+          fs.writeFileSync(configPath, JSON.stringify(configData, null, 2))
+        } catch {
+          // Best-effort config update
+        }
+      }
+    } catch (ampError) {
+      console.warn(`[Agent Registry] Could not update AMP index for rename:`, ampError)
+    }
+  }
+
+  return saved
 }
 
 /**
@@ -996,7 +1050,7 @@ export function removeSessionFromAgent(agentId: string, sessionIndex: number): b
 // Email Identity Management
 // ============================================================================
 
-import type { EmailAddress, EmailIndexEntry, EmailIndexResponse, EmailConflictError } from '@/types/agent'
+import type { EmailAddress, EmailIndexEntry, EmailIndexResponse, EmailConflictError, AMPAddress, AMPAddressIndexEntry } from '@/types/agent'
 
 /**
  * Normalize email address for case-insensitive comparison
@@ -1285,6 +1339,297 @@ export function updateEmailAddress(
   // Update the address
   agents[index].tools.email.addresses[addrIndex] = {
     ...agents[index].tools.email.addresses[addrIndex],
+    ...updates,
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+// ============================================================================
+// AMP Address Identity Management
+// ============================================================================
+
+/**
+ * Normalize AMP address for case-insensitive comparison
+ */
+function normalizeAMPAddress(address: string): string {
+  return address.toLowerCase().trim()
+}
+
+/**
+ * Validate AMP address format (name@domain)
+ */
+function isValidAMPAddress(address: string): boolean {
+  const ampRegex = /^[a-z0-9][a-z0-9._-]*@[a-z0-9][a-z0-9.-]+$/
+  return ampRegex.test(address.toLowerCase()) && address.length <= 254
+}
+
+/**
+ * Get AMP address index - mapping of all AMP addresses to agent identity
+ */
+export function getAMPAddressIndex(): Record<string, AMPAddressIndexEntry> {
+  const agents = loadAgents()
+  const index: Record<string, AMPAddressIndexEntry> = {}
+
+  for (const agent of agents) {
+    const agentName = agent.name || agent.alias || 'unknown'
+    const addresses = agent.tools?.amp?.addresses || []
+
+    // Handle legacy single-address in metadata
+    if (agent.metadata?.amp?.address && addresses.length === 0) {
+      const legacyAddr = normalizeAMPAddress(agent.metadata.amp.address)
+      index[legacyAddr] = {
+        agentId: agent.id,
+        agentName,
+        hostId: agent.hostId || getSelfHostId(),
+        provider: 'aimaestro.local',
+        type: 'local',
+      }
+    }
+
+    for (const addr of addresses) {
+      const ampAddr = normalizeAMPAddress(addr.address)
+      index[ampAddr] = {
+        agentId: agent.id,
+        agentName,
+        hostId: agent.hostId || getSelfHostId(),
+        provider: addr.provider,
+        type: addr.type,
+      }
+    }
+  }
+
+  return index
+}
+
+/**
+ * Find agent by AMP address (local lookup only)
+ * Returns agent ID if found, null otherwise
+ */
+export function findAgentByAMPAddress(address: string): string | null {
+  const normalizedAddr = normalizeAMPAddress(address)
+  const agents = loadAgents()
+
+  for (const agent of agents) {
+    // Check legacy single-address in metadata
+    if (agent.metadata?.amp?.address) {
+      if (normalizeAMPAddress(agent.metadata.amp.address) === normalizedAddr) {
+        return agent.id
+      }
+    }
+
+    // Check new multi-address format
+    const addresses = agent.tools?.amp?.addresses || []
+    for (const addr of addresses) {
+      if (normalizeAMPAddress(addr.address) === normalizedAddr) {
+        return agent.id
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get all AMP addresses for an agent
+ */
+export function getAgentAMPAddresses(agentId: string): AMPAddress[] {
+  const agent = getAgent(agentId)
+  if (!agent) return []
+
+  const addresses: AMPAddress[] = []
+
+  // Handle legacy single-address in metadata
+  if (agent.metadata?.amp?.address && (!agent.tools?.amp?.addresses || agent.tools.amp.addresses.length === 0)) {
+    addresses.push({
+      address: agent.metadata.amp.address,
+      provider: 'aimaestro.local',
+      type: 'local',
+      primary: true,
+      tenant: agent.metadata.amp.tenant,
+      registeredAt: agent.metadata.amp.registeredAt,
+    })
+  }
+
+  // Handle new multi-address format
+  if (agent.tools?.amp?.addresses) {
+    addresses.push(...agent.tools.amp.addresses)
+  }
+
+  return addresses
+}
+
+/**
+ * Add an AMP address to an agent
+ * Returns the updated agent or throws an error if address is already claimed
+ */
+export function addAMPAddress(
+  agentId: string,
+  ampAddress: AMPAddress
+): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedAddr = normalizeAMPAddress(ampAddress.address)
+
+  // Validate address format
+  if (!isValidAMPAddress(normalizedAddr)) {
+    throw new Error(`Invalid AMP address format: ${ampAddress.address}`)
+  }
+
+  // Check uniqueness locally
+  const existingOwnerId = findAgentByAMPAddress(normalizedAddr)
+  if (existingOwnerId && existingOwnerId !== agentId) {
+    const existingOwner = getAgent(existingOwnerId)
+    throw new Error(`AMP address ${normalizedAddr} is already claimed by ${existingOwner?.name || 'unknown'}`)
+  }
+
+  // Initialize tools.amp if needed
+  if (!agents[index].tools) {
+    agents[index].tools = {}
+  }
+  if (!agents[index].tools.amp) {
+    agents[index].tools.amp = {
+      enabled: true,
+      addresses: [],
+    }
+  }
+  if (!agents[index].tools.amp.addresses) {
+    agents[index].tools.amp.addresses = []
+  }
+
+  // Check max addresses limit (10)
+  if (agents[index].tools.amp.addresses.length >= 10) {
+    throw new Error('Maximum of 10 AMP addresses per agent')
+  }
+
+  // Check if address already exists on this agent
+  const existingIdx = agents[index].tools.amp.addresses.findIndex(
+    a => normalizeAMPAddress(a.address) === normalizedAddr
+  )
+  if (existingIdx >= 0) {
+    // Update existing address instead of throwing
+    agents[index].tools.amp.addresses[existingIdx] = {
+      ...agents[index].tools.amp.addresses[existingIdx],
+      ...ampAddress,
+      address: normalizedAddr,
+    }
+    agents[index].lastActive = new Date().toISOString()
+    saveAgents(agents)
+    return agents[index]
+  }
+
+  // If this is marked as primary, unmark other primaries
+  if (ampAddress.primary) {
+    agents[index].tools.amp.addresses.forEach(a => {
+      a.primary = false
+    })
+  }
+
+  // Add the address (normalized)
+  agents[index].tools.amp.addresses.push({
+    ...ampAddress,
+    address: normalizedAddr,
+  })
+
+  // If this is the first address, make it primary
+  if (agents[index].tools.amp.addresses.length === 1) {
+    agents[index].tools.amp.addresses[0].primary = true
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Remove an AMP address from an agent
+ */
+export function removeAMPAddress(agentId: string, address: string): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedAddr = normalizeAMPAddress(address)
+
+  if (!agents[index].tools?.amp?.addresses) {
+    throw new Error(`Agent has no AMP addresses`)
+  }
+
+  const addrIndex = agents[index].tools.amp.addresses.findIndex(
+    a => normalizeAMPAddress(a.address) === normalizedAddr
+  )
+
+  if (addrIndex === -1) {
+    throw new Error(`AMP address not found: ${address}`)
+  }
+
+  const wasRemovePrimary = agents[index].tools.amp.addresses[addrIndex].primary
+
+  // Remove the address
+  agents[index].tools.amp.addresses.splice(addrIndex, 1)
+
+  // If we removed the primary, make the first remaining address primary
+  if (wasRemovePrimary && agents[index].tools.amp.addresses.length > 0) {
+    agents[index].tools.amp.addresses[0].primary = true
+  }
+
+  agents[index].lastActive = new Date().toISOString()
+  saveAgents(agents)
+
+  return agents[index]
+}
+
+/**
+ * Update an existing AMP address on an agent
+ */
+export function updateAMPAddress(
+  agentId: string,
+  address: string,
+  updates: Partial<Omit<AMPAddress, 'address'>>
+): Agent {
+  const agents = loadAgents()
+  const index = agents.findIndex(a => a.id === agentId)
+
+  if (index === -1) {
+    throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  const normalizedAddr = normalizeAMPAddress(address)
+
+  if (!agents[index].tools?.amp?.addresses) {
+    throw new Error(`Agent has no AMP addresses`)
+  }
+
+  const addrIndex = agents[index].tools.amp.addresses.findIndex(
+    a => normalizeAMPAddress(a.address) === normalizedAddr
+  )
+
+  if (addrIndex === -1) {
+    throw new Error(`AMP address not found: ${address}`)
+  }
+
+  // If setting this as primary, unmark other primaries
+  if (updates.primary) {
+    agents[index].tools.amp.addresses.forEach(a => {
+      a.primary = false
+    })
+  }
+
+  // Update the address
+  agents[index].tools.amp.addresses[addrIndex] = {
+    ...agents[index].tools.amp.addresses[addrIndex],
     ...updates,
   }
 
@@ -1888,6 +2233,41 @@ export function markAgentAsAMPRegistered(
     }
   }
   agents[index].lastActive = new Date().toISOString()
+
+  // Backfill: also add the address to the AMP addresses collection if not already present
+  if (ampData.address) {
+    if (!agents[index].tools) {
+      agents[index].tools = {}
+    }
+    if (!agents[index].tools.amp) {
+      agents[index].tools.amp = { enabled: true, addresses: [] }
+    }
+    if (!agents[index].tools.amp.addresses) {
+      agents[index].tools.amp.addresses = []
+    }
+
+    const normalizedAddr = ampData.address.toLowerCase().trim()
+    const alreadyExists = agents[index].tools.amp.addresses.some(
+      a => a.address.toLowerCase().trim() === normalizedAddr
+    )
+    if (!alreadyExists) {
+      // Determine provider from address domain
+      const domain = normalizedAddr.split('@')[1] || 'aimaestro.local'
+      const isLocal = domain.includes('aimaestro.local')
+
+      // If this is the first address, make it primary
+      const isPrimary = agents[index].tools.amp.addresses.length === 0
+
+      agents[index].tools.amp.addresses.push({
+        address: normalizedAddr,
+        provider: domain,
+        type: isLocal ? 'local' : 'cloud',
+        primary: isPrimary,
+        tenant: ampData.tenant,
+        registeredAt: ampData.registeredAt,
+      })
+    }
+  }
 
   saveAgents(agents)
   return agents[index]

@@ -98,12 +98,12 @@ const AMP_AGENTS_DIR = path.join(os.homedir(), '.agent-messaging', 'agents')
 
 // === AMP Per-Agent Directory Support (AMP Protocol) ===
 
-function getAMPInboxDir(agentName: string): string {
-  return path.join(AMP_AGENTS_DIR, agentName, 'messages', 'inbox')
+function getAMPInboxDir(agentNameOrId: string): string {
+  return path.join(AMP_AGENTS_DIR, agentNameOrId, 'messages', 'inbox')
 }
 
-function getAMPSentDir(agentName: string): string {
-  return path.join(AMP_AGENTS_DIR, agentName, 'messages', 'sent')
+function getAMPSentDir(agentNameOrId: string): string {
+  return path.join(AMP_AGENTS_DIR, agentNameOrId, 'messages', 'sent')
 }
 
 function extractAgentNameFromAddress(address: string): string {
@@ -476,8 +476,9 @@ export async function listInboxMessages(
   const seenIds = new Set<string>()
 
   // AMP per-agent directory is the sole source of truth
-  const agentName = agent.alias || agent.sessionName || agentIdentifier
-  const ampInboxDir = getAMPInboxDir(agentName)
+  // Use UUID (how amp-inbox-writer stores them), fallback to name for legacy
+  const agentDirKey = agent.agentId || agent.alias || agent.sessionName || agentIdentifier
+  const ampInboxDir = getAMPInboxDir(agentDirKey)
   await collectMessagesFromAMPDir(ampInboxDir, filter, allMessages, seenIds)
 
   // Sort by timestamp (newest first)
@@ -514,8 +515,8 @@ export async function listSentMessages(
   const allMessages: MessageSummary[] = []
   const seenIds = new Set<string>()
 
-  const agentName = agent.alias || agent.sessionName || agentIdentifier
-  const ampSentDir = getAMPSentDir(agentName)
+  const agentDirKey = agent.agentId || agent.alias || agent.sessionName || agentIdentifier
+  const ampSentDir = getAMPSentDir(agentDirKey)
   await collectMessagesFromAMPDir(ampSentDir, filter, allMessages, seenIds)
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -547,10 +548,10 @@ export async function getMessage(
   box: 'inbox' | 'sent' = 'inbox'
 ): Promise<Message | null> {
   const agent = resolveAgent(agentIdentifier)
-  const agentName = agent?.alias || agent?.sessionName || agentIdentifier
+  const agentDirKey = agent?.agentId || agent?.alias || agent?.sessionName || agentIdentifier
 
   // Read from AMP per-agent directory only
-  const ampDir = box === 'sent' ? getAMPSentDir(agentName) : getAMPInboxDir(agentName)
+  const ampDir = box === 'sent' ? getAMPSentDir(agentDirKey) : getAMPInboxDir(agentDirKey)
   const found = await findMessageInAMPDir(ampDir, messageId)
   if (found) {
     try {
@@ -607,8 +608,8 @@ async function findMessagePath(
   box: 'inbox' | 'sent'
 ): Promise<string | null> {
   const agent = resolveAgent(agentIdentifier)
-  const agentName = agent?.alias || agent?.sessionName || agentIdentifier
-  const ampDir = box === 'sent' ? getAMPSentDir(agentName) : getAMPInboxDir(agentName)
+  const agentDirKey = agent?.agentId || agent?.alias || agent?.sessionName || agentIdentifier
+  const ampDir = box === 'sent' ? getAMPSentDir(agentDirKey) : getAMPInboxDir(agentDirKey)
   const found = await findMessageInAMPDir(ampDir, messageId)
   return found ? found.path : null
 }

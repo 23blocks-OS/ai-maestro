@@ -24,6 +24,11 @@ RESTART="🔄"
 
 # Parse command line arguments
 NON_INTERACTIVE=false
+SKIP_MEMORY=false
+SKIP_GRAPH=false
+SKIP_DOCS=false
+SKIP_HOOKS=false
+SKIP_AGENT_CLI=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         -y|--yes|--non-interactive)
@@ -37,6 +42,26 @@ while [[ $# -gt 0 ]]; do
             echo "  -y, --yes, --non-interactive  Run without prompts (auto-accept all)"
             echo "  -h, --help                    Show this help message"
             exit 0
+            ;;
+        --skip-memory)
+            SKIP_MEMORY=true
+            shift
+            ;;
+        --skip-graph)
+            SKIP_GRAPH=true
+            shift
+            ;;
+        --skip-docs)
+            SKIP_DOCS=true
+            shift
+            ;;
+        --skip-hooks)
+            SKIP_HOOKS=true
+            shift
+            ;;
+        --skip-agent-cli)
+            SKIP_AGENT_CLI=true
+            shift
             ;;
         *)
             echo "Unknown option: $1"
@@ -195,22 +220,39 @@ else
     print_warning "install-messaging.sh not found - skipping messaging tools"
 fi
 
-# 2. Agent CLI (aimaestro-agent.sh + agent-helper.sh + skill)
-if [ -f "install-agent-cli.sh" ]; then
-    print_info "Reinstalling agent management CLI..."
-    ./install-agent-cli.sh
-    print_success "Agent CLI reinstalled"
-else
-    print_warning "install-agent-cli.sh not found - skipping agent CLI"
+# 2. Memory tools (optional — skip with --skip-memory)
+if [ "$SKIP_MEMORY" != true ] && [ -f "install-memory-tools.sh" ]; then
+    print_info "Reinstalling memory tools..."
+    ./install-memory-tools.sh -y
+    print_success "Memory tools reinstalled"
 fi
 
-# 3. Claude Code hooks (session lifecycle integration)
-if [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
+# 3. Graph tools (optional — skip with --skip-graph)
+if [ "$SKIP_GRAPH" != true ] && [ -f "install-graph-tools.sh" ]; then
+    print_info "Reinstalling graph tools..."
+    ./install-graph-tools.sh -y
+    print_success "Graph tools reinstalled"
+fi
+
+# 4. Doc tools (optional — skip with --skip-docs)
+if [ "$SKIP_DOCS" != true ] && [ -f "install-doc-tools.sh" ]; then
+    print_info "Reinstalling doc tools..."
+    ./install-doc-tools.sh -y
+    print_success "Doc tools reinstalled"
+fi
+
+# 5. Agent CLI (optional — skip with --skip-agent-cli)
+if [ "$SKIP_AGENT_CLI" != true ] && [ -f "install-agent-cli.sh" ]; then
+    print_info "Reinstalling agent management CLI..."
+    ./install-agent-cli.sh -y
+    print_success "Agent CLI reinstalled"
+fi
+
+# 6. Claude Code hooks (optional — skip with --skip-hooks)
+if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
     print_info "Reinstalling Claude Code hooks..."
     ./scripts/claude-hooks/install-hooks.sh
     print_success "Claude Code hooks reinstalled"
-else
-    print_warning "install-hooks.sh not found - skipping hooks"
 fi
 
 # 4. Verify the installation

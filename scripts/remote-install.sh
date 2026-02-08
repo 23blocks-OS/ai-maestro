@@ -104,6 +104,11 @@ parse_args() {
     INSTALL_DIR="$DEFAULT_INSTALL_DIR"
     SKIP_PREREQS=false
     SKIP_TOOLS=false
+    SKIP_MEMORY=false
+    SKIP_GRAPH=false
+    SKIP_DOCS=false
+    SKIP_HOOKS=false
+    SKIP_AGENT_CLI=false
     AUTO_START=false
     UNINSTALL=false
     NON_INTERACTIVE=false
@@ -128,6 +133,26 @@ parse_args() {
                 ;;
             --auto-start)
                 AUTO_START=true
+                shift
+                ;;
+            --skip-memory)
+                SKIP_MEMORY=true
+                shift
+                ;;
+            --skip-graph)
+                SKIP_GRAPH=true
+                shift
+                ;;
+            --skip-docs)
+                SKIP_DOCS=true
+                shift
+                ;;
+            --skip-hooks)
+                SKIP_HOOKS=true
+                shift
+                ;;
+            --skip-agent-cli)
+                SKIP_AGENT_CLI=true
                 shift
                 ;;
             --uninstall)
@@ -156,7 +181,12 @@ show_help() {
     echo "  -d, --dir PATH      Install directory (default: ~/ai-maestro)"
     echo "  -y, --yes           Non-interactive mode (auto-accept all prompts)"
     echo "  --skip-prereqs      Skip prerequisite installation prompts"
-    echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
+    echo "  --skip-tools        Skip all agent tools"
+    echo "  --skip-memory       Skip memory search tools"
+    echo "  --skip-graph        Skip code graph tools"
+    echo "  --skip-docs         Skip documentation tools"
+    echo "  --skip-hooks        Skip Claude Code hooks"
+    echo "  --skip-agent-cli    Skip agent management CLI"
     echo "  --auto-start        Automatically start after installation"
     echo "  --uninstall         Remove AI Maestro installation"
     echo "  -h, --help          Show this help message"
@@ -361,6 +391,21 @@ install() {
         if [ "$SKIP_TOOLS" = true ]; then
             INSTALLER_ARGS="$INSTALLER_ARGS --skip-tools"
         fi
+        if [ "$SKIP_MEMORY" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-memory"
+        fi
+        if [ "$SKIP_GRAPH" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-graph"
+        fi
+        if [ "$SKIP_DOCS" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-docs"
+        fi
+        if [ "$SKIP_HOOKS" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-hooks"
+        fi
+        if [ "$SKIP_AGENT_CLI" = true ]; then
+            INSTALLER_ARGS="$INSTALLER_ARGS --skip-agent-cli"
+        fi
 
         # Run installer
         ./install.sh $INSTALLER_ARGS
@@ -464,8 +509,8 @@ main() {
     echo -e "${CYAN}What was installed:${NC}"
     echo "  ✓ AI Maestro service (localhost:23000)"
     echo "  ✓ Web dashboard for managing agents"
-    echo "  ✓ 32 CLI scripts in ~/.local/bin/"
-    echo "  ✓ 5 Claude Code skills in ~/.claude/skills/"
+    echo "  ✓ CLI scripts in ~/.local/bin/"
+    echo "  ✓ Claude Code skills in ~/.claude/skills/"
     echo ""
     echo -e "${CYAN}Next steps:${NC}"
     echo ""

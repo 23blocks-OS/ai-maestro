@@ -167,7 +167,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
           .replace(/[\x00-\x1F\x7F]/g, '')
           .substring(0, 500)
 
-        // Add the new host
+        // Add the new host (include aliases for hostname/IP resolution)
         const newHost: Host = {
           id: peerHost.id,
           name: peerHost.name,
@@ -175,6 +175,7 @@ export async function POST(request: Request): Promise<NextResponse<PeerExchangeR
           type: 'remote',  // CRITICAL: Mark as remote for routing decisions
           enabled: true,
           description: sanitizedDescription,
+          aliases: peerHost.aliases || [],
           syncedAt: new Date().toISOString(),
           syncSource: `peer-exchange:${body.fromHost.id}`,
         }

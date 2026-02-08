@@ -144,6 +144,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
           team: agent.team,
           model: agent.model,
           taskDescription: agent.taskDescription,
+          programArgs: agent.programArgs,
           tags: agent.tags,
           documentation: agent.documentation,
           metadata: agent.metadata

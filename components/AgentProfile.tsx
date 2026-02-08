@@ -197,6 +197,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           team: agent.team,
           model: agent.model,
           taskDescription: agent.taskDescription,
+          programArgs: agent.programArgs,
           tags: agent.tags,
           documentation: agent.documentation,
           metadata: agent.metadata

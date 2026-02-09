@@ -33,7 +33,9 @@ jobs:
         run: yarn test
 
       - name: Build
-        run: yarn build
+        run: |
+          touch data/.help-build-success
+          yarn build
 
   lint:
     runs-on: ubuntu-latest

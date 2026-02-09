@@ -593,6 +593,9 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
         "check-and-show-messages.sh"
         "check-new-messages-arrived.sh"
         "send-tmux-message.sh"
+        "forward-aimaestro-message.sh"
+        "reply-aimaestro-message.sh"
+        "messaging-helper.sh"
     )
     OLD_REMOVED=0
     for old_script in "${OLD_SCRIPTS[@]}"; do

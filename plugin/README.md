@@ -82,13 +82,13 @@ To use scripts from command line, either:
 1. Install the full AI Maestro (recommended)
 2. Or manually copy: `cp plugin/scripts/*.sh ~/.local/bin/`
 
-**Messaging:**
-- `check-aimaestro-messages.sh` - Check unread messages
-- `read-aimaestro-message.sh` - Read and mark message as read
-- `send-aimaestro-message.sh` - Send message to another agent
-- `reply-aimaestro-message.sh` - Reply to a message
-- `forward-aimaestro-message.sh` - Forward a message
-- `send-tmux-message.sh` - Send instant tmux notification
+**Messaging (AMP):**
+- `amp-inbox.sh` - Check inbox for messages
+- `amp-read.sh <id>` - Read a specific message
+- `amp-send.sh <to> <subject> <message>` - Send a message
+- `amp-reply.sh <id> <message>` - Reply to a message
+- `amp-delete.sh <id>` - Delete a message
+- `amp-init.sh --auto` - Initialize agent identity
 
 **Memory Search:**
 - `memory-search.sh` - Search conversation history

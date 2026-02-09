@@ -765,18 +765,14 @@ npm start
 **Manual Install:** See [Installation Guide](./plugin/README.md)
 
 ```bash
-# 1. Agents check inbox on startup
-check-and-show-messages.sh
+# 1. Initialize agent identity (first time only)
+amp-init.sh --auto
 
 # 2. Send your first message
-send-aimaestro-message.sh backend-api \
-  "Test message" \
-  "Hello from the communication system!" \
-  normal \
-  notification
+amp-send.sh backend-api "Test message" "Hello from AMP!"
 
-# 3. Check for new messages
-check-new-messages-arrived.sh
+# 3. Check your inbox
+amp-inbox.sh
 ```
 
 **For Claude Code:** Install the plugin or skills to use natural language - [Plugin Guide](./plugin/README.md)

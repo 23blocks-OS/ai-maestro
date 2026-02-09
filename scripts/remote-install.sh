@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Version
-VERSION="0.21.26"
+VERSION="0.21.27"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 
@@ -320,7 +320,7 @@ install() {
                 yarn build
                 print_success "Updated to latest version"
 
-                # ── v0.21.26 fix: reinstall CLI tools after update ──────
+                # ── v0.21.27 fix: reinstall CLI tools after update ──────
                 # Previously the update path only did git pull + build
                 # but never reinstalled CLI scripts to ~/.local/bin/,
                 # leaving users with stale tools.

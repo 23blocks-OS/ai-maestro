@@ -245,7 +245,7 @@ User: "Build a new authentication system"
 
 2. EXECUTE PHASE 1 (Research)
    - Search memory: memory-search.sh "authentication"
-   - Search docs: doc-search.sh "auth patterns"
+   - Search docs: docs-search.sh "auth patterns"
    - Write findings to findings.md
    - Mark Phase 1 complete in task_plan.md
 

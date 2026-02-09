@@ -108,7 +108,7 @@ For complete context, use BOTH:
 ```bash
 # User asks about creating a new feature
 memory-search.sh "feature"       # What did we discuss?
-doc-search.sh "feature"          # What do docs say?
+docs-search.sh "feature"         # What do docs say?
 ```
 
 ## Error Handling

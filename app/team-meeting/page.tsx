@@ -12,9 +12,10 @@ function TeamMeetingContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const meetingId = searchParams.get('meeting')
+  const teamParam = searchParams.get('team')
 
   if (meetingId) {
-    return <MeetingRoom meetingId={meetingId} />
+    return <MeetingRoom meetingId={meetingId} teamParam={teamParam} />
   }
 
   return (

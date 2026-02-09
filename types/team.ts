@@ -80,6 +80,7 @@ export type TeamMeetingAction =
   | { type: 'SET_TEAM_NAME'; name: string }
   | { type: 'SET_NOTIFY_AMP'; enabled: boolean }
   | { type: 'ADD_AGENT'; agentId: string }
+  | { type: 'REMOVE_AGENT'; agentId: string }
   | { type: 'TOGGLE_RIGHT_PANEL' }
   | { type: 'SET_RIGHT_PANEL_TAB'; tab: RightPanelTab }
   | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }

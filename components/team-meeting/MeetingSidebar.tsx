@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LayoutGrid, List, Plus, ListTodo, Mail, Play, Moon, Loader2 } from 'lucide-react'
+import { LayoutGrid, List, Plus, ListTodo, Mail, Play, Moon, Loader2, X, ExternalLink } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { SidebarMode } from '@/types/team'
 import type { TaskWithDeps } from '@/types/task'
@@ -12,10 +12,12 @@ interface MeetingSidebarProps {
   activeAgentId: string | null
   sidebarMode: SidebarMode
   onSelectAgent: (agentId: string) => void
+  onRemoveAgent?: (agentId: string) => void
   onToggleMode: () => void
   onAddAgent: () => void
   tasksByAgent?: Record<string, TaskWithDeps[]>
   messageCountsByAgent?: Record<string, number>
+  canRemove?: boolean
 }
 
 export default function MeetingSidebar({
@@ -23,10 +25,12 @@ export default function MeetingSidebar({
   activeAgentId,
   sidebarMode,
   onSelectAgent,
+  onRemoveAgent,
   onToggleMode,
   onAddAgent,
   tasksByAgent = {},
   messageCountsByAgent = {},
+  canRemove = false,
 }: MeetingSidebarProps) {
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
@@ -97,6 +101,12 @@ export default function MeetingSidebar({
     }
   }
 
+  const handlePopOut = (agent: Agent, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const url = `/zoom/agent?id=${encodeURIComponent(agent.id)}`
+    window.open(url, `agent-${agent.id}`, 'width=1200,height=800,menubar=no,toolbar=no,location=no,status=no')
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-900 border-r border-gray-800" style={{ width: 300 }}>
       {/* Sidebar header */}
@@ -142,13 +152,22 @@ export default function MeetingSidebar({
                 key={agent.id}
                 onClick={() => onSelectAgent(agent.id)}
                 className={`
-                  group flex flex-col items-center gap-1.5 p-2.5 rounded-lg cursor-pointer transition-all duration-200
+                  group relative flex flex-col items-center gap-1.5 p-2.5 rounded-lg cursor-pointer transition-all duration-200
                   ${isActive
                     ? 'bg-emerald-500/20 border border-emerald-500/50'
                     : 'bg-gray-800/40 border border-transparent hover:bg-gray-800 hover:border-gray-700'
                   }
                 `}
               >
+                {canRemove && onRemoveAgent && (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); onRemoveAgent(agent.id) }}
+                    className="absolute top-1 right-1 p-0.5 rounded opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 hover:bg-gray-700/50 transition-all duration-200 cursor-pointer z-10"
+                    title="Remove from meeting"
+                  >
+                    <X className="w-3 h-3" />
+                  </div>
+                )}
                 <div className="relative">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700">
                     {agent.avatar ? (
@@ -192,6 +211,13 @@ export default function MeetingSidebar({
                     </span>
                   )}
                   <div
+                    onClick={(e) => handlePopOut(agent, e)}
+                    className="p-0.5 rounded transition-all duration-200 cursor-pointer text-gray-600 opacity-0 group-hover:opacity-100 hover:text-blue-400 hover:bg-gray-700/50"
+                    title="Pop out to separate window"
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </div>
+                  <div
                     onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
                     className={`
                       p-0.5 rounded transition-all duration-200 cursor-pointer
@@ -223,7 +249,7 @@ export default function MeetingSidebar({
               key={agent.id}
               onClick={() => onSelectAgent(agent.id)}
               className={`
-                group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200
+                group relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200
                 ${isActive
                   ? 'bg-emerald-500/20 border border-emerald-500/50'
                   : 'border border-transparent hover:bg-gray-800'
@@ -273,6 +299,13 @@ export default function MeetingSidebar({
                   </span>
                 )}
                 <div
+                  onClick={(e) => handlePopOut(agent, e)}
+                  className="p-1 rounded transition-all duration-200 cursor-pointer text-gray-600 opacity-0 group-hover:opacity-100 hover:text-blue-400 hover:bg-gray-700/50"
+                  title="Pop out to separate window"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </div>
+                <div
                   onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
                   className={`
                     p-1 rounded transition-all duration-200 cursor-pointer
@@ -293,6 +326,15 @@ export default function MeetingSidebar({
                     <Play className="w-3 h-3" />
                   )}
                 </div>
+                {canRemove && onRemoveAgent && (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); onRemoveAgent(agent.id) }}
+                    className="p-1 rounded opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 hover:bg-gray-700/50 transition-all duration-200 cursor-pointer"
+                    title="Remove from meeting"
+                  >
+                    <X className="w-3 h-3" />
+                  </div>
+                )}
               </div>
             </div>
           )

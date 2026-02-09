@@ -827,43 +827,18 @@ cmd_show() {
 
     [[ -z "$agent" ]] && { print_error "Agent name or ID required"; return 1; }
 
-    # Resolve agent via direct API call
+    # Use the unified resolve_agent (defined in agent-helper.sh).
+    # Previously cmd_show had its own inline resolution code (35 lines of
+    # duplicate curl/jq calls) that duplicated resolve_agent_simple. Now all
+    # commands use the same resolver, which also adds multi-host search,
+    # @host syntax, input sanitization, and helpful "not found" errors.
+    resolve_agent "$agent" || return 1
+    local agent_id="$RESOLVED_AGENT_ID"
+
+    # Fetch full agent data by resolved ID (the resolver only returns the UUID,
+    # cmd_show needs the complete agent JSON for display)
     local api_base
     api_base=$(get_api_base)
-
-    # HIGH-001: URL-encode user input; MEDIUM-010: Add timeout
-    # First try searching by name/alias
-    local search_response
-    search_response=$(curl -s --max-time 30 -G "${api_base}/api/agents" --data-urlencode "q=${agent}" 2>/dev/null)
-
-    # MEDIUM-009: Validate JSON response before parsing
-    if ! echo "$search_response" | jq -e . >/dev/null 2>&1; then
-        search_response="{}"
-    fi
-
-    local agent_id
-    agent_id=$(echo "$search_response" | jq -r '.agents[0].id // empty' 2>/dev/null)
-
-    if [[ -z "$agent_id" ]]; then
-        # Try direct ID lookup - URL-encode the agent parameter
-        local encoded_agent
-        encoded_agent=$(printf '%s' "$agent" | jq -sRr @uri)
-        local direct_response
-        direct_response=$(curl -s --max-time 30 "${api_base}/api/agents/${encoded_agent}" 2>/dev/null)
-
-        # MEDIUM-009: Validate JSON response
-        if ! echo "$direct_response" | jq -e . >/dev/null 2>&1; then
-            direct_response="{}"
-        fi
-
-        agent_id=$(echo "$direct_response" | jq -r '.agent.id // empty' 2>/dev/null)
-
-        if [[ -z "$agent_id" ]]; then
-            print_error "Agent not found: $agent"
-            return 1
-        fi
-    fi
-
     local response
     response=$(curl -s --max-time 30 "${api_base}/api/agents/${agent_id}" 2>/dev/null)
 

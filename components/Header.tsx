@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -41,12 +41,20 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
             </button>
           )}
           <a
+            href="/teams"
+            className="text-sm px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Manage Teams"
+          >
+            <FolderKanban className="w-3.5 h-3.5" />
+            Teams
+          </a>
+          <a
             href="/team-meeting"
             className="text-sm px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors flex items-center gap-1.5"
             title="Team Meeting"
           >
             <Users className="w-3.5 h-3.5" />
-            Team Meeting
+            Meeting
           </a>
           <a
             href={zoomUrl}

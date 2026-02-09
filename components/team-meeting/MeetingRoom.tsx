@@ -202,6 +202,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   const [restoring, setRestoring] = useState(!isNewMeeting)
   const [notFound, setNotFound] = useState(false)
   const persistedMeetingIdRef = useRef<string | null>(null)
+  const creatingMeetingRef = useRef(false)
 
   // Restore meeting from disk on mount (skip for new meetings)
   useEffect(() => {
@@ -261,9 +262,11 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   // create one
   useEffect(() => {
     if (state.phase !== 'active' || persistedMeetingIdRef.current) return
+    if (creatingMeetingRef.current) return
     if (!state.teamName.trim() || state.selectedAgentIds.length === 0) return
 
     async function createMeetingRecord() {
+      creatingMeetingRef.current = true
       // Ensure we have a teamId first
       let resolvedTeamId = teamId
       if (!resolvedTeamId && state.teamName.trim()) {
@@ -309,6 +312,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
           window.history.replaceState(null, '', `/team-meeting?meeting=${data.meeting.id}`)
         }
       } catch {
+        creatingMeetingRef.current = false
         // meeting still works ephemerally
       }
     }
@@ -564,6 +568,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
               onOpenChat={() => dispatch({ type: 'OPEN_RIGHT_PANEL', tab: 'chat' })}
               taskCount={activeTaskCount}
               chatUnreadCount={chatHook.unreadCount}
+              teamId={teamId}
             />
 
             <div className="flex flex-1 overflow-hidden">

@@ -10,9 +10,11 @@ export interface Team {
   name: string            // "Backend Squad"
   description?: string
   agentIds: string[]      // Agent UUIDs (order = display order)
+  instructions?: string   // Team-level markdown (like a per-team CLAUDE.md)
   createdAt: string       // ISO
   updatedAt: string       // ISO
   lastMeetingAt?: string  // ISO - last time a meeting was started with this team
+  lastActivityAt?: string // ISO - updated on any team interaction
 }
 
 export interface TeamsFile {

@@ -1,9 +1,11 @@
 'use client'
 
-import { LayoutGrid, List, Plus, ListTodo } from 'lucide-react'
+import { useState } from 'react'
+import { LayoutGrid, List, Plus, ListTodo, Mail, Play, Moon, Loader2 } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { SidebarMode } from '@/types/team'
 import type { TaskWithDeps } from '@/types/task'
+import WakeAgentDialog from '@/components/WakeAgentDialog'
 
 interface MeetingSidebarProps {
   agents: Agent[]
@@ -13,6 +15,7 @@ interface MeetingSidebarProps {
   onToggleMode: () => void
   onAddAgent: () => void
   tasksByAgent?: Record<string, TaskWithDeps[]>
+  messageCountsByAgent?: Record<string, number>
 }
 
 export default function MeetingSidebar({
@@ -23,7 +26,77 @@ export default function MeetingSidebar({
   onToggleMode,
   onAddAgent,
   tasksByAgent = {},
+  messageCountsByAgent = {},
 }: MeetingSidebarProps) {
+  const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
+  const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
+  const [wakeDialogAgent, setWakeDialogAgent] = useState<Agent | null>(null)
+
+  const handleHibernate = async (agent: Agent, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hibernatingAgents.has(agent.id)) return
+
+    setHibernatingAgents(prev => new Set(prev).add(agent.id))
+
+    try {
+      const response = await fetch(`/api/agents/${agent.id}/hibernate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to hibernate agent')
+      }
+    } catch (error) {
+      console.error('Failed to hibernate agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to hibernate agent')
+    } finally {
+      setHibernatingAgents(prev => {
+        const next = new Set(prev)
+        next.delete(agent.id)
+        return next
+      })
+    }
+  }
+
+  const handleWake = (agent: Agent, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (wakingAgents.has(agent.id)) return
+    setWakeDialogAgent(agent)
+  }
+
+  const handleWakeConfirm = async (program: string) => {
+    if (!wakeDialogAgent) return
+
+    const agent = wakeDialogAgent
+    setWakingAgents(prev => new Set(prev).add(agent.id))
+
+    try {
+      const response = await fetch(`/api/agents/${agent.id}/wake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to wake agent')
+      }
+
+      setWakeDialogAgent(null)
+    } catch (error) {
+      console.error('Failed to wake agent:', error)
+      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+    } finally {
+      setWakingAgents(prev => {
+        const next = new Set(prev)
+        next.delete(agent.id)
+        return next
+      })
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-900 border-r border-gray-800" style={{ width: 300 }}>
       {/* Sidebar header */}
@@ -59,6 +132,9 @@ export default function MeetingSidebar({
           const isOnline = agent.session?.status === 'online'
           const agentTasks = tasksByAgent[agent.id] || []
           const activeTaskCount = agentTasks.filter(t => t.status !== 'completed').length
+          const unreadMessages = messageCountsByAgent[agent.id] || 0
+          const isWaking = wakingAgents.has(agent.id)
+          const isHibernating = hibernatingAgents.has(agent.id)
 
           if (sidebarMode === 'grid') {
             return (
@@ -66,7 +142,7 @@ export default function MeetingSidebar({
                 key={agent.id}
                 onClick={() => onSelectAgent(agent.id)}
                 className={`
-                  flex flex-col items-center gap-1.5 p-2.5 rounded-lg cursor-pointer transition-all duration-200
+                  group flex flex-col items-center gap-1.5 p-2.5 rounded-lg cursor-pointer transition-all duration-200
                   ${isActive
                     ? 'bg-emerald-500/20 border border-emerald-500/50'
                     : 'bg-gray-800/40 border border-transparent hover:bg-gray-800 hover:border-gray-700'
@@ -86,18 +162,57 @@ export default function MeetingSidebar({
                   <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${
                     isOnline ? 'bg-green-500' : 'bg-gray-600'
                   }`} />
+                  {unreadMessages > 0 && (
+                    <div className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-blue-500 rounded-full flex items-center justify-center px-1 border-2 border-gray-900">
+                      <span className="text-[9px] text-white font-bold">{unreadMessages > 99 ? '99+' : unreadMessages}</span>
+                    </div>
+                  )}
                 </div>
                 <span className={`text-[11px] text-center truncate w-full ${
                   isActive ? 'text-emerald-300' : 'text-gray-400'
                 }`}>
                   {displayName}
                 </span>
-                {activeTaskCount > 0 && (
-                  <span className="flex items-center gap-0.5 text-[9px] text-gray-500">
-                    <ListTodo className="w-2.5 h-2.5" />
-                    {activeTaskCount}
+                {agent.label && agent.name && agent.name !== agent.label && (
+                  <span className="text-[9px] text-gray-600 truncate w-full text-center">
+                    {agent.name}
                   </span>
                 )}
+                <div className="flex items-center gap-1.5">
+                  {activeTaskCount > 0 && (
+                    <span className="flex items-center gap-0.5 text-[9px] text-gray-500">
+                      <ListTodo className="w-2.5 h-2.5" />
+                      {activeTaskCount}
+                    </span>
+                  )}
+                  {unreadMessages > 0 && (
+                    <span className="flex items-center gap-0.5 text-[9px] text-blue-400">
+                      <Mail className="w-2.5 h-2.5" />
+                      {unreadMessages}
+                    </span>
+                  )}
+                  <div
+                    onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
+                    className={`
+                      p-0.5 rounded transition-all duration-200 cursor-pointer
+                      ${isWaking || isHibernating
+                        ? 'text-yellow-400'
+                        : isOnline
+                          ? 'text-gray-600 opacity-0 group-hover:opacity-100 hover:text-amber-400 hover:bg-gray-700/50'
+                          : 'text-gray-600 opacity-0 group-hover:opacity-100 hover:text-emerald-400 hover:bg-gray-700/50'
+                      }
+                    `}
+                    title={isOnline ? 'Hibernate agent' : 'Wake agent'}
+                  >
+                    {isWaking || isHibernating ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                    ) : isOnline ? (
+                      <Moon className="w-2.5 h-2.5" />
+                    ) : (
+                      <Play className="w-2.5 h-2.5" />
+                    )}
+                  </div>
+                </div>
               </div>
             )
           }
@@ -108,7 +223,7 @@ export default function MeetingSidebar({
               key={agent.id}
               onClick={() => onSelectAgent(agent.id)}
               className={`
-                flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200
+                group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200
                 ${isActive
                   ? 'bg-emerald-500/20 border border-emerald-500/50'
                   : 'border border-transparent hover:bg-gray-800'
@@ -128,6 +243,11 @@ export default function MeetingSidebar({
                 <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${
                   isOnline ? 'bg-green-500' : 'bg-gray-600'
                 }`} />
+                {unreadMessages > 0 && (
+                  <div className="absolute -top-1 -right-1 min-w-[14px] h-3.5 bg-blue-500 rounded-full flex items-center justify-center px-0.5 border-2 border-gray-900">
+                    <span className="text-[8px] text-white font-bold">{unreadMessages > 99 ? '99+' : unreadMessages}</span>
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <span className={`text-sm truncate block ${
@@ -139,16 +259,54 @@ export default function MeetingSidebar({
                   {agent.name || agent.alias}
                 </span>
               </div>
-              {activeTaskCount > 0 && (
-                <span className="flex items-center gap-0.5 text-[9px] text-gray-500 flex-shrink-0">
-                  <ListTodo className="w-2.5 h-2.5" />
-                  {activeTaskCount}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {activeTaskCount > 0 && (
+                  <span className="flex items-center gap-0.5 text-[9px] text-gray-500">
+                    <ListTodo className="w-2.5 h-2.5" />
+                    {activeTaskCount}
+                  </span>
+                )}
+                {unreadMessages > 0 && (
+                  <span className="flex items-center gap-0.5 text-[9px] text-blue-400">
+                    <Mail className="w-2.5 h-2.5" />
+                    {unreadMessages}
+                  </span>
+                )}
+                <div
+                  onClick={(e) => isOnline ? handleHibernate(agent, e) : handleWake(agent, e)}
+                  className={`
+                    p-1 rounded transition-all duration-200 cursor-pointer
+                    ${isWaking || isHibernating
+                      ? 'text-yellow-400'
+                      : isOnline
+                        ? 'text-gray-600 opacity-0 group-hover:opacity-100 hover:text-amber-400 hover:bg-gray-700/50'
+                        : 'text-gray-600 opacity-0 group-hover:opacity-100 hover:text-emerald-400 hover:bg-gray-700/50'
+                    }
+                  `}
+                  title={isOnline ? 'Hibernate agent' : 'Wake agent'}
+                >
+                  {isWaking || isHibernating ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : isOnline ? (
+                    <Moon className="w-3 h-3" />
+                  ) : (
+                    <Play className="w-3 h-3" />
+                  )}
+                </div>
+              </div>
             </div>
           )
         })}
       </div>
+
+      {/* Wake Agent Dialog */}
+      <WakeAgentDialog
+        isOpen={wakeDialogAgent !== null}
+        onClose={() => setWakeDialogAgent(null)}
+        onConfirm={handleWakeConfirm}
+        agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
+        agentAlias={wakeDialogAgent?.label || wakeDialogAgent?.alias}
+      />
     </div>
   )
 }

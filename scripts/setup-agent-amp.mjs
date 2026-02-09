@@ -5,11 +5,11 @@
  *
  * This script:
  * 1. Discovers all registered agents (not just running ones)
- * 2. Creates per-agent AMP directories (~/.agent-messaging/agents/<name>/)
+ * 2. Creates per-agent AMP directories (~/.agent-messaging/agents/<uuid>/)
  * 3. Migrates messages from shared AMP inbox to per-agent inboxes
  * 4. Migrates messages from old system (~/.aimaestro/messages/) to per-agent AMP
  * 5. Sets AMP_DIR environment variable in running tmux sessions
- * 6. Copies machine-level config/keys/registrations to each agent
+ * 6. Copies machine-level config/keys to each agent (NOT registrations)
  *
  * NO DATA IS DELETED. All migrations are copies, originals stay intact.
  *
@@ -19,6 +19,7 @@
  */
 
 import { execSync } from 'child_process'
+import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
@@ -30,7 +31,23 @@ const AMP_SHARED_INBOX = path.join(AMP_DIR, 'messages', 'inbox')
 const AMP_SHARED_SENT = path.join(AMP_DIR, 'messages', 'sent')
 const OLD_MESSAGES_DIR = path.join(HOME, '.aimaestro', 'messages')
 const AGENT_REGISTRY = path.join(HOME, '.aimaestro', 'agents', 'registry.json')
+const API_KEYS_FILE = path.join(HOME, '.aimaestro', 'amp-api-keys.json')
 const DRY_RUN = process.argv.includes('--dry-run')
+
+function hashApiKey(apiKey) {
+  return 'sha256:' + createHash('sha256').update(apiKey).digest('hex')
+}
+
+const HOSTS_CONFIG = path.join(HOME, '.aimaestro', 'hosts.json')
+
+async function getOrganizationFromConfig() {
+  try {
+    const config = JSON.parse(await fs.readFile(HOSTS_CONFIG, 'utf-8'))
+    return config.organization || 'default'
+  } catch {
+    return 'default'
+  }
+}
 
 function sanitizeAddressForPath(address) {
   return address.replace(/[@.]/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
@@ -70,7 +87,7 @@ async function findJSONFiles(dir) {
  * Migrate messages from the shared AMP inbox to per-agent inboxes.
  * Reads envelope.to from each message to determine the recipient agent.
  */
-async function migrateSharedAMPInbox(agentIdToName) {
+async function migrateSharedAMPInbox(agentIdToName, nameToAgentId) {
   console.log('--- Migrating shared AMP inbox ---')
 
   const messageFiles = await findJSONFiles(AMP_SHARED_INBOX)
@@ -177,7 +194,14 @@ async function migrateSharedAMPInbox(agentIdToName) {
         ? path.basename(filePath)
         : `${(msg.id || path.basename(filePath, '.json')).replace(/-/g, '_')}.json`
 
-      const destDir = path.join(AMP_AGENTS_DIR, recipientAgent, 'messages', 'inbox', senderDir)
+      // Resolve recipient name to UUID for directory
+      const recipientUUID = nameToAgentId[recipientAgent]
+      if (!recipientUUID) {
+        skipped++ // Cannot migrate without UUID
+        continue
+      }
+
+      const destDir = path.join(AMP_AGENTS_DIR, recipientUUID, 'messages', 'inbox', senderDir)
       const destFile = path.join(destDir, fileName)
 
       // Check if already migrated
@@ -214,8 +238,12 @@ async function migrateSharedAMPInbox(agentIdToName) {
         const senderAgent = atIndex > 0 ? fromAddress.substring(0, atIndex) : null
         if (!senderAgent) continue
 
+        // Resolve sender name to UUID for directory
+        const senderUUID = nameToAgentId[senderAgent]
+        if (!senderUUID) continue
+
         const recipientDir = sanitizeAddressForPath(msg.envelope.to || 'unknown')
-        const destDir = path.join(AMP_AGENTS_DIR, senderAgent, 'messages', 'sent', recipientDir)
+        const destDir = path.join(AMP_AGENTS_DIR, senderUUID, 'messages', 'sent', recipientDir)
         const destFile = path.join(destDir, path.basename(filePath))
 
         try { await fs.access(destFile); continue } catch { /* proceed */ }
@@ -237,7 +265,7 @@ async function migrateSharedAMPInbox(agentIdToName) {
  * Old system is already per-agent: ~/.aimaestro/messages/inbox/<agentId>/
  * We need to map agentId -> agentName using the registry.
  */
-async function migrateOldMessages(agentIdToName) {
+async function migrateOldMessages(agentIdToName, nameToAgentId) {
   console.log('--- Migrating old system messages ---')
 
   const oldInbox = path.join(OLD_MESSAGES_DIR, 'inbox')
@@ -275,7 +303,8 @@ async function migrateOldMessages(agentIdToName) {
 
           // Convert message ID from old format (msg-xxx) to AMP format (msg_xxx)
           const msgId = (msg.id || path.basename(filePath, '.json')).replace(/-/g, '_')
-          const destDir = path.join(AMP_AGENTS_DIR, agentName, 'messages', 'inbox', senderDir)
+          // Use UUID (agentId) for directory, not name
+          const destDir = path.join(AMP_AGENTS_DIR, agentId, 'messages', 'inbox', senderDir)
           const destFile = path.join(destDir, `${msgId}.json`)
 
           try { await fs.access(destFile); skipped++; continue } catch { /* proceed */ }
@@ -346,7 +375,8 @@ async function migrateOldMessages(agentIdToName) {
           const toName = msg.toAlias || msg.to || 'unknown'
           const recipientDir = sanitizeAddressForPath(toName)
           const msgId = (msg.id || path.basename(filePath, '.json')).replace(/-/g, '_')
-          const destDir = path.join(AMP_AGENTS_DIR, agentName, 'messages', 'sent', recipientDir)
+          // Use UUID (agentId) for directory, not name
+          const destDir = path.join(AMP_AGENTS_DIR, agentId, 'messages', 'sent', recipientDir)
           const destFile = path.join(destDir, `${msgId}.json`)
 
           try { await fs.access(destFile); continue } catch { /* proceed */ }
@@ -400,23 +430,24 @@ async function main() {
   const agentList = Array.isArray(agents) ? agents : []
 
   const agentIdToName = {}
-  const allAgentNames = new Set()
+  const nameToAgentId = {}
+  const allAgents = [] // { name, id } pairs
 
   for (const agent of agentList) {
     const name = agent.name || agent.alias
     if (name && agent.id) {
       agentIdToName[agent.id] = name
-      allAgentNames.add(name)
+      nameToAgentId[name] = agent.id
+      allAgents.push({ name, id: agent.id })
     }
   }
 
-  console.log(`Found ${allAgentNames.size} agent(s) in registry`)
+  console.log(`Found ${allAgents.length} agent(s) in registry`)
   console.log()
 
-  // Load machine config, keys, registrations for copying
+  // Load machine config and keys for copying (NOT registrations — each agent registers independently)
   let machineConfig = null
   let machineKeys = { private: null, public: null }
-  let machineRegistrations = []
 
   try {
     machineConfig = await readJSON(path.join(AMP_DIR, 'config.json'))
@@ -427,23 +458,16 @@ async function main() {
     machineKeys.public = await fs.readFile(path.join(AMP_DIR, 'keys', 'public.pem'))
   } catch { /* no machine keys */ }
 
-  try {
-    const regsDir = path.join(AMP_DIR, 'registrations')
-    const files = await fs.readdir(regsDir)
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const data = await readJSON(path.join(regsDir, file))
-        if (data) machineRegistrations.push({ file, data })
-      }
-    }
-  } catch { /* no registrations */ }
+  // NOTE: Machine-level registrations are NOT copied to agents.
+  // Each agent gets its own registration via /api/v1/register with its own API key.
+  // Copying machine-level registrations caused identity contamination (wrong sender addresses).
 
-  // Step 1: Create per-agent AMP directories
+  // Step 1: Create per-agent AMP directories (keyed by UUID, not name)
   console.log('--- Setting up per-agent AMP directories ---')
 
-  for (const agentName of allAgentNames) {
-    const agentHome = path.join(AMP_AGENTS_DIR, agentName)
-    console.log(`  ${agentName}: ${agentHome}`)
+  for (const { name: agentName, id: agentId } of allAgents) {
+    const agentHome = path.join(AMP_AGENTS_DIR, agentId)
+    console.log(`  ${agentName} (${agentId}): ${agentHome}`)
 
     if (!DRY_RUN) {
       await fs.mkdir(path.join(agentHome, 'messages', 'inbox'), { recursive: true })
@@ -451,11 +475,11 @@ async function main() {
       await fs.mkdir(path.join(agentHome, 'keys'), { recursive: true })
       await fs.mkdir(path.join(agentHome, 'registrations'), { recursive: true })
 
-      // Copy config
+      // Copy config with agent identity
       if (machineConfig) {
         const configPath = path.join(agentHome, 'config.json')
         try { await fs.access(configPath) } catch {
-          const agentConfig = { ...machineConfig, agent: { ...machineConfig.agent, name: agentName } }
+          const agentConfig = { ...machineConfig, agent: { ...machineConfig.agent, name: agentName, id: agentId } }
           await fs.writeFile(configPath, JSON.stringify(agentConfig, null, 2))
         }
       }
@@ -467,31 +491,25 @@ async function main() {
           await fs.writeFile(path.join(agentHome, 'keys', 'public.pem'), machineKeys.public)
         }
       }
-
-      // Copy registrations with agent-specific address
-      for (const reg of machineRegistrations) {
-        const destPath = path.join(agentHome, 'registrations', reg.file)
-        try { await fs.access(destPath) } catch {
-          const regData = { ...reg.data }
-          if (regData.address) {
-            const parts = regData.address.split('@')
-            if (parts.length === 2) regData.address = `${agentName}@${parts[1]}`
-          }
-          await fs.writeFile(destPath, JSON.stringify(regData, null, 2))
-        }
-      }
     }
+  }
+
+  // Update the name→UUID index file
+  if (!DRY_RUN) {
+    const indexPath = path.join(AMP_AGENTS_DIR, '.index.json')
+    await fs.writeFile(indexPath, JSON.stringify(nameToAgentId, null, 2))
+    console.log(`  Updated .index.json with ${allAgents.length} entries`)
   }
 
   console.log()
 
   // Step 2: Migrate shared AMP inbox to per-agent
-  const ampResult = await migrateSharedAMPInbox()
+  const ampResult = await migrateSharedAMPInbox(agentIdToName, nameToAgentId)
   console.log(`  Migrated: ${ampResult.migrated}, Skipped: ${ampResult.skipped}, Errors: ${ampResult.errors}`)
   console.log()
 
   // Step 3: Migrate old system messages to per-agent AMP
-  const oldResult = await migrateOldMessages(agentIdToName)
+  const oldResult = await migrateOldMessages(agentIdToName, nameToAgentId)
   console.log(`  Migrated: ${oldResult.migrated}, Skipped: ${oldResult.skipped}, Errors: ${oldResult.errors}`)
   console.log()
 
@@ -506,15 +524,19 @@ async function main() {
 
     for (const session of sessions) {
       const agentName = session.agentName || session.name
-      if (!agentName || !allAgentNames.has(agentName)) continue
+      if (!agentName) continue
 
-      const agentHome = path.join(AMP_AGENTS_DIR, agentName)
+      // Resolve agent name to UUID for AMP_DIR path
+      const agentUUID = nameToAgentId[agentName]
+      if (!agentUUID) continue
+
+      const agentHome = path.join(AMP_AGENTS_DIR, agentUUID)
       const tmuxSession = session.id || session.name
 
       if (!DRY_RUN) {
         try {
           execSync(`tmux set-environment -t "${tmuxSession}" AMP_DIR "${agentHome}" 2>/dev/null`)
-          console.log(`  ${agentName}: AMP_DIR set`)
+          console.log(`  ${agentName} (${agentUUID}): AMP_DIR set`)
           tmuxCount++
         } catch {
           console.log(`  ${agentName}: tmux session not found`)
@@ -528,13 +550,174 @@ async function main() {
     console.log('  AI Maestro not running, skipping tmux setup')
   }
 
+  // Step 5: Re-register agents with stale/missing API keys
+  console.log('--- Validating agent API keys ---')
+
+  let keysValid = 0, keysFixed = 0, keysSkipped = 0, keysFailed = 0
+
+  // Load server-side key hashes for comparison
+  let serverKeyHashes = new Set()
+  try {
+    const serverKeys = JSON.parse(await fs.readFile(API_KEYS_FILE, 'utf-8'))
+    serverKeyHashes = new Set(serverKeys.filter(k => k.status === 'active').map(k => k.key_hash))
+  } catch {
+    console.log('  No server API keys file found — skipping key validation')
+  }
+
+  if (serverKeyHashes.size > 0) {
+    // Determine the API base URL (try the running server, fall back to localhost)
+    let apiBaseUrl = 'http://localhost:23000/api/v1'
+    try {
+      const healthRes = await fetch(`${apiBaseUrl}/health`)
+      if (!healthRes.ok) throw new Error('unhealthy')
+    } catch {
+      console.log('  AI Maestro API not available — skipping key re-registration')
+      serverKeyHashes = new Set() // Skip the loop
+    }
+
+    for (const { name: agentName, id: agentId } of allAgents) {
+      const regFile = path.join(AMP_AGENTS_DIR, agentId, 'registrations', 'aimaestro.local.json')
+
+      // Check if agent has a registration file
+      let reg
+      try {
+        reg = JSON.parse(await fs.readFile(regFile, 'utf-8'))
+      } catch {
+        // No registration file — agent needs to register for the first time
+        // Read agent's public key
+        let publicKey
+        try {
+          publicKey = await fs.readFile(path.join(AMP_AGENTS_DIR, agentId, 'keys', 'public.pem'), 'utf-8')
+        } catch {
+          keysSkipped++
+          continue // No keys at all — can't register
+        }
+
+        if (DRY_RUN) {
+          console.log(`  ${agentName}: would register (no registration file)`)
+          keysSkipped++
+          continue
+        }
+
+        // Register for the first time
+        try {
+          const configOrg = await getOrganizationFromConfig()
+          const res = await fetch(`${apiBaseUrl}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: agentName,
+              tenant: configOrg,
+              public_key: publicKey,
+              key_algorithm: 'Ed25519'
+            })
+          })
+
+          if (res.ok) {
+            const data = await res.json()
+            // Write registration file
+            const newReg = {
+              provider: 'aimaestro.local',
+              apiUrl: data.provider?.endpoint || apiBaseUrl,
+              routeUrl: data.provider?.route_url || `${apiBaseUrl}/route`,
+              agentName,
+              tenant: data.tenant || configOrg,
+              address: data.address,
+              apiKey: data.api_key,
+              registered_at: data.registered_at || new Date().toISOString()
+            }
+            await fs.writeFile(regFile, JSON.stringify(newReg, null, 2))
+            console.log(`  ${agentName}: registered (new)`)
+            keysFixed++
+          } else {
+            const err = await res.json().catch(() => ({}))
+            console.log(`  ${agentName}: registration failed — ${err.message || res.status}`)
+            keysFailed++
+          }
+        } catch (err) {
+          console.log(`  ${agentName}: registration error — ${err.message}`)
+          keysFailed++
+        }
+        continue
+      }
+
+      // Has a registration file — validate the API key
+      const apiKey = reg.apiKey
+      if (!apiKey) {
+        keysSkipped++
+        continue
+      }
+
+      const keyHash = hashApiKey(apiKey)
+      if (serverKeyHashes.has(keyHash)) {
+        keysValid++
+        continue // Key is valid
+      }
+
+      // Key is stale — re-register
+      if (DRY_RUN) {
+        console.log(`  ${agentName}: would re-register (stale API key)`)
+        keysFailed++
+        continue
+      }
+
+      // Read agent's public key for re-registration
+      let publicKey
+      try {
+        publicKey = await fs.readFile(path.join(AMP_AGENTS_DIR, agentId, 'keys', 'public.pem'), 'utf-8')
+      } catch {
+        console.log(`  ${agentName}: no public key — cannot re-register`)
+        keysFailed++
+        continue
+      }
+
+      try {
+        const configOrg = await getOrganizationFromConfig()
+        const res = await fetch(`${apiBaseUrl}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: agentName,
+            tenant: configOrg,
+            public_key: publicKey,
+            key_algorithm: 'Ed25519'
+          })
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          // Update local registration file with new API key
+          reg.apiKey = data.api_key
+          reg.registered_at = data.registered_at || new Date().toISOString()
+          if (data.address) reg.address = data.address
+          if (data.provider?.endpoint) reg.apiUrl = data.provider.endpoint
+          if (data.provider?.route_url) reg.routeUrl = data.provider.route_url
+          await fs.writeFile(regFile, JSON.stringify(reg, null, 2))
+          console.log(`  ${agentName}: re-registered (API key refreshed)`)
+          keysFixed++
+        } else {
+          const err = await res.json().catch(() => ({}))
+          console.log(`  ${agentName}: re-registration failed — ${err.message || res.status}`)
+          keysFailed++
+        }
+      } catch (err) {
+        console.log(`  ${agentName}: re-registration error — ${err.message}`)
+        keysFailed++
+      }
+    }
+  }
+
+  console.log(`  Valid: ${keysValid}, Fixed: ${keysFixed}, Skipped: ${keysSkipped}, Failed: ${keysFailed}`)
+  console.log()
+
   // Summary
   console.log()
   console.log('=== Summary ===')
-  console.log(`Agents: ${allAgentNames.size}`)
+  console.log(`Agents: ${allAgents.length}`)
   console.log(`Shared AMP messages migrated: ${ampResult.migrated}`)
   console.log(`Old system messages migrated: ${oldResult.migrated}`)
   console.log(`Tmux sessions updated: ${tmuxCount}`)
+  console.log(`API keys: ${keysValid} valid, ${keysFixed} fixed, ${keysFailed} failed`)
   console.log()
 
   const totalMigrated = ampResult.migrated + oldResult.migrated

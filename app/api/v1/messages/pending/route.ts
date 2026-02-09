@@ -58,19 +58,8 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   const limitParam = searchParams.get('limit')
   const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 10
 
-  // Get pending messages for this agent
-  // Only check relay keys that belong to the authenticated agent (S3 fix)
-  const agentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
-
-  // Try by agent name first (standardized relay key), then by agent ID
-  let result = agentName
-    ? getPendingMessages(agentName, limit)
-    : getPendingMessages(auth.agentId!, limit)
-
-  // Fallback: try by agent ID if name lookup found nothing
-  if (result.count === 0 && agentName) {
-    result = getPendingMessages(auth.agentId!, limit)
-  }
+  // Get pending messages for this agent (UUID-only, no name fallback)
+  const result = getPendingMessages(auth.agentId!, limit)
 
   return NextResponse.json(result, {
     status: 200,
@@ -108,16 +97,8 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge the message — only check relay keys belonging to this agent
-  const ackAgentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
-  let acknowledged = ackAgentName
-    ? acknowledgeMessage(ackAgentName, messageId)
-    : acknowledgeMessage(auth.agentId!, messageId)
-
-  // Fallback: try by agent ID
-  if (!acknowledged && ackAgentName) {
-    acknowledged = acknowledgeMessage(auth.agentId!, messageId)
-  }
+  // Acknowledge the message (UUID-only, no name fallback)
+  const acknowledged = acknowledgeMessage(auth.agentId!, messageId)
 
   if (!acknowledged) {
     return NextResponse.json({
@@ -175,15 +156,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
     } as AMPError, { status: 400 })
   }
 
-  // Acknowledge messages — only check relay keys belonging to this agent
-  const batchAgentName = auth.address ? auth.address.substring(0, auth.address.indexOf('@')) : null
-  let acknowledged = batchAgentName
-    ? acknowledgeMessages(batchAgentName, body.ids)
-    : acknowledgeMessages(auth.agentId!, body.ids)
-
-  if (acknowledged === 0 && batchAgentName) {
-    acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
-  }
+  // Acknowledge messages (UUID-only, no name fallback)
+  const acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
 
   return NextResponse.json({ acknowledged })
 }

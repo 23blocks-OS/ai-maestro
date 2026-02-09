@@ -34,6 +34,7 @@ import { loadKeyPair, verifySignature } from '@/lib/amp-keys'
 import { queueMessage } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
 import { getAgent, getAgentByName, checkMeshAgentExists } from '@/lib/agent-registry'
+import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
 import { getAMPProviderDomain } from '@/lib/types/amp'
 import type {
@@ -88,6 +89,12 @@ function checkRateLimit(agentId: string): RateLimitResult {
   }
 
   entry.count++
+  // Periodic cleanup: remove expired entries every 100 checks
+  if (entry.count % 100 === 0) {
+    for (const [key, val] of rateLimitMap) {
+      if (now > val.resetAt) rateLimitMap.delete(key)
+    }
+  }
   return { allowed: true, limit: RATE_LIMIT_MAX, remaining: RATE_LIMIT_MAX - entry.count, resetAt: entry.resetAt }
 }
 
@@ -355,7 +362,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const recipientParsed = parseAMPAddress(body.to)
     const messageId = generateMessageId()
     const now = new Date().toISOString()
-    const senderAddress = (isMeshForwarded && body.from) ? body.from : auth.address!
+
+    // Derive sender address from the agent registry (authoritative),
+    // NOT from auth.address (which comes from the API key record and can be stale/wrong).
+    let senderAddress: string
+    if (isMeshForwarded && body.from) {
+      senderAddress = body.from
+    } else if (senderAgent) {
+      const agentAmpAddress = senderAgent.metadata?.amp?.address as string | undefined
+      const agentName = senderAgent.name || senderAgent.alias || auth.address!.split('@')[0]
+      senderAddress = agentAmpAddress || `${agentName}@${getAMPProviderDomain(getOrganization() || undefined)}`
+    } else {
+      senderAddress = auth.address!
+    }
 
     const envelope: AMPEnvelope = {
       version: 'amp/0.1',
@@ -450,6 +469,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       if (localAgent) {
         resolvedHostId = selfHostId
         resolvedAgentId = localAgent.id
+      } else {
+        // Fallback: rich resolution (partial match, alias, etc.)
+        const resolved = resolveAgentIdentifier(recipientName)
+        if (resolved?.agentId) {
+          resolvedAgentId = resolved.agentId
+          resolvedHostId = selfHostId
+        }
       }
     } else if (isExplicitRemote) {
       // Address explicitly names a remote host — trust it, skip discovery
@@ -461,6 +487,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
         resolvedHostId = meshResult.host
         resolvedAgentId = meshResult.agent?.id
       }
+
+      // Fallback: use rich resolution (partial match, alias, session name)
+      // This handles short names like "rag" → "23blocks-api-rag"
+      // resolveAgentIdentifier only searches the LOCAL registry, so the
+      // resolved agent is always on this host — force selfHostId to avoid
+      // hostname-format mismatches that would route it as remote.
+      if (!resolvedAgentId) {
+        const resolved = resolveAgentIdentifier(recipientName)
+        if (resolved?.agentId) {
+          resolvedAgentId = resolved.agentId
+          resolvedHostId = selfHostId
+        }
+      }
     }
 
     // ── Remote Delivery ────────────────────────────────────────────────
@@ -468,9 +507,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       const remoteHost = getHostById(resolvedHostId)
 
       if (!remoteHost) {
+        if (!resolvedAgentId) {
+          console.error(`[AMP Route] Host '${resolvedHostId}' not in config and no UUID for ${recipientName} — cannot queue`)
+          return NextResponse.json({
+            error: 'not_found',
+            message: `Recipient '${recipientName}' not found and target host '${resolvedHostId}' is not configured`
+          } as AMPError, { status: 404 })
+        }
         console.log(`[AMP Route] Host '${resolvedHostId}' not in config, queuing for relay`)
-        // Always use recipientName as relay key for consistent lookup
-        queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
+        queueMessage(resolvedAgentId, envelope, body.payload, senderKeyPair?.publicHex || '')
         return NextResponse.json({
           id: messageId, status: 'queued', method: 'relay', queued_at: now
         } as AMPRouteResponse, { status: 200, headers: rateLimitHeaders })
@@ -487,8 +532,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       }
 
       console.error(`[AMP Route] Mesh delivery to ${resolvedHostId} failed: ${fwd.error}`)
-      // Always use recipientName as relay key for consistent lookup
-      queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
+      if (!resolvedAgentId) {
+        return NextResponse.json({
+          error: 'internal_error',
+          message: `Mesh delivery to ${resolvedHostId} failed and no UUID to queue: ${fwd.error}`
+        } as AMPError, { status: 502 })
+      }
+      queueMessage(resolvedAgentId, envelope, body.payload, senderKeyPair?.publicHex || '')
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now,
         error: `Mesh delivery to ${resolvedHostId} failed, queued for retry`
@@ -499,8 +549,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     const localAgent = resolvedAgentId ? getAgent(resolvedAgentId) : null
 
     if (!localAgent) {
-      // Not found on any host — queue for relay (S13 fix: removed redundant inbox write)
-      queueMessage(recipientName, envelope, body.payload, senderKeyPair?.publicHex || '')
+      if (!resolvedAgentId) {
+        // Agent not found anywhere and no UUID — return not_found instead of creating name-based relay dir
+        return NextResponse.json({
+          error: 'not_found',
+          message: `Recipient '${recipientName}' not found on any host`
+        } as AMPError, { status: 404 })
+      }
+      // Agent UUID known but not currently registered locally — queue for relay
+      queueMessage(resolvedAgentId, envelope, body.payload, senderKeyPair?.publicHex || '')
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now
       } as AMPRouteResponse, { status: 200 })
@@ -520,7 +577,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
     } catch (error) {
       console.error('[AMP Route] Local delivery failed:', error)
-      queueMessage(recipientAgentName, envelope, body.payload, senderKeyPair?.publicHex || '')
+      queueMessage(localAgent.id, envelope, body.payload, senderKeyPair?.publicHex || '')
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now,
         error: 'Direct delivery failed, queued for relay'

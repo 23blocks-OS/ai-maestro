@@ -35,9 +35,9 @@ export default function MeetingHeader({
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 bg-gray-950 flex-shrink-0">
       <Link
-        href="/"
+        href="/team-meeting"
         className="p-1 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-300"
-        title="Back to Dashboard"
+        title="Back to Lobby"
       >
         <ArrowLeft className="w-4 h-4" />
       </Link>

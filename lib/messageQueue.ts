@@ -1,8 +1,10 @@
 import { promises as fs } from 'fs'
+import * as fsSync from 'fs'
 import path from 'path'
 import os from 'os'
 import { getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
-import { loadAgents, getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgent } from './agent-registry'
+import { getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgentByPartialName, getAgent } from './agent-registry'
+import { parseSessionName, computeSessionName } from '@/types/agent'
 import type { Agent } from '@/types/agent'
 
 /**
@@ -95,15 +97,77 @@ interface ResolvedAgent {
 }
 
 const AMP_AGENTS_DIR = path.join(os.homedir(), '.agent-messaging', 'agents')
+const CLEANUP_FLAG = path.join(os.homedir(), '.agent-messaging', '.cleanup-old-duplicates-done')
 
-// === AMP Per-Agent Directory Support (AMP Protocol) ===
+// === One-time cleanup: remove old-format duplicate messages (msg-*.json) ===
+// Migration scripts created dash-format copies alongside underscore-format originals.
+// The dash copies lack proper status fields, causing phantom unread counts.
+// Runs once on first message read, then writes a flag file to never run again.
+let _cleanupTriggered = false
+function triggerOldDuplicateCleanup(): void {
+  if (_cleanupTriggered) return
+  _cleanupTriggered = true
 
-function getAMPInboxDir(agentNameOrId: string): string {
-  return path.join(AMP_AGENTS_DIR, agentNameOrId, 'messages', 'inbox')
+  // Check flag file synchronously to avoid async race
+  try {
+    fsSync.accessSync(CLEANUP_FLAG)
+    return // Already done
+  } catch {
+    // Not done yet — run cleanup in background
+  }
+
+  // Run cleanup async, non-blocking
+  ;(async () => {
+    let totalDeleted = 0
+    try {
+      const agents = await fs.readdir(AMP_AGENTS_DIR)
+      for (const agentId of agents) {
+        if (agentId.startsWith('.')) continue
+        for (const box of ['inbox', 'sent']) {
+          const boxDir = path.join(AMP_AGENTS_DIR, agentId, 'messages', box)
+          let senderDirs: string[]
+          try { senderDirs = await fs.readdir(boxDir) } catch { continue }
+          for (const senderDir of senderDirs) {
+            const senderPath = path.join(boxDir, senderDir)
+            let stat
+            try { stat = await fs.stat(senderPath) } catch { continue }
+            if (!stat.isDirectory()) continue
+            let files: string[]
+            try { files = await fs.readdir(senderPath) } catch { continue }
+            for (const file of files) {
+              if (file.startsWith('msg-') && file.endsWith('.json')) {
+                try {
+                  await fs.unlink(path.join(senderPath, file))
+                  totalDeleted++
+                } catch { /* best effort */ }
+              }
+            }
+          }
+        }
+      }
+
+      // Write flag file
+      await fs.mkdir(path.dirname(CLEANUP_FLAG), { recursive: true })
+      await fs.writeFile(CLEANUP_FLAG, `Cleaned ${totalDeleted} old-format duplicates at ${new Date().toISOString()}\n`)
+
+      if (totalDeleted > 0) {
+        console.log(`[MessageQueue] Cleaned ${totalDeleted} old-format duplicate messages (one-time migration)`)
+      }
+    } catch (error) {
+      console.error('[MessageQueue] Old duplicate cleanup failed (non-fatal):', error)
+    }
+  })()
 }
 
-function getAMPSentDir(agentNameOrId: string): string {
-  return path.join(AMP_AGENTS_DIR, agentNameOrId, 'messages', 'sent')
+// === AMP Per-Agent Directory Support (AMP Protocol) ===
+// ALL directories are keyed by agent UUID. NEVER use agent names.
+
+function getAMPInboxDir(agentUUID: string): string {
+  return path.join(AMP_AGENTS_DIR, agentUUID, 'messages', 'inbox')
+}
+
+function getAMPSentDir(agentUUID: string): string {
+  return path.join(AMP_AGENTS_DIR, agentUUID, 'messages', 'sent')
 }
 
 function extractAgentNameFromAddress(address: string): string {
@@ -232,8 +296,10 @@ async function collectMessagesFromAMPDir(
             type: msg.content.type,
             preview: msg.content.message.substring(0, maxPreview),
           }
-        } else if (ampMsg.id && ampMsg.subject) {
-          // Old flat format (backward compat)
+        } else if (ampMsg.id && ampMsg.subject && ampMsg.envelope === undefined) {
+          // Old flat format — ignore files without explicit status
+          // (migration duplicates often lack status, causing phantom unread counts)
+          if (!ampMsg.status) continue
           summary = {
             id: ampMsg.id,
             from: ampMsg.from,
@@ -248,7 +314,7 @@ async function collectMessagesFromAMPDir(
             timestamp: ampMsg.timestamp,
             subject: ampMsg.subject,
             priority: ampMsg.priority || 'normal',
-            status: ampMsg.status || 'unread',
+            status: ampMsg.status,
             type: ampMsg.content?.type || 'notification',
             preview: (ampMsg.content?.message || '').substring(0, maxPreview),
           }
@@ -348,8 +414,6 @@ async function findMessageInAMPDir(
  * Priority: 1) name@host, 2) exact ID match, 3) name on self host, 4) session name, 5) partial match
  */
 function resolveAgent(identifier: string): ResolvedAgent | null {
-  const agents = loadAgents()
-  const { parseSessionName, computeSessionName } = require('@/types/agent')
   let agent: Agent | null = null
 
   // 0. Check for name@host format first (explicit host targeting)
@@ -397,11 +461,7 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
 
   // 5. Try partial match in name's LAST segment (e.g., "crm" matches "23blocks-api-crm")
   if (!agent) {
-    agent = agents.find(a => {
-      const agentName = a.name || a.alias || ''
-      const segments = agentName.split(/[-_]/)
-      return segments.length > 0 && segments[segments.length - 1].toLowerCase() === identifier.toLowerCase()
-    }) || null
+    agent = getAgentByPartialName(identifier)
   }
 
   if (!agent) return null
@@ -441,12 +501,9 @@ export function getAgentIdFromSession(sessionName: string): string | null {
 
 
 /**
- * List messages in an agent's inbox
- * Accepts agent alias, ID, or session name
- *
- * Checks multiple locations for backward compatibility:
- * 1. Agent ID folder (new format)
- * 2. Session name folder (legacy, may be symlink to old UUID)
+ * List messages in an agent's inbox.
+ * Accepts agent alias, ID, or session name.
+ * Resolves to UUID and reads from UUID-keyed directory only.
  */
 export async function listInboxMessages(
   agentIdentifier: string,
@@ -458,27 +515,19 @@ export async function listInboxMessages(
     previewLength?: number  // Max chars for preview (default: 100)
   }
 ): Promise<MessageSummary[]> {
-  // Resolve agent
+  // One-time cleanup of old-format duplicate messages (runs once, non-blocking)
+  triggerOldDuplicateCleanup()
+
+  // Resolve agent - MUST resolve to get UUID
   const agent = resolveAgent(agentIdentifier)
-  if (!agent) {
-    // Try as direct agent name in AMP directory
-    const allMessages: MessageSummary[] = []
-    const seenIds = new Set<string>()
-    const ampInboxDir = getAMPInboxDir(agentIdentifier)
-    await collectMessagesFromAMPDir(ampInboxDir, filter, allMessages, seenIds)
-    allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    if (filter?.limit && filter.limit > 0) return allMessages.slice(0, filter.limit)
-    return allMessages
+  if (!agent?.agentId) {
+    return []
   }
 
-  // Collect messages from AMP per-agent directory only
+  // UUID-only directory lookup
   const allMessages: MessageSummary[] = []
   const seenIds = new Set<string>()
-
-  // AMP per-agent directory is the sole source of truth
-  // Use UUID (how amp-inbox-writer stores them), fallback to name for legacy
-  const agentDirKey = agent.agentId || agent.alias || agent.sessionName || agentIdentifier
-  const ampInboxDir = getAMPInboxDir(agentDirKey)
+  const ampInboxDir = getAMPInboxDir(agent.agentId)
   await collectMessagesFromAMPDir(ampInboxDir, filter, allMessages, seenIds)
 
   // Sort by timestamp (newest first)
@@ -494,8 +543,8 @@ export async function listInboxMessages(
 
 
 /**
- * List messages in an agent's sent folder
- * GAP8 FIX: Checks multiple locations with legacy access tracking
+ * List messages in an agent's sent folder.
+ * Resolves to UUID and reads from UUID-keyed directory only.
  */
 export async function listSentMessages(
   agentIdentifier: string,
@@ -507,16 +556,14 @@ export async function listSentMessages(
   }
 ): Promise<MessageSummary[]> {
   const agent = resolveAgent(agentIdentifier)
-  if (!agent) {
+  if (!agent?.agentId) {
     return []
   }
 
-  // Collect sent messages from AMP per-agent directory only
+  // UUID-only directory lookup
   const allMessages: MessageSummary[] = []
   const seenIds = new Set<string>()
-
-  const agentDirKey = agent.agentId || agent.alias || agent.sessionName || agentIdentifier
-  const ampSentDir = getAMPSentDir(agentDirKey)
+  const ampSentDir = getAMPSentDir(agent.agentId)
   await collectMessagesFromAMPDir(ampSentDir, filter, allMessages, seenIds)
 
   allMessages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -539,8 +586,8 @@ export async function getSentCount(agentIdentifier: string): Promise<number> {
 }
 
 /**
- * Get a specific message by ID
- * GAP8 FIX: Checks multiple locations with legacy access tracking
+ * Get a specific message by ID.
+ * Resolves agent to UUID and searches UUID-keyed directory.
  */
 export async function getMessage(
   agentIdentifier: string,
@@ -548,10 +595,10 @@ export async function getMessage(
   box: 'inbox' | 'sent' = 'inbox'
 ): Promise<Message | null> {
   const agent = resolveAgent(agentIdentifier)
-  const agentDirKey = agent?.agentId || agent?.alias || agent?.sessionName || agentIdentifier
+  if (!agent?.agentId) return null
 
-  // Read from AMP per-agent directory only
-  const ampDir = box === 'sent' ? getAMPSentDir(agentDirKey) : getAMPInboxDir(agentDirKey)
+  // UUID-only directory lookup
+  const ampDir = box === 'sent' ? getAMPSentDir(agent.agentId) : getAMPInboxDir(agent.agentId)
   const found = await findMessageInAMPDir(ampDir, messageId)
   if (found) {
     try {
@@ -570,8 +617,8 @@ export async function getMessage(
 }
 
 /**
- * Mark a message as read
- * Finds message in any legacy location and updates it in place
+ * Mark a message as read.
+ * Finds message in UUID-keyed directory and updates it in place.
  */
 export async function markMessageAsRead(agentIdentifier: string, messageId: string): Promise<boolean> {
   // Find where the message actually exists
@@ -608,15 +655,16 @@ async function findMessagePath(
   box: 'inbox' | 'sent'
 ): Promise<string | null> {
   const agent = resolveAgent(agentIdentifier)
-  const agentDirKey = agent?.agentId || agent?.alias || agent?.sessionName || agentIdentifier
-  const ampDir = box === 'sent' ? getAMPSentDir(agentDirKey) : getAMPInboxDir(agentDirKey)
+  if (!agent?.agentId) return null
+  // UUID-only directory lookup
+  const ampDir = box === 'sent' ? getAMPSentDir(agent.agentId) : getAMPInboxDir(agent.agentId)
   const found = await findMessageInAMPDir(ampDir, messageId)
   return found ? found.path : null
 }
 
 /**
- * Archive a message
- * Finds message in any legacy location, moves to archive
+ * Archive a message.
+ * Finds message in UUID-keyed directory and sets status to archived.
  */
 export async function archiveMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
   // Find where the message actually exists
@@ -644,8 +692,8 @@ export async function archiveMessage(agentIdentifier: string, messageId: string)
 }
 
 /**
- * Delete a message permanently
- * Finds message in any legacy location and deletes it
+ * Delete a message permanently.
+ * Finds message in UUID-keyed directory and deletes the file.
  */
 export async function deleteMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
   // Find where the message actually exists

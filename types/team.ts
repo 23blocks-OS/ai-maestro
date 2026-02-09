@@ -20,6 +20,28 @@ export interface TeamsFile {
   teams: Team[]
 }
 
+/** Meeting status for persistent rooms */
+export type MeetingStatus = 'active' | 'ended'
+
+/** Persistent meeting record */
+export interface Meeting {
+  id: string                    // UUID
+  teamId: string | null         // Link to team for task persistence
+  name: string                  // Display name
+  agentIds: string[]            // Participating agent UUIDs
+  status: MeetingStatus
+  activeAgentId: string | null  // Last-viewed agent
+  sidebarMode: SidebarMode
+  startedAt: string             // ISO
+  lastActiveAt: string          // ISO
+  endedAt?: string              // ISO (when ended)
+}
+
+export interface MeetingsFile {
+  version: 1
+  meetings: Meeting[]
+}
+
 /** State machine states for team meeting */
 export type MeetingPhase = 'idle' | 'selecting' | 'ringing' | 'active'
 
@@ -63,3 +85,4 @@ export type TeamMeetingAction =
   | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }
   | { type: 'OPEN_KANBAN' }
   | { type: 'CLOSE_KANBAN' }
+  | { type: 'RESTORE_MEETING'; meeting: Meeting; teamId: string | null }

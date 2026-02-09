@@ -5,7 +5,7 @@
  * Messages are queued when the recipient cannot be found and can be
  * picked up later via the /v1/messages/pending endpoint.
  *
- * Storage: ~/.agent-messaging/relay/{agentName}/*.json
+ * Storage: ~/.agent-messaging/relay/{agentId}/*.json
  * TTL: 7 days (configurable via AMP_RELAY_TTL_DAYS)
  *
  * Note: For locally registered agents, messages are written directly
@@ -103,10 +103,9 @@ export function getPendingMessages(
 
   const now = new Date()
   const messages: AMPPendingMessage[] = []
+  let totalValid = 0
 
   for (const file of files) {
-    if (messages.length >= limit) break
-
     try {
       const content = fs.readFileSync(path.join(dir, file), 'utf-8')
       const msg = JSON.parse(content) as AMPPendingMessage
@@ -114,27 +113,19 @@ export function getPendingMessages(
       // Skip expired messages (will be cleaned up later)
       if (new Date(msg.expires_at) < now) continue
 
-      messages.push(msg)
+      totalValid++
+      if (messages.length < limit) {
+        messages.push(msg)
+      }
     } catch (error) {
       console.error(`[AMP Relay] Failed to read message file ${file}:`, error)
     }
   }
 
-  // Count remaining messages
-  const totalCount = files.filter(f => {
-    try {
-      const content = fs.readFileSync(path.join(dir, f), 'utf-8')
-      const msg = JSON.parse(content) as AMPPendingMessage
-      return new Date(msg.expires_at) >= now
-    } catch {
-      return false
-    }
-  }).length
-
   return {
     messages,
     count: messages.length,
-    remaining: Math.max(0, totalCount - messages.length)
+    remaining: Math.max(0, totalValid - messages.length)
   }
 }
 
@@ -227,7 +218,7 @@ export function recordDeliveryAttempt(agentId: string, messageId: string): boole
 }
 
 /**
- * Check if an agent has any pending messages
+ * Check if an agent has any non-expired pending messages
  */
 export function hasPendingMessages(agentId: string): boolean {
   const dir = getAgentRelayDir(agentId)
@@ -236,8 +227,22 @@ export function hasPendingMessages(agentId: string): boolean {
     return false
   }
 
+  const now = new Date()
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'))
-  return files.length > 0
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(path.join(dir, file), 'utf-8')
+      const msg = JSON.parse(content) as AMPPendingMessage
+      if (new Date(msg.expires_at) >= now) {
+        return true
+      }
+    } catch {
+      // Skip invalid files
+    }
+  }
+
+  return false
 }
 
 /**

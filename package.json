@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.21.30",
+  "version": "0.21.31",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -30,11 +30,12 @@
     "prebuild": "npx tsx scripts/build-help-index.ts || test -f data/.help-build-success",
     "build": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build",
     "start": "NODE_ENV=production NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
-    "@types/pg": "^8.15.6",
     "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
@@ -65,6 +66,7 @@
   "devDependencies": {
     "@types/archiver": "^7.0.0",
     "@types/node": "^20.14.0",
+    "@types/pg": "^8.15.6",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@types/uuid": "^11.0.0",
@@ -78,6 +80,7 @@
     "tailwindcss": "^3.4.0",
     "to-ico": "^1.1.5",
     "tsx": "^4.21.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.18"
   }
 }

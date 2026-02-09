@@ -24,6 +24,10 @@ yarn build               # Build optimized production bundle
 yarn start               # Start production server (http://localhost:23000)
 pm2 restart ai-maestro   # Restart production server via PM2
 
+# Testing
+yarn test                # Run unit tests (vitest)
+yarn test:watch          # Run tests in watch mode
+
 # Testing tmux sessions (for development)
 tmux new-session -s test-session     # Create test session
 tmux list-sessions                   # List all sessions (what the app discovers)
@@ -61,9 +65,10 @@ This script updates ALL version references across the codebase:
 **⚠️ STOP! Before creating ANY Pull Request to main, complete this checklist:**
 
 ```
-□ 1. BUMP VERSION: ./scripts/bump-version.sh patch
-□ 2. BUILD PASSES: yarn build
-□ 3. COMMIT version bump with your changes
+□ 1. TESTS PASS: yarn test
+□ 2. BUMP VERSION: ./scripts/bump-version.sh patch
+□ 3. BUILD PASSES: yarn build
+□ 4. COMMIT version bump with your changes
 ```
 
 **This is NON-NEGOTIABLE.** Every PR to main MUST include a version bump. No exceptions.

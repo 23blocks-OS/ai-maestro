@@ -6,6 +6,7 @@ import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
 import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
@@ -568,20 +569,22 @@ export default function DashboardPage() {
             `}
             style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
           >
-            <AgentList
-              agents={agents}
-              activeAgentId={activeAgentId}
-              onAgentSelect={handleAgentSelect}
-              onShowAgentProfile={handleShowAgentProfile}
-              onShowAgentProfileDangerZone={handleShowAgentProfileDangerZone}
-              onImportAgent={() => setShowImportDialog(true)}
-              loading={agentsLoading}
-              error={agentsError}
-              onRefresh={refreshAgents}
-              stats={agentStats}
-              subconsciousRefreshTrigger={subconsciousRefreshTrigger}
-              sidebarWidth={sidebarWidth}
-            />
+            <ErrorBoundary fallbackLabel="Agent List">
+              <AgentList
+                agents={agents}
+                activeAgentId={activeAgentId}
+                onAgentSelect={handleAgentSelect}
+                onShowAgentProfile={handleShowAgentProfile}
+                onShowAgentProfileDangerZone={handleShowAgentProfileDangerZone}
+                onImportAgent={() => setShowImportDialog(true)}
+                loading={agentsLoading}
+                error={agentsError}
+                onRefresh={refreshAgents}
+                stats={agentStats}
+                subconsciousRefreshTrigger={subconsciousRefreshTrigger}
+                sidebarWidth={sidebarWidth}
+              />
+            </ErrorBoundary>
           </aside>
 
           {/* Resize Handle */}
@@ -836,7 +839,9 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
+                        <ErrorBoundary fallbackLabel="Terminal">
+                          <TerminalView session={session} isVisible={isActive && activeTab === 'terminal'} />
+                        </ErrorBoundary>
                       )
                     ) : !isActive ? (
                       // For inactive agents, don't mount heavy components - just show placeholder
@@ -872,22 +877,26 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <ChatView agent={agent} isActive={true} />
+                        <ErrorBoundary fallbackLabel="Chat">
+                          <ChatView agent={agent} isActive={true} />
+                        </ErrorBoundary>
                       )
                     ) : activeTab === 'messages' ? (
-                      <MessageCenter
-                        sessionName={session.id}
-                        agentId={agent.id}
-                        allAgents={onlineAgents.map(a => ({
-                          id: a.id,
-                          name: a.name || a.alias || a.id,  // Technical name for lookups
-                          alias: a.label || a.name || a.alias || a.id,  // Display name for UI
-                          tmuxSessionName: a.session?.tmuxSessionName,
-                          hostId: a.hostId
-                        }))}
-                        hostUrl={agent.hostUrl}
-                        isActive={true}
-                      />
+                      <ErrorBoundary fallbackLabel="Messages">
+                        <MessageCenter
+                          sessionName={session.id}
+                          agentId={agent.id}
+                          allAgents={onlineAgents.map(a => ({
+                            id: a.id,
+                            name: a.name || a.alias || a.id,  // Technical name for lookups
+                            alias: a.label || a.name || a.alias || a.id,  // Display name for UI
+                            tmuxSessionName: a.session?.tmuxSessionName,
+                            hostId: a.hostId
+                          }))}
+                          hostUrl={agent.hostUrl}
+                          isActive={true}
+                        />
+                      </ErrorBoundary>
                     ) : activeTab === 'worktree' ? (
                       <WorkTree
                         sessionName={session.id}

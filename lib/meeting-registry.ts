@@ -103,9 +103,14 @@ export function updateMeeting(
   const index = meetings.findIndex(m => m.id === id)
   if (index === -1) return null
 
+  // Strip undefined values so partial PATCHes don't overwrite existing fields
+  const cleanUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, v]) => v !== undefined)
+  )
+
   meetings[index] = {
     ...meetings[index],
-    ...updates,
+    ...cleanUpdates,
   }
 
   saveMeetings(meetings)

@@ -148,14 +148,15 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
     case 'CLOSE_KANBAN':
       return { ...state, kanbanOpen: false }
 
-    case 'RESTORE_MEETING':
+    case 'RESTORE_MEETING': {
+      const agentIds = Array.isArray(action.meeting.agentIds) ? action.meeting.agentIds : []
       return {
         ...state,
         phase: 'active',
-        selectedAgentIds: action.meeting.agentIds,
-        joinedAgentIds: action.meeting.agentIds,
-        teamName: action.meeting.name,
-        activeAgentId: action.meeting.activeAgentId,
+        selectedAgentIds: agentIds,
+        joinedAgentIds: agentIds,
+        teamName: action.meeting.name || '',
+        activeAgentId: action.meeting.activeAgentId || agentIds[0] || null,
         sidebarMode: action.meeting.sidebarMode || 'grid',
         meetingId: action.meeting.id,
         // Transient UI resets on restore
@@ -163,6 +164,7 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
         rightPanelTab: 'tasks',
         kanbanOpen: false,
       }
+    }
 
     default:
       return state

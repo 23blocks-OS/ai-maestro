@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import MeetingLobby from '@/components/team-meeting/MeetingLobby'
 import MeetingRoom from '@/components/team-meeting/MeetingRoom'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 function TeamMeetingContent() {
   const searchParams = useSearchParams()
@@ -32,7 +33,9 @@ export default function TeamMeetingPage() {
         </div>
       }
     >
-      <TeamMeetingContent />
+      <ErrorBoundary fallbackLabel="Team Meeting">
+        <TeamMeetingContent />
+      </ErrorBoundary>
     </Suspense>
   )
 }

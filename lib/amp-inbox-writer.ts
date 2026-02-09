@@ -40,12 +40,14 @@ function readIndex(): Record<string, string> {
 }
 
 /**
- * Write the name→UUID index to disk.
+ * Write the name→UUID index to disk atomically (write tmp + rename).
  */
 function writeIndex(index: Record<string, string>): void {
   try {
     fsSync.mkdirSync(AMP_AGENTS_DIR, { recursive: true })
-    fsSync.writeFileSync(AMP_INDEX_FILE, JSON.stringify(index, null, 2))
+    const tmpFile = AMP_INDEX_FILE + '.tmp'
+    fsSync.writeFileSync(tmpFile, JSON.stringify(index, null, 2))
+    fsSync.renameSync(tmpFile, AMP_INDEX_FILE)
   } catch (error) {
     console.error('[AMP Index] Failed to write index:', error)
   }
@@ -100,7 +102,7 @@ function getAgentAMPHomeById(agentId: string): string {
 
 /**
  * Resolve the canonical AMP home for an agent.
- * Priority: UUID param > index lookup by name > legacy name dir.
+ * ALWAYS uses UUID. Never falls back to agent name.
  */
 function resolveAgentAMPHome(agentName: string, agentId?: string): string {
   // 1. UUID provided directly
@@ -112,8 +114,20 @@ function resolveAgentAMPHome(agentName: string, agentId?: string): string {
   if (indexedId) {
     return getAgentAMPHomeById(indexedId)
   }
-  // 3. Fallback: legacy name-based dir (pre-migration)
-  return path.join(AMP_AGENTS_DIR, agentName)
+  // 3. Last resort: look up UUID from agent registry
+  const { getAgentByName, getAgentByAlias } = require('@/lib/agent-registry')
+  const agent = getAgentByName(agentName) || getAgentByAlias(agentName)
+  if (agent?.id) {
+    return getAgentAMPHomeById(agent.id)
+  }
+  // No UUID found - try one more approach: look up by name on any host
+  const { getAgentByNameAnyHost } = require('@/lib/agent-registry')
+  const anyHostAgent = getAgentByNameAnyHost(agentName)
+  if (anyHostAgent?.id) {
+    return getAgentAMPHomeById(anyHostAgent.id)
+  }
+  // Absolutely no UUID found - reject instead of creating orphaned directories
+  throw new Error(`[AMP Inbox Writer] No UUID found for agent "${agentName}" - cannot create directory without UUID`)
 }
 
 /**
@@ -206,8 +220,8 @@ export async function initAgentAMPHome(agentName: string, agentId?: string): Pro
     await autoMigrateToUUID(agentName, agentId)
   }
 
-  // Resolve the canonical home (UUID dir if agentId provided, else name dir)
-  const agentHome = agentId ? getAgentAMPHomeById(agentId) : path.join(AMP_AGENTS_DIR, agentName)
+  // Resolve the canonical home - ALWAYS use UUID, never name
+  const agentHome = resolveAgentAMPHome(agentName, agentId)
   const agentInbox = path.join(agentHome, 'messages', 'inbox')
   const agentSent = path.join(agentHome, 'messages', 'sent')
   const agentKeys = path.join(agentHome, 'keys')
@@ -270,30 +284,9 @@ export async function initAgentAMPHome(agentName: string, agentId?: string): Pro
     }
   }
 
-  // Copy machine-level registrations if agent doesn't have them
-  try {
-    const machineRegs = path.join(AMP_DIR, 'registrations')
-    const regFiles = await fs.readdir(machineRegs)
-    for (const file of regFiles) {
-      if (file.endsWith('.json')) {
-        const destFile = path.join(agentRegs, file)
-        try {
-          await fs.access(destFile)
-        } catch {
-          const regData = JSON.parse(await fs.readFile(path.join(machineRegs, file), 'utf-8'))
-          if (regData.address) {
-            const parts = regData.address.split('@')
-            if (parts.length === 2) {
-              regData.address = `${agentName}@${parts[1]}`
-            }
-          }
-          await fs.writeFile(destFile, JSON.stringify(regData, null, 2))
-        }
-      }
-    }
-  } catch {
-    // No machine registrations
-  }
+  // NOTE: Machine-level registrations are NOT copied to agents.
+  // Each agent gets its own registration via /api/v1/register with its own API key.
+  // Copying machine-level keys caused identity contamination (wrong sender addresses).
 
   // Update the name→UUID index
   if (agentId) {
@@ -458,13 +451,6 @@ export async function isAMPInitialized(): Promise<boolean> {
  * When agentId is provided, returns the UUID-based path (stable across renames).
  */
 export function getAgentAMPDir(agentName: string, agentId?: string): string {
-  if (agentId) {
-    return getAgentAMPHomeById(agentId)
-  }
-  // Try index lookup
-  const indexedId = lookupUUID(agentName)
-  if (indexedId) {
-    return getAgentAMPHomeById(indexedId)
-  }
-  return path.join(AMP_AGENTS_DIR, agentName)
+  // ALWAYS resolve to UUID - never return name-based path
+  return resolveAgentAMPHome(agentName, agentId)
 }

@@ -10,57 +10,50 @@ interface MeetingTerminalAreaProps {
 }
 
 export default function MeetingTerminalArea({ agents, activeAgentId }: MeetingTerminalAreaProps) {
-  return (
-    <div className="flex-1 relative">
-      {agents.map(agent => {
-        const isActive = agent.id === activeAgentId
-        const session = agentToSession(agent)
-        const hasTerminal = !!agent.session?.tmuxSessionName
+  // Only render the active agent's terminal - matches main dashboard pattern.
+  // Mounting all agents simultaneously creates N WebGL contexts which exhausts
+  // the browser's GPU context limit (~8-16), breaking canvas-based text selection.
+  const activeAgent = agents.find(a => a.id === activeAgentId)
 
-        if (!hasTerminal) {
-          return (
-            <div
-              key={agent.id}
-              className="absolute inset-0 flex items-center justify-center"
-              style={{
-                visibility: isActive ? 'visible' : 'hidden',
-                pointerEvents: isActive ? 'auto' : 'none',
-                zIndex: isActive ? 10 : 0,
-              }}
-            >
-              <div className="text-center text-gray-500">
-                <p className="text-lg mb-1">{agent.label || agent.name || agent.alias}</p>
-                <p className="text-sm">No active terminal session</p>
-              </div>
-            </div>
-          )
-        }
-
-        return (
-          <div
-            key={agent.id}
-            className="absolute inset-0 flex flex-col overflow-hidden"
-            style={{
-              visibility: isActive ? 'visible' : 'hidden',
-              pointerEvents: isActive ? 'auto' : 'none',
-              zIndex: isActive ? 10 : 0,
-            }}
-          >
-            <TerminalView
-              session={session}
-              isVisible={isActive}
-              hideFooter={true}
-              hideHeader={true}
-            />
-          </div>
-        )
-      })}
-
-      {!activeAgentId && (
+  if (!activeAgent) {
+    return (
+      <div className="flex-1 relative">
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
           <p className="text-sm">Select an agent from the sidebar</p>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  const hasTerminal = !!activeAgent.session?.tmuxSessionName
+
+  if (!hasTerminal) {
+    return (
+      <div className="flex-1 relative">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <p className="text-lg mb-1">{activeAgent.label || activeAgent.name || activeAgent.alias}</p>
+            <p className="text-sm">No active terminal session</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const session = agentToSession(activeAgent)
+
+  return (
+    <div className="flex-1 relative">
+      <div
+        key={activeAgent.id}
+        className="absolute inset-0 flex flex-col"
+      >
+        <TerminalView
+          session={session}
+          isVisible={true}
+          hideFooter={true}
+        />
+      </div>
     </div>
   )
 }

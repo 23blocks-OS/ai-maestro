@@ -14,12 +14,14 @@
  *   6. Return Message object for response compatibility
  */
 
+import crypto from 'crypto'
 import { deliver } from '@/lib/message-delivery'
 import { writeToAMPSent } from '@/lib/amp-inbox-writer'
 import { applyContentSecurity } from '@/lib/content-security'
 import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
 import { resolveAgentIdentifier, getMessage } from '@/lib/messageQueue'
 import { getAgent } from '@/lib/agent-registry'
+import { verifySignature } from '@/lib/amp-keys'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { Message } from '@/lib/messageQueue'
@@ -138,8 +140,9 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   const toAgent = resolveAgentIdentifier(toIdentifier)
 
   // For unresolved recipients, create minimal resolved info
+  // NEVER use raw identifier as agentId - it could be a name
   const toResolved: ResolvedAgent = toAgent || {
-    agentId: toIdentifier,
+    agentId: '',  // Empty string - forces UUID-based functions to resolve or fail
     alias: options.toAlias || toIdentifier,
     hostId: targetHostId || undefined,
     hostUrl: undefined
@@ -163,17 +166,24 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   }
 
   // AMP signature verification (if provided)
+  // Uses the same canonical format as /api/v1/route:
+  //   from|to|subject|priority|in_reply_to|payloadHash
   let signatureVerified = false
   if (options.amp?.signature && options.amp?.senderPublicKey) {
     try {
-      const { verifySignature } = require('@/lib/amp-keys')
-      const canonicalData = JSON.stringify({
-        from: options.amp.ampAddress || (fromAgent?.alias || from),
-        to: options.toAlias || toResolved.alias || to,
+      const payloadHash = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(content))
+        .digest('base64')
+      const signatureData = [
+        options.amp.ampAddress || (fromAgent?.alias || from),
+        options.toAlias || toResolved.alias || to,
         subject,
-        timestamp: new Date().toISOString().split('T')[0],
-      })
-      signatureVerified = verifySignature(canonicalData, options.amp.signature, options.amp.senderPublicKey)
+        options.priority || 'normal',
+        options.inReplyTo || '',
+        payloadHash
+      ].join('|')
+      signatureVerified = verifySignature(signatureData, options.amp.signature, options.amp.senderPublicKey)
       if (signatureVerified) {
         isFromVerified = true
       }
@@ -239,32 +249,39 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   }
 
   if (recipientIsRemote && remoteHostUrl) {
-    // Send to remote host via HTTP
-    console.log(`[MessageSend] Sending to remote agent ${toResolved.alias}@${targetHostId} at ${remoteHostUrl}`)
+    // Send to remote host via AMP protocol (mesh forwarding)
+    const selfHostId = getSelfHostId() || getHostName()
+    console.log(`[MessageSend] Forwarding to remote agent ${toResolved.alias}@${targetHostId} via ${remoteHostUrl}/api/v1/route`)
+    const { envelope: remoteEnvelope } = buildAMPEnvelope(message)
     try {
-      const remoteResponse = await fetch(`${remoteHostUrl}/api/messages`, {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10_000)
+      const remoteResponse = await fetch(`${remoteHostUrl}/api/v1/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-From': selfHostId,
+          'X-AMP-Envelope-Id': remoteEnvelope.id,
+        },
         body: JSON.stringify({
-          from: message.from,
-          fromAlias: message.fromAlias,
-          fromLabel: message.fromLabel,
-          fromHost: message.fromHost,
-          fromVerified: message.fromVerified,
-          to: message.to,
-          toAlias: message.toAlias,
-          toLabel: message.toLabel,
-          toHost: message.toHost,
+          from: remoteEnvelope.from,
+          to: toResolved.alias || toIdentifier,
           subject,
-          content,
-          priority: options.priority,
-          inReplyTo: options.inReplyTo,
+          payload: { type: content.type, message: content.message, context: content.context },
+          priority: options.priority || 'normal',
+          in_reply_to: options.inReplyTo,
         }),
       })
+      clearTimeout(timeoutId)
       if (!remoteResponse.ok) {
-        throw new Error(`Remote host returned ${remoteResponse.status}`)
+        const errorText = await remoteResponse.text().catch(() => 'unknown')
+        throw new Error(`Remote host returned ${remoteResponse.status}: ${errorText}`)
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`Remote delivery to ${targetHostId} timed out`)
+      }
       throw new Error(`Failed to deliver message to remote agent: ${error}`)
     }
   } else {
@@ -284,10 +301,13 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
       // Local delivery via deliver()
       const { envelope, payload } = buildAMPEnvelope(message)
       const recipientName = toResolved.alias || toResolved.agentId
+      // Pass senderPublicKeyHex when sender is verified so deliver() preserves trust level
+      const senderPubKey = isFromVerified ? (options.amp?.senderPublicKey || 'verified') : undefined
       const result = await deliver({
         envelope,
         payload,
         recipientAgentName: recipientName,
+        senderPublicKeyHex: senderPubKey,
         senderName: message.fromAlias || message.from,
         senderHost: fromHostId,
         recipientAgentId: toResolved.agentId,
@@ -295,14 +315,20 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
         priority: message.priority,
         messageType: content.type,
       })
+      if (!result.delivered) {
+        throw new Error(`Message delivery failed for ${recipientName}: ${result.error || 'unknown error'}`)
+      }
       notified = result.notified
     }
   }
 
-  // ── Write sender's sent folder ───────────────────────────────────────
+  // ── Write sender's sent folder (only for local agents with UUID) ─────
   const senderName = fromAgent?.alias || message.fromAlias || message.from
-  const { envelope: sentEnvelope, payload: sentPayload } = buildAMPEnvelope(message)
-  await writeToAMPSent(sentEnvelope, sentPayload, senderName)
+  const senderUUID = fromAgent?.agentId
+  if (senderUUID) {
+    const { envelope: sentEnvelope, payload: sentPayload } = buildAMPEnvelope(message)
+    await writeToAMPSent(sentEnvelope, sentPayload, senderName, senderUUID)
+  }
 
   return { message, notified }
 }
@@ -338,7 +364,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
   }
 
   const toResolved: ResolvedAgent = toResolvedLocal || {
-    agentId: toIdentifier,
+    agentId: '',
     alias: toIdentifier,
     hostId: targetHostId || undefined,
     hostUrl: undefined
@@ -416,46 +442,81 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
   }
 
   if (recipientIsRemote && remoteHostUrl) {
-    console.log(`[MessageSend] Forwarding to remote agent ${toResolved.alias}@${targetHostId} at ${remoteHostUrl}`)
+    // Forward to remote host via AMP protocol (mesh forwarding)
+    const selfHostId = getSelfHostId() || getHostName()
+    console.log(`[MessageSend] Forwarding to remote agent ${toResolved.alias}@${targetHostId} via ${remoteHostUrl}/api/v1/route`)
+    const { envelope: fwdEnvelope } = buildAMPEnvelope(forwardedMessage)
     try {
-      const remoteResponse = await fetch(`${remoteHostUrl}/api/messages/forward`, {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10_000)
+      const remoteResponse = await fetch(`${remoteHostUrl}/api/v1/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-From': selfHostId,
+          'X-AMP-Envelope-Id': fwdEnvelope.id,
+        },
         body: JSON.stringify({
-          originalMessage: originalMessage,
-          fromSession: fromResolved.agentId,
-          toSession: toResolved.agentId,
-          forwardNote,
+          from: fwdEnvelope.from,
+          to: toResolved.alias || toIdentifier,
+          subject: forwardedMessage.subject,
+          payload: { type: 'notification', message: forwardedMessage.content.message },
+          priority: forwardedMessage.priority || 'normal',
         }),
       })
+      clearTimeout(timeoutId)
       if (!remoteResponse.ok) {
-        throw new Error(`Remote host returned ${remoteResponse.status}`)
+        const errorText = await remoteResponse.text().catch(() => 'unknown')
+        throw new Error(`Remote host returned ${remoteResponse.status}: ${errorText}`)
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`Forward to ${targetHostId} timed out`)
+      }
       throw new Error(`Failed to forward message to remote agent: ${error}`)
     }
   } else {
-    // Local delivery via deliver()
-    const recipientName = toResolved.alias || toResolved.agentId
-    const { envelope, payload } = buildAMPEnvelope(forwardedMessage)
-    const result = await deliver({
-      envelope,
-      payload,
-      recipientAgentName: recipientName,
-      senderName: fromResolved.alias || fromResolved.agentId,
-      senderHost: fromHostId,
-      recipientAgentId: toResolved.agentId,
-      subject: forwardedMessage.subject,
-      priority: forwardedMessage.priority,
-      messageType: 'notification',
-    })
-    notified = result.notified
+    // Check if recipient is an AMP-external agent without active session
+    const recipientFullAgent = getAgent(toResolved.agentId)
+    const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
+    const hasNoActiveSession = !toResolved.sessionName ||
+      !recipientFullAgent?.sessions?.some((s: any) => s.status === 'online')
+
+    if (isAMPExternalAgent && hasNoActiveSession) {
+      // Queue to AMP relay for external agent to poll
+      console.log(`[MessageSend] Forward recipient ${toResolved.alias} is AMP external agent - queuing to relay`)
+      const { envelope, payload } = buildAMPEnvelope(forwardedMessage)
+      queueToAMPRelay(toResolved.agentId, envelope, payload, '')
+    } else {
+      // Local delivery via deliver()
+      const recipientName = toResolved.alias || toResolved.agentId
+      const { envelope, payload } = buildAMPEnvelope(forwardedMessage)
+      const result = await deliver({
+        envelope,
+        payload,
+        recipientAgentName: recipientName,
+        senderPublicKeyHex: 'verified',  // Forwards are always from a local verified agent
+        senderName: fromResolved.alias || fromResolved.agentId,
+        senderHost: fromHostId,
+        recipientAgentId: toResolved.agentId,
+        subject: forwardedMessage.subject,
+        priority: forwardedMessage.priority,
+        messageType: 'notification',
+      })
+      if (!result.delivered) {
+        throw new Error(`Forward delivery failed for ${recipientName}: ${result.error || 'unknown error'}`)
+      }
+      notified = result.notified
+    }
   }
 
-  // ── Write sender's sent folder ───────────────────────────────────────
-  const senderName = fromResolved.alias || fromResolved.agentId
-  const { envelope: sentEnvelope, payload: sentPayload } = buildAMPEnvelope(forwardedMessage)
-  await writeToAMPSent(sentEnvelope, sentPayload, senderName)
+  // ── Write sender's sent folder (only for local agents with UUID) ─────
+  if (fromResolved.agentId) {
+    const senderName = fromResolved.alias || fromResolved.agentId
+    const { envelope: sentEnvelope, payload: sentPayload } = buildAMPEnvelope(forwardedMessage)
+    await writeToAMPSent(sentEnvelope, sentPayload, senderName, fromResolved.agentId)
+  }
 
   return { message: forwardedMessage, notified }
 }

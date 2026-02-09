@@ -17,10 +17,12 @@ export default function AgentPicker({ agents, selectedAgentIds, onToggleAgent }:
     if (!searchQuery.trim()) return agents
     const q = searchQuery.toLowerCase()
     return agents.filter(a => {
-      const name = (a.label || a.name || a.alias || '').toLowerCase()
+      const label = (a.label || '').toLowerCase()
+      const name = (a.name || '').toLowerCase()
+      const alias = (a.alias || '').toLowerCase()
       const tags = (a.tags || []).join(' ').toLowerCase()
       const host = (a.hostId || '').toLowerCase()
-      return name.includes(q) || tags.includes(q) || host.includes(q)
+      return label.includes(q) || name.includes(q) || alias.includes(q) || tags.includes(q) || host.includes(q)
     })
   }, [agents, searchQuery])
 
@@ -85,6 +87,9 @@ export default function AgentPicker({ agents, selectedAgentIds, onToggleAgent }:
 
               {/* Name */}
               <span className="text-xs text-gray-300 text-center truncate w-full">{displayName}</span>
+              {agent.label && agent.name && agent.name !== agent.label && (
+                <span className="text-[9px] text-gray-600 text-center truncate w-full -mt-1">{agent.name}</span>
+              )}
             </div>
           )
         })}

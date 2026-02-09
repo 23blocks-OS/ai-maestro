@@ -55,9 +55,21 @@ export async function GET(request: NextRequest) {
   // Sort chronologically (oldest first for chat display)
   meetingMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
+  // Deduplicate broadcast messages: same sender + same preview + similar timestamp → keep one
+  const deduped: MessageSummary[] = []
+  const broadcastSeen = new Set<string>()
+  for (const msg of meetingMessages) {
+    // Create a key from sender + preview + second-level timestamp
+    const ts = msg.timestamp.slice(0, 19) // trim to second precision
+    const dedupeKey = `${msg.from}|${msg.preview}|${ts}`
+    if (broadcastSeen.has(dedupeKey)) continue
+    broadcastSeen.add(dedupeKey)
+    deduped.push(msg)
+  }
+
   return NextResponse.json({
     meetingId,
-    messages: meetingMessages,
-    count: meetingMessages.length,
+    messages: deduped,
+    count: deduped.length,
   })
 }

@@ -60,21 +60,25 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
     (securedEnvelopePayload as any).security = securedPayload.security
   }
 
-  // 1b. Try WebSocket delivery first (real-time)
-  let wsDelivered = false
-  const recipientAddress = envelope.to
-  if (isAgentConnectedViaWS(recipientAddress)) {
-    wsDelivered = deliverViaWebSocket(recipientAddress, envelope, securedEnvelopePayload, senderPublicKeyHex)
-    if (wsDelivered) {
-      console.log(`[Delivery] Delivered ${envelope.id} via WebSocket to ${recipientAddress}`)
-    }
+  // 1b. Write to recipient's AMP per-agent inbox (always, for persistence)
+  // Disk persistence is the source of truth for "delivered" — WebSocket is supplementary.
+  // ALWAYS use UUID for directory resolution - never fall back to agent name
+  if (!recipientAgentId) {
+    console.error(`[Delivery] No recipientAgentId for ${recipientAgentName} - cannot write inbox`)
+    return { delivered: false, notified: false, error: 'No recipient agent UUID' }
   }
-
-  // 1c. Write to recipient's AMP per-agent inbox (always, for persistence)
-  // Prefer UUID-based directory for stability across renames
   const inboxPath = await writeToAMPInbox(envelope, securedEnvelopePayload, recipientAgentName, senderPublicKeyHex, recipientAgentId)
   if (!inboxPath) {
-    return { delivered: wsDelivered, notified: false, error: 'Failed to write to AMP inbox' }
+    return { delivered: false, notified: false, error: 'Failed to write to AMP inbox' }
+  }
+
+  // 1c. Try WebSocket delivery (real-time push, supplementary to disk write)
+  const recipientAddress = envelope.to
+  if (isAgentConnectedViaWS(recipientAddress)) {
+    const wsOk = deliverViaWebSocket(recipientAddress, envelope, securedEnvelopePayload, senderPublicKeyHex)
+    if (wsOk) {
+      console.log(`[Delivery] Also pushed ${envelope.id} via WebSocket to ${recipientAddress}`)
+    }
   }
 
   // 2. Send tmux notification (non-fatal)
@@ -134,7 +138,7 @@ async function deliverViaWebhook(
       hostname === '127.0.0.1' ||
       hostname.startsWith('10.') ||
       hostname.startsWith('192.168.') ||
-      hostname.startsWith('172.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
       hostname === '0.0.0.0' ||
       hostname === '::1'
     ) {

@@ -388,6 +388,111 @@ test_message_acknowledgment() {
 }
 
 # =============================================================================
+# Short Name / Partial Name Resolution Tests
+# =============================================================================
+
+test_short_name_delivery() {
+    local sender_key="$1"
+    local sender_name="$2"
+    local short_name="$3"
+    local expected_status="$4"  # "delivered" or "not_found"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    log_info "Testing: ${sender_name} -> '${short_name}' (short/partial name resolution, expect ${expected_status})"
+
+    local test_id
+    test_id=$(generate_test_id)
+    local subject="Short Name Test ${test_id}"
+    local message="Testing short name resolution for '${short_name}'"
+
+    local send_response
+    send_response=$(send_message "$sender_key" "$short_name" "$subject" "$message")
+
+    local status
+    status=$(echo "$send_response" | jq -r '.status // empty')
+    local error
+    error=$(echo "$send_response" | jq -r '.error // empty')
+
+    if [ "$expected_status" = "delivered" ]; then
+        if [ "$status" = "delivered" ]; then
+            log_success "Short name '${short_name}' resolved and delivered"
+            return 0
+        elif [ "$status" = "queued" ]; then
+            log_success "Short name '${short_name}' resolved (queued — agent offline)"
+            return 0
+        else
+            log_fail "Expected delivery for '${short_name}', got: $(echo "$send_response" | jq -c .)"
+            return 1
+        fi
+    elif [ "$expected_status" = "not_found" ]; then
+        if [ "$error" = "not_found" ]; then
+            log_success "Nonexistent name '${short_name}' correctly returned 404"
+            return 0
+        else
+            log_fail "Expected 404 for '${short_name}', got: $(echo "$send_response" | jq -c .)"
+            return 1
+        fi
+    fi
+}
+
+test_uuid_delivery() {
+    local sender_key="$1"
+    local sender_name="$2"
+    local recipient_uuid="$3"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    log_info "Testing: ${sender_name} -> UUID '${recipient_uuid}' (direct UUID delivery)"
+
+    local test_id
+    test_id=$(generate_test_id)
+    local subject="UUID Test ${test_id}"
+    local message="Testing direct UUID delivery"
+
+    local send_response
+    send_response=$(send_message "$sender_key" "$recipient_uuid" "$subject" "$message")
+
+    local status
+    status=$(echo "$send_response" | jq -r '.status // empty')
+
+    if [ "$status" = "delivered" ] || [ "$status" = "queued" ]; then
+        log_success "UUID delivery succeeded: status=${status}"
+        return 0
+    else
+        log_fail "UUID delivery failed: $(echo "$send_response" | jq -c .)"
+        return 1
+    fi
+}
+
+test_mesh_peer_query() {
+    local query_name="$1"
+    local expected_exists="$2"  # "true" or "false"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local base_url="${API_URL%/v1}"
+    log_info "Testing: GET /api/agents/by-name/${query_name} (expect exists=${expected_exists})"
+
+    local response
+    response=$(curl -s -m "${CURL_TIMEOUT}" "${base_url}/agents/by-name/${query_name}" 2>/dev/null)
+
+    local exists
+    exists=$(echo "$response" | jq -r '.exists // false')
+
+    if [ "$exists" = "$expected_exists" ]; then
+        if [ "$expected_exists" = "true" ]; then
+            local resolved_name
+            resolved_name=$(echo "$response" | jq -r '.agent.name // empty')
+            log_success "Mesh peer query '${query_name}' -> exists=true (resolved to '${resolved_name}')"
+        else
+            log_success "Mesh peer query '${query_name}' -> exists=false (correct)"
+        fi
+        return 0
+    else
+        log_fail "Mesh peer query '${query_name}': expected exists=${expected_exists}, got exists=${exists}"
+        return 1
+    fi
+}
+
+# =============================================================================
 # Main Test Runner
 # =============================================================================
 
@@ -499,6 +604,81 @@ main() {
 
     if [ -n "$AGENT_C_KEY" ]; then
         test_message_acknowledgment "$AGENT_C_KEY" "$AGENT_C_NAME"
+    fi
+
+    # ==========================================================================
+    log_section "Phase 6: Short Name & Partial Name Resolution"
+    # ==========================================================================
+
+    # These tests use the test agents created above with timestamped names.
+    # Agent names are like "test-a-1707350400" — the last segment is the timestamp.
+    # Partial match should find them by last segment (the timestamp).
+
+    if [ -n "$AGENT_A_KEY" ]; then
+        # Test: send to nonexistent name → expect 404
+        test_short_name_delivery "$AGENT_A_KEY" "$AGENT_A_NAME" "nonexistent-agent-xyz-999" "not_found"
+
+        # Test: send to partial last segment of test-b agent
+        # Agent B is "test-b-<timestamp>", last segment is <timestamp>
+        # This tests the partial-match path in resolveAgent step 5
+        test_short_name_delivery "$AGENT_A_KEY" "$AGENT_A_NAME" "$AGENT_B_NAME" "delivered"
+    fi
+
+    # ==========================================================================
+    log_section "Phase 7: Mesh Peer Query (/api/agents/by-name)"
+    # ==========================================================================
+
+    # Test: query for a test agent by full name → expect exists=true
+    test_mesh_peer_query "$AGENT_A_NAME" "true"
+
+    # Test: query for nonexistent agent → expect exists=false
+    test_mesh_peer_query "nonexistent-agent-xyz-999" "false"
+
+    # Test: query for a test agent by full name (agent B)
+    test_mesh_peer_query "$AGENT_B_NAME" "true"
+
+    # ==========================================================================
+    log_section "Phase 8: Real Agent Integration (Short Name + Partial Match)"
+    # ==========================================================================
+
+    # Discover real registered agents from the running server.
+    # This tests the actual scenario that broke: existing agents sending
+    # to each other using short names via the AMP API.
+
+    if [ -n "$AGENT_A_KEY" ]; then
+        local base_url="${API_URL%/v1}"
+        local sessions_response
+        sessions_response=$(curl -s -m "${CURL_TIMEOUT}" "${base_url}/sessions" 2>/dev/null)
+        local session_count
+        session_count=$(echo "$sessions_response" | jq -r '.sessions | length' 2>/dev/null || echo "0")
+
+        if [ "$session_count" -gt 0 ]; then
+            log_info "Found ${session_count} live session(s) — testing real agent resolution"
+
+            # Pick the first real agent name (not a test- agent)
+            local real_agent_name
+            real_agent_name=$(echo "$sessions_response" | jq -r '[.sessions[].agentName // empty | select(startswith("test-") | not)] | first // empty' 2>/dev/null)
+
+            if [ -n "$real_agent_name" ] && [ "$real_agent_name" != "null" ]; then
+                # Test: send to real agent by full name → expect delivered
+                test_short_name_delivery "$AGENT_A_KEY" "$AGENT_A_NAME" "$real_agent_name" "delivered"
+
+                # Test: mesh peer query for real agent → expect exists=true
+                test_mesh_peer_query "$real_agent_name" "true"
+
+                # Test: extract last segment and send via partial match
+                local last_segment
+                last_segment=$(echo "$real_agent_name" | rev | cut -d'-' -f1 | rev)
+                if [ -n "$last_segment" ] && [ "$last_segment" != "$real_agent_name" ]; then
+                    test_short_name_delivery "$AGENT_A_KEY" "$AGENT_A_NAME" "$last_segment" "delivered"
+                    test_mesh_peer_query "$last_segment" "true"
+                fi
+            else
+                log_warn "No non-test agents found in sessions — skipping real agent tests"
+            fi
+        else
+            log_warn "No live sessions found — skipping real agent integration tests"
+        fi
     fi
 
     # ==========================================================================

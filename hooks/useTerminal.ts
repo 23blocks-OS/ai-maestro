@@ -101,8 +101,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       windowOptions: {
         setWinLines: true,
       },
-      // Disable Windows mode - we're on Unix/macOS
-      windowsMode: false,
       // Disable screen reader mode - accessibility tree handled via CSS pointer-events
       screenReaderMode: false,
       disableStdin: false,

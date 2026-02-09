@@ -67,14 +67,17 @@ export function useMeetingMessages({
       }))
 
       if (lastFetchRef.current && newMessages.length > 0) {
-        // Incremental: append new messages
+        // Incremental: append new messages, replace optimistic ones
         setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id))
+          const existingIds = new Set(prev.filter(m => !m.id.startsWith('optimistic-')).map(m => m.id))
           const toAdd = newMessages.filter(m => !existingIds.has(m.id))
-          return toAdd.length > 0 ? [...prev, ...toAdd] : prev
+          if (toAdd.length === 0) return prev
+          // Remove optimistic messages that now have real counterparts
+          const withoutOptimistic = prev.filter(m => !m.id.startsWith('optimistic-'))
+          return [...withoutOptimistic, ...toAdd]
         })
       } else if (!lastFetchRef.current) {
-        // Initial fetch: replace all
+        // Initial fetch: replace all (including any optimistic)
         setMessages(newMessages)
         seenCountRef.current = newMessages.length
       }
@@ -109,38 +112,65 @@ export function useMeetingMessages({
     }
   }, [meetingId, isActive, fetchMessages])
 
+  // Show a message optimistically before server confirms
+  const addOptimistic = useCallback((text: string, toAgent?: string) => {
+    const optimistic: MeetingMessage = {
+      id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      from: 'maestro',
+      fromAlias: 'Maestro',
+      to: toAgent || 'all',
+      toAlias: toAgent ? undefined : 'All',
+      timestamp: new Date().toISOString(),
+      subject: `[MEETING:${meetingId}]`,
+      preview: text,
+      status: 'unread',
+      priority: 'normal',
+      type: 'notification',
+      isMine: true,
+      displayFrom: 'Maestro',
+    }
+    setMessages(prev => [...prev, optimistic])
+  }, [meetingId])
+
   const sendToAgent = useCallback(async (agentId: string, message: string) => {
     if (!meetingId) return
     const pIds = stableParticipantIds.current
-    await fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'maestro',
-        fromAlias: 'Maestro',
-        to: agentId,
-        subject: `[MEETING:${meetingId}] ${teamName}`,
-        content: {
-          type: 'notification',
-          message,
-          context: {
-            meeting: {
-              meetingId,
-              teamName,
-              participantIds: pIds,
-              isBroadcast: false,
+    addOptimistic(message, agentId)
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'maestro',
+          fromAlias: 'Maestro',
+          to: agentId,
+          subject: `[MEETING:${meetingId}] ${teamName}`,
+          content: {
+            type: 'notification',
+            message,
+            context: {
+              meeting: {
+                meetingId,
+                teamName,
+                participantIds: pIds,
+                isBroadcast: false,
+              },
             },
           },
-        },
-      }),
-    })
-    // Immediately refresh
-    await fetchMessages()
-  }, [meetingId, teamName, participantKey, fetchMessages])
+        }),
+      })
+    } catch (err) {
+      console.error('Failed to send message:', err)
+    }
+    // Refresh after a short delay to let file I/O settle
+    setTimeout(() => fetchMessages(), 300)
+  }, [meetingId, teamName, participantKey, fetchMessages, addOptimistic])
 
   const broadcastToAll = useCallback(async (message: string) => {
     if (!meetingId) return
     const pIds = stableParticipantIds.current
+    // Show one optimistic message for the broadcast (not N copies)
+    addOptimistic(message)
     // Send individual messages to each participant
     await Promise.all(
       pIds.map(agentId =>
@@ -168,8 +198,9 @@ export function useMeetingMessages({
         }).catch(err => console.error(`Failed to send to ${agentId}:`, err))
       )
     )
-    await fetchMessages()
-  }, [meetingId, teamName, participantKey, fetchMessages])
+    // Refresh after a short delay to let file I/O settle
+    setTimeout(() => fetchMessages(), 300)
+  }, [meetingId, teamName, participantKey, fetchMessages, addOptimistic])
 
   const markAsRead = useCallback(() => {
     seenCountRef.current = messages.length

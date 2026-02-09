@@ -136,12 +136,24 @@ function ensureAgentsDir() {
 /**
  * Load all agents from registry
  */
+// mtime-based cache to avoid redundant disk reads within the same tick
+let _cachedAgents: Agent[] | null = null
+let _cachedMtimeMs: number = 0
+
 export function loadAgents(): Agent[] {
   try {
     ensureAgentsDir()
 
     if (!fs.existsSync(REGISTRY_FILE)) {
+      _cachedAgents = null
+      _cachedMtimeMs = 0
       return []
+    }
+
+    // Return cached data if file hasn't changed
+    const stat = fs.statSync(REGISTRY_FILE)
+    if (_cachedAgents && stat.mtimeMs === _cachedMtimeMs) {
+      return _cachedAgents
     }
 
     const data = fs.readFileSync(REGISTRY_FILE, 'utf-8')
@@ -163,6 +175,8 @@ export function loadAgents(): Agent[] {
       console.log('[Agent Registry] Migrated claudeArgs → programArgs')
     }
 
+    _cachedAgents = agents
+    _cachedMtimeMs = stat.mtimeMs
     return agents
   } catch (error) {
     console.error('Failed to load agents:', error)
@@ -179,6 +193,10 @@ export function saveAgents(agents: Agent[]): boolean {
 
     const data = JSON.stringify(agents, null, 2)
     fs.writeFileSync(REGISTRY_FILE, data, 'utf-8')
+
+    // Invalidate cache so next loadAgents() re-reads from disk
+    _cachedAgents = null
+    _cachedMtimeMs = 0
 
     return true
   } catch (error) {
@@ -264,6 +282,27 @@ export function getAgentByAliasAnyHost(alias: string): Agent | null {
     a.name?.toLowerCase() === normalizedAlias ||
     a.alias?.toLowerCase() === normalizedAlias
   ) || null
+}
+
+/**
+ * Get agent by partial last-segment match.
+ * E.g., "rag" matches "23blocks-api-rag", "crm" matches "23blocks-api-crm".
+ * If multiple matches exist, prefers the agent on self host.
+ */
+export function getAgentByPartialName(partialName: string): Agent | null {
+  const agents = loadAgents()
+  const lower = partialName.toLowerCase()
+  const matches = agents.filter(a => {
+    const agentName = a.name || a.alias || ''
+    const segments = agentName.split(/[-_]/)
+    return segments.length > 1 && segments[segments.length - 1].toLowerCase() === lower
+  })
+  if (matches.length === 0) return null
+  if (matches.length === 1) return matches[0]
+  // Prefer agent on self host to reduce ambiguity
+  const selfId = getSelfHostId()?.toLowerCase()
+  const selfHostMatch = selfId ? matches.find(a => (a.hostId || '').toLowerCase() === selfId) : null
+  return selfHostMatch || matches[0]
 }
 
 /**
@@ -1050,7 +1089,7 @@ export function removeSessionFromAgent(agentId: string, sessionIndex: number): b
 // Email Identity Management
 // ============================================================================
 
-import type { EmailAddress, EmailIndexEntry, EmailIndexResponse, EmailConflictError, AMPAddress, AMPAddressIndexEntry } from '@/types/agent'
+import type { EmailAddress, EmailIndexResponse, EmailConflictError, AMPAddress, AMPAddressIndexEntry } from '@/types/agent'
 
 /**
  * Normalize email address for case-insensitive comparison
@@ -2129,9 +2168,13 @@ export async function checkMeshAgentExists(
     failedHosts: [] as string[]
   }
 
-  // Check locally first
+  // Check locally first — exact name, then alias, then partial match
   const selfHostId = getSelfHostId()
   const localAgent = getAgentByName(name, selfHostId)
+    || getAgentByAlias(name, selfHostId)
+    || getAgentByNameAnyHost(name)
+    || getAgentByAliasAnyHost(name)
+    || getAgentByPartialName(name)
   if (localAgent) {
     result.exists = true
     result.host = selfHostId

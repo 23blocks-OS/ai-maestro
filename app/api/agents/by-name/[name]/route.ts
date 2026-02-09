@@ -3,17 +3,20 @@
  *
  * GET /api/agents/by-name/[name]
  *
- * Looks up an agent by name on this host.
- * Used for mesh-wide uniqueness checks - peer hosts call this endpoint
- * to verify if an agent name exists before allowing registration.
+ * Looks up an agent by name on this host using rich resolution:
+ *   1. Exact name match
+ *   2. UUID match
+ *   3. Alias match
+ *   4. Session name match
+ *   5. Partial match on last segment (e.g. "rag" → "23blocks-api-rag")
  *
- * This endpoint is part of Phase 2 of the AMP Protocol Fix:
- * - Enables mesh-wide uniqueness checks for agent names
- * - Returns minimal agent info to avoid data leakage
+ * This is used by mesh peers during checkMeshAgentExists() discovery
+ * and must support the same short-name resolution as local delivery.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getAgentByName } from '@/lib/agent-registry'
+import { getAgent } from '@/lib/agent-registry'
+import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId } from '@/lib/hosts-config'
 
 interface AgentLookupResponse {
@@ -29,27 +32,36 @@ interface AgentLookupResponse {
 /**
  * GET /api/agents/by-name/[name]
  *
- * Check if an agent exists by name on this host
+ * Check if an agent exists by name on this host (rich resolution)
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ): Promise<NextResponse<AgentLookupResponse>> {
   try {
     const { name } = await params
-    const decodedName = decodeURIComponent(name).toLowerCase()
+    const decodedName = decodeURIComponent(name)
     const selfHostId = getSelfHostId()
 
-    // Look up agent by name on this host
-    const agent = getAgentByName(decodedName, selfHostId)
+    // Use the same rich resolution as the routing endpoint:
+    // exact name → UUID → alias → session name → partial last segment
+    const resolved = resolveAgentIdentifier(decodedName)
 
+    if (!resolved?.agentId) {
+      return NextResponse.json({
+        exists: false
+      })
+    }
+
+    // Get full agent record for the response
+    const agent = getAgent(resolved.agentId)
     if (!agent) {
       return NextResponse.json({
         exists: false
       })
     }
 
-    // Return minimal info - just enough for uniqueness check
+    // Return minimal info
     return NextResponse.json({
       exists: true,
       agent: {

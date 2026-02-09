@@ -17,11 +17,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Team name is required' }, { status: 400 })
     }
 
-    if (!agentIds || !Array.isArray(agentIds) || agentIds.length === 0) {
-      return NextResponse.json({ error: 'At least one agent is required' }, { status: 400 })
+    if (agentIds && !Array.isArray(agentIds)) {
+      return NextResponse.json({ error: 'agentIds must be an array' }, { status: 400 })
     }
 
-    const team = createTeam({ name, description, agentIds })
+    const team = createTeam({ name, description, agentIds: agentIds || [] })
     return NextResponse.json({ team }, { status: 201 })
   } catch (error) {
     console.error('Failed to create team:', error)

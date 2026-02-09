@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
   const includeOffline = searchParams.get('includeOffline') !== 'false'
-  const timeout = parseInt(searchParams.get('timeout') || '5000', 10)
+  const timeout = parseInt(searchParams.get('timeout') || '3000', 10)
 
   const hosts = getHosts()
   const selfHost = getSelfHost()

@@ -22,9 +22,9 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, description, agentIds, lastMeetingAt } = body
+    const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt } = body
 
-    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt })
+    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt })
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }

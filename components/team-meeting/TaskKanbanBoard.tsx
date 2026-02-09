@@ -23,7 +23,7 @@ interface TaskKanbanBoardProps {
   onUpdateTask: (taskId: string, updates: { status?: TaskStatus; [key: string]: unknown }) => Promise<{ unblocked: TaskWithDeps[] }>
   onDeleteTask: (taskId: string) => Promise<void>
   onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
-  onClose: () => void
+  onClose?: () => void
   teamName: string
 }
 
@@ -45,7 +45,7 @@ export default function TaskKanbanBoard({
       if (e.key === 'Escape') {
         if (selectedTask) { setSelectedTask(null) }
         else if (quickAddStatus !== null) { setQuickAddStatus(null) }
-        else { onClose() }
+        else { onClose?.() }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -90,13 +90,15 @@ export default function TaskKanbanBoard({
             {tasks.length} task{tasks.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
-        >
-          <X className="w-3 h-3" />
-          Close
-        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Close
+          </button>
+        )}
       </div>
 
       {/* Board */}

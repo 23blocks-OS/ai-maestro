@@ -43,6 +43,9 @@ import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
 import { SubconsciousStatus } from './SubconsciousStatus'
 import AgentBadge from './AgentBadge'
+import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwitcher'
+import TeamListView from './sidebar/TeamListView'
+import MeetingListView from './sidebar/MeetingListView'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -197,6 +200,12 @@ export default function AgentList({
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Sidebar view state (agents / teams / meetings)
+  const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
+    if (typeof window === 'undefined') return 'agents'
+    return (localStorage.getItem('agent-sidebar-view') as SidebarView) || 'agents'
+  })
 
   // Session activity tracking (for waiting/active/idle status)
   const { getSessionActivity } = useSessionActivity()
@@ -381,6 +390,11 @@ export default function AgentList({
   useEffect(() => {
     localStorage.setItem('agent-sidebar-view-mode', viewMode)
   }, [viewMode])
+
+  // Persist sidebar view
+  useEffect(() => {
+    localStorage.setItem('agent-sidebar-view', sidebarView)
+  }, [sidebarView])
 
   // Persist footer expanded state
   useEffect(() => {
@@ -821,6 +835,9 @@ export default function AgentList({
             </div>
           )}
         </div>
+
+        {/* View Switcher */}
+        <SidebarViewSwitcher activeView={sidebarView} onViewChange={setSidebarView} />
       </div>
 
       {/* Error State */}
@@ -830,7 +847,22 @@ export default function AgentList({
         </div>
       )}
 
+      {/* Teams View */}
+      {sidebarView === 'teams' && (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <TeamListView agents={agents} searchQuery={searchQuery} />
+        </div>
+      )}
+
+      {/* Meetings View */}
+      {sidebarView === 'meetings' && (
+        <div className="flex-1 min-h-0">
+          <MeetingListView agents={agents} searchQuery={searchQuery} />
+        </div>
+      )}
+
       {/* Agent List */}
+      {sidebarView === 'agents' && (
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {loading && agents.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">
@@ -1346,9 +1378,10 @@ export default function AgentList({
           </div>
         )}
       </div>
+      )}
 
       {/* Footer - Collapsible */}
-      <div className="border-t border-sidebar-border mt-auto">
+      <div className="flex-shrink-0 border-t border-sidebar-border">
         {/* Footer Header */}
         <div className="flex items-center justify-between px-4 py-2">
           <button

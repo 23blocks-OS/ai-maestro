@@ -16,6 +16,7 @@ import MeetingTerminalArea from '@/components/team-meeting/MeetingTerminalArea'
 import MeetingRightPanel from '@/components/team-meeting/MeetingRightPanel'
 import TaskKanbanBoard from '@/components/team-meeting/TaskKanbanBoard'
 import RingingAnimation from '@/components/team-meeting/RingingAnimation'
+import { VersionChecker } from '@/components/VersionChecker'
 import type { TeamMeetingState, TeamMeetingAction, Team, RightPanelTab, Meeting } from '@/types/team'
 
 const TeamSaveDialog = dynamic(
@@ -133,6 +134,19 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
           : state.joinedAgentIds,
       }
 
+    case 'REMOVE_AGENT': {
+      const remaining = state.selectedAgentIds.filter(id => id !== action.agentId)
+      if (remaining.length === 0) return state // Don't allow empty meeting
+      return {
+        ...state,
+        selectedAgentIds: remaining,
+        joinedAgentIds: state.joinedAgentIds.filter(id => id !== action.agentId),
+        activeAgentId: state.activeAgentId === action.agentId
+          ? remaining[0] || null
+          : state.activeAgentId,
+      }
+    }
+
     case 'TOGGLE_RIGHT_PANEL':
       return { ...state, rightPanelOpen: !state.rightPanelOpen }
 
@@ -173,9 +187,10 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
 
 interface MeetingRoomProps {
   meetingId: string
+  teamParam?: string | null
 }
 
-export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
+export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) {
   const router = useRouter()
   const { agents, loading: agentsLoading } = useAgents()
   const [state, dispatch] = useReducer(meetingReducer, initialState)
@@ -187,6 +202,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
   const [restoring, setRestoring] = useState(!isNewMeeting)
   const [notFound, setNotFound] = useState(false)
   const persistedMeetingIdRef = useRef<string | null>(null)
+  const creatingMeetingRef = useRef(false)
 
   // Restore meeting from disk on mount (skip for new meetings)
   useEffect(() => {
@@ -221,13 +237,36 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     return () => { cancelled = true }
   }, [meetingId, isNewMeeting])
 
+  // Auto-load team from ?team= query param (for "Start Meeting from Team Card" flow)
+  useEffect(() => {
+    if (!isNewMeeting || !teamParam) return
+    let cancelled = false
+    async function loadTeamFromParam() {
+      try {
+        const res = await fetch(`/api/teams/${teamParam}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const team: Team = data.team
+        if (cancelled || !team) return
+        dispatch({ type: 'LOAD_TEAM', agentIds: team.agentIds, teamName: team.name })
+        setTeamId(team.id)
+      } catch {
+        // silent — user can still pick agents manually
+      }
+    }
+    loadTeamFromParam()
+    return () => { cancelled = true }
+  }, [isNewMeeting, teamParam])
+
   // When meeting becomes active and there's no persisted meeting record yet (new meeting flow),
   // create one
   useEffect(() => {
     if (state.phase !== 'active' || persistedMeetingIdRef.current) return
+    if (creatingMeetingRef.current) return
     if (!state.teamName.trim() || state.selectedAgentIds.length === 0) return
 
     async function createMeetingRecord() {
+      creatingMeetingRef.current = true
       // Ensure we have a teamId first
       let resolvedTeamId = teamId
       if (!resolvedTeamId && state.teamName.trim()) {
@@ -273,6 +312,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
           window.history.replaceState(null, '', `/team-meeting?meeting=${data.meeting.id}`)
         }
       } catch {
+        creatingMeetingRef.current = false
         // meeting still works ephemerally
       }
     }
@@ -528,6 +568,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
               onOpenChat={() => dispatch({ type: 'OPEN_RIGHT_PANEL', tab: 'chat' })}
               taskCount={activeTaskCount}
               chatUnreadCount={chatHook.unreadCount}
+              teamId={teamId}
             />
 
             <div className="flex flex-1 overflow-hidden">
@@ -536,10 +577,12 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 activeAgentId={state.activeAgentId}
                 sidebarMode={state.sidebarMode}
                 onSelectAgent={(id) => dispatch({ type: 'SET_ACTIVE_AGENT', agentId: id })}
+                onRemoveAgent={(id) => dispatch({ type: 'REMOVE_AGENT', agentId: id })}
                 onToggleMode={() => dispatch({ type: 'TOGGLE_SIDEBAR_MODE' })}
                 onAddAgent={() => setShowAgentPickerInMeeting(true)}
                 tasksByAgent={taskHook.tasksByAgent}
                 messageCountsByAgent={messageCountsByAgent}
+                canRemove={selectedAgents.length > 1}
               />
 
               {state.kanbanOpen && teamId ? (
@@ -673,6 +716,26 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
           onClose={() => setShowLoadDialog(false)}
           onLoad={handleLoadTeam}
         />
+
+        {/* Footer */}
+        <footer className="border-t border-gray-800 bg-gray-950 px-4 py-2 flex-shrink-0">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-1 md:gap-0 md:h-5">
+            <p className="text-xs md:text-sm text-white leading-none">
+              <VersionChecker /> • Made with <span className="text-red-500 text-lg inline-block scale-x-125">♥</span> in Boulder Colorado
+            </p>
+            <p className="text-xs md:text-sm text-white leading-none">
+              Concept by{' '}
+              <a href="https://x.com/jkpelaez" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors">
+                Juan Pelaez
+              </a>{' '}
+              @{' '}
+              <a href="https://23blocks.com" target="_blank" rel="noopener noreferrer" className="font-semibold text-red-500 hover:text-red-400 transition-colors">
+                23blocks
+              </a>
+              . Coded by Claude
+            </p>
+          </div>
+        </footer>
       </div>
     </TerminalProvider>
   )

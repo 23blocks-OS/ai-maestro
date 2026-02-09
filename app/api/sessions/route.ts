@@ -38,7 +38,7 @@ async function httpGet(url: string): Promise<any> {
     const urlObj = new URL(url)
     const client = urlObj.protocol === 'https:' ? https : http
 
-    const req = client.get(url, { timeout: 5000 }, (res) => {
+    const req = client.get(url, { timeout: 2000 }, (res) => {
       let data = ''
       res.on('data', chunk => data += chunk)
       res.on('end', () => {
@@ -66,7 +66,8 @@ async function httpGet(url: string): Promise<any> {
  */
 async function fetchRemoteSessions(hostUrl: string, hostId: string): Promise<Session[]> {
   try {
-    const data = await httpGet(`${hostUrl}/api/sessions`)
+    // Pass local=true so the remote host only returns its own sessions (no cascading fan-out)
+    const data = await httpGet(`${hostUrl}/api/sessions?local=true`)
     const remoteSessions = data.sessions || []
 
     console.log(`[Sessions] Successfully fetched ${remoteSessions.length} session(s) from ${hostUrl}`)
@@ -233,27 +234,38 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
 }
 
 /**
- * Internal function to actually fetch sessions from all hosts
+ * Internal function to actually fetch sessions from all hosts.
+ * Local sessions are fetched first; remote fetches race against a short deadline
+ * so unreachable hosts don't block the response.
  */
 async function fetchAllSessions(): Promise<Session[]> {
   const hosts = getHosts()
+  const selfHost = getSelfHost()
 
   console.log(`[Sessions] Fetching from ${hosts.length} host(s)...`)
 
-  // Fetch sessions from all hosts in parallel
-  const sessionPromises = hosts.map(async (host) => {
-    if (isSelf(host.id)) {
-      return fetchLocalSessions(host.id)
-    } else {
-      return fetchRemoteSessions(host.url, host.id)
-    }
-  })
+  // Fetch local sessions first (fast, no network)
+  const localSessions = selfHost
+    ? await fetchLocalSessions(selfHost.id)
+    : []
 
-  const allSessionArrays = await Promise.all(sessionPromises)
+  console.log(`[Agents] Found ${localSessions.length} local tmux session(s)`)
 
-  // Flatten arrays and combine
-  const allSessions = allSessionArrays.flat()
+  // Fetch remote hosts in parallel with a tight deadline
+  const remoteHosts = hosts.filter(h => !isSelf(h.id))
 
+  if (remoteHosts.length === 0) {
+    return localSessions
+  }
+
+  const remotePromises = remoteHosts.map(host =>
+    fetchRemoteSessions(host.url, host.id)
+  )
+
+  const remoteResults = await Promise.all(remotePromises)
+  const remoteSessions = remoteResults.flat()
+
+  const allSessions = [...localSessions, ...remoteSessions]
   console.log(`[Sessions] Found ${allSessions.length} total session(s) across all hosts`)
 
   return allSessions
@@ -267,8 +279,20 @@ async function fetchAllSessions(): Promise<Session[]> {
  * - Results are cached for 3 seconds
  * - Concurrent requests share the same pending promise
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const localOnly = searchParams.get('local') === 'true'
+
+    // If local=true, skip caching/dedup and return local sessions directly.
+    // This prevents cascading fan-out when remote hosts call each other.
+    if (localOnly) {
+      const selfHost = getSelfHost()
+      const sessions = selfHost ? await fetchLocalSessions(selfHost.id) : []
+      console.log(`[Agents] Found ${sessions.length} local tmux session(s)`)
+      return NextResponse.json({ sessions, fromCache: false })
+    }
+
     const now = Date.now()
 
     // Return cached result if still valid

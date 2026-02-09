@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Agent, AgentsApiResponse, AgentStats, AgentHostInfo } from '@/types/agent'
 import type { Host } from '@/types/host'
 import { useHosts } from './useHosts'
@@ -8,7 +8,7 @@ import { cacheRemoteAgents, getCachedAgents } from '@/lib/agent-cache'
 
 const REFRESH_INTERVAL = 10000 // 10 seconds
 const SELF_FETCH_TIMEOUT = 8000 // 8 seconds for self host (tmux queries can be slow)
-const PEER_FETCH_TIMEOUT = 15000 // 15 seconds for peer hosts (network latency + tmux)
+const PEER_FETCH_TIMEOUT = 3000 // 3 seconds for peer hosts (fail fast, use cache)
 
 /**
  * Check if a host URL points to localhost (the machine running this dashboard)
@@ -207,6 +207,7 @@ export function useAgents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [hostErrors, setHostErrors] = useState<Record<string, Error>>({})
+  const hasLoadedOnce = useRef(false)
 
   const loadAgents = useCallback(async () => {
     if (hosts.length === 0) {
@@ -216,21 +217,41 @@ export function useAgents() {
     try {
       setError(null)
 
-      // Fetch from all hosts in parallel
-      const results = await Promise.all(
-        hosts.map(host => fetchHostAgents(host))
+      const localHosts = hosts.filter(h => h.isSelf || isLocalhostUrl(h.url))
+      const remoteHosts = hosts.filter(h => !h.isSelf && !isLocalhostUrl(h.url))
+
+      // Fetch local host first (fast) so the UI can render immediately
+      const localResults = await Promise.all(
+        localHosts.map(host => fetchHostAgents(host))
       )
 
-      // Aggregate results
-      const { agents: allAgents, stats: aggregatedStats, hostErrors: errors } = aggregateResults(results)
+      // On first load only, show local agents right away so UI doesn't wait for remotes.
+      // On subsequent refreshes, skip this to avoid replacing the full list with just local agents.
+      if (remoteHosts.length > 0 && !hasLoadedOnce.current) {
+        const { agents: localAgents, stats: localStats, hostErrors: localErrors } = aggregateResults(localResults)
+        setAgents(localAgents)
+        setStats(localStats)
+        setHostErrors(localErrors)
+        setLoading(false)
+      }
+
+      // Then fetch remote hosts in parallel (may be slow or timeout)
+      const remoteResults = await Promise.all(
+        remoteHosts.map(host => fetchHostAgents(host))
+      )
+
+      // Merge all results
+      const allResults = [...localResults, ...remoteResults]
+      const { agents: allAgents, stats: aggregatedStats, hostErrors: errors } = aggregateResults(allResults)
 
       setAgents(allAgents)
       setStats(aggregatedStats)
       setHostErrors(errors)
+      hasLoadedOnce.current = true
 
       // Log summary
-      const successCount = results.filter(r => r.success).length
-      const fromCacheCount = results.filter(r => r.fromCache).length
+      const successCount = allResults.filter(r => r.success).length
+      const fromCacheCount = allResults.filter(r => r.fromCache).length
       console.log(`[useAgents] Loaded ${allAgents.length} agent(s) from ${successCount}/${hosts.length} host(s) (${fromCacheCount} from cache)`)
 
     } catch (err) {

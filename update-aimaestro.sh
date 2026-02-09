@@ -255,6 +255,21 @@ if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; 
     print_success "Claude Code hooks reinstalled"
 fi
 
+# 7. Update Claude Code marketplace plugin (if installed)
+MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/ai-maestro-marketplace"
+if [ -d "$MARKETPLACE_DIR/.git" ]; then
+    print_info "Updating Claude Code marketplace plugin..."
+    CURRENT_BRANCH=$(git -C "$MARKETPLACE_DIR" branch --show-current 2>/dev/null)
+    if git -C "$MARKETPLACE_DIR" pull origin "${CURRENT_BRANCH:-main}" --ff-only 2>/dev/null; then
+        print_success "Marketplace plugin updated"
+    else
+        print_warning "Could not auto-update marketplace plugin — updating CLAUDE.md from source"
+        cp -f CLAUDE.md "$MARKETPLACE_DIR/CLAUDE.md" 2>/dev/null && \
+            print_success "CLAUDE.md synced to marketplace plugin" || \
+            print_warning "Failed to sync CLAUDE.md"
+    fi
+fi
+
 # 4. Verify the installation
 if [ -f "verify-installation.sh" ]; then
     echo ""

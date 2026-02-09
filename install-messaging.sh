@@ -719,6 +719,27 @@ if [ "$INSTALL_SKILL" = true ]; then
     done
 fi
 
+# Sync Claude Code marketplace plugin (if installed via /install command)
+MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/ai-maestro-marketplace"
+if [ -d "$MARKETPLACE_DIR" ]; then
+    echo ""
+    print_info "Syncing Claude Code marketplace plugin..."
+
+    # Update CLAUDE.md so agents get current instructions (not stale old ones)
+    if [ -f "CLAUDE.md" ]; then
+        cp -f CLAUDE.md "$MARKETPLACE_DIR/CLAUDE.md" 2>/dev/null && \
+            print_success "CLAUDE.md synced to marketplace plugin" || \
+            print_warning "Failed to sync CLAUDE.md"
+    fi
+
+    # Also sync the plugin skill/hook definitions
+    if [ -d "plugin/.claude-plugin" ]; then
+        cp -rf plugin/.claude-plugin "$MARKETPLACE_DIR/plugin/.claude-plugin" 2>/dev/null
+        [ -f "plugin/hooks/hooks.json" ] && \
+            cp -f plugin/hooks/hooks.json "$MARKETPLACE_DIR/plugin/hooks/hooks.json" 2>/dev/null
+    fi
+fi
+
 echo ""
 echo "🧪 Verifying installation..."
 echo ""

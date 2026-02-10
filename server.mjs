@@ -1025,24 +1025,19 @@ app.prepare().then(() => {
           // Ignore
         }
       }
-      // Kill PTY process and its entire process group
+      // Kill PTY process only (NOT the process group — that kills tmux sessions)
       if (state.ptyProcess && state.ptyProcess.pid) {
         const pid = state.ptyProcess.pid
         console.log(`[Server] Killing PTY for ${sessionName} (pid: ${pid})`)
         try {
-          // Kill the entire process group (negative PID)
-          process.kill(-pid, 'SIGKILL')
+          // Use node-pty's kill with SIGTERM to let tmux detach cleanly
+          state.ptyProcess.kill()
         } catch (e) {
           try {
-            // Fallback to SIGTERM on direct process
-            process.kill(pid, 'SIGKILL')
+            // Fallback to direct SIGTERM on the process
+            process.kill(pid, 'SIGTERM')
           } catch (e2) {
-            try {
-              // Last resort: use node-pty's kill
-              state.ptyProcess.kill()
-            } catch (e3) {
-              console.error(`[Server] Failed to kill PTY ${sessionName}:`, e3.message)
-            }
+            console.error(`[Server] Failed to kill PTY ${sessionName}:`, e2.message)
           }
         }
       }

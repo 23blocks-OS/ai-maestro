@@ -6,7 +6,7 @@
 
 **Stop juggling terminal windows. Orchestrate your AI coding agents from one dashboard.**
 
-[![Version](https://img.shields.io/badge/version-0.21.39-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+[![Version](https://img.shields.io/badge/version-0.22.0-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17-brightgreen)](https://nodejs.org)
@@ -765,18 +765,14 @@ npm start
 **Manual Install:** See [Installation Guide](./plugin/README.md)
 
 ```bash
-# 1. Agents check inbox on startup
-check-and-show-messages.sh
+# 1. Initialize agent identity (first time only)
+amp-init.sh --auto
 
 # 2. Send your first message
-send-aimaestro-message.sh backend-api \
-  "Test message" \
-  "Hello from the communication system!" \
-  normal \
-  notification
+amp-send.sh backend-api "Test message" "Hello from AMP!"
 
-# 3. Check for new messages
-check-new-messages-arrived.sh
+# 3. Check your inbox
+amp-inbox.sh
 ```
 
 **For Claude Code:** Install the plugin or skills to use natural language - [Plugin Guide](./plugin/README.md)

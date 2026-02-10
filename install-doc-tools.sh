@@ -116,8 +116,8 @@ echo "  Installed: docs-helper.sh"
 # Install doc scripts (modified to use installed helper)
 echo ""
 echo "Installing doc scripts to $INSTALL_DIR..."
-# v0.21.26 fix: docs_scripts/ never existed; actual scripts are in plugin/scripts/
-for script in "$SCRIPT_DIR/plugin/scripts"/docs-*.sh; do
+# Scripts are in plugin/plugins/ai-maestro/scripts/
+for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/docs-*.sh "$SCRIPT_DIR/plugin/scripts"/docs-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         # Skip the helper (already installed separately)
@@ -134,7 +134,9 @@ done
 # Install skill
 echo ""
 echo "Installing docs-search skill to $SKILL_DIR..."
-if [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
+if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+elif [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
     cp "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
     echo "  Installed: SKILL.md"
 else

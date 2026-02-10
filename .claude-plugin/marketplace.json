@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "ai-maestro",
-      "source": "./plugin",
-      "description": "Skills for AI agent orchestration - memory search, code graph queries, documentation search, inter-agent messaging, and task planning",
+      "source": "./plugin/plugins/ai-maestro",
+      "description": "AI agent orchestration — memory search, code graph, AMP messaging, docs search, task planning",
       "version": "1.0.0",
       "author": {
         "name": "23blocks"

@@ -238,7 +238,9 @@ cmd_install() {
 
     # Find source files
     local source_dir=""
-    if [[ -f "${script_dir}/plugin/scripts/aimaestro-agent.sh" ]]; then
+    if [[ -f "${script_dir}/plugin/plugins/ai-maestro/scripts/aimaestro-agent.sh" ]]; then
+        source_dir="${script_dir}/plugin/plugins/ai-maestro/scripts"
+    elif [[ -f "${script_dir}/plugin/scripts/aimaestro-agent.sh" ]]; then
         source_dir="${script_dir}/plugin/scripts"
     elif [[ -f "${script_dir}/aimaestro-agent.sh" ]]; then
         source_dir="${script_dir}"
@@ -370,7 +372,9 @@ cmd_install() {
         else
             # Find the skill source file
             local skill_source=""
-            if [[ -f "${script_dir}/plugin/skills/ai-maestro-agents-management/SKILL.md" ]]; then
+            if [[ -f "${script_dir}/plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md" ]]; then
+                skill_source="${script_dir}/plugin/plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md"
+            elif [[ -f "${script_dir}/plugin/skills/ai-maestro-agents-management/SKILL.md" ]]; then
                 skill_source="${script_dir}/plugin/skills/ai-maestro-agents-management/SKILL.md"
             elif [[ -f "${source_dir}/../skills/ai-maestro-agents-management/SKILL.md" ]]; then
                 skill_source="${source_dir}/../skills/ai-maestro-agents-management/SKILL.md"

@@ -205,10 +205,9 @@ echo ""
 print_step "$ROCKET" "Reinstalling scripts and skills..."
 
 # ── v0.21.26 fix: delegate to component installers ──────────────────────
-# Previously this section iterated messaging_scripts/ and docs_scripts/
-# directories that no longer exist (migrated to plugin/scripts/ and
-# plugins/amp-messaging/scripts/). The component installers are the
-# single source of truth for each tool category.
+# Previously this section iterated separate script directories.
+# Scripts now live in plugin/plugins/ai-maestro/scripts/ (submodule).
+# The component installers are the single source of truth for each tool category.
 # ─────────────────────────────────────────────────────────────────────────
 
 # 1. AMP messaging scripts + all plugin/scripts/* tools + skills
@@ -254,6 +253,9 @@ if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; 
     ./scripts/claude-hooks/install-hooks.sh
     print_success "Claude Code hooks reinstalled"
 fi
+
+# 7. Marketplace plugin auto-updates via Claude Code /install update
+# No manual sync needed — the ai-maestro-plugins repo is the single source
 
 # 4. Verify the installation
 if [ -f "verify-installation.sh" ]; then

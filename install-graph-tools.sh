@@ -37,8 +37,8 @@ echo "  Installed: common.sh"
 echo ""
 # Install graph scripts
 echo "Installing graph scripts to $INSTALL_DIR..."
-# v0.21.26 fix: graph_scripts/ never existed; actual scripts are in plugin/scripts/
-for script in "$SCRIPT_DIR/plugin/scripts"/graph-*.sh; do
+# Scripts are in plugin/plugins/ai-maestro/scripts/
+for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/graph-*.sh "$SCRIPT_DIR/plugin/scripts"/graph-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"
@@ -50,7 +50,11 @@ done
 # Install skill
 echo ""
 echo "Installing graph-query skill to $SKILL_DIR..."
-cp "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
+if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/graph-query/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
+elif [ -f "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/skills/graph-query/SKILL.md" "$SKILL_DIR/SKILL.md"
+fi
 echo "  Installed: SKILL.md"
 
 # Verify jq is available

@@ -89,22 +89,23 @@ print_info() {
 }
 
 # Check if we're in the right directory
-if [ ! -d "plugins/amp-messaging" ] || [ ! -f "plugins/amp-messaging/plugin.json" ]; then
+PLUGIN_DIR="plugin/plugins/ai-maestro"
+if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
     # Try to auto-initialize the submodule
     if [ -f ".gitmodules" ] && command -v git &> /dev/null; then
-        print_warning "AMP plugin submodule not initialized. Initializing now..."
+        print_warning "Plugin submodule not initialized. Initializing now..."
         git submodule update --init --recursive
-        if [ -d "plugins/amp-messaging" ] && [ -f "plugins/amp-messaging/plugin.json" ]; then
+        if [ -d "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR/scripts" ]; then
             print_success "Submodule initialized"
         else
-            print_error "Error: Failed to initialize AMP plugin submodule."
+            print_error "Error: Failed to initialize plugin submodule."
             echo ""
             echo "Try manually:"
             echo "  git submodule update --init --recursive"
             exit 1
         fi
     else
-        print_error "Error: AMP plugin not found. Run from AI Maestro root directory."
+        print_error "Error: Plugin not found. Run from AI Maestro root directory."
         echo ""
         echo "If this is a fresh clone, initialize submodules:"
         echo "  git submodule update --init --recursive"
@@ -558,9 +559,9 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     # Create directory if it doesn't exist
     mkdir -p ~/.local/bin
 
-    # Copy AMP scripts from submodule
+    # Copy AMP scripts from plugin
     SCRIPT_COUNT=0
-    for script in plugins/amp-messaging/scripts/*.sh; do
+    for script in "$PLUGIN_DIR"/scripts/amp-*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             cp "$script" ~/.local/bin/
@@ -616,7 +617,7 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     print_info "Installing additional AI Maestro tools..."
 
     TOOL_COUNT=0
-    for script in plugin/scripts/*.sh; do
+    for script in "$PLUGIN_DIR"/scripts/*.sh; do
         if [ -f "$script" ]; then
             SCRIPT_NAME=$(basename "$script")
             # Skip old messaging scripts (they're replaced by AMP)
@@ -685,16 +686,14 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     mkdir -p ~/.claude/skills
 
-    # Install AMP messaging skill from submodule
-    if [ -d "plugins/amp-messaging/skills/messaging" ]; then
+    # Install AMP messaging skill from plugin
+    if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
         # Remove old agent-messaging skill if exists
         if [ -d ~/.claude/skills/agent-messaging ]; then
-            print_warning "Removing old agent-messaging skill..."
             rm -rf ~/.claude/skills/agent-messaging
         fi
 
-        # Install as 'agent-messaging' for backwards compatibility with skill triggers
-        cp -r "plugins/amp-messaging/skills/messaging" ~/.claude/skills/agent-messaging
+        cp -r "$PLUGIN_DIR/skills/agent-messaging" ~/.claude/skills/agent-messaging
         print_success "Installed: agent-messaging skill (AMP protocol)"
 
         if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
@@ -702,42 +701,21 @@ if [ "$INSTALL_SKILL" = true ]; then
             print_success "Skill file verified (${SKILL_SIZE} bytes)"
         fi
     else
-        print_error "AMP messaging skill not found in submodule"
+        print_error "AMP messaging skill not found in plugin"
     fi
 
     # Install other AI Maestro skills
-    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning")
+    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management")
 
     for skill in "${OTHER_SKILLS[@]}"; do
-        if [ -d "plugin/skills/$skill" ]; then
+        if [ -d "$PLUGIN_DIR/skills/$skill" ]; then
             if [ -d ~/.claude/skills/"$skill" ]; then
                 rm -rf ~/.claude/skills/"$skill"
             fi
-            cp -r "plugin/skills/$skill" ~/.claude/skills/
+            cp -r "$PLUGIN_DIR/skills/$skill" ~/.claude/skills/
             print_success "Installed: $skill skill"
         fi
     done
-fi
-
-# Sync Claude Code marketplace plugin (if installed via /install command)
-MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/ai-maestro-marketplace"
-if [ -d "$MARKETPLACE_DIR" ]; then
-    echo ""
-    print_info "Syncing Claude Code marketplace plugin..."
-
-    # Update CLAUDE.md so agents get current instructions (not stale old ones)
-    if [ -f "CLAUDE.md" ]; then
-        cp -f CLAUDE.md "$MARKETPLACE_DIR/CLAUDE.md" 2>/dev/null && \
-            print_success "CLAUDE.md synced to marketplace plugin" || \
-            print_warning "Failed to sync CLAUDE.md"
-    fi
-
-    # Also sync the plugin skill/hook definitions
-    if [ -d "plugin/.claude-plugin" ]; then
-        cp -rf plugin/.claude-plugin "$MARKETPLACE_DIR/plugin/.claude-plugin" 2>/dev/null
-        [ -f "plugin/hooks/hooks.json" ] && \
-            cp -f plugin/hooks/hooks.json "$MARKETPLACE_DIR/plugin/hooks/hooks.json" 2>/dev/null
-    fi
 fi
 
 echo ""

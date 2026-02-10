@@ -488,12 +488,13 @@ docs/
   REQUIREMENTS.md       - Installation prerequisites
   OPERATIONS-GUIDE.md   - Session management, troubleshooting
 
-plugins/
-  amp-messaging/        - AMP plugin (git submodule from agentmessaging/claude-plugin)
-    scripts/            - AMP CLI scripts (amp-init.sh, amp-send.sh, etc.)
-    skills/messaging/   - AMP Claude Code skill
-    commands/           - Command documentation
-    plugin.json         - Plugin metadata
+plugin/                 - Plugin submodule (git submodule from 23blocks-OS/ai-maestro-plugins)
+  .claude-plugin/       - Marketplace manifest
+  plugins/ai-maestro/   - The AI Maestro plugin
+    scripts/            - All CLI scripts (AMP, graph, docs, memory, agent management)
+    skills/             - All 6 Claude Code skills
+    hooks/              - Session tracking hooks
+    .claude-plugin/     - Plugin manifest
 
 scripts/
   generate-social-logos.js        - Generate social media logos from SVG
@@ -519,7 +520,7 @@ CLAUDE.md               - This file - guidance for Claude Code
 
 ### Installation
 
-The AMP plugin is bundled as a git submodule at `plugins/amp-messaging/`.
+The AMP plugin is bundled in the plugin submodule at `plugin/plugins/ai-maestro/`.
 
 ```bash
 # Install AMP scripts and skills
@@ -558,7 +559,7 @@ amp-read.sh <message-id>
 **Two Components:**
 
 1. **AMP Plugin (Client)** - Installed on each agent machine
-   - Location: `plugins/amp-messaging/` (git submodule)
+   - Location: `plugin/plugins/ai-maestro/` (submodule)
    - Storage: `~/.agent-messaging/`
    - Commands: `amp-init`, `amp-send`, `amp-inbox`, `amp-read`, etc.
    - Handles: Key generation, message signing, local storage
@@ -649,7 +650,7 @@ The old `~/.aimaestro/messages/` system is no longer used.
 
 ### Claude Code Skill
 
-The AMP skill (`plugins/amp-messaging/skills/messaging/SKILL.md`) provides natural language:
+The AMP skill (`plugin/plugins/ai-maestro/skills/agent-messaging/SKILL.md`) provides natural language:
 
 ```
 "Check my messages" → amp-inbox.sh
@@ -659,7 +660,7 @@ The AMP skill (`plugins/amp-messaging/skills/messaging/SKILL.md`) provides natur
 
 ### Development Notes
 
-- **Submodule**: AMP plugin is at `plugins/amp-messaging/` - update with `git submodule update --remote`
+- **Submodule**: Plugin repo is at `plugin/` - update with `git submodule update --remote`
 - **Protocol spec**: https://agentmessaging.org
 - **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
 - **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)

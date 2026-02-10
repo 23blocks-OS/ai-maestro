@@ -205,10 +205,9 @@ echo ""
 print_step "$ROCKET" "Reinstalling scripts and skills..."
 
 # ── v0.21.26 fix: delegate to component installers ──────────────────────
-# Previously this section iterated messaging_scripts/ and docs_scripts/
-# directories that no longer exist (migrated to plugin/scripts/ and
-# plugins/amp-messaging/scripts/). The component installers are the
-# single source of truth for each tool category.
+# Previously this section iterated separate script directories.
+# Scripts now live in plugin/plugins/ai-maestro/scripts/ (submodule).
+# The component installers are the single source of truth for each tool category.
 # ─────────────────────────────────────────────────────────────────────────
 
 # 1. AMP messaging scripts + all plugin/scripts/* tools + skills
@@ -255,20 +254,8 @@ if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; 
     print_success "Claude Code hooks reinstalled"
 fi
 
-# 7. Update Claude Code marketplace plugin (if installed)
-MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/ai-maestro-marketplace"
-if [ -d "$MARKETPLACE_DIR/.git" ]; then
-    print_info "Updating Claude Code marketplace plugin..."
-    CURRENT_BRANCH=$(git -C "$MARKETPLACE_DIR" branch --show-current 2>/dev/null)
-    if git -C "$MARKETPLACE_DIR" pull origin "${CURRENT_BRANCH:-main}" --ff-only 2>/dev/null; then
-        print_success "Marketplace plugin updated"
-    else
-        print_warning "Could not auto-update marketplace plugin — updating CLAUDE.md from source"
-        cp -f CLAUDE.md "$MARKETPLACE_DIR/CLAUDE.md" 2>/dev/null && \
-            print_success "CLAUDE.md synced to marketplace plugin" || \
-            print_warning "Failed to sync CLAUDE.md"
-    fi
-fi
+# 7. Marketplace plugin auto-updates via Claude Code /install update
+# No manual sync needed — the ai-maestro-plugins repo is the single source
 
 # 4. Verify the installation
 if [ -f "verify-installation.sh" ]; then

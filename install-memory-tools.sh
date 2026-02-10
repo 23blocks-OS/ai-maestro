@@ -44,8 +44,8 @@ echo "  Installed: common.sh"
 
 echo ""
 echo "Installing memory scripts to $INSTALL_DIR..."
-# v0.21.26 fix: memory_scripts/ never existed; actual scripts are in plugin/scripts/
-for script in "$SCRIPT_DIR/plugin/scripts"/memory-*.sh; do
+# Scripts are in plugin/plugins/ai-maestro/scripts/
+for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/memory-*.sh "$SCRIPT_DIR/plugin/scripts"/memory-*.sh; do
     if [ -f "$script" ]; then
         script_name=$(basename "$script")
         cp "$script" "$INSTALL_DIR/$script_name"
@@ -56,7 +56,11 @@ done
 
 echo ""
 echo "Installing memory-search skill to $SKILL_DIR..."
-cp "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/memory-search/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+elif [ -f "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" ]; then
+    cp "$SCRIPT_DIR/plugin/skills/memory-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+fi
 echo "  Installed: SKILL.md"
 
 # Setup PATH

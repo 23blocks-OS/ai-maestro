@@ -116,6 +116,15 @@ print_header() {
     echo ""
 }
 
+# sed that works on both macOS and Linux
+_portable_sed() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 # Detect OS and WSL
 detect_os() {
     # Check if running in WSL
@@ -705,6 +714,13 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     INSTALL_HOOKS=true
     INSTALL_AGENT_CLI=true
 
+    # Gateway selection — all disabled by default
+    INSTALL_GW_SLACK=false
+    INSTALL_GW_DISCORD=false
+    INSTALL_GW_EMAIL=false
+    INSTALL_GW_WHATSAPP=false
+    GATEWAYS_REPO="https://github.com/23blocks-OS/aimaestro-gateways.git"
+
     # Apply per-component skip flags from CLI arguments
     if [ "$SKIP_MEMORY" = true ]; then INSTALL_MEMORY=false; fi
     if [ "$SKIP_GRAPH" = true ]; then INSTALL_GRAPH=false; fi
@@ -728,7 +744,14 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             echo "    5) [$(_check $INSTALL_HOOKS)]  Claude Hooks      Claude Code integration"
             echo "    6) [$(_check $INSTALL_AGENT_CLI)]  Agent CLI         Agent management from terminal"
             echo ""
-            echo "  Type a number (1-6) to toggle  |  a) All  n) None"
+            echo "  Messaging gateways (configured after install):"
+            echo ""
+            echo "    7) [$(_check $INSTALL_GW_SLACK)]  Slack Gateway     Slack workspace bridge"
+            echo "    8) [$(_check $INSTALL_GW_DISCORD)]  Discord Gateway   Discord server bridge"
+            echo "    9) [$(_check $INSTALL_GW_EMAIL)]  Email Gateway     Email (Mandrill) bridge"
+            echo "   10) [$(_check $INSTALL_GW_WHATSAPP)]  WhatsApp Gateway  WhatsApp Web bridge (beta)"
+            echo ""
+            echo "  Type a number (1-10) to toggle  |  a) All  n) None"
             echo "  Press Enter when ready to install selected components"
             read -p "  > " choice
             case $choice in
@@ -738,10 +761,14 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
                 4) if [ "$INSTALL_DOCS" = true ]; then INSTALL_DOCS=false; else INSTALL_DOCS=true; fi ;;
                 5) if [ "$INSTALL_HOOKS" = true ]; then INSTALL_HOOKS=false; else INSTALL_HOOKS=true; fi ;;
                 6) if [ "$INSTALL_AGENT_CLI" = true ]; then INSTALL_AGENT_CLI=false; else INSTALL_AGENT_CLI=true; fi ;;
-                a|A) INSTALL_MESSAGING=true; INSTALL_MEMORY=true; INSTALL_GRAPH=true; INSTALL_DOCS=true; INSTALL_HOOKS=true; INSTALL_AGENT_CLI=true ;;
-                n|N) INSTALL_MESSAGING=false; INSTALL_MEMORY=false; INSTALL_GRAPH=false; INSTALL_DOCS=false; INSTALL_HOOKS=false; INSTALL_AGENT_CLI=false ;;
+                7) if [ "$INSTALL_GW_SLACK" = true ]; then INSTALL_GW_SLACK=false; else INSTALL_GW_SLACK=true; fi ;;
+                8) if [ "$INSTALL_GW_DISCORD" = true ]; then INSTALL_GW_DISCORD=false; else INSTALL_GW_DISCORD=true; fi ;;
+                9) if [ "$INSTALL_GW_EMAIL" = true ]; then INSTALL_GW_EMAIL=false; else INSTALL_GW_EMAIL=true; fi ;;
+                10) if [ "$INSTALL_GW_WHATSAPP" = true ]; then INSTALL_GW_WHATSAPP=false; else INSTALL_GW_WHATSAPP=true; fi ;;
+                a|A) INSTALL_MESSAGING=true; INSTALL_MEMORY=true; INSTALL_GRAPH=true; INSTALL_DOCS=true; INSTALL_HOOKS=true; INSTALL_AGENT_CLI=true; INSTALL_GW_SLACK=true; INSTALL_GW_DISCORD=true; INSTALL_GW_EMAIL=true; INSTALL_GW_WHATSAPP=true ;;
+                n|N) INSTALL_MESSAGING=false; INSTALL_MEMORY=false; INSTALL_GRAPH=false; INSTALL_DOCS=false; INSTALL_HOOKS=false; INSTALL_AGENT_CLI=false; INSTALL_GW_SLACK=false; INSTALL_GW_DISCORD=false; INSTALL_GW_EMAIL=false; INSTALL_GW_WHATSAPP=false ;;
                 "") break ;;
-                *) echo "  Invalid choice. Use 1-6, a, n, or Enter." ;;
+                *) echo "  Invalid choice. Use 1-10, a, n, or Enter." ;;
             esac
         done
     fi
@@ -819,6 +846,57 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             ./install-agent-cli.sh
         fi
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+    fi
+
+    # Install selected gateways
+    SELECTED_GW=""
+    [ "$INSTALL_GW_SLACK" = true ] && SELECTED_GW="slack"
+    if [ "$INSTALL_GW_DISCORD" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}discord"
+    fi
+    if [ "$INSTALL_GW_EMAIL" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}email"
+    fi
+    if [ "$INSTALL_GW_WHATSAPP" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}whatsapp"
+    fi
+
+    if [ -n "$SELECTED_GW" ]; then
+        echo ""
+        print_step "Installing messaging gateways..."
+        if [ ! -d "$INSTALL_DIR/services" ]; then
+            git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null || {
+                print_warning "Could not clone gateways repo — skipping"
+                SELECTED_GW=""
+            }
+        fi
+        if [ -n "$SELECTED_GW" ]; then
+            IFS=',' read -ra GW_LIST <<< "$SELECTED_GW"
+            for gw in "${GW_LIST[@]}"; do
+                local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
+                if [ -d "$gw_dir" ]; then
+                    cd "$gw_dir"
+                    npm install --silent 2>/dev/null || npm install
+                    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+                        cp .env.example .env
+                        _portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:23000|' .env 2>/dev/null || true
+                        _portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env 2>/dev/null || true
+                        if ! grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+                            echo "AIMAESTRO_API=http://127.0.0.1:23000" >> .env
+                        fi
+                        if ! grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
+                            echo "DEFAULT_AGENT=mailman" >> .env
+                        fi
+                    fi
+                    cd "$INSTALL_DIR"
+                    print_success "  ${gw}-gateway installed"
+                fi
+            done
+            TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+        fi
     fi
 
     if [ $TOOLS_INSTALLED -gt 0 ]; then

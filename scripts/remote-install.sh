@@ -185,9 +185,12 @@ INSTALL_DIR="$DEFAULT_INSTALL_DIR"
 SKIP_PREREQS=false
 SKIP_TOOLS=false
 SKIP_AI_TOOL=false
+SKIP_GATEWAYS=false
 UNINSTALL=false
 NON_INTERACTIVE=false
 IS_UPDATE=false
+SELECTED_GATEWAYS=""
+GATEWAYS_REPO="https://github.com/23blocks-OS/aimaestro-gateways.git"
 
 # Detect if stdin is not a terminal (piped from curl)
 if [ ! -t 0 ]; then
@@ -224,6 +227,10 @@ parse_args() {
                 SKIP_AI_TOOL=true
                 shift
                 ;;
+            --skip-gateways)
+                SKIP_GATEWAYS=true
+                shift
+                ;;
             --uninstall)
                 UNINSTALL=true
                 shift
@@ -253,6 +260,7 @@ show_help() {
     echo "  --skip-prereqs      Skip prerequisite installation"
     echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
     echo "  --skip-ai-tool      Skip AI coding assistant installation"
+    echo "  --skip-gateways     Skip messaging gateway selection"
     echo "  --uninstall         Remove AI Maestro installation"
     echo "  -h, --help          Show this help message"
     echo ""
@@ -319,11 +327,23 @@ uninstall() {
     maestro_say "Removing AI Maestro..."
     echo ""
 
-    # Stop PM2 service if running
+    # Stop PM2 services if running
     if command -v pm2 &>/dev/null; then
         pm2 stop ai-maestro 2>/dev/null || true
         pm2 delete ai-maestro 2>/dev/null || true
-        maestro_info "Stopped PM2 service"
+        # Stop gateway services
+        for gw in slack discord email whatsapp; do
+            pm2 stop "${gw}-gateway" 2>/dev/null || true
+            pm2 delete "${gw}-gateway" 2>/dev/null || true
+        done
+        pm2 save 2>/dev/null || true
+        maestro_info "Stopped PM2 services"
+    fi
+
+    # Stop mailman tmux session
+    if tmux has-session -t mailman 2>/dev/null; then
+        tmux kill-session -t mailman 2>/dev/null || true
+        maestro_info "Stopped mailman tmux session"
     fi
 
     # Remove agent tool scripts
@@ -379,6 +399,16 @@ uninstall() {
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
             rm -rf "$HOME/my-first-agent"
             maestro_info "Removed $HOME/my-first-agent"
+        fi
+    fi
+
+    # Remove mailman agent directory
+    if [ -d "$HOME/mailman-agent" ]; then
+        echo ""
+        maestro_ask_yn "Remove mailman agent directory ($HOME/mailman-agent)?" "n"
+        if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
+            rm -rf "$HOME/mailman-agent"
+            maestro_info "Removed $HOME/mailman-agent"
         fi
     fi
 
@@ -758,6 +788,96 @@ act2_install_prerequisites() {
 }
 
 # =============================================================================
+# ACT 2B: GATEWAY SELECTION
+# =============================================================================
+
+act2b_gateway_selection() {
+    # Skip conditions
+    if [ "$SKIP_GATEWAYS" = true ]; then
+        return
+    fi
+    if [ "$NON_INTERACTIVE" = true ]; then
+        # Non-interactive: no gateways by default
+        return
+    fi
+    if [ "$IS_UPDATE" = true ]; then
+        # On update: detect existing gateways, don't re-prompt
+        if [ -d "$INSTALL_DIR/services" ]; then
+            local found=""
+            for gw in slack discord email whatsapp; do
+                if [ -d "$INSTALL_DIR/services/${gw}-gateway" ]; then
+                    if [ -n "$found" ]; then found="$found,"; fi
+                    found="${found}${gw}"
+                fi
+            done
+            SELECTED_GATEWAYS="$found"
+        fi
+        return
+    fi
+
+    echo ""
+    maestro_say "Want to connect messaging channels? (Slack, Discord, etc.)"
+    maestro_say "Credentials are configured after install — this just downloads the code."
+    echo ""
+
+    # Gateway toggle state
+    local gw_slack=false gw_discord=false gw_email=false gw_whatsapp=false
+
+    while true; do
+        echo ""
+        echo "  Connect messaging channels (configured after install):"
+        echo ""
+        local s_slack=" " s_discord=" " s_email=" " s_whatsapp=" "
+        [ "$gw_slack" = true ] && s_slack="✓"
+        [ "$gw_discord" = true ] && s_discord="✓"
+        [ "$gw_email" = true ] && s_email="✓"
+        [ "$gw_whatsapp" = true ] && s_whatsapp="✓"
+        echo "    1) [$s_slack]  Slack       Slack workspace bridge"
+        echo "    2) [$s_discord]  Discord     Discord server bridge"
+        echo "    3) [$s_email]  Email       Email via Mandrill (advanced)"
+        echo "    4) [$s_whatsapp]  WhatsApp    WhatsApp Web bridge (beta)"
+        echo ""
+        echo "  Toggle: 1-4  |  a) All  n) None  Enter) Continue"
+        printf "  > "
+        read -r choice
+        case $choice in
+            1) if [ "$gw_slack" = true ]; then gw_slack=false; else gw_slack=true; fi ;;
+            2) if [ "$gw_discord" = true ]; then gw_discord=false; else gw_discord=true; fi ;;
+            3) if [ "$gw_email" = true ]; then gw_email=false; else gw_email=true; fi ;;
+            4) if [ "$gw_whatsapp" = true ]; then gw_whatsapp=false; else gw_whatsapp=true; fi ;;
+            a|A) gw_slack=true; gw_discord=true; gw_email=true; gw_whatsapp=true ;;
+            n|N) gw_slack=false; gw_discord=false; gw_email=false; gw_whatsapp=false ;;
+            "") break ;;
+            *) echo "  Invalid choice. Use 1-4, a, n, or Enter." ;;
+        esac
+    done
+
+    # Build comma-separated list
+    local result=""
+    if [ "$gw_slack" = true ]; then result="slack"; fi
+    if [ "$gw_discord" = true ]; then
+        [ -n "$result" ] && result="$result,"
+        result="${result}discord"
+    fi
+    if [ "$gw_email" = true ]; then
+        [ -n "$result" ] && result="$result,"
+        result="${result}email"
+    fi
+    if [ "$gw_whatsapp" = true ]; then
+        [ -n "$result" ] && result="$result,"
+        result="${result}whatsapp"
+    fi
+
+    SELECTED_GATEWAYS="$result"
+
+    if [ -n "$SELECTED_GATEWAYS" ]; then
+        maestro_ok "Selected gateways: $SELECTED_GATEWAYS"
+    else
+        maestro_info "No gateways selected — you can add them later"
+    fi
+}
+
+# =============================================================================
 # ACT 3: CLONE & BUILD AI MAESTRO
 # =============================================================================
 
@@ -785,7 +905,7 @@ act3_clone_and_build() {
             fi
             maestro_ask_yn "Update existing installation?" "y"
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
-                maestro_step 1 3 "Pulling latest changes..." ""
+                maestro_step 1 4 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
                 local had_stash=false
                 if git stash --quiet 2>/dev/null; then
@@ -804,13 +924,13 @@ act3_clone_and_build() {
                     fi
                 fi
                 git submodule update --init --recursive
-                maestro_step 1 3 "Pulling latest changes..." "done"
+                maestro_step 1 4 "Pulling latest changes..." "done"
 
-                maestro_step 2 3 "Installing dependencies..." ""
+                maestro_step 2 4 "Installing dependencies..." ""
                 yarn install --silent 2>/dev/null || yarn install
-                maestro_step 2 3 "Installing dependencies..." "done"
+                maestro_step 2 4 "Installing dependencies..." "done"
 
-                maestro_step 3 3 "Updating agent tools..." ""
+                maestro_step 3 4 "Updating agent tools..." ""
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
                     # On update: only reinstall tools that are already present
                     local tool_flags=""
@@ -819,7 +939,22 @@ act3_clone_and_build() {
                     # shellcheck disable=SC2086
                     ./install.sh --from-remote -y $tool_flags
                 fi
-                maestro_step 3 3 "Updating agent tools..." "done"
+                maestro_step 3 4 "Updating agent tools..." "done"
+
+                # Update existing gateways
+                maestro_step 4 4 "Updating gateways..." ""
+                if [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
+                    cd "$INSTALL_DIR/services"
+                    git pull origin main 2>/dev/null || git pull 2>/dev/null || true
+                    IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
+                    for gw in "${GW_ARRAY[@]}"; do
+                        if [ -d "${gw}-gateway" ]; then
+                            cd "${gw}-gateway" && npm install --silent 2>/dev/null && cd ..
+                        fi
+                    done
+                    cd "$INSTALL_DIR"
+                fi
+                maestro_step 4 4 "Updating gateways..." "done"
 
                 echo ""
                 maestro_ok "AI Maestro v${VERSION} updated (was v${old_version:-unknown})"
@@ -834,34 +969,78 @@ act3_clone_and_build() {
         fi
     fi
 
-    # Fresh install
-    maestro_step 1 4 "Downloading..." ""
+    # Fresh install — determine total steps
+    local total_steps=4
+    [ -n "$SELECTED_GATEWAYS" ] && total_steps=5
+
+    maestro_step 1 "$total_steps" "Downloading..." ""
     if ! git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"; then
         maestro_fail "Failed to clone repository. Check your network connection."
         exit 1
     fi
     cd "$INSTALL_DIR"
     git submodule update --init --recursive || maestro_warn "Some submodules failed to initialize"
-    maestro_step 1 4 "Downloading..." "done"
+    maestro_step 1 "$total_steps" "Downloading..." "done"
 
-    maestro_step 2 4 "Installing dependencies..." ""
+    maestro_step 2 "$total_steps" "Installing dependencies..." ""
     yarn install --silent 2>/dev/null || yarn install
-    maestro_step 2 4 "Installing dependencies..." "done"
+    maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
-    maestro_step 3 4 "Setting up agent tools..." ""
+    maestro_step 3 "$total_steps" "Setting up agent tools..." ""
     if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
         chmod +x install.sh
         ./install.sh --from-remote -y
     fi
-    maestro_step 3 4 "Setting up agent tools..." "done"
+    maestro_step 3 "$total_steps" "Setting up agent tools..." "done"
 
-    maestro_step 4 4 "Configuring your system..." ""
+    # Install selected gateways
+    if [ -n "$SELECTED_GATEWAYS" ]; then
+        maestro_step 4 "$total_steps" "Installing gateways..." ""
+        if git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null; then
+            IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
+            for gw in "${GW_ARRAY[@]}"; do
+                local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
+                if [ -d "$gw_dir" ]; then
+                    cd "$gw_dir"
+                    npm install --silent 2>/dev/null || npm install || {
+                        maestro_warn "npm install failed for ${gw}-gateway — skipping"
+                        cd "$INSTALL_DIR"
+                        continue
+                    }
+                    # Copy .env.example to .env with defaults
+                    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+                        cp .env.example .env
+                        # Pre-set AI Maestro connection and default agent
+                        if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:23000|' .env
+                        else
+                            echo "AIMAESTRO_API=http://127.0.0.1:23000" >> .env
+                        fi
+                        if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
+                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+                        else
+                            echo "DEFAULT_AGENT=mailman" >> .env
+                        fi
+                    fi
+                    cd "$INSTALL_DIR"
+                fi
+            done
+            maestro_ok "Gateways installed: $SELECTED_GATEWAYS"
+        else
+            maestro_warn "Could not clone gateways repo — you can add them later"
+            SELECTED_GATEWAYS=""
+        fi
+        maestro_step 4 "$total_steps" "Installing gateways..." "done"
+    fi
+
+    local config_step=$total_steps
+    maestro_step "$config_step" "$total_steps" "Configuring your system..." ""
     # Configure tmux if setup script exists
     if [ -f "scripts/setup-tmux.sh" ]; then
         chmod +x scripts/setup-tmux.sh
         ./scripts/setup-tmux.sh 2>/dev/null || true
     fi
-    maestro_step 4 4 "Configuring your system..." "done"
+    maestro_step "$config_step" "$total_steps" "Configuring your system..." "done"
 
     echo ""
     maestro_ok "AI Maestro v${VERSION} installed"
@@ -955,15 +1134,17 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
+    # Escape sed metacharacters in INSTALL_DIR (|, &, \) — used by both agent templates
+    local safe_dir
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[|&\\]/\\&/g')
+
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
-        # Escape sed metacharacters in INSTALL_DIR (|, &, \)
-        local safe_dir
-        safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[|&\\]/\\&/g')
         portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
@@ -973,6 +1154,23 @@ act4_start_and_register() {
         >/dev/null 2>&1 || true
 
     maestro_ok "Registered 'my-first-agent'"
+
+    # Create mailman agent if gateways were selected
+    if [ -n "$SELECTED_GATEWAYS" ]; then
+        local MAILMAN_DIR="$HOME/mailman-agent"
+        mkdir -p "$MAILMAN_DIR"
+        if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
+            cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s|{{ACTIVE_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$MAILMAN_DIR/CLAUDE.md"
+        fi
+        # Register mailman with AI Maestro
+        curl -s -X POST http://localhost:23000/api/sessions/create \
+            -H "Content-Type: application/json" \
+            -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
+            >/dev/null 2>&1 || true
+        maestro_ok "Registered 'mailman' agent"
+    fi
 
     # Open dashboard in browser
     maestro_info "Opening dashboard in your browser..."
@@ -1106,6 +1304,9 @@ main() {
 
     # ACT 2: Install Prerequisites
     act2_install_prerequisites
+
+    # ACT 2B: Gateway Selection
+    act2b_gateway_selection
 
     # ACT 3: Clone + Build AI Maestro
     act3_clone_and_build

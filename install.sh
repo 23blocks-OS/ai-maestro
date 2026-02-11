@@ -25,6 +25,7 @@ PACKAGE="📦"
 # Parse command line arguments
 SKIP_TOOLS=false
 NON_INTERACTIVE=false
+FROM_REMOTE=false
 
 SKIP_MEMORY=false
 SKIP_GRAPH=false
@@ -34,6 +35,11 @@ SKIP_AGENT_CLI=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --from-remote)
+            FROM_REMOTE=true
+            NON_INTERACTIVE=true
+            shift
+            ;;
         --skip-tools)
             SKIP_TOOLS=true
             shift
@@ -62,12 +68,32 @@ while [[ $# -gt 0 ]]; do
             SKIP_AGENT_CLI=true
             shift
             ;;
+        -h|--help)
+            echo "AI Maestro - Complete Installation Script"
+            echo ""
+            echo "Usage: ./install.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --non-interactive  Non-interactive mode (auto-accept all prompts)"
+            echo "  --from-remote          Called from remote-install.sh (internal)"
+            echo "  --skip-tools           Skip agent tools installation"
+            echo "  --skip-memory          Skip memory tools"
+            echo "  --skip-graph           Skip graph tools"
+            echo "  --skip-docs            Skip documentation tools"
+            echo "  --skip-hooks           Skip Claude Code hooks"
+            echo "  --skip-agent-cli       Skip agent management CLI"
+            echo "  -h, --help             Show this help message"
+            exit 0
+            ;;
         *)
-            shift
+            echo -e "${RED}${CROSS} Unknown option: $1${NC}"
+            echo "Run with --help for usage information."
+            exit 1
             ;;
     esac
 done
 
+if [ "$FROM_REMOTE" != true ]; then
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
@@ -77,26 +103,26 @@ echo "║         From zero to orchestrating AI agents in minutes       ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
+fi
 
 # Function to print colored messages
-print_success() {
-    echo -e "${GREEN}${CHECK} $1${NC}"
-}
+# When called from remote-install.sh, suppress non-error output to avoid
+# two competing UI voices (Maestro-style vs emoji-style)
+if [ "$FROM_REMOTE" = true ]; then
+    print_success() { :; }
+    print_warning() { :; }
+    print_info() { :; }
+    print_step() { :; }
+else
+    print_success() { echo -e "${GREEN}${CHECK} $1${NC}"; }
+    print_warning() { echo -e "${YELLOW}${WARN} $1${NC}"; }
+    print_info() { echo -e "${BLUE}${INFO}$1${NC}"; }
+    print_step() { echo -e "${PURPLE}${ROCKET} $1${NC}"; }
+fi
 
+# Errors always print regardless of mode
 print_error() {
     echo -e "${RED}${CROSS} $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}${WARN} $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}${INFO}$1${NC}"
-}
-
-print_step() {
-    echo -e "${PURPLE}${ROCKET} $1${NC}"
 }
 
 print_header() {
@@ -105,6 +131,35 @@ print_header() {
     echo -e "${CYAN}  $1${NC}"
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
+}
+
+# sed that works on both macOS and Linux
+_portable_sed() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
+# Install a system package on any Linux distro
+_install_pkg() {
+    local pkg="$1"
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq "$pkg"
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y "$pkg"
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm "$pkg"
+    elif command -v zypper &>/dev/null; then
+        sudo zypper install -y "$pkg"
+    elif command -v apk &>/dev/null; then
+        sudo apk add "$pkg"
+    else
+        print_error "No supported package manager found (apt, dnf, pacman, zypper, apk)"
+        print_info "Please install '$pkg' manually and re-run the installer."
+        return 1
+    fi
 }
 
 # Detect OS and WSL
@@ -177,6 +232,9 @@ check_root() {
     fi
 }
 
+# Skip prerequisite checks when called from remote-install.sh (already done)
+if [ "$FROM_REMOTE" != true ]; then
+
 print_header "STEP 1: System Check"
 
 check_root
@@ -194,6 +252,7 @@ NEED_CLAUDE=false
 NEED_YARN=false
 NEED_GIT=false
 NEED_JQ=false
+NEED_TAILSCALE=false
 
 # Check Homebrew (macOS only)
 if [ "$OS" = "macos" ]; then
@@ -270,6 +329,16 @@ else
     NEED_CLAUDE=true
 fi
 
+# Check Tailscale (recommended for multi-machine mesh network)
+print_info "Checking for Tailscale..."
+if command -v tailscale &> /dev/null; then
+    TS_VERSION=$(tailscale version 2>/dev/null | head -n1 || echo "unknown")
+    print_success "Tailscale installed ($TS_VERSION)"
+else
+    print_warning "Tailscale not found (recommended for multi-machine setup)"
+    NEED_TAILSCALE=true
+fi
+
 # Check jq (required for agent CLI tools)
 print_info "Checking for jq..."
 if command -v jq &> /dev/null; then
@@ -280,8 +349,10 @@ else
 fi
 
 # Check curl (should be pre-installed on macOS)
+NEED_CURL=false
 if ! command -v curl &> /dev/null; then
-    print_error "curl not found (should be pre-installed)"
+    print_warning "curl not found"
+    NEED_CURL=true
 fi
 
 echo ""
@@ -294,7 +365,9 @@ if [ "$NEED_NODE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_YARN" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_TMUX" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_CLAUDE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_CURL" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
 if [ $MISSING_COUNT -eq 0 ]; then
     print_success "All prerequisites are installed!"
@@ -328,8 +401,14 @@ if [ $MISSING_COUNT -gt 0 ]; then
     if [ "$NEED_CLAUDE" = true ]; then
         echo "  ${PACKAGE} Claude Code - AI coding assistant (optional)"
     fi
+    if [ "$NEED_TAILSCALE" = true ]; then
+        echo "  ${PACKAGE} Tailscale - Secure mesh VPN for multi-machine setup (recommended)"
+    fi
     if [ "$NEED_JQ" = true ]; then
         echo "  ${PACKAGE} jq - JSON processor (optional)"
+    fi
+    if [ "$NEED_CURL" = true ]; then
+        echo "  ${PACKAGE} curl - HTTP client (required)"
     fi
 
     echo ""
@@ -355,9 +434,21 @@ if [ $MISSING_COUNT -gt 0 ]; then
         # Add Homebrew to PATH for this session
         if [ -f /opt/homebrew/bin/brew ]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -f /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
         fi
 
         print_success "Homebrew installed"
+    fi
+
+    # Install curl (needed for Homebrew, nvm, Tailscale)
+    if [ "$NEED_CURL" = true ]; then
+        echo ""
+        print_step "Installing curl..."
+        if [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            _install_pkg curl
+        fi
+        print_success "curl installed"
     fi
 
     # Install Git
@@ -367,8 +458,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install git
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y git
+            _install_pkg git
         fi
         print_success "Git installed"
     fi
@@ -379,12 +469,13 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_step "Installing Node.js 20 LTS..."
         if [ "$OS" = "macos" ]; then
             brew install node@20
-            brew link node@20
+            brew link --force --overwrite node@20 || true
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
             print_info "Installing Node.js via nvm (Node Version Manager)..."
             # Check if nvm is already installed
             if [ ! -d "$HOME/.nvm" ]; then
-                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+                # Use nvm's latest install URL (auto-resolves to current stable release)
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
                 # Load nvm for current session
                 export NVM_DIR="$HOME/.nvm"
                 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -403,7 +494,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
     if [ "$NEED_YARN" = true ]; then
         echo ""
         print_step "Installing Yarn..."
-        npm install -g yarn
+        npm install -g yarn || print_warning "Could not install Yarn — install manually with: npm install -g yarn"
         print_success "Yarn installed"
     fi
 
@@ -414,8 +505,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install tmux
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y tmux
+            _install_pkg tmux
         fi
         print_success "tmux installed"
     fi
@@ -427,8 +517,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install jq
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y jq
+            _install_pkg jq
         fi
         print_success "jq installed"
     fi
@@ -449,13 +538,52 @@ if [ $MISSING_COUNT -gt 0 ]; then
             read -p "Press Enter to continue without Claude Code..."
         fi
     fi
+
+    # Install Tailscale (recommended for multi-machine)
+    if [ "$NEED_TAILSCALE" = true ]; then
+        echo ""
+        print_info "Tailscale enables secure multi-machine mesh networking"
+        echo "  Connect agents across laptops, desktops, and servers with zero port forwarding."
+        echo ""
+        if [ "$NON_INTERACTIVE" = true ]; then
+            INSTALL_TS="y"
+        else
+            read -p "Install Tailscale? (y/n): " INSTALL_TS
+        fi
+
+        if [[ "$INSTALL_TS" =~ ^[Yy]$ ]]; then
+            print_step "Installing Tailscale..."
+            if [ "$OS" = "macos" ]; then
+                brew install --cask tailscale
+            elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+                curl -fsSL https://tailscale.com/install.sh | sh
+            fi
+            print_success "Tailscale installed"
+            echo ""
+            print_info "To activate: tailscale up"
+            print_info "Then install Tailscale on your other machines and sign in with the same account."
+        else
+            print_info "Skipping Tailscale — you can install later for multi-machine support"
+            echo "  https://tailscale.com/download"
+        fi
+    fi
 fi
 
+fi  # end FROM_REMOTE != true
+
 # Check if we're already in an AI Maestro directory
-print_header "STEP 3: Install AI Maestro"
+if [ "$FROM_REMOTE" != true ]; then
+    print_header "STEP 3: Install AI Maestro"
+fi
 
 INSTALL_DIR=""
 IN_AI_MAESTRO=false
+
+# When called from remote-install.sh, we're already in the right directory
+if [ "$FROM_REMOTE" = true ]; then
+    IN_AI_MAESTRO=true
+    INSTALL_DIR=$(pwd)
+fi
 
 if [ -f "package.json" ] && grep -q "ai-maestro" package.json 2>/dev/null; then
     IN_AI_MAESTRO=true
@@ -516,8 +644,14 @@ if [ -n "$INSTALL_DIR" ]; then
     if [ -d "$INSTALL_DIR" ] && [ "$IN_AI_MAESTRO" = false ]; then
         print_warning "Directory already exists: $INSTALL_DIR"
         if [ "$NON_INTERACTIVE" = true ]; then
-            print_info "Non-interactive mode: deleting existing directory..."
-            DELETE_DIR="y"
+            # Safety: only auto-delete paths under $HOME
+            if [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+                print_info "Non-interactive mode: deleting existing directory..."
+                DELETE_DIR="y"
+            else
+                print_error "Refusing to auto-delete $INSTALL_DIR (not under \$HOME)"
+                exit 1
+            fi
         else
             read -p "Delete and reinstall? (y/n): " DELETE_DIR
         fi
@@ -539,12 +673,12 @@ if [ -n "$INSTALL_DIR" ]; then
 
     # Initialize git submodules (AMP messaging plugin, etc.)
     print_step "Initializing git submodules..."
-    git submodule update --init --recursive
+    git submodule update --init --recursive || print_warning "Some submodules failed to initialize"
     print_success "Git submodules initialized"
 
     echo ""
     print_step "Installing dependencies..."
-    yarn install
+    yarn install || print_warning "yarn install had errors — continuing"
     print_success "Dependencies installed"
 
     # Configure tmux
@@ -580,24 +714,30 @@ if [ -n "$INSTALL_DIR" ]; then
     fi
 
     if [[ "$SETUP_SSH" =~ ^[Yy]$ ]]; then
-        # Add to ~/.tmux.conf
-        echo "" >> ~/.tmux.conf
-        echo "# SSH Agent Configuration - AI Maestro" >> ~/.tmux.conf
-        echo "set-option -g update-environment \"DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY\"" >> ~/.tmux.conf
-        echo "set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock" >> ~/.tmux.conf
-
-        # Add to shell config
-        SHELL_RC="$HOME/.zshrc"
-        if [ -f "$HOME/.bashrc" ]; then
-            SHELL_RC="$HOME/.bashrc"
+        # Add to ~/.tmux.conf (skip if already present)
+        if ! grep -q "SSH Agent Configuration - AI Maestro" ~/.tmux.conf 2>/dev/null; then
+            echo "" >> ~/.tmux.conf
+            echo "# SSH Agent Configuration - AI Maestro" >> ~/.tmux.conf
+            echo "set-option -g update-environment \"DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY\"" >> ~/.tmux.conf
+            echo "set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock" >> ~/.tmux.conf
         fi
 
-        echo "" >> "$SHELL_RC"
-        echo "# SSH Agent for tmux - AI Maestro" >> "$SHELL_RC"
-        echo "if [ -S \"\$SSH_AUTH_SOCK\" ] && [ ! -h \"\$SSH_AUTH_SOCK\" ]; then" >> "$SHELL_RC"
-        echo "    mkdir -p ~/.ssh" >> "$SHELL_RC"
-        echo "    ln -sf \"\$SSH_AUTH_SOCK\" ~/.ssh/ssh_auth_sock" >> "$SHELL_RC"
-        echo "fi" >> "$SHELL_RC"
+        # Add to shell config (skip if already present)
+        # Use $SHELL to detect the user's login shell (not file existence)
+        if [[ "$SHELL" == */bash ]]; then
+            SHELL_RC="$HOME/.bashrc"
+        else
+            SHELL_RC="$HOME/.zshrc"
+        fi
+
+        if ! grep -q "SSH Agent for tmux - AI Maestro" "$SHELL_RC" 2>/dev/null; then
+            echo "" >> "$SHELL_RC"
+            echo "# SSH Agent for tmux - AI Maestro" >> "$SHELL_RC"
+            echo "if [ -S \"\$SSH_AUTH_SOCK\" ] && [ ! -h \"\$SSH_AUTH_SOCK\" ]; then" >> "$SHELL_RC"
+            echo "    mkdir -p ~/.ssh" >> "$SHELL_RC"
+            echo "    ln -sf \"\$SSH_AUTH_SOCK\" ~/.ssh/ssh_auth_sock" >> "$SHELL_RC"
+            echo "fi" >> "$SHELL_RC"
+        fi
 
         # Create initial symlink
         mkdir -p ~/.ssh
@@ -615,7 +755,9 @@ fi
 # Install agent tools (messaging, memory, graph, docs, hooks, agent CLI)
 if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     echo ""
-    print_header "STEP 4: Install Agent Tools"
+    if [ "$FROM_REMOTE" != true ]; then
+        print_header "STEP 4: Install Agent Tools"
+    fi
 
     # Component selection — all enabled by default, --skip-* flags can disable
     INSTALL_MESSAGING=true
@@ -624,6 +766,13 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     INSTALL_DOCS=true
     INSTALL_HOOKS=true
     INSTALL_AGENT_CLI=true
+
+    # Gateway selection — all disabled by default
+    INSTALL_GW_SLACK=false
+    INSTALL_GW_DISCORD=false
+    INSTALL_GW_EMAIL=false
+    INSTALL_GW_WHATSAPP=false
+    GATEWAYS_REPO="https://github.com/23blocks-OS/aimaestro-gateways.git"
 
     # Apply per-component skip flags from CLI arguments
     if [ "$SKIP_MEMORY" = true ]; then INSTALL_MEMORY=false; fi
@@ -648,7 +797,15 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             echo "    5) [$(_check $INSTALL_HOOKS)]  Claude Hooks      Claude Code integration"
             echo "    6) [$(_check $INSTALL_AGENT_CLI)]  Agent CLI         Agent management from terminal"
             echo ""
-            echo "  Toggle: 1-6  |  a) All  n) None  Enter) Install selected"
+            echo "  Messaging gateways (configured after install):"
+            echo ""
+            echo "    7) [$(_check $INSTALL_GW_SLACK)]  Slack Gateway     Slack workspace bridge"
+            echo "    8) [$(_check $INSTALL_GW_DISCORD)]  Discord Gateway   Discord server bridge"
+            echo "    9) [$(_check $INSTALL_GW_EMAIL)]  Email Gateway     Email (Mandrill) bridge"
+            echo "   10) [$(_check $INSTALL_GW_WHATSAPP)]  WhatsApp Gateway  WhatsApp Web bridge (beta)"
+            echo ""
+            echo "  Type a number (1-10) to toggle  |  a) All  n) None"
+            echo "  Press Enter when ready to install selected components"
             read -p "  > " choice
             case $choice in
                 1) if [ "$INSTALL_MESSAGING" = true ]; then INSTALL_MESSAGING=false; else INSTALL_MESSAGING=true; fi ;;
@@ -657,10 +814,14 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
                 4) if [ "$INSTALL_DOCS" = true ]; then INSTALL_DOCS=false; else INSTALL_DOCS=true; fi ;;
                 5) if [ "$INSTALL_HOOKS" = true ]; then INSTALL_HOOKS=false; else INSTALL_HOOKS=true; fi ;;
                 6) if [ "$INSTALL_AGENT_CLI" = true ]; then INSTALL_AGENT_CLI=false; else INSTALL_AGENT_CLI=true; fi ;;
-                a|A) INSTALL_MESSAGING=true; INSTALL_MEMORY=true; INSTALL_GRAPH=true; INSTALL_DOCS=true; INSTALL_HOOKS=true; INSTALL_AGENT_CLI=true ;;
-                n|N) INSTALL_MESSAGING=false; INSTALL_MEMORY=false; INSTALL_GRAPH=false; INSTALL_DOCS=false; INSTALL_HOOKS=false; INSTALL_AGENT_CLI=false ;;
+                7) if [ "$INSTALL_GW_SLACK" = true ]; then INSTALL_GW_SLACK=false; else INSTALL_GW_SLACK=true; fi ;;
+                8) if [ "$INSTALL_GW_DISCORD" = true ]; then INSTALL_GW_DISCORD=false; else INSTALL_GW_DISCORD=true; fi ;;
+                9) if [ "$INSTALL_GW_EMAIL" = true ]; then INSTALL_GW_EMAIL=false; else INSTALL_GW_EMAIL=true; fi ;;
+                10) if [ "$INSTALL_GW_WHATSAPP" = true ]; then INSTALL_GW_WHATSAPP=false; else INSTALL_GW_WHATSAPP=true; fi ;;
+                a|A) INSTALL_MESSAGING=true; INSTALL_MEMORY=true; INSTALL_GRAPH=true; INSTALL_DOCS=true; INSTALL_HOOKS=true; INSTALL_AGENT_CLI=true; INSTALL_GW_SLACK=true; INSTALL_GW_DISCORD=true; INSTALL_GW_EMAIL=true; INSTALL_GW_WHATSAPP=true ;;
+                n|N) INSTALL_MESSAGING=false; INSTALL_MEMORY=false; INSTALL_GRAPH=false; INSTALL_DOCS=false; INSTALL_HOOKS=false; INSTALL_AGENT_CLI=false; INSTALL_GW_SLACK=false; INSTALL_GW_DISCORD=false; INSTALL_GW_EMAIL=false; INSTALL_GW_WHATSAPP=false ;;
                 "") break ;;
-                *) echo "  Invalid choice. Use 1-6, a, n, or Enter." ;;
+                *) echo "  Invalid choice. Use 1-10, a, n, or Enter." ;;
             esac
         done
     fi
@@ -740,6 +901,57 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
     fi
 
+    # Install selected gateways
+    SELECTED_GW=""
+    [ "$INSTALL_GW_SLACK" = true ] && SELECTED_GW="slack"
+    if [ "$INSTALL_GW_DISCORD" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}discord"
+    fi
+    if [ "$INSTALL_GW_EMAIL" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}email"
+    fi
+    if [ "$INSTALL_GW_WHATSAPP" = true ]; then
+        [ -n "$SELECTED_GW" ] && SELECTED_GW="$SELECTED_GW,"
+        SELECTED_GW="${SELECTED_GW}whatsapp"
+    fi
+
+    if [ -n "$SELECTED_GW" ]; then
+        echo ""
+        print_step "Installing messaging gateways..."
+        if [ ! -d "$INSTALL_DIR/services" ]; then
+            git clone --depth 1 "$GATEWAYS_REPO" "$INSTALL_DIR/services" 2>/dev/null || {
+                print_warning "Could not clone gateways repo — skipping"
+                SELECTED_GW=""
+            }
+        fi
+        if [ -n "$SELECTED_GW" ]; then
+            IFS=',' read -ra GW_LIST <<< "$SELECTED_GW"
+            for gw in "${GW_LIST[@]}"; do
+                gw_dir="$INSTALL_DIR/services/${gw}-gateway"
+                if [ -d "$gw_dir" ]; then
+                    cd "$gw_dir"
+                    npm install --silent 2>/dev/null || npm install
+                    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+                        cp .env.example .env
+                        _portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:23000|' .env 2>/dev/null || true
+                        _portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env 2>/dev/null || true
+                        if ! grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+                            echo "AIMAESTRO_API=http://127.0.0.1:23000" >> .env
+                        fi
+                        if ! grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
+                            echo "DEFAULT_AGENT=mailman" >> .env
+                        fi
+                    fi
+                    cd "$INSTALL_DIR"
+                    print_success "  ${gw}-gateway installed"
+                fi
+            done
+            TOOLS_INSTALLED=$((TOOLS_INSTALLED + 1))
+        fi
+    fi
+
     if [ $TOOLS_INSTALLED -gt 0 ]; then
         print_success "$TOOLS_INSTALLED agent tool(s) installed"
 
@@ -756,6 +968,7 @@ elif [ "$SKIP_TOOLS" = true ]; then
     print_info "Skipping agent tools (--skip-tools flag set)"
 fi
 
+if [ "$FROM_REMOTE" != true ]; then
 # Final steps
 print_header "Installation Complete!"
 
@@ -822,3 +1035,4 @@ fi
 echo ""
 print_success "Happy orchestrating! 🎉"
 echo ""
+fi  # end FROM_REMOTE != true

@@ -1,14 +1,13 @@
 #!/bin/bash
 # AI Maestro - Remote Installer (Maestro-Guided)
-# Usage: curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
-#    or: curl -fsSL https://get.aimaestro.dev | sh (when domain is configured)
+# Usage: curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | bash
+#    or: curl -fsSL https://get.aimaestro.dev | bash
 #
 # Options:
 #   -d, --dir PATH      Install directory (default: ~/ai-maestro)
 #   -y, --yes           Non-interactive mode (auto-accept all prompts)
 #   --skip-prereqs      Skip prerequisite installation
 #   --skip-tools        Skip agent tools installation
-#   --auto-start        Automatically start after install
 #   --uninstall         Remove AI Maestro installation
 #   -h, --help          Show help
 
@@ -35,6 +34,16 @@ REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
+# Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
+if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
+    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+fi
+
+# Auto-disable typing animation over SSH
+if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
+    TYPE_SPEED=0
+fi
+
 # Maestro prefix
 MAESTRO_PREFIX="🎵 Maestro > "
 
@@ -55,19 +64,19 @@ maestro_say() {
 }
 
 maestro_ok() {
-    echo -e "   ${GREEN}✓${NC} $1"
+    printf "   ${GREEN}✓${NC} %s\n" "$1"
 }
 
 maestro_fail() {
-    echo -e "   ${RED}✗${NC} $1"
+    printf "   ${RED}✗${NC} %s\n" "$1"
 }
 
 maestro_info() {
-    echo -e "   ${BLUE}→${NC} $1"
+    printf "   ${BLUE}→${NC} %s\n" "$1"
 }
 
 maestro_warn() {
-    echo -e "   ${YELLOW}!${NC} $1"
+    printf "   ${YELLOW}!${NC} %s\n" "$1"
 }
 
 maestro_check() {
@@ -138,7 +147,7 @@ open_browser() {
     if [ "$OS" = "macos" ]; then
         open "$url" 2>/dev/null || true
     elif [ "$OS" = "wsl" ]; then
-        cmd.exe /c start "$url" 2>/dev/null || true
+        cmd.exe /c start "" "$url" 2>/dev/null || true
     elif command -v xdg-open &>/dev/null; then
         xdg-open "$url" 2>/dev/null || true
     fi
@@ -151,6 +160,18 @@ cleanup() {
         echo ""
         maestro_fail "Something went wrong (exit code $exit_code)"
         maestro_info "Check the output above for details"
+        # Remove partial clone if install dir was created but has no package.json
+        # Safety: only auto-remove paths under $HOME (never system dirs)
+        if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
+           && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+            if [ "$NON_INTERACTIVE" = true ]; then
+                rm -rf "$INSTALL_DIR"
+                maestro_info "Removed partial installation at $INSTALL_DIR"
+            else
+                maestro_warn "Partial installation detected at $INSTALL_DIR"
+                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+            fi
+        fi
         maestro_info "You can re-run the installer to try again"
     fi
 }
@@ -163,9 +184,10 @@ trap cleanup EXIT
 INSTALL_DIR="$DEFAULT_INSTALL_DIR"
 SKIP_PREREQS=false
 SKIP_TOOLS=false
-AUTO_START=false
+SKIP_AI_TOOL=false
 UNINSTALL=false
 NON_INTERACTIVE=false
+IS_UPDATE=false
 
 # Detect if stdin is not a terminal (piped from curl)
 if [ ! -t 0 ]; then
@@ -190,12 +212,16 @@ parse_args() {
                 SKIP_PREREQS=true
                 shift
                 ;;
+            --fast)
+                TYPE_SPEED=0
+                shift
+                ;;
             --skip-tools|--skip-messaging)
                 SKIP_TOOLS=true
                 shift
                 ;;
-            --auto-start)
-                AUTO_START=true
+            --skip-ai-tool)
+                SKIP_AI_TOOL=true
                 shift
                 ;;
             --uninstall)
@@ -218,26 +244,27 @@ parse_args() {
 show_help() {
     echo "AI Maestro Installer (Maestro-Guided)"
     echo ""
-    echo "Usage: curl -fsSL https://get.aimaestro.dev | sh -s -- [OPTIONS]"
+    echo "Usage: curl -fsSL https://get.aimaestro.dev | bash -s -- [OPTIONS]"
     echo ""
     echo "Options:"
     echo "  -d, --dir PATH      Install directory (default: ~/ai-maestro)"
     echo "  -y, --yes           Non-interactive mode (auto-accept all prompts)"
+    echo "  --fast              Disable typing animation (auto-enabled over SSH)"
     echo "  --skip-prereqs      Skip prerequisite installation"
     echo "  --skip-tools        Skip agent tools (messaging, memory, graph, docs)"
-    echo "  --auto-start        Automatically start after installation"
+    echo "  --skip-ai-tool      Skip AI coding assistant installation"
     echo "  --uninstall         Remove AI Maestro installation"
     echo "  -h, --help          Show this help message"
     echo ""
     echo "Examples:"
     echo "  # Standard install"
-    echo "  curl -fsSL https://get.aimaestro.dev | sh"
+    echo "  curl -fsSL https://get.aimaestro.dev | bash"
     echo ""
     echo "  # Install to custom directory"
-    echo "  curl -fsSL https://get.aimaestro.dev | sh -s -- -d ~/projects/ai-maestro"
+    echo "  curl -fsSL https://get.aimaestro.dev | bash -s -- -d ~/projects/ai-maestro"
     echo ""
     echo "  # Fully unattended"
-    echo "  curl -fsSL https://get.aimaestro.dev | sh -s -- -y"
+    echo "  curl -fsSL https://get.aimaestro.dev | bash -s -- -y"
 }
 
 # =============================================================================
@@ -272,19 +299,6 @@ detect_os() {
         echo ""
         echo "   For Windows: Install WSL2 first with 'wsl --install' in PowerShell"
         exit 1
-    fi
-}
-
-# Helper: install package based on OS
-pkg_install() {
-    local pkg_name="$1"
-    local macos_cmd="$2"
-    local linux_cmd="$3"
-
-    if [ "$OS" = "macos" ]; then
-        eval "$macos_cmd"
-    elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-        eval "$linux_cmd"
     fi
 }
 
@@ -381,8 +395,16 @@ uninstall() {
 
 act1_hello_and_discovery() {
     echo ""
-    maestro_say "Hey! I'm Maestro — I'll get AI Maestro set up for you."
-    maestro_say "Let me see what we're working with..."
+
+    # Detect returning user (match the actual npm package name, not just substring)
+    if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name".*"ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+        IS_UPDATE=true
+        maestro_say "Welcome back! I'll update your AI Maestro installation."
+        maestro_say "Let me check what's changed..."
+    else
+        maestro_say "Hey! I'm Maestro — I'll get AI Maestro set up for you."
+        maestro_say "Let me see what we're working with..."
+    fi
     echo ""
 
     # OS check
@@ -430,9 +452,12 @@ act1_hello_and_discovery() {
         NEED_TMUX=true
     fi
 
-    # Git
+    # Git (on macOS, check Xcode CLI tools first to avoid blocking system dialog)
     NEED_GIT=false
-    if command -v git &>/dev/null; then
+    if [ "$OS" = "macos" ] && ! xcode-select -p &>/dev/null; then
+        maestro_check "Git" "${RED}not found (Xcode CLI tools required)${NC}"
+        NEED_GIT=true
+    elif command -v git &>/dev/null; then
         maestro_check "Git" "$(git --version | cut -d' ' -f3) ${GREEN}✓${NC}"
     else
         maestro_check "Git" "${RED}not found${NC}"
@@ -523,14 +548,25 @@ act1_hello_and_discovery() {
     [ "$NEED_JQ" = true ] && need_count=$((need_count + 1))
 
     if [ $need_count -gt 0 ] && [ "$SKIP_PREREQS" != true ]; then
-        maestro_say "I need to install a few things. This should take about 5 minutes. Ready?"
-        maestro_ask_yn "" "y"
+        # Estimate time based on what needs installing
+        local time_est="1-2 minutes"
+        if [ "$NEED_HOMEBREW" = true ]; then
+            time_est="5-10 minutes (Homebrew takes a while on first install)"
+        elif [ "$NEED_NODE" = true ]; then
+            time_est="2-3 minutes"
+        fi
+        maestro_say "I need to install a few things. This should take about ${time_est}. Ready?"
+        maestro_ask_yn "Proceed with installation?" "y"
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ] && [ "$REPLY" != "" ]; then
             maestro_say "No worries. Run me again when you're ready!"
             exit 0
         fi
     else
         maestro_say "Looking good! All core prerequisites are in place."
+        # Fast-track: skip typing animation when everything is already installed
+        if [ "$IS_UPDATE" = true ]; then
+            TYPE_SPEED=0
+        fi
     fi
 }
 
@@ -548,9 +584,11 @@ act2_install_prerequisites() {
         echo ""
         maestro_say "Setting up Homebrew..."
         maestro_info "Installing Homebrew (macOS package manager)"
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         if [ -f /opt/homebrew/bin/brew ]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -f /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
         fi
         maestro_ok "Homebrew installed"
     fi
@@ -562,11 +600,11 @@ act2_install_prerequisites() {
         if [ "$OS" = "macos" ]; then
             maestro_info "Installing Node.js 20 via Homebrew"
             brew install node@20
-            brew link node@20 2>/dev/null || brew link --overwrite node@20 2>/dev/null || true
+            brew link --force --overwrite node@20 2>/dev/null || true
         else
             maestro_info "Installing Node.js 20 via nvm"
             if [ ! -d "$HOME/.nvm" ]; then
-                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
             fi
             export NVM_DIR="$HOME/.nvm"
             # shellcheck disable=SC1091
@@ -583,8 +621,32 @@ act2_install_prerequisites() {
         echo ""
         maestro_say "Setting up Yarn..."
         maestro_info "Installing Yarn"
-        npm install -g yarn
+        # Detect if npm global dir is writable (system Node needs sudo)
+        local npm_prefix
+        npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+        if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
+            npm install -g yarn
+        else
+            maestro_info "System Node detected — using sudo for global npm install..."
+            sudo npm install -g yarn
+        fi
         maestro_ok "Yarn installed"
+    fi
+
+    # Run a single apt-get update if any apt packages are needed (Linux/WSL only)
+    local SKIP_APT=false
+    if [ "$OS" != "macos" ]; then
+        if [ "$NEED_TMUX" = true ] || [ "$NEED_JQ" = true ]; then
+            # Check if sudo requires a password (skip in CI if no passwordless sudo)
+            if [ "$NON_INTERACTIVE" = true ] && ! sudo -n true 2>/dev/null; then
+                maestro_warn "sudo requires a password — skipping system packages (tmux, jq)"
+                maestro_info "Install manually: sudo apt-get install -y tmux jq"
+                SKIP_APT=true
+            else
+                maestro_info "I'll need your password to install system packages (tmux, jq)..."
+                sudo apt-get update -qq
+            fi
+        fi
     fi
 
     # tmux
@@ -594,12 +656,11 @@ act2_install_prerequisites() {
         if [ "$OS" = "macos" ]; then
             maestro_info "Installing tmux via Homebrew"
             brew install tmux
-        else
+        elif [ "$SKIP_APT" != true ]; then
             maestro_info "Installing tmux"
-            sudo apt-get update -qq
             sudo apt-get install -y -qq tmux
         fi
-        maestro_ok "tmux installed"
+        [ "$SKIP_APT" != true ] && maestro_ok "tmux installed"
     fi
 
     # jq
@@ -608,26 +669,37 @@ act2_install_prerequisites() {
         maestro_info "Installing jq"
         if [ "$OS" = "macos" ]; then
             brew install jq
-        else
-            sudo apt-get install -y -qq jq 2>/dev/null || true
+        elif [ "$SKIP_APT" != true ]; then
+            sudo apt-get install -y -qq jq
         fi
-        maestro_ok "jq installed"
+        [ "$SKIP_APT" != true ] && maestro_ok "jq installed"
     fi
 
-    # AI Tool choice
-    if [ "$NEED_CLAUDE" = true ] && [ "$HAS_CODEX" != true ]; then
+    # AI Tool choice (skip if --skip-ai-tool or user already has Claude)
+    if [ "$HAS_CLAUDE" != true ] && [ "$SKIP_AI_TOOL" != true ]; then
         echo ""
         maestro_ask_choice "Which AI coding assistant do you want?" \
-            "Claude Code (Anthropic) — recommended" \
-            "OpenAI Codex (OpenAI)" \
+            "Claude Code (Anthropic) — AI pair programmer for terminal" \
+            "OpenAI Codex (OpenAI) — AI coding agent" \
             "Both" \
             "Skip for now"
 
         local ai_choice="${REPLY:-1}"
+
+        # Helper: install npm package with visible errors in CI
+        _install_npm_global() {
+            local pkg="$1"
+            if [ "$NON_INTERACTIVE" = true ]; then
+                npm install -g "$pkg"
+            else
+                npm install -g "$pkg" 2>/dev/null
+            fi
+        }
+
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
-                npm install -g @anthropic-ai/claude-code 2>/dev/null && {
+                _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
                     NEED_CLAUDE=false
@@ -638,7 +710,7 @@ act2_install_prerequisites() {
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
-                npm install -g @openai/codex 2>/dev/null && {
+                _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
                     HAS_CODEX=true
                 } || {
@@ -647,14 +719,14 @@ act2_install_prerequisites() {
                 ;;
             3)
                 maestro_info "Installing Claude Code"
-                npm install -g @anthropic-ai/claude-code 2>/dev/null && {
+                _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
                     NEED_CLAUDE=false
                 } || maestro_warn "Could not install Claude Code"
 
                 maestro_info "Installing OpenAI Codex"
-                npm install -g @openai/codex 2>/dev/null && {
+                _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
                     HAS_CODEX=true
                 } || maestro_warn "Could not install Codex"
@@ -696,33 +768,61 @@ act3_clone_and_build() {
 
     # Check for existing installation
     if [ -d "$INSTALL_DIR" ]; then
-        if [ -f "$INSTALL_DIR/package.json" ] && grep -q "ai-maestro" "$INSTALL_DIR/package.json" 2>/dev/null; then
+        if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name".*"ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+            # M20/M21: Show current version and check if update is needed
+            local old_version=""
+            if [ -f "$INSTALL_DIR/package.json" ]; then
+                old_version=$(grep '"version"' "$INSTALL_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version".*"\([^"]*\)".*/\1/')
+            fi
+            if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
+                maestro_ok "AI Maestro v${VERSION} is already up to date"
+                maestro_info "Dashboard: http://localhost:23000"
+                return
+            fi
             maestro_warn "AI Maestro already installed at $INSTALL_DIR"
+            if [ -n "$old_version" ]; then
+                maestro_info "Current: v${old_version} → Latest: v${VERSION}"
+            fi
             maestro_ask_yn "Update existing installation?" "y"
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
-                maestro_step 1 4 "Pulling latest changes..." ""
+                maestro_step 1 3 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
-                git pull origin main 2>/dev/null || git pull 2>/dev/null || true
-                git submodule update --init --recursive
-                maestro_step 1 4 "Pulling latest changes..." "done"
-
-                maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install
-                maestro_step 2 4 "Installing dependencies..." "done"
-
-                maestro_step 3 4 "Setting up agent tools..." ""
-                if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
-                    chmod +x install.sh
-                    ./install.sh --from-remote -y
+                local had_stash=false
+                if git stash --quiet 2>/dev/null; then
+                    # Check if stash actually saved something (vs empty stash)
+                    if git stash list 2>/dev/null | grep -q "stash@{0}"; then
+                        had_stash=true
+                    fi
                 fi
-                maestro_step 3 4 "Setting up agent tools..." "done"
+                git pull origin main 2>/dev/null || git pull
+                if [ "$had_stash" = true ]; then
+                    if ! git stash pop --quiet 2>/dev/null; then
+                        maestro_warn "Could not cleanly restore your local changes after update."
+                        maestro_info "Your changes are saved in git stash. To recover:"
+                        echo "   cd $INSTALL_DIR && git stash list"
+                        echo "   git stash pop   # (resolve any conflicts manually)"
+                    fi
+                fi
+                git submodule update --init --recursive
+                maestro_step 1 3 "Pulling latest changes..." "done"
 
-                maestro_step 4 4 "Configuring your system..." ""
-                # Already configured from previous install
-                maestro_step 4 4 "Configuring your system..." "done"
+                maestro_step 2 3 "Installing dependencies..." ""
+                yarn install --silent 2>/dev/null || yarn install
+                maestro_step 2 3 "Installing dependencies..." "done"
+
+                maestro_step 3 3 "Updating agent tools..." ""
+                if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
+                    # On update: only reinstall tools that are already present
+                    local tool_flags=""
+                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                    chmod +x install.sh
+                    # shellcheck disable=SC2086
+                    ./install.sh --from-remote -y $tool_flags
+                fi
+                maestro_step 3 3 "Updating agent tools..." "done"
 
                 echo ""
-                maestro_ok "AI Maestro v${VERSION} updated"
+                maestro_ok "AI Maestro v${VERSION} updated (was v${old_version:-unknown})"
                 return
             else
                 maestro_fail "Installation cancelled"
@@ -736,9 +836,12 @@ act3_clone_and_build() {
 
     # Fresh install
     maestro_step 1 4 "Downloading..." ""
-    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>/dev/null
+    if ! git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"; then
+        maestro_fail "Failed to clone repository. Check your network connection."
+        exit 1
+    fi
     cd "$INSTALL_DIR"
-    git submodule update --init --recursive 2>/dev/null
+    git submodule update --init --recursive || maestro_warn "Some submodules failed to initialize"
     maestro_step 1 4 "Downloading..." "done"
 
     maestro_step 2 4 "Installing dependencies..." ""
@@ -772,9 +875,39 @@ act4_start_and_register() {
     echo ""
     maestro_say "Starting the dashboard..."
 
-    # Check if port 23000 is already in use
-    if curl -s http://localhost:23000/api/sessions >/dev/null 2>&1; then
-        maestro_ok "AI Maestro already running on port 23000"
+    # Check if AI Maestro is already running on port 23000
+    # Verify it's actually AI Maestro by checking for known API response
+    if curl -s http://localhost:23000/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+        if [ "$IS_UPDATE" = true ]; then
+            # Restart service after update so it picks up new code
+            maestro_info "Restarting service with updated code..."
+            cd "$INSTALL_DIR"
+            if command -v pm2 &>/dev/null; then
+                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+            else
+                # Kill old nohup process and restart
+                local old_pid
+                old_pid=$(lsof -ti:23000 2>/dev/null || true)
+                if [ -n "$old_pid" ]; then
+                    kill "$old_pid" 2>/dev/null || true
+                    sleep 2
+                fi
+                mkdir -p "$INSTALL_DIR/logs"
+                nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
+            fi
+            # Wait for service to come back up
+            local attempts=0
+            while [ $attempts -lt 15 ]; do
+                if curl -s http://localhost:23000/api/sessions >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 1
+                attempts=$((attempts + 1))
+            done
+            maestro_ok "AI Maestro restarted on port 23000"
+        else
+            maestro_ok "AI Maestro already running on port 23000"
+        fi
     else
         # Start the service
         cd "$INSTALL_DIR"
@@ -791,8 +924,9 @@ act4_start_and_register() {
             pm2 save 2>/dev/null || true
         else
             # No pm2 — start in background
-            nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
             mkdir -p "$INSTALL_DIR/logs"
+            nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
+            echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
         fi
 
         # Wait for service to come up
@@ -821,11 +955,14 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
-    # Copy CLAUDE.md for first agent
-    if [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
+    # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
+    if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
-        portable_sed "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" "$AGENT_DIR/CLAUDE.md"
+        # Escape sed metacharacters in INSTALL_DIR (|, &, \)
+        local safe_dir
+        safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[|&\\]/\\&/g')
+        portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
@@ -840,6 +977,15 @@ act4_start_and_register() {
     # Open dashboard in browser
     maestro_info "Opening dashboard in your browser..."
     open_browser "http://localhost:23000"
+
+    # WSL-specific tips
+    if [ "$OS" = "wsl" ]; then
+        echo ""
+        maestro_info "WSL Tips:"
+        echo "   - Dashboard: open http://localhost:23000 in your Windows browser"
+        echo "   - tmux sessions persist while WSL is running (lost on wsl --shutdown or reboot)"
+        echo "   - Use 'tmux ls' to list active sessions"
+    fi
 }
 
 # =============================================================================
@@ -854,12 +1000,24 @@ act5_grand_finale() {
     command -v claude &>/dev/null && AI_TOOL="claude"
     [ -z "$AI_TOOL" ] && command -v codex &>/dev/null && AI_TOOL="codex"
 
-    if [ -n "$AI_TOOL" ] && [ "$NON_INTERACTIVE" != true ]; then
+    # On update, skip tutorial — just show completion summary
+    if [ "$IS_UPDATE" = true ]; then
+        maestro_ok "Update complete!"
+        maestro_info "Dashboard: http://localhost:23000"
+        if [ -n "$AI_TOOL" ]; then
+            maestro_info "Your existing agents are ready to use."
+        fi
+        echo ""
+        return
+    fi
+
+    if [ -n "$AI_TOOL" ] && [ "$NON_INTERACTIVE" != true ] && command -v tmux &>/dev/null; then
         maestro_say "Launching ${AI_TOOL} in your first agent session."
         maestro_say "If this is your first time with ${AI_TOOL}, it'll ask you to sign in."
+        maestro_say "After sign-in, you may need to re-type your prompt."
         maestro_say "I'm handing you off now. Have fun building!"
         echo ""
-        echo "   Tip: Detach anytime with Ctrl+b then d"
+        echo "   Tip: Detach anytime with Ctrl+b, release, then d"
         echo "   Dashboard: http://localhost:23000"
         echo ""
 
@@ -868,11 +1026,24 @@ act5_grand_finale() {
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
             tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            echo ""
+            maestro_ok "Agent launched in a new tmux window!"
+            maestro_info "Switch to it: Ctrl+b then n (next window)"
+            maestro_info "Dashboard: http://localhost:23000"
         else
-            # Not in tmux — create session and attach
-            tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                "$AI_TOOL \"$INITIAL_PROMPT\""
-            exec tmux attach-session -t "my-first-agent"
+            # Not in tmux — create session and attach (handle re-install collision)
+            if tmux has-session -t "my-first-agent" 2>/dev/null; then
+                maestro_info "Reattaching to existing 'my-first-agent' session..."
+            else
+                tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
+                    "$AI_TOOL \"$INITIAL_PROMPT\""
+            fi
+            sleep 2
+            tmux attach-session -t "my-first-agent"
+            echo ""
+            maestro_ok "Welcome back! Your agent session is still running in tmux."
+            maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
+            maestro_info "Dashboard: http://localhost:23000"
         fi
 
     elif [ -n "$AI_TOOL" ] && [ "$NON_INTERACTIVE" = true ]; then
@@ -904,6 +1075,24 @@ act5_grand_finale() {
 main() {
     parse_args "$@"
 
+    # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
+    if [ "$NON_INTERACTIVE" = true ]; then
+        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    fi
+
+    # M1: Warn if running as root (curl | sudo bash is dangerous)
+    if [ "$(id -u)" = "0" ]; then
+        maestro_warn "Running as root is not recommended."
+        maestro_info "AI Maestro doesn't need root — services run as your user."
+        maestro_info "Consider: curl -fsSL https://get.aimaestro.dev | bash  (without sudo)"
+        if [ "$NON_INTERACTIVE" != true ]; then
+            maestro_ask_yn "Continue as root anyway?" "n"
+            if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+                exit 1
+            fi
+        fi
+    fi
+
     detect_os
 
     # Handle uninstall
@@ -926,6 +1115,11 @@ main() {
 
     # ACT 5: Grand Finale
     act5_grand_finale
+
+    # Machine-readable status line for CI log parsing
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo "[maestro] STATUS: SUCCESS"
+    fi
 }
 
 main "$@"

@@ -69,11 +69,14 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            shift
+            echo -e "${RED}${CROSS} Unknown option: $1${NC}"
+            echo "Run with --help for usage information."
+            exit 1
             ;;
     esac
 done
 
+if [ "$FROM_REMOTE" != true ]; then
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
@@ -83,26 +86,26 @@ echo "║         From zero to orchestrating AI agents in minutes       ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
+fi
 
 # Function to print colored messages
-print_success() {
-    echo -e "${GREEN}${CHECK} $1${NC}"
-}
+# When called from remote-install.sh, suppress non-error output to avoid
+# two competing UI voices (Maestro-style vs emoji-style)
+if [ "$FROM_REMOTE" = true ]; then
+    print_success() { :; }
+    print_warning() { :; }
+    print_info() { :; }
+    print_step() { :; }
+else
+    print_success() { echo -e "${GREEN}${CHECK} $1${NC}"; }
+    print_warning() { echo -e "${YELLOW}${WARN} $1${NC}"; }
+    print_info() { echo -e "${BLUE}${INFO}$1${NC}"; }
+    print_step() { echo -e "${PURPLE}${ROCKET} $1${NC}"; }
+fi
 
+# Errors always print regardless of mode
 print_error() {
     echo -e "${RED}${CROSS} $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}${WARN} $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}${INFO}$1${NC}"
-}
-
-print_step() {
-    echo -e "${PURPLE}${ROCKET} $1${NC}"
 }
 
 print_header() {
@@ -379,6 +382,8 @@ if [ $MISSING_COUNT -gt 0 ]; then
         # Add Homebrew to PATH for this session
         if [ -f /opt/homebrew/bin/brew ]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -f /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
         fi
 
         print_success "Homebrew installed"
@@ -403,12 +408,12 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_step "Installing Node.js 20 LTS..."
         if [ "$OS" = "macos" ]; then
             brew install node@20
-            brew link node@20
+            brew link --force --overwrite node@20 || true
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
             print_info "Installing Node.js via nvm (Node Version Manager)..."
             # Check if nvm is already installed
             if [ ! -d "$HOME/.nvm" ]; then
-                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
                 # Load nvm for current session
                 export NVM_DIR="$HOME/.nvm"
                 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -507,7 +512,9 @@ fi
 fi  # end FROM_REMOTE != true
 
 # Check if we're already in an AI Maestro directory
-print_header "STEP 3: Install AI Maestro"
+if [ "$FROM_REMOTE" != true ]; then
+    print_header "STEP 3: Install AI Maestro"
+fi
 
 INSTALL_DIR=""
 IN_AI_MAESTRO=false
@@ -577,8 +584,14 @@ if [ -n "$INSTALL_DIR" ]; then
     if [ -d "$INSTALL_DIR" ] && [ "$IN_AI_MAESTRO" = false ]; then
         print_warning "Directory already exists: $INSTALL_DIR"
         if [ "$NON_INTERACTIVE" = true ]; then
-            print_info "Non-interactive mode: deleting existing directory..."
-            DELETE_DIR="y"
+            # Safety: only auto-delete paths under $HOME
+            if [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+                print_info "Non-interactive mode: deleting existing directory..."
+                DELETE_DIR="y"
+            else
+                print_error "Refusing to auto-delete $INSTALL_DIR (not under \$HOME)"
+                exit 1
+            fi
         else
             read -p "Delete and reinstall? (y/n): " DELETE_DIR
         fi
@@ -641,24 +654,28 @@ if [ -n "$INSTALL_DIR" ]; then
     fi
 
     if [[ "$SETUP_SSH" =~ ^[Yy]$ ]]; then
-        # Add to ~/.tmux.conf
-        echo "" >> ~/.tmux.conf
-        echo "# SSH Agent Configuration - AI Maestro" >> ~/.tmux.conf
-        echo "set-option -g update-environment \"DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY\"" >> ~/.tmux.conf
-        echo "set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock" >> ~/.tmux.conf
+        # Add to ~/.tmux.conf (skip if already present)
+        if ! grep -q "SSH Agent Configuration - AI Maestro" ~/.tmux.conf 2>/dev/null; then
+            echo "" >> ~/.tmux.conf
+            echo "# SSH Agent Configuration - AI Maestro" >> ~/.tmux.conf
+            echo "set-option -g update-environment \"DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY\"" >> ~/.tmux.conf
+            echo "set-environment -g 'SSH_AUTH_SOCK' ~/.ssh/ssh_auth_sock" >> ~/.tmux.conf
+        fi
 
-        # Add to shell config
+        # Add to shell config (skip if already present)
         SHELL_RC="$HOME/.zshrc"
         if [ -f "$HOME/.bashrc" ]; then
             SHELL_RC="$HOME/.bashrc"
         fi
 
-        echo "" >> "$SHELL_RC"
-        echo "# SSH Agent for tmux - AI Maestro" >> "$SHELL_RC"
-        echo "if [ -S \"\$SSH_AUTH_SOCK\" ] && [ ! -h \"\$SSH_AUTH_SOCK\" ]; then" >> "$SHELL_RC"
-        echo "    mkdir -p ~/.ssh" >> "$SHELL_RC"
-        echo "    ln -sf \"\$SSH_AUTH_SOCK\" ~/.ssh/ssh_auth_sock" >> "$SHELL_RC"
-        echo "fi" >> "$SHELL_RC"
+        if ! grep -q "SSH Agent for tmux - AI Maestro" "$SHELL_RC" 2>/dev/null; then
+            echo "" >> "$SHELL_RC"
+            echo "# SSH Agent for tmux - AI Maestro" >> "$SHELL_RC"
+            echo "if [ -S \"\$SSH_AUTH_SOCK\" ] && [ ! -h \"\$SSH_AUTH_SOCK\" ]; then" >> "$SHELL_RC"
+            echo "    mkdir -p ~/.ssh" >> "$SHELL_RC"
+            echo "    ln -sf \"\$SSH_AUTH_SOCK\" ~/.ssh/ssh_auth_sock" >> "$SHELL_RC"
+            echo "fi" >> "$SHELL_RC"
+        fi
 
         # Create initial symlink
         mkdir -p ~/.ssh
@@ -676,7 +693,9 @@ fi
 # Install agent tools (messaging, memory, graph, docs, hooks, agent CLI)
 if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
     echo ""
-    print_header "STEP 4: Install Agent Tools"
+    if [ "$FROM_REMOTE" != true ]; then
+        print_header "STEP 4: Install Agent Tools"
+    fi
 
     # Component selection — all enabled by default, --skip-* flags can disable
     INSTALL_MESSAGING=true
@@ -709,7 +728,8 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
             echo "    5) [$(_check $INSTALL_HOOKS)]  Claude Hooks      Claude Code integration"
             echo "    6) [$(_check $INSTALL_AGENT_CLI)]  Agent CLI         Agent management from terminal"
             echo ""
-            echo "  Toggle: 1-6  |  a) All  n) None  Enter) Install selected"
+            echo "  Type a number (1-6) to toggle  |  a) All  n) None"
+            echo "  Press Enter when ready to install selected components"
             read -p "  > " choice
             case $choice in
                 1) if [ "$INSTALL_MESSAGING" = true ]; then INSTALL_MESSAGING=false; else INSTALL_MESSAGING=true; fi ;;
@@ -817,6 +837,7 @@ elif [ "$SKIP_TOOLS" = true ]; then
     print_info "Skipping agent tools (--skip-tools flag set)"
 fi
 
+if [ "$FROM_REMOTE" != true ]; then
 # Final steps
 print_header "Installation Complete!"
 
@@ -883,3 +904,4 @@ fi
 echo ""
 print_success "Happy orchestrating! 🎉"
 echo ""
+fi  # end FROM_REMOTE != true

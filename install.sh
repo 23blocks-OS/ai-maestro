@@ -68,6 +68,23 @@ while [[ $# -gt 0 ]]; do
             SKIP_AGENT_CLI=true
             shift
             ;;
+        -h|--help)
+            echo "AI Maestro - Complete Installation Script"
+            echo ""
+            echo "Usage: ./install.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --non-interactive  Non-interactive mode (auto-accept all prompts)"
+            echo "  --from-remote          Called from remote-install.sh (internal)"
+            echo "  --skip-tools           Skip agent tools installation"
+            echo "  --skip-memory          Skip memory tools"
+            echo "  --skip-graph           Skip graph tools"
+            echo "  --skip-docs            Skip documentation tools"
+            echo "  --skip-hooks           Skip Claude Code hooks"
+            echo "  --skip-agent-cli       Skip agent management CLI"
+            echo "  -h, --help             Show this help message"
+            exit 0
+            ;;
         *)
             echo -e "${RED}${CROSS} Unknown option: $1${NC}"
             echo "Run with --help for usage information."
@@ -122,6 +139,26 @@ _portable_sed() {
         sed -i '' "$@"
     else
         sed -i "$@"
+    fi
+}
+
+# Install a system package on any Linux distro
+_install_pkg() {
+    local pkg="$1"
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq "$pkg"
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y "$pkg"
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm "$pkg"
+    elif command -v zypper &>/dev/null; then
+        sudo zypper install -y "$pkg"
+    elif command -v apk &>/dev/null; then
+        sudo apk add "$pkg"
+    else
+        print_error "No supported package manager found (apt, dnf, pacman, zypper, apk)"
+        print_info "Please install '$pkg' manually and re-run the installer."
+        return 1
     fi
 }
 
@@ -312,8 +349,10 @@ else
 fi
 
 # Check curl (should be pre-installed on macOS)
+NEED_CURL=false
 if ! command -v curl &> /dev/null; then
-    print_error "curl not found (should be pre-installed)"
+    print_warning "curl not found"
+    NEED_CURL=true
 fi
 
 echo ""
@@ -328,6 +367,7 @@ if [ "$NEED_TMUX" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_CLAUDE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_CURL" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
 if [ $MISSING_COUNT -eq 0 ]; then
     print_success "All prerequisites are installed!"
@@ -367,6 +407,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
     if [ "$NEED_JQ" = true ]; then
         echo "  ${PACKAGE} jq - JSON processor (optional)"
     fi
+    if [ "$NEED_CURL" = true ]; then
+        echo "  ${PACKAGE} curl - HTTP client (required)"
+    fi
 
     echo ""
     if [ "$NON_INTERACTIVE" = true ]; then
@@ -398,6 +441,16 @@ if [ $MISSING_COUNT -gt 0 ]; then
         print_success "Homebrew installed"
     fi
 
+    # Install curl (needed for Homebrew, nvm, Tailscale)
+    if [ "$NEED_CURL" = true ]; then
+        echo ""
+        print_step "Installing curl..."
+        if [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+            _install_pkg curl
+        fi
+        print_success "curl installed"
+    fi
+
     # Install Git
     if [ "$NEED_GIT" = true ]; then
         echo ""
@@ -405,8 +458,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install git
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y git
+            _install_pkg git
         fi
         print_success "Git installed"
     fi
@@ -422,7 +474,8 @@ if [ $MISSING_COUNT -gt 0 ]; then
             print_info "Installing Node.js via nvm (Node Version Manager)..."
             # Check if nvm is already installed
             if [ ! -d "$HOME/.nvm" ]; then
-                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+                # Use nvm's latest install URL (auto-resolves to current stable release)
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
                 # Load nvm for current session
                 export NVM_DIR="$HOME/.nvm"
                 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -441,7 +494,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
     if [ "$NEED_YARN" = true ]; then
         echo ""
         print_step "Installing Yarn..."
-        npm install -g yarn
+        npm install -g yarn || print_warning "Could not install Yarn — install manually with: npm install -g yarn"
         print_success "Yarn installed"
     fi
 
@@ -452,8 +505,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install tmux
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y tmux
+            _install_pkg tmux
         fi
         print_success "tmux installed"
     fi
@@ -465,8 +517,7 @@ if [ $MISSING_COUNT -gt 0 ]; then
         if [ "$OS" = "macos" ]; then
             brew install jq
         elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
-            sudo apt-get update
-            sudo apt-get install -y jq
+            _install_pkg jq
         fi
         print_success "jq installed"
     fi
@@ -622,12 +673,12 @@ if [ -n "$INSTALL_DIR" ]; then
 
     # Initialize git submodules (AMP messaging plugin, etc.)
     print_step "Initializing git submodules..."
-    git submodule update --init --recursive
+    git submodule update --init --recursive || print_warning "Some submodules failed to initialize"
     print_success "Git submodules initialized"
 
     echo ""
     print_step "Installing dependencies..."
-    yarn install
+    yarn install || print_warning "yarn install had errors — continuing"
     print_success "Dependencies installed"
 
     # Configure tmux
@@ -672,9 +723,11 @@ if [ -n "$INSTALL_DIR" ]; then
         fi
 
         # Add to shell config (skip if already present)
-        SHELL_RC="$HOME/.zshrc"
-        if [ -f "$HOME/.bashrc" ]; then
+        # Use $SHELL to detect the user's login shell (not file existence)
+        if [[ "$SHELL" == */bash ]]; then
             SHELL_RC="$HOME/.bashrc"
+        else
+            SHELL_RC="$HOME/.zshrc"
         fi
 
         if ! grep -q "SSH Agent for tmux - AI Maestro" "$SHELL_RC" 2>/dev/null; then
@@ -876,7 +929,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         if [ -n "$SELECTED_GW" ]; then
             IFS=',' read -ra GW_LIST <<< "$SELECTED_GW"
             for gw in "${GW_LIST[@]}"; do
-                local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
+                gw_dir="$INSTALL_DIR/services/${gw}-gateway"
                 if [ -d "$gw_dir" ]; then
                     cd "$gw_dir"
                     npm install --silent 2>/dev/null || npm install

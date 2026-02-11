@@ -11,7 +11,7 @@ connected messaging platforms.
 - Route complex requests to specialized agents when needed
 
 ## Active Gateways
-{{ACTIVE_GATEWAYS}}
+{{ACTIVE_GATEWAYS_LIST}}
 
 ## Context
 - AI Maestro install: {{INSTALL_DIR}}

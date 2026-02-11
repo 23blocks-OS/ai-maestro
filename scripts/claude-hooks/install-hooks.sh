@@ -77,10 +77,10 @@ HOOKS_CONFIG=$(cat << EOF
 EOF
 )
 
-# Merge hooks into existing settings using Node.js
+# Merge hooks into existing settings using Node.js (safe: uses JSON.parse, not eval)
 MERGED_SETTINGS=$(node -e "
-const existing = $EXISTING_SETTINGS;
-const hooks = $HOOKS_CONFIG;
+const existing = JSON.parse(process.argv[1]);
+const hooks = JSON.parse(process.argv[2]);
 
 // Merge hooks - add our hooks without removing existing ones
 if (!existing.hooks) {
@@ -93,7 +93,6 @@ for (const [event, configs] of Object.entries(hooks.hooks)) {
     }
 
     // Check if our hook already exists
-    const ourHookCommand = 'node $HOOK_SCRIPT';
     const hasOurHook = existing.hooks[event].some(cfg =>
         cfg.hooks?.some(h => h.command?.includes('ai-maestro-hook'))
     );
@@ -104,7 +103,7 @@ for (const [event, configs] of Object.entries(hooks.hooks)) {
 }
 
 console.log(JSON.stringify(existing, null, 2));
-")
+" "$EXISTING_SETTINGS" "$HOOKS_CONFIG")
 
 # Write merged settings
 echo "$MERGED_SETTINGS" > "$CLAUDE_SETTINGS_FILE"

@@ -66,7 +66,7 @@ docs_search() {
     local limit="${3:-10}"
     local keyword_mode="${4:-false}"
     local encoded_query
-    encoded_query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))" 2>/dev/null || echo "$query")
+    encoded_query=$(printf '%s' "$query" | jq -sRr @uri 2>/dev/null || echo "$query")
     if [ "$keyword_mode" = "true" ]; then
         api_query "GET" "/api/agents/${agent_id}/docs?action=search&keyword=${encoded_query}&limit=${limit}"
     else

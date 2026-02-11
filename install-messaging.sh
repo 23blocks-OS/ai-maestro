@@ -116,6 +116,18 @@ if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
     fi
 fi
 
+# Validate agent name to prevent path traversal (only alphanumeric, hyphens, underscores)
+_validate_agent_name() {
+    local name="$1"
+    if [ -z "$name" ]; then
+        return 1
+    fi
+    if echo "$name" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+        return 0
+    fi
+    return 1
+}
+
 # Migration function
 # Extract the recipient agent name from a message JSON file (for inbox placement)
 # Checks: toAlias, toSession, .to (plain name), envelope.to (extract name before @)
@@ -125,11 +137,11 @@ _extract_recipient() {
 
     # Try toAlias first (old flat format)
     recipient=$(jq -r '.toAlias // empty' "$msg_file" 2>/dev/null)
-    if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+    if [ -n "$recipient" ] && _validate_agent_name "$recipient"; then echo "$recipient"; return; fi
 
     # Try toSession (some messages have this)
     recipient=$(jq -r '.toSession // empty' "$msg_file" 2>/dev/null)
-    if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+    if [ -n "$recipient" ] && _validate_agent_name "$recipient"; then echo "$recipient"; return; fi
 
     # Try .to as plain agent name (old format where to is a name, not UUID)
     local to_val
@@ -138,7 +150,7 @@ _extract_recipient() {
         # Not a UUID, treat as agent name
         # Strip @domain if present
         recipient=$(echo "$to_val" | cut -d'@' -f1)
-        if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+        if [ -n "$recipient" ] && _validate_agent_name "$recipient"; then echo "$recipient"; return; fi
     fi
 
     # Try AMP envelope format
@@ -146,7 +158,7 @@ _extract_recipient() {
     env_to=$(jq -r '.envelope.to // empty' "$msg_file" 2>/dev/null)
     if [ -n "$env_to" ]; then
         recipient=$(echo "$env_to" | cut -d'@' -f1)
-        if [ -n "$recipient" ]; then echo "$recipient"; return; fi
+        if [ -n "$recipient" ] && _validate_agent_name "$recipient"; then echo "$recipient"; return; fi
     fi
 
     echo ""
@@ -160,14 +172,14 @@ _extract_sender() {
 
     # Try fromAlias first (old flat format)
     sender=$(jq -r '.fromAlias // empty' "$msg_file" 2>/dev/null)
-    if [ -n "$sender" ]; then echo "$sender"; return; fi
+    if [ -n "$sender" ] && _validate_agent_name "$sender"; then echo "$sender"; return; fi
 
     # Try .from as plain agent name
     local from_val
     from_val=$(jq -r '.from // empty' "$msg_file" 2>/dev/null)
     if [ -n "$from_val" ] && ! echo "$from_val" | grep -qE '^[0-9a-f]{8}-'; then
         sender=$(echo "$from_val" | cut -d'@' -f1)
-        if [ -n "$sender" ]; then echo "$sender"; return; fi
+        if [ -n "$sender" ] && _validate_agent_name "$sender"; then echo "$sender"; return; fi
     fi
 
     # Try AMP envelope format
@@ -175,7 +187,7 @@ _extract_sender() {
     env_from=$(jq -r '.envelope.from // empty' "$msg_file" 2>/dev/null)
     if [ -n "$env_from" ]; then
         sender=$(echo "$env_from" | cut -d'@' -f1)
-        if [ -n "$sender" ]; then echo "$sender"; return; fi
+        if [ -n "$sender" ] && _validate_agent_name "$sender"; then echo "$sender"; return; fi
     fi
 
     echo ""

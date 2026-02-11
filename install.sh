@@ -25,6 +25,7 @@ PACKAGE="📦"
 # Parse command line arguments
 SKIP_TOOLS=false
 NON_INTERACTIVE=false
+FROM_REMOTE=false
 
 SKIP_MEMORY=false
 SKIP_GRAPH=false
@@ -34,6 +35,11 @@ SKIP_AGENT_CLI=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --from-remote)
+            FROM_REMOTE=true
+            NON_INTERACTIVE=true
+            shift
+            ;;
         --skip-tools)
             SKIP_TOOLS=true
             shift
@@ -177,6 +183,9 @@ check_root() {
     fi
 }
 
+# Skip prerequisite checks when called from remote-install.sh (already done)
+if [ "$FROM_REMOTE" != true ]; then
+
 print_header "STEP 1: System Check"
 
 check_root
@@ -194,6 +203,7 @@ NEED_CLAUDE=false
 NEED_YARN=false
 NEED_GIT=false
 NEED_JQ=false
+NEED_TAILSCALE=false
 
 # Check Homebrew (macOS only)
 if [ "$OS" = "macos" ]; then
@@ -270,6 +280,16 @@ else
     NEED_CLAUDE=true
 fi
 
+# Check Tailscale (recommended for multi-machine mesh network)
+print_info "Checking for Tailscale..."
+if command -v tailscale &> /dev/null; then
+    TS_VERSION=$(tailscale version 2>/dev/null | head -n1 || echo "unknown")
+    print_success "Tailscale installed ($TS_VERSION)"
+else
+    print_warning "Tailscale not found (recommended for multi-machine setup)"
+    NEED_TAILSCALE=true
+fi
+
 # Check jq (required for agent CLI tools)
 print_info "Checking for jq..."
 if command -v jq &> /dev/null; then
@@ -294,6 +314,7 @@ if [ "$NEED_NODE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_YARN" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_TMUX" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_CLAUDE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
 if [ $MISSING_COUNT -eq 0 ]; then
@@ -327,6 +348,9 @@ if [ $MISSING_COUNT -gt 0 ]; then
     fi
     if [ "$NEED_CLAUDE" = true ]; then
         echo "  ${PACKAGE} Claude Code - AI coding assistant (optional)"
+    fi
+    if [ "$NEED_TAILSCALE" = true ]; then
+        echo "  ${PACKAGE} Tailscale - Secure mesh VPN for multi-machine setup (recommended)"
     fi
     if [ "$NEED_JQ" = true ]; then
         echo "  ${PACKAGE} jq - JSON processor (optional)"
@@ -449,13 +473,50 @@ if [ $MISSING_COUNT -gt 0 ]; then
             read -p "Press Enter to continue without Claude Code..."
         fi
     fi
+
+    # Install Tailscale (recommended for multi-machine)
+    if [ "$NEED_TAILSCALE" = true ]; then
+        echo ""
+        print_info "Tailscale enables secure multi-machine mesh networking"
+        echo "  Connect agents across laptops, desktops, and servers with zero port forwarding."
+        echo ""
+        if [ "$NON_INTERACTIVE" = true ]; then
+            INSTALL_TS="y"
+        else
+            read -p "Install Tailscale? (y/n): " INSTALL_TS
+        fi
+
+        if [[ "$INSTALL_TS" =~ ^[Yy]$ ]]; then
+            print_step "Installing Tailscale..."
+            if [ "$OS" = "macos" ]; then
+                brew install --cask tailscale
+            elif [ "$OS" = "linux" ] || [ "$OS" = "wsl" ]; then
+                curl -fsSL https://tailscale.com/install.sh | sh
+            fi
+            print_success "Tailscale installed"
+            echo ""
+            print_info "To activate: tailscale up"
+            print_info "Then install Tailscale on your other machines and sign in with the same account."
+        else
+            print_info "Skipping Tailscale — you can install later for multi-machine support"
+            echo "  https://tailscale.com/download"
+        fi
+    fi
 fi
+
+fi  # end FROM_REMOTE != true
 
 # Check if we're already in an AI Maestro directory
 print_header "STEP 3: Install AI Maestro"
 
 INSTALL_DIR=""
 IN_AI_MAESTRO=false
+
+# When called from remote-install.sh, we're already in the right directory
+if [ "$FROM_REMOTE" = true ]; then
+    IN_AI_MAESTRO=true
+    INSTALL_DIR=$(pwd)
+fi
 
 if [ -f "package.json" ] && grep -q "ai-maestro" package.json 2>/dev/null; then
     IN_AI_MAESTRO=true

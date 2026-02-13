@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -11,6 +11,7 @@ interface HeaderProps {
 
 export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentId, onOpenHelp }: HeaderProps) {
   const immersiveUrl = activeAgentId ? `/immersive?agent=${encodeURIComponent(activeAgentId)}` : '/immersive'
+  const companionUrl = activeAgentId ? `/companion?agent=${encodeURIComponent(activeAgentId)}` : '/companion'
   const zoomUrl = '/zoom'
 
   return (
@@ -62,6 +63,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <Grid3X3 className="w-3.5 h-3.5" />
             Zoom
+          </a>
+          <a
+            href={companionUrl}
+            className="text-sm px-3 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Companion Mode"
+          >
+            <UserCircle className="w-3.5 h-3.5" />
+            Companion
           </a>
           <a
             href={immersiveUrl}

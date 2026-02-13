@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
+import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS - Must be first to catch all errors
@@ -630,6 +631,115 @@ app.prepare().then(() => {
     })
   })
 
+  // WebSocket server for companion speech events (/companion-ws)
+  const companionWss = new WebSocketServer({ noServer: true })
+
+  // Map of agentId -> Set<WebSocket> for companion clients
+  const companionClients = new Map()
+
+  // Expose for agent cerebellum to send speech events
+  global.companionClients = companionClients
+
+  companionWss.on('connection', async (ws, query) => {
+    const agentId = query.agent
+    if (!agentId || typeof agentId !== 'string') {
+      ws.close(1008, 'agent parameter required')
+      return
+    }
+
+    console.log(`[COMPANION-WS] Client connected for agent ${agentId.substring(0, 8)}`)
+
+    // Add to subscribers for this agent
+    let clients = companionClients.get(agentId)
+    if (!clients) {
+      clients = new Set()
+      companionClients.set(agentId, clients)
+    }
+    clients.add(ws)
+
+    // Notify cerebellum that companion connected
+    try {
+      const { agentRegistry } = await import('./lib/agent.ts')
+      const agent = agentRegistry.getExistingAgent(agentId)
+      if (agent) {
+        const cerebellum = agent.getCerebellum()
+        if (cerebellum) {
+          cerebellum.setCompanionConnected(true)
+
+          // Subscribe to voice:speak events for this agent
+          const listener = (event) => {
+            if (event.type === 'voice:speak' && event.agentId === agentId) {
+              const message = JSON.stringify({
+                type: 'speech',
+                text: event.payload?.text || '',
+                timestamp: Date.now(),
+              })
+              // Send to all companion clients for this agent
+              const agentClients = companionClients.get(agentId)
+              if (agentClients) {
+                for (const client of agentClients) {
+                  if (client.readyState === 1) { // WebSocket.OPEN
+                    try { client.send(message) } catch { /* ignore */ }
+                  }
+                }
+              }
+            }
+          }
+          cerebellum.on('voice:speak', listener)
+
+          // Also attach the voice subsystem to the terminal buffer if available
+          const voiceSub = cerebellum.getSubsystem('voice')
+          if (voiceSub && voiceSub.attachBuffer) {
+            const { getBuffer } = await import('./lib/cerebellum/session-bridge.mjs')
+            // Find the session name for this agent
+            const { getAgent: getRegistryAgent } = await import('./lib/agent-registry.ts')
+            const registryAgent = getRegistryAgent(agentId)
+            const sessionName = registryAgent?.name || registryAgent?.alias
+            if (sessionName) {
+              const buffer = getBuffer(sessionName)
+              if (buffer) {
+                voiceSub.attachBuffer(buffer)
+                console.log(`[COMPANION-WS] Attached voice buffer for session ${sessionName}`)
+              }
+            }
+          }
+
+          // Store cleanup info on the ws
+          ws._companionCleanup = { listener, agentId }
+        }
+      }
+    } catch (err) {
+      console.error('[COMPANION-WS] Error setting up cerebellum connection:', err)
+    }
+
+    ws.on('close', () => {
+      console.log(`[COMPANION-WS] Client disconnected from agent ${agentId.substring(0, 8)}`)
+      const agentClients = companionClients.get(agentId)
+      if (agentClients) {
+        agentClients.delete(ws)
+        if (agentClients.size === 0) {
+          companionClients.delete(agentId)
+          // Notify cerebellum no companion connected
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              cerebellum.setCompanionConnected(false)
+              // Clean up listener
+              if (ws._companionCleanup?.listener) {
+                cerebellum.off('voice:speak', ws._companionCleanup.listener)
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        }
+      }
+    })
+
+    ws.on('error', (err) => {
+      console.error('[COMPANION-WS] Error:', err.message)
+    })
+  })
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
@@ -644,6 +754,10 @@ app.prepare().then(() => {
     } else if (pathname === '/v1/ws') {
       ampWss.handleUpgrade(request, socket, head, (ws) => {
         ampWss.emit('connection', ws)
+      })
+    } else if (pathname === '/companion-ws') {
+      companionWss.handleUpgrade(request, socket, head, (ws) => {
+        companionWss.emit('connection', ws, query)
       })
     } else {
       socket.destroy()
@@ -732,7 +846,8 @@ app.prepare().then(() => {
         ptyProcess,
         logStream,
         loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
-        cleanupTimer: null // Timer for cleaning up PTY when no clients connected
+        cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
+        terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
       }
       sessions.set(sessionName, sessionState)
 
@@ -770,6 +885,11 @@ app.prepare().then(() => {
 
         if (hasSubstantialContent) {
           trackSessionActivity(sessionName)
+        }
+
+        // Feed data to cerebellum terminal buffer (for voice subsystem)
+        if (sessionState.terminalBuffer && hasSubstantialContent) {
+          sessionState.terminalBuffer.write(data)
         }
 
         // Send data to all clients and wait for write completion

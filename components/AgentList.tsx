@@ -40,6 +40,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
+import AgentCreationWizard from './AgentCreationWizard'
 import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -165,6 +166,7 @@ export default function AgentList({
 }: AgentListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
+  const [showWizardModal, setShowWizardModal] = useState(false)
   const [showCreateDropdown, setShowCreateDropdown] = useState(false)
   const createDropdownRef = useRef<HTMLDivElement>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -670,6 +672,7 @@ export default function AgentList({
   const handleCreateComplete = () => {
     setShowCreateModal(false)
     setShowAdvancedCreateModal(false)
+    setShowWizardModal(false)
     onRefresh?.()
   }
 
@@ -719,7 +722,7 @@ export default function AgentList({
                   <button
                     onClick={() => {
                       setShowCreateDropdown(false)
-                      setShowCreateModal(true)
+                      setShowWizardModal(true)
                     }}
                     className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
                   >
@@ -952,7 +955,7 @@ export default function AgentList({
 
             {/* Or create button */}
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => setShowWizardModal(true)}
               className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105"
             >
               Create Your First Agent
@@ -1377,6 +1380,14 @@ export default function AgentList({
                                                 )}
                                               </button>
                                             )}
+                                            <a
+                                              href={`/companion?agent=${encodeURIComponent(agent.id)}`}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="p-1 rounded hover:bg-pink-500/20 text-gray-400 hover:text-pink-400 transition-all duration-200"
+                                              title="Companion View"
+                                            >
+                                              <User className="w-3 h-3" />
+                                            </a>
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation()
@@ -1477,7 +1488,19 @@ export default function AgentList({
         )}
       </div>
 
-      {/* Create Agent Modal */}
+      {/* Creation Wizard */}
+      {showWizardModal && (
+        <AgentCreationWizard
+          onClose={() => setShowWizardModal(false)}
+          onComplete={handleCreateComplete}
+          onSwitchToAdvanced={() => {
+            setShowWizardModal(false)
+            setShowAdvancedCreateModal(true)
+          }}
+        />
+      )}
+
+      {/* Create Agent Modal (legacy) */}
       {showCreateModal && (
         <CreateAgentModal
           onClose={() => setShowCreateModal(false)}

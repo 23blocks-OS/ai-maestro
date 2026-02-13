@@ -18,6 +18,9 @@ import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
 import { getSelfHost } from './hosts-config'
 import { computeSessionName } from '@/types/agent'
+import { Cerebellum } from './cerebellum/cerebellum'
+import { MemorySubsystem } from './cerebellum/memory-subsystem'
+import { VoiceSubsystem } from './cerebellum/voice-subsystem'
 
 import * as fs from 'fs'
 import * as path from 'path'
@@ -788,6 +791,7 @@ export class Agent {
   private config: AgentConfig
   private database: AgentDatabase | null = null
   private subconscious: AgentSubconscious | null = null
+  private cerebellum: Cerebellum | null = null
   private initialized = false
 
   constructor(config: AgentConfig) {
@@ -796,7 +800,7 @@ export class Agent {
   }
 
   /**
-   * Initialize the agent (database + subconscious)
+   * Initialize the agent (database + cerebellum with subsystems)
    */
   async initialize(subconsciousConfig?: SubconsciousConfig): Promise<void> {
     if (this.initialized) {
@@ -813,25 +817,41 @@ export class Agent {
     })
     await this.database.initialize()
 
-    // Start subconscious (background awareness)
-    this.subconscious = new AgentSubconscious(this.agentId, this, subconsciousConfig)
-    this.subconscious.start()
+    // Create cerebellum (orchestrates subsystems)
+    this.cerebellum = new Cerebellum(this.agentId)
+
+    // Register memory subsystem (wraps existing AgentSubconscious unchanged)
+    const agent = this
+    const memorySubsystem = new MemorySubsystem(
+      () => new AgentSubconscious(this.agentId, agent, subconsciousConfig)
+    )
+    this.cerebellum.registerSubsystem(memorySubsystem)
+
+    // Register voice subsystem (LLM-powered speech summarization)
+    this.cerebellum.registerSubsystem(new VoiceSubsystem())
+
+    // Start all subsystems
+    this.cerebellum.start()
+
+    // Backward compat: expose subconscious from memory subsystem
+    this.subconscious = memorySubsystem.getSubconscious()
 
     this.initialized = true
     console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Initialized`)
   }
 
   /**
-   * Shutdown the agent (stop subconscious, close database)
+   * Shutdown the agent (stop cerebellum + subsystems, close database)
    */
   async shutdown(): Promise<void> {
     console.log(`[Agent ${this.agentId.substring(0, 8)}] Shutting down...`)
 
-    // Stop subconscious
-    if (this.subconscious) {
-      this.subconscious.stop()
-      this.subconscious = null
+    // Stop cerebellum (stops all subsystems including memory/voice)
+    if (this.cerebellum) {
+      this.cerebellum.stop()
+      this.cerebellum = null
     }
+    this.subconscious = null
 
     // Close database
     if (this.database) {
@@ -854,10 +874,17 @@ export class Agent {
   }
 
   /**
-   * Get the agent's subconscious
+   * Get the agent's subconscious (backward compat)
    */
   getSubconscious(): AgentSubconscious | null {
     return this.subconscious
+  }
+
+  /**
+   * Get the agent's cerebellum (subsystem coordinator)
+   */
+  getCerebellum(): Cerebellum | null {
+    return this.cerebellum
   }
 
   /**
@@ -875,7 +902,8 @@ export class Agent {
       agentId: this.agentId,
       initialized: this.initialized,
       database: this.database ? 'connected' : 'disconnected',
-      subconscious: this.subconscious?.getStatus() || null
+      subconscious: this.subconscious?.getStatus() || null,
+      cerebellum: this.cerebellum?.getStatus() || null,
     }
   }
 

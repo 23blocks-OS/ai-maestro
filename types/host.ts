@@ -59,6 +59,12 @@ export interface Host {
 
   /** Whether this host is the current machine (set by API, not stored) */
   isSelf?: boolean
+
+  /** Runtime capabilities detected on this host */
+  capabilities?: {
+    docker?: boolean
+    dockerVersion?: string
+  }
 }
 
 export interface HostsConfig {

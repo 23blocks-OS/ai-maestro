@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { getHosts, saveHosts, addHost, updateHost, deleteHost, isSelf } from '@/lib/hosts-config'
 import { addHostWithSync } from '@/lib/host-sync'
 import type { Host } from '@/types/host'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
@@ -16,10 +20,28 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const hosts = getHosts()
-    // Add isSelf flag to each host so UI can identify the local machine
+
+    // Check Docker availability on local host
+    let dockerAvailable = false
+    let dockerVersion: string | undefined
+    try {
+      const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 3000 })
+      dockerAvailable = true
+      dockerVersion = stdout.trim().replace(/'/g, '')
+    } catch {
+      // Docker not available
+    }
+
+    // Add isSelf flag and capabilities to each host
     const hostsWithSelf = hosts.map(host => ({
       ...host,
       isSelf: isSelf(host.id),
+      ...(isSelf(host.id) && {
+        capabilities: {
+          docker: dockerAvailable,
+          dockerVersion,
+        }
+      }),
     }))
     return NextResponse.json({ hosts: hostsWithSelf })
   } catch (error) {

@@ -197,13 +197,15 @@ export async function POST(request: Request) {
       await initAgentAMPHome(agentName, registeredAgentId)
       const ampDir = getAgentAMPDir(agentName, registeredAgentId)
       await execAsync(`tmux set-environment -t "${actualSessionName}" AMP_DIR "${ampDir}"`)
-      await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
+      await execAsync(`tmux set-environment -t "${actualSessionName}" AIM_AGENT_NAME "${agentName}"`)
       if (registeredAgentId) {
-        await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_ID "${registeredAgentId}"`)
+        await execAsync(`tmux set-environment -t "${actualSessionName}" AIM_AGENT_ID "${registeredAgentId}"`)
       }
+      // Remove CLAUDECODE from tmux session env so CLI tools don't think they're nested
+      await execAsync(`tmux set-environment -t "${actualSessionName}" -r CLAUDECODE 2>/dev/null || true`)
       const exportCmd = registeredAgentId
-        ? `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${registeredAgentId}'`
-        : `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}'`
+        ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${registeredAgentId}'; unset CLAUDECODE`
+        : `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}'; unset CLAUDECODE`
       await execAsync(`tmux send-keys -t "${actualSessionName}" "${exportCmd}" Enter`)
       console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
     } catch (ampError) {

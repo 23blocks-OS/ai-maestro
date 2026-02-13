@@ -151,16 +151,17 @@ export async function POST(
     // Initialize per-agent AMP directory and set AMP_DIR in tmux session
     // This ensures amp-inbox.sh reads from this agent's own inbox
     // Uses UUID-keyed directory for stability across renames
+    let ampDir = ''
     try {
       await initAgentAMPHome(agentName, id)
-      const ampDir = getAgentAMPDir(agentName, id)
-      // Set AMP_DIR for the tmux session environment (new panes/windows inherit it)
+      ampDir = getAgentAMPDir(agentName, id)
+      // Set vars silently via tmux set-environment (no visible terminal output)
       await execAsync(`tmux set-environment -t "${sessionName}" AMP_DIR "${ampDir}"`)
-      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
-      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_ID "${id}"`)
-      // Also export in the current shell so the agent's program has it
-      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${id}'" Enter`)
-      console.log(`[Wake] Set AMP_DIR=${ampDir} CLAUDE_AGENT_ID=${id} for agent ${agentName}`)
+      await execAsync(`tmux set-environment -t "${sessionName}" AIM_AGENT_NAME "${agentName}"`)
+      await execAsync(`tmux set-environment -t "${sessionName}" AIM_AGENT_ID "${id}"`)
+      // Remove CLAUDECODE from tmux session env so new panes don't inherit it
+      await execAsync(`tmux set-environment -t "${sessionName}" -r CLAUDECODE 2>/dev/null || true`)
+      console.log(`[Wake] Set AMP_DIR=${ampDir} AIM_AGENT_ID=${id} for agent ${agentName}`)
     } catch (ampError) {
       // Non-fatal: agent still works without AMP
       console.warn(`[Wake] Could not set up AMP for ${agentName}:`, ampError)
@@ -174,7 +175,10 @@ export async function POST(
 
       // Check if user wants terminal only (no AI program)
       if (program === 'none' || program === 'terminal') {
-        // Skip starting any program - just leave the shell
+        // Export env vars in a single command for terminal-only mode
+        try {
+          await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${id}'; unset CLAUDECODE" Enter`)
+        } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
         let startCommand = ''
@@ -242,9 +246,13 @@ export async function POST(
         // Small delay to let the session initialize
         await new Promise(resolve => setTimeout(resolve, 300))
 
-        // Send the command to start the program
+        // Single send-keys: export env vars, unset CLAUDECODE, then launch program
+        // Combined into one line so the terminal only shows one command
         try {
-          await execAsync(`tmux send-keys -t "${sessionName}" "${fullCommand}" Enter`)
+          const envExport = ampDir
+            ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${id}'; `
+            : ''
+          await execAsync(`tmux send-keys -t "${sessionName}" "${envExport}unset CLAUDECODE; ${fullCommand}" Enter`)
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
           // Don't fail the whole operation, session is still created

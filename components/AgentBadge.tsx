@@ -11,6 +11,7 @@ import {
   Power,
   Copy,
   Mail,
+  Box,
 } from 'lucide-react'
 import { Agent, AgentSession } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -361,10 +362,15 @@ export default function AgentBadge({
         {/* Full name and host - Secondary info */}
         <div className={`${(agent.label || agent.alias) ? 'mt-1' : 'mt-3'} w-full`}>
           <p className={`
-            text-[11px] leading-tight
+            text-[11px] leading-tight flex items-center gap-1
             ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
           `}>
             {agent.name}
+            {agent.deployment?.cloud?.provider === 'local-container' && (
+              <span className="flex-shrink-0" aria-label="Docker container">
+                <Box className="w-3 h-3 text-blue-400" />
+              </span>
+            )}
           </p>
 
           {agent.hostId && (

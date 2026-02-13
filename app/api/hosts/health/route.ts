@@ -39,15 +39,22 @@ export async function GET(request: NextRequest) {
     const result = await makeHealthCheckRequest(parsedUrl, 10000)
 
     if (result.success) {
-      // Also fetch version info from /api/config
-      const versionResult = await fetchVersionInfo(parsedUrl, 3000)
+      // Also fetch version info and Docker capabilities
+      const [versionResult, dockerResult] = await Promise.all([
+        fetchVersionInfo(parsedUrl, 3000),
+        fetchDockerInfo(parsedUrl, 3000),
+      ])
 
       return NextResponse.json({
         success: true,
         status: 'online',
         url: hostUrl,
         version: versionResult.version || null,
-        sessionCount: result.sessionCount ?? null
+        sessionCount: result.sessionCount ?? null,
+        capabilities: {
+          docker: dockerResult.available,
+          dockerVersion: dockerResult.version,
+        },
       })
     } else {
       return NextResponse.json({
@@ -145,5 +152,35 @@ async function fetchVersionInfo(
     return {}
   } catch {
     return {}
+  }
+}
+
+/**
+ * Fetch Docker availability from remote host's /api/docker/info endpoint
+ */
+async function fetchDockerInfo(
+  url: URL,
+  timeout: number
+): Promise<{ available: boolean; version?: string }> {
+  try {
+    const dockerUrl = `${url.protocol}//${url.host}/api/docker/info`
+
+    const response = await fetch(dockerUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'AI-Maestro-Health-Check',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(timeout),
+      cache: 'no-store'
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      return { available: !!data.available, version: data.version }
+    }
+    return { available: false }
+  } catch {
+    return { available: false }
   }
 }

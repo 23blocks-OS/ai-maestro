@@ -12,7 +12,7 @@ export class TerminalOutputBuffer {
   private maxSize: number
   private listeners = new Set<BufferListener>()
 
-  constructor(maxSize = 5120) {
+  constructor(maxSize = 8192) {
     this.maxSize = maxSize
   }
 

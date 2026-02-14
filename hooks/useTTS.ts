@@ -47,16 +47,33 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
 
   const providerRef = useRef<TTSProvider | null>(null)
   const speakingRef = useRef(false)
+  // Use ref for voices so speak() always has the latest list without re-creating the callback
+  const voicesRef = useRef<TTSVoice[]>([])
+  voicesRef.current = availableVoices
+
+  // Use ref for config so speak() always reads the latest values
+  const configRef = useRef(config)
+  configRef.current = config
 
   // Re-load config when agentId changes
   useEffect(() => {
     if (agentId) {
-      setConfigState(loadConfig(agentId))
+      const newConfig = loadConfig(agentId)
+      setConfigState(newConfig)
+      configRef.current = newConfig
     }
   }, [agentId])
 
-  // Create/swap provider when config.provider or elevenLabsApiKey changes
+  // Create/swap provider when config.provider, elevenLabsApiKey, OR agentId changes
+  // Including agentId ensures voices reload when switching agents (config may use a different voiceId)
   useEffect(() => {
+    // Stop any in-progress speech from previous provider
+    if (providerRef.current) {
+      providerRef.current.stop()
+      speakingRef.current = false
+      setIsSpeaking(false)
+    }
+
     if (config.provider === 'elevenlabs' && config.elevenLabsApiKey) {
       providerRef.current = createElevenLabsProvider(config.elevenLabsApiKey)
     } else {
@@ -64,12 +81,19 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
     }
 
     // Load voices from the new provider
-    providerRef.current.getVoices().then(setAvailableVoices)
+    let cancelled = false
+    providerRef.current.getVoices().then(voices => {
+      if (!cancelled) {
+        setAvailableVoices(voices)
+        voicesRef.current = voices
+      }
+    })
 
     return () => {
+      cancelled = true
       providerRef.current?.stop()
     }
-  }, [config.provider, config.elevenLabsApiKey])
+  }, [config.provider, config.elevenLabsApiKey, agentId])
 
   const toggleMute = useCallback(() => {
     setConfigState(prev => {
@@ -92,12 +116,16 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
     })
   }, [agentId])
 
+  // speak() uses refs so it always reads the latest config and voices
+  // without needing config/availableVoices in the dependency array
   const speak = useCallback((text: string) => {
     const provider = providerRef.current
-    if (!provider || config.muted || !config.enabled) return
+    const currentConfig = configRef.current
+    if (!provider || currentConfig.muted || !currentConfig.enabled) return
 
-    const selectedVoice = config.voiceId
-      ? availableVoices.find(v => v.id === config.voiceId) || undefined
+    const currentVoices = voicesRef.current
+    const selectedVoice = currentConfig.voiceId
+      ? currentVoices.find(v => v.id === currentConfig.voiceId) || undefined
       : undefined
 
     speakingRef.current = true
@@ -107,15 +135,15 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
       .speak({
         text,
         voice: selectedVoice,
-        rate: config.rate,
-        pitch: config.pitch,
-        volume: config.volume,
+        rate: currentConfig.rate,
+        pitch: currentConfig.pitch,
+        volume: currentConfig.volume,
       })
       .finally(() => {
         speakingRef.current = false
         setIsSpeaking(false)
       })
-  }, [config, availableVoices])
+  }, [])
 
   const stop = useCallback(() => {
     providerRef.current?.stop()

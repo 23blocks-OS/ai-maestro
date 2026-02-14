@@ -272,7 +272,7 @@ export class VoiceSubsystem implements Subsystem {
                     .join(' '))
                 : null
             if (text) {
-              turns.push({ role: 'user', text: text.substring(0, 200) })
+              turns.push({ role: 'user', text: text.substring(0, 400) })
             }
           } else if (msg.type === 'assistant' || msg.role === 'assistant') {
             const text = typeof msg.message === 'string'
@@ -286,7 +286,7 @@ export class VoiceSubsystem implements Subsystem {
                     .join(' '))
                 : null
             if (text) {
-              turns.push({ role: 'assistant', text: text.substring(0, 200) })
+              turns.push({ role: 'assistant', text: text.substring(0, 400) })
             }
           }
         } catch {
@@ -325,9 +325,9 @@ export class VoiceSubsystem implements Subsystem {
         ? this.userMessages[this.userMessages.length - 1].text
         : null
 
-      // Truncate terminal output to 1000 chars for context
-      const terminalContext = cleanedText.length > 1000
-        ? cleanedText.slice(-1000)
+      // Truncate terminal output to 2000 chars for richer context
+      const terminalContext = cleanedText.length > 2000
+        ? cleanedText.slice(-2000)
         : cleanedText
 
       // Assemble the prompt

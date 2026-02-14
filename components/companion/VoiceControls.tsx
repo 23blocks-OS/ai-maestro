@@ -167,10 +167,10 @@ export default function VoiceControls({
           {/* Provider toggle */}
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Provider</label>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               <button
                 onClick={() => onConfigChange({ provider: 'web-speech', voiceId: null })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   config.provider === 'web-speech'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:text-white'
@@ -179,28 +179,57 @@ export default function VoiceControls({
                 Browser
               </button>
               <button
+                onClick={() => onConfigChange({ provider: 'openai', voiceId: null })}
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  config.provider === 'openai'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                OpenAI
+              </button>
+              <button
                 onClick={() => onConfigChange({ provider: 'elevenlabs', voiceId: null })}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   config.provider === 'elevenlabs'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-purple-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:text-white'
                 }`}
               >
                 ElevenLabs
               </button>
             </div>
+            <div className="mt-1 text-[10px] text-gray-600 text-center">
+              {config.provider === 'web-speech' && 'Free · Built-in browser voices'}
+              {config.provider === 'openai' && 'Standard · High quality · ~$0.05/mo'}
+              {config.provider === 'elevenlabs' && 'Premium · Best quality · Voice cloning'}
+            </div>
           </div>
+
+          {/* OpenAI API key (only when selected) */}
+          {config.provider === 'openai' && (
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">OpenAI API Key</label>
+              <input
+                type="password"
+                value={config.openaiApiKey || ''}
+                onChange={(e) => onConfigChange({ openaiApiKey: e.target.value })}
+                placeholder="sk-..."
+                className="w-full bg-gray-800 text-gray-300 text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-green-500 focus:outline-none placeholder-gray-600"
+              />
+            </div>
+          )}
 
           {/* ElevenLabs API key (only when selected) */}
           {config.provider === 'elevenlabs' && (
             <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">API Key</label>
+              <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">ElevenLabs API Key</label>
               <input
                 type="password"
                 value={config.elevenLabsApiKey || ''}
                 onChange={(e) => onConfigChange({ elevenLabsApiKey: e.target.value })}
                 placeholder="xi-..."
-                className="w-full bg-gray-800 text-gray-300 text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none placeholder-gray-600"
+                className="w-full bg-gray-800 text-gray-300 text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-purple-500 focus:outline-none placeholder-gray-600"
               />
             </div>
           )}

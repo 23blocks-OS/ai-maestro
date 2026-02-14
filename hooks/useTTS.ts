@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { TTSConfig, TTSProvider, TTSVoice } from '@/types/tts'
 import { DEFAULT_TTS_CONFIG } from '@/types/tts'
-import { createWebSpeechProvider, createElevenLabsProvider } from '@/lib/tts'
+import { createWebSpeechProvider, createOpenAIProvider, createElevenLabsProvider } from '@/lib/tts'
 
 interface UseTTSOptions {
   agentId: string
@@ -76,6 +76,8 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
 
     if (config.provider === 'elevenlabs' && config.elevenLabsApiKey) {
       providerRef.current = createElevenLabsProvider(config.elevenLabsApiKey)
+    } else if (config.provider === 'openai' && config.openaiApiKey) {
+      providerRef.current = createOpenAIProvider(config.openaiApiKey)
     } else {
       providerRef.current = createWebSpeechProvider()
     }
@@ -93,7 +95,7 @@ export function useTTS(options: UseTTSOptions): UseTTSReturn {
       cancelled = true
       providerRef.current?.stop()
     }
-  }, [config.provider, config.elevenLabsApiKey, agentId])
+  }, [config.provider, config.openaiApiKey, config.elevenLabsApiKey, agentId])
 
   const toggleMute = useCallback(() => {
     setConfigState(prev => {

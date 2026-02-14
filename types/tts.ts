@@ -1,6 +1,6 @@
 // TTS (Text-to-Speech) types for Companion Mode
 
-export type TTSProviderType = 'web-speech' | 'elevenlabs'
+export type TTSProviderType = 'web-speech' | 'openai' | 'elevenlabs'
 
 export interface TTSVoice {
   id: string
@@ -17,6 +17,7 @@ export interface TTSConfig {
   rate: number    // 0.5 - 2.0, default 1.0
   pitch: number   // 0.0 - 2.0, default 1.0
   volume: number  // 0.0 - 1.0, default 0.8
+  openaiApiKey?: string
   elevenLabsApiKey?: string
 }
 

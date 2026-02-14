@@ -205,7 +205,102 @@ export function createWebSpeechProvider(): TTSProvider {
   }
 }
 
-// --- ElevenLabs Provider (Phase 2) ---
+// --- OpenAI TTS Provider (Standard Tier) ---
+
+// OpenAI preset voices
+const OPENAI_VOICES = [
+  { id: 'alloy', name: 'Alloy', desc: 'Neutral, balanced' },
+  { id: 'ash', name: 'Ash', desc: 'Warm, conversational' },
+  { id: 'ballad', name: 'Ballad', desc: 'Gentle, soothing' },
+  { id: 'coral', name: 'Coral', desc: 'Clear, friendly' },
+  { id: 'echo', name: 'Echo', desc: 'Smooth, resonant' },
+  { id: 'fable', name: 'Fable', desc: 'Expressive, storytelling' },
+  { id: 'nova', name: 'Nova', desc: 'Bright, energetic' },
+  { id: 'onyx', name: 'Onyx', desc: 'Deep, authoritative' },
+  { id: 'sage', name: 'Sage', desc: 'Calm, thoughtful' },
+  { id: 'shimmer', name: 'Shimmer', desc: 'Light, animated' },
+]
+
+export function createOpenAIProvider(apiKey: string): TTSProvider {
+  let audio: HTMLAudioElement | null = null
+  let speaking = false
+
+  return {
+    type: 'openai',
+
+    async getVoices(): Promise<TTSVoice[]> {
+      return OPENAI_VOICES.map(v => ({
+        id: v.id,
+        name: `${v.name} – ${v.desc}`,
+        lang: 'en',
+        provider: 'openai' as const,
+      }))
+    },
+
+    async speak(options: TTSSpeakOptions): Promise<void> {
+      const voiceId = options.voice?.id || 'nova'
+      try {
+        speaking = true
+        const res = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini-tts',
+            input: options.text,
+            voice: voiceId,
+            response_format: 'mp3',
+            instructions: 'Speak in a natural, conversational tone. You are a colleague giving a quick verbal update about coding work.',
+          }),
+        })
+        if (!res.ok) {
+          console.error(`[OpenAI TTS] Error: ${res.status} ${res.statusText}`)
+          speaking = false
+          return
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        audio = new Audio(url)
+        if (options.volume != null) audio.volume = options.volume
+        // OpenAI TTS doesn't support rate/pitch directly, but we can use playbackRate
+        if (options.rate != null) audio.playbackRate = options.rate
+
+        await new Promise<void>((resolve) => {
+          audio!.onended = () => {
+            speaking = false
+            URL.revokeObjectURL(url)
+            resolve()
+          }
+          audio!.onerror = () => {
+            speaking = false
+            URL.revokeObjectURL(url)
+            resolve()
+          }
+          audio!.play()
+        })
+      } catch {
+        speaking = false
+      }
+    },
+
+    stop() {
+      speaking = false
+      if (audio) {
+        audio.pause()
+        audio.currentTime = 0
+        audio = null
+      }
+    },
+
+    isSpeaking() {
+      return speaking
+    },
+  }
+}
+
+// --- ElevenLabs Provider (Premium Tier) ---
 
 export function createElevenLabsProvider(apiKey: string): TTSProvider {
   let audio: HTMLAudioElement | null = null

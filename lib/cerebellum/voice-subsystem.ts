@@ -11,7 +11,11 @@
 
 import type { Subsystem, SubsystemContext, SubsystemStatus, ActivityState } from './types'
 import type { TerminalOutputBuffer } from './terminal-buffer'
-import { VOICE_CONVERSATIONAL_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS } from './voice-prompts'
+import {
+  VOICE_CONVERSATIONAL_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS,
+  classifyTerminalEvent, EVENT_COOLDOWNS, templateSummarize,
+  type TerminalEventType,
+} from './voice-prompts'
 
 // ANSI stripping regex (same as lib/tts.ts but server-side)
 const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g
@@ -25,7 +29,6 @@ const NOISE_PATTERNS = [
 ]
 
 interface VoiceSubsystemConfig {
-  cooldownMs?: number       // Min time between speech events (default: 15s)
   minBufferSize?: number    // Min buffer size to trigger summarization (default: 100)
   maxCallsPerHour?: number  // Rate limit for LLM calls (default: 60)
 }
@@ -33,6 +36,12 @@ interface VoiceSubsystemConfig {
 interface UserMessage {
   text: string
   timestamp: number
+}
+
+interface SpeechHistoryEntry {
+  text: string
+  timestamp: number
+  eventType: TerminalEventType
 }
 
 interface ConversationTurn {
@@ -53,7 +62,6 @@ export class VoiceSubsystem implements Subsystem {
   private userMessages: UserMessage[] = []
 
   // Guards
-  private cooldownMs: number
   private minBufferSize: number
   private maxCallsPerHour: number
   private lastSpokeAt = 0
@@ -61,14 +69,16 @@ export class VoiceSubsystem implements Subsystem {
   private callsThisHour = 0
   private hourResetTimer: NodeJS.Timeout | null = null
 
+  // Speech history ring buffer (last 5 spoken events)
+  private speechHistory: SpeechHistoryEntry[] = []
+  private static readonly MAX_SPEECH_HISTORY = 5
+
   // Stats
   private totalSpeechEvents = 0
   private totalLLMCalls = 0
-  private lastSummary: string | null = null
   private llmAvailable: boolean | null = null
 
   constructor(config: VoiceSubsystemConfig = {}) {
-    this.cooldownMs = config.cooldownMs ?? 15000
     this.minBufferSize = config.minBufferSize ?? 100
     this.maxCallsPerHour = config.maxCallsPerHour ?? 60
   }
@@ -96,6 +106,7 @@ export class VoiceSubsystem implements Subsystem {
     this.buffer = null
     this.context = null
     this.userMessages = []
+    this.speechHistory = []
   }
 
   getStatus(): SubsystemStatus {
@@ -106,7 +117,8 @@ export class VoiceSubsystem implements Subsystem {
       totalSpeechEvents: this.totalSpeechEvents,
       totalLLMCalls: this.totalLLMCalls,
       callsThisHour: this.callsThisHour,
-      lastSummary: this.lastSummary,
+      lastSummary: this.speechHistory.length > 0 ? this.speechHistory[this.speechHistory.length - 1].text : null,
+      speechHistorySize: this.speechHistory.length,
       llmAvailable: this.llmAvailable,
       bufferSize: this.buffer?.getSize() ?? 0,
       userMessageCount: this.userMessages.length,
@@ -141,13 +153,14 @@ export class VoiceSubsystem implements Subsystem {
    */
   repeatLast(): void {
     if (!this.running || !this.context || !this.companionConnected) return
-    if (this.lastSummary) {
+    const lastEntry = this.speechHistory.length > 0 ? this.speechHistory[this.speechHistory.length - 1] : null
+    if (lastEntry) {
       this.context.emit({
         type: 'voice:speak',
         agentId: this.context.agentId,
-        payload: { text: this.lastSummary },
+        payload: { text: lastEntry.text },
       })
-      console.log(`[Cerebellum:Voice] Repeat: "${this.lastSummary.substring(0, 60)}${this.lastSummary.length > 60 ? '...' : ''}"`)
+      console.log(`[Cerebellum:Voice] Repeat: "${lastEntry.text.substring(0, 60)}${lastEntry.text.length > 60 ? '...' : ''}"`)
     }
   }
 
@@ -169,46 +182,53 @@ export class VoiceSubsystem implements Subsystem {
     if (!this.running || !this.context || !this.companionConnected) return
     if (this.isSummarizing) return
 
-    // Cooldown check
-    const now = Date.now()
-    if (now - this.lastSpokeAt < this.cooldownMs) return
-
     // Buffer size check
     if (!this.buffer || this.buffer.getSize() < this.minBufferSize) return
+
+    const rawBuffer = this.buffer.getBuffer()
+    const stripped = this.stripTerminalNoise(rawBuffer)
+    if (stripped.length < 20) return
+
+    // Event-type pre-classification (runs BEFORE LLM)
+    const eventType = classifyTerminalEvent(stripped)
+
+    // Skip LLM entirely for noise
+    if (eventType === 'noise') {
+      console.log('[Cerebellum:Voice] Classified as noise, skipping')
+      return
+    }
+
+    // Adaptive cooldown based on event type
+    const now = Date.now()
+    const cooldownForEvent = EVENT_COOLDOWNS[eventType]
+    if (now - this.lastSpokeAt < cooldownForEvent) {
+      console.log(`[Cerebellum:Voice] Cooldown active for ${eventType} (${cooldownForEvent}ms), skipping`)
+      return
+    }
 
     // Rate limit check
     if (this.callsThisHour >= this.maxCallsPerHour) {
       console.log(`[Cerebellum:Voice] Rate limit reached (${this.maxCallsPerHour}/hr), using fallback`)
-      this.speakFallback()
+      this.speakFallback(stripped, eventType)
+      this.buffer.clear()
       return
     }
 
     this.isSummarizing = true
-    const rawBuffer = this.buffer.getBuffer()
     this.buffer.clear()
 
     try {
-      const stripped = this.stripTerminalNoise(rawBuffer)
-      if (stripped.length < 20) {
-        this.isSummarizing = false
-        return
-      }
-
       // Try LLM summarization with full conversation context
-      const summary = await this.summarizeWithLLM(stripped)
+      const summary = await this.summarizeWithLLM(stripped, eventType)
       if (summary) {
-        this.emitSpeech(summary)
+        this.emitSpeech(summary, eventType)
       } else {
-        // LLM not available, use simple fallback
-        this.emitSpeech(this.simpleSummarize(stripped))
+        // LLM not available, use template or simple fallback
+        this.speakFallback(stripped, eventType)
       }
     } catch (err) {
       console.error(`[Cerebellum:Voice] Summarization error:`, err)
-      // Try fallback on error
-      const stripped = this.stripTerminalNoise(rawBuffer)
-      if (stripped.length >= 20) {
-        this.emitSpeech(this.simpleSummarize(stripped))
-      }
+      this.speakFallback(stripped, eventType)
     } finally {
       this.isSummarizing = false
     }
@@ -302,7 +322,7 @@ export class VoiceSubsystem implements Subsystem {
     }
   }
 
-  private async summarizeWithLLM(cleanedText: string): Promise<string | null> {
+  private async summarizeWithLLM(cleanedText: string, eventType: TerminalEventType = 'status'): Promise<string | null> {
     try {
       const apiKey = process.env.ANTHROPIC_API_KEY
       if (!apiKey) {
@@ -331,7 +351,20 @@ export class VoiceSubsystem implements Subsystem {
         : cleanedText
 
       // Assemble the prompt
+      const now = Date.now()
       let prompt = VOICE_CONVERSATIONAL_PROMPT + '\n\n'
+
+      // Inject speech history (ring buffer) for anti-repetition and narrative continuity
+      if (this.speechHistory.length > 0) {
+        prompt += 'Your recent speech history (what you already told the user):\n'
+        for (const entry of this.speechHistory) {
+          const agoMs = now - entry.timestamp
+          const agoMin = Math.round(agoMs / 60000)
+          const agoLabel = agoMin < 1 ? 'just now' : `${agoMin} min ago`
+          prompt += `- ${agoLabel}: "${entry.text}"\n`
+        }
+        prompt += 'Do NOT repeat information the user already heard. Build on it.\n\n'
+      }
 
       if (conversationTurns.length > 0) {
         prompt += 'Recent conversation:\n'
@@ -345,6 +378,8 @@ export class VoiceSubsystem implements Subsystem {
         prompt += `User's last message: ${lastUserMessage}\n\n`
       }
 
+      // Add event type hint so LLM knows the urgency
+      prompt += `[Event type: ${eventType}]\n`
       prompt += `Recent terminal activity:\n${terminalContext}`
 
       this.callsThisHour++
@@ -376,12 +411,21 @@ export class VoiceSubsystem implements Subsystem {
     }
   }
 
-  private emitSpeech(text: string): void {
+  private emitSpeech(text: string, eventType: TerminalEventType = 'status'): void {
     if (!this.context || !text || text.length < 5) return
 
     this.lastSpokeAt = Date.now()
-    this.lastSummary = text
     this.totalSpeechEvents++
+
+    // Push to speech history ring buffer
+    this.speechHistory.push({
+      text,
+      timestamp: this.lastSpokeAt,
+      eventType,
+    })
+    if (this.speechHistory.length > VoiceSubsystem.MAX_SPEECH_HISTORY) {
+      this.speechHistory.shift()
+    }
 
     this.context.emit({
       type: 'voice:speak',
@@ -389,17 +433,31 @@ export class VoiceSubsystem implements Subsystem {
       payload: { text },
     })
 
-    console.log(`[Cerebellum:Voice] Speech event: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`)
+    console.log(`[Cerebellum:Voice] Speech [${eventType}]: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`)
   }
 
-  private speakFallback(): void {
-    if (!this.buffer || this.buffer.getSize() < this.minBufferSize) return
-    const raw = this.buffer.getBuffer()
-    this.buffer.clear()
-    const stripped = this.stripTerminalNoise(raw)
-    if (stripped.length >= 20) {
-      this.emitSpeech(this.simpleSummarize(stripped))
+  /**
+   * Fallback speech: tries template matching first, then simple ANSI strip.
+   * Used when LLM is unavailable, rate-limited, or returns empty.
+   */
+  private speakFallback(stripped?: string, eventType: TerminalEventType = 'status'): void {
+    if (!stripped) {
+      if (!this.buffer || this.buffer.getSize() < this.minBufferSize) return
+      const raw = this.buffer.getBuffer()
+      this.buffer.clear()
+      stripped = this.stripTerminalNoise(raw)
     }
+    if (stripped.length < 20) return
+
+    // Try template-based summary first (higher quality than raw text)
+    const templateResult = templateSummarize(stripped)
+    if (templateResult) {
+      this.emitSpeech(templateResult, eventType)
+      return
+    }
+
+    // Last resort: simple truncation
+    this.emitSpeech(this.simpleSummarize(stripped), eventType)
   }
 
   /**

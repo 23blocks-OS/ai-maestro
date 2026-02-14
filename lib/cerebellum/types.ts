@@ -25,6 +25,8 @@ export interface Subsystem {
   getStatus(): SubsystemStatus
   onActivityStateChange?(state: ActivityState): void
   onCompanionConnectionChange?(connected: boolean): void
+  addUserMessage?(text: string): void
+  repeatLast?(): void
 }
 
 export interface CerebellumEvent {

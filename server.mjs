@@ -712,6 +712,40 @@ app.prepare().then(() => {
       console.error('[COMPANION-WS] Error setting up cerebellum connection:', err)
     }
 
+    // Handle user messages forwarded from the companion UI
+    ws.on('message', (raw) => {
+      try {
+        const data = JSON.parse(raw.toString())
+        if (data.type === 'user_message' && typeof data.text === 'string') {
+          // Forward to voice subsystem's user message buffer
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              const voiceSub = cerebellum.getSubsystem('voice')
+              if (voiceSub?.addUserMessage) {
+                voiceSub.addUserMessage(data.text)
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        } else if (data.type === 'repeat') {
+          // Repeat the last spoken message
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              const voiceSub = cerebellum.getSubsystem('voice')
+              if (voiceSub?.repeatLast) {
+                voiceSub.repeatLast()
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    })
+
     ws.on('close', () => {
       console.log(`[COMPANION-WS] Client disconnected from agent ${agentId.substring(0, 8)}`)
       const agentClients = companionClients.get(agentId)

@@ -1,16 +1,17 @@
 /**
- * Voice Subsystem - LLM-powered speech summarization
+ * Voice Subsystem - Conversational speech companion
  *
- * Buffers terminal output, and when the agent goes idle, uses Claude Haiku
- * to produce a natural 1-2 sentence summary that's sent to the companion
- * browser for text-to-speech playback.
+ * Buffers terminal output, tracks user messages, reads JSONL conversation
+ * context, and when the agent goes idle, uses Claude Haiku to produce a
+ * natural conversational response that's sent to the companion browser
+ * for text-to-speech playback.
  *
  * Falls back to simple ANSI stripping if no ANTHROPIC_API_KEY is available.
  */
 
 import type { Subsystem, SubsystemContext, SubsystemStatus, ActivityState } from './types'
 import type { TerminalOutputBuffer } from './terminal-buffer'
-import { VOICE_SUMMARY_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS } from './voice-prompts'
+import { VOICE_CONVERSATIONAL_PROMPT, VOICE_SUMMARY_MODEL, VOICE_SUMMARY_MAX_TOKENS } from './voice-prompts'
 
 // ANSI stripping regex (same as lib/tts.ts but server-side)
 const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g
@@ -29,6 +30,16 @@ interface VoiceSubsystemConfig {
   maxCallsPerHour?: number  // Rate limit for LLM calls (default: 60)
 }
 
+interface UserMessage {
+  text: string
+  timestamp: number
+}
+
+interface ConversationTurn {
+  role: 'user' | 'assistant'
+  text: string
+}
+
 export class VoiceSubsystem implements Subsystem {
   readonly name = 'voice'
 
@@ -37,6 +48,9 @@ export class VoiceSubsystem implements Subsystem {
   private unsubscribeBuffer: (() => void) | null = null
   private running = false
   private companionConnected = false
+
+  // User message ring buffer (last 5 messages from companion)
+  private userMessages: UserMessage[] = []
 
   // Guards
   private cooldownMs: number
@@ -81,6 +95,7 @@ export class VoiceSubsystem implements Subsystem {
     }
     this.buffer = null
     this.context = null
+    this.userMessages = []
   }
 
   getStatus(): SubsystemStatus {
@@ -94,6 +109,7 @@ export class VoiceSubsystem implements Subsystem {
       lastSummary: this.lastSummary,
       llmAvailable: this.llmAvailable,
       bufferSize: this.buffer?.getSize() ?? 0,
+      userMessageCount: this.userMessages.length,
     }
   }
 
@@ -107,6 +123,32 @@ export class VoiceSubsystem implements Subsystem {
     }
     this.buffer = terminalBuffer
     // We don't need to subscribe for real-time data — we just read the buffer on idle
+  }
+
+  /**
+   * Add a user message to the ring buffer (from companion WebSocket)
+   */
+  addUserMessage(text: string): void {
+    this.userMessages.push({ text, timestamp: Date.now() })
+    // Cap at 5
+    if (this.userMessages.length > 5) {
+      this.userMessages.shift()
+    }
+  }
+
+  /**
+   * Repeat the last spoken message (skips cooldown and buffer checks)
+   */
+  repeatLast(): void {
+    if (!this.running || !this.context || !this.companionConnected) return
+    if (this.lastSummary) {
+      this.context.emit({
+        type: 'voice:speak',
+        agentId: this.context.agentId,
+        payload: { text: this.lastSummary },
+      })
+      console.log(`[Cerebellum:Voice] Repeat: "${this.lastSummary.substring(0, 60)}${this.lastSummary.length > 60 ? '...' : ''}"`)
+    }
   }
 
   onActivityStateChange(state: ActivityState): void {
@@ -152,7 +194,7 @@ export class VoiceSubsystem implements Subsystem {
         return
       }
 
-      // Try LLM summarization first
+      // Try LLM summarization with full conversation context
       const summary = await this.summarizeWithLLM(stripped)
       if (summary) {
         this.emitSpeech(summary)
@@ -169,6 +211,94 @@ export class VoiceSubsystem implements Subsystem {
       }
     } finally {
       this.isSummarizing = false
+    }
+  }
+
+  /**
+   * Read recent conversation turns from the agent's JSONL conversation file.
+   * Returns the last N turns (user + assistant pairs).
+   */
+  private readRecentConversation(maxTurns = 6): ConversationTurn[] {
+    try {
+      const fs = require('fs')
+      const path = require('path')
+      const os = require('os')
+
+      // Get agent's working directory from registry
+      const { getAgent: getRegistryAgent } = require('../agent-registry')
+      if (!this.context) return []
+      const registryAgent = getRegistryAgent(this.context.agentId)
+      const workingDir = registryAgent?.workingDirectory
+        || registryAgent?.sessions?.[0]?.workingDirectory
+      if (!workingDir) return []
+
+      // Derive the Claude projects directory path (same as chat route.ts)
+      const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+      const projectDirName = workingDir.replace(/\//g, '-')
+      const conversationDir = path.join(claudeProjectsDir, projectDirName)
+
+      if (!fs.existsSync(conversationDir)) return []
+
+      // Find the most recently modified .jsonl file
+      const files = fs.readdirSync(conversationDir)
+        .filter((f: string) => f.endsWith('.jsonl'))
+        .map((f: string) => ({
+          name: f,
+          path: path.join(conversationDir, f),
+          mtime: fs.statSync(path.join(conversationDir, f)).mtime,
+        }))
+        .sort((a: { mtime: Date }, b: { mtime: Date }) => b.mtime.getTime() - a.mtime.getTime())
+
+      if (files.length === 0) return []
+
+      const content = fs.readFileSync(files[0].path, 'utf-8')
+      const lines = content.split('\n').filter((line: string) => line.trim())
+
+      // Parse and extract last N turns
+      const turns: ConversationTurn[] = []
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line)
+          if (msg.type === 'human' || msg.role === 'user') {
+            // Extract text from human message
+            const text = typeof msg.message === 'string'
+              ? msg.message
+              : msg.message?.content
+                ? (typeof msg.message.content === 'string'
+                  ? msg.message.content
+                  : msg.message.content
+                    .filter((b: { type: string }) => b.type === 'text')
+                    .map((b: { text: string }) => b.text)
+                    .join(' '))
+                : null
+            if (text) {
+              turns.push({ role: 'user', text: text.substring(0, 200) })
+            }
+          } else if (msg.type === 'assistant' || msg.role === 'assistant') {
+            const text = typeof msg.message === 'string'
+              ? msg.message
+              : msg.message?.content
+                ? (typeof msg.message.content === 'string'
+                  ? msg.message.content
+                  : msg.message.content
+                    .filter((b: { type: string }) => b.type === 'text')
+                    .map((b: { text: string }) => b.text)
+                    .join(' '))
+                : null
+            if (text) {
+              turns.push({ role: 'assistant', text: text.substring(0, 200) })
+            }
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+
+      // Return last N turns
+      return turns.slice(-maxTurns)
+    } catch (err) {
+      console.error('[Cerebellum:Voice] Failed to read conversation JSONL:', err)
+      return []
     }
   }
 
@@ -189,10 +319,33 @@ export class VoiceSubsystem implements Subsystem {
       const Anthropic = require(moduleName).default
       const client = new Anthropic({ apiKey })
 
-      // Truncate input to last 2000 chars for fast/cheap calls
-      const truncated = cleanedText.length > 2000
-        ? cleanedText.slice(-2000)
+      // Build conversational prompt with context
+      const conversationTurns = this.readRecentConversation(6)
+      const lastUserMessage = this.userMessages.length > 0
+        ? this.userMessages[this.userMessages.length - 1].text
+        : null
+
+      // Truncate terminal output to 1000 chars for context
+      const terminalContext = cleanedText.length > 1000
+        ? cleanedText.slice(-1000)
         : cleanedText
+
+      // Assemble the prompt
+      let prompt = VOICE_CONVERSATIONAL_PROMPT + '\n\n'
+
+      if (conversationTurns.length > 0) {
+        prompt += 'Recent conversation:\n'
+        for (const turn of conversationTurns) {
+          prompt += `${turn.role === 'user' ? 'User' : 'Agent'}: ${turn.text}\n`
+        }
+        prompt += '\n'
+      }
+
+      if (lastUserMessage) {
+        prompt += `User's last message: ${lastUserMessage}\n\n`
+      }
+
+      prompt += `Recent terminal activity:\n${terminalContext}`
 
       this.callsThisHour++
       this.totalLLMCalls++
@@ -202,7 +355,7 @@ export class VoiceSubsystem implements Subsystem {
         max_tokens: VOICE_SUMMARY_MAX_TOKENS,
         messages: [{
           role: 'user',
-          content: `${VOICE_SUMMARY_PROMPT}\n\nTerminal output:\n${truncated}`
+          content: prompt,
         }],
       })
 

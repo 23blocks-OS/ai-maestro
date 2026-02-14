@@ -683,6 +683,8 @@ class AgentSubconscious {
         // Session just went idle - good time to index
         console.log(`[Agent ${this.agentId.substring(0, 8)}] Host hint: idle_transition`)
         this.setActivityState('idle')
+        // Propagate idle to cerebellum so voice subsystem can trigger
+        this.agent.getCerebellum()?.setActivityState('idle')
         break
 
       case 'run_now':

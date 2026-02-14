@@ -1,18 +1,19 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAgents } from '@/hooks/useAgents'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, UserCircle, Volume2, VolumeX, WifiOff,
-  PhoneOff, Settings, ExternalLink,
+  PhoneOff, Settings, ExternalLink, Send, RotateCcw,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { Agent } from '@/types/agent'
 import { useTTS } from '@/hooks/useTTS'
 import { useCompanionWebSocket } from '@/hooks/useCompanionWebSocket'
 import type { TTSConfig, TTSVoice } from '@/types/tts'
+import { matchVoiceCommand, type VoiceCommandMatch } from '@/lib/voice-commands'
 
 import '@xterm/xterm/css/xterm.css'
 
@@ -56,11 +57,56 @@ function CompanionContent() {
     agentId: activeAgentId || '',
   })
 
-  // Companion WebSocket - receives speech events from server's cerebellum
-  useCompanionWebSocket({
+  // Companion WebSocket - receives speech events, sends user messages
+  const { send: sendToCompanion } = useCompanionWebSocket({
     agentId: activeAgentId,
     onSpeech: (text) => tts.speak(text),
   })
+
+  // Forward user messages to voice subsystem for conversation context
+  const handleMessageSent = useCallback((text: string) => {
+    sendToCompanion({ type: 'user_message', text })
+  }, [sendToCompanion])
+
+  // Repeat last spoken message
+  const handleRepeat = useCallback(() => {
+    sendToCompanion({ type: 'repeat' })
+  }, [sendToCompanion])
+
+  // Handle intercepted voice commands from CompanionInput
+  const handleCommandMatched = useCallback((match: VoiceCommandMatch) => {
+    switch (match.command.action) {
+      case 'repeat':
+        handleRepeat()
+        break
+      case 'stop':
+        tts.stop()
+        break
+      case 'mute':
+        if (!tts.isMuted) {
+          tts.stop()
+          tts.toggleMute()
+        }
+        break
+      case 'unmute':
+        if (tts.isMuted) {
+          tts.toggleMute()
+        }
+        break
+      case 'louder':
+        tts.setConfig({ volume: Math.min(1.0, tts.config.volume + 0.2) })
+        break
+      case 'quieter':
+        tts.setConfig({ volume: Math.max(0.1, tts.config.volume - 0.2) })
+        break
+      case 'faster':
+        tts.setConfig({ rate: Math.min(2.0, tts.config.rate + 0.2) })
+        break
+      case 'slower':
+        tts.setConfig({ rate: Math.max(0.5, tts.config.rate - 0.2) })
+        break
+    }
+  }, [handleRepeat, tts])
 
   // Find agent from URL param or selection
   useEffect(() => {
@@ -454,6 +500,11 @@ function CompanionContent() {
 
           {/* Bottom controls - compact */}
           <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+            {/* Voice input */}
+            <div className="mb-3 mx-auto max-w-xs">
+              <CompanionInput agentId={activeAgentId} disabled={!isOnline} onMessageSent={handleMessageSent} onCommandMatched={handleCommandMatched} />
+            </div>
+
             <div className="flex items-center justify-center gap-3">
               {/* Mute */}
               <button
@@ -468,6 +519,19 @@ function CompanionContent() {
                 title={tts.isMuted ? 'Unmute' : 'Mute'}
               >
                 {tts.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className={`w-5 h-5 ${tts.isSpeaking ? 'animate-pulse' : ''}`} />}
+              </button>
+
+              {/* Repeat */}
+              <button
+                onClick={handleRepeat}
+                disabled={!isOnline}
+                className={`w-12 h-12 rounded-full backdrop-blur-md flex items-center justify-center transition-all ${
+                  !isOnline ? 'bg-white/5 text-white/20 cursor-not-allowed'
+                  : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+                title="Say it again"
+              >
+                <RotateCcw className="w-4 h-4" />
               </button>
 
               {/* Settings */}
@@ -713,6 +777,11 @@ function CompanionContent() {
 
         {/* ---- Floating Bottom Controls (FaceTime style) ---- */}
         <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
+          {/* Voice input */}
+          <div className="mb-4 mx-auto max-w-sm">
+            <CompanionInput agentId={activeAgentId} disabled={!isOnline} onMessageSent={handleMessageSent} onCommandMatched={handleCommandMatched} />
+          </div>
+
           <div className="flex items-center justify-center gap-4">
             {/* Mute/Unmute */}
             <button
@@ -737,6 +806,20 @@ function CompanionContent() {
               ) : (
                 <Volume2 className={`w-6 h-6 ${tts.isSpeaking ? 'animate-pulse' : ''}`} />
               )}
+            </button>
+
+            {/* Repeat */}
+            <button
+              onClick={handleRepeat}
+              disabled={!isOnline}
+              className={`w-14 h-14 rounded-full backdrop-blur-md flex items-center justify-center transition-all ${
+                !isOnline
+                  ? 'bg-white/5 text-white/20 cursor-not-allowed'
+                  : 'bg-white/10 text-white/80 hover:bg-white/20 active:bg-white/30'
+              }`}
+              title="Say it again"
+            >
+              <RotateCcw className="w-5 h-5" />
             </button>
 
             {/* Voice Settings */}
@@ -942,6 +1025,132 @@ function CompanionContent() {
           </motion.div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * CompanionInput - Text input for voice-to-text (WhisperFlow) capture & send
+ * WhisperFlow types into the focused textarea like a virtual keyboard.
+ * Enter sends, Shift+Enter inserts newline.
+ */
+function CompanionInput({
+  agentId,
+  disabled,
+  onMessageSent,
+  onCommandMatched,
+}: {
+  agentId: string | null
+  disabled: boolean
+  onMessageSent?: (text: string) => void
+  onCommandMatched?: (match: VoiceCommandMatch) => void
+}) {
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus on mount so WhisperFlow has a target
+  useEffect(() => {
+    if (!disabled && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [disabled])
+
+  const sendMessage = async () => {
+    const trimmed = text.trim()
+    if (!trimmed || !agentId || disabled || sending) return
+
+    // Intercept voice commands before sending to agent
+    const match = matchVoiceCommand(trimmed)
+    if (match) {
+      onCommandMatched?.(match)
+      setText('')
+      // Show feedback toast
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+      setFeedback(match.command.feedbackMessage)
+      feedbackTimerRef.current = setTimeout(() => setFeedback(null), 1500)
+      textareaRef.current?.focus()
+      return
+    }
+
+    setSending(true)
+    try {
+      const res = await fetch(`/api/agents/${agentId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmed }),
+      })
+      if (res.ok) {
+        setText('')
+        // Notify voice subsystem of the user's message
+        onMessageSent?.(trimmed)
+        // Re-focus for next WhisperFlow input
+        textareaRef.current?.focus()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        console.error('[CompanionInput] Send failed:', data.error || res.statusText)
+      }
+    } catch (err) {
+      console.error('[CompanionInput] Send error:', err)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const hasText = text.trim().length > 0
+  const isDisabled = disabled || !agentId
+
+  return (
+    <div className="relative">
+      {/* Feedback toast */}
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute -top-8 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-teal-500/80 backdrop-blur-md text-white text-xs font-medium whitespace-nowrap z-10"
+          >
+            {feedback}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="bg-black/40 backdrop-blur-md rounded-xl border border-white/10 flex items-end gap-2 p-2">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isDisabled}
+          placeholder={isDisabled ? 'Agent offline' : 'Speak or type a message...'}
+          rows={1}
+          className="flex-1 bg-transparent text-white text-sm resize-none outline-none placeholder-white/30 px-2 py-1.5 max-h-24 scrollbar-thin disabled:text-white/20 disabled:placeholder-white/15"
+          style={{ minHeight: '36px' }}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={isDisabled || !hasText || sending}
+          className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+            hasText && !isDisabled && !sending
+              ? 'bg-teal-500/80 text-white hover:bg-teal-500'
+              : 'bg-white/5 text-white/20 cursor-not-allowed'
+          }`}
+          title="Send message"
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 
 interface UseCompanionWebSocketOptions {
   agentId: string | null
@@ -8,13 +8,25 @@ interface UseCompanionWebSocketOptions {
 }
 
 /**
- * Hook for receiving speech events from the server's cerebellum voice subsystem.
- * Connects to /companion-ws?agent={agentId} and calls onSpeech when
- * the server sends a speech event.
+ * Hook for bidirectional communication with the server's cerebellum voice subsystem.
+ * Connects to /companion-ws?agent={agentId}, receives speech events,
+ * and can send user messages back to the voice subsystem.
  */
 export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSocketOptions) {
   const onSpeechRef = useRef(onSpeech)
   onSpeechRef.current = onSpeech
+
+  const wsRef = useRef<WebSocket | null>(null)
+
+  const send = useCallback((data: Record<string, unknown>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify(data))
+      } catch {
+        // Ignore send errors
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!agentId) return
@@ -32,6 +44,7 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
       if (!mounted) return
 
       ws = new WebSocket(wsUrl)
+      wsRef.current = ws
 
       ws.onopen = () => {
         retryCount = 0
@@ -50,6 +63,7 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
       }
 
       ws.onclose = () => {
+        wsRef.current = null
         if (mounted && retryCount < maxRetries) {
           const delay = retryDelays[retryCount] || retryDelays[retryDelays.length - 1]
           retryCount++
@@ -70,6 +84,9 @@ export function useCompanionWebSocket({ agentId, onSpeech }: UseCompanionWebSock
         ws.close()
         ws = null
       }
+      wsRef.current = null
     }
   }, [agentId])
+
+  return { send }
 }

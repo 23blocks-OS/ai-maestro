@@ -877,6 +877,7 @@ Two test scripts exist for validating the Agent Messaging Protocol:
 - **[README.md](./README.md)** - Project overview, quick start, architecture
 - **[docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Installation prerequisites
 - **[docs/OPERATIONS-GUIDE.md](./docs/OPERATIONS-GUIDE.md)** - Agent management, troubleshooting
+- **[docs/CEREBELLUM.md](./docs/CEREBELLUM.md)** - Cerebellum subsystem architecture, voice pipeline, TTS providers
 
 Refer to these when users ask about setup or usage.
 

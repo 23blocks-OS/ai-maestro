@@ -842,31 +842,78 @@ app.prepare().then(() => {
     if (!sessionState) {
       let ptyProcess
 
-      // Spawn PTY with tmux attach (removed -r flag as it was causing exits)
-      // Wrapped in try-catch to handle spawn failures gracefully on Linux
-      try {
-        ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
-          name: 'xterm-256color',
-          cols: 80,
-          rows: 24,
-          cwd: process.env.HOME || process.cwd(),
-          env: process.env
-        })
-      } catch (spawnError) {
-        console.error(`[PTY] Failed to spawn PTY for ${sessionName}:`, spawnError.message)
-        // Send error to client and close connection
+      // Spawn PTY with tmux attach, with retry logic for transient failures.
+      // Race condition: when a previous PTY cleanup just ran (30s grace period expired),
+      // tmux may still be detaching. Retrying after a short delay resolves this.
+      const PTY_SPAWN_MAX_RETRIES = 3
+      const PTY_SPAWN_RETRY_DELAY_MS = 500
+
+      for (let attempt = 1; attempt <= PTY_SPAWN_MAX_RETRIES; attempt++) {
         try {
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
-            details: spawnError.message
-          }))
-        } catch (sendError) {
-          // Ignore send errors
+          // Verify tmux session exists before attempting to attach
+          if (attempt === 1) {
+            const { execSync } = await import('child_process')
+            try {
+              execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { timeout: 2000 })
+            } catch {
+              // tmux session does not exist
+              console.error(`[PTY] tmux session "${sessionName}" does not exist`)
+              try {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
+                  details: 'tmux session not found'
+                }))
+              } catch (sendError) { /* ignore */ }
+              ws.close(1011, `tmux session not found: ${sessionName}`)
+              return
+            }
+          }
+
+          ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 24,
+            cwd: process.env.HOME || process.cwd(),
+            env: process.env
+          })
+          break // Success, exit retry loop
+        } catch (spawnError) {
+          console.error(`[PTY] Spawn attempt ${attempt}/${PTY_SPAWN_MAX_RETRIES} failed for ${sessionName}:`, spawnError.message)
+
+          if (attempt < PTY_SPAWN_MAX_RETRIES) {
+            // Wait before retrying -- tmux may still be detaching from previous PTY
+            await new Promise(resolve => setTimeout(resolve, PTY_SPAWN_RETRY_DELAY_MS))
+
+            // Check if another client already created the session state while we waited
+            sessionState = sessions.get(sessionName)
+            if (sessionState) {
+              console.log(`[PTY] Session ${sessionName} was created by another client during retry, reusing`)
+              break
+            }
+          } else {
+            // All retries exhausted
+            try {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
+                details: spawnError.message
+              }))
+            } catch (sendError) { /* ignore */ }
+            ws.close(1011, `PTY spawn failed: ${spawnError.message}`)
+            return
+          }
         }
-        ws.close(1011, `PTY spawn failed: ${spawnError.message}`)
-        return
       }
+
+      // If another client created session state during retry, skip creation
+      if (sessionState) {
+        // Fall through to add client to existing session
+      } else if (!ptyProcess) {
+        // Should not happen, but guard against it
+        ws.close(1011, 'PTY spawn failed unexpectedly')
+        return
+      } else {
 
       // Create log file for this session (only if global logging is enabled)
       let logStream = null
@@ -960,6 +1007,7 @@ app.prepare().then(() => {
         // Pass ptyAlreadyExited=true since the process has already terminated
         cleanupSession(sessionName, sessionState, `pty_exit_${exitCode || signal}`, true)
       })
+      }
     }
 
     // Add client to session

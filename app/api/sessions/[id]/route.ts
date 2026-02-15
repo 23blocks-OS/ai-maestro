@@ -30,8 +30,8 @@ export async function DELETE(
     const isCloudAgent = agent?.deployment?.type === 'cloud'
 
     if (isCloudAgent) {
-      // Delete the agent (this will clean up messages, data directories, etc.)
-      deleteAgentBySession(sessionName)
+      // Hard delete with backup - explicit session deletion removes the agent
+      deleteAgentBySession(sessionName, true)
 
       return NextResponse.json({ success: true, name: sessionName, type: 'cloud' })
     }
@@ -52,8 +52,8 @@ export async function DELETE(
     // Remove from persistence
     unpersistSession(sessionName)
 
-    // Also delete from registry (if agent exists there)
-    deleteAgentBySession(sessionName)
+    // Hard delete with backup - explicit session deletion removes the agent
+    deleteAgentBySession(sessionName, true)
 
     return NextResponse.json({ success: true, name: sessionName })
   } catch (error) {

@@ -88,13 +88,14 @@ print_info() {
     echo -e "${BLUE}${INFO}$1${NC}"
 }
 
-# Check if we're in the right directory
-PLUGIN_DIR="plugin/plugins/ai-maestro"
+# Derive absolute path from script location so it works when called from any CWD
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$SCRIPT_DIR/plugin/plugins/ai-maestro"
 if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
     # Try to auto-initialize the submodule
-    if [ -f ".gitmodules" ] && command -v git &> /dev/null; then
+    if [ -f "$SCRIPT_DIR/.gitmodules" ] && command -v git &> /dev/null; then
         print_warning "Plugin submodule not initialized. Initializing now..."
-        git submodule update --init --recursive
+        git -C "$SCRIPT_DIR" submodule update --init --recursive
         if [ -d "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR/scripts" ]; then
             print_success "Submodule initialized"
         else
@@ -321,12 +322,15 @@ distribute_shared_to_per_agent() {
     fi
 
     if [ "$DISTRIBUTED" -gt 0 ]; then
-        print_success "Distributed $DISTRIBUTED messages to per-agent directories (AMP format)"
+        # Redirect informational output to stderr so stdout only contains the count
+        print_success "Distributed $DISTRIBUTED messages to per-agent directories (AMP format)" >&2
     fi
     if [ "$SKIPPED" -gt 0 ]; then
-        print_warning "Skipped $SKIPPED messages (could not determine recipient/sender)"
+        # Redirect informational output to stderr so stdout only contains the count
+        print_warning "Skipped $SKIPPED messages (could not determine recipient/sender)" >&2
     fi
 
+    # Only the numeric count goes to stdout for $() capture
     echo "$DISTRIBUTED"
 }
 
@@ -613,9 +617,15 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     OLD_REMOVED=0
     for old_script in "${OLD_SCRIPTS[@]}"; do
         if [ -f "$HOME/.local/bin/$old_script" ]; then
-            rm -f "$HOME/.local/bin/$old_script"
-            print_success "Removed old script: $old_script"
-            OLD_REMOVED=$((OLD_REMOVED + 1))
+            # Safety check: only delete if script has AI Maestro header marker
+            # to avoid accidentally deleting user scripts with the same name
+            if head -5 "$HOME/.local/bin/$old_script" | grep -qi "AI Maestro" 2>/dev/null; then
+                rm -f "$HOME/.local/bin/$old_script"
+                print_success "Removed old script: $old_script"
+                OLD_REMOVED=$((OLD_REMOVED + 1))
+            else
+                print_warning "Skipped $old_script (no AI Maestro header - may be a user script)"
+            fi
         fi
     done
     if [ "$OLD_REMOVED" -gt 0 ]; then
@@ -653,8 +663,8 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo ""
     print_info "Installing shell helpers..."
     mkdir -p ~/.local/share/aimaestro/shell-helpers
-    if [ -f "scripts/shell-helpers/common.sh" ]; then
-        cp "scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
+    if [ -f "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ]; then
+        cp "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
         chmod +x ~/.local/share/aimaestro/shell-helpers/common.sh
         print_success "Installed: shell-helpers/common.sh"
     fi
@@ -663,9 +673,12 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
     echo ""
     print_info "Configuring PATH..."
 
-    # Check if ~/.local/bin is in PATH
-    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        # Detect shell
+    # Dual guard: check runtime PATH and shell config marker to avoid duplicates
+    if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
+        # Already in runtime PATH - no action needed
+        print_info "~/.local/bin already in PATH"
+    else
+        # Detect shell config file
         SHELL_RC=""
         if [ -n "$ZSH_VERSION" ] || [ "$SHELL" = "/bin/zsh" ]; then
             SHELL_RC="$HOME/.zshrc"
@@ -674,20 +687,19 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
         fi
 
         if [ -n "$SHELL_RC" ] && [ -f "$SHELL_RC" ]; then
-            if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$SHELL_RC" 2>/dev/null; then
+            # Check for AI Maestro marker OR existing PATH entry to prevent duplicates
+            if grep -qF "# AI Maestro" "$SHELL_RC" 2>/dev/null || grep -qF '/.local/bin' "$SHELL_RC" 2>/dev/null; then
+                print_info "PATH already configured in $SHELL_RC"
+            else
                 echo '' >> "$SHELL_RC"
-                echo '# Added by AI Maestro installer' >> "$SHELL_RC"
+                echo '# AI Maestro PATH (added by installer)' >> "$SHELL_RC"
                 echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
                 print_success "Added ~/.local/bin to PATH in $SHELL_RC"
-            else
-                print_info "PATH already configured in $SHELL_RC"
             fi
         fi
 
         # Also add to current session
         export PATH="$HOME/.local/bin:$PATH"
-    else
-        print_info "~/.local/bin already in PATH"
     fi
 fi
 
@@ -700,17 +712,41 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     # Install AMP messaging skill from plugin
     if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
-        # Remove old agent-messaging skill if exists
+        SKILL_INSTALL_OK=true
+        # Back up existing skill before replacing (preserves user customizations)
         if [ -d ~/.claude/skills/agent-messaging ]; then
-            rm -rf ~/.claude/skills/agent-messaging
+            if ! cp -r ~/.claude/skills/agent-messaging ~/.claude/skills/agent-messaging.backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
+                print_warning "Backup failed for agent-messaging skill, skipping install (existing skill preserved)"
+                SKILL_INSTALL_OK=false
+            fi
         fi
 
-        cp -r "$PLUGIN_DIR/skills/agent-messaging" ~/.claude/skills/agent-messaging
-        print_success "Installed: agent-messaging skill (AMP protocol)"
+        if [ "$SKILL_INSTALL_OK" = true ]; then
+            # Copy new version to temp location first, then swap (safe against cp failure)
+            TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/agent-messaging.tmp.XXXXXX)
+            if cp -r "$PLUGIN_DIR/skills/agent-messaging/." "$TEMP_SKILL_DIR/"; then
+                # Copy succeeded - remove old and rename temp to final
+                rm -rf ~/.claude/skills/agent-messaging
+                mv "$TEMP_SKILL_DIR" ~/.claude/skills/agent-messaging
+                print_success "Installed: agent-messaging skill (AMP protocol)"
 
-        if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
-            SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
-            print_success "Skill file verified (${SKILL_SIZE} bytes)"
+                if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
+                    SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
+                    print_success "Skill file verified (${SKILL_SIZE} bytes)"
+                fi
+            else
+                # Copy failed - clean up temp, restore backup if we made one
+                rm -rf "$TEMP_SKILL_DIR"
+                if [ ! -d ~/.claude/skills/agent-messaging ]; then
+                    # Original was removed somehow, restore from latest backup
+                    LATEST_BACKUP=$(ls -1d ~/.claude/skills/agent-messaging.backup-* 2>/dev/null | tail -1)
+                    if [ -n "$LATEST_BACKUP" ]; then
+                        mv "$LATEST_BACKUP" ~/.claude/skills/agent-messaging
+                        print_warning "Install failed, restored agent-messaging from backup"
+                    fi
+                fi
+                print_error "Failed to install agent-messaging skill"
+            fi
         fi
     else
         print_error "AMP messaging skill not found in plugin"
@@ -721,11 +757,36 @@ if [ "$INSTALL_SKILL" = true ]; then
 
     for skill in "${OTHER_SKILLS[@]}"; do
         if [ -d "$PLUGIN_DIR/skills/$skill" ]; then
+            SKILL_INSTALL_OK=true
+            # Back up existing skill before replacing (preserves user customizations)
             if [ -d ~/.claude/skills/"$skill" ]; then
-                rm -rf ~/.claude/skills/"$skill"
+                if ! cp -r ~/.claude/skills/"$skill" ~/.claude/skills/"$skill".backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
+                    print_warning "Backup failed for $skill skill, skipping install (existing skill preserved)"
+                    SKILL_INSTALL_OK=false
+                fi
             fi
-            cp -r "$PLUGIN_DIR/skills/$skill" ~/.claude/skills/
-            print_success "Installed: $skill skill"
+
+            if [ "$SKILL_INSTALL_OK" = true ]; then
+                # Copy new version to temp location first, then swap (safe against cp failure)
+                TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/"$skill".tmp.XXXXXX)
+                if cp -r "$PLUGIN_DIR/skills/$skill/." "$TEMP_SKILL_DIR/"; then
+                    # Copy succeeded - remove old and rename temp to final
+                    rm -rf ~/.claude/skills/"$skill"
+                    mv "$TEMP_SKILL_DIR" ~/.claude/skills/"$skill"
+                    print_success "Installed: $skill skill"
+                else
+                    # Copy failed - clean up temp, restore backup if needed
+                    rm -rf "$TEMP_SKILL_DIR"
+                    if [ ! -d ~/.claude/skills/"$skill" ]; then
+                        LATEST_BACKUP=$(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | tail -1)
+                        if [ -n "$LATEST_BACKUP" ]; then
+                            mv "$LATEST_BACKUP" ~/.claude/skills/"$skill"
+                            print_warning "Install failed for $skill, restored from backup"
+                        fi
+                    fi
+                    print_error "Failed to install $skill skill"
+                fi
+            fi
         fi
     done
 fi

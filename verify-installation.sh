@@ -202,7 +202,7 @@ for helper in common.sh agent-helper.sh docs-helper.sh; do
 done
 
 # Key scripts in bin
-for script in aimaestro-agent.sh messaging-helper.sh memory-helper.sh graph-helper.sh; do
+for script in aimaestro-agent.sh memory-helper.sh graph-helper.sh; do
     local_path="$HOME/.local/bin/$script"
     if [ -f "$local_path" ]; then
         if bash -n "$local_path" 2>/dev/null; then

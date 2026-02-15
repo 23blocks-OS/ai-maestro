@@ -194,6 +194,18 @@ function convertAMPToMessage(ampMsg: any): Message | null {
   const payload = ampMsg.payload
   if (!envelope || !payload) return null
 
+  // Validate required envelope fields individually (defense-in-depth against malformed AMP messages)
+  if (!envelope.id || !envelope.from || !envelope.to || !envelope.subject) {
+    console.warn('[MessageQueue] Skipping message with missing required envelope fields:', {
+      id: envelope.id || 'unknown',
+      hasId: !!envelope.id,
+      hasFrom: !!envelope.from,
+      hasTo: !!envelope.to,
+      hasSubject: !!envelope.subject,
+    })
+    return null
+  }
+
   const fromName = extractAgentNameFromAddress(envelope.from)
   const toName = extractAgentNameFromAddress(envelope.to)
   const fromHost = extractHostFromAddress(envelope.from)
@@ -209,7 +221,7 @@ function convertAMPToMessage(ampMsg: any): Message | null {
     to: toName,
     toAlias: toName,
     toHost,
-    timestamp: envelope.timestamp,
+    timestamp: envelope.timestamp || new Date().toISOString(),
     subject: envelope.subject,
     priority: envelope.priority || 'normal',
     status: status as Message['status'],
@@ -285,9 +297,11 @@ async function collectMessagesFromAMPDir(
             id: msg.id,
             from: msg.from,
             fromAlias: msg.fromAlias,
+            fromLabel: msg.fromLabel,
             fromHost: msg.fromHost,
             to: msg.to,
             toAlias: msg.toAlias,
+            toLabel: msg.toLabel,
             toHost: msg.toHost,
             timestamp: msg.timestamp,
             subject: msg.subject,
@@ -403,6 +417,22 @@ async function findMessageInAMPDir(
   return null
 }
 
+// In-memory cache for resolved agent addresses (avoids expensive 8-step resolution on every call).
+// Entries expire after AGENT_CACHE_TTL_MS. Primary use case: when a message arrives from an external
+// agent, the sender's address is cached so that replies route back without re-resolving.
+const AGENT_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const agentAddressCache = new Map<string, { resolved: ResolvedAgent; resolvedAt: number }>()
+
+// Proactive cache sweep every 5 minutes to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of agentAddressCache) {
+    if (now - entry.resolvedAt > AGENT_CACHE_TTL_MS) {
+      agentAddressCache.delete(key)
+    }
+  }
+}, 5 * 60 * 1000).unref()
+
 /**
  * Resolve an agent identifier (alias, ID, session name, or name@host) to full agent info
  * Supports formats:
@@ -411,9 +441,20 @@ async function findMessageInAMPDir(
  *   - "name" → resolve on self host, then any host
  *   - "session_name" → parse and resolve
  *
- * Priority: 1) name@host, 2) exact ID match, 3) name on self host, 4) session name, 5) partial match
+ * Results are cached in-memory for 5 minutes to speed up reply routing.
+ *
+ * Priority: 1) cache hit, 2) name@host, 3) exact ID match, 4) name on self host, 5) session name, 6) partial match
  */
 function resolveAgent(identifier: string): ResolvedAgent | null {
+  // Normalize cache key to lowercase since all getAgentBy* functions use case-insensitive matching;
+  // without this, "Alice" and "alice" would resolve to the same agent but cache as separate entries
+  const cacheKey = identifier.toLowerCase()
+
+  // Check in-memory cache first (avoids the expensive 8-step resolution chain)
+  const cached = agentAddressCache.get(cacheKey)
+  if (cached && (Date.now() - cached.resolvedAt) < AGENT_CACHE_TTL_MS) {
+    return cached.resolved
+  }
   let agent: Agent | null = null
 
   // 0. Check for name@host format first (explicit host targeting)
@@ -481,13 +522,32 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   const selfHost = getSelfHost()
   const hostUrl = agent.hostUrl || selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
 
-  return {
+  const result: ResolvedAgent = {
     agentId: agent.id,
     alias: agentName,
     displayName: agent.label,
     sessionName,
     hostId,
     hostUrl
+  }
+
+  // Cache the successful resolution so subsequent lookups (e.g., reply routing) skip the 8-step chain
+  agentAddressCache.set(cacheKey, { resolved: result, resolvedAt: Date.now() })
+
+  return result
+}
+
+/**
+ * Invalidate the agent address resolution cache.
+ * Call when agents are renamed, deleted, or re-registered to prevent stale routing.
+ * With no argument, clears the entire cache. With an identifier, removes only that entry.
+ */
+export function invalidateAgentCache(identifier?: string): void {
+  if (identifier) {
+    // Normalize to lowercase to match the cache key format used in resolveAgent()
+    agentAddressCache.delete(identifier.toLowerCase())
+  } else {
+    agentAddressCache.clear()
   }
 }
 

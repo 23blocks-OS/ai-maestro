@@ -55,6 +55,34 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
     }
   }
 
+  // Helper for HNSW index creation — uses case-insensitive multi-pattern
+  // error matching because ::hnsw create DDL may throw different error codes
+  // or messages across CozoDB versions (not just eval::stored_relation_conflict).
+  const createHnswIndexIfNotExists = async (db: AgentDatabase, ddl: string) => {
+    try {
+      await db.run(ddl)
+      console.log('[MEMORY-SCHEMA] ✓ Created HNSW index: memory_vec:hnsw')
+    } catch (error: any) {
+      // CozoDB error format varies across versions — the error code field,
+      // message wording, and casing are all unstable.  We normalise to a
+      // lowercase string that covers the known variants so that a CozoDB
+      // upgrade does not silently break idempotent schema creation.
+      const errMsg = (String(error.message ?? '') + ' ' + String(error.code ?? '')).toLowerCase()
+      if (
+        errMsg.includes('already exists') ||
+        errMsg.includes('stored_relation_conflict') ||
+        errMsg.includes('duplicate') ||
+        errMsg.includes('index_already')
+      ) {
+        // Index already exists — expected on every run after the first
+        console.log('[MEMORY-SCHEMA] ℹ HNSW index memory_vec:hnsw already exists')
+      } else {
+        console.error('[MEMORY-SCHEMA] ✗ Failed to create HNSW index:', error)
+        throw error
+      }
+    }
+  }
+
   // 1. Memories table - Core long-term memory storage
   await createTableIfNotExists('memories', `
     :create memories {
@@ -85,6 +113,19 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
       memory_id: String
       =>
       vec: <F32; 384>
+    }
+  `)
+
+  // 2b. HNSW vector index for semantic search on memory_vec
+  // Required by searchMemoriesByEmbedding() which queries ~memory_vec:hnsw{...}
+  await createHnswIndexIfNotExists(agentDb, `
+    ::hnsw create memory_vec:hnsw {
+        dim: 384,
+        m: 50,
+        dtype: F32,
+        fields: [vec],
+        distance: Cosine,
+        ef_construction: 200,
     }
   `)
 

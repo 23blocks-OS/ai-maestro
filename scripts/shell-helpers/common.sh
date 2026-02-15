@@ -436,17 +436,19 @@ setup_local_bin_path() {
         return 0
     fi
 
-    # Check if already in shell config
-    if grep -q 'export PATH=.*\.local/bin' "$SHELL_RC" 2>/dev/null; then
+    # Dual guard: check for AI Maestro marker OR existing .local/bin PATH entry
+    # Use pattern that requires /.local/bin to end at a word boundary (: " ' or EOL) to prevent
+    # false positives like /.local/bin-extra matching
+    if grep -qF "# AI Maestro" "$SHELL_RC" 2>/dev/null || grep -qE '/\.local/bin(["'"'"':]|$)' "$SHELL_RC" 2>/dev/null; then
         [ "$quiet" = false ] && echo "✅ PATH configured in $SHELL_RC (restart terminal or run: source $SHELL_RC)"
         # Add to current session
         export PATH="$HOME/.local/bin:$PATH"
         return 0
     fi
 
-    # Add to shell config
+    # Add to shell config with marker comment to prevent future duplicates
     echo "" >> "$SHELL_RC"
-    echo "# AI Maestro - Added by installer" >> "$SHELL_RC"
+    echo "# AI Maestro PATH (added by installer)" >> "$SHELL_RC"
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
 
     # Add to current session

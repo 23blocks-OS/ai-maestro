@@ -93,7 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
@@ -191,6 +191,18 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       }
     },
   })
+
+  // Keep the useTerminal sendData ref in sync with the current WebSocket sendMessage function
+  // This allows the Cmd+V paste handler in useTerminal.ts (registered once during init) to always
+  // use the latest WebSocket send function without re-registering the key handler
+  useEffect(() => {
+    if (isConnected) {
+      setSendData(sendMessage)
+    } else {
+      setSendData(null)
+    }
+    return () => setSendData(null)
+  }, [isConnected, sendMessage, setSendData])
 
   // Initialize terminal ONCE on mount - never re-initialize
   // Tab-based architecture: terminal stays mounted, just hidden via CSS

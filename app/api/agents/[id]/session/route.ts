@@ -166,13 +166,13 @@ export async function PATCH(
     // Cancel copy-mode if active
     await cancelCopyModeIfActive(sessionName)
 
-    // Send keys via tmux
+    // Send keys via tmux using -l (literal) to avoid interpreting special characters
+    // When addNewline is true, text and Enter are sent atomically via tmux \; chaining to prevent race conditions
     const escapedKeys = command.replace(/'/g, "'\\''")
-    await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}'`)
-
-    // Send Enter key if requested
     if (addNewline) {
-      await execAsync(`tmux send-keys -t "${sessionName}" Enter`)
+      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}' \\; send-keys -t "${sessionName}" Enter`)
+    } else {
+      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}'`)
     }
 
     // Update activity timestamp
@@ -301,8 +301,8 @@ export async function DELETE(
         }
       }
 
-      // Delete the agent
-      const success = deleteAgent(id)
+      // Hard delete with backup - session deletion means user explicitly wants agent removed
+      const success = deleteAgent(id, true)
       if (!success) {
         return NextResponse.json(
           { error: 'Failed to delete agent' },

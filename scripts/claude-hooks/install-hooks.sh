@@ -10,6 +10,14 @@
 
 set -e
 
+# Parse arguments (accept -y for non-interactive consistency with other installers)
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) shift ;;
+        *) shift ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_SCRIPT="$SCRIPT_DIR/ai-maestro-hook.cjs"
 CLAUDE_SETTINGS_DIR="$HOME/.claude"
@@ -105,8 +113,17 @@ for (const [event, configs] of Object.entries(hooks.hooks)) {
 console.log(JSON.stringify(existing, null, 2));
 " "$EXISTING_SETTINGS" "$HOOKS_CONFIG")
 
-# Write merged settings
-echo "$MERGED_SETTINGS" > "$CLAUDE_SETTINGS_FILE"
+# Write merged settings atomically: write to temp file, validate JSON, then move
+TEMP_SETTINGS=$(mktemp "${CLAUDE_SETTINGS_FILE}.XXXXXX")
+echo "$MERGED_SETTINGS" > "$TEMP_SETTINGS"
+# Validate JSON before replacing (uses process.argv to avoid shell injection)
+if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$TEMP_SETTINGS" 2>/dev/null; then
+    mv "$TEMP_SETTINGS" "$CLAUDE_SETTINGS_FILE"
+else
+    rm -f "$TEMP_SETTINGS"
+    echo "ERROR: Merged settings JSON is invalid, keeping original"
+    exit 1
+fi
 
 echo ""
 echo "Hooks installed successfully!"

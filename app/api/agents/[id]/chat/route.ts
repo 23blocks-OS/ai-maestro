@@ -171,7 +171,7 @@ export async function GET(
       if (sessionName) {
         try {
           const { stdout } = await execAsync(
-            `tmux capture-pane -t '${sessionName}' -p -S -40 2>/dev/null || echo ""`
+            `tmux capture-pane -t "${sessionName}" -p -S -40 2>/dev/null || echo ""`
           )
           const lines = stdout.trim().split('\n')
 
@@ -318,8 +318,8 @@ export async function POST(
     // Send message to tmux session
     // Using send-keys with the message followed by Enter
     // Note: Use -l (literal) to avoid interpreting special characters
-    const tmuxCommand = `tmux send-keys -t '${sessionName}' -l '${escapedMessage}'`
-    const enterCommand = `tmux send-keys -t '${sessionName}' Enter`
+    const tmuxCommand = `tmux send-keys -t "${sessionName}" -l '${escapedMessage}'`
+    const enterCommand = `tmux send-keys -t "${sessionName}" Enter`
 
     console.log('[Chat API] Session:', sessionName)
     console.log('[Chat API] Message:', message)

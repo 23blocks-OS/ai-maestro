@@ -250,7 +250,7 @@ fi
 # 6. Claude Code hooks (optional — skip with --skip-hooks)
 if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
     print_info "Reinstalling Claude Code hooks..."
-    ./scripts/claude-hooks/install-hooks.sh
+    ./scripts/claude-hooks/install-hooks.sh -y
     print_success "Claude Code hooks reinstalled"
 fi
 

@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import TerminalView from './TerminalView'
+import MobileChatView from './MobileChatView'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
-import { Terminal, Mail, RefreshCw, Activity, Server, FileText } from 'lucide-react'
+import { Terminal, Mail, RefreshCw, Activity, Server, MessageSquare, Phone } from 'lucide-react'
 import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
@@ -27,12 +28,12 @@ export default function MobileDashboard({
 }: MobileDashboardProps) {
   const { hosts } = useHosts()
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts' | 'notes'>('terminal')
+  const [activeTab, setActiveTab] = useState<'terminal' | 'messages' | 'work' | 'hosts'>('terminal')
+  const [viewMode, setViewMode] = useState<'terminal' | 'chat'>('terminal')
   const [selectedConversation, setSelectedConversation] = useState<{
     file: string
     projectPath: string
   } | null>(null)
-  const [notes, setNotes] = useState('')
   const [connectionStatus, setConnectionStatus] = useState<{ [agentId: string]: boolean }>({})
 
   // Filter to only online agents for terminal tabs
@@ -49,26 +50,6 @@ export default function MobileDashboard({
   }, [onlineAgents, activeAgentId])
 
   const activeAgent = agents.find((a) => a.id === activeAgentId)
-
-  // Storage ID for notes
-  const storageId = activeAgentId
-
-  // Load notes from localStorage when active agent changes
-  useEffect(() => {
-    if (storageId) {
-      const notesKey = `agent-notes-${storageId}`
-      const savedNotes = localStorage.getItem(notesKey)
-      setNotes(savedNotes || '')
-    }
-  }, [storageId])
-
-  // Save notes to localStorage when they change
-  useEffect(() => {
-    if (storageId && notes !== undefined) {
-      const notesKey = `agent-notes-${storageId}`
-      localStorage.setItem(notesKey, notes)
-    }
-  }, [notes, storageId])
 
   const handleAgentSelect = (agentId: string) => {
     setActiveAgentId(agentId)
@@ -182,12 +163,57 @@ export default function MobileDashboard({
               }}
             >
               {activeTab === 'terminal' ? (
-                <TerminalView
-                  session={session}
-                  hideFooter={true}
-                  hideHeader={true}
-                  onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
-                />
+                <>
+                  {/* View mode toggle */}
+                  <div className="absolute top-2 right-2 z-20 flex rounded-lg overflow-hidden border border-gray-700 bg-gray-900/80 backdrop-blur-sm">
+                    <button
+                      onClick={() => setViewMode('terminal')}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                        viewMode === 'terminal'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <Terminal className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('chat')}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                        viewMode === 'chat'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Terminal (always mounted, visibility toggled) */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      visibility: viewMode === 'terminal' ? 'visible' : 'hidden',
+                      pointerEvents: viewMode === 'terminal' ? 'auto' : 'none'
+                    }}
+                  >
+                    <TerminalView
+                      session={session}
+                      hideFooter={true}
+                      hideHeader={true}
+                      onConnectionStatusChange={(isConnected) => handleConnectionStatusChange(agent.id, isConnected)}
+                    />
+                  </div>
+
+                  {/* Chat view (mounted/unmounted) */}
+                  {viewMode === 'chat' && (
+                    <div className="absolute inset-0 pt-10">
+                      <MobileChatView
+                        agentId={agent.id}
+                        agentName={getAgentDisplayName(agent)}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <MobileMessageCenter
                   sessionName={session.id}
@@ -229,46 +255,11 @@ export default function MobileDashboard({
           </div>
         )}
 
-        {/* Notes Tab - Shows notes for active agent */}
-        {activeTab === 'notes' && activeAgent && (
-          <div className="absolute inset-0 flex flex-col bg-gray-900">
-            {/* Notes Header */}
-            <div className="flex-shrink-0 px-4 py-3 border-b border-gray-800 bg-gray-950">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-400" />
-                <h2 className="text-sm font-semibold text-white">Agent Notes</h2>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {getAgentDisplayName(activeAgent)}
-              </p>
-            </div>
-
-            {/* Notes Content */}
-            <div className="flex-1 overflow-hidden">
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Take notes while working with your agent...&#10;&#10;• Your notes are saved automatically&#10;• Each agent has separate notes&#10;• Full markdown support"
-                className="w-full h-full px-4 py-3 bg-gray-900 text-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset font-mono"
-                style={{
-                  WebkitOverflowScrolling: 'touch'
-                }}
-              />
-            </div>
-
-            {/* Notes Footer Info */}
-            <div className="flex-shrink-0 px-4 py-2 border-t border-gray-800 bg-gray-950">
-              <p className="text-xs text-gray-400">
-                {notes.length} character{notes.length === 1 ? '' : 's'} • Auto-saved to browser
-              </p>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Bottom Navigation */}
       <nav className="flex-shrink-0 border-t border-gray-800 bg-gray-950">
-        <div className="flex items-center justify-around">
+        <div className="flex items-center justify-around relative">
           <button
             onClick={() => setActiveTab('terminal')}
             className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
@@ -278,7 +269,7 @@ export default function MobileDashboard({
             }`}
           >
             <Terminal className="w-5 h-5 mb-0.5" />
-            <span className="text-xs font-medium">Terminal</span>
+            <span className="text-xs font-medium">Agent</span>
           </button>
 
           <button
@@ -292,6 +283,21 @@ export default function MobileDashboard({
             <Mail className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Messages</span>
           </button>
+
+          {/* Central Call Button */}
+          <div className="flex flex-col items-center justify-center px-2 flex-1">
+            <button
+              onClick={() => {
+                if (activeAgentId) {
+                  window.location.href = `/companion?agent=${encodeURIComponent(activeAgentId)}&popup=1`
+                }
+              }}
+              disabled={!activeAgentId || !isActiveAgentConnected}
+              className="w-14 h-14 -mt-7 rounded-full bg-green-500 hover:bg-green-400 disabled:bg-gray-700 disabled:opacity-50 text-white flex items-center justify-center shadow-lg shadow-green-500/30 transition-all active:scale-95"
+            >
+              <Phone className="w-6 h-6" />
+            </button>
+          </div>
 
           <button
             onClick={() => setActiveTab('work')}
@@ -315,18 +321,6 @@ export default function MobileDashboard({
           >
             <Server className="w-5 h-5 mb-0.5" />
             <span className="text-xs font-medium">Hosts</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('notes')}
-            className={`flex flex-col items-center justify-center py-2.5 px-3 flex-1 transition-colors ${
-              activeTab === 'notes'
-                ? 'text-blue-400 bg-gray-800/50'
-                : 'text-gray-400 hover:text-gray-300'
-            }`}
-          >
-            <FileText className="w-5 h-5 mb-0.5" />
-            <span className="text-xs font-medium">Notes</span>
           </button>
         </div>
       </nav>

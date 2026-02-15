@@ -10,6 +10,8 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
+import TabletDashboard from '@/components/TabletDashboard'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
 import { VersionChecker } from '@/components/VersionChecker'
@@ -93,7 +95,9 @@ export default function DashboardPage() {
     return saved ? parseInt(saved, 10) : 320
   })
   const [isResizing, setIsResizing] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const { deviceType } = useDeviceType()
+  const isMobile = deviceType === 'phone'
+  const isTablet = deviceType === 'tablet'
   const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -182,19 +186,12 @@ export default function DashboardPage() {
     }
   }, [agents, urlParamProcessedRef])
 
-  // Detect mobile screen size
+  // Collapse sidebar on phone/tablet
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-      if (window.innerWidth < 768) {
-        setSidebarCollapsed(true)
-      }
+    if (deviceType !== 'desktop') {
+      setSidebarCollapsed(true)
     }
-
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
+  }, [deviceType])
 
   // Clean up sidebar toggle resize timeout on unmount
   useEffect(() => {
@@ -543,12 +540,25 @@ export default function DashboardPage() {
     return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
   }
 
-  // Render mobile-specific dashboard for small screens
-  // Agent-centric: MobileDashboard now accepts agents directly
+  // Render mobile-specific dashboard for phones
   if (isMobile) {
     return (
       <TerminalProvider key="mobile-dashboard">
         <MobileDashboard
+          agents={agents}
+          loading={agentsLoading}
+          error={agentsError?.message || null}
+          onRefresh={refreshAgents}
+        />
+      </TerminalProvider>
+    )
+  }
+
+  // Render tablet dashboard for iPads and touch devices
+  if (isTablet) {
+    return (
+      <TerminalProvider key="tablet-dashboard">
+        <TabletDashboard
           agents={agents}
           loading={agentsLoading}
           error={agentsError?.message || null}

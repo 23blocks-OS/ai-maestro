@@ -548,11 +548,17 @@ function CompanionContent() {
                 <Settings className="w-4 h-4" />
               </button>
 
-              {/* Close popup */}
+              {/* End call / Close popup */}
               <button
-                onClick={() => window.close()}
+                onClick={() => {
+                  if (window.opener) {
+                    window.close()
+                  } else {
+                    window.history.back()
+                  }
+                }}
                 className="w-12 h-12 rounded-full bg-red-500/80 backdrop-blur-md text-white flex items-center justify-center hover:bg-red-500 transition-all"
-                title="Close"
+                title="End call"
               >
                 <PhoneOff className="w-4 h-4" />
               </button>

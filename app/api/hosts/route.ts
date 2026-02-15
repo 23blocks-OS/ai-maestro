@@ -10,6 +10,23 @@ const execAsync = promisify(exec)
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
 
+// Cache Docker check result (avoids 3s subprocess on every /api/hosts call)
+let dockerCache: { available: boolean; version?: string; checkedAt: number } | null = null
+const DOCKER_CACHE_TTL = 60000 // 60 seconds
+
+async function getDockerStatus() {
+  if (dockerCache && Date.now() - dockerCache.checkedAt < DOCKER_CACHE_TTL) {
+    return dockerCache
+  }
+  try {
+    const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 3000 })
+    dockerCache = { available: true, version: stdout.trim().replace(/'/g, ''), checkedAt: Date.now() }
+  } catch {
+    dockerCache = { available: false, checkedAt: Date.now() }
+  }
+  return dockerCache
+}
+
 /**
  * GET /api/hosts
  *
@@ -21,28 +38,26 @@ export async function GET() {
   try {
     const hosts = getHosts()
 
-    // Check Docker availability on local host
-    let dockerAvailable = false
-    let dockerVersion: string | undefined
-    try {
-      const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 3000 })
-      dockerAvailable = true
-      dockerVersion = stdout.trim().replace(/'/g, '')
-    } catch {
-      // Docker not available
-    }
+    // Return hosts immediately, start Docker check in parallel
+    const dockerStatus = getDockerStatus()
 
-    // Add isSelf flag and capabilities to each host
+    // Add isSelf flag to each host right away
     const hostsWithSelf = hosts.map(host => ({
       ...host,
       isSelf: isSelf(host.id),
-      ...(isSelf(host.id) && {
-        capabilities: {
-          docker: dockerAvailable,
-          dockerVersion,
-        }
-      }),
     }))
+
+    // Await Docker status (returns from cache instantly after first check)
+    const docker = await dockerStatus
+    for (const host of hostsWithSelf) {
+      if (host.isSelf) {
+        (host as any).capabilities = {
+          docker: docker.available,
+          dockerVersion: docker.version,
+        }
+      }
+    }
+
     return NextResponse.json({ hosts: hostsWithSelf })
   } catch (error) {
     console.error('[Hosts API] Failed to fetch hosts:', error)

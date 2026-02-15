@@ -10,6 +10,14 @@
 
 set -e
 
+# Parse arguments (accept -y for non-interactive consistency with other installers)
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes|--non-interactive) shift ;;
+        *) shift ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_SCRIPT="$SCRIPT_DIR/ai-maestro-hook.cjs"
 CLAUDE_SETTINGS_DIR="$HOME/.claude"

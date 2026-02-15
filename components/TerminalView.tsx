@@ -6,6 +6,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import { useDeviceType } from '@/hooks/useDeviceType'
+import MobileKeyToolbar from './MobileKeyToolbar'
 import type { Session } from '@/types/session'
 
 const BRACKETED_PASTE_START = '\u001b[200~'
@@ -794,6 +795,12 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         {/* Use hoisted static JSX for loading state */}
         {!isReady && LoadingSpinner}
       </div>
+
+      {/* Essential Keys Toolbar for touch devices */}
+      <MobileKeyToolbar
+        visible={isTouch && isConnected && isReady}
+        onSendKey={sendMessage}
+      />
 
       {/* Notes / Prompt Builder Footer */}
       {!hideFooter && !notesCollapsed && (

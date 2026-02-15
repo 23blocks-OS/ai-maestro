@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.23.7"
+VERSION="0.23.8"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var

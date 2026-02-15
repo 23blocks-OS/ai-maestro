@@ -22,20 +22,30 @@ export default function ImmersivePage() {
   // Get the tmux session name for WebSocket connection
   const tmuxSessionName = activeAgent?.session?.tmuxSessionName
 
-  // Read agent from URL parameter
+  // Read agent from URL parameter ONCE, then strip it to prevent stale param issues (#57)
+  const urlParamProcessedRef = useRef(false)
   useEffect(() => {
+    if (urlParamProcessedRef.current) return
+
     const params = new URLSearchParams(window.location.search)
-    const agentParam = params.get('agent') || params.get('session') // Support both for backward compatibility
+    const agentParam = params.get('agent') || params.get('session')
     if (agentParam) {
       const decodedAgent = decodeURIComponent(agentParam)
-      // Try to find by ID first, then by tmux session name
       const agent = agents.find(a => a.id === decodedAgent || a.session?.tmuxSessionName === decodedAgent)
       if (agent) {
         setActiveAgentId(agent.id)
-      } else {
-        // If not found yet, store the param and try again when agents load
+        // Strip query param from URL
+        window.history.replaceState({}, '', window.location.pathname)
+        urlParamProcessedRef.current = true
+      } else if (agents.length > 0) {
+        // Agents loaded but no match — use raw value and strip anyway
         setActiveAgentId(decodedAgent)
+        window.history.replaceState({}, '', window.location.pathname)
+        urlParamProcessedRef.current = true
       }
+      // If agents not loaded yet (length === 0), wait for next render
+    } else {
+      urlParamProcessedRef.current = true
     }
   }, [agents])
 

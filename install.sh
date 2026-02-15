@@ -369,14 +369,14 @@ if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_CURL" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
-if [ $MISSING_COUNT -eq 0 ]; then
+if [ "$MISSING_COUNT" -eq 0 ]; then
     print_success "All prerequisites are installed!"
 else
     print_warning "Found $MISSING_COUNT missing prerequisite(s)"
 fi
 
 # Ask user if they want to install missing items
-if [ $MISSING_COUNT -gt 0 ]; then
+if [ "$MISSING_COUNT" -gt 0 ]; then
     echo ""
     print_header "STEP 2: Install Missing Prerequisites"
 
@@ -952,7 +952,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         fi
     fi
 
-    if [ $TOOLS_INSTALLED -gt 0 ]; then
+    if [ "$TOOLS_INSTALLED" -gt 0 ]; then
         print_success "$TOOLS_INSTALLED agent tool(s) installed"
 
         # Verify installation

@@ -178,8 +178,13 @@ export default function DashboardPage() {
         }
         window.history.replaceState({}, '', window.location.pathname)
         urlParamProcessedRef.current = true
+      } else {
+        // Agents not loaded yet — strip param immediately to prevent stale URL (#57)
+        // Set raw value; it will resolve when agents load via other effects
+        setActiveAgentId(decodeURIComponent(sessionParam))
+        window.history.replaceState({}, '', window.location.pathname)
+        urlParamProcessedRef.current = true
       }
-      // If agents not loaded yet, effect will retry on next agents update
     } else {
       // No URL params — nothing to do
       urlParamProcessedRef.current = true

@@ -52,7 +52,13 @@ This installs everything you need:
 <details>
 <summary>Windows (WSL2) / Linux notes</summary>
 
-**Windows:** Install WSL2 first (`wsl --install` in PowerShell as Admin), then run the curl command inside Ubuntu. [Full guide](./docs/WINDOWS-INSTALLATION.md)
+**Windows:** Install WSL2 first, then run the curl command inside Ubuntu:
+
+```powershell
+wsl --install
+```
+
+[Full Windows guide](./docs/WINDOWS-INSTALLATION.md)
 
 **Linux:** Ensure build tools are installed: `sudo apt install tmux build-essential`
 </details>
@@ -95,6 +101,9 @@ A peer mesh network where every machine is equal. Add a computer, it joins the m
 *I was the mailman — copying messages between agents because they couldn't talk to each other.*
 
 The [Agent Messaging Protocol (AMP)](https://agentmessaging.org) gives your agents email-like communication. Priority levels, message types, cryptographic signatures, and push notifications. Tell your agent *"send a message to backend about the deployment"* — it just works. Agents coordinate directly while you manage the big picture.
+
+**Before AMP:** You copy research from one terminal, paste into another, repeat 50 times a day.
+**With AMP:** *"Research agent, send your findings to the writing agent."* Done.
 
 ### Gateways
 
@@ -154,17 +163,22 @@ Custom avatars, personality profiles, and visual presence for every agent. When 
 
 ## Documentation
 
-**Getting Started:** [Quick Start](./docs/QUICKSTART.md) · [Core Concepts](./docs/CONCEPTS.md) · [Use Cases](./docs/USE-CASES.md)
+**New here?**
+- [Quick Start Guide](./docs/QUICKSTART.md) — Get up and running
+- [Core Concepts](./docs/CONCEPTS.md) — Understand how it works
+- [Use Cases](./docs/USE-CASES.md) — Real examples of what people build
 
-**Multi-Machine:** [Setup Tutorial](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
+**Going deeper:**
+- [Multi-Machine Setup](./docs/SETUP-TUTORIAL.md) · [Network Access](./docs/NETWORK-ACCESS.md)
+- [Agent Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+- [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
+- [Operations Guide](./docs/OPERATIONS-GUIDE.md)
 
-**Agent Communication:** [Messaging Guide](./docs/AGENT-MESSAGING-GUIDE.md) · [Architecture](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
+**Troubleshooting:**
+- [Common Issues](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md) · [Windows Installation](./docs/WINDOWS-INSTALLATION.md)
 
-**Agent Intelligence:** [Intelligence Guide](./docs/AGENT-INTELLIGENCE.md) · [Code Graph](./docs/images/code_graph01.png)
-
-**Operations:** [Operations Guide](./docs/OPERATIONS-GUIDE.md) · [Troubleshooting](./docs/TROUBLESHOOTING.md) · [Security](./SECURITY.md)
-
-**Extend:** [Plugin Guide](./plugin/README.md) · [Windows Install](./docs/WINDOWS-INSTALLATION.md)
+**Extending:**
+- [Plugin Development](./plugin/README.md) · [API Reference](./docs/AGENT-COMMUNICATION-ARCHITECTURE.md)
 
 ---
 
@@ -202,11 +216,11 @@ MIT — see [LICENSE](./LICENSE). Free for any purpose, including commercial.
 
 <div align="center">
 
-**Made with love in Boulder, Colorado**
+**Made with love in Boulder (USA), Roma (Italy), and many other cool places**
 
 [Juan Pelaez](https://x.com/jkpelaez) · [23blocks](https://23blocks.com)
 
-*Built by AI agents, for AI agents*
+*Built by AI Agents with Humans in the driver seat — for AI-first organizations, AI-enabled humans, and autonomous agents*
 
 [Star us on GitHub](https://github.com/23blocks-OS/ai-maestro)
 

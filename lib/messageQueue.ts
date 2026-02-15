@@ -201,13 +201,21 @@ function convertAMPToMessage(ampMsg: any): Message | null {
   const id = normalizeMessageId(envelope.id)
   const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
 
+  // Resolve display labels from agent registry (falls back to name if no label set)
+  const fromAgent = getAgentByName(fromName) || getAgentByAlias(fromName)
+  const toAgent = getAgentByName(toName) || getAgentByAlias(toName)
+  const fromLabel = fromAgent?.label || fromName
+  const toLabel = toAgent?.label || toName
+
   return {
     id,
     from: fromName,
     fromAlias: fromName,
+    fromLabel,
     fromHost,
     to: toName,
     toAlias: toName,
+    toLabel,
     toHost,
     timestamp: envelope.timestamp,
     subject: envelope.subject,

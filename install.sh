@@ -106,13 +106,22 @@ echo ""
 fi
 
 # Function to print colored messages
-# When called from remote-install.sh, suppress non-error output to avoid
-# two competing UI voices (Maestro-style vs emoji-style)
+# When called from remote-install.sh, redirect non-error output to a log file
+# instead of suppressing it entirely, so warnings are preserved for debugging.
+# INSTALL_DIR is not yet set at definition time, but bash evaluates variables
+# at call time, so ${INSTALL_DIR:-.} resolves correctly when functions are invoked.
 if [ "$FROM_REMOTE" = true ]; then
-    print_success() { :; }
-    print_warning() { :; }
-    print_info() { :; }
-    print_step() { :; }
+    LOG_FILE=""
+    _get_log_file() {
+        if [ -z "$LOG_FILE" ]; then
+            LOG_FILE="${INSTALL_DIR:-.}/install.log"
+        fi
+        echo "$LOG_FILE"
+    }
+    print_success() { echo "[SUCCESS] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
+    print_warning() { echo "[WARNING] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
+    print_info() { echo "[INFO] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
+    print_step() { echo "[STEP] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
 else
     print_success() { echo -e "${GREEN}${CHECK} $1${NC}"; }
     print_warning() { echo -e "${YELLOW}${WARN} $1${NC}"; }
@@ -281,7 +290,7 @@ print_info "Checking for Node.js..."
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
     # Check if version is >= 18
-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
+    NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
     if [ "$NODE_MAJOR" -ge 18 ]; then
         print_success "Node.js installed ($NODE_VERSION)"
     else
@@ -369,14 +378,14 @@ if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 if [ "$NEED_CURL" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
 
-if [ $MISSING_COUNT -eq 0 ]; then
+if [ "$MISSING_COUNT" -eq 0 ]; then
     print_success "All prerequisites are installed!"
 else
     print_warning "Found $MISSING_COUNT missing prerequisite(s)"
 fi
 
 # Ask user if they want to install missing items
-if [ $MISSING_COUNT -gt 0 ]; then
+if [ "$MISSING_COUNT" -gt 0 ]; then
     echo ""
     print_header "STEP 2: Install Missing Prerequisites"
 
@@ -646,8 +655,14 @@ if [ -n "$INSTALL_DIR" ]; then
         if [ "$NON_INTERACTIVE" = true ]; then
             # Safety: only auto-delete paths under $HOME
             if [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
-                print_info "Non-interactive mode: deleting existing directory..."
-                DELETE_DIR="y"
+                # Only delete if this is actually an AI Maestro installation
+                if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+                    print_info "Non-interactive mode: replacing existing AI Maestro installation..."
+                    DELETE_DIR="y"
+                else
+                    print_error "Directory exists but is not an AI Maestro installation. Aborting."
+                    exit 1
+                fi
             else
                 print_error "Refusing to auto-delete $INSTALL_DIR (not under \$HOME)"
                 exit 1
@@ -952,7 +967,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
         fi
     fi
 
-    if [ $TOOLS_INSTALLED -gt 0 ]; then
+    if [ "$TOOLS_INSTALLED" -gt 0 ]; then
         print_success "$TOOLS_INSTALLED agent tool(s) installed"
 
         # Verify installation
@@ -979,7 +994,7 @@ if [ -n "$INSTALL_DIR" ]; then
     echo ""
     echo "1️⃣  Start AI Maestro:"
     echo ""
-    echo "   cd $INSTALL_DIR"
+    echo "   cd \"$INSTALL_DIR\""
     echo "   yarn dev"
     echo ""
 

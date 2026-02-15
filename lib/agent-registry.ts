@@ -6,6 +6,7 @@ import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgent
 import { parseSessionName, computeSessionName } from '@/types/agent'
 import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
+import { invalidateAgentCache } from '@/lib/messageQueue'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -64,7 +65,7 @@ function generateAvatarUrl(agentId: string): string {
  * Get all used labels and avatars for a specific host
  */
 function getUsedLabelsAndAvatars(hostId: string): { labels: Set<string>, avatars: Set<string> } {
-  const agents = loadAgents()
+  const agents = loadAgents().filter(a => !a.deletedAt)
   const labels = new Set<string>()
   const avatars = new Set<string>()
 
@@ -206,11 +207,15 @@ export function saveAgents(agents: Agent[]): boolean {
 }
 
 /**
- * Get agent by ID
+ * Get agent by ID.
+ * By default excludes soft-deleted agents. Pass includeDeleted=true to include them.
  */
-export function getAgent(id: string): Agent | null {
+export function getAgent(id: string, includeDeleted: boolean = false): Agent | null {
   const agents = loadAgents()
-  return agents.find(a => a.id === id) || null
+  const agent = agents.find(a => a.id === id) || null
+  // If the agent is soft-deleted and caller didn't ask for deleted agents, return null
+  if (agent && agent.deletedAt && !includeDeleted) return null
+  return agent
 }
 
 /**
@@ -225,16 +230,18 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
   const normalizedName = name.toLowerCase()
 
   if (hostId) {
-    // Scoped to specific host
+    // Scoped to specific host; exclude soft-deleted agents
     return agents.find(a =>
+      !a.deletedAt &&
       a.name?.toLowerCase() === normalizedName &&
       a.hostId?.toLowerCase() === hostId.toLowerCase()
     ) || null
   }
 
-  // Default: search on self host only
+  // Default: search on self host only; exclude soft-deleted agents
   const selfHostId = getSelfHostId().toLowerCase()
   return agents.find(a =>
+    !a.deletedAt &&
     a.name?.toLowerCase() === normalizedName &&
     a.hostId?.toLowerCase() === selfHostId
   ) || null
@@ -246,7 +253,8 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
  */
 export function getAgentByNameAnyHost(name: string): Agent | null {
   const agents = loadAgents()
-  return agents.find(a => a.name?.toLowerCase() === name.toLowerCase()) || null
+  // Exclude soft-deleted agents from name lookups
+  return agents.find(a => !a.deletedAt && a.name?.toLowerCase() === name.toLowerCase()) || null
 }
 
 /**
@@ -263,8 +271,9 @@ export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
   // Determine which host to search on
   const targetHostId = hostId?.toLowerCase() || getSelfHostId().toLowerCase()
 
-  // Try name first (on specific host), then deprecated alias field
+  // Try name first (on specific host), then deprecated alias field; exclude soft-deleted
   return agents.find(a =>
+    !a.deletedAt &&
     (a.name?.toLowerCase() === normalizedAlias ||
      a.alias?.toLowerCase() === normalizedAlias) &&
     a.hostId?.toLowerCase() === targetHostId
@@ -278,9 +287,11 @@ export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
 export function getAgentByAliasAnyHost(alias: string): Agent | null {
   const agents = loadAgents()
   const normalizedAlias = alias.toLowerCase()
+  // Exclude soft-deleted agents from alias lookups
   return agents.find(a =>
-    a.name?.toLowerCase() === normalizedAlias ||
-    a.alias?.toLowerCase() === normalizedAlias
+    !a.deletedAt &&
+    (a.name?.toLowerCase() === normalizedAlias ||
+     a.alias?.toLowerCase() === normalizedAlias)
   ) || null
 }
 
@@ -292,7 +303,9 @@ export function getAgentByAliasAnyHost(alias: string): Agent | null {
 export function getAgentByPartialName(partialName: string): Agent | null {
   const agents = loadAgents()
   const lower = partialName.toLowerCase()
+  // Exclude soft-deleted agents from partial name lookups
   const matches = agents.filter(a => {
+    if (a.deletedAt) return false
     const agentName = a.name || a.alias || ''
     const segments = agentName.split(/[-_]/)
     return segments.length > 1 && segments[segments.length - 1].toLowerCase() === lower
@@ -437,6 +450,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
 
   agents.push(agent)
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agent
 }
@@ -522,6 +536,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   }
 
   saveAgents(agents)
+  invalidateAgentCache()
   return agents[index]
 }
 
@@ -577,10 +592,112 @@ export function incrementAgentMetric(
 }
 
 /**
- * Delete an agent and clean up associated data
- * Also kills any tmux sessions belonging to this agent
+ * Kill all tmux sessions belonging to an agent.
+ * Extracted from deleteAgent() so it can be reused by both soft-delete and hard-delete paths.
  */
-export function deleteAgent(id: string): boolean {
+function killAgentSessions(agent: Agent): void {
+  const agentName = agent.name || agent.alias
+  if (!agentName) return
+
+  const { execSync } = require('child_process')
+
+  // Kill sessions for all indices in the sessions array
+  const sessions = agent.sessions || []
+  for (const session of sessions) {
+    const sessionName = computeSessionName(agentName, session.index)
+    try {
+      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+      console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
+    } catch (error) {
+      console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
+    }
+  }
+
+  // Also try to kill the base session name (in case sessions array is empty)
+  if (sessions.length === 0) {
+    try {
+      execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+      console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
+    } catch (error) {
+      console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
+    }
+  }
+}
+
+/**
+ * Create a backup of all agent data before permanent deletion.
+ * Backup location: ~/.aimaestro/backups/agents/{id}-{timestamp}/
+ * Backs up: agent data dir, legacy message dirs, AMP dir, registry entry, AMP index entry.
+ */
+function backupAgentData(agent: Agent): string | null {
+  const agentName = agent.name || agent.alias
+  const backupBaseDir = path.join(AIMAESTRO_DIR, 'backups', 'agents')
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupDir = path.join(backupBaseDir, `${agent.id}-${timestamp}`)
+
+  try {
+    fs.mkdirSync(backupDir, { recursive: true })
+
+    // Backup agent data directory (~/.aimaestro/agents/{id}/)
+    const agentDir = path.join(AGENTS_DIR, agent.id)
+    if (fs.existsSync(agentDir)) {
+      const backupAgentDir = path.join(backupDir, 'agent-data')
+      fs.cpSync(agentDir, backupAgentDir, { recursive: true, dereference: true })
+    }
+
+    // Backup legacy message directories (~/.aimaestro/messages/{inbox,sent,archived}/{id}/)
+    const messagesDir = path.join(AIMAESTRO_DIR, 'messages')
+    for (const folder of ['inbox', 'sent', 'archived']) {
+      const msgDir = path.join(messagesDir, folder, agent.id)
+      if (fs.existsSync(msgDir)) {
+        const backupMsgDir = path.join(backupDir, 'messages', folder)
+        fs.cpSync(msgDir, backupMsgDir, { recursive: true, dereference: true })
+      }
+    }
+
+    // Backup AMP directory (~/.agent-messaging/agents/{id}/)
+    const ampAgentsDir = path.join(os.homedir(), '.agent-messaging', 'agents')
+    const ampUuidDir = path.join(ampAgentsDir, agent.id)
+    if (fs.existsSync(ampUuidDir)) {
+      const backupAmpDir = path.join(backupDir, 'amp-data')
+      fs.cpSync(ampUuidDir, backupAmpDir, { recursive: true, dereference: true })
+    }
+
+    // Save registry entry as JSON (for restore)
+    fs.writeFileSync(
+      path.join(backupDir, 'registry-entry.json'),
+      JSON.stringify(agent, null, 2)
+    )
+
+    // Save AMP name-to-UUID index entry (for restore)
+    const ampIndexEntry = {
+      agentName: agentName,
+      agentId: agent.id,
+      backedUpAt: new Date().toISOString(),
+    }
+    fs.writeFileSync(
+      path.join(backupDir, 'amp-index-entry.json'),
+      JSON.stringify(ampIndexEntry, null, 2)
+    )
+
+    console.log(`[Agent Registry] Backed up agent ${agentName} to ${backupDir}`)
+    return backupDir
+  } catch (backupError) {
+    console.warn(`[Agent Registry] Could not create pre-delete backup for ${agentName}:`, backupError)
+    // Return null but do NOT block deletion — backup is best-effort
+    return null
+  }
+}
+
+/**
+ * Delete an agent.
+ *
+ * @param id - Agent UUID
+ * @param hard - If false (default), soft-delete: kill tmux sessions and mark agent as deleted
+ *               in the registry but preserve all data on disk for potential restore.
+ *               If true, hard-delete: create a backup first, then permanently remove all data.
+ */
+export function deleteAgent(id: string, hard: boolean = false): boolean {
   const agents = loadAgents()
   const agentToDelete = agents.find(a => a.id === id)
 
@@ -588,38 +705,31 @@ export function deleteAgent(id: string): boolean {
     return false // Agent not found
   }
 
-  // Get agent name (use new name field, fallback to deprecated alias)
   const agentName = agentToDelete.name || agentToDelete.alias
 
-  // Kill all tmux sessions belonging to this agent
-  if (agentName) {
-    const { execSync } = require('child_process')
+  // Kill all tmux sessions belonging to this agent (both soft and hard delete)
+  killAgentSessions(agentToDelete)
 
-    // Kill sessions for all indices in the sessions array
-    const sessions = agentToDelete.sessions || []
-    for (const session of sessions) {
-      const sessionName = computeSessionName(agentName, session.index)
-      try {
-        execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
-        console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
-      } catch (error) {
-        console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
-      }
-    }
-
-    // Also try to kill the base session name (in case sessions array is empty)
-    if (sessions.length === 0) {
-      try {
-        execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
-        console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
-      } catch (error) {
-        console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
-      }
-    }
+  if (!hard) {
+    // --- Soft-delete path: mark as deleted, preserve all data on disk ---
+    const agentIndex = agents.findIndex(a => a.id === id)
+    agents[agentIndex].deletedAt = new Date().toISOString()
+    agents[agentIndex].status = 'deleted'
+    saveAgents(agents)
+    invalidateAgentCache()
+    console.log(`[Agent Registry] Soft-deleted agent ${agentName} (id: ${id})`)
+    return true
   }
 
+  // --- Hard-delete path: backup first, then permanently remove all data ---
+
+  // Create automatic backup before any destructive operation
+  backupAgentData(agentToDelete)
+
+  // Remove agent from registry
   const filtered = agents.filter(a => a.id !== id)
   saveAgents(filtered)
+  invalidateAgentCache()
 
   // Clean up agent-specific directory (database, etc.)
   const agentDir = path.join(AGENTS_DIR, id)
@@ -672,11 +782,13 @@ export function deleteAgent(id: string): boolean {
 
 /**
  * List all agents (summary view)
+ * By default excludes soft-deleted agents. Pass includeDeleted=true to include them.
  */
-export function listAgents(): AgentSummary[] {
+export function listAgents(includeDeleted: boolean = false): AgentSummary[] {
   const agents = loadAgents()
+  const filtered = includeDeleted ? agents : agents.filter(a => !a.deletedAt)
 
-  return agents.map(a => {
+  return filtered.map(a => {
     const agentName = a.name || a.alias || 'unknown'
     const sessions: AgentSession[] = a.sessions || []
 
@@ -695,6 +807,7 @@ export function listAgents(): AgentSummary[] {
       lastActive: a.lastActive,
       sessions,
       deployment: a.deployment,
+      deletedAt: a.deletedAt,
       // DEPRECATED: for backward compatibility
       alias: agentName,
       currentSession,
@@ -713,10 +826,17 @@ export function updateAgentStatus(id: string, status: Agent['status']): boolean 
     return false
   }
 
+  // Prevent accidentally resurrecting soft-deleted agents
+  if (agents[index].deletedAt && status !== 'deleted') {
+    return false
+  }
+
   agents[index].status = status
   agents[index].lastActive = new Date().toISOString()
 
-  return saveAgents(agents)
+  const saved = saveAgents(agents)
+  if (saved) invalidateAgentCache()
+  return saved
 }
 
 /**
@@ -763,7 +883,9 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
   agents[index].status = 'active'
   agents[index].lastActive = new Date().toISOString()
 
-  return saveAgents(agents)
+  const saved = saveAgents(agents)
+  if (saved) invalidateAgentCache()
+  return saved
 }
 
 /**
@@ -844,7 +966,9 @@ export function unlinkSession(agentId: string, sessionIndex?: number): boolean {
   agents[index].status = hasOnlineSession ? 'active' : 'offline'
   agents[index].lastActive = new Date().toISOString()
 
-  return saveAgents(agents)
+  const saved = saveAgents(agents)
+  if (saved) invalidateAgentCache()
+  return saved
 }
 
 /**
@@ -863,6 +987,7 @@ export function searchAgents(query: string): Agent[] {
   const lowerQuery = query.toLowerCase()
 
   return agents.filter(a => {
+    if (a.deletedAt) return false
     const agentName = a.name || a.alias || ''
     const agentLabel = a.label || ''
     return (
@@ -936,6 +1061,7 @@ export function renameAgent(agentId: string, newName: string): boolean {
   agents[index].lastActive = new Date().toISOString()
 
   const saved = saveAgents(agents)
+  if (saved) invalidateAgentCache(oldName || undefined)
 
   // Update AMP name→UUID index and config.json
   if (saved && oldName) {
@@ -996,14 +1122,15 @@ export function renameAgentSession(oldSessionName: string, newSessionName: strin
 /**
  * Delete agent by session name
  * Parses session name to find agent, then deletes it
+ * @param hard - If true, permanently delete (with backup). Default false (soft-delete).
  */
-export function deleteAgentBySession(sessionName: string): boolean {
+export function deleteAgentBySession(sessionName: string, hard: boolean = false): boolean {
   const agent = getAgentBySession(sessionName)
   if (!agent) {
     return false
   }
 
-  return deleteAgent(agent.id)
+  return deleteAgent(agent.id, hard)
 }
 
 /**
@@ -1115,6 +1242,7 @@ export function getEmailIndex(): EmailIndexResponse {
   const index: EmailIndexResponse = {}
 
   for (const agent of agents) {
+    if (agent.deletedAt) continue
     const agentName = agent.name || agent.alias || 'unknown'
     const addresses = agent.tools?.email?.addresses || []
 
@@ -1155,6 +1283,7 @@ export function findAgentByEmail(email: string): string | null {
   const agents = loadAgents()
 
   for (const agent of agents) {
+    if (agent.deletedAt) continue
     // Check legacy single-address format
     if (agent.tools?.email?.address) {
       if (normalizeEmail(agent.tools.email.address) === normalizedEmail) {
@@ -1269,6 +1398,7 @@ export function addEmailAddress(
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -1310,6 +1440,7 @@ export function removeEmailAddress(agentId: string, email: string): Agent {
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -1383,6 +1514,7 @@ export function updateEmailAddress(
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -1414,6 +1546,7 @@ export function getAMPAddressIndex(): Record<string, AMPAddressIndexEntry> {
   const index: Record<string, AMPAddressIndexEntry> = {}
 
   for (const agent of agents) {
+    if (agent.deletedAt) continue
     const agentName = agent.name || agent.alias || 'unknown'
     const addresses = agent.tools?.amp?.addresses || []
 
@@ -1453,6 +1586,7 @@ export function findAgentByAMPAddress(address: string): string | null {
   const agents = loadAgents()
 
   for (const agent of agents) {
+    if (agent.deletedAt) continue
     // Check legacy single-address in metadata
     if (agent.metadata?.amp?.address) {
       if (normalizeAMPAddress(agent.metadata.amp.address) === normalizedAddr) {
@@ -1562,6 +1696,7 @@ export function addAMPAddress(
     }
     agents[index].lastActive = new Date().toISOString()
     saveAgents(agents)
+    invalidateAgentCache()
     return agents[index]
   }
 
@@ -1585,6 +1720,7 @@ export function addAMPAddress(
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -1626,6 +1762,7 @@ export function removeAMPAddress(agentId: string, address: string): Agent {
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -1674,6 +1811,7 @@ export function updateAMPAddress(
 
   agents[index].lastActive = new Date().toISOString()
   saveAgents(agents)
+  invalidateAgentCache()
 
   return agents[index]
 }
@@ -2074,11 +2212,13 @@ export function normalizeAllAgentHostIds(): {
  * Get agents grouped by hostId for mesh directory
  * @returns Map of hostId -> array of agents
  */
-export function getAgentsByHost(): Map<string, Agent[]> {
+export function getAgentsByHost(includeDeleted: boolean = false): Map<string, Agent[]> {
   const agents = loadAgents()
   const byHost = new Map<string, Agent[]>()
 
   for (const agent of agents) {
+    // Skip soft-deleted agents unless caller explicitly requests them
+    if (!includeDeleted && agent.deletedAt) continue
     const hostId = normalizeHostId(agent.hostId)
     if (!byHost.has(hostId)) {
       byHost.set(hostId, [])
@@ -2321,7 +2461,7 @@ export function markAgentAsAMPRegistered(
  */
 export function getAMPRegisteredAgents(): Agent[] {
   const agents = loadAgents()
-  return agents.filter(a => a.ampRegistered === true)
+  return agents.filter(a => !a.deletedAt && a.ampRegistered === true)
 }
 
 /**
@@ -2329,5 +2469,5 @@ export function getAMPRegisteredAgents(): Agent[] {
  */
 export function getLegacyAgents(): Agent[] {
   const agents = loadAgents()
-  return agents.filter(a => a.ampRegistered !== true)
+  return agents.filter(a => !a.deletedAt && a.ampRegistered !== true)
 }

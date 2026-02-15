@@ -7,6 +7,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { AgentDatabase } from '../cozo-db'
+import { escapeForCozo } from '../cozo-utils'
 import { embedTexts } from '../rag/embeddings'
 
 // Helper to embed a single text
@@ -384,7 +385,7 @@ export async function promoteMemories(
   const result = await agentDb.run(`
     ?[memory_id, reinforcement_count, created_at] :=
       *memories{memory_id, agent_id, tier, reinforcement_count, created_at},
-      agent_id = '${agentId}',
+      agent_id = ${escapeForCozo(agentId)},
       tier = 'warm',
       reinforcement_count >= ${minReinforcements},
       created_at <= ${cutoffTime}
@@ -399,7 +400,7 @@ export async function promoteMemories(
       try {
         await agentDb.run(`
           ?[memory_id, tier, promoted_at] <- [[
-            '${memoryId}',
+            ${escapeForCozo(memoryId)},
             'long',
             ${Date.now()}
           ]]
@@ -439,12 +440,14 @@ export async function pruneShortTermMemory(
   const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000)
 
   // Find messages older than retention that are in consolidated conversations
+  // Fix: messages table has columns (msg_id, conversation_file, role, ts, text) — no agent_id or timestamp
+  // Filter by agent_id via consolidated_conversations which does have that column
   const result = await agentDb.run(`
     ?[msg_id, conversation_file] :=
-      *messages{msg_id, agent_id, conversation_file, timestamp},
-      agent_id = '${agentId}',
-      timestamp < ${cutoffTime},
-      *consolidated_conversations{conversation_file}
+      *messages{msg_id, conversation_file, ts},
+      ts < ${cutoffTime},
+      *consolidated_conversations{conversation_file, agent_id},
+      agent_id = ${escapeForCozo(agentId)}
   `)
 
   const toPrune = result.rows.length
@@ -455,12 +458,12 @@ export async function pruneShortTermMemory(
       const msgId = row[0] as string
       try {
         await agentDb.run(`
-          ?[msg_id] <- [['${msgId}']]
+          ?[msg_id] <- [[${escapeForCozo(msgId)}]]
           :delete messages
         `)
         // Also delete embeddings
         await agentDb.run(`
-          ?[msg_id] <- [['${msgId}']]
+          ?[msg_id] <- [[${escapeForCozo(msgId)}]]
           :delete msg_vec
         `)
       } catch (error: any) {
@@ -468,6 +471,58 @@ export async function pruneShortTermMemory(
       }
     }
     console.log(`[CONSOLIDATE] Pruned ${toPrune} old messages`)
+
+    // Orphan cleanup: best-effort, non-fatal
+    // If process crashes between memory deletion and orphan cleanup,
+    // orphans will accumulate but won't cause data corruption.
+    // The outer try/catch ensures orphan cleanup failures never crash pruning.
+    try {
+      // Delete orphaned msg_terms rows whose msg_id no longer exists in messages
+      try {
+        const orphanedTerms = await agentDb.run(`
+          ?[msg_id, term] :=
+            *msg_terms{msg_id, term},
+            not *messages{msg_id}
+        `)
+        if (orphanedTerms.rows.length > 0) {
+          for (const row of orphanedTerms.rows) {
+            const orphanMsgId = row[0] as string
+            const orphanTerm = row[1] as string
+            await agentDb.run(`
+              ?[msg_id, term] <- [[${escapeForCozo(orphanMsgId)}, ${escapeForCozo(orphanTerm)}]]
+              :delete msg_terms
+            `)
+          }
+          console.log(`[CONSOLIDATE] Deleted ${orphanedTerms.rows.length} orphaned msg_terms rows`)
+        }
+      } catch (error: any) {
+        console.error(`[CONSOLIDATE] Failed to delete orphaned msg_terms:`, error.message)
+      }
+
+      // Delete orphaned code_symbols rows whose msg_id no longer exists in messages
+      try {
+        const orphanedSymbols = await agentDb.run(`
+          ?[msg_id, symbol] :=
+            *code_symbols{msg_id, symbol},
+            not *messages{msg_id}
+        `)
+        if (orphanedSymbols.rows.length > 0) {
+          for (const row of orphanedSymbols.rows) {
+            const orphanMsgId = row[0] as string
+            const orphanSymbol = row[1] as string
+            await agentDb.run(`
+              ?[msg_id, symbol] <- [[${escapeForCozo(orphanMsgId)}, ${escapeForCozo(orphanSymbol)}]]
+              :delete code_symbols
+            `)
+          }
+          console.log(`[CONSOLIDATE] Deleted ${orphanedSymbols.rows.length} orphaned code_symbols rows`)
+        }
+      } catch (error: any) {
+        console.error(`[CONSOLIDATE] Failed to delete orphaned code_symbols:`, error.message)
+      }
+    } catch (orphanErr) {
+      console.warn('[CONSOLIDATE] Non-fatal: orphan cleanup failed:', orphanErr)
+    }
   }
 
   return { pruned: options.dryRun ? toPrune : toPrune }

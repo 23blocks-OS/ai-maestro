@@ -870,6 +870,14 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={async () => {
+          // Call the delete API (soft-delete) for this agent
+          const response = await fetch(`${baseUrl}/api/agents/${agent.id}`, {
+            method: 'DELETE',
+          })
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.error || 'Failed to delete agent')
+          }
           onClose?.()
         }}
         agentId={agent.id}

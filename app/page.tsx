@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
@@ -86,6 +86,7 @@ export default function DashboardPage() {
   // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return 320
     const saved = localStorage.getItem('sidebar-width')
@@ -193,6 +194,13 @@ export default function DashboardPage() {
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Clean up sidebar toggle resize timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+    }
   }, [])
 
   // Keyboard shortcuts for Phase 5 features
@@ -484,7 +492,14 @@ export default function DashboardPage() {
   }
 
   const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed)
+    setSidebarCollapsed(prev => !prev)
+    // Trigger terminal refit after the CSS transition completes (300ms duration + 50ms buffer)
+    // This dispatches a synthetic resize event that the global handler in TerminalContext picks up,
+    // calling fitAddon.fit() on all registered terminals so they fill the new available width
+    if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+    resizeTimeoutRef.current = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 350)
   }
 
   const handleOnboardingComplete = () => {

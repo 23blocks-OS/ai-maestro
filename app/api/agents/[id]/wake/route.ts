@@ -195,25 +195,6 @@ export async function POST(
           startCommand = 'claude'
         }
 
-        // Per-program resume patterns to strip on first launch (global flag to catch duplicates)
-        const RESUME_PATTERNS: Record<string, RegExp[]> = {
-          'claude':   [/\s*--continue\b/g, /\s*-c\b(?!\s*\S)/g, /\s*--resume\b(\s+\S+)?/g, /\s*-r\b(\s+\S+)?/g],
-          'codex':    [/\s*resume\s+--last\b/g, /\s*resume\b(\s+\S+)?/g],
-          'gemini':   [/\s*--resume\b(\s+\S+)?/g],
-          'aider':    [/\s*--restore-chat-history\b/g],
-          'opencode': [/\s*--continue\b/g, /\s*-c\b(?!\s*\S)/g, /\s*--session\b(\s+\S+)?/g, /\s*-s\b(\s+\S+)?/g],
-          'cursor':   [/\s*--resume\b(\s+\S+)?/g, /\s*resume\b/g],
-        }
-
-        function stripResumeFlags(argsStr: string, program: string): string {
-          const patterns = RESUME_PATTERNS[program] || []
-          let result = argsStr
-          for (const pattern of patterns) {
-            result = result.replace(pattern, '')
-          }
-          return result.trim()
-        }
-
         // Sanitize shell arguments: only allow safe CLI flag characters
         function sanitizeArgs(args: string): string {
           // Allow: alphanumeric, hyphens, underscores, dots, equals, spaces, forward slashes, colons, commas, tildes
@@ -222,20 +203,13 @@ export async function POST(
         }
 
         // Build the full command with programArgs
+        // Resume/continue flags are passed through as-is — programs handle missing
+        // sessions gracefully (e.g. claude --continue starts fresh if no prior session)
         let fullCommand = startCommand
         if (agent.programArgs) {
-          let args = sanitizeArgs(agent.programArgs)
-          // Strip resume flags on first launch (no session to resume)
-          const isFirstLaunch = !agent.launchCount || agent.launchCount === 0
-          if (isFirstLaunch) {
-            const programKey = Object.keys(RESUME_PATTERNS).find(k => startCommand.includes(k)) || ''
-            if (programKey) {
-              args = stripResumeFlags(args, programKey)
-              console.log(`[Wake] First launch: stripped resume flags. Original: "${agent.programArgs}", Filtered: "${args}"`)
-            }
-          }
-          if (args.trim()) {
-            fullCommand = `${startCommand} ${args.trim()}`
+          const args = sanitizeArgs(agent.programArgs)
+          if (args) {
+            fullCommand = `${startCommand} ${args}`
           }
         }
 

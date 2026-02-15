@@ -87,7 +87,6 @@ async function sendKeysToTmux(sessionName: string, keys: string): Promise<void> 
  * - command: string - The command to send
  * - requireIdle: boolean - Only send if session is idle (default: true)
  * - addNewline: boolean - Add Enter key to execute command (default: true)
- * - forClaude: boolean - Format as a message for Claude to process (default: false)
  */
 export async function POST(
   request: NextRequest,
@@ -101,7 +100,6 @@ export async function POST(
     const command = body.command as string
     const requireIdle = body.requireIdle !== false // Default true
     const addNewline = body.addNewline !== false // Default true
-    const forClaude = body.forClaude === true // Default false
 
     if (!command || typeof command !== 'string') {
       return NextResponse.json(
@@ -134,20 +132,16 @@ export async function POST(
     }
 
     // Format the command
-    let keysToSend: string
-    if (forClaude) {
-      // Format as a message Claude can see and process
-      keysToSend = command
-    } else {
-      keysToSend = command
-    }
+    const keysToSend = command
 
-    // Send keys via tmux
-    await sendKeysToTmux(sessionName, keysToSend)
-
-    // Send Enter key if requested
+    // Send keys via tmux using -l (literal) to avoid interpreting special characters
+    // When addNewline is true, text and Enter are sent atomically via tmux \; chaining to prevent race conditions
     if (addNewline) {
-      await execAsync(`tmux send-keys -t "${sessionName}" Enter`)
+      await cancelCopyModeIfActive(sessionName)
+      const escapedKeys = keysToSend.replace(/'/g, "'\\''")
+      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}' \\; send-keys -t "${sessionName}" Enter`)
+    } else {
+      await sendKeysToTmux(sessionName, keysToSend)
     }
 
     // Update activity timestamp

@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.22.2"
+VERSION="0.22.5"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -161,16 +161,26 @@ cleanup() {
         echo ""
         maestro_fail "Something went wrong (exit code $exit_code)"
         maestro_info "Check the output above for details"
-        # Remove partial clone if install dir was created but has no package.json
+        # Remove partial clone if install dir was created but is not a valid AI Maestro installation
         # Safety: only auto-remove paths under $HOME (never system dirs)
-        if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
+        # Defense-in-depth: require both package.json existence AND ai-maestro name match to consider it a real install
+        local is_aimaestro_install=false
+        if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+            is_aimaestro_install=true
+        fi
+        if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ "$is_aimaestro_install" = false ] \
            && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
-            if [ "$NON_INTERACTIVE" = true ]; then
-                rm -rf "$INSTALL_DIR"
-                maestro_info "Removed partial installation at $INSTALL_DIR"
+            # Only auto-remove if the directory was created by this installer (marker file present)
+            if [ -f "$INSTALL_DIR/.ai-maestro-install-marker" ]; then
+                if [ "$NON_INTERACTIVE" = true ]; then
+                    rm -rf "$INSTALL_DIR"
+                    maestro_info "Removed partial installation at $INSTALL_DIR"
+                else
+                    maestro_warn "Partial installation detected at $INSTALL_DIR"
+                    maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+                fi
             else
-                maestro_warn "Partial installation detected at $INSTALL_DIR"
-                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+                maestro_warn "Not removing $INSTALL_DIR (not created by this installer)"
             fi
         fi
         maestro_info "You can re-run the installer to try again"
@@ -937,7 +947,16 @@ act3_clone_and_build() {
             if [ -f "$INSTALL_DIR/package.json" ]; then
                 old_version=$(grep '"version"' "$INSTALL_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version".*"\([^"]*\)".*/\1/')
             fi
-            if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
+            # Compare both version string and git commit hash to catch code changes at same version
+            local old_commit
+            old_commit=$(cd "$INSTALL_DIR" && git rev-parse HEAD 2>/dev/null)
+            local new_commit
+            if command -v timeout >/dev/null 2>&1; then
+                new_commit=$(timeout 30 git ls-remote "$REPO_URL" HEAD 2>/dev/null | cut -f1)
+            else
+                new_commit=$(git ls-remote "$REPO_URL" HEAD 2>/dev/null | cut -f1)
+            fi
+            if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ] && [ -n "$old_commit" ] && [ "$old_commit" = "$new_commit" ]; then
                 maestro_ok "AI Maestro v${VERSION} is already up to date"
                 maestro_info "Dashboard: http://localhost:${PORT}"
                 return
@@ -963,10 +982,9 @@ act3_clone_and_build() {
                 git pull origin main 2>/dev/null || git pull
                 if [ "$had_stash" = true ]; then
                     if ! git stash pop --quiet 2>/dev/null; then
-                        maestro_warn "Could not cleanly restore your local changes after update."
-                        maestro_info "Your changes are saved in git stash. To recover:"
-                        echo "   cd $INSTALL_DIR && git stash list"
-                        echo "   git stash pop   # (resolve any conflicts manually)"
+                        maestro_warn "git stash pop failed (merge conflict). Your stashed changes are preserved in the stash."
+                        maestro_info "Run 'git stash show' to see them and 'git stash drop' after manual resolution."
+                        # Don't exit - the update itself succeeded
                     fi
                 fi
                 git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
@@ -980,7 +998,7 @@ act3_clone_and_build() {
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
                     # On update: only reinstall tools that are already present
                     local tool_flags=""
-                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                    [ ! -f "$HOME/.local/bin/amp-send.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
                     chmod +x install.sh
                     # shellcheck disable=SC2086
                     ./install.sh --from-remote -y $tool_flags
@@ -1024,6 +1042,8 @@ act3_clone_and_build() {
         maestro_fail "Failed to clone repository. Check your network connection."
         exit 1
     fi
+    # Mark this directory as created by the installer (used by cleanup to avoid removing pre-existing dirs)
+    touch "$INSTALL_DIR/.ai-maestro-install-marker"
     cd "$INSTALL_DIR"
     git submodule update --init --recursive || maestro_warn "Some submodules failed to initialize"
     maestro_step 1 "$total_steps" "Downloading..." "done"
@@ -1047,28 +1067,30 @@ act3_clone_and_build() {
             for gw in "${GW_ARRAY[@]}"; do
                 local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
                 if [ -d "$gw_dir" ]; then
-                    cd "$gw_dir"
-                    npm install --silent 2>/dev/null || npm install || {
+                    # Use subshell to protect working directory from cd side effects
+                    (
+                        cd "$gw_dir" || exit 1
+                        npm install --silent 2>/dev/null || npm install || exit 1
+                        # Copy .env.example to .env with defaults
+                        if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+                            cp .env.example .env
+                            # Pre-set AI Maestro connection and default agent
+                            # Note: double quotes so ${PORT} expands to the actual port value
+                            if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+                                portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
+                            else
+                                echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
+                            fi
+                            if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
+                                portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+                            else
+                                echo "DEFAULT_AGENT=mailman" >> .env
+                            fi
+                        fi
+                    ) || {
                         maestro_warn "npm install failed for ${gw}-gateway — skipping"
-                        cd "$INSTALL_DIR"
                         continue
                     }
-                    # Copy .env.example to .env with defaults
-                    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
-                        cp .env.example .env
-                        # Pre-set AI Maestro connection and default agent
-                        if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
-                        else
-                            echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
-                        fi
-                        if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
-                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
-                        else
-                            echo "DEFAULT_AGENT=mailman" >> .env
-                        fi
-                    fi
-                    cd "$INSTALL_DIR"
                 fi
             done
             maestro_ok "Gateways installed: $SELECTED_GATEWAYS"

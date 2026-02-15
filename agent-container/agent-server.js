@@ -104,19 +104,19 @@ async function configureGit() {
 async function initializeTmuxSession() {
   try {
     // Check if session already exists
-    const { stdout } = await exec(`tmux has-session -t ${SESSION_NAME} 2>&1`)
+    const { stdout } = await exec(`tmux has-session -t "${SESSION_NAME}" 2>&1`)
     console.log(`✓ tmux session "${SESSION_NAME}" already exists`)
   } catch (error) {
     // Session doesn't exist, create it
     console.log(`Creating new tmux session: ${SESSION_NAME}`)
 
     try {
-      await exec(`tmux new-session -d -s ${SESSION_NAME} -c ${WORKSPACE}`)
+      await exec(`tmux new-session -d -s "${SESSION_NAME}" -c "${WORKSPACE}"`)
       console.log(`✓ Created tmux session: ${SESSION_NAME}`)
 
       // Optionally start an AI tool in the session (e.g., 'claude', 'aider', 'cursor')
       if (AI_TOOL) {
-        await exec(`tmux send-keys -t ${SESSION_NAME} "${AI_TOOL}" C-m`)
+        await exec(`tmux send-keys -t "${SESSION_NAME}" "${AI_TOOL}" C-m`)
         console.log(`✓ Started ${AI_TOOL} in session`)
       } else {
         console.log(`ℹ No AI_TOOL specified - session starts with shell only`)
@@ -144,7 +144,7 @@ wss.on('connection', (ws, req) => {
     console.log(`  → Total clients connected: ${sessionData.clients.size}`)
 
     // Send current screen content to new client
-    exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
+    exec(`tmux capture-pane -t "${sessionKey}" -p -e -S -50000 2>/dev/null || tmux capture-pane -t "${sessionKey}" -p 2>/dev/null || echo ""`)
       .then(({ stdout }) => {
         if (stdout && ws.readyState === 1) {
           // Send captured content
@@ -174,7 +174,7 @@ wss.on('connection', (ws, req) => {
 
     // Capture and send initial screen content to first client
     setTimeout(() => {
-      exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
+      exec(`tmux capture-pane -t "${sessionKey}" -p -e -S -50000 2>/dev/null || tmux capture-pane -t "${sessionKey}" -p 2>/dev/null || echo ""`)
         .then(({ stdout }) => {
           if (stdout && ws.readyState === 1) {
             ws.send(stdout)

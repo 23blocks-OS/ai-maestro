@@ -345,8 +345,26 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
 // STREAMING LINE COUNTER (avoids loading entire file into memory)
 // ============================================================================
 function countFileLines(filePath: string): number {
-  const content = fs.readFileSync(filePath, 'utf-8')
-  return content.split('\n').filter(line => line.trim()).length
+  const buffer = Buffer.alloc(64 * 1024) // 64KB read buffer
+  const fd = fs.openSync(filePath, 'r')
+  let count = 0
+  let bytesRead: number
+  let leftover = ''
+
+  try {
+    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      const chunk = leftover + buffer.toString('utf-8', 0, bytesRead)
+      const lines = chunk.split('\n')
+      leftover = lines.pop() || ''
+      for (const line of lines) {
+        if (line.trim()) count++
+      }
+    }
+    if (leftover.trim()) count++
+  } finally {
+    fs.closeSync(fd)
+  }
+  return count
 }
 
 // ============================================================================

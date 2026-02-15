@@ -46,7 +46,12 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
 
     extractor = ext;
     return ext;
-  })();
+  })().catch((err) => {
+    // Reset so the next call retries initialization instead of permanently caching the failed promise.
+    // Only extractorPromise matters here: extractor was never assigned if pipeline() threw.
+    extractorPromise = null;
+    throw err;
+  });
 
   return extractorPromise;
 }

@@ -837,7 +837,7 @@ app.prepare().then(() => {
           // The -S -2000 flag captures scrollback history, not just visible pane
           // Reduced from 5000 to 2000 for faster loading
           const { stdout } = await execAsync(
-            `tmux capture-pane -t ${sessionName} -p -S -2000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
+            `tmux capture-pane -t "${sessionName}" -p -S -2000 2>/dev/null || tmux capture-pane -t "${sessionName}" -p`,
             { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
           )
           historyContent = stdout

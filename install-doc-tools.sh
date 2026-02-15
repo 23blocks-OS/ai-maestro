@@ -125,7 +125,12 @@ for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/docs-*.sh "$SCRIPT
             continue
         fi
         # Modify script to use installed helper location
-        sed 's|source "${SCRIPT_DIR}/docs-helper.sh"|source "${HOME}/.local/share/aimaestro/shell-helpers/docs-helper.sh"|g' "$script" > "$INSTALL_DIR/$script_name"
+        # Pattern handles: source or dot-source, with or without braces around SCRIPT_DIR
+        sed -E 's#(source|\.) +"?\$\{?SCRIPT_DIR\}?/docs-helper\.sh"?#source "${HOME}/.local/share/aimaestro/shell-helpers/docs-helper.sh"#g' "$script" > "$INSTALL_DIR/$script_name"
+        # Verify the substitution succeeded (installed script should NOT still reference SCRIPT_DIR/docs-helper.sh)
+        if grep -q 'SCRIPT_DIR.*/docs-helper\.sh' "$INSTALL_DIR/$script_name"; then
+            echo "  WARNING: sed substitution may have failed for $script_name - source path was not rewritten"
+        fi
         chmod +x "$INSTALL_DIR/$script_name"
         echo "  Installed: $script_name"
     fi
@@ -136,6 +141,7 @@ echo ""
 echo "Installing docs-search skill to $SKILL_DIR..."
 if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" ]; then
     cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+    echo "  Installed: SKILL.md"
 elif [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
     cp "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
     echo "  Installed: SKILL.md"

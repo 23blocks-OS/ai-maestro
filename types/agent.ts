@@ -10,6 +10,12 @@
  * - An agent can have multiple sessions (multi-brain support)
  */
 
+// Skills types - canonical definitions live in types/marketplace.ts
+// Re-exported here for backward compatibility (agent-registry, API routes import from here)
+// AgentSkillsConfig is also used locally by the Agent interface below
+export type { AgentSkillsConfig, AgentMarketplaceSkill, AgentCustomSkill } from './marketplace'
+import type { AgentSkillsConfig } from './marketplace'
+
 // ============================================================================
 // AMP Identity Types (Cryptographic Identity for Messaging)
 // ============================================================================
@@ -216,47 +222,9 @@ export interface Agent {
 
   // AMP Registration Status (Phase 2: AMP Protocol)
   ampRegistered?: boolean        // True if agent was registered via AMP protocol
-}
 
-/**
- * Skills configuration for an agent
- * Agents can have skills from marketplaces, AI Maestro, and custom skills
- */
-export interface AgentSkillsConfig {
-  // Skills from Claude Code marketplaces
-  marketplace: AgentMarketplaceSkill[]
-
-  // AI Maestro built-in skills
-  aiMaestro: {
-    enabled: boolean              // Include AI Maestro skills?
-    skills: string[]              // Which skills (default: all)
-  }
-
-  // Custom skills specific to this agent
-  custom: AgentCustomSkill[]
-}
-
-/**
- * A marketplace skill installed on an agent
- */
-export interface AgentMarketplaceSkill {
-  id: string                      // Full skill ID (marketplace:plugin:skill)
-  marketplace: string             // Source marketplace
-  plugin: string                  // Source plugin
-  name: string                    // Skill name
-  version?: string                // Installed version
-  installedAt: string             // When installed (ISO timestamp)
-}
-
-/**
- * A custom skill created for a specific agent
- */
-export interface AgentCustomSkill {
-  name: string                    // Skill name
-  path: string                    // Relative path within agent folder
-  description?: string            // Optional description
-  createdAt: string               // When created
-  updatedAt?: string              // When last modified
+  // Soft-delete: when set, agent is marked as deleted but data is preserved for restore
+  deletedAt?: string             // ISO timestamp when soft-deleted, undefined = active
 }
 
 export type DeploymentType = 'local' | 'cloud'
@@ -426,7 +394,7 @@ export interface AgentMetrics {
   customMetrics?: Record<string, number | string>
 }
 
-export type AgentStatus = 'active' | 'idle' | 'offline'
+export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
 
 /**
  * Simplified agent for listings
@@ -442,6 +410,8 @@ export interface AgentSummary {
   lastActive: string
   sessions: AgentSession[]      // Session(s) with their status
   deployment?: AgentDeployment  // Deployment configuration (needed for icon display)
+  // Soft-delete: when set, agent is marked as deleted but data is preserved
+  deletedAt?: string            // ISO timestamp when soft-deleted, undefined = active
   // DEPRECATED: for backward compatibility during migration
   alias?: string
   displayName?: string

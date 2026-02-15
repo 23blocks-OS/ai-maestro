@@ -433,11 +433,24 @@ describe('updateAgent', () => {
 // ============================================================================
 
 describe('deleteAgent', () => {
-  it('removes agent from registry', () => {
+  it('soft-deletes agent by default (marks deletedAt, keeps in registry)', () => {
     const agent = createAgent(makeCreateRequest({ name: 'delete-me' }))
     expect(loadAgents()).toHaveLength(1)
 
     const result = deleteAgent(agent.id)
+    expect(result).toBe(true)
+    // Soft-delete keeps agent in array but marks it deleted
+    const agents = loadAgents()
+    expect(agents).toHaveLength(1)
+    expect(agents[0].deletedAt).toBeDefined()
+    expect(agents[0].status).toBe('deleted')
+  })
+
+  it('hard-deletes agent when hard=true (removes from registry)', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'hard-delete-me' }))
+    expect(loadAgents()).toHaveLength(1)
+
+    const result = deleteAgent(agent.id, true)
     expect(result).toBe(true)
     expect(loadAgents()).toHaveLength(0)
   })
@@ -447,14 +460,136 @@ describe('deleteAgent', () => {
     expect(result).toBe(false)
   })
 
-  it('removes the correct agent when multiple exist', () => {
+  it('soft-deletes the correct agent when multiple exist', () => {
     const a1 = createAgent(makeCreateRequest({ name: 'keep-me' }))
     const a2 = createAgent(makeCreateRequest({ name: 'delete-me' }))
 
     deleteAgent(a2.id)
     const remaining = loadAgents()
+    // Both agents still in array, but a2 is soft-deleted
+    expect(remaining).toHaveLength(2)
+    const kept = remaining.find(a => a.id === a1.id)
+    const deleted = remaining.find(a => a.id === a2.id)
+    expect(kept!.deletedAt).toBeUndefined()
+    expect(deleted!.deletedAt).toBeDefined()
+    expect(deleted!.status).toBe('deleted')
+  })
+
+  it('hard-deletes the correct agent when multiple exist', () => {
+    const a1 = createAgent(makeCreateRequest({ name: 'keep-me' }))
+    const a2 = createAgent(makeCreateRequest({ name: 'delete-me' }))
+
+    deleteAgent(a2.id, true)
+    const remaining = loadAgents()
     expect(remaining).toHaveLength(1)
     expect(remaining[0].id).toBe(a1.id)
+  })
+})
+
+// ============================================================================
+// Soft-delete filtering
+// ============================================================================
+
+describe('soft-delete filtering', () => {
+  it('getAgent() returns null for soft-deleted agent', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'soft-del-lookup' }))
+    deleteAgent(agent.id) // soft-delete (default)
+
+    const found = getAgent(agent.id)
+    expect(found).toBeNull()
+  })
+
+  it('getAgent() returns soft-deleted agent with includeDeleted=true', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'soft-del-include' }))
+    deleteAgent(agent.id) // soft-delete
+
+    const found = getAgent(agent.id, true)
+    expect(found).not.toBeNull()
+    expect(found!.id).toBe(agent.id)
+    expect(found!.deletedAt).toBeDefined()
+    expect(found!.status).toBe('deleted')
+  })
+
+  it('getAgentByName() excludes soft-deleted agents', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'soft-del-byname' }))
+    expect(getAgentByName('soft-del-byname')).not.toBeNull()
+
+    deleteAgent(agent.id) // soft-delete
+
+    const found = getAgentByName('soft-del-byname')
+    expect(found).toBeNull()
+  })
+
+  it('listAgents() excludes soft-deleted agents', () => {
+    const a1 = createAgent(makeCreateRequest({ name: 'list-keep' }))
+    const a2 = createAgent(makeCreateRequest({ name: 'list-delete' }))
+
+    deleteAgent(a2.id) // soft-delete a2
+
+    const listed = listAgents()
+    expect(listed).toHaveLength(1)
+    expect(listed[0].id).toBe(a1.id)
+    expect(listed[0].name).toBe('list-keep')
+  })
+
+  it('searchAgents() excludes soft-deleted agents', () => {
+    const agent = createAgent(makeCreateRequest({ name: 'searchable-soft-del', tags: ['findme'] }))
+    // Verify searchAgents finds it before deletion
+    const beforeDelete = searchAgents('searchable')
+    expect(beforeDelete).toHaveLength(1)
+    expect(beforeDelete[0].id).toBe(agent.id)
+
+    // Soft-delete the agent
+    deleteAgent(agent.id)
+
+    // searchAgents must no longer return the soft-deleted agent
+    const afterDelete = searchAgents('searchable')
+    expect(afterDelete).toHaveLength(0)
+
+    // Also verify searching by tag yields nothing
+    const byTag = searchAgents('findme')
+    expect(byTag).toHaveLength(0)
+  })
+
+  it('createAgent() succeeds with same name as soft-deleted agent', () => {
+    const original = createAgent(makeCreateRequest({ name: 'name-reuse-test' }))
+    const originalId = original.id
+
+    // Soft-delete the original agent
+    deleteAgent(originalId)
+
+    // Creating a new agent with the same name should NOT throw
+    const reused = createAgent(makeCreateRequest({ name: 'name-reuse-test' }))
+
+    // New agent must have a different ID
+    expect(reused.id).not.toBe(originalId)
+    expect(reused.name).toBe('name-reuse-test')
+    expect(reused.deletedAt).toBeUndefined()
+    expect(reused.status).toBe('offline')
+
+    // getAgentByName must return the NEW agent, not the deleted one
+    const lookup = getAgentByName('name-reuse-test')
+    expect(lookup).not.toBeNull()
+    expect(lookup!.id).toBe(reused.id)
+    expect(lookup!.id).not.toBe(originalId)
+  })
+
+  it('listAgents(true) includes soft-deleted agents', () => {
+    const a1 = createAgent(makeCreateRequest({ name: 'listall-keep' }))
+    const a2 = createAgent(makeCreateRequest({ name: 'listall-delete' }))
+
+    deleteAgent(a2.id) // soft-delete a2
+
+    const listed = listAgents(true)
+    expect(listed).toHaveLength(2)
+
+    const kept = listed.find(a => a.id === a1.id)
+    const deleted = listed.find(a => a.id === a2.id)
+    expect(kept).toBeDefined()
+    expect(kept!.deletedAt).toBeUndefined()
+    expect(deleted).toBeDefined()
+    expect(deleted!.deletedAt).toBeDefined()
+    expect(deleted!.name).toBe('listall-delete')
   })
 })
 

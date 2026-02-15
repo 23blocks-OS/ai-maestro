@@ -281,7 +281,7 @@ print_info "Checking for Node.js..."
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
     # Check if version is >= 18
-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
+    NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
     if [ "$NODE_MAJOR" -ge 18 ]; then
         print_success "Node.js installed ($NODE_VERSION)"
     else
@@ -979,7 +979,7 @@ if [ -n "$INSTALL_DIR" ]; then
     echo ""
     echo "1️⃣  Start AI Maestro:"
     echo ""
-    echo "   cd $INSTALL_DIR"
+    echo "   cd \"$INSTALL_DIR\""
     echo "   yarn dev"
     echo ""
 

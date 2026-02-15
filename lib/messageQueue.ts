@@ -201,6 +201,16 @@ function convertAMPToMessage(ampMsg: any): Message | null {
   const id = normalizeMessageId(envelope.id)
   const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
 
+  // Preserve AMP cryptographic verification data from the stored message
+  const senderPublicKey = ampMsg.sender_public_key as string | undefined
+  const amp: Message['amp'] = (envelope.signature || senderPublicKey) ? {
+    signature: envelope.signature || undefined,
+    senderPublicKey: senderPublicKey || undefined,
+    // signatureVerified is not stored on disk — would need runtime verification
+    ampAddress: envelope.from || undefined,
+    envelopeId: envelope.id || undefined,
+  } : undefined
+
   return {
     id,
     from: fromName,
@@ -219,6 +229,7 @@ function convertAMPToMessage(ampMsg: any): Message | null {
       context: payload.context || undefined,
     },
     inReplyTo: envelope.in_reply_to || undefined,
+    amp,
   }
 }
 

@@ -133,7 +133,7 @@ if [ -n "$(git status --porcelain)" ]; then
 
     if [ "$STASH_CHOICE" = "1" ]; then
         print_info "Stashing changes..."
-        git stash
+        git stash push -m "ai-maestro-update-$(date +%Y%m%d-%H%M%S)"
         print_success "Changes stashed (use 'git stash pop' to restore)"
     else
         print_warning "Update cancelled"
@@ -193,13 +193,22 @@ NEW_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([
 
 echo ""
 print_step "$BUILD" "Installing dependencies..."
-yarn install --frozen-lockfile 2>/dev/null || yarn install
+# Issue 7.1: Don't let yarn install failure abort the entire update under set -e
+yarn install --frozen-lockfile 2>/dev/null || yarn install || { print_warning "yarn install had warnings but continuing..."; }
 print_success "Dependencies installed"
+
+# Issue 7.2: Track build failure so tool reinstallation still proceeds under set -e
+BUILD_FAILED=false
+VERIFICATION_WARNINGS=false
 
 echo ""
 print_step "$BUILD" "Building application..."
-yarn build
-print_success "Build complete"
+if yarn build; then
+    print_success "Build complete"
+else
+    print_warning "Build failed - continuing with tool reinstallation"
+    BUILD_FAILED=true
+fi
 
 echo ""
 print_step "$ROCKET" "Reinstalling scripts and skills..."
@@ -250,50 +259,72 @@ fi
 # 6. Claude Code hooks (optional — skip with --skip-hooks)
 if [ "$SKIP_HOOKS" != true ] && [ -f "scripts/claude-hooks/install-hooks.sh" ]; then
     print_info "Reinstalling Claude Code hooks..."
-    ./scripts/claude-hooks/install-hooks.sh
+    ./scripts/claude-hooks/install-hooks.sh -y
     print_success "Claude Code hooks reinstalled"
 fi
 
 # 7. Marketplace plugin auto-updates via Claude Code /install update
 # No manual sync needed — the ai-maestro-plugins repo is the single source
 
-# 4. Verify the installation
+# Issue 7.12: Capture verification exit code instead of piping to || true
 if [ -f "verify-installation.sh" ]; then
     echo ""
     print_info "Running installation verification..."
-    ./verify-installation.sh || true
+    if ! ./verify-installation.sh; then
+        print_warning "Some verification checks failed. Review the output above."
+        VERIFICATION_WARNINGS=true
+    fi
 fi
 
 # Check if PM2 is managing ai-maestro
 echo ""
 if command -v pm2 &> /dev/null; then
     if pm2 list | grep -q "ai-maestro"; then
-        print_step "$RESTART" "Restarting AI Maestro via PM2..."
-        pm2 restart ai-maestro
-        print_success "AI Maestro restarted"
+        if [[ "$BUILD_FAILED" != "true" ]]; then
+            print_step "$RESTART" "Restarting AI Maestro via PM2..."
+            pm2 restart ai-maestro
+            print_success "AI Maestro restarted"
 
-        # Wait a moment for startup
-        sleep 2
+            # Wait a moment for startup
+            sleep 2
 
-        # Check status
-        if pm2 list | grep "ai-maestro" | grep -q "online"; then
-            print_success "AI Maestro is running"
+            # Check status
+            if pm2 list | grep "ai-maestro" | grep -q "online"; then
+                print_success "AI Maestro is running"
+            else
+                print_warning "AI Maestro may not have started correctly"
+                echo "         Check logs with: pm2 logs ai-maestro"
+            fi
         else
-            print_warning "AI Maestro may not have started correctly"
-            echo "         Check logs with: pm2 logs ai-maestro"
+            print_warning "Skipping PM2 restart due to build failure"
+            echo "         Fix the build errors and run: pm2 restart ai-maestro"
         fi
     else
         print_info "AI Maestro not found in PM2 process list"
-        echo "         Start it with: pm2 start ecosystem.config.cjs"
+        echo "         Start it with: pm2 start ecosystem.config.js"
     fi
 else
     print_info "PM2 not installed - skipping automatic restart"
     echo "         Start manually with: yarn start"
 fi
 
+# Report accumulated warnings from build/verification at the end
+if [ "$BUILD_FAILED" = true ]; then
+    echo ""
+    print_error "Build failed during update - please check TypeScript errors and run 'yarn build' manually"
+fi
+if [ "$VERIFICATION_WARNINGS" = true ]; then
+    echo ""
+    print_warning "Installation verification reported issues - review the warnings above"
+fi
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
+if [ "$BUILD_FAILED" = true ] || [ "$VERIFICATION_WARNINGS" = true ]; then
+echo "║               Update Complete (with warnings)                  ║"
+else
 echo "║                     Update Complete!                           ║"
+fi
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 

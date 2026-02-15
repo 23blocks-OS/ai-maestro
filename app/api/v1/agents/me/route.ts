@@ -125,8 +125,8 @@ export async function DELETE(request: NextRequest) {
   // Revoke all API keys for this agent
   revokeAllKeysForAgent(auth.agentId!)
 
-  // Delete agent from registry
-  const deleted = deleteAgent(auth.agentId!)
+  // Hard delete with backup - AMP deregistration means agent is leaving the system
+  const deleted = deleteAgent(auth.agentId!, true)
   if (!deleted) {
     return NextResponse.json({
       error: 'not_found',

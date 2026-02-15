@@ -5,6 +5,7 @@ import { useTerminal } from '@/hooks/useTerminal'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { createResizeMessage } from '@/lib/websocket'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import type { Session } from '@/types/session'
 
 const BRACKETED_PASTE_START = '\u001b[200~'
@@ -36,7 +37,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const messageBufferRef = useRef<string[]>([])
   const [notes, setNotes] = useState('')
   const [promptDraft, setPromptDraft] = useState('')
-  const [isMobile, setIsMobile] = useState(false)
+  const { isTouch } = useDeviceType()
+  const isMobile = isTouch // backward compat for touch scroll handler
+  const [copyFeedback, setCopyFeedback] = useState(false)
+  const [pasteFeedback, setPasteFeedback] = useState(false)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
@@ -72,16 +76,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const [globalLoggingEnabled, setGlobalLoggingEnabled] = useState(false)
 
-  // Detect mobile on mount
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768
-      setIsMobile(mobile)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
+  // Copy/paste handlers defined after useTerminal below
 
   // Fetch global logging configuration on mount
   useEffect(() => {
@@ -93,7 +88,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
 
-  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
+  const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
     sessionId: session.id,
     onRegister: (fitAddon) => {
       // Register terminal when it's fully initialized
@@ -117,10 +112,81 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (!term) return
     try {
       term.focus()
-      // Note: Do NOT clear selection here - it destroys user's selected text
-      // The selection layer is activated by focusing the terminal
     } catch {}
   }, [])
+
+  // Copy terminal content to clipboard (touch devices)
+  const handleTerminalCopy = useCallback(async () => {
+    if (!terminal) return
+    try {
+      // First copy selection if any
+      const selection = terminal.getSelection()
+      if (selection) {
+        await navigator.clipboard.writeText(selection)
+        setCopyFeedback(true)
+        setTimeout(() => setCopyFeedback(false), 1500)
+        return
+      }
+      // Otherwise copy visible screen
+      const buffer = terminal.buffer.active
+      const lines: string[] = []
+      const start = buffer.viewportY
+      for (let i = start; i < start + terminal.rows; i++) {
+        const line = buffer.getLine(i)
+        if (line) lines.push(line.translateToString(true))
+      }
+      while (lines.length > 0 && !lines[lines.length - 1].trim()) lines.pop()
+      await navigator.clipboard.writeText(lines.join('\n'))
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 1500)
+    } catch {
+      // execCommand fallback
+      const buffer = terminal.buffer.active
+      const lines: string[] = []
+      for (let i = Math.max(0, buffer.length - terminal.rows); i < buffer.length; i++) {
+        const line = buffer.getLine(i)
+        if (line) lines.push(line.translateToString(true))
+      }
+      const ta = document.createElement('textarea')
+      ta.value = lines.join('\n')
+      ta.style.cssText = 'position:fixed;opacity:0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 1500)
+    }
+  }, [terminal])
+
+  // Paste from clipboard into terminal (touch devices)
+  const handleTerminalPaste = useCallback(async () => {
+    if (!terminal) return
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        terminal.paste(text)
+        setPasteFeedback(true)
+        setTimeout(() => setPasteFeedback(false), 1500)
+      }
+    } catch {
+      // Clipboard API denied - show temporary paste input
+      const input = document.createElement('textarea')
+      input.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;width:280px;height:80px;padding:12px;border-radius:12px;border:1px solid #4B5563;background:#1F2937;color:#E5E7EB;font-size:14px'
+      input.placeholder = 'Paste here, then tap outside...'
+      document.body.appendChild(input)
+      input.focus()
+      input.addEventListener('blur', () => {
+        const val = input.value
+        if (val && terminal) {
+          terminal.paste(val)
+          setPasteFeedback(true)
+          setTimeout(() => setPasteFeedback(false), 1500)
+        }
+        document.body.removeChild(input)
+      }, { once: true })
+    }
+  }, [terminal])
 
   const { isConnected, sendMessage, connectionError, errorHint, connectionMessage } = useWebSocket({
     sessionId: session.id,
@@ -191,6 +257,18 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       }
     },
   })
+
+  // Keep the useTerminal sendData ref in sync with the current WebSocket sendMessage function
+  // This allows the Cmd+V paste handler in useTerminal.ts (registered once during init) to always
+  // use the latest WebSocket send function without re-registering the key handler
+  useEffect(() => {
+    if (isConnected) {
+      setSendData(sendMessage)
+    } else {
+      setSendData(null)
+    }
+    return () => setSendData(null)
+  }, [isConnected, sendMessage, setSendData])
 
   // Initialize terminal ONCE on mount - never re-initialize
   // Tab-based architecture: terminal stays mounted, just hidden via CSS
@@ -688,6 +766,31 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
             position: 'relative',
           }}
         />
+        {/* Touch clipboard toolbar - floating bottom-right */}
+        {isTouch && terminal && isReady && (
+          <div className="absolute bottom-3 right-3 z-20 flex gap-1.5">
+            <button
+              onClick={handleTerminalCopy}
+              className={`px-3 py-2 rounded-lg text-xs font-medium backdrop-blur-md transition-all active:scale-95 ${
+                copyFeedback
+                  ? 'bg-green-600/80 text-white'
+                  : 'bg-gray-800/80 text-gray-300 border border-gray-600/50'
+              }`}
+            >
+              {copyFeedback ? '✓ Copied' : '📋 Copy'}
+            </button>
+            <button
+              onClick={handleTerminalPaste}
+              className={`px-3 py-2 rounded-lg text-xs font-medium backdrop-blur-md transition-all active:scale-95 ${
+                pasteFeedback
+                  ? 'bg-green-600/80 text-white'
+                  : 'bg-gray-800/80 text-gray-300 border border-gray-600/50'
+              }`}
+            >
+              {pasteFeedback ? '✓ Pasted' : '📥 Paste'}
+            </button>
+          </div>
+        )}
         {/* Use hoisted static JSX for loading state */}
         {!isReady && LoadingSpinner}
       </div>

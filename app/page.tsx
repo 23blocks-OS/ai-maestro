@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
 import TerminalView from '@/components/TerminalView'
@@ -10,6 +10,8 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
+import TabletDashboard from '@/components/TabletDashboard'
+import { useDeviceType } from '@/hooks/useDeviceType'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
 import { VersionChecker } from '@/components/VersionChecker'
@@ -86,13 +88,16 @@ export default function DashboardPage() {
   // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return 320
     const saved = localStorage.getItem('sidebar-width')
     return saved ? parseInt(saved, 10) : 320
   })
   const [isResizing, setIsResizing] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const { deviceType } = useDeviceType()
+  const isMobile = deviceType === 'phone'
+  const isTablet = deviceType === 'tablet'
   const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -181,18 +186,18 @@ export default function DashboardPage() {
     }
   }, [agents, urlParamProcessedRef])
 
-  // Detect mobile screen size
+  // Collapse sidebar on phone/tablet
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-      if (window.innerWidth < 768) {
-        setSidebarCollapsed(true)
-      }
+    if (deviceType !== 'desktop') {
+      setSidebarCollapsed(true)
     }
+  }, [deviceType])
 
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+  // Clean up sidebar toggle resize timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+    }
   }, [])
 
   // Keyboard shortcuts for Phase 5 features
@@ -484,7 +489,14 @@ export default function DashboardPage() {
   }
 
   const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed)
+    setSidebarCollapsed(prev => !prev)
+    // Trigger terminal refit after the CSS transition completes (300ms duration + 50ms buffer)
+    // This dispatches a synthetic resize event that the global handler in TerminalContext picks up,
+    // calling fitAddon.fit() on all registered terminals so they fill the new available width
+    if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+    resizeTimeoutRef.current = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 350)
   }
 
   const handleOnboardingComplete = () => {
@@ -528,12 +540,25 @@ export default function DashboardPage() {
     return <OnboardingFlow onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
   }
 
-  // Render mobile-specific dashboard for small screens
-  // Agent-centric: MobileDashboard now accepts agents directly
+  // Render mobile-specific dashboard for phones
   if (isMobile) {
     return (
       <TerminalProvider key="mobile-dashboard">
         <MobileDashboard
+          agents={agents}
+          loading={agentsLoading}
+          error={agentsError?.message || null}
+          onRefresh={refreshAgents}
+        />
+      </TerminalProvider>
+    )
+  }
+
+  // Render tablet dashboard for iPads and touch devices
+  if (isTablet) {
+    return (
+      <TerminalProvider key="tablet-dashboard">
+        <TabletDashboard
           agents={agents}
           loading={agentsLoading}
           error={agentsError?.message || null}

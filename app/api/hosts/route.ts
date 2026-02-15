@@ -2,9 +2,30 @@ import { NextResponse } from 'next/server'
 import { getHosts, saveHosts, addHost, updateHost, deleteHost, isSelf } from '@/lib/hosts-config'
 import { addHostWithSync } from '@/lib/host-sync'
 import type { Host } from '@/types/host'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
+
+// Cache Docker check result (avoids 3s subprocess on every /api/hosts call)
+let dockerCache: { available: boolean; version?: string; checkedAt: number } | null = null
+const DOCKER_CACHE_TTL = 60000 // 60 seconds
+
+async function getDockerStatus() {
+  if (dockerCache && Date.now() - dockerCache.checkedAt < DOCKER_CACHE_TTL) {
+    return dockerCache
+  }
+  try {
+    const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 3000 })
+    dockerCache = { available: true, version: stdout.trim().replace(/'/g, ''), checkedAt: Date.now() }
+  } catch {
+    dockerCache = { available: false, checkedAt: Date.now() }
+  }
+  return dockerCache
+}
 
 /**
  * GET /api/hosts
@@ -16,11 +37,27 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const hosts = getHosts()
-    // Add isSelf flag to each host so UI can identify the local machine
+
+    // Return hosts immediately, start Docker check in parallel
+    const dockerStatus = getDockerStatus()
+
+    // Add isSelf flag to each host right away
     const hostsWithSelf = hosts.map(host => ({
       ...host,
       isSelf: isSelf(host.id),
     }))
+
+    // Await Docker status (returns from cache instantly after first check)
+    const docker = await dockerStatus
+    for (const host of hostsWithSelf) {
+      if (host.isSelf) {
+        (host as any).capabilities = {
+          docker: docker.available,
+          dockerVersion: docker.version,
+        }
+      }
+    }
+
     return NextResponse.json({ hosts: hostsWithSelf })
   } catch (error) {
     console.error('[Hosts API] Failed to fetch hosts:', error)

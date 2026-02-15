@@ -31,6 +31,38 @@ export function useSessionActivity() {
   const [connected, setConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Polling control via refs (avoids circular deps with connect)
+  const startPollingRef = useRef<() => void>(() => {})
+  const stopPollingRef = useRef<() => void>(() => {})
+
+  // Fallback: Poll API if WebSocket fails
+  const fetchActivity = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sessions/activity')
+      if (response.ok) {
+        const data = await response.json()
+        setActivity(data.activity || {})
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('[useSessionActivity] Poll failed:', err)
+    }
+  }, [])
+
+  // Set up polling functions
+  startPollingRef.current = () => {
+    if (!pollIntervalRef.current) {
+      pollIntervalRef.current = setInterval(fetchActivity, 30000) // 30s safety net
+    }
+  }
+  stopPollingRef.current = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }
 
   const connect = useCallback(() => {
     // Clean up existing connection
@@ -47,6 +79,8 @@ export function useSessionActivity() {
         console.log('[useSessionActivity] WebSocket connected')
         setConnected(true)
         setError(null)
+        // Stop aggressive polling — WebSocket handles real-time updates
+        stopPollingRef.current()
       }
 
       ws.onmessage = (event) => {
@@ -77,6 +111,8 @@ export function useSessionActivity() {
       ws.onclose = () => {
         console.log('[useSessionActivity] WebSocket disconnected')
         setConnected(false)
+        // Resume polling as fallback
+        startPollingRef.current()
 
         // Reconnect after 2 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -96,21 +132,7 @@ export function useSessionActivity() {
     }
   }, [])
 
-  // Fallback: Poll API if WebSocket fails
-  const fetchActivity = useCallback(async () => {
-    try {
-      const response = await fetch('/api/sessions/activity')
-      if (response.ok) {
-        const data = await response.json()
-        setActivity(data.activity || {})
-        setLoading(false)
-      }
-    } catch (err) {
-      console.error('[useSessionActivity] Poll failed:', err)
-    }
-  }, [])
-
-  // Connect on mount and poll as fallback
+  // Connect on mount, poll as fallback until WebSocket is up
   useEffect(() => {
     // Initial fetch immediately
     fetchActivity()
@@ -118,11 +140,11 @@ export function useSessionActivity() {
     // Try WebSocket connection
     connect()
 
-    // Poll every 2s as fallback (WebSocket updates will override if connected)
-    const pollInterval = setInterval(fetchActivity, 2000)
+    // Start polling as fallback until WebSocket connects
+    startPollingRef.current()
 
     return () => {
-      clearInterval(pollInterval)
+      stopPollingRef.current()
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }

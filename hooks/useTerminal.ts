@@ -28,6 +28,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   const fitAddonRef = useRef<FitAddon | null>(null)
   const webglAddonRef = useRef<WebglAddon | null>(null)
   const optionsRef = useRef(options)
+  // Ref for sending data to PTY via WebSocket - set by TerminalView which has WebSocket access
+  const sendDataRef = useRef<((data: string) => void) | null>(null)
 
   // Keep options ref up to date
   useEffect(() => {
@@ -194,7 +196,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     resizeObserver.observe(container)
 
-    // Add keyboard shortcuts for scrolling
+    // Add keyboard shortcuts for scrolling, copy, and paste
     terminal.attachCustomKeyEventHandler((event) => {
       // Calculate scroll amount based on terminal height (scroll by page)
       const scrollAmount = Math.max(1, terminal.rows - 2)
@@ -229,7 +231,54 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         terminal.scrollToBottom()
         return false
       }
+
+      // Cmd+C (macOS) or Ctrl+Shift+C (Linux) - Copy selection to clipboard
+      // When there IS a selection, copy it; when there is NO selection, let Ctrl+C pass through as interrupt
+      if ((event.metaKey && event.key === 'c') || (event.ctrlKey && event.shiftKey && event.key === 'C')) {
+        if (event.type === 'keydown') {
+          const selection = terminal.getSelection()
+          if (selection) {
+            navigator.clipboard.writeText(selection).catch((err) => {
+              // Clipboard failed but user had a selection, so copy was the intent - no SIGINT needed
+              console.warn('[Terminal] Failed to copy selection:', err)
+            })
+            return false // Prevent sending Ctrl+C interrupt to PTY (copy was intent since selection existed)
+          }
+          // No selection: fall through to let Ctrl+C pass as SIGINT (return true at end of handler)
+        }
+      }
+
+      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard into PTY via WebSocket
+      if ((event.metaKey && event.key === 'v') || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
+        if (event.type === 'keydown') {
+          navigator.clipboard.readText().then((text) => {
+            if (text && sendDataRef.current) {
+              // Use bracketed paste mode so multi-line content is handled correctly by the shell
+              const PASTE_START = '\x1b[200~'
+              const PASTE_END = '\x1b[201~'
+              // Normalize line endings: convert \r\n and \n to \r (what PTY expects)
+              const normalized = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
+              sendDataRef.current(PASTE_START + normalized + PASTE_END)
+            }
+          }).catch((err) => {
+            console.warn('Clipboard read denied:', err)
+          })
+          return false // Prevent default browser paste behavior
+        }
+      }
+
       return true
+    })
+
+    // Auto-copy selection to clipboard when user selects 3+ characters
+    // Threshold of 3 chars prevents accidental clipboard overwrites from stray clicks
+    terminal.onSelectionChange(() => {
+      const sel = terminal.getSelection()
+      if (sel && sel.length >= 3) {
+        navigator.clipboard.writeText(sel).catch(() => {
+          // Clipboard API may be blocked in non-secure contexts; silently ignore
+        })
+      }
     })
 
     // Cleanup function
@@ -246,6 +295,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       terminal.dispose()
       terminalRef.current = null
       fitAddonRef.current = null
+      // Clear send function reference to prevent stale callbacks
+      sendDataRef.current = null
     }
   }, [])
 
@@ -275,6 +326,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     }
   }, [])
 
+  // Allow TerminalView to set the WebSocket send function for paste support
+  const setSendData = useCallback((fn: ((data: string) => void) | null) => {
+    sendDataRef.current = fn
+  }, [])
+
   return {
     terminal: terminalRef.current,
     initializeTerminal,
@@ -282,5 +338,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     fitTerminal,
     clearTerminal,
     writeToTerminal,
+    setSendData,
   }
 }

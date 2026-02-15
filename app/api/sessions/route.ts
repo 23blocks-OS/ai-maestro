@@ -226,6 +226,52 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
       // Continue without cloud agents
     }
 
+    // Discover Docker container agents (containers named aim-*)
+    try {
+      const { stdout: dockerOutput } = await execAsync(
+        "docker ps --filter 'name=aim-' --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo ''"
+      )
+
+      if (dockerOutput.trim()) {
+        for (const line of dockerOutput.trim().split('\n')) {
+          if (!line.trim()) continue
+          const [containerName, containerStatus, ports] = line.split('\t')
+          if (!containerName) continue
+
+          // Extract agent name from container name (aim-xxx -> xxx)
+          const agentName = containerName.replace(/^aim-/, '')
+
+          // Skip if already in sessions list (from tmux or cloud agents)
+          if (sessions.find(s => s.name === agentName)) continue
+
+          // Extract host port from ports column (e.g. "0.0.0.0:23005->23000/tcp")
+          let containerPort: number | undefined
+          const portMatch = ports?.match(/(\d+)->23000/)
+          if (portMatch) {
+            containerPort = parseInt(portMatch[1], 10)
+          }
+
+          const isUp = containerStatus?.toLowerCase().includes('up')
+
+          sessions.push({
+            id: agentName,
+            name: agentName,
+            workingDirectory: '/workspace',
+            status: isUp ? 'idle' : 'disconnected',
+            createdAt: new Date().toISOString(),
+            lastActivity: new Date().toISOString(),
+            windows: 1,
+            hostId,
+            version: AI_MAESTRO_VERSION,
+            containerAgent: true,
+            containerPort,
+          })
+        }
+      }
+    } catch {
+      // Docker not available or no containers - continue silently
+    }
+
     return sessions
   } catch (error) {
     console.error('[Sessions] Error fetching local sessions:', error)

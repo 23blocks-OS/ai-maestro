@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
+import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS - Must be first to catch all errors
@@ -630,6 +631,149 @@ app.prepare().then(() => {
     })
   })
 
+  // WebSocket server for companion speech events (/companion-ws)
+  const companionWss = new WebSocketServer({ noServer: true })
+
+  // Map of agentId -> Set<WebSocket> for companion clients
+  const companionClients = new Map()
+
+  // Expose for agent cerebellum to send speech events
+  global.companionClients = companionClients
+
+  companionWss.on('connection', async (ws, query) => {
+    const agentId = query.agent
+    if (!agentId || typeof agentId !== 'string') {
+      ws.close(1008, 'agent parameter required')
+      return
+    }
+
+    console.log(`[COMPANION-WS] Client connected for agent ${agentId.substring(0, 8)}`)
+
+    // Add to subscribers for this agent
+    let clients = companionClients.get(agentId)
+    if (!clients) {
+      clients = new Set()
+      companionClients.set(agentId, clients)
+    }
+    clients.add(ws)
+
+    // Notify cerebellum that companion connected
+    try {
+      const { agentRegistry } = await import('./lib/agent.ts')
+      const agent = agentRegistry.getExistingAgent(agentId)
+      if (agent) {
+        const cerebellum = agent.getCerebellum()
+        if (cerebellum) {
+          cerebellum.setCompanionConnected(true)
+
+          // Subscribe to voice:speak events for this agent
+          const listener = (event) => {
+            if (event.type === 'voice:speak' && event.agentId === agentId) {
+              const message = JSON.stringify({
+                type: 'speech',
+                text: event.payload?.text || '',
+                timestamp: Date.now(),
+              })
+              // Send to all companion clients for this agent
+              const agentClients = companionClients.get(agentId)
+              if (agentClients) {
+                for (const client of agentClients) {
+                  if (client.readyState === 1) { // WebSocket.OPEN
+                    try { client.send(message) } catch { /* ignore */ }
+                  }
+                }
+              }
+            }
+          }
+          cerebellum.on('voice:speak', listener)
+
+          // Also attach the voice subsystem to the terminal buffer if available
+          const voiceSub = cerebellum.getSubsystem('voice')
+          if (voiceSub && voiceSub.attachBuffer) {
+            const { getBuffer } = await import('./lib/cerebellum/session-bridge.mjs')
+            // Find the session name for this agent
+            const { getAgent: getRegistryAgent } = await import('./lib/agent-registry.ts')
+            const registryAgent = getRegistryAgent(agentId)
+            const sessionName = registryAgent?.name || registryAgent?.alias
+            if (sessionName) {
+              const buffer = getBuffer(sessionName)
+              if (buffer) {
+                voiceSub.attachBuffer(buffer)
+                console.log(`[COMPANION-WS] Attached voice buffer for session ${sessionName}`)
+              }
+            }
+          }
+
+          // Store cleanup info on the ws
+          ws._companionCleanup = { listener, agentId }
+        }
+      }
+    } catch (err) {
+      console.error('[COMPANION-WS] Error setting up cerebellum connection:', err)
+    }
+
+    // Handle user messages forwarded from the companion UI
+    ws.on('message', (raw) => {
+      try {
+        const data = JSON.parse(raw.toString())
+        if (data.type === 'user_message' && typeof data.text === 'string') {
+          // Forward to voice subsystem's user message buffer
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              const voiceSub = cerebellum.getSubsystem('voice')
+              if (voiceSub?.addUserMessage) {
+                voiceSub.addUserMessage(data.text)
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        } else if (data.type === 'repeat') {
+          // Repeat the last spoken message
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              const voiceSub = cerebellum.getSubsystem('voice')
+              if (voiceSub?.repeatLast) {
+                voiceSub.repeatLast()
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    })
+
+    ws.on('close', () => {
+      console.log(`[COMPANION-WS] Client disconnected from agent ${agentId.substring(0, 8)}`)
+      const agentClients = companionClients.get(agentId)
+      if (agentClients) {
+        agentClients.delete(ws)
+        if (agentClients.size === 0) {
+          companionClients.delete(agentId)
+          // Notify cerebellum no companion connected
+          import('./lib/agent.ts').then(({ agentRegistry }) => {
+            const agent = agentRegistry.getExistingAgent(agentId)
+            const cerebellum = agent?.getCerebellum()
+            if (cerebellum) {
+              cerebellum.setCompanionConnected(false)
+              // Clean up listener
+              if (ws._companionCleanup?.listener) {
+                cerebellum.off('voice:speak', ws._companionCleanup.listener)
+              }
+            }
+          }).catch(() => { /* ignore */ })
+        }
+      }
+    })
+
+    ws.on('error', (err) => {
+      console.error('[COMPANION-WS] Error:', err.message)
+    })
+  })
+
   server.on('upgrade', (request, socket, head) => {
     const { pathname, query } = parse(request.url, true)
 
@@ -644,6 +788,10 @@ app.prepare().then(() => {
     } else if (pathname === '/v1/ws') {
       ampWss.handleUpgrade(request, socket, head, (ws) => {
         ampWss.emit('connection', ws)
+      })
+    } else if (pathname === '/companion-ws') {
+      companionWss.handleUpgrade(request, socket, head, (ws) => {
+        companionWss.emit('connection', ws, query)
       })
     } else {
       socket.destroy()
@@ -694,31 +842,78 @@ app.prepare().then(() => {
     if (!sessionState) {
       let ptyProcess
 
-      // Spawn PTY with tmux attach (removed -r flag as it was causing exits)
-      // Wrapped in try-catch to handle spawn failures gracefully on Linux
-      try {
-        ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
-          name: 'xterm-256color',
-          cols: 80,
-          rows: 24,
-          cwd: process.env.HOME || process.cwd(),
-          env: process.env
-        })
-      } catch (spawnError) {
-        console.error(`[PTY] Failed to spawn PTY for ${sessionName}:`, spawnError.message)
-        // Send error to client and close connection
+      // Spawn PTY with tmux attach, with retry logic for transient failures.
+      // Race condition: when a previous PTY cleanup just ran (30s grace period expired),
+      // tmux may still be detaching. Retrying after a short delay resolves this.
+      const PTY_SPAWN_MAX_RETRIES = 3
+      const PTY_SPAWN_RETRY_DELAY_MS = 500
+
+      for (let attempt = 1; attempt <= PTY_SPAWN_MAX_RETRIES; attempt++) {
         try {
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
-            details: spawnError.message
-          }))
-        } catch (sendError) {
-          // Ignore send errors
+          // Verify tmux session exists before attempting to attach
+          if (attempt === 1) {
+            const { execSync } = await import('child_process')
+            try {
+              execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { timeout: 2000 })
+            } catch {
+              // tmux session does not exist
+              console.error(`[PTY] tmux session "${sessionName}" does not exist`)
+              try {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
+                  details: 'tmux session not found'
+                }))
+              } catch (sendError) { /* ignore */ }
+              ws.close(1011, `tmux session not found: ${sessionName}`)
+              return
+            }
+          }
+
+          ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 24,
+            cwd: process.env.HOME || process.cwd(),
+            env: process.env
+          })
+          break // Success, exit retry loop
+        } catch (spawnError) {
+          console.error(`[PTY] Spawn attempt ${attempt}/${PTY_SPAWN_MAX_RETRIES} failed for ${sessionName}:`, spawnError.message)
+
+          if (attempt < PTY_SPAWN_MAX_RETRIES) {
+            // Wait before retrying -- tmux may still be detaching from previous PTY
+            await new Promise(resolve => setTimeout(resolve, PTY_SPAWN_RETRY_DELAY_MS))
+
+            // Check if another client already created the session state while we waited
+            sessionState = sessions.get(sessionName)
+            if (sessionState) {
+              console.log(`[PTY] Session ${sessionName} was created by another client during retry, reusing`)
+              break
+            }
+          } else {
+            // All retries exhausted
+            try {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: `Failed to attach to session "${sessionName}". Make sure tmux is installed and the session exists.`,
+                details: spawnError.message
+              }))
+            } catch (sendError) { /* ignore */ }
+            ws.close(1011, `PTY spawn failed: ${spawnError.message}`)
+            return
+          }
         }
-        ws.close(1011, `PTY spawn failed: ${spawnError.message}`)
-        return
       }
+
+      // If another client created session state during retry, skip creation
+      if (sessionState) {
+        // Fall through to add client to existing session
+      } else if (!ptyProcess) {
+        // Should not happen, but guard against it
+        ws.close(1011, 'PTY spawn failed unexpectedly')
+        return
+      } else {
 
       // Create log file for this session (only if global logging is enabled)
       let logStream = null
@@ -732,7 +927,8 @@ app.prepare().then(() => {
         ptyProcess,
         logStream,
         loggingEnabled: true, // Default to enabled (but only works if globalLoggingEnabled is true)
-        cleanupTimer: null // Timer for cleaning up PTY when no clients connected
+        cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
+        terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
       }
       sessions.set(sessionName, sessionState)
 
@@ -772,6 +968,11 @@ app.prepare().then(() => {
           trackSessionActivity(sessionName)
         }
 
+        // Feed data to cerebellum terminal buffer (for voice subsystem)
+        if (sessionState.terminalBuffer && hasSubstantialContent) {
+          sessionState.terminalBuffer.write(data)
+        }
+
         // Send data to all clients and wait for write completion
         const writePromises = []
         sessionState.clients.forEach((client) => {
@@ -806,6 +1007,7 @@ app.prepare().then(() => {
         // Pass ptyAlreadyExited=true since the process has already terminated
         cleanupSession(sessionName, sessionState, `pty_exit_${exitCode || signal}`, true)
       })
+      }
     }
 
     // Add client to session
@@ -837,7 +1039,7 @@ app.prepare().then(() => {
           // The -S -2000 flag captures scrollback history, not just visible pane
           // Reduced from 5000 to 2000 for faster loading
           const { stdout } = await execAsync(
-            `tmux capture-pane -t ${sessionName} -p -S -2000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
+            `tmux capture-pane -t "${sessionName}" -p -S -2000 2>/dev/null || tmux capture-pane -t "${sessionName}" -p`,
             { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
           )
           historyContent = stdout

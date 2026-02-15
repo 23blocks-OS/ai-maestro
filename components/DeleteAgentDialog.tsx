@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, Trash2, X, Zap, Skull } from 'lucide-react'
+import { AlertTriangle, Download, Trash2, X, Zap } from 'lucide-react'
 
 interface DeleteAgentDialogProps {
   isOpen: boolean
@@ -24,6 +24,8 @@ export default function DeleteAgentDialog({
   const [deleting, setDeleting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [phase, setPhase] = useState<'confirm' | 'deleting' | 'done'>('confirm')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const displayName = agentDisplayName || agentAlias
 
@@ -56,6 +58,43 @@ export default function DeleteAgentDialog({
     onClose()
     setPhase('confirm')
     setConfirmText('')
+    setExportError(null)
+  }
+
+  // Download agent data as ZIP via fetch() with proper error handling
+  const handleExport = async () => {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const res = await fetch(`/api/agents/${agentId}/export`)
+      if (!res.ok) {
+        const errBody = await res.text()
+        throw new Error(errBody || `Export failed (${res.status})`)
+      }
+      // Trigger browser download from the response blob
+      const blob = await res.blob()
+      if (blob.size === 0) {
+        setExportError('Export returned empty file')
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      // Derive filename from Content-Disposition header or fall back to agent alias
+      const disposition = res.headers.get('Content-Disposition')
+      const filenameMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/) || disposition?.match(/filename="?([^"]+)"?/)
+      a.download = filenameMatch?.[1] || `${agentAlias}-export.zip`
+      document.body.appendChild(a)
+      a.click()
+      // Cleanup the temporary link and object URL
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Agent export failed:', err)
+      setExportError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setExporting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -131,6 +170,29 @@ export default function DeleteAgentDialog({
                   </ul>
                 </div>
 
+                {/* Export prompt -- lets user download agent data before confirming deletion */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-blue-400 font-medium">Want to keep a backup?</p>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        Export this agent as a ZIP file before deleting.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleExport}
+                      disabled={exporting || deleting}
+                      className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      {exporting ? 'Exporting...' : 'Export'}
+                    </button>
+                  </div>
+                  {exportError && (
+                    <p className="text-xs text-red-400 mt-2">Export failed: {exportError}</p>
+                  )}
+                </div>
+
                 <div className="pt-2">
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Type <span className="font-mono text-red-400">{agentAlias}</span> to confirm:
@@ -156,7 +218,7 @@ export default function DeleteAgentDialog({
                 </button>
                 <button
                   onClick={handleDelete}
-                  disabled={confirmText !== agentAlias}
+                  disabled={confirmText !== agentAlias || deleting || exporting}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />

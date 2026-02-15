@@ -50,7 +50,7 @@ async function httpPost(url: string, body: any, timeout: number = 10000): Promis
 
 export async function POST(request: Request) {
   try {
-    const { name, workingDirectory, agentId, hostId, label, avatar, programArgs } = await request.json()
+    const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = await request.json()
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Session name is required' }, { status: 400 })
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         const remoteUrl = `${targetHost.url}/api/sessions/create`
         console.log(`[Sessions] Creating session "${name}" on remote host ${targetHost.name} at ${remoteUrl}`)
 
-        const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar })
+        const data = await httpPost(remoteUrl, { name, workingDirectory, agentId, label, avatar, programArgs, program })
 
         console.log(`[Sessions] Successfully created session "${name}" on ${targetHost.name}`)
         return NextResponse.json(data)
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
           name: agentName,
           label,  // Persona name like "NatalIA"
           avatar, // Avatar URL from the creation modal
-          program: 'claude-code',
+          program: program || 'claude-code',
           taskDescription: `Agent for ${agentName}`,
           tags,
           owner: os.userInfo().username,
@@ -197,17 +197,56 @@ export async function POST(request: Request) {
       await initAgentAMPHome(agentName, registeredAgentId)
       const ampDir = getAgentAMPDir(agentName, registeredAgentId)
       await execAsync(`tmux set-environment -t "${actualSessionName}" AMP_DIR "${ampDir}"`)
-      await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
+      await execAsync(`tmux set-environment -t "${actualSessionName}" AIM_AGENT_NAME "${agentName}"`)
       if (registeredAgentId) {
-        await execAsync(`tmux set-environment -t "${actualSessionName}" CLAUDE_AGENT_ID "${registeredAgentId}"`)
+        await execAsync(`tmux set-environment -t "${actualSessionName}" AIM_AGENT_ID "${registeredAgentId}"`)
       }
+      // Remove CLAUDECODE from tmux session env so CLI tools don't think they're nested
+      await execAsync(`tmux set-environment -t "${actualSessionName}" -r CLAUDECODE 2>/dev/null || true`)
       const exportCmd = registeredAgentId
-        ? `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${registeredAgentId}'`
-        : `export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}'`
+        ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${registeredAgentId}'; unset CLAUDECODE`
+        : `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}'; unset CLAUDECODE`
       await execAsync(`tmux send-keys -t "${actualSessionName}" "${exportCmd}" Enter`)
       console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
     } catch (ampError) {
       console.warn(`[Sessions] Could not set up AMP for ${agentName}:`, ampError)
+    }
+
+    // Launch the selected AI program in the tmux session
+    const selectedProgram = (program || 'claude-code').toLowerCase()
+    if (selectedProgram !== 'none' && selectedProgram !== 'terminal') {
+      let startCommand = ''
+      if (selectedProgram.includes('claude')) {
+        startCommand = 'claude'
+      } else if (selectedProgram.includes('codex')) {
+        startCommand = 'codex'
+      } else if (selectedProgram.includes('aider')) {
+        startCommand = 'aider'
+      } else if (selectedProgram.includes('cursor')) {
+        startCommand = 'cursor'
+      } else if (selectedProgram.includes('gemini')) {
+        startCommand = 'gemini'
+      } else if (selectedProgram.includes('opencode')) {
+        startCommand = 'opencode'
+      } else {
+        startCommand = 'claude'
+      }
+
+      // Append programArgs if provided (sanitized)
+      if (programArgs && typeof programArgs === 'string') {
+        const sanitized = programArgs.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
+        if (sanitized) startCommand = `${startCommand} ${sanitized}`
+      }
+
+      // Small delay to let env vars export complete
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      try {
+        await execAsync(`tmux send-keys -t "${actualSessionName}" "${startCommand}" Enter`)
+        console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
+      } catch (progError) {
+        console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)
+      }
     }
 
     return NextResponse.json({

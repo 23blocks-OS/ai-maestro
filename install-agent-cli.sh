@@ -23,7 +23,7 @@
 # Version: 1.0.2
 #
 
-set -euo pipefail
+set -eo pipefail
 
 # ============================================================================
 # Constants
@@ -332,15 +332,20 @@ cmd_install() {
     else
         shell_config="$(get_shell_config_file)"
 
-        # Check if already configured - use more specific pattern with word boundaries
-        if [[ -f "$shell_config" ]] && grep -qE '#[[:space:]]*AI Maestro Agent CLI - Bash' "$shell_config" 2>/dev/null; then
+        # Dual guard: check for AI Maestro marker (any installer) or specific Agent CLI marker
+        # Use pattern that requires /.local/bin to end at a word boundary (: " ' or EOL) to prevent
+        # false positives like /.local/bin-extra matching
+        if [[ -f "$shell_config" ]] && { grep -qF "# AI Maestro" "$shell_config" 2>/dev/null || grep -qE '/\.local/bin(["'"'"':]|$)' "$shell_config" 2>/dev/null; }; then
             print_success "PATH already configured in $(basename "$shell_config")"
         else
-            # Create backup before modifying
+            # Create backup before modifying (daily limit: only one backup per day)
             if [[ -f "$shell_config" ]]; then
-                cp "$shell_config" "${shell_config}.aimaestro-backup.$(date +%Y%m%d%H%M%S)" || {
-                    print_warning "Could not create backup of shell config (continuing anyway)"
-                }
+                local today_backup="${shell_config}.aimaestro-backup.$(date +%Y%m%d)"
+                if [[ ! -f "$today_backup" ]]; then
+                    cp "$shell_config" "$today_backup" || {
+                        print_warning "Could not create backup of shell config (continuing anyway)"
+                    }
+                fi
             fi
             
             # Add to shell config

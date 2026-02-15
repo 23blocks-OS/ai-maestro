@@ -151,16 +151,17 @@ export async function POST(
     // Initialize per-agent AMP directory and set AMP_DIR in tmux session
     // This ensures amp-inbox.sh reads from this agent's own inbox
     // Uses UUID-keyed directory for stability across renames
+    let ampDir = ''
     try {
       await initAgentAMPHome(agentName, id)
-      const ampDir = getAgentAMPDir(agentName, id)
-      // Set AMP_DIR for the tmux session environment (new panes/windows inherit it)
+      ampDir = getAgentAMPDir(agentName, id)
+      // Set vars silently via tmux set-environment (no visible terminal output)
       await execAsync(`tmux set-environment -t "${sessionName}" AMP_DIR "${ampDir}"`)
-      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_NAME "${agentName}"`)
-      await execAsync(`tmux set-environment -t "${sessionName}" CLAUDE_AGENT_ID "${id}"`)
-      // Also export in the current shell so the agent's program has it
-      await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' CLAUDE_AGENT_NAME='${agentName}' CLAUDE_AGENT_ID='${id}'" Enter`)
-      console.log(`[Wake] Set AMP_DIR=${ampDir} CLAUDE_AGENT_ID=${id} for agent ${agentName}`)
+      await execAsync(`tmux set-environment -t "${sessionName}" AIM_AGENT_NAME "${agentName}"`)
+      await execAsync(`tmux set-environment -t "${sessionName}" AIM_AGENT_ID "${id}"`)
+      // Remove CLAUDECODE from tmux session env so new panes don't inherit it
+      await execAsync(`tmux set-environment -t "${sessionName}" -r CLAUDECODE 2>/dev/null || true`)
+      console.log(`[Wake] Set AMP_DIR=${ampDir} AIM_AGENT_ID=${id} for agent ${agentName}`)
     } catch (ampError) {
       // Non-fatal: agent still works without AMP
       console.warn(`[Wake] Could not set up AMP for ${agentName}:`, ampError)
@@ -174,7 +175,10 @@ export async function POST(
 
       // Check if user wants terminal only (no AI program)
       if (program === 'none' || program === 'terminal') {
-        // Skip starting any program - just leave the shell
+        // Export env vars in a single command for terminal-only mode
+        try {
+          await execAsync(`tmux send-keys -t "${sessionName}" "export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${id}'; unset CLAUDECODE" Enter`)
+        } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
         let startCommand = ''
@@ -195,25 +199,6 @@ export async function POST(
           startCommand = 'claude'
         }
 
-        // Per-program resume patterns to strip on first launch (global flag to catch duplicates)
-        const RESUME_PATTERNS: Record<string, RegExp[]> = {
-          'claude':   [/\s*--continue\b/g, /\s*-c\b(?!\s*\S)/g, /\s*--resume\b(\s+\S+)?/g, /\s*-r\b(\s+\S+)?/g],
-          'codex':    [/\s*resume\s+--last\b/g, /\s*resume\b(\s+\S+)?/g],
-          'gemini':   [/\s*--resume\b(\s+\S+)?/g],
-          'aider':    [/\s*--restore-chat-history\b/g],
-          'opencode': [/\s*--continue\b/g, /\s*-c\b(?!\s*\S)/g, /\s*--session\b(\s+\S+)?/g, /\s*-s\b(\s+\S+)?/g],
-          'cursor':   [/\s*--resume\b(\s+\S+)?/g, /\s*resume\b/g],
-        }
-
-        function stripResumeFlags(argsStr: string, program: string): string {
-          const patterns = RESUME_PATTERNS[program] || []
-          let result = argsStr
-          for (const pattern of patterns) {
-            result = result.replace(pattern, '')
-          }
-          return result.trim()
-        }
-
         // Sanitize shell arguments: only allow safe CLI flag characters
         function sanitizeArgs(args: string): string {
           // Allow: alphanumeric, hyphens, underscores, dots, equals, spaces, forward slashes, colons, commas, tildes
@@ -222,29 +207,26 @@ export async function POST(
         }
 
         // Build the full command with programArgs
+        // Resume/continue flags are passed through as-is — programs handle missing
+        // sessions gracefully (e.g. claude --continue starts fresh if no prior session)
         let fullCommand = startCommand
         if (agent.programArgs) {
-          let args = sanitizeArgs(agent.programArgs)
-          // Strip resume flags on first launch (no session to resume)
-          const isFirstLaunch = !agent.launchCount || agent.launchCount === 0
-          if (isFirstLaunch) {
-            const programKey = Object.keys(RESUME_PATTERNS).find(k => startCommand.includes(k)) || ''
-            if (programKey) {
-              args = stripResumeFlags(args, programKey)
-              console.log(`[Wake] First launch: stripped resume flags. Original: "${agent.programArgs}", Filtered: "${args}"`)
-            }
-          }
-          if (args.trim()) {
-            fullCommand = `${startCommand} ${args.trim()}`
+          const args = sanitizeArgs(agent.programArgs)
+          if (args) {
+            fullCommand = `${startCommand} ${args}`
           }
         }
 
         // Small delay to let the session initialize
         await new Promise(resolve => setTimeout(resolve, 300))
 
-        // Send the command to start the program
+        // Single send-keys: export env vars, unset CLAUDECODE, then launch program
+        // Combined into one line so the terminal only shows one command
         try {
-          await execAsync(`tmux send-keys -t "${sessionName}" "${fullCommand}" Enter`)
+          const envExport = ampDir
+            ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${id}'; `
+            : ''
+          await execAsync(`tmux send-keys -t "${sessionName}" "${envExport}unset CLAUDECODE; ${fullCommand}" Enter`)
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
           // Don't fail the whole operation, session is still created

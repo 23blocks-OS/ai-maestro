@@ -35,9 +35,12 @@ import {
   X,
   Brain,
   CheckCircle,
+  Box,
+  ChevronDown,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
+import AgentCreationWizard from './AgentCreationWizard'
 import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -162,6 +165,10 @@ export default function AgentList({
   sidebarWidth = 320,
 }: AgentListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
+  const [showWizardModal, setShowWizardModal] = useState(false)
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false)
+  const createDropdownRef = useRef<HTMLDivElement>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
@@ -306,6 +313,18 @@ export default function AgentList({
       }
     }
   }, [sidebarWidth, viewMode, userOverrodeViewMode])
+
+  // Close create dropdown on click outside
+  useEffect(() => {
+    if (!showCreateDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (createDropdownRef.current && !createDropdownRef.current.contains(e.target as Node)) {
+        setShowCreateDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCreateDropdown])
 
   // Initialize NEW panels as open on first mount
   const initializedRef = useRef(false)
@@ -652,6 +671,8 @@ export default function AgentList({
 
   const handleCreateComplete = () => {
     setShowCreateModal(false)
+    setShowAdvancedCreateModal(false)
+    setShowWizardModal(false)
     onRefresh?.()
   }
 
@@ -677,7 +698,7 @@ export default function AgentList({
                 <span>{stats.offline}</span>
               </div>
             )}
-            <div className="relative">
+            <div className="relative" ref={createDropdownRef}>
               {/* Pulsing ring when no agents */}
               {agents.length === 0 && (
                 <>
@@ -686,15 +707,40 @@ export default function AgentList({
                 </>
               )}
               <button
-                onClick={() => setShowCreateModal(true)}
-                className={`relative p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110 ${
+                onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                className={`relative p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-green-400 hover:text-green-300 hover:scale-110 flex items-center gap-0.5 ${
                   agents.length === 0 ? 'ring-2 ring-green-500/50' : ''
                 }`}
                 aria-label="Create new agent"
                 title="Create new agent"
               >
                 <Plus className="w-4 h-4" />
+                <ChevronDown className="w-3 h-3" />
               </button>
+              {showCreateDropdown && (
+                <div className="absolute right-0 top-full mt-1 w-52 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowCreateDropdown(false)
+                      setShowWizardModal(true)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4 text-green-400" />
+                    Create Agent
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateDropdown(false)
+                      setShowAdvancedCreateModal(true)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4 text-blue-400" />
+                    Create Agent (Advanced)
+                  </button>
+                </div>
+              )}
             </div>
             {/* View mode toggle */}
             <button
@@ -909,7 +955,7 @@ export default function AgentList({
 
             {/* Or create button */}
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => setShowWizardModal(true)}
               className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105"
             >
               Create Your First Agent
@@ -1334,6 +1380,14 @@ export default function AgentList({
                                                 )}
                                               </button>
                                             )}
+                                            <a
+                                              href={`/companion?agent=${encodeURIComponent(agent.id)}`}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="p-1 rounded hover:bg-pink-500/20 text-gray-400 hover:text-pink-400 transition-all duration-200"
+                                              title="Companion View"
+                                            >
+                                              <User className="w-3 h-3" />
+                                            </a>
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation()
@@ -1434,13 +1488,34 @@ export default function AgentList({
         )}
       </div>
 
-      {/* Create Agent Modal */}
+      {/* Creation Wizard */}
+      {showWizardModal && (
+        <AgentCreationWizard
+          onClose={() => setShowWizardModal(false)}
+          onComplete={handleCreateComplete}
+          onSwitchToAdvanced={() => {
+            setShowWizardModal(false)
+            setShowAdvancedCreateModal(true)
+          }}
+        />
+      )}
+
+      {/* Create Agent Modal (legacy) */}
       {showCreateModal && (
         <CreateAgentModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateAgent}
           onComplete={handleCreateComplete}
           loading={actionLoading}
+        />
+      )}
+
+      {/* Create Agent Advanced Modal */}
+      {showAdvancedCreateModal && (
+        <CreateAgentAdvancedModal
+          onClose={() => setShowAdvancedCreateModal(false)}
+          onCreate={handleCreateAgent}
+          onComplete={handleCreateComplete}
         />
       )}
 
@@ -1875,6 +1950,497 @@ function CreateAgentModal({
                   className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
                 >
                   Create Agent
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Advanced Create Agent Modal
+function CreateAgentAdvancedModal({
+  onClose,
+  onCreate,
+  onComplete,
+}: {
+  onClose: () => void
+  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string) => Promise<boolean>
+  onComplete: () => void
+}) {
+  const { hosts } = useHosts()
+  const [name, setName] = useState('')
+  const [workingDirectory, setWorkingDirectory] = useState('')
+  const [selectedHostId, setSelectedHostId] = useState<string>('')
+  const [runtime, setRuntime] = useState<'tmux' | 'docker'>('tmux')
+  const [program, setProgram] = useState('claude-code')
+  const [model, setModel] = useState('claude-sonnet-4-5')
+  const [yoloMode, setYoloMode] = useState(false)
+  const [nonInteractive, setNonInteractive] = useState(false)
+  const [prompt, setPrompt] = useState('')
+  const [promptTimeout, setPromptTimeout] = useState(0)
+
+  // Docker settings
+  const [githubToken, setGithubToken] = useState('')
+  const [cpuCores, setCpuCores] = useState(2)
+  const [memoryGb, setMemoryGb] = useState(4)
+  const [autoRemove, setAutoRemove] = useState(true)
+
+  // Animation
+  const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
+  const [animationProgress, setAnimationProgress] = useState(0)
+  const [isCreating, setIsCreating] = useState(false)
+  const [creationSuccess, setCreationSuccess] = useState(false)
+  const [showButton, setShowButton] = useState(false)
+  const [dockerError, setDockerError] = useState('')
+
+  // Set default host
+  useEffect(() => {
+    if (hosts.length > 0 && !selectedHostId) {
+      const selfHost = hosts.find(h => h.isSelf) || hosts[0]
+      setSelectedHostId(selfHost.id)
+    }
+  }, [hosts, selectedHostId])
+
+  // Check Docker availability for selected host
+  const selectedHost = hosts.find(h => h.id === selectedHostId)
+  const dockerAvailable = selectedHost?.capabilities?.docker ?? false
+
+  // Reset runtime to tmux if Docker not available on selected host
+  useEffect(() => {
+    if (runtime === 'docker' && !dockerAvailable) {
+      setRuntime('tmux')
+    }
+  }, [selectedHostId, dockerAvailable, runtime])
+
+  // Fun AI-themed aliases (same as simple modal)
+  const FEMALE_ALIASES = [
+    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
+    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
+  ]
+  const MALE_ALIASES = [
+    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
+    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
+    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
+  ]
+
+  const getRandomAlias = (agentName: string): string => {
+    let hash = 0
+    for (let i = 0; i < agentName.length; i++) {
+      const char = agentName.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    const isMale = (Math.abs(hash >> 8) % 2 === 0)
+    const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
+    return aliases[Math.abs(hash) % aliases.length]
+  }
+
+  // Animation effect
+  useEffect(() => {
+    if (isCreating) {
+      setAnimationPhase('preparing')
+      setAnimationProgress(5)
+
+      const timers = [
+        setTimeout(() => setAnimationProgress(12), 500),
+        setTimeout(() => setAnimationProgress(20), 1000),
+        setTimeout(() => setAnimationProgress(28), 1800),
+        setTimeout(() => { setAnimationPhase('creating'); setAnimationProgress(35) }, 2500),
+        setTimeout(() => setAnimationProgress(45), 3200),
+        setTimeout(() => setAnimationProgress(55), 3900),
+        setTimeout(() => setAnimationProgress(65), 4600),
+        setTimeout(() => setAnimationProgress(78), 5300),
+        setTimeout(() => setAnimationProgress(90), 6000),
+        setTimeout(() => { setAnimationPhase('ready'); setAnimationProgress(100) }, 6500),
+        setTimeout(() => { if (creationSuccess) setShowButton(true) }, 8000),
+      ]
+      return () => timers.forEach(clearTimeout)
+    }
+  }, [isCreating, creationSuccess])
+
+  useEffect(() => {
+    if (creationSuccess && animationPhase === 'ready') {
+      const timer = setTimeout(() => setShowButton(true), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [creationSuccess, animationPhase])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+
+    setDockerError('')
+
+    if (runtime === 'docker') {
+      // Docker agent creation
+      setIsCreating(true)
+      const personaName = getRandomAlias(name.trim())
+      const avatarUrl = getPreviewAvatarUrl(name.trim())
+
+      try {
+        const response = await fetch('/api/agents/docker/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            workingDirectory: workingDirectory.trim() || undefined,
+            hostId: selectedHostId || undefined,
+            program: program === 'claude-code' ? 'claude' : program,
+            yolo: yoloMode,
+            model: program === 'claude-code' ? model : undefined,
+            prompt: nonInteractive ? prompt.trim() : undefined,
+            timeout: nonInteractive && promptTimeout > 0 ? promptTimeout : undefined,
+            githubToken: githubToken.trim() || undefined,
+            cpus: cpuCores,
+            memory: `${memoryGb}g`,
+            autoRemove,
+            label: personaName,
+            avatar: avatarUrl,
+          }),
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to create Docker agent')
+        }
+
+        setCreationSuccess(true)
+      } catch (err) {
+        setDockerError(err instanceof Error ? err.message : 'Failed to create Docker agent')
+        setIsCreating(false)
+      }
+    } else {
+      // Tmux agent creation — build programArgs
+      setIsCreating(true)
+      const personaName = getRandomAlias(name.trim())
+      const avatarUrl = getPreviewAvatarUrl(name.trim())
+
+      const args: string[] = []
+      if (yoloMode) args.push('--dangerously-skip-permissions')
+      if (program === 'claude-code' && model) args.push(`--model ${model}`)
+      if (nonInteractive && prompt.trim()) args.push(`-p '${prompt.trim()}'`)
+
+      const programArgs = args.join(' ')
+      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined, personaName, avatarUrl, programArgs || undefined)
+      if (success) {
+        setCreationSuccess(true)
+      } else {
+        setIsCreating(false)
+      }
+    }
+  }
+
+  const showAnimation = isCreating || creationSuccess
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={showAnimation ? undefined : onClose}>
+      <div className="bg-gray-900 rounded-xl w-full max-w-xl shadow-2xl border border-gray-700 overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {showAnimation ? (
+          <div className="p-6">
+            <div className="text-center mb-2">
+              <h3 className="text-lg font-semibold text-gray-100">
+                {animationPhase === 'ready' ? 'Your Agent is Ready!' : 'Creating Your Agent'}
+              </h3>
+              {animationPhase !== 'ready' && <p className="text-sm text-gray-400">{name}</p>}
+            </div>
+            <CreateAgentAnimation
+              phase={animationPhase}
+              agentName={name}
+              agentAlias={getRandomAlias(name)}
+              avatarUrl={getPreviewAvatarUrl(name)}
+              progress={animationProgress}
+              showNextSteps={showButton}
+            />
+            {showButton && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={() => onComplete()}
+                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                >
+                  <span>Let&apos;s Go!</span>
+                  <span className="text-lg">🚀</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-6 overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-100 mb-4">Create Agent (Advanced)</h3>
+
+            {dockerError && (
+              <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-300">
+                {dockerError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-5">
+                {/* Identity Section */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Identity</h4>
+                  <div>
+                    <label htmlFor="adv-agent-name" className="block text-sm font-medium text-gray-300 mb-1">
+                      Agent Name *
+                    </label>
+                    <input
+                      id="adv-agent-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="23blocks-api-myagent"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      autoFocus
+                      pattern="[a-zA-Z0-9_\-]+"
+                      title="Only letters, numbers, dashes, and underscores allowed"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="adv-working-dir" className="block text-sm font-medium text-gray-300 mb-1">
+                      Working Directory
+                    </label>
+                    <input
+                      id="adv-working-dir"
+                      type="text"
+                      value={workingDirectory}
+                      onChange={(e) => setWorkingDirectory(e.target.value)}
+                      placeholder="/home/user/project"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Execution Section */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Execution</h4>
+
+                  {/* Host Selector */}
+                  <HostSelector
+                    hosts={hosts.map(h => ({
+                      ...h,
+                      name: h.name + (h.capabilities?.docker ? ' \uD83D\uDC33' : ''),
+                    }))}
+                    selectedHostId={selectedHostId}
+                    onSelect={setSelectedHostId}
+                  />
+
+                  {/* Runtime */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Runtime</label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setRuntime('tmux')}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          runtime === 'tmux'
+                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                        }`}
+                      >
+                        <Terminal className="w-4 h-4 inline mr-1.5" />
+                        tmux
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dockerAvailable && setRuntime('docker')}
+                        disabled={!dockerAvailable}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                          runtime === 'docker'
+                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                            : dockerAvailable
+                              ? 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                              : 'bg-gray-800/50 border-gray-700/50 text-gray-600 cursor-not-allowed'
+                        }`}
+                      >
+                        <Box className="w-4 h-4 inline mr-1.5" />
+                        Docker
+                        {!dockerAvailable && <span className="block text-[10px] text-gray-600 mt-0.5">Not available</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Program */}
+                  <div>
+                    <label htmlFor="adv-program" className="block text-sm font-medium text-gray-300 mb-1">
+                      Program
+                    </label>
+                    <select
+                      id="adv-program"
+                      value={program}
+                      onChange={(e) => setProgram(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="claude-code">Claude Code</option>
+                      <option value="aider">Aider</option>
+                      <option value="cursor">Cursor</option>
+                      <option value="shell">Shell</option>
+                    </select>
+                  </div>
+
+                  {/* Model (only for claude-code) */}
+                  {program === 'claude-code' && (
+                    <div>
+                      <label htmlFor="adv-model" className="block text-sm font-medium text-gray-300 mb-1">
+                        Model
+                      </label>
+                      <select
+                        id="adv-model"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      >
+                        <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+                        <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Permissions Section */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Permissions</h4>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={yoloMode}
+                      onChange={(e) => setYoloMode(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                    />
+                    <div>
+                      <span className="text-sm text-gray-200 font-medium">YOLO Mode</span>
+                      <p className="text-xs text-amber-400/80 mt-0.5">
+                        Skips all permission prompts. Use with caution.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={nonInteractive}
+                      onChange={(e) => setNonInteractive(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                    />
+                    <div>
+                      <span className="text-sm text-gray-200 font-medium">Non-interactive</span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Run with a prompt, no user interaction needed.
+                      </p>
+                    </div>
+                  </label>
+
+                  {nonInteractive && (
+                    <div className="space-y-3 pl-7">
+                      <div>
+                        <label htmlFor="adv-prompt" className="block text-sm font-medium text-gray-300 mb-1">
+                          Prompt
+                        </label>
+                        <textarea
+                          id="adv-prompt"
+                          value={prompt}
+                          onChange={(e) => setPrompt(e.target.value)}
+                          placeholder="What should this agent do?"
+                          rows={3}
+                          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="adv-timeout" className="block text-sm font-medium text-gray-300 mb-1">
+                          Timeout (minutes, 0 = no limit)
+                        </label>
+                        <input
+                          id="adv-timeout"
+                          type="number"
+                          min={0}
+                          value={promptTimeout}
+                          onChange={(e) => setPromptTimeout(parseInt(e.target.value, 10) || 0)}
+                          className="w-24 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Docker Settings (only when runtime = docker) */}
+                {runtime === 'docker' && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Docker Settings</h4>
+
+                    <div>
+                      <label htmlFor="adv-github-token" className="block text-sm font-medium text-gray-300 mb-1">
+                        GitHub Token
+                      </label>
+                      <input
+                        id="adv-github-token"
+                        type="password"
+                        value={githubToken}
+                        onChange={(e) => setGithubToken(e.target.value)}
+                        placeholder="ghp_..."
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="adv-cpus" className="block text-sm font-medium text-gray-300 mb-1">
+                          CPU Cores
+                        </label>
+                        <input
+                          id="adv-cpus"
+                          type="number"
+                          min={1}
+                          max={16}
+                          value={cpuCores}
+                          onChange={(e) => setCpuCores(parseInt(e.target.value, 10) || 2)}
+                          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="adv-memory" className="block text-sm font-medium text-gray-300 mb-1">
+                          Memory (GB)
+                        </label>
+                        <input
+                          id="adv-memory"
+                          type="number"
+                          min={1}
+                          max={64}
+                          value={memoryGb}
+                          onChange={(e) => setMemoryGb(parseInt(e.target.value, 10) || 4)}
+                          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={autoRemove}
+                        onChange={(e) => setAutoRemove(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-200">Auto-remove container on exit</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!name.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
+                >
+                  {runtime === 'docker' ? 'Create Docker Agent' : 'Create Agent'}
                 </button>
               </div>
             </form>

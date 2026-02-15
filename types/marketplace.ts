@@ -186,14 +186,20 @@ export interface InstalledMarketplaceSkill {
 
 /**
  * A custom skill created specifically for an agent
+ * Canonical definition - also re-exported as AgentCustomSkill from types/agent.ts
  */
 export interface CustomSkill {
   name: string                    // Skill name
   path: string                    // Relative path within agent folder
-  content?: string                // Skill content (SKILL.md)
+  description?: string            // Short summary of the skill's purpose
+  content?: string                // Full skill file content (SKILL.md)
   createdAt: string               // When created
   updatedAt?: string              // When last modified
 }
+
+// Compatibility aliases - canonical names used by agent-registry and API routes
+export type AgentMarketplaceSkill = InstalledMarketplaceSkill
+export type AgentCustomSkill = CustomSkill
 
 // ============================================================================
 // API Types

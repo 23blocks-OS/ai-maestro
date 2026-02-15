@@ -171,7 +171,7 @@ export async function GET(
       if (sessionName) {
         try {
           const { stdout } = await execAsync(
-            `tmux capture-pane -t '${sessionName}' -p -S -40 2>/dev/null || echo ""`
+            `tmux capture-pane -t "${sessionName}" -p -S -40 2>/dev/null || echo ""`
           )
           const lines = stdout.trim().split('\n')
 
@@ -306,29 +306,16 @@ export async function POST(
       )
     }
 
-    // Escape the message for shell
-    // Replace single quotes with escaped version for shell safety
-    const escapedMessage = message
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "'\\''")
-      .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`')
+    // Escape single quotes for shell (text is wrapped in single quotes, so only ' needs escaping)
+    const escapedMessage = message.replace(/'/g, "'\\''")
 
     // Send message to tmux session
-    // Using send-keys with the message followed by Enter
-    // Note: Use -l (literal) to avoid interpreting special characters
-    const tmuxCommand = `tmux send-keys -t '${sessionName}' -l '${escapedMessage}'`
-    const enterCommand = `tmux send-keys -t '${sessionName}' Enter`
+    // Using send-keys with -l (literal) to avoid interpreting special characters
+    // Text and Enter are sent atomically via tmux \; command chaining to prevent race conditions
+    const tmuxCommand = `tmux send-keys -t "${sessionName}" -l '${escapedMessage}' \\; send-keys -t "${sessionName}" Enter`
 
-    console.log('[Chat API] Session:', sessionName)
-    console.log('[Chat API] Message:', message)
-    console.log('[Chat API] Escaped:', escapedMessage)
-    console.log('[Chat API] Command:', tmuxCommand)
-
-    // Send the text first, then Enter separately
+    // Send text and Enter atomically in a single tmux server round-trip
     await execAsync(tmuxCommand)
-    await execAsync(enterCommand)
 
     console.log('[Chat API] Message sent successfully')
 

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Lock, X } from 'lucide-react'
 
 interface GovernancePasswordDialogProps {
@@ -21,6 +21,15 @@ export default function GovernancePasswordDialog({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Reset form state whenever the dialog opens, clearing stale values from previous sessions
+  useEffect(() => {
+    if (isOpen) {
+      setPassword('')
+      setConfirmPassword('')
+      setError(null)
+    }
+  }, [isOpen])
 
   const handleClose = () => {
     if (submitting) return
@@ -80,9 +89,9 @@ export default function GovernancePasswordDialog({
     password.length === 0 ||
     (mode === 'setup' && (confirmPassword.length === 0 || password !== confirmPassword || password.length < 6))
 
-  if (!isOpen) return null
-
   return (
+    <AnimatePresence>
+      {isOpen && (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -191,5 +200,7 @@ export default function GovernancePasswordDialog({
         </div>
       </motion.div>
     </div>
+      )}
+    </AnimatePresence>
   )
 }

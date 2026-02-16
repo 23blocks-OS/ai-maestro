@@ -5,11 +5,15 @@
  * and role-based access control for team messaging isolation.
  */
 
+/** Role assigned to an agent in governance: manager (singleton), chief-of-staff (per-team), normal */
+export type GovernanceRole = 'manager' | 'chief-of-staff' | 'normal'
+
 /** Team access type: open preserves current behavior, closed adds messaging isolation and ACL */
 export type TeamType = 'open' | 'closed'
 
 /** Governance configuration stored at ~/.aimaestro/governance.json */
 export interface GovernanceConfig {
+  // Strict discriminant for future schema migrations
   version: 1
   passwordHash: string | null   // bcrypt hash of governance password, null = not set
   passwordSetAt: string | null  // ISO timestamp when password was last set
@@ -44,6 +48,7 @@ export interface TransferRequest {
 
 /** File format for transfer requests storage */
 export interface TransfersFile {
+  // Strict discriminant for future schema migrations
   version: 1
   requests: TransferRequest[]
 }

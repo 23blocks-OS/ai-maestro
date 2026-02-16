@@ -48,6 +48,21 @@ export async function POST(
       return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
     }
 
+    // Validate priority is a non-negative number if provided
+    if (priority !== undefined && (typeof priority !== 'number' || priority < 0)) {
+      return NextResponse.json({ error: 'priority must be a non-negative number' }, { status: 400 })
+    }
+
+    // Validate description is a string if provided
+    if (description !== undefined && typeof description !== 'string') {
+      return NextResponse.json({ error: 'description must be a string' }, { status: 400 })
+    }
+
+    // Validate assigneeAgentId is a string if provided
+    if (assigneeAgentId !== undefined && typeof assigneeAgentId !== 'string') {
+      return NextResponse.json({ error: 'assigneeAgentId must be a string' }, { status: 400 })
+    }
+
     // Validate blockedBy is an array of strings if provided
     if (blockedBy !== undefined) {
       if (!Array.isArray(blockedBy) || !blockedBy.every((id: unknown) => typeof id === 'string')) {

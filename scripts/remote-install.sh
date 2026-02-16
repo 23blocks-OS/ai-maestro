@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.23.11"
+VERSION="0.23.12"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -1058,7 +1058,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,7 +1102,7 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
@@ -1123,7 +1123,7 @@ act4_start_and_register() {
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1158,7 +1158,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1195,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1230,7 +1230,7 @@ act4_start_and_register() {
             portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true

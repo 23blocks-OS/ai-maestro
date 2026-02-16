@@ -9,11 +9,16 @@ import { loadTransfers, createTransferRequest, getPendingTransfersForAgent } fro
 import { loadTeams } from '@/lib/team-registry'
 import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
 
+// Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
 export async function GET(request: NextRequest) {
   try {
     const teamId = request.nextUrl.searchParams.get('teamId')
     const agentId = request.nextUrl.searchParams.get('agentId')
     const status = request.nextUrl.searchParams.get('status') // 'pending', 'approved', 'rejected', or null for all
+
+    if (status && !['pending','approved','rejected'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 })
+    }
 
     let requests = loadTransfers()
 

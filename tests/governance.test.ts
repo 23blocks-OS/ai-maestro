@@ -147,6 +147,13 @@ describe('verifyPassword', () => {
     expect(verifyPassword('correctpass')).toBe(true)
     expect(verifyPassword('wrongpass')).toBe(false)
   })
+
+  it('returns false when no password has been set', () => {
+    /** Verifies that verifyPassword returns false when passwordHash is null (no password configured) */
+    seedGovernance({ passwordHash: null })
+
+    expect(verifyPassword('anypassword')).toBe(false)
+  })
 })
 
 // ============================================================================
@@ -193,6 +200,13 @@ describe('isManager', () => {
     expect(isManager('agent-other-99')).toBe(false)
     expect(isManager('')).toBe(false)
   })
+
+  it('returns false for empty string when no manager is set', () => {
+    /** Verifies isManager returns false for empty string agentId when managerId is null (null !== '') */
+    seedGovernance({ managerId: null })
+
+    expect(isManager('')).toBe(false)
+  })
 })
 
 // ============================================================================
@@ -228,5 +242,33 @@ describe('isChiefOfStaffAnywhere', () => {
     expect(isChiefOfStaffAnywhere('agent-cos-1')).toBe(true)
     expect(isChiefOfStaffAnywhere('agent-member-2')).toBe(false)
     expect(isChiefOfStaffAnywhere('agent-nobody')).toBe(false)
+  })
+
+  it('returns false when agent is COS only on open teams', () => {
+    /** Verifies that COS designation on open teams does not count - COS is only valid on closed teams */
+    const mockedLoadTeams = vi.mocked(loadTeams)
+
+    mockedLoadTeams.mockReturnValue([
+      {
+        id: 'team-open-1',
+        name: 'Open Team Alpha',
+        type: 'open',
+        agentIds: ['agent-cos-open'],
+        chiefOfStaffId: 'agent-cos-open',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'team-open-2',
+        name: 'Open Team Beta',
+        type: 'open',
+        agentIds: ['agent-cos-open'],
+        chiefOfStaffId: 'agent-cos-open',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ] as any)
+
+    expect(isChiefOfStaffAnywhere('agent-cos-open')).toBe(false)
   })
 })

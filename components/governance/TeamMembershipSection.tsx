@@ -222,8 +222,18 @@ export default function TeamMembershipSection({
                   <div className="ml-auto flex items-center gap-1">
                     <button
                       onClick={async () => {
+                        setError(null)
                         setResolvingTransferId(transfer.id)
-                        try { await onResolveTransfer(transfer.id, 'approve') } finally { setResolvingTransferId(null) }
+                        try {
+                          const result = await onResolveTransfer(transfer.id, 'approve')
+                          if (!result.success) {
+                            setError(result.error || 'Failed to approve transfer')
+                          }
+                        } catch {
+                          setError('Failed to approve transfer')
+                        } finally {
+                          setResolvingTransferId(null)
+                        }
                       }}
                       disabled={resolvingTransferId === transfer.id}
                       className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
@@ -233,8 +243,18 @@ export default function TeamMembershipSection({
                     </button>
                     <button
                       onClick={async () => {
+                        setError(null)
                         setResolvingTransferId(transfer.id)
-                        try { await onResolveTransfer(transfer.id, 'reject') } finally { setResolvingTransferId(null) }
+                        try {
+                          const result = await onResolveTransfer(transfer.id, 'reject')
+                          if (!result.success) {
+                            setError(result.error || 'Failed to reject transfer')
+                          }
+                        } catch {
+                          setError('Failed to reject transfer')
+                        } finally {
+                          setResolvingTransferId(null)
+                        }
                       }}
                       disabled={resolvingTransferId === transfer.id}
                       className="p-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"

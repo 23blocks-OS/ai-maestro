@@ -28,6 +28,21 @@ export async function PUT(
     const body = await request.json()
     const { subject, description, status, assigneeAgentId, blockedBy, priority } = body
 
+    // Validate priority is a non-negative number if provided
+    if (priority !== undefined && (typeof priority !== 'number' || priority < 0)) {
+      return NextResponse.json({ error: 'priority must be a non-negative number' }, { status: 400 })
+    }
+
+    // Validate description is a string if provided
+    if (description !== undefined && typeof description !== 'string') {
+      return NextResponse.json({ error: 'description must be a string' }, { status: 400 })
+    }
+
+    // Validate assigneeAgentId is a string if provided
+    if (assigneeAgentId !== undefined && typeof assigneeAgentId !== 'string') {
+      return NextResponse.json({ error: 'assigneeAgentId must be a string' }, { status: 400 })
+    }
+
     // Validate blockedBy to prevent circular dependencies
     if (Array.isArray(blockedBy)) {
       for (const depId of blockedBy) {

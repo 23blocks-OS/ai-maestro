@@ -7,17 +7,18 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import os from 'os'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import type { TransferRequest, TransfersFile } from '@/types/governance'
 import { withLock } from '@/lib/file-lock'
 
-const AI_MAESTRO_DIR = path.join(process.env.HOME || '~', '.aimaestro')
-const TRANSFERS_FILE = path.join(AI_MAESTRO_DIR, 'governance-transfers.json')
+const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
+const TRANSFERS_FILE = path.join(AIMAESTRO_DIR, 'governance-transfers.json')
 
 function ensureDir(): void {
-  if (!existsSync(AI_MAESTRO_DIR)) {
-    mkdirSync(AI_MAESTRO_DIR, { recursive: true })
+  if (!existsSync(AIMAESTRO_DIR)) {
+    mkdirSync(AIMAESTRO_DIR, { recursive: true })
   }
 }
 
@@ -112,6 +113,7 @@ export async function resolveTransferRequest(
   })
 }
 
+// Exported for future scheduled cleanup integration
 /** Clean up old resolved requests (older than 30 days) */
 export async function cleanupOldTransfers(): Promise<number> {
   return withLock('transfers', () => {

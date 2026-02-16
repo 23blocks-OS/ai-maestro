@@ -10,7 +10,7 @@ export async function POST(
   try {
     const { id } = await params
     const body = await request.json()
-    const { agentId, password } = body
+    const { agentId: cosAgentId, password } = body
 
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: 'Governance password is required' }, { status: 400 })
@@ -21,6 +21,7 @@ export async function POST(
       return NextResponse.json({ error: 'Governance password not set' }, { status: 400 })
     }
 
+    // Password auth is stronger than ACL — only managers know the governance password
     if (!verifyPassword(password)) {
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
@@ -32,24 +33,23 @@ export async function POST(
 
     const managerId = getManagerId()
 
-    if (agentId === null) {
+    if (cosAgentId === null) {
       // Remove COS — auto-downgrade team to open (R1.5)
       const updated = await updateTeam(id, { chiefOfStaffId: null, type: 'open' }, managerId)
       return NextResponse.json({ success: true, team: updated })
     }
 
-    if (typeof agentId !== 'string' || !agentId.trim()) {
+    if (typeof cosAgentId !== 'string' || !cosAgentId.trim()) {
       return NextResponse.json({ error: 'agentId must be a non-empty string or null' }, { status: 400 })
     }
 
-    const agent = getAgent(agentId)
+    const agent = getAgent(cosAgentId)
     if (!agent) {
-      return NextResponse.json({ error: `Agent '${agentId}' not found` }, { status: 404 })
+      return NextResponse.json({ error: `Agent '${cosAgentId}' not found` }, { status: 404 })
     }
 
-    // Assign COS — auto-upgrade team to closed (R1.3) and auto-add COS to agentIds (R4.6)
-    const newAgentIds = team.agentIds.includes(agentId) ? team.agentIds : [...team.agentIds, agentId]
-    const updated = await updateTeam(id, { chiefOfStaffId: agentId, type: 'closed', agentIds: newAgentIds }, managerId)
+    // Assign COS — auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
+    const updated = await updateTeam(id, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
     return NextResponse.json({ success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
   } catch (error) {
     // TeamValidationException carries the correct HTTP status code from business rule validation

@@ -201,6 +201,7 @@ export function loadTeams(): Team[] {
     const parsed: TeamsFile = JSON.parse(data)
     const teams = Array.isArray(parsed.teams) ? parsed.teams : []
 
+    // One-time idempotent migration: safe without lock because migration is append-only and convergent
     // Migration: ensure all teams have a type field (default to 'open')
     let needsSave = false
     for (const team of teams) {
@@ -305,6 +306,9 @@ export async function deleteTeam(id: string): Promise<boolean> {
     const filtered = teams.filter(t => t.id !== id)
     if (filtered.length === teams.length) return false
     saveTeams(filtered)
+    // Clean up orphaned task file for the deleted team
+    const taskFile = path.join(TEAMS_DIR, `tasks-${id}.json`)
+    try { if (fs.existsSync(taskFile)) fs.unlinkSync(taskFile) } catch {}
     return true
   })
 }

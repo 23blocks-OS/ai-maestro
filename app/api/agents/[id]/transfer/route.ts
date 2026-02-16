@@ -9,7 +9,8 @@ const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
 
-interface TransferRequest {
+// Named HostTransferRequest to avoid collision with governance TransferRequest in transfer-registry.ts
+interface HostTransferRequest {
   targetHostId: string
   targetHostUrl: string
   mode: 'move' | 'clone'
@@ -42,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    const body: TransferRequest = await request.json()
+    const body: HostTransferRequest = await request.json()
     const { targetHostUrl, mode, newAlias, cloneRepositories } = body
 
     if (!targetHostUrl) {

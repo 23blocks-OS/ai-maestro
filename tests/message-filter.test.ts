@@ -1,17 +1,22 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 // ============================================================================
-// Mocks — only external dependency: @/lib/governance
+// Mocks — external dependencies: @/lib/governance and @/lib/team-registry
 // ============================================================================
 
-const mockIsManager = vi.fn(() => false)
-const mockIsChiefOfStaffAnywhere = vi.fn(() => false)
-const mockGetClosedTeamsForAgent = vi.fn(() => [] as ReturnType<typeof makeClosedTeam>[])
+const mockLoadGovernance = vi.fn(() => ({
+  managerId: null as string | null,
+  passwordHash: null as string | null,
+}))
+
+const mockLoadTeams = vi.fn(() => [] as ReturnType<typeof makeClosedTeam>[])
 
 vi.mock('@/lib/governance', () => ({
-  isManager: (...args: unknown[]) => mockIsManager(...args),
-  isChiefOfStaffAnywhere: (...args: unknown[]) => mockIsChiefOfStaffAnywhere(...args),
-  getClosedTeamsForAgent: (...args: unknown[]) => mockGetClosedTeamsForAgent(...args),
+  loadGovernance: () => mockLoadGovernance(),
+}))
+
+vi.mock('@/lib/team-registry', () => ({
+  loadTeams: () => mockLoadTeams(),
 }))
 
 // ============================================================================
@@ -45,9 +50,8 @@ describe('checkMessageAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
-    mockIsManager.mockReturnValue(false)
-    mockIsChiefOfStaffAnywhere.mockReturnValue(false)
-    mockGetClosedTeamsForAgent.mockReturnValue([])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadTeams.mockReturnValue([])
   })
 
   it('allows mesh-forwarded messages when senderAgentId is null', () => {
@@ -58,14 +62,14 @@ describe('checkMessageAllowed', () => {
     })
     expect(result.allowed).toBe(true)
     expect(result.reason).toBeUndefined()
-    // governance functions should not be called at all for null sender
-    expect(mockGetClosedTeamsForAgent).not.toHaveBeenCalled()
-    expect(mockIsManager).not.toHaveBeenCalled()
+    // governance/teams functions should not be called at all for null sender
+    expect(mockLoadTeams).not.toHaveBeenCalled()
+    expect(mockLoadGovernance).not.toHaveBeenCalled()
   })
 
   it('allows messages when neither sender nor recipient is in a closed team', () => {
     /** Open world: both agents outside closed teams can message freely — step 2 (R6.4) */
-    mockGetClosedTeamsForAgent.mockReturnValue([])
+    mockLoadTeams.mockReturnValue([])
 
     const result = checkMessageAllowed({
       senderAgentId: 'open-agent-A',
@@ -73,20 +77,14 @@ describe('checkMessageAllowed', () => {
     })
     expect(result.allowed).toBe(true)
     expect(result.reason).toBeUndefined()
-    // Both agents were queried for team membership
-    expect(mockGetClosedTeamsForAgent).toHaveBeenCalledWith('open-agent-A')
-    expect(mockGetClosedTeamsForAgent).toHaveBeenCalledWith('open-agent-B')
   })
 
   it('allows messages when sender is MANAGER regardless of teams', () => {
     /** MANAGER can message anyone — step 3 (R6.3) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-1'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'member-1') return [teamAlpha]
-      return []
-    })
-    mockIsManager.mockImplementation((id: string) => id === 'manager-01')
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: 'manager-01', passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'manager-01',
@@ -94,19 +92,14 @@ describe('checkMessageAllowed', () => {
     })
     expect(result.allowed).toBe(true)
     expect(result.reason).toBeUndefined()
-    expect(mockIsManager).toHaveBeenCalledWith('manager-01')
   })
 
   it('allows COS to message the MANAGER', () => {
     /** Chief-of-Staff can always reach the MANAGER — step 4, branch 1 (R6.2) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-1'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'cos-alpha') return [teamAlpha]
-      return []
-    })
-    mockIsChiefOfStaffAnywhere.mockImplementation((id: string) => id === 'cos-alpha')
-    mockIsManager.mockImplementation((id: string) => id === 'manager-01')
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: 'manager-01', passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'cos-alpha',
@@ -121,14 +114,8 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1'], 'cos-alpha')
     const teamBeta = makeClosedTeam('beta', ['cos-beta', 'member-b1'], 'cos-beta')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'cos-alpha') return [teamAlpha]
-      if (id === 'cos-beta') return [teamBeta]
-      return []
-    })
-    mockIsChiefOfStaffAnywhere.mockImplementation(
-      (id: string) => id === 'cos-alpha' || id === 'cos-beta'
-    )
+    mockLoadTeams.mockReturnValue([teamAlpha, teamBeta])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'cos-alpha',
@@ -142,12 +129,8 @@ describe('checkMessageAllowed', () => {
     /** COS can reach members of any of their closed teams — step 4, branch 3 (R6.7) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1', 'member-a2'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'cos-alpha') return [teamAlpha]
-      if (id === 'member-a1') return [teamAlpha]
-      return []
-    })
-    mockIsChiefOfStaffAnywhere.mockImplementation((id: string) => id === 'cos-alpha')
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'cos-alpha',
@@ -161,12 +144,8 @@ describe('checkMessageAllowed', () => {
     /** COS cannot reach agents not in any of their teams — step 4, denial branch (R6.2) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'cos-alpha') return [teamAlpha]
-      if (id === 'outsider-agent') return [] // not in any closed team
-      return []
-    })
-    mockIsChiefOfStaffAnywhere.mockImplementation((id: string) => id === 'cos-alpha')
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'cos-alpha',
@@ -181,14 +160,32 @@ describe('checkMessageAllowed', () => {
     /** Normal member can message within same closed team — step 5 (R6.1) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1', 'member-a2'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'member-a1' || id === 'member-a2') return [teamAlpha]
-      return []
-    })
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'member-a1',
       recipientAgentId: 'member-a2',
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('allows a normal member to message the COS of their team (COS is not a peer teammate)', () => {
+    /**
+     * A normal closed-team member messages the COS of their own team.
+     * The COS is NOT listed in agentIds (i.e. not a peer teammate) but IS
+     * the chiefOfStaffId — the canReachCOS branch (step 5) must allow this.
+     * Validates R6.1: members can always reach their own COS.
+     */
+    const teamAlpha = makeClosedTeam('alpha', ['member-a1', 'member-a2'], 'cos-alpha')
+
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+
+    const result = checkMessageAllowed({
+      senderAgentId: 'member-a1',
+      recipientAgentId: 'cos-alpha',
     })
     expect(result.allowed).toBe(true)
     expect(result.reason).toBeUndefined()
@@ -199,11 +196,8 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1'], 'cos-alpha')
     const teamBeta = makeClosedTeam('beta', ['cos-beta', 'member-b1'], 'cos-beta')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'member-a1') return [teamAlpha]
-      if (id === 'member-b1') return [teamBeta]
-      return []
-    })
+    mockLoadTeams.mockReturnValue([teamAlpha, teamBeta])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'member-a1',
@@ -218,11 +212,8 @@ describe('checkMessageAllowed', () => {
     /** Outside agents cannot message into closed teams — step 6 (R6.5) */
     const teamAlpha = makeClosedTeam('alpha', ['cos-alpha', 'member-a1'], 'cos-alpha')
 
-    mockGetClosedTeamsForAgent.mockImplementation((id: string) => {
-      if (id === 'outside-sender') return [] // not in any closed team
-      if (id === 'member-a1') return [teamAlpha]
-      return []
-    })
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
 
     const result = checkMessageAllowed({
       senderAgentId: 'outside-sender',

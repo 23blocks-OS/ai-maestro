@@ -116,7 +116,7 @@ export default function TeamsPage() {
   }, [reservedNames])
 
   const handleCreateTeam = async () => {
-    if (!newTeamName.trim() || submitting) return
+    if (!newTeamName.trim() || submitting || nameValidation.error) return
     setSubmitting(true)
     setCreateError(null)
     try {
@@ -281,7 +281,7 @@ export default function TeamsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
             <h4 className="text-sm font-medium text-white mb-2">Delete Team</h4>
-            <p className="text-xs text-gray-400 mb-4">Are you sure? This will remove the team but not its agents.</p>
+            <p className="text-xs text-gray-400 mb-4">Are you sure you want to delete team &apos;{teams.find(t => t.id === deleteConfirm)?.name || 'this team'}&apos;? This will remove the team but not its agents.</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirm(null)}

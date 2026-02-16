@@ -115,7 +115,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
 
     fetchAgent()
-  }, [isOpen, agentId])
+  }, [isOpen, agentId, baseUrl])
 
   // Fetch repositories lazily - only when section is expanded
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
 
     fetchRepos()
-  }, [isOpen, agentId, expandedSections.repositories, reposLoaded])
+  }, [isOpen, agentId, expandedSections.repositories, reposLoaded, baseUrl])
 
   // Fetch used avatars (all avatars from other agents on this host)
   useEffect(() => {

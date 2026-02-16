@@ -55,9 +55,11 @@ import type { Team } from '@/types/team'
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
 const TEAMS_FILE = path.join(TEAMS_DIR, 'teams.json')
 
+let makeTeamCounter = 0
+
 function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
-    id: `team-${++uuidCounter}`,
+    id: `team-${++makeTeamCounter}`,
     name: 'Default Team',
     agentIds: [],
     createdAt: '2025-01-01T00:00:00.000Z',
@@ -73,6 +75,7 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
 beforeEach(() => {
   fsStore = {}
   uuidCounter = 0
+  makeTeamCounter = 0
   vi.clearAllMocks()
 })
 
@@ -97,6 +100,22 @@ describe('loadTeams', () => {
   it('returns empty array for invalid JSON', () => {
     fsStore[TEAMS_FILE] = '{ broken'
     expect(loadTeams()).toEqual([])
+  })
+})
+
+// ============================================================================
+// saveTeams
+// ============================================================================
+
+describe('saveTeams', () => {
+  it('returns false when writeFileSync throws', async () => {
+    const fs = await import('fs')
+    vi.mocked(fs.default.writeFileSync).mockImplementationOnce(() => {
+      throw new Error('EACCES: permission denied')
+    })
+
+    const result = saveTeams([makeTeam({ id: 'team-x', name: 'Fail' })])
+    expect(result).toBe(false)
   })
 })
 

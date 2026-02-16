@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
 
+    // agentId === null removes the manager role; undefined/missing is invalid
     if (agentId === null) {
       await removeManager()
       return NextResponse.json({ success: true, managerId: null })
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     await setManager(agentId)
     return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name || agent.alias })
   } catch (error) {
-    console.error('Failed to set manager:', error)
+    console.error('[governance] manager POST error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to set manager' },
       { status: 500 }

@@ -21,7 +21,10 @@ function ensureTeamsDir() {
 }
 
 function tasksFilePath(teamId: string): string {
-  return path.join(TEAMS_DIR, `tasks-${teamId}.json`)
+  // Validate teamId is a proper UUID to prevent path traversal attacks
+  if (!/^[0-9a-f-]{36}$/i.test(teamId)) throw new Error('Invalid team ID')
+  // Defense-in-depth: use basename to strip any directory components
+  return path.join(TEAMS_DIR, path.basename(`tasks-${teamId}.json`))
 }
 
 export function loadTasks(teamId: string): Task[] {

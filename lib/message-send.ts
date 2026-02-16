@@ -150,10 +150,12 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   }
 
   // ── Governance: Message Filter ──────────────────────────────────────
-  if (fromAgent?.agentId && toResolved.agentId) {
+  // Always check when sender is known - use fallback for unresolved recipients
+  // so messages from agents in closed teams are still filtered
+  if (fromAgent?.agentId) {
     const filterResult = checkMessageAllowed({
       senderAgentId: fromAgent.agentId,
-      recipientAgentId: toResolved.agentId,
+      recipientAgentId: toResolved.agentId || toResolved.alias || 'unknown',
     })
     if (!filterResult.allowed) {
       throw new Error(filterResult.reason || 'Message blocked by team governance policy')
@@ -380,6 +382,18 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     alias: toIdentifier,
     hostId: targetHostId || undefined,
     hostUrl: undefined
+  }
+
+  // ── Governance: Message Filter ──────────────────────────────────────
+  // Apply the same governance check as sendFromUI() for forwarded messages
+  if (fromResolved.agentId) {
+    const filterResult = checkMessageAllowed({
+      senderAgentId: fromResolved.agentId,
+      recipientAgentId: toResolved.agentId || toResolved.alias || 'unknown',
+    })
+    if (!filterResult.allowed) {
+      throw new Error(filterResult.reason || 'Message blocked by team governance policy')
+    }
   }
 
   // Get original message

@@ -13,7 +13,7 @@ interface UseTeamResult {
 
 export function useTeam(teamId: string | null): UseTeamResult {
   const [team, setTeam] = useState<Team | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchTeam = useCallback(async () => {
@@ -33,6 +33,7 @@ export function useTeam(teamId: string | null): UseTeamResult {
   useEffect(() => {
     if (!teamId) {
       setTeam(null)
+      setLoading(false)
       return
     }
     setLoading(true)

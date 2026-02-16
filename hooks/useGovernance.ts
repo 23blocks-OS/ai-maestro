@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Team } from '@/types/team'
-import type { TransferRequest } from '@/types/governance'
+import type { TransferRequest, GovernanceRole } from '@/types/governance'
 
-export type GovernanceRole = 'manager' | 'chief-of-staff' | 'normal'
+// Re-export so downstream consumers still work
+export type { GovernanceRole } from '@/types/governance'
 
 export interface GovernanceState {
   loading: boolean
@@ -37,33 +38,44 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
 
   // Derive governance role from current state
-  const agentRole: GovernanceRole = (() => {
+  const agentRole: GovernanceRole = useMemo(() => {
     if (!agentId) return 'normal'
     if (managerId === agentId) return 'manager'
+    // team.type is now required per types/team.ts
     const isCOS = allTeams.some(
       (t) => t.type === 'closed' && t.chiefOfStaffId === agentId
     )
     if (isCOS) return 'chief-of-staff'
     return 'normal'
-  })()
+  }, [agentId, managerId, allTeams])
 
   // Derive cosTeams: closed teams where this agent is chief-of-staff
-  const cosTeams = agentId
+  // team.type is now required per types/team.ts
+  const cosTeams = useMemo(() => agentId
     ? allTeams.filter((t) => t.type === 'closed' && t.chiefOfStaffId === agentId)
-    : []
+    : [], [agentId, allTeams])
 
   // Derive memberTeams: teams where agentIds includes this agent
-  const memberTeams = agentId
+  const memberTeams = useMemo(() => agentId
     ? allTeams.filter((t) => t.agentIds.includes(agentId))
-    : []
+    : [], [agentId, allTeams])
 
   const refresh = useCallback(() => {
     // Fetch governance state and teams in parallel
     setLoading(true)
     Promise.all([
-      fetch('/api/governance').then((r) => r.json()),
-      fetch('/api/teams').then((r) => r.json()),
-      fetch('/api/governance/transfers?status=pending').then((r) => r.json()).catch(() => ({ requests: [] })),
+      fetch('/api/governance').then((r) => {
+        if (!r.ok) throw new Error('Request failed')
+        return r.json()
+      }).catch(() => ({ hasPassword: false, hasManager: false, managerId: null, managerName: null })),
+      fetch('/api/teams').then((r) => {
+        if (!r.ok) throw new Error('Request failed')
+        return r.json()
+      }).catch(() => ({ teams: [] })),
+      fetch('/api/governance/transfers?status=pending').then((r) => {
+        if (!r.ok) throw new Error('Request failed')
+        return r.json()
+      }).catch(() => ({ requests: [] })),
     ])
       .then(([govData, teamsData, transfersData]) => {
         setHasPassword(govData.hasPassword ?? false)
@@ -85,7 +97,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
       .finally(() => {
         setLoading(false)
       })
-  }, [])
+  }, [agentId])
 
   // Fetch on mount and when agentId changes
   useEffect(() => {
@@ -163,31 +175,25 @@ export function useGovernance(agentId: string | null): GovernanceState {
           ? team.agentIds
           : [...team.agentIds, targetAgentId]
 
-        // Client-side multi-closed-team guard (R4.1) — server enforces too, this is a UX guard
-        if (team.type === 'closed' && !team.agentIds.includes(targetAgentId)) {
-          const isPrivileged = targetAgentId === managerId || allTeams.some(t => t.type === 'closed' && t.chiefOfStaffId === targetAgentId)
-          if (!isPrivileged) {
-            const otherClosedTeam = allTeams.find(t => t.type === 'closed' && t.id !== teamId && t.agentIds.includes(targetAgentId))
-            if (otherClosedTeam) {
-              return { success: false, error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team` }
-            }
-          }
-        }
+        // Server enforces team membership rules; no client-side allTeams check needed
+        // team.type is now required per types/team.ts
 
         const res = await fetch(`/api/teams/${teamId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentIds: updatedAgentIds }),
         })
-        const data = await res.json()
-        if (!res.ok) return { success: false, error: data.error || 'Failed to add agent to team' }
+        if (!res.ok) {
+          const errData = await res.json()
+          return { success: false, error: errData.error || 'Failed to add agent to team' }
+        }
         refresh()
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
       }
     },
-    [refresh, managerId, allTeams]
+    [refresh, managerId]
   )
 
   const removeAgentFromTeam = useCallback(
@@ -199,12 +205,12 @@ export function useGovernance(agentId: string | null): GovernanceState {
         const teamData = await teamRes.json()
         const team: Team = teamData.team
 
-        const updatedAgentIds = team.agentIds.filter((id: string) => id !== targetAgentId)
-
         // Client-side COS removal guard (R4.7) — cannot remove COS from agentIds, server enforces too
         if (team.chiefOfStaffId === targetAgentId) {
           return { success: false, error: 'Cannot remove the Chief-of-Staff from team members — remove the COS role first' }
         }
+
+        const updatedAgentIds = team.agentIds.filter((id: string) => id !== targetAgentId)
 
         const res = await fetch(`/api/teams/${teamId}`, {
           method: 'PUT',
@@ -223,7 +229,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
   )
 
   const requestTransfer = useCallback(
-    async (targetAgentId: string, fromTeamId: string, toTeamId: string, note?: string) => {
+    async (targetAgentId: string, fromTeamId: string, toTeamId: string, note?: string): Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }> => {
       try {
         const res = await fetch('/api/governance/transfers', {
           method: 'POST',
@@ -242,7 +248,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
   )
 
   const resolveTransfer = useCallback(
-    async (transferId: string, action: 'approve' | 'reject', rejectReason?: string) => {
+    async (transferId: string, action: 'approve' | 'reject', rejectReason?: string): Promise<{ success: boolean; error?: string }> => {
       try {
         const res = await fetch(`/api/governance/transfers/${transferId}/resolve`, {
           method: 'POST',

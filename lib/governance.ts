@@ -46,15 +46,10 @@ export function loadGovernance(): GovernanceConfig {
 }
 
 /** Write governance config to disk */
-export function saveGovernance(config: GovernanceConfig): boolean {
-  try {
-    ensureAimaestroDir()
-    fs.writeFileSync(GOVERNANCE_FILE, JSON.stringify(config, null, 2), 'utf-8')
-    return true
-  } catch (error) {
-    console.error('Failed to save governance config:', error)
-    return false
-  }
+export function saveGovernance(config: GovernanceConfig): void {
+  // Fail-fast: let errors propagate to callers (all wrapped in withLock try/catch)
+  ensureAimaestroDir()
+  fs.writeFileSync(GOVERNANCE_FILE, JSON.stringify(config, null, 2), 'utf-8')
 }
 
 /** Set governance password (bcrypt hash with 12 salt rounds) */

@@ -8,7 +8,7 @@
  * need mocking to allow the module to load.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ============================================================================
 // Mocks — needed for module loading, not for the functions under test
@@ -56,9 +56,8 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
 // Cleanup
 // ============================================================================
 
-afterEach(() => {
+beforeEach(() => {
   vi.clearAllMocks()
-  vi.restoreAllMocks()
 })
 
 // ============================================================================

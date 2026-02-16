@@ -19,7 +19,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const isChange = !!config.passwordHash
     await setPassword(password)
+
+    if (isChange) {
+      console.log('[governance] Password changed at', new Date().toISOString())
+    } else {
+      console.log('[governance] Password set at', new Date().toISOString())
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to set password:', error)

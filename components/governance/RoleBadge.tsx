@@ -18,30 +18,36 @@ export default function RoleBadge({ role, onClick, size = 'md' }: RoleBadgeProps
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'
 
   if (role === 'manager') {
-    return (
-      <button
-        onClick={onClick}
-        className={`inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
+    const classes = `inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
           bg-amber-500/20 text-amber-300 border-amber-500/30
-          ${onClick ? 'hover:bg-amber-500/30 cursor-pointer' : 'cursor-default'}`}
-      >
-        <Crown className={iconSize} />
-        MANAGER
+          ${onClick ? 'hover:bg-amber-500/30 cursor-pointer' : 'cursor-default'}`
+    const content = <><Crown className={iconSize} />MANAGER</>
+
+    return onClick ? (
+      <button type="button" onClick={onClick} className={classes}>
+        {content}
       </button>
+    ) : (
+      <span className={classes}>
+        {content}
+      </span>
     )
   }
 
   if (role === 'chief-of-staff') {
-    return (
-      <button
-        onClick={onClick}
-        className={`inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
+    const classes = `inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
           bg-indigo-500/20 text-indigo-300 border-indigo-500/30
-          ${onClick ? 'hover:bg-indigo-500/30 cursor-pointer' : 'cursor-default'}`}
-      >
-        <Shield className={iconSize} />
-        CHIEF-OF-STAFF
+          ${onClick ? 'hover:bg-indigo-500/30 cursor-pointer' : 'cursor-default'}`
+    const content = <><Shield className={iconSize} />CHIEF-OF-STAFF</>
+
+    return onClick ? (
+      <button type="button" onClick={onClick} className={classes}>
+        {content}
       </button>
+    ) : (
+      <span className={classes}>
+        {content}
+      </span>
     )
   }
 
@@ -50,6 +56,7 @@ export default function RoleBadge({ role, onClick, size = 'md' }: RoleBadgeProps
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`inline-flex items-center ${sizeClasses} rounded-full border border-dashed font-medium transition-colors
         border-gray-600 text-gray-500 hover:border-gray-500 hover:text-gray-400 cursor-pointer`}

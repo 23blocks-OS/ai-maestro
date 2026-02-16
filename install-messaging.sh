@@ -64,9 +64,9 @@ WARN="⚠️ "
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
-echo "║      AI Maestro - Agent Messaging Protocol (AMP) Installer    ║"
+echo "║     AI Maestro - Agent Messaging Protocol (AMP) Installer      ║"
 echo "║                                                                ║"
-echo "║              Email for AI Agents - Local First                ║"
+echo "║               Email for AI Agents - Local First                ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -824,7 +824,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     echo ""
     print_info "Checking installed skills..."
 
-    for skill in agent-messaging graph-query memory-search docs-search planning; do
+    for skill in agent-messaging graph-query memory-search docs-search planning ai-maestro-agents-management team-governance; do
         if [ -f ~/.claude/skills/"$skill"/SKILL.md ]; then
             print_success "$skill"
         else
@@ -835,7 +835,7 @@ fi
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║                    Installation Complete!                      ║"
+echo "║                     Installation Complete!                     ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 

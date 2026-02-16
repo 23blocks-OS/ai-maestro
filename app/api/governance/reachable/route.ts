@@ -42,12 +42,10 @@ export async function GET(request: NextRequest) {
     // Store in cache with TTL
     cache.set(agentId, { ids: reachableAgentIds, expiresAt: Date.now() + CACHE_TTL_MS })
 
-    // Evict stale entries to prevent unbounded growth
-    if (cache.size > 200) {
-      const now = Date.now()
-      for (const [key, entry] of cache) {
-        if (now >= entry.expiresAt) cache.delete(key)
-      }
+    // Evict stale/expired entries on every cache write to prevent unbounded growth
+    const now = Date.now()
+    for (const [key, entry] of cache) {
+      if (now >= entry.expiresAt) cache.delete(key)
     }
 
     return NextResponse.json({ reachableAgentIds })

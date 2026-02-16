@@ -243,6 +243,21 @@ describe('PUT /api/teams/[id]/documents/[docId]', () => {
     expect(res.status).toBe(404)
   })
 
+  it('returns 404 with "Document not found" when team does not exist', async () => {
+    /** PUT does not check team existence; it delegates to updateDocument which
+     *  loads an empty doc list for the non-existent team and fails to find the docId. */
+    const req = makeRequest('/api/teams/non-existent-team/documents/any-doc-id', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Updated' }),
+    })
+    const res = await updateDocumentRoute(req, makeParams('non-existent-team', 'any-doc-id') as any)
+
+    expect(res.status).toBe(404)
+    const data = await res.json()
+    expect(data.error).toBe('Document not found')
+  })
+
   it('updates document title', async () => {
     const team = await createTeam({ name: 'Update Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Original', content: '' })
@@ -301,6 +316,17 @@ describe('DELETE /api/teams/[id]/documents/[docId]', () => {
     const res = await deleteDocumentRoute(req, makeParams('team-1', 'non-existent') as any)
 
     expect(res.status).toBe(404)
+  })
+
+  it('returns 404 with "Document not found" when team does not exist', async () => {
+    /** DELETE does not check team existence; it delegates to deleteDocument which
+     *  loads an empty doc list for the non-existent team and finds nothing to delete. */
+    const req = makeRequest('/api/teams/non-existent-team/documents/any-doc-id', { method: 'DELETE' })
+    const res = await deleteDocumentRoute(req, makeParams('non-existent-team', 'any-doc-id') as any)
+
+    expect(res.status).toBe(404)
+    const data = await res.json()
+    expect(data.error).toBe('Document not found')
   })
 
   it('deletes document and returns success', async () => {

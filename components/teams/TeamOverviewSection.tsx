@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Users, Save, X, Plus, Trash2, ListTodo, FileText, Clock, RefreshCw, AlertCircle, Lock, Unlock, Shield } from 'lucide-react'
 import type { Team } from '@/types/team'
 import type { Agent } from '@/types/agent'
@@ -22,37 +22,79 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
   const [name, setName] = useState(team.name)
   const [description, setDescription] = useState(team.description || '')
   const [showAddAgent, setShowAddAgent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Sync local state when team prop changes (e.g. team switch or external update)
+  useEffect(() => {
+    setName(team.name)
+    setDescription(team.description || '')
+  }, [team.id, team.name, team.description])
 
   const teamAgents = agents.filter(a => team.agentIds.includes(a.id))
   const availableAgents = agents.filter(a => !team.agentIds.includes(a.id))
 
+  // Compute chief-of-staff display name from agents list
+  const cosDisplay = useMemo(() => {
+    const cosAgent = agents.find(a => a.id === team.chiefOfStaffId)
+    return cosAgent ? (cosAgent.label || cosAgent.name || cosAgent.alias || team.chiefOfStaffId) : team.chiefOfStaffId
+  }, [agents, team.chiefOfStaffId])
+
   const handleSaveName = async () => {
-    if (name.trim() && name !== team.name) {
-      await onUpdateTeam({ name: name.trim() })
+    try {
+      setError(null)
+      if (name.trim() && name !== team.name) {
+        await onUpdateTeam({ name: name.trim() })
+      }
+      setEditingName(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save name')
     }
-    setEditingName(false)
   }
 
   const handleSaveDesc = async () => {
-    if (description !== (team.description || '')) {
-      await onUpdateTeam({ description })
+    try {
+      setError(null)
+      if (description !== (team.description || '')) {
+        await onUpdateTeam({ description })
+      }
+      setEditingDesc(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save description')
     }
-    setEditingDesc(false)
   }
 
   const handleRemoveAgent = async (agentId: string) => {
-    const newIds = team.agentIds.filter(id => id !== agentId)
-    await onUpdateTeam({ agentIds: newIds })
+    try {
+      setError(null)
+      const newIds = team.agentIds.filter(id => id !== agentId)
+      await onUpdateTeam({ agentIds: newIds })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove agent')
+    }
   }
 
   const handleAddAgent = async (agentId: string) => {
-    const newIds = [...team.agentIds, agentId]
-    await onUpdateTeam({ agentIds: newIds })
-    setShowAddAgent(false)
+    try {
+      setError(null)
+      const newIds = [...team.agentIds, agentId]
+      await onUpdateTeam({ agentIds: newIds })
+      setShowAddAgent(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add agent')
+    }
   }
 
   return (
     <div className="p-6 max-w-3xl">
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="p-0.5 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
       {/* Team Name */}
       <div className="mb-6">
         {editingName ? (
@@ -96,10 +138,7 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
         <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
           <Shield className="w-4 h-4 text-indigo-400 flex-shrink-0" />
           <span className="text-sm text-indigo-300">
-            Chief-of-Staff: <strong>{(() => {
-              const cosAgent = agents.find(a => a.id === team.chiefOfStaffId)
-              return cosAgent ? (cosAgent.label || cosAgent.name || cosAgent.alias || team.chiefOfStaffId) : team.chiefOfStaffId
-            })()}</strong>
+            Chief-of-Staff: <strong>{cosDisplay}</strong>
           </span>
         </div>
       )}

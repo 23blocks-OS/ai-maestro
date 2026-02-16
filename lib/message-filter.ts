@@ -7,12 +7,12 @@
  * freely unless the recipient is inside a closed team.
  */
 
-import { isManager, isChiefOfStaffAnywhere, getClosedTeamsForAgent } from './governance'
+import { loadGovernance } from './governance'
+import { loadTeams } from './team-registry'
 
 export interface MessageFilterInput {
   senderAgentId: string | null // null = mesh-forwarded message
   recipientAgentId: string
-  isMeshForwarded?: boolean
 }
 
 export interface MessageFilterResult {
@@ -43,11 +43,21 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     return { allowed: true }
   }
 
-  // Load team membership for both parties — use plural to handle COS in multiple teams (R6.7)
-  const senderTeams = getClosedTeamsForAgent(senderAgentId)
-  const recipientTeams = getClosedTeamsForAgent(recipientAgentId)
+  // Single snapshot of all state — avoids redundant file reads from governance helpers
+  const teams = loadTeams()
+  const governance = loadGovernance()
+
+  // Derive closed-team membership from the single snapshot
+  const closedTeams = teams.filter(t => t.type === 'closed')
+  const senderTeams = closedTeams.filter(t => t.agentIds.includes(senderAgentId))
+  const recipientTeams = closedTeams.filter(t => t.agentIds.includes(recipientAgentId))
   const senderInClosed = senderTeams.length > 0
   const recipientInClosed = recipientTeams.length > 0
+
+  // Helper: is the given agentId the manager?
+  const agentIsManager = (id: string) => governance.managerId === id
+  // Helper: is the given agentId chief-of-staff in any closed team?
+  const agentIsCOS = (id: string) => closedTeams.some(t => t.chiefOfStaffId === id)
 
   // Step 2: Neither party is in a closed team — open world, allow freely (R6.4)
   if (!senderInClosed && !recipientInClosed) {
@@ -55,18 +65,18 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   }
 
   // Step 3: MANAGER can message anyone (R6.3)
-  if (isManager(senderAgentId)) {
+  if (agentIsManager(senderAgentId)) {
     return { allowed: true }
   }
 
   // Step 4: Sender is Chief-of-Staff of some closed team (R6.2)
-  if (isChiefOfStaffAnywhere(senderAgentId)) {
+  if (agentIsCOS(senderAgentId)) {
     // COS can always reach the MANAGER
-    if (isManager(recipientAgentId)) {
+    if (agentIsManager(recipientAgentId)) {
       return { allowed: true }
     }
     // COS-to-COS bridge: any COS can message any other COS
-    if (isChiefOfStaffAnywhere(recipientAgentId)) {
+    if (agentIsCOS(recipientAgentId)) {
       return { allowed: true }
     }
     // COS can message members of ANY of their closed teams (R6.7 — plural, not singular)

@@ -112,6 +112,10 @@ update_file() {
     fi
 }
 
+# Compute "Month Year" string for display versions in ai-index.html
+# e.g. "February 2026"
+MONTH_YEAR=$(date +"%B %Y")
+
 echo "Updating files..."
 echo ""
 
@@ -151,13 +155,29 @@ update_file "$PROJECT_ROOT/docs/index.html" \
     "<span>v$NEW_VERSION</span>" \
     "docs/index.html (display)"
 
-# 7. docs/ai-index.html
+# 7. docs/ai-index.html (schema softwareVersion)
 update_file "$PROJECT_ROOT/docs/ai-index.html" \
     "\"softwareVersion\": \"$CURRENT_VERSION\"" \
     "\"softwareVersion\": \"$NEW_VERSION\"" \
-    "docs/ai-index.html"
+    "docs/ai-index.html (schema)"
 
-# 8. docs/BACKLOG.md (current version header)
+# 8. docs/ai-index.html (Version: display text)
+if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
+    _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
+        "s|<strong>Version:</strong> $CURRENT_VERSION ([A-Za-z]* [0-9]*)|<strong>Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+    echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Version display)"
+    FILES_UPDATED=$((FILES_UPDATED + 1))
+fi
+
+# 9. docs/ai-index.html (Current Version: display text)
+if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
+    _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
+        "s|<strong>Current Version:</strong> $CURRENT_VERSION ([A-Za-z]* [0-9]*)|<strong>Current Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+    echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Current Version display)"
+    FILES_UPDATED=$((FILES_UPDATED + 1))
+fi
+
+# 10. docs/BACKLOG.md (current version header)
 if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/BACKLOG.md" "s|\*\*Current Version:\*\* v$CURRENT_VERSION|\*\*Current Version:\*\* v$NEW_VERSION|g"
     echo -e "  ${GREEN}✓${NC} docs/BACKLOG.md (header)"

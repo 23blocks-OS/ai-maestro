@@ -5,6 +5,7 @@ import { loadAgents } from '@/lib/agent-registry'
 import type { TeamType } from '@/types/governance'
 
 // GET /api/teams - List all teams
+// Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
 export async function GET() {
   const teams = loadTeams()
   return NextResponse.json({ teams })

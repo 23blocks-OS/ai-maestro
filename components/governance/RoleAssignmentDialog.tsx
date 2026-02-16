@@ -214,7 +214,7 @@ export default function RoleAssignmentDialog({
         {phase === 'select' && (
           <>
             {/* Header */}
-            <div className="bg-blue-500/10 border-b border-blue-500/20 px-6 py-4">
+            <div className="bg-blue-500/10 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -286,12 +286,9 @@ export default function RoleAssignmentDialog({
                     closedTeams.map((team) => {
                       const isChecked = selectedTeamIds.includes(team.id)
                       // Show current COS if it exists and is not this agent
-                      const existingCos =
-                        team.chiefOfStaffId && team.chiefOfStaffId !== agentId
-                          ? governance.allTeams.length > 0
-                            ? `(current COS: ${resolveAgentName(team.chiefOfStaffId)})`
-                            : null
-                          : null
+                      const existingCos = team.chiefOfStaffId && team.chiefOfStaffId !== agentId
+                        ? `(current COS: ${resolveAgentName(team.chiefOfStaffId)})`
+                        : null
 
                       return (
                         <label

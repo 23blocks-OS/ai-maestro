@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import path from 'path'
 import os from 'os'
 
@@ -305,5 +305,29 @@ describe('resolveTransferRequest', () => {
     const persisted = getTransferRequest('uuid-1')
     expect(persisted!.status).toBe('rejected')
     expect(persisted!.rejectReason).toBe('Agent is critical to current project')
+  })
+
+  it('returns null when approving an already-approved transfer (idempotency)', async () => {
+    /** Verifies that resolving an already-resolved transfer is a no-op and returns null */
+    await createTransferRequest({
+      agentId: 'agent-idem',
+      fromTeamId: 'team-src',
+      toTeamId: 'team-dst',
+      requestedBy: 'manager-idem',
+    })
+
+    // First approval succeeds
+    const first = await resolveTransferRequest('uuid-1', 'approved', 'cos-src')
+    expect(first).not.toBeNull()
+    expect(first!.status).toBe('approved')
+
+    // Second approval on the same (now non-pending) transfer returns null
+    const second = await resolveTransferRequest('uuid-1', 'approved', 'cos-src')
+    expect(second).toBeNull()
+
+    // Original resolution remains unchanged
+    const persisted = getTransferRequest('uuid-1')
+    expect(persisted!.status).toBe('approved')
+    expect(persisted!.resolvedBy).toBe('cos-src')
   })
 })

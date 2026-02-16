@@ -5,10 +5,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getTransferRequest, resolveTransferRequest } from '@/lib/transfer-registry'
-import { loadTeams, updateTeam, TeamValidationException } from '@/lib/team-registry'
+import { loadTeams, saveTeams, TeamValidationException } from '@/lib/team-registry'
 import { isManager, getManagerId, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
+import { acquireLock } from '@/lib/file-lock'
 
 export async function POST(
   request: NextRequest,
@@ -32,70 +33,96 @@ export async function POST(
       return NextResponse.json({ error: 'Transfer request not found' }, { status: 404 })
     }
     if (transferReq.status !== 'pending') {
-      return NextResponse.json({ error: 'Transfer request is already resolved' }, { status: 400 })
+      return NextResponse.json({ error: 'Transfer request is already resolved' }, { status: 409 })
     }
 
-    // Verify resolver has authority: must be COS of the source team or MANAGER
-    const teams = loadTeams()
-    const fromTeam = teams.find(t => t.id === transferReq.fromTeamId)
-    if (!fromTeam) {
-      return NextResponse.json({ error: 'Source team not found' }, { status: 404 })
-    }
-
-    const isSourceCOS = fromTeam.chiefOfStaffId === resolvedBy
-    const isGlobalManager = isManager(resolvedBy)
-
-    if (!isSourceCOS && !isGlobalManager) {
-      return NextResponse.json({ error: 'Only the source team COS or MANAGER can resolve this transfer' }, { status: 403 })
-    }
-
-    // Resolve the request
-    const resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
-    if (!resolved) {
-      return NextResponse.json({ error: 'Failed to resolve transfer request' }, { status: 500 })
-    }
-
-    // If approved, execute the actual transfer
-    const toTeam = teams.find(t => t.id === transferReq.toTeamId)
-    if (action === 'approve') {
-      // Verify destination team still exists (R5.5 — may have been deleted since request was created)
-      if (!toTeam) {
-        return NextResponse.json({ error: 'Destination team no longer exists — transfer cannot be completed' }, { status: 404 })
+    // Acquire teams lock for the entire read-validate-write cycle to prevent TOCTOU races.
+    // We use acquireLock directly (instead of withLock) because we need to return
+    // NextResponse objects from within the critical section.
+    const releaseLock = await acquireLock('teams')
+    let teams: ReturnType<typeof loadTeams>
+    let fromTeam: ReturnType<typeof loadTeams>[number] | undefined
+    let toTeam: ReturnType<typeof loadTeams>[number] | undefined
+    let resolved: Awaited<ReturnType<typeof resolveTransferRequest>> | undefined
+    try {
+      // Verify resolver has authority: must be COS of the source team or MANAGER
+      teams = loadTeams()
+      fromTeam = teams.find(t => t.id === transferReq.fromTeamId)
+      if (!fromTeam) {
+        return NextResponse.json({ error: 'Source team not found' }, { status: 404 })
       }
 
-      const managerId = getManagerId()
+      const isSourceCOS = fromTeam.chiefOfStaffId === resolvedBy
+      const isGlobalManager = isManager(resolvedBy)
 
-      // Multi-closed-team constraint check (R4.1, R5.7)
-      // If destination is a closed team and agent is normal (not MANAGER, not COS), verify constraint
-      if (toTeam.type === 'closed') {
-        const agentId = transferReq.agentId
-        const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
-        if (!isPrivileged) {
-          const otherClosedTeam = teams.find(t =>
-            t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
-          )
-          if (otherClosedTeam) {
-            return NextResponse.json({
-              error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team`,
-            }, { status: 409 })
+      if (!isSourceCOS && !isGlobalManager) {
+        return NextResponse.json({ error: 'Only the source team COS or MANAGER can resolve this transfer' }, { status: 403 })
+      }
+
+      // Resolve the request
+      resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
+      if (!resolved) {
+        return NextResponse.json({ error: 'Failed to resolve transfer request — concurrent resolve detected' }, { status: 409 })
+      }
+
+      // If approved, execute the actual transfer
+      toTeam = teams.find(t => t.id === transferReq.toTeamId)
+      if (action === 'approve') {
+        // Verify destination team still exists (R5.5 — may have been deleted since request was created)
+        if (!toTeam) {
+          return NextResponse.json({ error: 'Destination team no longer exists — transfer cannot be completed' }, { status: 404 })
+        }
+
+        const managerId = getManagerId()
+
+        // Multi-closed-team constraint check (R4.1, R5.7)
+        // If destination is a closed team and agent is normal (not MANAGER, not COS), verify constraint
+        if (toTeam.type === 'closed') {
+          const agentId = transferReq.agentId
+          const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
+          if (!isPrivileged) {
+            const otherClosedTeam = teams.find(t =>
+              t.type === 'closed' && t.id !== fromTeam!.id && t.id !== toTeam!.id && t.agentIds.includes(agentId)
+            )
+            if (otherClosedTeam) {
+              return NextResponse.json({
+                error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team`,
+              }, { status: 409 })
+            }
           }
         }
-      }
 
-      // Remove agent from source team
-      const fromTeamAgentIds = fromTeam.agentIds.filter(aid => aid !== transferReq.agentId)
-      await updateTeam(fromTeam.id, { agentIds: fromTeamAgentIds }, managerId)
+        // Remove agent from source team — direct mutation under the held lock
+        // (avoids calling updateTeam which would re-acquire the non-reentrant lock)
+        const fromIdx = teams.findIndex(t => t.id === fromTeam!.id)
+        if (fromIdx !== -1) {
+          teams[fromIdx] = {
+            ...teams[fromIdx],
+            agentIds: teams[fromIdx].agentIds.filter(aid => aid !== transferReq.agentId),
+            updatedAt: new Date().toISOString(),
+          }
+        }
 
-      // Add agent to destination team
-      if (!toTeam.agentIds.includes(transferReq.agentId)) {
-        const toTeamAgentIds = [...toTeam.agentIds, transferReq.agentId]
-        await updateTeam(toTeam.id, { agentIds: toTeamAgentIds }, managerId)
+        // Add agent to destination team — direct mutation under the held lock
+        const toIdx = teams.findIndex(t => t.id === toTeam!.id)
+        if (toIdx !== -1 && !teams[toIdx].agentIds.includes(transferReq.agentId)) {
+          teams[toIdx] = {
+            ...teams[toIdx],
+            agentIds: [...teams[toIdx].agentIds, transferReq.agentId],
+            updatedAt: new Date().toISOString(),
+          }
+        }
+
+        // Single atomic save for both team mutations
+        saveTeams(teams)
       }
+    } finally {
+      releaseLock()
     }
 
     // Notify the affected agent about the transfer resolution via tmux
     const affectedAgent = getAgent(transferReq.agentId)
-    if (affectedAgent) {
+    if (affectedAgent && fromTeam) {
       const resolverAgent = getAgent(resolvedBy)
       const resolverName = resolverAgent?.name || resolvedBy
       const statusText = action === 'approve' ? 'APPROVED' : 'REJECTED'
@@ -112,7 +139,7 @@ export async function POST(
         subject,
         messageId: id,
         priority: 'high',
-        messageType: 'notification',
+        messageType: 'transfer-resolution',
       }).catch((err) => {
         console.error(`[TransferResolve] Failed to notify agent ${affectedAgent.name}:`, err)
       })
@@ -120,6 +147,9 @@ export async function POST(
 
     return NextResponse.json({ success: true, request: resolved })
   } catch (error) {
+    if (error instanceof TeamValidationException) {
+      return NextResponse.json({ error: error.message }, { status: error.code })
+    }
     console.error('Error resolving transfer:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

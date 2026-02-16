@@ -59,6 +59,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
   const toInputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+  const copyDropdownRef = useRef<HTMLDivElement>(null)
 
   // Toast notification state (replaces native alert/confirm)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -407,7 +408,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     fetchSentMessages()
     fetchUnreadCount()
     fetchSentCount()
-  }, [messageIdentifier, isActive])
+  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
 
   // Polling - only when active
   useEffect(() => {
@@ -419,13 +420,12 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
       fetchSentCount()
     }, 10000)
     return () => clearInterval(interval)
-  }, [messageIdentifier, isActive])
+  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
 
-  // Close dropdown when clicking outside
+  // Close copy dropdown when clicking outside its container
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest('.relative')) {
+      if (copyDropdownRef.current && !copyDropdownRef.current.contains(event.target as Node)) {
         setShowCopyDropdown(false)
       }
     }
@@ -739,7 +739,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className={`text-sm font-semibold truncate ${msg.status === 'unread' ? 'text-gray-100' : 'text-gray-300'}`}>
-                              {(msg as any).fromLabel || msg.fromAlias || msg.from}
+                              {msg.fromLabel || msg.fromAlias || msg.from}
                             </span>
                             {getPriorityIcon(msg.priority)}
                           </div>
@@ -791,10 +791,10 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                       <span className="font-medium text-sm text-gray-400 mt-0.5 flex-shrink-0">From:</span>
                       {/* Verified/External indicator */}
                       <span
-                        className={`flex items-center mt-0.5 flex-shrink-0 ${(selectedMessage as any).fromVerified !== false ? 'text-green-400' : 'text-blue-400'}`}
-                        title={(selectedMessage as any).fromVerified !== false ? 'AI Maestro Agent' : 'External Agent'}
+                        className={`flex items-center mt-0.5 flex-shrink-0 ${selectedMessage.fromVerified !== false ? 'text-green-400' : 'text-blue-400'}`}
+                        title={selectedMessage.fromVerified !== false ? 'AI Maestro Agent' : 'External Agent'}
                       >
-                        {(selectedMessage as any).fromVerified !== false ? (
+                        {selectedMessage.fromVerified !== false ? (
                           <ShieldCheck className="w-4 h-4" />
                         ) : (
                           <Globe className="w-4 h-4" />
@@ -802,7 +802,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-200 truncate">
-                          {(selectedMessage as any).fromLabel || selectedMessage.fromAlias || selectedMessage.from}
+                          {selectedMessage.fromLabel || selectedMessage.fromAlias || selectedMessage.from}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span className="truncate">{selectedMessage.fromAlias || selectedMessage.from}@{selectedMessage.fromHost || 'unknown-host'}</span>
@@ -814,7 +814,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     {/* Copy Button with Dropdown */}
-                    <div className="relative">
+                    <div ref={copyDropdownRef} className="relative">
                       <button
                         onClick={() => setShowCopyDropdown(!showCopyDropdown)}
                         className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
@@ -962,7 +962,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-gray-300 truncate">
-                              {(msg as any).toLabel || msg.toAlias || msg.to}
+                              {msg.toLabel || msg.toAlias || msg.to}
                             </span>
                             {getPriorityIcon(msg.priority)}
                           </div>
@@ -1016,7 +1016,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                       <span className="font-medium text-sm text-gray-400 mt-0.5 flex-shrink-0">To:</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-200 truncate">
-                          {(selectedMessage as any).toLabel || selectedMessage.toAlias || selectedMessage.to}
+                          {selectedMessage.toLabel || selectedMessage.toAlias || selectedMessage.to}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span className="truncate">{selectedMessage.toAlias || selectedMessage.to}@{selectedMessage.toHost || 'unknown-host'}</span>
@@ -1028,7 +1028,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     {/* Copy Button with Dropdown */}
-                    <div className="relative">
+                    <div ref={copyDropdownRef} className="relative">
                       <button
                         onClick={() => setShowCopyDropdown(!showCopyDropdown)}
                         className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
@@ -1234,12 +1234,13 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
 
             <div className="flex gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label htmlFor="compose-priority" className="block text-sm font-medium text-gray-300 mb-1">
                   Priority:
                 </label>
                 <select
+                  id="compose-priority"
                   value={composePriority}
-                  onChange={(e) => setComposePriority(e.target.value as any)}
+                  onChange={(e) => setComposePriority(e.target.value as 'low' | 'normal' | 'high' | 'urgent')}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="low">Low</option>
@@ -1250,12 +1251,13 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
               </div>
 
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label htmlFor="compose-type" className="block text-sm font-medium text-gray-300 mb-1">
                   Type:
                 </label>
                 <select
+                  id="compose-type"
                   value={composeType}
-                  onChange={(e) => setComposeType(e.target.value as any)}
+                  onChange={(e) => setComposeType(e.target.value as 'request' | 'response' | 'notification' | 'update')}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="request">Request</option>

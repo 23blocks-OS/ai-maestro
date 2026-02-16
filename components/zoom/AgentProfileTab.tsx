@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Trash2,
   Cloud, Monitor, Wifi, WifiOff, Folder, Download, Send,
   GitBranch, FolderGit2, RefreshCw, AlertTriangle,
-  FolderTree, X, Terminal
+  FolderTree, X, Terminal, Crown, Shield
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, Repository } from '@/types/agent'
 import TransferAgentDialog from '@/components/TransferAgentDialog'
@@ -18,7 +18,6 @@ import SkillsSection from '@/components/SkillsSection'
 import { AgentSkillEditor } from '@/components/marketplace'
 import AvatarPicker from '@/components/AvatarPicker'
 import EmailAddressesSection from '@/components/EmailAddressesSection'
-import { Crown, Shield } from 'lucide-react'
 import { useGovernance } from '@/hooks/useGovernance'
 import RoleBadge from '@/components/governance/RoleBadge'
 import RoleAssignmentDialog from '@/components/governance/RoleAssignmentDialog'

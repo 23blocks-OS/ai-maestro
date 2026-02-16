@@ -20,10 +20,6 @@ import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
 
 // ============================================================================
 // THROTTLING: Limit concurrent Delta Index operations to prevent CPU overload
@@ -253,10 +249,9 @@ async function autoDiscoverProjects(
 // ============================================================================
 async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string | null> {
   try {
-    const { stdout } = await execAsync(
-      `tmux display-message -t "${sessionName}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
-    )
-    const pwd = stdout.trim()
+    const { getRuntime } = await import('@/lib/agent-runtime')
+    const runtime = getRuntime()
+    const pwd = await runtime.getWorkingDirectory(sessionName)
     return pwd || null
   } catch {
     return null

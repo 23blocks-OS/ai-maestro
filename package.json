@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.23.9",
+  "version": "0.24.0",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -29,6 +29,8 @@
     "dev:linux": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
     "build": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build",
     "start": "NODE_ENV=production NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
+    "headless": "MAESTRO_MODE=headless tsx server.mjs",
+    "headless:prod": "NODE_ENV=production MAESTRO_MODE=headless tsx server.mjs",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest"

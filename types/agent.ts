@@ -215,6 +215,9 @@ export interface Agent {
   // Hooks (event-triggered scripts)
   hooks?: Record<string, string>  // event -> script path
 
+  // Runtime type (default: 'tmux') — future: 'docker' | 'api' | 'direct'
+  runtime?: 'tmux' | 'docker' | 'api' | 'direct'
+
   // Runtime state (set by API, not persisted)
   session?: AgentSessionStatus   // Live tmux session status
   isOrphan?: boolean             // True if session exists but agent was auto-registered

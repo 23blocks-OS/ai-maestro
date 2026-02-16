@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { sendTestWebhook } from '@/lib/webhook-service'
+import { testWebhookById } from '@/services/webhooks-service'
 
 /**
  * POST /api/webhooks/[id]/test
@@ -7,25 +7,13 @@ import { sendTestWebhook } from '@/lib/webhook-service'
  */
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const success = await sendTestWebhook(params.id)
+  const { id } = await params
+  const result = await testWebhookById(id)
 
-    return NextResponse.json({
-      success,
-      message: success
-        ? 'Test webhook delivered successfully'
-        : 'Test webhook delivery failed',
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send test webhook'
-
-    if (message.includes('not found')) {
-      return NextResponse.json({ error: message }, { status: 404 })
-    }
-
-    console.error('Failed to send test webhook:', error)
-    return NextResponse.json({ error: message }, { status: 500 })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }

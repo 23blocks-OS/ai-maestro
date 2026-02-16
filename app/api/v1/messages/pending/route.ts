@@ -2,134 +2,41 @@
  * AMP v1 Pending Messages Endpoint
  *
  * GET /api/v1/messages/pending?limit=10
- *   - List pending (queued) messages for the authenticated agent
- *   - Requires Bearer token authentication
- *
  * DELETE /api/v1/messages/pending?id=<messageId>
- *   - Acknowledge receipt of a message (removes from queue)
+ * POST /api/v1/messages/pending (batch ack)
  *
- * POST /api/v1/messages/pending/ack
- *   - Batch acknowledge multiple messages
- *   - Body: { "ids": ["msg_001", "msg_002", ...] }
+ * Thin wrapper - business logic in services/amp-service.ts
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticateRequest } from '@/lib/amp-auth'
-import {
-  getPendingMessages,
-  acknowledgeMessage,
-  acknowledgeMessages,
-  cleanupAllExpiredMessages
-} from '@/lib/amp-relay'
-
-// Lazy cleanup: run at most once per hour (S14 fix)
-let _lastCleanupAt = 0
-const CLEANUP_INTERVAL_MS = 60 * 60 * 1000
-function lazyCleanup() {
-  const now = Date.now()
-  if (now - _lastCleanupAt > CLEANUP_INTERVAL_MS) {
-    _lastCleanupAt = now
-    try { cleanupAllExpiredMessages() } catch { /* non-fatal */ }
-  }
-}
+import { listPendingMessages, acknowledgePendingMessage, batchAcknowledgeMessages } from '@/services/amp-service'
 import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
 
-/**
- * GET /api/v1/messages/pending
- * List pending messages for the authenticated agent
- */
 export async function GET(request: NextRequest): Promise<NextResponse<AMPPendingMessagesResponse | AMPError>> {
-  // Lazy cleanup of expired relay messages (runs at most once per hour)
-  lazyCleanup()
-
-  // Authenticate request
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
-
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  // Parse query parameters
   const { searchParams } = new URL(request.url)
   const limitParam = searchParams.get('limit')
-  const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 10
+  const limit = limitParam ? parseInt(limitParam, 10) : undefined
 
-  // Get pending messages for this agent (UUID-only, no name fallback)
-  const result = getPendingMessages(auth.agentId!, limit)
-
-  return NextResponse.json(result, {
-    status: 200,
-    headers: {
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    }
+  const result = listPendingMessages(authHeader, limit)
+  return NextResponse.json(result.data!, {
+    status: result.status,
+    headers: result.headers
   })
 }
 
-/**
- * DELETE /api/v1/messages/pending?id=<messageId>
- * Acknowledge receipt of a single message
- */
 export async function DELETE(request: NextRequest): Promise<NextResponse<{ acknowledged: boolean } | AMPError>> {
-  // Authenticate request
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
-
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  // Get message ID from query params
   const { searchParams } = new URL(request.url)
   const messageId = searchParams.get('id')
 
-  if (!messageId) {
-    return NextResponse.json({
-      error: 'missing_field',
-      message: 'Message ID required (use ?id=<messageId>)',
-      field: 'id'
-    } as AMPError, { status: 400 })
-  }
-
-  // Acknowledge the message (UUID-only, no name fallback)
-  const acknowledged = acknowledgeMessage(auth.agentId!, messageId)
-
-  if (!acknowledged) {
-    return NextResponse.json({
-      error: 'not_found',
-      message: `Message ${messageId} not found in pending queue`
-    } as AMPError, { status: 404 })
-  }
-
-  return NextResponse.json({ acknowledged: true })
+  const result = acknowledgePendingMessage(authHeader, messageId)
+  return NextResponse.json(result.data!, { status: result.status })
 }
 
-/**
- * POST /api/v1/messages/pending/ack
- * Batch acknowledge multiple messages
- * Note: This route is defined here but Next.js doesn't support nested routes well
- * The actual batch endpoint would be at /api/v1/messages/pending/ack/route.ts
- * For now, we handle it via POST to this endpoint with body
- */
 export async function POST(request: NextRequest): Promise<NextResponse<{ acknowledged: number } | AMPError>> {
-  // Authenticate request
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
 
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  // Parse body
   let body: { ids?: string[] }
   try {
     body = await request.json()
@@ -140,24 +47,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
     } as AMPError, { status: 400 })
   }
 
-  if (!body.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
-    return NextResponse.json({
-      error: 'missing_field',
-      message: 'ids array required',
-      field: 'ids'
-    } as AMPError, { status: 400 })
-  }
-
-  // Limit batch size
-  if (body.ids.length > 100) {
-    return NextResponse.json({
-      error: 'invalid_request',
-      message: 'Maximum 100 messages per batch'
-    } as AMPError, { status: 400 })
-  }
-
-  // Acknowledge messages (UUID-only, no name fallback)
-  const acknowledged = acknowledgeMessages(auth.agentId!, body.ids)
-
-  return NextResponse.json({ acknowledged })
+  const result = batchAcknowledgeMessages(authHeader, body.ids)
+  return NextResponse.json(result.data!, { status: result.status })
 }

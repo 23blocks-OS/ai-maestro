@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as fs from 'fs'
+import { parseConversationFile } from '@/services/config-service'
 
 /**
  * POST /api/conversations/parse
- * Parse a JSONL conversation file and return messages with metadata
+ * Parse a JSONL conversation file and return messages with metadata.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -12,152 +12,20 @@ export async function POST(request: NextRequest) {
 
     console.log('[Parse Conversation] Request for file:', conversationFile)
 
-    if (!conversationFile) {
-      console.error('[Parse Conversation] Missing conversationFile parameter')
+    const result = parseConversationFile(conversationFile)
+
+    if (result.error) {
       return NextResponse.json(
-        { success: false, error: 'conversationFile is required' },
-        { status: 400 }
+        { success: false, error: result.error },
+        { status: result.status }
       )
     }
 
-    // Check if file exists
-    if (!fs.existsSync(conversationFile)) {
-      console.error('[Parse Conversation] File not found:', conversationFile)
-      return NextResponse.json(
-        { success: false, error: `Conversation file not found: ${conversationFile}` },
-        { status: 404 }
-      )
-    }
-
-    // Read the JSONL file
-    const fileContent = fs.readFileSync(conversationFile, 'utf-8')
-    const lines = fileContent.split('\n').filter(line => line.trim())
-
-    // Parse all messages
-    const messages = []
-    const metadata: {
-      sessionId?: string
-      cwd?: string
-      gitBranch?: string
-      claudeVersion?: string
-      model?: string
-      firstMessageAt?: Date
-      lastMessageAt?: Date
-      totalMessages: number
-      toolsUsed: Set<string>
-    } = {
-      totalMessages: 0,
-      toolsUsed: new Set()
-    }
-
-    for (const line of lines) {
-      try {
-        const message = JSON.parse(line)
-
-        // Extract thinking blocks from assistant messages
-        // Thinking messages are nested in assistant message content arrays
-        if (message.type === 'assistant' && message.message?.content) {
-          const content = message.message.content
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === 'thinking' && block.thinking) {
-                // Create a standalone thinking message
-                messages.push({
-                  type: 'thinking',
-                  thinking: block.thinking,
-                  signature: block.signature,
-                  timestamp: message.timestamp,
-                  uuid: message.uuid,
-                  sessionId: message.sessionId
-                })
-                metadata.totalMessages++
-                console.log('[Parse] Extracted thinking message from assistant content')
-              }
-            }
-          }
-        }
-
-        // Detect skill expansion messages
-        // These are user-typed messages that contain skill content
-        if (message.type === 'user' && message.message?.content) {
-          const content = typeof message.message.content === 'string'
-            ? message.message.content
-            : Array.isArray(message.message.content)
-              ? message.message.content.find((b: any) => b.type === 'text')?.text || ''
-              : ''
-
-          // Check if this is a skill expansion message
-          if (content.includes('Base directory for this skill:') ||
-              content.includes('<skill>') ||
-              content.match(/^#\s+\w+/m)) { // Starts with markdown header after skill expansion
-            message.isSkill = true
-            message.originalType = message.type
-            message.type = 'skill'
-          }
-        }
-
-        // Extract metadata from early messages
-        if (!metadata.sessionId && message.sessionId) {
-          metadata.sessionId = message.sessionId
-        }
-        if (!metadata.cwd && message.cwd) {
-          metadata.cwd = message.cwd
-        }
-        if (!metadata.gitBranch && message.gitBranch) {
-          metadata.gitBranch = message.gitBranch
-        }
-        if (!metadata.claudeVersion && message.version) {
-          metadata.claudeVersion = message.version
-        }
-        if (!metadata.model && message.message?.model) {
-          metadata.model = message.message.model
-        }
-
-        // Track timestamps
-        if (message.timestamp) {
-          const ts = new Date(message.timestamp)
-          if (!metadata.firstMessageAt || ts < metadata.firstMessageAt) {
-            metadata.firstMessageAt = ts
-          }
-          if (!metadata.lastMessageAt || ts > metadata.lastMessageAt) {
-            metadata.lastMessageAt = ts
-          }
-        }
-
-        // Track tool usage
-        if (message.type === 'tool_use' && message.toolName) {
-          metadata.toolsUsed.add(message.toolName)
-        }
-
-        // Add message to list
-        messages.push(message)
-        metadata.totalMessages++
-      } catch (parseErr) {
-        // Skip malformed lines
-        console.error('[Parse Conversation] Failed to parse line:', parseErr)
-        console.error('[Parse Conversation] Problematic line:', line.substring(0, 200))
-      }
-    }
-
-    // Debug: Check thinking messages before returning
-    const thinkingMessages = messages.filter(m => m.type === 'thinking')
-    console.log('[Parse] Returning', messages.length, 'messages,', thinkingMessages.length, 'thinking messages')
-
-    return NextResponse.json({
-      success: true,
-      messages,
-      metadata: {
-        ...metadata,
-        toolsUsed: Array.from(metadata.toolsUsed)
-      }
-    })
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     console.error('[Parse Conversation] Error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

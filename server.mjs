@@ -1,6 +1,5 @@
 import { createServer } from 'http'
 import { parse } from 'url'
-import next from 'next'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -70,12 +69,11 @@ const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
 const port = parseInt(process.env.PORT || '23000', 10)
 
+// Server mode: 'full' (default) = Next.js + UI, 'headless' = API-only (no Next.js)
+const MAESTRO_MODE = process.env.MAESTRO_MODE || 'full'
+
 // Global logging master switch - set ENABLE_LOGGING=true to enable all logging
 const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
-
-// Initialize Next.js
-const app = next({ dev, hostname, port })
-const handle = app.getRequestHandler()
 
 // Session state management
 const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
@@ -386,7 +384,12 @@ global.terminalSessions = sessions  // PTY processes per session
 global.statusSubscribers = statusSubscribers
 global.broadcastStatusUpdate = broadcastStatusUpdate
 
-app.prepare().then(() => {
+/**
+ * Start the HTTP server with the given request handler.
+ * All WebSocket servers, PTY handling, startup tasks, and graceful shutdown
+ * are shared between full and headless modes.
+ */
+async function startServer(handleRequest) {
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true)
@@ -414,7 +417,7 @@ app.prepare().then(() => {
         return
       }
 
-      await handle(req, res, parsedUrl)
+      await handleRequest(req, res, parsedUrl)
     } catch (err) {
       console.error('Error handling request:', err)
       res.statusCode = 500
@@ -852,10 +855,8 @@ app.prepare().then(() => {
         try {
           // Verify tmux session exists before attempting to attach
           if (attempt === 1) {
-            const { execSync } = await import('child_process')
-            try {
-              execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { timeout: 2000 })
-            } catch {
+            const { sessionExistsSync } = await import('./lib/agent-runtime.ts')
+            if (!sessionExistsSync(sessionName)) {
               // tmux session does not exist
               console.error(`[PTY] tmux session "${sessionName}" does not exist`)
               try {
@@ -870,7 +871,9 @@ app.prepare().then(() => {
             }
           }
 
-          ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+          const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
+          const { command: attachCmd, args: attachArgs } = getRt().getAttachCommand(sessionName)
+          ptyProcess = pty.spawn(attachCmd, attachArgs, {
             name: 'xterm-256color',
             cols: 80,
             rows: 24,
@@ -1028,21 +1031,14 @@ app.prepare().then(() => {
     // The client can start typing immediately; history loads in the background
     setTimeout(async () => {
       try {
-        const { exec } = await import('child_process')
-        const { promisify } = await import('util')
-        const execAsync = promisify(exec)
+        const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
+        const runtime = getRt()
 
         let historyContent = ''
         try {
           // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
-          // The -e flag was causing terminal query responses like ">0;276;0c" to appear
-          // The -S -2000 flag captures scrollback history, not just visible pane
           // Reduced from 5000 to 2000 for faster loading
-          const { stdout } = await execAsync(
-            `tmux capture-pane -t "${sessionName}" -p -S -2000 2>/dev/null || tmux capture-pane -t "${sessionName}" -p`,
-            { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
-          )
-          historyContent = stdout
+          historyContent = await runtime.capturePane(sessionName, 2000)
         } catch (historyError) {
           console.error('Failed to capture history:', historyError)
         }
@@ -1265,4 +1261,39 @@ app.prepare().then(() => {
   // Handle both SIGTERM and SIGINT
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
   process.on('SIGINT', () => gracefulShutdown('SIGINT'))
-})
+}
+
+// =============================================================================
+// MODE BRANCHING: full (Next.js + UI) vs headless (API-only)
+// =============================================================================
+
+if (MAESTRO_MODE === 'headless') {
+  // Headless mode: standalone HTTP router, no Next.js
+  import('./services/headless-router.ts').then(({ createHeadlessRouter }) => {
+    const router = createHeadlessRouter()
+
+    startServer(async (req, res, _parsedUrl) => {
+      const handled = await router.handle(req, res)
+      if (!handled) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Not found' }))
+      }
+    })
+
+    console.log(`> Headless mode (API-only, no UI)`)
+  }).catch((err) => {
+    console.error('[Headless] Failed to load router:', err)
+    process.exit(1)
+  })
+} else {
+  // Full mode: Next.js handles all requests (pages + API routes)
+  const next = (await import('next')).default
+  const app = next({ dev, hostname, port })
+  const handle = app.getRequestHandler()
+
+  await app.prepare()
+
+  startServer(async (req, res, parsedUrl) => {
+    await handle(req, res, parsedUrl)
+  })
+}

@@ -157,9 +157,15 @@ function aggregateResults(results: HostFetchResult[]): {
     }
   }
 
+  // Filter out system agents (prefixed with _aim-) from the public list
+  const publicAgents = allAgents.filter(a => {
+    const name = a.name || a.alias || ''
+    return !name.startsWith('_aim-')
+  })
+
   // OPTIMIZED: Use toSorted() for immutability instead of sort() which mutates
   // Sort: online first, then alphabetically by alias
-  const sortedAgents = allAgents.toSorted((a, b) => {
+  const sortedAgents = publicAgents.toSorted((a, b) => {
     // Online first
     if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
     if (a.session?.status !== 'online' && b.session?.status === 'online') return 1

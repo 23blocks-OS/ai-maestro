@@ -8,6 +8,7 @@ interface ForwardDialogProps {
   messageId: string
   fromAgentId: string
   allAgents: AgentRecipient[]
+  reachableAgentIds?: string[] | null  // null = no filtering (all reachable)
   onConfirm: (toAgentId: string, note: string) => Promise<void>
   onCancel: () => void
 }
@@ -16,6 +17,7 @@ export default function ForwardDialog({
   messageId,
   fromAgentId,
   allAgents,
+  reachableAgentIds,
   onConfirm,
   onCancel,
 }: ForwardDialogProps) {
@@ -40,6 +42,11 @@ export default function ForwardDialog({
   // Filter out current agent from options
   const availableAgents = allAgents.filter(a => a.id !== fromAgentId)
 
+  // Apply governance filtering: exclude unreachable agents if governance data available
+  const governanceFilteredAgents = reachableAgentIds
+    ? availableAgents.filter(agent => reachableAgentIds.includes(agent.id))
+    : availableAgents
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
@@ -62,21 +69,25 @@ export default function ForwardDialog({
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Forward to agent:
             </label>
-            <select
-              id="forward-agent-select"
-              name="forwardAgent"
-              value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isForwarding}
-            >
-              <option value="">Select an agent...</option>
-              {availableAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.alias}
-                </option>
-              ))}
-            </select>
+            {governanceFilteredAgents.length === 0 ? (
+              <p className="text-sm text-amber-400">No agents available to forward to due to team governance restrictions.</p>
+            ) : (
+              <select
+                id="forward-agent-select"
+                name="forwardAgent"
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isForwarding}
+              >
+                <option value="">Select an agent...</option>
+                {governanceFilteredAgents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.alias}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Forward Note */}

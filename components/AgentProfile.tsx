@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown,
   Cloud, Monitor, Server, Play, Wifi, WifiOff, Folder, Download, Send,
   GitBranch, FolderGit2, RefreshCw, ExternalLink, AlertTriangle, Brain,
-  FolderTree, Terminal
+  FolderTree, Terminal, Crown, Shield
 } from 'lucide-react'
 import type { Agent, AgentDocumentation, AgentSessionStatus, Repository } from '@/types/agent'
 import TransferAgentDialog from './TransferAgentDialog'
@@ -19,6 +19,10 @@ import SkillsSection from './SkillsSection'
 import { AgentSkillEditor } from './marketplace'
 import AvatarPicker from './AvatarPicker'
 import EmailAddressesSection from './EmailAddressesSection'
+import { useGovernance } from '@/hooks/useGovernance'
+import RoleBadge from '@/components/governance/RoleBadge'
+import RoleAssignmentDialog from '@/components/governance/RoleAssignmentDialog'
+import TeamMembershipSection from '@/components/governance/TeamMembershipSection'
 
 interface AgentProfileProps {
   isOpen: boolean
@@ -44,8 +48,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showRoleDialog, setShowRoleDialog] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
+
+  const governance = useGovernance(agentId || null)
 
   // Repository state
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -282,7 +289,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           <>
             {/* Header */}
             <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-gray-100">Agent Profile</h2>
+                <RoleBadge role={governance.agentRole} size="sm" onClick={() => setShowRoleDialog(true)} />
+              </div>
               <div className="flex items-center gap-2">
                 {/* Export Button */}
                 <button
@@ -464,23 +474,39 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                         </div>
                       </div>
                     </div>
-                    {/* Owner and Team */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <EditableField
-                        label="Owner"
-                        value={agent.owner || ''}
-                        onChange={(value) => updateField('owner', value)}
-                        icon={<User className="w-4 h-4" />}
-                        placeholder="Owner name"
-                      />
-                      <EditableField
-                        label="Team"
-                        value={agent.team || ''}
-                        onChange={(value) => updateField('team', value)}
-                        icon={<Building2 className="w-4 h-4" />}
-                        placeholder="Team name"
+                    {/* Owner */}
+                    <EditableField
+                      label="Owner"
+                      value={agent.owner || ''}
+                      onChange={(value) => updateField('owner', value)}
+                      icon={<User className="w-4 h-4" />}
+                      placeholder="Owner name"
+                    />
+
+                    {/* Governance Role */}
+                    <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <Shield className="w-4 h-4" />
+                        <span>Governance Role</span>
+                      </div>
+                      <RoleBadge
+                        role={governance.agentRole}
+                        onClick={() => setShowRoleDialog(true)}
                       />
                     </div>
+
+                    {/* Team Membership (replaces free-text Team field) */}
+                    <TeamMembershipSection
+                      agentId={agent.id}
+                      agentRole={governance.agentRole}
+                      memberTeams={governance.memberTeams}
+                      allTeams={governance.allTeams}
+                      onJoinTeam={(teamId) => governance.addAgentToTeam(teamId, agent.id)}
+                      onLeaveTeam={(teamId) => governance.removeAgentFromTeam(teamId, agent.id)}
+                      pendingTransfers={governance.pendingTransfers}
+                      onRequestTransfer={(aid, from, to) => governance.requestTransfer(aid, from, to)}
+                      onResolveTransfer={(tid, action) => governance.resolveTransfer(tid, action)}
+                    />
                   </div>
                 )}
               </section>
@@ -1125,6 +1151,19 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
           agentId={agent.id}
           agentAlias={agent.name || agent.alias || ''}
           agentDisplayName={agent.label}
+        />
+      )}
+
+      {/* Role Assignment Dialog */}
+      {agent && (
+        <RoleAssignmentDialog
+          isOpen={showRoleDialog}
+          onClose={() => setShowRoleDialog(false)}
+          agentId={agent.id}
+          agentName={agent.label || agent.name || ''}
+          currentRole={governance.agentRole}
+          governance={governance}
+          onRoleChanged={() => governance.refresh()}
         />
       )}
 

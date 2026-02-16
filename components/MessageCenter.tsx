@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle } from 'lucide-react'
+import { Mail, Send, Inbox, Archive, Trash2, AlertCircle, Clock, CheckCircle, Forward, Copy, ChevronDown, Server, ShieldCheck, Globe, HelpCircle, Lock, AlertTriangle, X } from 'lucide-react'
 import type { Message, MessageSummary } from '@/lib/messageQueue'
 
 /**
@@ -69,6 +69,10 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }, [])
+
+  // Governance reachability state
+  const [reachableAgentIds, setReachableAgentIds] = useState<string[] | null>(null) // null = not loaded yet
+  const [governanceError, setGovernanceError] = useState<string | null>(null)
 
   // External agent info toggle
   const [showExternalAgentInfo, setShowExternalAgentInfo] = useState(false)
@@ -233,7 +237,11 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           setView('inbox')
           showToast('Message sent successfully!', 'success')
         } else {
-          showToast('Failed to send message', 'error')
+          const errorData = await response.json().catch(() => ({ error: 'Send failed' }))
+          if (errorData.error?.includes('governance') || errorData.error?.includes('closed team') || response.status === 403) {
+            setGovernanceError(errorData.error || 'Message blocked by team governance policy')
+          }
+          showToast(errorData.error || 'Failed to send message', 'error')
         }
       }
     } catch (error) {
@@ -374,6 +382,24 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     setView('compose')
   }
 
+  // Fetch reachable agents for governance filtering
+  useEffect(() => {
+    const fetchReachable = async () => {
+      try {
+        if (!agentId) return
+        const res = await fetch(`${apiBaseUrl}/api/governance/reachable?agentId=${agentId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setReachableAgentIds(data.reachableAgentIds)
+        }
+      } catch {
+        // If endpoint not available, allow all agents (backwards compatible)
+        setReachableAgentIds(null)
+      }
+    }
+    fetchReachable()
+  }, [agentId, apiBaseUrl])
+
   // Only fetch when this agent is active (prevents API flood with 40+ agents)
   useEffect(() => {
     if (!isActive) return
@@ -478,6 +504,11 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
 
   // Select an agent from suggestions
   const selectAgent = (agent: AgentRecipient) => {
+    // Block selection of unreachable agents per governance policy
+    if (reachableAgentIds !== null && !reachableAgentIds.includes(agent.id)) {
+      setGovernanceError(`Cannot message ${agent.alias} — agent is in a closed team you cannot reach`)
+      return
+    }
     // Use technical name for messaging, include host for cross-host compatibility
     const hostId = agent.hostId || 'unknown-host'
     const value = `${agent.name}@${hostId}`
@@ -1104,7 +1135,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                 aria-autocomplete="list"
                 aria-expanded={showAgentSuggestions}
                 value={composeTo}
-                onChange={(e) => setComposeTo(e.target.value)}
+                onChange={(e) => { setComposeTo(e.target.value); setGovernanceError(null) }}
                 onKeyDown={handleToKeyDown}
                 onFocus={() => composeTo && filteredAgents.length > 0 && setShowAgentSuggestions(true)}
                 autoComplete="off"
@@ -1123,11 +1154,14 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                   {filteredAgents.map((agent, index) => {
                     const display = formatAgentDisplay(agent)
                     const isSelected = index === selectedSuggestionIndex
+                    const isUnreachable = reachableAgentIds !== null && !reachableAgentIds.includes(agent.id)
                     return (
                       <div
                         key={agent.id}
                         onClick={() => selectAgent(agent)}
                         className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
+                          isUnreachable ? 'opacity-50' : ''
+                        } ${
                           isSelected
                             ? 'bg-blue-600 text-white'
                             : 'hover:bg-gray-700 text-gray-200'
@@ -1139,9 +1173,17 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                             {display.secondary}
                           </span>
                         </div>
-                        {display.hasHost && (
-                          <Server className={`w-4 h-4 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`} />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {isUnreachable && (
+                            <span className="text-xs text-amber-400 flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              Restricted
+                            </span>
+                          )}
+                          {display.hasHost && (
+                            <Server className={`w-4 h-4 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`} />
+                          )}
+                        </div>
                       </div>
                     )
                   })}
@@ -1163,6 +1205,16 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                 </p>
               )}
             </div>
+
+            {governanceError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>{governanceError}</span>
+                <button onClick={() => setGovernanceError(null)} className="ml-auto text-amber-400 hover:text-amber-300">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
 
             <div>
               <label htmlFor="compose-subject" className="block text-sm font-medium text-gray-300 mb-1">

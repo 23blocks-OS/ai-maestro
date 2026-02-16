@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import {
-  User, Building2, Briefcase, Code2, Cpu, Tag,
+  User, Briefcase, Code2, Cpu, Tag,
   Activity, MessageSquare, CheckCircle, Clock, Zap,
   DollarSign, Database, BookOpen, Link2, Edit2, Save,
   ChevronDown, ChevronRight, Trash2,
@@ -18,6 +18,11 @@ import SkillsSection from '@/components/SkillsSection'
 import { AgentSkillEditor } from '@/components/marketplace'
 import AvatarPicker from '@/components/AvatarPicker'
 import EmailAddressesSection from '@/components/EmailAddressesSection'
+import { Crown, Shield } from 'lucide-react'
+import { useGovernance } from '@/hooks/useGovernance'
+import RoleBadge from '@/components/governance/RoleBadge'
+import RoleAssignmentDialog from '@/components/governance/RoleAssignmentDialog'
+import TeamMembershipSection from '@/components/governance/TeamMembershipSection'
 
 interface AgentProfileTabProps {
   agent: Agent
@@ -36,6 +41,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
+  const [showRoleDialog, setShowRoleDialog] = useState(false)
   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
 
   // Repository state
@@ -56,6 +62,9 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     documentation: false,
     dangerZone: false
   })
+
+  // Governance hook for role and team membership
+  const governance = useGovernance(agent.id || null)
 
   // Sync with parent agent prop
   useEffect(() => {
@@ -204,7 +213,10 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     <div className="h-full flex flex-col">
       {/* Header with Save Button */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-gray-700 bg-gray-800/50 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Agent Profile</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-white">Agent Profile</h3>
+          <RoleBadge role={governance.agentRole} size="sm" onClick={() => setShowRoleDialog(true)} />
+        </div>
         <div className="flex items-center gap-2">
           {/* Export Button */}
           <button
@@ -345,8 +357,8 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   />
                 </div>
               </div>
-              {/* Owner and Team */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Owner and Governance */}
+              <div className="space-y-4">
                 <EditableField
                   label="Owner"
                   value={agent.owner || ''}
@@ -354,12 +366,30 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   icon={<User className="w-4 h-4" />}
                   placeholder="Owner name"
                 />
-                <EditableField
-                  label="Team"
-                  value={agent.team || ''}
-                  onChange={(value) => updateField('team', value)}
-                  icon={<Building2 className="w-4 h-4" />}
-                  placeholder="Team name"
+
+                {/* Governance Role */}
+                <div className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Shield className="w-4 h-4" />
+                    <span>Governance Role</span>
+                  </div>
+                  <RoleBadge
+                    role={governance.agentRole}
+                    onClick={() => setShowRoleDialog(true)}
+                  />
+                </div>
+
+                {/* Team Membership */}
+                <TeamMembershipSection
+                  agentId={agent.id}
+                  agentRole={governance.agentRole}
+                  memberTeams={governance.memberTeams}
+                  allTeams={governance.allTeams}
+                  onJoinTeam={(teamId) => governance.addAgentToTeam(teamId, agent.id)}
+                  onLeaveTeam={(teamId) => governance.removeAgentFromTeam(teamId, agent.id)}
+                  pendingTransfers={governance.pendingTransfers}
+                  onRequestTransfer={(aid, from, to) => governance.requestTransfer(aid, from, to)}
+                  onResolveTransfer={(tid, action) => governance.resolveTransfer(tid, action)}
                 />
               </div>
             </div>
@@ -894,6 +924,17 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         }}
         currentAvatar={agent.avatar}
         usedAvatars={usedAvatars}
+      />
+
+      {/* Role Assignment Dialog */}
+      <RoleAssignmentDialog
+        isOpen={showRoleDialog}
+        onClose={() => setShowRoleDialog(false)}
+        agentId={agent.id}
+        agentName={agent.label || agent.name || ''}
+        currentRole={governance.agentRole}
+        governance={governance}
+        onRoleChanged={() => governance.refresh()}
       />
     </div>
   )

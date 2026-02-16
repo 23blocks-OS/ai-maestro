@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    setPassword(password)
+    await setPassword(password)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to set password:', error)

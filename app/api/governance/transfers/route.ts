@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A transfer request for this agent between these teams already exists', existingRequest: duplicate }, { status: 409 })
     }
 
-    const transferRequest = createTransferRequest({ agentId, fromTeamId, toTeamId, requestedBy, note })
+    const transferRequest = await createTransferRequest({ agentId, fromTeamId, toTeamId, requestedBy, note })
 
     return NextResponse.json({ success: true, request: transferRequest }, { status: 201 })
   } catch (error) {

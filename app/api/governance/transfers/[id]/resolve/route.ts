@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTransferRequest, resolveTransferRequest } from '@/lib/transfer-registry'
 import { loadTeams, updateTeam } from '@/lib/team-registry'
 import { isManager } from '@/lib/governance'
+import { getAgent } from '@/lib/agent-registry'
+import { notifyAgent } from '@/lib/notification-service'
 
 export async function POST(
   request: NextRequest,
@@ -48,23 +50,48 @@ export async function POST(
     }
 
     // Resolve the request
-    const resolved = resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
+    const resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
     if (!resolved) {
       return NextResponse.json({ error: 'Failed to resolve transfer request' }, { status: 500 })
     }
 
     // If approved, execute the actual transfer
+    const toTeam = teams.find(t => t.id === transferReq.toTeamId)
     if (action === 'approve') {
       // Remove agent from source team
       const fromTeamAgentIds = fromTeam.agentIds.filter(aid => aid !== transferReq.agentId)
-      updateTeam(fromTeam.id, { agentIds: fromTeamAgentIds })
+      await updateTeam(fromTeam.id, { agentIds: fromTeamAgentIds })
 
       // Add agent to destination team
-      const toTeam = teams.find(t => t.id === transferReq.toTeamId)
       if (toTeam && !toTeam.agentIds.includes(transferReq.agentId)) {
         const toTeamAgentIds = [...toTeam.agentIds, transferReq.agentId]
-        updateTeam(toTeam.id, { agentIds: toTeamAgentIds })
+        await updateTeam(toTeam.id, { agentIds: toTeamAgentIds })
       }
+    }
+
+    // Notify the affected agent about the transfer resolution via tmux
+    const affectedAgent = getAgent(transferReq.agentId)
+    if (affectedAgent) {
+      const resolverAgent = getAgent(resolvedBy)
+      const resolverName = resolverAgent?.name || resolvedBy
+      const statusText = action === 'approve' ? 'APPROVED' : 'REJECTED'
+      const teamInfo = action === 'approve'
+        ? `${fromTeam.name} → ${toTeam?.name || 'unknown'}`
+        : `from ${fromTeam.name}`
+      const subject = `Transfer ${statusText}: ${teamInfo}`
+
+      // Fire-and-forget: notification failure does not affect the transfer outcome
+      notifyAgent({
+        agentId: affectedAgent.id,
+        agentName: affectedAgent.name,
+        fromName: resolverName,
+        subject,
+        messageId: id,
+        priority: 'high',
+        messageType: 'notification',
+      }).catch((err) => {
+        console.error(`[TransferResolve] Failed to notify agent ${affectedAgent.name}:`, err)
+      })
     }
 
     return NextResponse.json({ success: true, request: resolved })

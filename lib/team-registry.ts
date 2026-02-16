@@ -11,6 +11,7 @@ import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import type { Team, TeamsFile } from '@/types/team'
 import type { TeamType } from '@/types/governance'
+import { withLock } from '@/lib/file-lock'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
@@ -68,45 +69,51 @@ export function getTeam(id: string): Team | null {
   return teams.find(t => t.id === id) || null
 }
 
-export function createTeam(data: { name: string; description?: string; agentIds: string[]; type?: TeamType; chiefOfStaffId?: string }): Team {
-  const teams = loadTeams()
-  const now = new Date().toISOString()
+export async function createTeam(data: { name: string; description?: string; agentIds: string[]; type?: TeamType; chiefOfStaffId?: string }): Promise<Team> {
+  return withLock('teams', () => {
+    const teams = loadTeams()
+    const now = new Date().toISOString()
 
-  const team: Team = {
-    id: uuidv4(),
-    name: data.name,
-    description: data.description,
-    agentIds: data.agentIds,
-    type: data.type || 'open',
-    chiefOfStaffId: data.chiefOfStaffId,
-    createdAt: now,
-    updatedAt: now,
-  }
+    const team: Team = {
+      id: uuidv4(),
+      name: data.name,
+      description: data.description,
+      agentIds: data.agentIds,
+      type: data.type || 'open',
+      chiefOfStaffId: data.chiefOfStaffId,
+      createdAt: now,
+      updatedAt: now,
+    }
 
-  teams.push(team)
-  saveTeams(teams)
-  return team
+    teams.push(team)
+    saveTeams(teams)
+    return team
+  })
 }
 
-export function updateTeam(id: string, updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId'>>): Team | null {
-  const teams = loadTeams()
-  const index = teams.findIndex(t => t.id === id)
-  if (index === -1) return null
+export async function updateTeam(id: string, updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId'>>): Promise<Team | null> {
+  return withLock('teams', () => {
+    const teams = loadTeams()
+    const index = teams.findIndex(t => t.id === id)
+    if (index === -1) return null
 
-  teams[index] = {
-    ...teams[index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  }
+    teams[index] = {
+      ...teams[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }
 
-  saveTeams(teams)
-  return teams[index]
+    saveTeams(teams)
+    return teams[index]
+  })
 }
 
-export function deleteTeam(id: string): boolean {
-  const teams = loadTeams()
-  const filtered = teams.filter(t => t.id !== id)
-  if (filtered.length === teams.length) return false
-  saveTeams(filtered)
-  return true
+export async function deleteTeam(id: string): Promise<boolean> {
+  return withLock('teams', () => {
+    const teams = loadTeams()
+    const filtered = teams.filter(t => t.id !== id)
+    if (filtered.length === teams.length) return false
+    saveTeams(filtered)
+    return true
+  })
 }

@@ -36,7 +36,7 @@ export async function POST(
 
     if (agentId === null) {
       // Remove COS
-      const updated = updateTeam(id, { chiefOfStaffId: undefined } as any)
+      const updated = await updateTeam(id, { chiefOfStaffId: undefined } as any)
       return NextResponse.json({ success: true, team: updated })
     }
 
@@ -49,7 +49,7 @@ export async function POST(
       return NextResponse.json({ error: `Agent '${agentId}' not found` }, { status: 404 })
     }
 
-    const updated = updateTeam(id, { chiefOfStaffId: agentId } as any)
+    const updated = await updateTeam(id, { chiefOfStaffId: agentId } as any)
     return NextResponse.json({ success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
   } catch (error) {
     console.error('Failed to set chief-of-staff:', error)

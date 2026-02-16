@@ -28,6 +28,10 @@ vi.mock('uuid', () => ({
   }),
 }))
 
+vi.mock('@/lib/file-lock', () => ({
+  withLock: vi.fn((_name: string, fn: () => any) => Promise.resolve(fn())),
+}))
+
 // ============================================================================
 // Imports (after mocks)
 // ============================================================================
@@ -73,8 +77,8 @@ describe('GET /api/teams', () => {
   })
 
   it('returns all teams', async () => {
-    createTeam({ name: 'Team A', agentIds: [] })
-    createTeam({ name: 'Team B', agentIds: [] })
+    await createTeam({ name: 'Team A', agentIds: [] })
+    await createTeam({ name: 'Team B', agentIds: [] })
 
     const res = await listTeamsRoute()
     const data = await res.json()
@@ -163,7 +167,7 @@ describe('GET /api/teams/[id]', () => {
   })
 
   it('returns team when it exists', async () => {
-    const team = createTeam({ name: 'Find Me', agentIds: [] })
+    const team = await createTeam({ name: 'Find Me', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}`)
     const res = await getTeamRoute(req, makeParams(team.id) as any)
@@ -191,7 +195,7 @@ describe('PUT /api/teams/[id]', () => {
   })
 
   it('updates team name', async () => {
-    const team = createTeam({ name: 'Original', agentIds: [] })
+    const team = await createTeam({ name: 'Original', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}`, {
       method: 'PUT',
@@ -206,7 +210,7 @@ describe('PUT /api/teams/[id]', () => {
   })
 
   it('updates instructions via PUT', async () => {
-    const team = createTeam({ name: 'Instructions Team', agentIds: [] })
+    const team = await createTeam({ name: 'Instructions Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}`, {
       method: 'PUT',
@@ -221,7 +225,7 @@ describe('PUT /api/teams/[id]', () => {
   })
 
   it('updates lastActivityAt via PUT', async () => {
-    const team = createTeam({ name: 'Activity Team', agentIds: [] })
+    const team = await createTeam({ name: 'Activity Team', agentIds: [] })
     const ts = '2025-06-15T10:30:00.000Z'
 
     const req = makeRequest(`/api/teams/${team.id}`, {
@@ -237,7 +241,7 @@ describe('PUT /api/teams/[id]', () => {
   })
 
   it('persists instructions to storage', async () => {
-    const team = createTeam({ name: 'Persist', agentIds: [] })
+    const team = await createTeam({ name: 'Persist', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}`, {
       method: 'PUT',
@@ -264,7 +268,7 @@ describe('DELETE /api/teams/[id]', () => {
   })
 
   it('deletes team and returns success', async () => {
-    const team = createTeam({ name: 'Delete Me', agentIds: [] })
+    const team = await createTeam({ name: 'Delete Me', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}`, { method: 'DELETE' })
     const res = await deleteTeamRoute(req, makeParams(team.id) as any)

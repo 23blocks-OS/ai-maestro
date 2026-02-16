@@ -35,7 +35,7 @@ export async function PUT(
     const body = await request.json()
     const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt, type, chiefOfStaffId } = body
 
-    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt, type, chiefOfStaffId })
+    const team = await updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt, type, chiefOfStaffId })
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
@@ -61,7 +61,7 @@ export async function DELETE(
   if (!access.allowed) {
     return NextResponse.json({ error: access.reason }, { status: 403 })
   }
-  const deleted = deleteTeam(id)
+  const deleted = await deleteTeam(id)
   if (!deleted) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
   }

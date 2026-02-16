@@ -10,6 +10,7 @@ import path from 'path'
 import os from 'os'
 import bcrypt from 'bcryptjs'
 import { loadTeams, getTeam } from './team-registry'
+import { withLock } from '@/lib/file-lock'
 import type { GovernanceConfig } from '@/types/governance'
 import { DEFAULT_GOVERNANCE_CONFIG } from '@/types/governance'
 import type { Team } from '@/types/team'
@@ -57,11 +58,13 @@ export function saveGovernance(config: GovernanceConfig): boolean {
 }
 
 /** Set governance password (bcrypt hash with 12 salt rounds) */
-export function setPassword(plaintext: string): void {
-  const config = loadGovernance()
-  config.passwordHash = bcrypt.hashSync(plaintext, BCRYPT_SALT_ROUNDS)
-  config.passwordSetAt = new Date().toISOString()
-  saveGovernance(config)
+export async function setPassword(plaintext: string): Promise<void> {
+  return withLock('governance', () => {
+    const config = loadGovernance()
+    config.passwordHash = bcrypt.hashSync(plaintext, BCRYPT_SALT_ROUNDS)
+    config.passwordSetAt = new Date().toISOString()
+    saveGovernance(config)
+  })
 }
 
 /** Verify plaintext against stored password hash. Returns false if no password set. */
@@ -80,17 +83,21 @@ export function getManagerId(): string | null {
 }
 
 /** Set the manager agent ID and persist */
-export function setManager(agentId: string): void {
-  const config = loadGovernance()
-  config.managerId = agentId
-  saveGovernance(config)
+export async function setManager(agentId: string): Promise<void> {
+  return withLock('governance', () => {
+    const config = loadGovernance()
+    config.managerId = agentId
+    saveGovernance(config)
+  })
 }
 
 /** Remove the manager (set to null) and persist */
-export function removeManager(): void {
-  const config = loadGovernance()
-  config.managerId = null
-  saveGovernance(config)
+export async function removeManager(): Promise<void> {
+  return withLock('governance', () => {
+    const config = loadGovernance()
+    config.managerId = null
+    saveGovernance(config)
+  })
 }
 
 /** Check if agentId is the singleton manager */

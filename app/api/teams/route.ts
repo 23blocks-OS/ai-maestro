@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'agentIds must be an array' }, { status: 400 })
     }
 
-    const team = createTeam({ name, description, agentIds: agentIds || [], type, chiefOfStaffId })
+    const team = await createTeam({ name, description, agentIds: agentIds || [], type, chiefOfStaffId })
     return NextResponse.json({ team }, { status: 201 })
   } catch (error) {
     console.error('Failed to create team:', error)

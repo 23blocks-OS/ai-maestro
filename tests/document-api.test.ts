@@ -28,6 +28,10 @@ vi.mock('uuid', () => ({
   }),
 }))
 
+vi.mock('@/lib/file-lock', () => ({
+  withLock: vi.fn((_name: string, fn: () => any) => Promise.resolve(fn())),
+}))
+
 // ============================================================================
 // Imports (after mocks)
 // ============================================================================
@@ -78,7 +82,7 @@ describe('GET /api/teams/[id]/documents', () => {
   })
 
   it('returns empty documents array for team with no docs', async () => {
-    const team = createTeam({ name: 'Test Team', agentIds: [] })
+    const team = await createTeam({ name: 'Test Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents`)
     const res = await listDocuments(req, makeParams(team.id) as any)
@@ -89,7 +93,7 @@ describe('GET /api/teams/[id]/documents', () => {
   })
 
   it('returns documents for a team', async () => {
-    const team = createTeam({ name: 'Docs Team', agentIds: [] })
+    const team = await createTeam({ name: 'Docs Team', agentIds: [] })
     createDocument({ teamId: team.id, title: 'Doc 1', content: 'Content 1' })
     createDocument({ teamId: team.id, title: 'Doc 2', content: 'Content 2' })
 
@@ -121,7 +125,7 @@ describe('POST /api/teams/[id]/documents', () => {
   })
 
   it('returns 400 when title is missing', async () => {
-    const team = createTeam({ name: 'Test Team', agentIds: [] })
+    const team = await createTeam({ name: 'Test Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents`, {
       method: 'POST',
@@ -136,7 +140,7 @@ describe('POST /api/teams/[id]/documents', () => {
   })
 
   it('creates a document with 201 status', async () => {
-    const team = createTeam({ name: 'Create Team', agentIds: [] })
+    const team = await createTeam({ name: 'Create Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents`, {
       method: 'POST',
@@ -154,7 +158,7 @@ describe('POST /api/teams/[id]/documents', () => {
   })
 
   it('persists created document', async () => {
-    const team = createTeam({ name: 'Persist Team', agentIds: [] })
+    const team = await createTeam({ name: 'Persist Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents`, {
       method: 'POST',
@@ -169,7 +173,7 @@ describe('POST /api/teams/[id]/documents', () => {
   })
 
   it('defaults content to empty string when not provided', async () => {
-    const team = createTeam({ name: 'Default Content', agentIds: [] })
+    const team = await createTeam({ name: 'Default Content', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents`, {
       method: 'POST',
@@ -199,7 +203,7 @@ describe('GET /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('returns 404 when document does not exist', async () => {
-    const team = createTeam({ name: 'Test Team', agentIds: [] })
+    const team = await createTeam({ name: 'Test Team', agentIds: [] })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/non-existent`)
     const res = await getDocumentRoute(req, makeParams(team.id, 'non-existent') as any)
@@ -210,7 +214,7 @@ describe('GET /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('returns the document when it exists', async () => {
-    const team = createTeam({ name: 'Get Team', agentIds: [] })
+    const team = await createTeam({ name: 'Get Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Find Me', content: 'Here I am' })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/${doc.id}`)
@@ -240,7 +244,7 @@ describe('PUT /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('updates document title', async () => {
-    const team = createTeam({ name: 'Update Team', agentIds: [] })
+    const team = await createTeam({ name: 'Update Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Original', content: '' })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/${doc.id}`, {
@@ -256,7 +260,7 @@ describe('PUT /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('updates document content', async () => {
-    const team = createTeam({ name: 'Content Team', agentIds: [] })
+    const team = await createTeam({ name: 'Content Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Stable', content: 'old' })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/${doc.id}`, {
@@ -272,7 +276,7 @@ describe('PUT /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('updates pinned status', async () => {
-    const team = createTeam({ name: 'Pin Team', agentIds: [] })
+    const team = await createTeam({ name: 'Pin Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Pin Me', content: '' })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/${doc.id}`, {
@@ -300,7 +304,7 @@ describe('DELETE /api/teams/[id]/documents/[docId]', () => {
   })
 
   it('deletes document and returns success', async () => {
-    const team = createTeam({ name: 'Delete Team', agentIds: [] })
+    const team = await createTeam({ name: 'Delete Team', agentIds: [] })
     const doc = createDocument({ teamId: team.id, title: 'Delete Me', content: '' })
 
     const req = makeRequest(`/api/teams/${team.id}/documents/${doc.id}`, { method: 'DELETE' })

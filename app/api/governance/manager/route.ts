@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (agentId === null) {
-      removeManager()
+      await removeManager()
       return NextResponse.json({ success: true, managerId: null })
     }
 
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Agent '${agentId}' not found` }, { status: 404 })
     }
 
-    setManager(agentId)
+    await setManager(agentId)
     return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name || agent.alias })
   } catch (error) {
     console.error('Failed to set manager:', error)

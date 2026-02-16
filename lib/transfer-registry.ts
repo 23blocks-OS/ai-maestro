@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import type { TransferRequest, TransfersFile } from '@/types/governance'
+import { withLock } from '@/lib/file-lock'
 
 const AI_MAESTRO_DIR = path.join(process.env.HOME || '~', '.aimaestro')
 const TRANSFERS_FILE = path.join(AI_MAESTRO_DIR, 'governance-transfers.json')
@@ -43,27 +44,29 @@ function saveTransfers(requests: TransferRequest[]): void {
 }
 
 /** Create a new pending transfer request */
-export function createTransferRequest(params: {
+export async function createTransferRequest(params: {
   agentId: string
   fromTeamId: string
   toTeamId: string
   requestedBy: string
   note?: string
-}): TransferRequest {
-  const requests = loadTransfers()
-  const request: TransferRequest = {
-    id: randomUUID(),
-    agentId: params.agentId,
-    fromTeamId: params.fromTeamId,
-    toTeamId: params.toTeamId,
-    requestedBy: params.requestedBy,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-    note: params.note,
-  }
-  requests.push(request)
-  saveTransfers(requests)
-  return request
+}): Promise<TransferRequest> {
+  return withLock('transfers', () => {
+    const requests = loadTransfers()
+    const request: TransferRequest = {
+      id: randomUUID(),
+      agentId: params.agentId,
+      fromTeamId: params.fromTeamId,
+      toTeamId: params.toTeamId,
+      requestedBy: params.requestedBy,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      note: params.note,
+    }
+    requests.push(request)
+    saveTransfers(requests)
+    return request
+  })
 }
 
 /** Get a transfer request by ID */
@@ -85,41 +88,45 @@ export function getPendingTransfersForAgent(agentId: string): TransferRequest[] 
 }
 
 /** Resolve (approve or reject) a transfer request */
-export function resolveTransferRequest(
+export async function resolveTransferRequest(
   id: string,
   status: 'approved' | 'rejected',
   resolvedBy: string,
   rejectReason?: string
-): TransferRequest | null {
-  const requests = loadTransfers()
-  const idx = requests.findIndex(r => r.id === id)
-  if (idx === -1) return null
-  if (requests[idx].status !== 'pending') return null // Already resolved
+): Promise<TransferRequest | null> {
+  return withLock('transfers', () => {
+    const requests = loadTransfers()
+    const idx = requests.findIndex(r => r.id === id)
+    if (idx === -1) return null
+    if (requests[idx].status !== 'pending') return null // Already resolved
 
-  requests[idx] = {
-    ...requests[idx],
-    status,
-    resolvedAt: new Date().toISOString(),
-    resolvedBy,
-    rejectReason: status === 'rejected' ? rejectReason : undefined,
-  }
-  saveTransfers(requests)
-  return requests[idx]
+    requests[idx] = {
+      ...requests[idx],
+      status,
+      resolvedAt: new Date().toISOString(),
+      resolvedBy,
+      rejectReason: status === 'rejected' ? rejectReason : undefined,
+    }
+    saveTransfers(requests)
+    return requests[idx]
+  })
 }
 
 /** Clean up old resolved requests (older than 30 days) */
-export function cleanupOldTransfers(): number {
-  const requests = loadTransfers()
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - 30)
-  const cutoffStr = cutoff.toISOString()
+export async function cleanupOldTransfers(): Promise<number> {
+  return withLock('transfers', () => {
+    const requests = loadTransfers()
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 30)
+    const cutoffStr = cutoff.toISOString()
 
-  const filtered = requests.filter(r => {
-    if (r.status === 'pending') return true // Keep all pending
-    return (r.resolvedAt || r.createdAt) > cutoffStr
+    const filtered = requests.filter(r => {
+      if (r.status === 'pending') return true // Keep all pending
+      return (r.resolvedAt || r.createdAt) > cutoffStr
+    })
+
+    const removed = requests.length - filtered.length
+    if (removed > 0) saveTransfers(filtered)
+    return removed
   })
-
-  const removed = requests.length - filtered.length
-  if (removed > 0) saveTransfers(filtered)
-  return removed
 }

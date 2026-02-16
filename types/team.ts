@@ -3,7 +3,12 @@
  *
  * Teams represent groups of agents that can be assembled into
  * a "war room" for multi-agent coordination sessions.
+ *
+ * Teams can be 'open' (default, current behavior) or 'closed'
+ * (messaging isolation + ACL on resources).
  */
+
+import type { TeamType } from './governance'
 
 export interface Team {
   id: string              // UUID
@@ -11,6 +16,8 @@ export interface Team {
   description?: string
   agentIds: string[]      // Agent UUIDs (order = display order)
   instructions?: string   // Team-level markdown (like a per-team CLAUDE.md)
+  type?: TeamType         // 'open' (default) or 'closed' — governs messaging isolation and ACL
+  chiefOfStaffId?: string // Agent UUID of this team's Chief-of-Staff (only meaningful for closed teams)
   createdAt: string       // ISO
   updatedAt: string       // ISO
   lastMeetingAt?: string  // ISO - last time a meeting was started with this team

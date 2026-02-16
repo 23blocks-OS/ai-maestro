@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadTasks, resolveTaskDeps, createTask } from '@/lib/task-registry'
 import { getTeam } from '@/lib/team-registry'
+import { checkTeamAccess } from '@/lib/team-acl'
 
 // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
   const team = getTeam(id)
   if (!team) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  }
+  const agentId = request.headers.get('X-Agent-Id') || undefined
+  const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.reason }, { status: 403 })
   }
 
   const tasks = loadTasks(id)
@@ -28,6 +34,11 @@ export async function POST(
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    }
+    const agentId = request.headers.get('X-Agent-Id') || undefined
+    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.reason }, { status: 403 })
     }
 
     const body = await request.json()

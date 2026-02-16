@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { getTeam } from '@/lib/team-registry'
+import { checkTeamAccess } from '@/lib/team-acl'
 
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
@@ -12,6 +13,11 @@ export async function PUT(
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    }
+    const agentId = request.headers.get('X-Agent-Id') || undefined
+    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.reason }, { status: 403 })
     }
 
     const existing = getTask(id, taskId)
@@ -70,13 +76,18 @@ export async function PUT(
 
 // DELETE /api/teams/[id]/tasks/[taskId] - Delete a task
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
   const team = getTeam(id)
   if (!team) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  }
+  const agentId = request.headers.get('X-Agent-Id') || undefined
+  const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.reason }, { status: 403 })
   }
 
   const deleted = deleteTask(id, taskId)

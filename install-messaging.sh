@@ -753,7 +753,7 @@ if [ "$INSTALL_SKILL" = true ]; then
     fi
 
     # Install other AI Maestro skills
-    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management")
+    OTHER_SKILLS=("graph-query" "memory-search" "docs-search" "planning" "ai-maestro-agents-management" "team-governance")
 
     for skill in "${OTHER_SKILLS[@]}"; do
         if [ -d "$PLUGIN_DIR/skills/$skill" ]; then

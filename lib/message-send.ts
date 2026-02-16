@@ -18,6 +18,7 @@ import crypto from 'crypto'
 import { deliver } from '@/lib/message-delivery'
 import { writeToAMPSent } from '@/lib/amp-inbox-writer'
 import { applyContentSecurity } from '@/lib/content-security'
+import { checkMessageAllowed } from '@/lib/message-filter'
 import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
 import { resolveAgentIdentifier, getMessage } from '@/lib/messageQueue'
 import { getAgent } from '@/lib/agent-registry'
@@ -146,6 +147,17 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     alias: options.toAlias || toIdentifier,
     hostId: targetHostId || undefined,
     hostUrl: undefined
+  }
+
+  // ── Governance: Message Filter ──────────────────────────────────────
+  if (fromAgent?.agentId && toResolved.agentId) {
+    const filterResult = checkMessageAllowed({
+      senderAgentId: fromAgent.agentId,
+      recipientAgentId: toResolved.agentId,
+    })
+    if (!filterResult.allowed) {
+      throw new Error(filterResult.reason || 'Message blocked by team governance policy')
+    }
   }
 
   // Determine host info

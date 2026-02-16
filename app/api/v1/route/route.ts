@@ -37,6 +37,7 @@ import { getAgent, getAgentByName, checkMeshAgentExists } from '@/lib/agent-regi
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
 import { getAMPProviderDomain } from '@/lib/types/amp'
+import { checkMessageAllowed } from '@/lib/message-filter'
 import type {
   AMPRouteRequest,
   AMPRouteResponse,
@@ -561,6 +562,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
       return NextResponse.json({
         id: messageId, status: 'queued', method: 'relay', queued_at: now
       } as AMPRouteResponse, { status: 200 })
+    }
+
+    // ── Governance: Message Filter ────────────────────────────────────
+    const filterResult = checkMessageAllowed({
+      senderAgentId: senderAgent?.id || null,
+      recipientAgentId: localAgent.id,
+    })
+    if (!filterResult.allowed) {
+      return NextResponse.json({
+        id: messageId, status: 'failed' as const,
+        error: 'message_blocked',
+        message: filterResult.reason || 'Message blocked by team governance policy'
+      }, { status: 403, headers: rateLimitHeaders })
     }
 
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName

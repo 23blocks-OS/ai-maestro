@@ -60,6 +60,8 @@ This script updates ALL version references across the codebase:
 
 **DO NOT manually edit version numbers in individual files.** Always use the script to ensure consistency.
 
+**CLI Script Versioning:** The `aimaestro-agent.sh` CLI tool uses an independent semver (`v1.0.1`) separate from the app version (`0.23.x`). This is intentional — the CLI is distributed via the plugin repo and has its own release cadence. The app version tracks the dashboard/server, while the CLI version tracks the agent management script.
+
 ## Pre-PR Checklist (MANDATORY)
 
 **⚠️ STOP! Before creating ANY Pull Request to main, complete this checklist:**

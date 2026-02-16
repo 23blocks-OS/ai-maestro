@@ -139,10 +139,19 @@ export default function RoleAssignmentDialog({
         const result = await governance.assignManager(agentId, password)
         if (!result.success) throw new Error(result.error || 'Failed to assign manager role')
       } else if (selectedRole === 'chief-of-staff') {
-        // Assign COS: first remove manager if needed, then assign COS to selected teams
+        // Assign COS: first remove manager if needed, then remove old COS assignments, then assign COS to selected teams
         if (currentRole === 'manager') {
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
+        }
+        // Remove COS from teams no longer selected
+        if (currentRole === 'chief-of-staff') {
+          for (const team of governance.cosTeams) {
+            if (!selectedTeamIds.includes(team.id)) {
+              const result = await governance.assignCOS(team.id, null, password)
+              if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
+            }
+          }
         }
         for (const teamId of selectedTeamIds) {
           const result = await governance.assignCOS(teamId, agentId, password)
@@ -160,6 +169,18 @@ export default function RoleAssignmentDialog({
   }
 
   if (!isOpen) return null
+
+  // Password phase: render the password dialog directly (it has its own overlay)
+  if (phase === 'password') {
+    return (
+      <GovernancePasswordDialog
+        isOpen={true}
+        mode={governance.hasPassword ? 'confirm' : 'setup'}
+        onClose={() => setPhase('select')}
+        onPasswordConfirmed={(pw) => handleRoleChange(pw)}
+      />
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
@@ -304,16 +325,6 @@ export default function RoleAssignmentDialog({
               </button>
             </div>
           </>
-        )}
-
-        {/* Phase: password */}
-        {phase === 'password' && (
-          <GovernancePasswordDialog
-            isOpen={true}
-            mode={governance.hasPassword ? 'confirm' : 'setup'}
-            onClose={() => setPhase('select')}
-            onPasswordConfirmed={(pw) => handleRoleChange(pw)}
-          />
         )}
 
         {/* Phase: submitting */}

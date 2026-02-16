@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Building2, Lock, Unlock, Plus, X, ChevronDown, Clock, Check, XCircle } from 'lucide-react'
 import type { Team } from '@/types/team'
 import type { GovernanceRole } from '@/components/governance/RoleBadge'
@@ -33,6 +33,20 @@ export default function TeamMembershipSection({
   const [error, setError] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null) // tracks teamId being acted on
+  const [resolvingTransferId, setResolvingTransferId] = useState<string | null>(null) // tracks transferId being resolved
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showJoinDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowJoinDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showJoinDropdown])
 
   // Determine which teams this agent can join
   const memberTeamIds = new Set(memberTeams.map(t => t.id))
@@ -42,6 +56,16 @@ export default function TeamMembershipSection({
     if (canJoinClosedTeams) return true
     // Normal agents can only join non-closed teams
     return t.type !== 'closed'
+  })
+
+  // Filter pending transfers to only those relevant to this agent:
+  // - transfers where this agent is being transferred
+  // - transfers where this agent is the source team's COS (can approve/reject)
+  const relevantTransfers = (pendingTransfers || []).filter(transfer => {
+    if (transfer.agentId === agentId) return true
+    const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
+    if (fromTeam?.chiefOfStaffId === agentId) return true
+    return false
   })
 
   const handleJoin = async (teamId: string) => {
@@ -107,7 +131,7 @@ export default function TeamMembershipSection({
             {memberTeams.length}
           </span>
         )}
-        <div className="ml-auto relative">
+        <div className="ml-auto relative" ref={dropdownRef}>
           <button
             onClick={() => setShowJoinDropdown(!showJoinDropdown)}
             className="text-xs px-2 py-1 rounded border border-dashed border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
@@ -180,10 +204,10 @@ export default function TeamMembershipSection({
       )}
 
       {/* Pending transfer requests */}
-      {pendingTransfers && pendingTransfers.length > 0 && (
+      {relevantTransfers.length > 0 && (
         <div className="mt-2 space-y-1">
           <div className="text-xs text-gray-500 font-medium px-1">Pending Transfers</div>
-          {pendingTransfers.map(transfer => {
+          {relevantTransfers.map(transfer => {
             const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
             const toTeam = allTeams.find(t => t.id === transfer.toTeamId)
             const canResolve = onResolveTransfer && fromTeam?.chiefOfStaffId === agentId
@@ -197,15 +221,23 @@ export default function TeamMembershipSection({
                 {canResolve && (
                   <div className="ml-auto flex items-center gap-1">
                     <button
-                      onClick={() => onResolveTransfer(transfer.id, 'approve')}
-                      className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                      onClick={async () => {
+                        setResolvingTransferId(transfer.id)
+                        try { await onResolveTransfer(transfer.id, 'approve') } finally { setResolvingTransferId(null) }
+                      }}
+                      disabled={resolvingTransferId === transfer.id}
+                      className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                       title="Approve transfer"
                     >
                       <Check className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => onResolveTransfer(transfer.id, 'reject')}
-                      className="p-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors"
+                      onClick={async () => {
+                        setResolvingTransferId(transfer.id)
+                        try { await onResolveTransfer(transfer.id, 'reject') } finally { setResolvingTransferId(null) }
+                      }}
+                      disabled={resolvingTransferId === transfer.id}
+                      className="p-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
                       title="Reject transfer"
                     >
                       <XCircle className="w-3.5 h-3.5" />

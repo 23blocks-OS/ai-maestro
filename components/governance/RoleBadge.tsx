@@ -1,8 +1,8 @@
 'use client'
 
 import { Crown, Shield, Plus } from 'lucide-react'
-
-export type GovernanceRole = 'manager' | 'chief-of-staff' | 'normal'
+import type { GovernanceRole } from '@/hooks/useGovernance'
+export type { GovernanceRole }
 
 interface RoleBadgeProps {
   role: GovernanceRole

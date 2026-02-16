@@ -19,7 +19,11 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [reservedNames, setReservedNames] = useState<{ teamNames: string[]; agentNames: string[] }>({ teamNames: [], agentNames: [] })
+  const [nameValidation, setNameValidation] = useState<{ error: string | null; warning: string | null }>({ error: null, warning: null })
 
   const fetchTeams = useCallback(async () => {
     try {
@@ -57,8 +61,64 @@ export default function TeamsPage() {
     fetchTeams()
   }, [fetchTeams])
 
+  // Pre-load all team and agent names when Create dialog opens (for real-time collision checking)
+  useEffect(() => {
+    if (creating) {
+      fetch('/api/teams/names')
+        .then(res => res.ok ? res.json() : { teamNames: [], agentNames: [] })
+        .then(data => setReservedNames(data))
+        .catch(() => setReservedNames({ teamNames: [], agentNames: [] }))
+    }
+  }, [creating])
+
+  // Real-time team name validation (runs on every keystroke)
+  const validateTeamName = useCallback((raw: string) => {
+    // Same sanitization as server-side sanitizeTeamName()
+    const clean = raw.replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim()
+
+    if (clean.length === 0) {
+      setNameValidation({ error: null, warning: null })
+      return
+    }
+    if (clean.length < 4) {
+      setNameValidation({ error: 'Team name must be at least 4 characters', warning: null })
+      return
+    }
+    if (clean.length > 64) {
+      setNameValidation({ error: 'Team name must be at most 64 characters', warning: null })
+      return
+    }
+    if (!/^[a-zA-Z0-9]/.test(clean)) {
+      setNameValidation({ error: 'Team name must start with a letter or number', warning: null })
+      return
+    }
+    if (/[^\w \-.&()]/.test(clean)) {
+      setNameValidation({ error: 'Only letters, numbers, spaces, hyphens, underscores, dots, ampersands, and parentheses are allowed', warning: null })
+      return
+    }
+
+    // Duplicate team name check (case-insensitive)
+    const lowerName = clean.toLowerCase()
+    const teamDupe = reservedNames.teamNames.find(n => n.toLowerCase() === lowerName)
+    if (teamDupe) {
+      setNameValidation({ error: `A team named "${teamDupe}" already exists`, warning: null })
+      return
+    }
+
+    // Agent name collision check (case-insensitive)
+    const agentDupe = reservedNames.agentNames.find(n => n.toLowerCase() === lowerName)
+    if (agentDupe) {
+      setNameValidation({ error: `Name "${agentDupe}" is already used by an agent`, warning: null })
+      return
+    }
+
+    setNameValidation({ error: null, warning: null })
+  }, [reservedNames])
+
   const handleCreateTeam = async () => {
-    if (!newTeamName.trim()) return
+    if (!newTeamName.trim() || submitting) return
+    setSubmitting(true)
+    setCreateError(null)
     try {
       const res = await fetch('/api/teams', {
         method: 'POST',
@@ -72,10 +132,13 @@ export default function TeamsPage() {
       const data = await res.json()
       setNewTeamName('')
       setCreating(false)
-      // Navigate to the new team
       router.push(`/teams/${data.team.id}`)
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create team'
+      setCreateError(msg)
       console.error('Failed to create team:', err)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -162,30 +225,53 @@ export default function TeamsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
             <h4 className="text-sm font-medium text-white mb-4">Create Team</h4>
-            <input
-              type="text"
-              value={newTeamName}
-              onChange={e => setNewTeamName(e.target.value)}
-              placeholder="Team name..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 mb-4"
-              autoFocus
-              onKeyDown={e => { if (e.key === 'Enter') handleCreateTeam(); if (e.key === 'Escape') setCreating(false) }}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setCreating(false); setNewTeamName('') }}
-                className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateTeam}
-                disabled={!newTeamName.trim()}
-                className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-50"
-              >
-                Create
-              </button>
-            </div>
+            {submitting ? (
+              <div className="flex items-center gap-3 py-4">
+                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-gray-300">Creating team...</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-2">4-64 characters. Letters, numbers, spaces, hyphens, dots allowed. Must be unique.</p>
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={e => { setNewTeamName(e.target.value); setCreateError(null); validateTeamName(e.target.value) }}
+                  placeholder="Team name..."
+                  className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none mb-1 ${
+                    nameValidation.error ? 'border-red-500 focus:border-red-500' : createError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-emerald-500'
+                  }`}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter' && !nameValidation.error) handleCreateTeam(); if (e.key === 'Escape') { setCreating(false); setCreateError(null) } }}
+                />
+                {nameValidation.error && (
+                  <p className="text-xs text-red-400 mb-1 flex items-center gap-1">
+                    <span className="text-red-500">&#x26A0;</span> {nameValidation.error}
+                  </p>
+                )}
+                {createError && !nameValidation.error && (
+                  <p className="text-xs text-red-400 mb-1">{createError}</p>
+                )}
+                {!nameValidation.error && !createError && newTeamName.trim().length >= 4 && (
+                  <p className="text-xs text-emerald-400 mb-1">Name is available</p>
+                )}
+                <div className="flex justify-end gap-2 mt-2">
+                  <button
+                    onClick={() => { setCreating(false); setNewTeamName(''); setCreateError(null); setNameValidation({ error: null, warning: null }) }}
+                    className="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateTeam}
+                    disabled={!newTeamName.trim() || !!nameValidation.error}
+                    className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-50"
+                  >
+                    Create
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

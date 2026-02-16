@@ -7,7 +7,7 @@
  * freely unless the recipient is inside a closed team.
  */
 
-import { isManager, isChiefOfStaffAnywhere, getClosedTeamForAgent } from './governance'
+import { isManager, isChiefOfStaffAnywhere, getClosedTeamsForAgent } from './governance'
 
 export interface MessageFilterInput {
   senderAgentId: string | null // null = mesh-forwarded message
@@ -23,14 +23,17 @@ export interface MessageFilterResult {
 /**
  * Check whether a message from sender to recipient is allowed.
  *
- * Algorithm:
+ * Algorithm (R6.1–R6.7):
  * 1. Mesh-forwarded (senderAgentId null): always allowed (trust mesh peers)
- * 2. Neither in a closed team: allowed (open world, current behavior)
- * 3. Sender is MANAGER: always allowed
- * 4. Sender is COS of any closed team: can reach MANAGER, other COS, own team members
- * 5. Normal closed-team member: can reach same-team members and own COS
- * 6. Outside sender to closed-team recipient: denied
+ * 2. Neither in a closed team: allowed (open world, current behavior) (R6.4)
+ * 3. Sender is MANAGER: always allowed (R6.3)
+ * 4. Sender is COS of any closed team: can reach MANAGER, other COS, own team members (R6.2)
+ * 5. Normal closed-team member: can reach same-team members and own COS (R6.1)
+ * 6. Outside sender to closed-team recipient: denied (R6.5)
  * 7. Default: allowed
+ *
+ * IMPORTANT (R6.7): Uses getClosedTeamsForAgent (plural) to correctly handle
+ * COS agents who belong to multiple closed teams simultaneously.
  */
 export function checkMessageAllowed(input: MessageFilterInput): MessageFilterResult {
   const { senderAgentId, recipientAgentId } = input
@@ -40,21 +43,23 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     return { allowed: true }
   }
 
-  // Load team membership for both parties
-  const senderTeam = getClosedTeamForAgent(senderAgentId)
-  const recipientTeam = getClosedTeamForAgent(recipientAgentId)
+  // Load team membership for both parties — use plural to handle COS in multiple teams (R6.7)
+  const senderTeams = getClosedTeamsForAgent(senderAgentId)
+  const recipientTeams = getClosedTeamsForAgent(recipientAgentId)
+  const senderInClosed = senderTeams.length > 0
+  const recipientInClosed = recipientTeams.length > 0
 
-  // Step 2: Neither party is in a closed team — open world, allow freely
-  if (senderTeam === null && recipientTeam === null) {
+  // Step 2: Neither party is in a closed team — open world, allow freely (R6.4)
+  if (!senderInClosed && !recipientInClosed) {
     return { allowed: true }
   }
 
-  // Step 3: MANAGER can message anyone
+  // Step 3: MANAGER can message anyone (R6.3)
   if (isManager(senderAgentId)) {
     return { allowed: true }
   }
 
-  // Step 4: Sender is Chief-of-Staff of some closed team
+  // Step 4: Sender is Chief-of-Staff of some closed team (R6.2)
   if (isChiefOfStaffAnywhere(senderAgentId)) {
     // COS can always reach the MANAGER
     if (isManager(recipientAgentId)) {
@@ -64,8 +69,8 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     if (isChiefOfStaffAnywhere(recipientAgentId)) {
       return { allowed: true }
     }
-    // COS can message members of their own closed team
-    if (senderTeam !== null && senderTeam.agentIds.includes(recipientAgentId)) {
+    // COS can message members of ANY of their closed teams (R6.7 — plural, not singular)
+    if (senderTeams.some(team => team.agentIds.includes(recipientAgentId))) {
       return { allowed: true }
     }
     return {
@@ -74,14 +79,18 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     }
   }
 
-  // Step 5: Sender is a normal member of a closed team
-  if (senderTeam !== null) {
+  // Step 5: Sender is a normal member of a closed team (R6.1)
+  if (senderInClosed) {
     // Can message members of the same closed team
-    if (recipientTeam !== null && senderTeam.id === recipientTeam.id) {
+    const shareTeam = senderTeams.some(team =>
+      recipientTeams.some(rt => rt.id === team.id)
+    )
+    if (shareTeam) {
       return { allowed: true }
     }
     // Can message the COS of their own team
-    if (senderTeam.chiefOfStaffId === recipientAgentId) {
+    const canReachCOS = senderTeams.some(team => team.chiefOfStaffId === recipientAgentId)
+    if (canReachCOS) {
       return { allowed: true }
     }
     return {
@@ -90,8 +99,8 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     }
   }
 
-  // Step 6: Sender is NOT in any closed team but recipient IS in a closed team
-  if (senderTeam === null && recipientTeam !== null) {
+  // Step 6: Sender is NOT in any closed team but recipient IS in a closed team (R6.5)
+  if (!senderInClosed && recipientInClosed) {
     return {
       allowed: false,
       reason: 'Cannot message agents in closed teams from outside',

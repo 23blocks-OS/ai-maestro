@@ -163,6 +163,17 @@ export function useGovernance(agentId: string | null): GovernanceState {
           ? team.agentIds
           : [...team.agentIds, targetAgentId]
 
+        // Client-side multi-closed-team guard (R4.1) — server enforces too, this is a UX guard
+        if (team.type === 'closed' && !team.agentIds.includes(targetAgentId)) {
+          const isPrivileged = targetAgentId === managerId || allTeams.some(t => t.type === 'closed' && t.chiefOfStaffId === targetAgentId)
+          if (!isPrivileged) {
+            const otherClosedTeam = allTeams.find(t => t.type === 'closed' && t.id !== teamId && t.agentIds.includes(targetAgentId))
+            if (otherClosedTeam) {
+              return { success: false, error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team` }
+            }
+          }
+        }
+
         const res = await fetch(`/api/teams/${teamId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -176,7 +187,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
       }
     },
-    [refresh]
+    [refresh, managerId, allTeams]
   )
 
   const removeAgentFromTeam = useCallback(
@@ -189,6 +200,11 @@ export function useGovernance(agentId: string | null): GovernanceState {
         const team: Team = teamData.team
 
         const updatedAgentIds = team.agentIds.filter((id: string) => id !== targetAgentId)
+
+        // Client-side COS removal guard (R4.7) — cannot remove COS from agentIds, server enforces too
+        if (team.chiefOfStaffId === targetAgentId) {
+          return { success: false, error: 'Cannot remove the Chief-of-Staff from team members — remove the COS role first' }
+        }
 
         const res = await fetch(`/api/teams/${teamId}`, {
           method: 'PUT',

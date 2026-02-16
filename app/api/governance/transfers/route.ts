@@ -48,6 +48,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only MANAGER or Chief-of-Staff can request transfers' }, { status: 403 })
     }
 
+    // Validate source and destination are different teams (R5.6)
+    if (fromTeamId === toTeamId) {
+      return NextResponse.json({ error: 'Source and destination teams must be different' }, { status: 400 })
+    }
+
     // Verify the agent is actually in the fromTeam
     const teams = loadTeams()
     const fromTeam = teams.find(t => t.id === fromTeamId)
@@ -56,6 +61,17 @@ export async function POST(request: NextRequest) {
     }
     if (!fromTeam.agentIds.includes(agentId)) {
       return NextResponse.json({ error: 'Agent is not in the source team' }, { status: 400 })
+    }
+
+    // Validate destination team exists (R5.5)
+    const toTeam = teams.find(t => t.id === toTeamId)
+    if (!toTeam) {
+      return NextResponse.json({ error: 'Destination team not found' }, { status: 404 })
+    }
+
+    // COS cannot be transferred out of their own team — would orphan the team (R5.4)
+    if (fromTeam.chiefOfStaffId === agentId) {
+      return NextResponse.json({ error: 'Cannot transfer the Chief-of-Staff out of their team — remove COS role first' }, { status: 400 })
     }
 
     // Check if source team is closed (transfer approval only needed for closed teams)

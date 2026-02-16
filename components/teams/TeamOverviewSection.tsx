@@ -1,19 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Save, X, Plus, Trash2, ListTodo, FileText, Clock } from 'lucide-react'
+import { Users, Save, X, Plus, Trash2, ListTodo, FileText, Clock, RefreshCw, AlertCircle, Lock, Unlock, Shield } from 'lucide-react'
 import type { Team } from '@/types/team'
 import type { Agent } from '@/types/agent'
 
 interface TeamOverviewSectionProps {
   team: Team
   agents: Agent[]
+  agentsLoading?: boolean
+  agentsError?: string | null
+  onRetryAgents?: () => void
   taskCount: number
   docCount: number
   onUpdateTeam: (updates: { name?: string; description?: string; agentIds?: string[] }) => Promise<void>
 }
 
-export default function TeamOverviewSection({ team, agents, taskCount, docCount, onUpdateTeam }: TeamOverviewSectionProps) {
+export default function TeamOverviewSection({ team, agents, agentsLoading, agentsError, onRetryAgents, taskCount, docCount, onUpdateTeam }: TeamOverviewSectionProps) {
   const [editingName, setEditingName] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
   const [name, setName] = useState(team.name)
@@ -66,15 +69,40 @@ export default function TeamOverviewSection({ team, agents, taskCount, docCount,
             <button onClick={() => { setName(team.name); setEditingName(false) }} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>
           </div>
         ) : (
-          <h1
-            className="text-2xl font-bold text-white cursor-pointer hover:text-emerald-400 transition-colors"
-            onClick={() => setEditingName(true)}
-            title="Click to edit"
-          >
-            {team.name}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1
+              className="text-2xl font-bold text-white cursor-pointer hover:text-emerald-400 transition-colors"
+              onClick={() => setEditingName(true)}
+              title="Click to edit"
+            >
+              {team.name}
+            </h1>
+            {/* Team type badge (R1.1) */}
+            {team.type === 'closed' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 rounded-full">
+                <Lock className="w-3 h-3" /> Closed
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-500/15 text-gray-400 border border-gray-500/30 rounded-full">
+                <Unlock className="w-3 h-3" /> Open
+              </span>
+            )}
+          </div>
         )}
       </div>
+
+      {/* COS info for closed teams (R3.7) */}
+      {team.type === 'closed' && team.chiefOfStaffId && (
+        <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+          <Shield className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+          <span className="text-sm text-indigo-300">
+            Chief-of-Staff: <strong>{(() => {
+              const cosAgent = agents.find(a => a.id === team.chiefOfStaffId)
+              return cosAgent ? (cosAgent.label || cosAgent.name || cosAgent.alias || team.chiefOfStaffId) : team.chiefOfStaffId
+            })()}</strong>
+          </span>
+        </div>
+      )}
 
       {/* Description */}
       <div className="mb-8">
@@ -152,7 +180,29 @@ export default function TeamOverviewSection({ team, agents, taskCount, docCount,
         {/* Add agent dropdown */}
         {showAddAgent && (
           <div className="mb-3 bg-gray-800 border border-gray-700 rounded-lg p-2 max-h-48 overflow-y-auto">
-            {availableAgents.length === 0 ? (
+            {agentsLoading ? (
+              <div className="flex items-center gap-2 px-2 py-3 justify-center">
+                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-gray-400">Loading agents...</span>
+              </div>
+            ) : agentsError ? (
+              <div className="flex flex-col items-center gap-2 px-2 py-3">
+                <div className="flex items-center gap-1.5 text-red-400">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span className="text-xs">Failed to load agents</span>
+                </div>
+                <p className="text-xs text-gray-500 text-center">{agentsError}</p>
+                {onRetryAgents && (
+                  <button
+                    onClick={onRetryAgents}
+                    className="flex items-center gap-1 text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Retry
+                  </button>
+                )}
+              </div>
+            ) : availableAgents.length === 0 ? (
               <p className="text-xs text-gray-500 px-2 py-1">No available agents to add</p>
             ) : (
               availableAgents.map(agent => (
@@ -173,7 +223,12 @@ export default function TeamOverviewSection({ team, agents, taskCount, docCount,
 
         {/* Agent list */}
         <div className="space-y-1">
-          {teamAgents.length === 0 ? (
+          {agentsLoading ? (
+            <div className="flex items-center gap-2 py-4 justify-center">
+              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-gray-400">Loading agents...</span>
+            </div>
+          ) : teamAgents.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 text-center">No agents in this team yet</p>
           ) : (
             teamAgents.map(agent => (

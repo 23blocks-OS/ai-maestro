@@ -26,7 +26,7 @@ export default function TeamDashboardPage() {
   const { team, loading, updateTeam } = useTeam(teamId)
   const { documents } = useDocuments(teamId)
   const { tasks } = useTasks(teamId)
-  const { agents } = useAgents()
+  const { agents, loading: agentsLoading, error: agentsError, refreshAgents } = useAgents()
 
   if (loading || !team) {
     return (
@@ -91,6 +91,9 @@ export default function TeamDashboardPage() {
             <TeamOverviewSection
               team={team}
               agents={agents}
+              agentsLoading={agentsLoading}
+              agentsError={agentsError ? agentsError.message : null}
+              onRetryAgents={refreshAgents}
               taskCount={tasks.length}
               docCount={documents.length}
               onUpdateTeam={updateTeam}

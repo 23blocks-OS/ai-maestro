@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { loadTeams, createTeam } from '@/lib/team-registry'
+import { loadTeams, createTeam, TeamValidationException } from '@/lib/team-registry'
+import { getManagerId } from '@/lib/governance'
+import { loadAgents } from '@/lib/agent-registry'
 import type { TeamType } from '@/types/governance'
 
 // GET /api/teams - List all teams
@@ -22,9 +24,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'agentIds must be an array' }, { status: 400 })
     }
 
-    const team = await createTeam({ name, description, agentIds: agentIds || [], type, chiefOfStaffId })
+    // Pass managerId for multi-closed-team constraint checks (R4.1)
+    const managerId = getManagerId()
+    // Load agent names to prevent team/agent name collisions (R2.1)
+    const allAgents = loadAgents()
+    const agentNames = allAgents.map(a => a.name).filter(Boolean) as string[]
+    const team = await createTeam({ name, description, agentIds: agentIds || [], type, chiefOfStaffId }, managerId, agentNames)
     return NextResponse.json({ team }, { status: 201 })
   } catch (error) {
+    // TeamValidationException carries the correct HTTP status code from business rule validation
+    if (error instanceof TeamValidationException) {
+      return NextResponse.json({ error: error.message }, { status: error.code })
+    }
     console.error('Failed to create team:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create team' },

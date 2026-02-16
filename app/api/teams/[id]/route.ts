@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
+import { getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
+import { getManagerId } from '@/lib/governance'
 import { checkTeamAccess } from '@/lib/team-acl'
 
 // GET /api/teams/[id] - Get a single team
@@ -33,15 +34,21 @@ export async function PUT(
       return NextResponse.json({ error: access.reason }, { status: 403 })
     }
     const body = await request.json()
-    const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt, type, chiefOfStaffId } = body
+    // Strip chiefOfStaffId and type from generic PUT — these must use dedicated password-protected endpoints (R3.12, R8.2)
+    const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt } = body
 
-    const team = await updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt, type, chiefOfStaffId })
+    const managerId = getManagerId()
+    const team = await updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt }, managerId)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 
     return NextResponse.json({ team })
   } catch (error) {
+    // TeamValidationException carries the correct HTTP status code from business rule validation
+    if (error instanceof TeamValidationException) {
+      return NextResponse.json({ error: error.message }, { status: error.code })
+    }
     console.error('Failed to update team:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update team' },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, loadGovernance } from '@/lib/governance'
-import { getTeam, updateTeam } from '@/lib/team-registry'
+import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
+import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
 
 export async function POST(
@@ -30,13 +30,11 @@ export async function POST(
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 
-    if (team.type !== 'closed') {
-      return NextResponse.json({ error: 'Chief-of-Staff can only be assigned to closed teams' }, { status: 400 })
-    }
+    const managerId = getManagerId()
 
     if (agentId === null) {
-      // Remove COS
-      const updated = await updateTeam(id, { chiefOfStaffId: undefined } as any)
+      // Remove COS — auto-downgrade team to open (R1.5)
+      const updated = await updateTeam(id, { chiefOfStaffId: null, type: 'open' }, managerId)
       return NextResponse.json({ success: true, team: updated })
     }
 
@@ -49,9 +47,15 @@ export async function POST(
       return NextResponse.json({ error: `Agent '${agentId}' not found` }, { status: 404 })
     }
 
-    const updated = await updateTeam(id, { chiefOfStaffId: agentId } as any)
+    // Assign COS — auto-upgrade team to closed (R1.3) and auto-add COS to agentIds (R4.6)
+    const newAgentIds = team.agentIds.includes(agentId) ? team.agentIds : [...team.agentIds, agentId]
+    const updated = await updateTeam(id, { chiefOfStaffId: agentId, type: 'closed', agentIds: newAgentIds }, managerId)
     return NextResponse.json({ success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
   } catch (error) {
+    // TeamValidationException carries the correct HTTP status code from business rule validation
+    if (error instanceof TeamValidationException) {
+      return NextResponse.json({ error: error.message }, { status: error.code })
+    }
     console.error('Failed to set chief-of-staff:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to set chief-of-staff' },

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { User, Shield, Crown, X, AlertTriangle } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
@@ -80,6 +80,26 @@ export default function RoleAssignmentDialog({
       setError(null)
     }
   }, [isOpen, currentRole])
+
+  // Agent name lookup map for resolving COS UUIDs to human-readable names (R7.8)
+  const [agentNameMap, setAgentNameMap] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!isOpen) return
+    fetch('/api/sessions')
+      .then(r => r.ok ? r.json() : { sessions: [] })
+      .then(data => {
+        const map = new Map<string, string>()
+        for (const s of (data.sessions || [])) {
+          if (s.agentId && (s.label || s.name || s.alias)) {
+            map.set(s.agentId, s.label || s.name || s.alias)
+          }
+        }
+        setAgentNameMap(map)
+      })
+      .catch(() => {})
+  }, [isOpen])
+
+  const resolveAgentName = useCallback((id: string) => agentNameMap.get(id) || id.slice(0, 8), [agentNameMap])
 
   // Closed teams available for COS assignment
   const closedTeams = governance.allTeams.filter((t) => t.type === 'closed')
@@ -269,7 +289,7 @@ export default function RoleAssignmentDialog({
                       const existingCos =
                         team.chiefOfStaffId && team.chiefOfStaffId !== agentId
                           ? governance.allTeams.length > 0
-                            ? `(current COS: ${team.chiefOfStaffId})`
+                            ? `(current COS: ${resolveAgentName(team.chiefOfStaffId)})`
                             : null
                           : null
 

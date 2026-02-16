@@ -5,8 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getTransferRequest, resolveTransferRequest } from '@/lib/transfer-registry'
-import { loadTeams, updateTeam } from '@/lib/team-registry'
-import { isManager } from '@/lib/governance'
+import { loadTeams, updateTeam, TeamValidationException } from '@/lib/team-registry'
+import { isManager, getManagerId, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 
@@ -58,14 +58,38 @@ export async function POST(
     // If approved, execute the actual transfer
     const toTeam = teams.find(t => t.id === transferReq.toTeamId)
     if (action === 'approve') {
+      // Verify destination team still exists (R5.5 — may have been deleted since request was created)
+      if (!toTeam) {
+        return NextResponse.json({ error: 'Destination team no longer exists — transfer cannot be completed' }, { status: 404 })
+      }
+
+      const managerId = getManagerId()
+
+      // Multi-closed-team constraint check (R4.1, R5.7)
+      // If destination is a closed team and agent is normal (not MANAGER, not COS), verify constraint
+      if (toTeam.type === 'closed') {
+        const agentId = transferReq.agentId
+        const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
+        if (!isPrivileged) {
+          const otherClosedTeam = teams.find(t =>
+            t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
+          )
+          if (otherClosedTeam) {
+            return NextResponse.json({
+              error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team`,
+            }, { status: 409 })
+          }
+        }
+      }
+
       // Remove agent from source team
       const fromTeamAgentIds = fromTeam.agentIds.filter(aid => aid !== transferReq.agentId)
-      await updateTeam(fromTeam.id, { agentIds: fromTeamAgentIds })
+      await updateTeam(fromTeam.id, { agentIds: fromTeamAgentIds }, managerId)
 
       // Add agent to destination team
-      if (toTeam && !toTeam.agentIds.includes(transferReq.agentId)) {
+      if (!toTeam.agentIds.includes(transferReq.agentId)) {
         const toTeamAgentIds = [...toTeam.agentIds, transferReq.agentId]
-        await updateTeam(toTeam.id, { agentIds: toTeamAgentIds })
+        await updateTeam(toTeam.id, { agentIds: toTeamAgentIds }, managerId)
       }
     }
 

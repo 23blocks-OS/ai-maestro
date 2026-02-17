@@ -1,16 +1,20 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getAgent, updateAgent } from '@/lib/agent-registry'
 
 /**
  * GET /api/agents/[id]/metadata
  * Get agent metadata (custom key-value pairs)
+ *
+ * NOTE: No service function exists for metadata yet.
+ * This route uses agent-registry directly until a service is created.
  */
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const agent = getAgent(params.id)
+    const { id: agentId } = await params
+    const agent = getAgent(agentId)
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -28,13 +32,14 @@ export async function GET(
  * Update agent metadata (merges with existing metadata)
  */
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: agentId } = await params
     const metadata = await request.json()
 
-    const agent = updateAgent(params.id, { metadata })
+    const agent = updateAgent(agentId, { metadata })
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -53,11 +58,12 @@ export async function PATCH(
  * Clear all agent metadata
  */
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const agent = updateAgent(params.id, { metadata: {} })
+    const { id: agentId } = await params
+    const agent = updateAgent(agentId, { metadata: {} })
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

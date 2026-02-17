@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.23.9",
+  "version": "0.24.6",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -25,13 +25,17 @@
     "macos"
   ],
   "scripts": {
-    "dev": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
-    "dev:linux": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
+    "dev": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 tsx server.mjs",
+    "dev:linux": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 tsx server.mjs",
     "build": "NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 next build",
-    "start": "NODE_ENV=production NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 node server.mjs",
+    "start": "NODE_ENV=production NEXT_PRIVATE_SKIP_LOCKFILE_CHECK=1 tsx server.mjs",
+    "headless": "MAESTRO_MODE=headless tsx server.mjs",
+    "headless:prod": "NODE_ENV=production MAESTRO_MODE=headless tsx server.mjs",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:services": "vitest run tests/services/",
+    "test:lib": "vitest run --exclude 'tests/services/**'"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
@@ -59,6 +63,7 @@
     "source-map-support": "^0.5.21",
     "ts-morph": "^27.0.2",
     "uuid": "^13.0.0",
+    "tsx": "~4.21.0",
     "ws": "^8.18.0",
     "yauzl": "^3.2.0"
   },
@@ -78,7 +83,6 @@
     "sharp": "^0.34.4",
     "tailwindcss": "^3.4.0",
     "to-ico": "^1.1.5",
-    "tsx": "^4.21.0",
     "typescript": "^5.4.0",
     "vitest": "^4.0.18"
   }

@@ -1,49 +1,29 @@
-import { NextResponse } from 'next/server'
-import {
-  listAgentInboxMessages,
-  listAgentSentMessages,
-  getAgentMessageStats
-} from '@/lib/agent-messaging'
-import { sendFromUI } from '@/lib/message-send'
+import { NextRequest, NextResponse } from 'next/server'
+import { listMessages, sendMessage } from '@/services/agents-messaging-service'
 
 /**
  * GET /api/agents/[id]/messages
- * List messages for an agent (inbox or sent)
+ * List messages for an agent (inbox, sent, or stats)
  */
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const box = searchParams.get('box') || 'inbox'
-    const status = searchParams.get('status') as any
-    const priority = searchParams.get('priority') as any
-    const from = searchParams.get('from') || undefined
-    const to = searchParams.get('to') || undefined
+  const { id } = await params
+  const { searchParams } = new URL(request.url)
 
-    if (box === 'sent') {
-      const messages = await listAgentSentMessages(params.id, {
-        priority,
-        to
-      })
-      return NextResponse.json({ messages })
-    } else if (box === 'stats') {
-      const stats = await getAgentMessageStats(params.id)
-      return NextResponse.json({ stats })
-    } else {
-      const messages = await listAgentInboxMessages(params.id, {
-        status,
-        priority,
-        from
-      })
-      return NextResponse.json({ messages })
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to list messages'
-    console.error('Failed to list messages:', error)
-    return NextResponse.json({ error: message }, { status: 500 })
+  const result = await listMessages(id, {
+    box: searchParams.get('box') || undefined,
+    status: searchParams.get('status') as any,
+    priority: searchParams.get('priority') as any,
+    from: searchParams.get('from') || undefined,
+    to: searchParams.get('to') || undefined,
+  })
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -51,32 +31,16 @@ export async function GET(
  * Send a message from this agent to another agent
  */
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { to, subject, content, priority, inReplyTo } = await request.json()
+  const { id } = await params
+  const body = await request.json()
 
-    if (!to || !subject || !content) {
-      return NextResponse.json(
-        { error: 'Missing required fields: to, subject, content' },
-        { status: 400 }
-      )
-    }
+  const result = await sendMessage(id, body)
 
-    const result = await sendFromUI({
-      from: params.id,
-      to,
-      subject,
-      content,
-      priority,
-      inReplyTo,
-    })
-
-    return NextResponse.json({ message: result.message, notified: result.notified }, { status: 201 })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send message'
-    console.error('Failed to send message:', error)
-    return NextResponse.json({ error: message }, { status: 500 })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data, { status: result.status })
 }

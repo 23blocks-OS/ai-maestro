@@ -1,6 +1,5 @@
 import { createServer } from 'http'
 import { parse } from 'url'
-import next from 'next'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -10,6 +9,13 @@ import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
+import {
+  sessionActivity,
+  terminalSessions,
+  statusSubscribers,
+  companionClients,
+  broadcastStatusUpdate
+} from './services/shared-state-bridge.mjs'
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS - Must be first to catch all errors
@@ -70,16 +76,15 @@ const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
 const port = parseInt(process.env.PORT || '23000', 10)
 
+// Server mode: 'full' (default) = Next.js + UI, 'headless' = API-only (no Next.js)
+const MAESTRO_MODE = process.env.MAESTRO_MODE || 'full'
+
 // Global logging master switch - set ENABLE_LOGGING=true to enable all logging
 const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
 
-// Initialize Next.js
-const app = next({ dev, hostname, port })
-const handle = app.getRequestHandler()
-
 // Session state management
-const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
-const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+// sessionActivity, terminalSessions, statusSubscribers, companionClients, broadcastStatusUpdate
+// are imported from shared-state-bridge.mjs (backed by globalThis._sharedState)
 const idleTimers = new Map() // sessionName -> { timer, wasActive }
 
 // Idle threshold in milliseconds (30 seconds)
@@ -164,7 +169,7 @@ function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
  */
 function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlreadyExited = false) {
   if (!sessionState) {
-    sessionState = sessions.get(sessionName)
+    sessionState = terminalSessions.get(sessionName)
   }
   if (!sessionState) {
     return
@@ -213,8 +218,8 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     sessionState.clients.clear()
   }
 
-  // Remove from sessions map
-  sessions.delete(sessionName)
+  // Remove from terminal sessions map
+  terminalSessions.delete(sessionName)
 
   // Clean up activity tracking
   sessionActivity.delete(sessionName)
@@ -224,7 +229,7 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
   }
   idleTimers.delete(sessionName)
 
-  console.log(`[PTY] Session ${sessionName} cleaned up. Active sessions: ${sessions.size}`)
+  console.log(`[PTY] Session ${sessionName} cleaned up. Active sessions: ${terminalSessions.size}`)
 }
 
 /**
@@ -266,7 +271,7 @@ function startOrphanedPtyCleanup() {
   setInterval(() => {
     let orphanedCount = 0
 
-    sessions.forEach((sessionState, sessionName) => {
+    terminalSessions.forEach((sessionState, sessionName) => {
       // Skip if already cleaned up or being cleaned up
       if (sessionState.cleanedUp) {
         return
@@ -282,7 +287,7 @@ function startOrphanedPtyCleanup() {
     })
 
     if (orphanedCount > 0) {
-      console.log(`[PTY] Cleaned up ${orphanedCount} orphaned session(s). Active: ${sessions.size}`)
+      console.log(`[PTY] Cleaned up ${orphanedCount} orphaned session(s). Active: ${terminalSessions.size}`)
     }
   }, ORPHAN_CLEANUP_INTERVAL_MS)
 
@@ -359,34 +364,14 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
-// Status WebSocket subscribers (for real-time status updates)
-const statusSubscribers = new Set()
+// statusSubscribers, broadcastStatusUpdate imported from shared-state-bridge.mjs
 
-// Broadcast status update to all subscribers
-function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType) {
-  const message = JSON.stringify({
-    type: 'status_update',
-    sessionName,
-    status,
-    hookStatus,
-    notificationType,
-    timestamp: new Date().toISOString()
-  })
-
-  statusSubscribers.forEach(ws => {
-    if (ws.readyState === 1) { // WebSocket.OPEN
-      ws.send(message)
-    }
-  })
-}
-
-// Expose session state globally for API routes
-global.sessionActivity = sessionActivity
-global.terminalSessions = sessions  // PTY processes per session
-global.statusSubscribers = statusSubscribers
-global.broadcastStatusUpdate = broadcastStatusUpdate
-
-app.prepare().then(() => {
+/**
+ * Start the HTTP server with the given request handler.
+ * All WebSocket servers, PTY handling, startup tasks, and graceful shutdown
+ * are shared between full and headless modes.
+ */
+async function startServer(handleRequest) {
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true)
@@ -396,7 +381,7 @@ app.prepare().then(() => {
       if (parsedUrl.pathname === '/api/internal/pty-sessions') {
         res.setHeader('Content-Type', 'application/json')
         const sessionInfo = []
-        sessions.forEach((state, name) => {
+        terminalSessions.forEach((state, name) => {
           sessionInfo.push({
             name,
             clients: state.clients?.size || 0,
@@ -407,14 +392,14 @@ app.prepare().then(() => {
           })
         })
         res.end(JSON.stringify({
-          activeSessions: sessions.size,
+          activeSessions: terminalSessions.size,
           sessions: sessionInfo,
           timestamp: new Date().toISOString()
         }))
         return
       }
 
-      await handle(req, res, parsedUrl)
+      await handleRequest(req, res, parsedUrl)
     } catch (err) {
       console.error('Error handling request:', err)
       res.statusCode = 500
@@ -634,11 +619,7 @@ app.prepare().then(() => {
   // WebSocket server for companion speech events (/companion-ws)
   const companionWss = new WebSocketServer({ noServer: true })
 
-  // Map of agentId -> Set<WebSocket> for companion clients
-  const companionClients = new Map()
-
-  // Expose for agent cerebellum to send speech events
-  global.companionClients = companionClients
+  // companionClients imported from shared-state-bridge.mjs
 
   companionWss.on('connection', async (ws, query) => {
     const agentId = query.agent
@@ -837,7 +818,7 @@ app.prepare().then(() => {
     // Currently all agents are local tmux sessions
 
     // Get or create session state (for traditional local tmux sessions)
-    let sessionState = sessions.get(sessionName)
+    let sessionState = terminalSessions.get(sessionName)
 
     if (!sessionState) {
       let ptyProcess
@@ -852,10 +833,8 @@ app.prepare().then(() => {
         try {
           // Verify tmux session exists before attempting to attach
           if (attempt === 1) {
-            const { execSync } = await import('child_process')
-            try {
-              execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { timeout: 2000 })
-            } catch {
+            const { sessionExistsSync } = await import('./lib/agent-runtime.ts')
+            if (!sessionExistsSync(sessionName)) {
               // tmux session does not exist
               console.error(`[PTY] tmux session "${sessionName}" does not exist`)
               try {
@@ -870,7 +849,9 @@ app.prepare().then(() => {
             }
           }
 
-          ptyProcess = pty.spawn('tmux', ['attach-session', '-t', sessionName], {
+          const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
+          const { command: attachCmd, args: attachArgs } = getRt().getAttachCommand(sessionName)
+          ptyProcess = pty.spawn(attachCmd, attachArgs, {
             name: 'xterm-256color',
             cols: 80,
             rows: 24,
@@ -886,7 +867,7 @@ app.prepare().then(() => {
             await new Promise(resolve => setTimeout(resolve, PTY_SPAWN_RETRY_DELAY_MS))
 
             // Check if another client already created the session state while we waited
-            sessionState = sessions.get(sessionName)
+            sessionState = terminalSessions.get(sessionName)
             if (sessionState) {
               console.log(`[PTY] Session ${sessionName} was created by another client during retry, reusing`)
               break
@@ -930,7 +911,7 @@ app.prepare().then(() => {
         cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
         terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
       }
-      sessions.set(sessionName, sessionState)
+      terminalSessions.set(sessionName, sessionState)
 
       // Stream PTY output to all clients with flow control (backpressure)
       // This prevents overwhelming xterm.js with too much data at once
@@ -1028,21 +1009,14 @@ app.prepare().then(() => {
     // The client can start typing immediately; history loads in the background
     setTimeout(async () => {
       try {
-        const { exec } = await import('child_process')
-        const { promisify } = await import('util')
-        const execAsync = promisify(exec)
+        const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
+        const runtime = getRt()
 
         let historyContent = ''
         try {
           // Capture scrollback history (up to 2000 lines) WITHOUT escape sequences
-          // The -e flag was causing terminal query responses like ">0;276;0c" to appear
-          // The -S -2000 flag captures scrollback history, not just visible pane
           // Reduced from 5000 to 2000 for faster loading
-          const { stdout } = await execAsync(
-            `tmux capture-pane -t "${sessionName}" -p -S -2000 2>/dev/null || tmux capture-pane -t "${sessionName}" -p`,
-            { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
-          )
-          historyContent = stdout
+          historyContent = await runtime.capturePane(sessionName, 2000)
         } catch (historyError) {
           console.error('Failed to capture history:', historyError)
         }
@@ -1215,10 +1189,10 @@ app.prepare().then(() => {
     console.log(`[Server] Received ${signal}, shutting down gracefully...`)
 
     // Kill all PTY processes FIRST and synchronously
-    const sessionCount = sessions.size
+    const sessionCount = terminalSessions.size
     console.log(`[Server] Cleaning up ${sessionCount} PTY sessions...`)
 
-    sessions.forEach((state, sessionName) => {
+    terminalSessions.forEach((state, sessionName) => {
       // Close log stream
       if (state.logStream) {
         try {
@@ -1245,8 +1219,8 @@ app.prepare().then(() => {
       }
     })
 
-    // Clear the sessions map
-    sessions.clear()
+    // Clear the terminal sessions map
+    terminalSessions.clear()
     console.log(`[Server] PTY cleanup complete`)
 
     // Now close the server
@@ -1265,4 +1239,39 @@ app.prepare().then(() => {
   // Handle both SIGTERM and SIGINT
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
   process.on('SIGINT', () => gracefulShutdown('SIGINT'))
-})
+}
+
+// =============================================================================
+// MODE BRANCHING: full (Next.js + UI) vs headless (API-only)
+// =============================================================================
+
+if (MAESTRO_MODE === 'headless') {
+  // Headless mode: standalone HTTP router, no Next.js
+  import('./services/headless-router.ts').then(({ createHeadlessRouter }) => {
+    const router = createHeadlessRouter()
+
+    startServer(async (req, res, _parsedUrl) => {
+      const handled = await router.handle(req, res)
+      if (!handled) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Not found' }))
+      }
+    })
+
+    console.log(`> Headless mode (API-only, no UI)`)
+  }).catch((err) => {
+    console.error('[Headless] Failed to load router:', err)
+    process.exit(1)
+  })
+} else {
+  // Full mode: Next.js handles all requests (pages + API routes)
+  const next = (await import('next')).default
+  const app = next({ dev, hostname, port })
+  const handle = app.getRequestHandler()
+
+  await app.prepare()
+
+  startServer(async (req, res, parsedUrl) => {
+    await handle(req, res, parsedUrl)
+  })
+}

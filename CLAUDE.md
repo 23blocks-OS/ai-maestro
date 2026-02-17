@@ -834,6 +834,38 @@ TERMINAL_SCROLLBACK=10000            # Terminal scrollback buffer
 
 Set via `.env.local` (gitignored). Never commit `.env.local`.
 
+## Server Modes
+
+AI Maestro supports two server modes controlled by the `MAESTRO_MODE` environment variable:
+
+### Full Mode (default)
+```bash
+yarn dev        # Development with hot reload
+yarn start      # Production
+```
+- Uses Next.js for both UI pages and API routes
+- All features available: dashboard, terminal WebSockets, API endpoints
+- Startup: ~5s, Memory: ~300MB
+
+### Headless Mode
+```bash
+yarn headless        # Development
+yarn headless:prod   # Production
+```
+- API-only mode — no Next.js, no UI pages
+- All ~100 API endpoints served via standalone HTTP router (`services/headless-router.ts`)
+- WebSocket connections (terminal, AMP, status, companion) work identically
+- Uses `tsx` for TypeScript support (resolves `@/*` paths via tsconfig.json)
+- Startup: ~1s, Memory: ~100MB
+- Ideal for worker nodes that only need the API surface
+
+**Architecture:**
+- `server.mjs` branches on `MAESTRO_MODE` at startup
+- Full mode: `node server.mjs` → Next.js `app.prepare()` → `handle(req, res)`
+- Headless mode: `tsx server.mjs` → `createHeadlessRouter()` → `router.handle(req, res)`
+- All WebSocket servers, PTY handling, startup tasks, and graceful shutdown are shared between modes
+- The `/api/internal/pty-sessions` endpoint is served directly from `server.mjs` in both modes
+
 ## Testing the Application
 
 **Manual testing workflow:**

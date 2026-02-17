@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
+import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
 
 // GET /api/teams/[id] - Get a single team
 export async function GET(
@@ -7,11 +7,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const team = getTeam(id)
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  const result = getTeamById(id)
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json({ team })
+  return NextResponse.json(result.data)
 }
 
 // PUT /api/teams/[id] - Update a team
@@ -19,24 +20,14 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params
-    const body = await request.json()
-    const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt } = body
+  const { id } = await params
+  const body = await request.json()
+  const result = updateTeamById(id, body)
 
-    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt })
-    if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ team })
-  } catch (error) {
-    console.error('Failed to update team:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update team' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 // DELETE /api/teams/[id] - Delete a team
@@ -45,9 +36,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const deleted = deleteTeam(id)
-  if (!deleted) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  const result = deleteTeamById(id)
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json({ success: true })
+  return NextResponse.json(result.data)
 }

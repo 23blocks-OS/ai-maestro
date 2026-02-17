@@ -7,13 +7,10 @@
  * RFC: Message Delivery Notifications (Lola, 2026-01-24)
  */
 
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import { getAgent, getAgentByName } from '@/lib/agent-registry'
 import { computeSessionName } from '@/types/agent'
 import { getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
-
-const execAsync = promisify(exec)
+import { getRuntime } from '@/lib/agent-runtime'
 
 // Configuration (can be overridden via environment variables)
 const NOTIFICATIONS_ENABLED = process.env.NOTIFICATIONS_ENABLED !== 'false'
@@ -43,33 +40,19 @@ export interface NotificationResult {
 }
 
 /**
- * Check if a tmux session exists
- */
-async function tmuxSessionExists(sessionName: string): Promise<boolean> {
-  try {
-    await execAsync(`tmux has-session -t "${sessionName}" 2>/dev/null`)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
  * Send a notification to a tmux session
  * Uses echo to display the message without interrupting the agent's work
  */
 async function sendTmuxNotification(sessionName: string, message: string): Promise<void> {
-  // Escape single quotes in the message
-  const escapedMessage = message.replace(/'/g, "'\\''")
-
+  const runtime = getRuntime()
   // Target the first pane of the first window
   const target = `${sessionName}:0.0`
 
-  // Send text and Enter atomically via tmux \; command chaining to prevent race conditions
-  // Uses -l (literal) flag to prevent tmux from misinterpreting key names in notification text
+  // Uses literal flag to prevent tmux from misinterpreting key names in notification text
   // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
   // will be typed as input to that program. Notifications are designed for idle shell prompts.
-  await execAsync(`tmux send-keys -t "${target}" -l "echo '${escapedMessage}'" \\; send-keys -t "${target}" Enter`)
+  const escapedMessage = message.replace(/'/g, "'\\''")
+  await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true, enter: true })
 }
 
 /**
@@ -148,7 +131,8 @@ export async function notifyAgent(options: NotificationOptions): Promise<Notific
     const sessionName = computeSessionName(agent.name, primarySession.index)
 
     // Check if tmux session exists
-    const sessionExists = await tmuxSessionExists(sessionName)
+    const runtime = getRuntime()
+    const sessionExists = await runtime.sessionExists(sessionName)
     if (!sessionExists) {
       console.log(`[Notify] tmux session ${sessionName} not found`)
       return { success: true, notified: false, reason: 'Session not active' }

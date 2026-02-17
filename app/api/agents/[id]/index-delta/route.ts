@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runIndexDelta } from '@/lib/index-delta'
+import { runDeltaIndex } from '@/services/agents-memory-service'
 
 /**
  * POST /api/agents/:id/index-delta
  * Index new messages (delta) for all conversations of an agent
- *
- * Thin wrapper around runIndexDelta() — the core logic lives in lib/index-delta.ts
- * so it can be called directly by the subconscious without HTTP overhead.
  *
  * Query parameters:
  * - dryRun: If true, only report what would be indexed (default: false)
@@ -19,12 +16,12 @@ export async function POST(
   const { id: agentId } = await params
   const searchParams = request.nextUrl.searchParams
 
-  const dryRun = searchParams.get('dryRun') === 'true'
-  const batchSize = parseInt(searchParams.get('batchSize') || '10')
-
-  const result = await runIndexDelta(agentId, { dryRun, batchSize })
-
-  return NextResponse.json(result, {
-    status: result.success ? 200 : 500
+  const result = await runDeltaIndex(agentId, {
+    dryRun: searchParams.get('dryRun') === 'true',
+    batchSize: searchParams.get('batchSize')
+      ? parseInt(searchParams.get('batchSize')!)
+      : undefined,
   })
+
+  return NextResponse.json(result.data, { status: result.status })
 }

@@ -66,6 +66,8 @@ export async function setPassword(plaintext: string): Promise<void> {
 export function verifyPassword(plaintext: string): boolean {
   const config = loadGovernance()
   if (!config.passwordHash) {
+    // Phase 1 (localhost-only): timing difference between "no password" and "wrong password"
+    // is accepted risk. No remote attackers can observe timing in this deployment model.
     return false
   }
   return bcrypt.compareSync(plaintext, config.passwordHash)

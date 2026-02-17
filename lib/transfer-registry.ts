@@ -120,11 +120,11 @@ export async function cleanupOldTransfers(): Promise<number> {
     const requests = loadTransfers()
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 30)
-    const cutoffStr = cutoff.toISOString()
 
     const filtered = requests.filter(r => {
       if (r.status === 'pending') return true // Keep all pending
-      return (r.resolvedAt || r.createdAt) > cutoffStr
+      // Use numeric comparison to avoid string-based ISO timestamp comparison pitfalls
+      return new Date(r.resolvedAt || r.createdAt).getTime() > cutoff.getTime()
     })
 
     const removed = requests.length - filtered.length

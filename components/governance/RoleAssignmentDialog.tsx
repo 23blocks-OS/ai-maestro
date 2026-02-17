@@ -81,6 +81,14 @@ export default function RoleAssignmentDialog({
     }
   }, [isOpen, currentRole])
 
+  // Close dialog on Escape key press
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
+
   // Agent name lookup map for resolving COS UUIDs to human-readable names (R7.8)
   const [agentNameMap, setAgentNameMap] = useState<Map<string, string>>(new Map())
   useEffect(() => {
@@ -182,7 +190,8 @@ export default function RoleAssignmentDialog({
       // Success: notify parent and close
       onRoleChanged()
       onClose()
-    } catch (err) {
+    } catch (err: unknown) {
+      governance.refresh()  // Reload actual state after partial failure
       setError(err instanceof Error ? err.message : 'Failed to update governance role')
       setPhase('error')
     }
@@ -203,7 +212,7 @@ export default function RoleAssignmentDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}

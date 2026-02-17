@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { getSelfHost } from '@/lib/hosts-config'
 import fs from 'fs'
@@ -29,14 +29,16 @@ interface HostTransferRequest {
  * - newAlias: Optional new alias for the agent on target
  */
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+
     // Find agent by ID or alias
-    let agent = getAgent(params.id)
+    let agent = getAgent(id)
     if (!agent) {
-      agent = getAgentByAlias(params.id)
+      agent = getAgentByAlias(id)
     }
 
     if (!agent) {

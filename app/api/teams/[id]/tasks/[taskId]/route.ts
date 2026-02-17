@@ -63,7 +63,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid status. Must be backlog, pending, in_progress, review, or completed' }, { status: 400 })
     }
 
-    const result = updateTask(id, taskId, {
+    const result = await updateTask(id, taskId, {
       subject,
       description,
       status,
@@ -94,21 +94,26 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
-  const { id, taskId } = await params
-  const team = getTeam(id)
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  }
-  const agentId = request.headers.get('X-Agent-Id') || undefined
-  const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.reason }, { status: 403 })
-  }
+  try {
+    const { id, taskId } = await params
+    const team = getTeam(id)
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    }
+    const agentId = request.headers.get('X-Agent-Id') || undefined
+    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.reason }, { status: 403 })
+    }
 
-  const deleted = deleteTask(id, taskId)
-  if (!deleted) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-  }
+    const deleted = await deleteTask(id, taskId)
+    if (!deleted) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
 
-  return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting task:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

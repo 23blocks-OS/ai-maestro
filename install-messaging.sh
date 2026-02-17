@@ -398,7 +398,8 @@ migrate_old_messages() {
                 fi
 
                 # Backup old messages
-                local BACKUP_DIR="$HOME/.aimaestro/messages.backup.$(date +%Y%m%d-%H%M%S)"
+                local BACKUP_DIR
+                BACKUP_DIR="$HOME/.aimaestro/messages.backup.$(date +%Y%m%d-%H%M%S)"
                 if [ -d "$HOME/.aimaestro/messages" ]; then
                     mv "$HOME/.aimaestro/messages" "$BACKUP_DIR"
                     print_info "Old messages backed up to: $BACKUP_DIR"
@@ -427,7 +428,8 @@ migrate_old_messages() {
 
         if [ "$result" -gt 0 ] 2>/dev/null; then
             # Backup shared messages and clean up
-            local SHARED_BACKUP="$HOME/.agent-messaging/messages.backup.$(date +%Y%m%d-%H%M%S)"
+            local SHARED_BACKUP
+            SHARED_BACKUP="$HOME/.agent-messaging/messages.backup.$(date +%Y%m%d-%H%M%S)"
             mv "$HOME/.agent-messaging/messages" "$SHARED_BACKUP"
             print_info "Shared messages backed up to: $SHARED_BACKUP"
             print_success "Messages are now in per-agent directories (~/.agent-messaging/agents/<name>/messages/)"
@@ -810,6 +812,10 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
             SCRIPTS_OK=false
         fi
     done
+
+    if [ "$SCRIPTS_OK" = false ]; then
+        print_warning "Some AMP scripts were not installed correctly"
+    fi
 
     echo ""
     if command -v amp-init.sh &> /dev/null; then

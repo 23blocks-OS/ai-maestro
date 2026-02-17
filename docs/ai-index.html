@@ -32,7 +32,7 @@
         "priceCurrency": "USD"
       },
       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
-      "softwareVersion": "0.23.12",
+      "softwareVersion": "0.23.13",
       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
       "url": "https://ai-maestro.23blocks.com",
       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
@@ -88,7 +88,7 @@
             <h2>What is AI Maestro?</h2>
             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
 
-            <p><strong>Version:</strong> 0.23.12 (February 2026)</p>
+            <p><strong>Version:</strong> 0.23.13 (February 2026)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -225,7 +225,7 @@
             <h2>Installation Options</h2>
 
             <h3>Option 1: Full Installation (Recommended)</h3>
-            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and all 5 Claude Code skills.</p>
+            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and all 7 Claude Code skills.</p>
             <pre>
 # One command installs everything
 curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
@@ -236,7 +236,7 @@ cd ai-maestro && yarn install && yarn dev
             </pre>
 
             <h3>Option 2: Claude Code Plugin Only</h3>
-            <p>Installs 5 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 4 skills require the AI Maestro service running on localhost:23000.</p>
+            <p>Installs 7 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 6 skills require the AI Maestro service running on localhost:23000.</p>
             <pre>
 /plugin marketplace add 23blocks-OS/ai-maestro
 /plugin install ai-maestro@ai-maestro-marketplace
@@ -249,6 +249,8 @@ cd ai-maestro && yarn install && yarn dev
                 <li><strong>docs-search</strong> - Requires AI Maestro service</li>
                 <li><strong>graph-query</strong> - Requires AI Maestro service</li>
                 <li><strong>agent-messaging</strong> - Requires AI Maestro service</li>
+                <li><strong>ai-maestro-agents-management</strong> - Requires AI Maestro service</li>
+                <li><strong>team-governance</strong> - Requires AI Maestro service</li>
             </ul>
 
             <p><strong>Requirements:</strong></p>
@@ -387,7 +389,7 @@ cd ai-maestro && yarn install && yarn dev
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.23.12 (February 2026)</li>
+                <li><strong>Current Version:</strong> 0.23.13 (February 2026)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>

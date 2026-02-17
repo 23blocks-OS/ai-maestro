@@ -423,6 +423,7 @@ export type AMPErrorCode =
   | 'invalid_field'
   | 'unauthorized'
   | 'forbidden'
+  | 'message_blocked'
   | 'not_found'
   | 'name_taken'
   | 'rate_limited'

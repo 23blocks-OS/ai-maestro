@@ -70,10 +70,12 @@ function tasksFilePath(teamId: string): string {
   return path.join(TEAMS_DIR, `tasks-${teamId}.json`)
 }
 
+let makeTaskCounter = 1000  // Separate from uuid mock counter to avoid coupling
+
 /** Build a Task object with sensible defaults. Overrides apply. */
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
-    id: `task-${++uuidCounter}`,
+    id: `task-${++makeTaskCounter}`,
     teamId: TEAM_1,
     subject: 'Default Task',
     status: 'pending',
@@ -160,37 +162,37 @@ describe('saveTasks', () => {
 // ============================================================================
 
 describe('createTask', () => {
-  it('creates a task with default status pending', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'New Task' })
+  it('creates a task with default status pending', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'New Task' })
 
     expect(task.status).toBe('pending')
     expect(task.subject).toBe('New Task')
     expect(task.teamId).toBe(TEAM_1)
   })
 
-  it('generates a UUID for the task id', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'UUID Test' })
+  it('generates a UUID for the task id', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'UUID Test' })
 
     expect(task.id).toMatch(/^uuid-/)
   })
 
-  it('sets createdAt and updatedAt to the same ISO timestamp', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'Timestamp Test' })
+  it('sets createdAt and updatedAt to the same ISO timestamp', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'Timestamp Test' })
 
     expect(task.createdAt).toBe(task.updatedAt)
     expect(new Date(task.createdAt).toISOString()).toBe(task.createdAt)
   })
 
-  it('persists the task to storage', () => {
-    createTask({ teamId: TEAM_1, subject: 'Persisted Task' })
+  it('persists the task to storage', async () => {
+    await createTask({ teamId: TEAM_1, subject: 'Persisted Task' })
 
     const loaded = loadTasks(TEAM_1)
     expect(loaded).toHaveLength(1)
     expect(loaded[0].subject).toBe('Persisted Task')
   })
 
-  it('preserves all optional fields when provided', () => {
-    const task = createTask({
+  it('preserves all optional fields when provided', async () => {
+    const task = await createTask({
       teamId: TEAM_1,
       subject: 'Full Task',
       description: 'A detailed description',
@@ -205,13 +207,18 @@ describe('createTask', () => {
     expect(task.priority).toBe(2)
   })
 
-  it('defaults blockedBy to empty array when not provided', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'No Deps' })
+  it('defaults blockedBy to empty array when not provided', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'No Deps' })
     expect(task.blockedBy).toEqual([])
   })
 
-  it('defaults assigneeAgentId to null when not provided', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'No Assignee' })
+  it('defaults assigneeAgentId to null when not provided', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'No Assignee' })
+    expect(task.assigneeAgentId).toBeNull()
+  })
+
+  it('converts empty assigneeAgentId to null', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'Test', assigneeAgentId: '' })
     expect(task.assigneeAgentId).toBeNull()
   })
 })
@@ -221,8 +228,8 @@ describe('createTask', () => {
 // ============================================================================
 
 describe('getTask', () => {
-  it('returns the task when it exists', () => {
-    createTask({ teamId: TEAM_1, subject: 'Find Me' })
+  it('returns the task when it exists', async () => {
+    await createTask({ teamId: TEAM_1, subject: 'Find Me' })
     const tasks = loadTasks(TEAM_1)
     const taskId = tasks[0].id
 
@@ -231,8 +238,8 @@ describe('getTask', () => {
     expect(found!.subject).toBe('Find Me')
   })
 
-  it('returns null for a non-existent task ID', () => {
-    createTask({ teamId: TEAM_1, subject: 'Exists' })
+  it('returns null for a non-existent task ID', async () => {
+    await createTask({ teamId: TEAM_1, subject: 'Exists' })
 
     const found = getTask(TEAM_1, 'non-existent-id')
     expect(found).toBeNull()
@@ -249,98 +256,98 @@ describe('getTask', () => {
 // ============================================================================
 
 describe('updateTask', () => {
-  it('returns null task when task does not exist', () => {
-    const result = updateTask(TEAM_1, 'non-existent', { subject: 'Updated' })
+  it('returns null task when task does not exist', async () => {
+    const result = await updateTask(TEAM_1, 'non-existent', { subject: 'Updated' })
     expect(result.task).toBeNull()
     expect(result.unblocked).toEqual([])
   })
 
-  it('updates the subject and refreshes updatedAt', () => {
-    const created = createTask({ teamId: TEAM_1, subject: 'Original' })
-    const result = updateTask(TEAM_1, created.id, { subject: 'Updated' })
+  it('updates the subject and refreshes updatedAt', async () => {
+    const created = await createTask({ teamId: TEAM_1, subject: 'Original' })
+    const result = await updateTask(TEAM_1, created.id, { subject: 'Updated' })
 
     expect(result.task).not.toBeNull()
     expect(result.task!.subject).toBe('Updated')
     expect(result.task!.updatedAt).toBeDefined()
   })
 
-  it('sets startedAt when status changes to in_progress', () => {
-    const created = createTask({ teamId: TEAM_1, subject: 'Start Me' })
-    const result = updateTask(TEAM_1, created.id, { status: 'in_progress' })
+  it('sets startedAt when status changes to in_progress', async () => {
+    const created = await createTask({ teamId: TEAM_1, subject: 'Start Me' })
+    const result = await updateTask(TEAM_1, created.id, { status: 'in_progress' })
 
     expect(result.task!.startedAt).toBeDefined()
     expect(result.task!.status).toBe('in_progress')
   })
 
-  it('sets startedAt when status changes to review (if not already started)', () => {
-    const created = createTask({ teamId: TEAM_1, subject: 'Review Me' })
-    const result = updateTask(TEAM_1, created.id, { status: 'review' })
+  it('sets startedAt when status changes to review (if not already started)', async () => {
+    const created = await createTask({ teamId: TEAM_1, subject: 'Review Me' })
+    const result = await updateTask(TEAM_1, created.id, { status: 'review' })
 
     expect(result.task!.startedAt).toBeDefined()
     expect(result.task!.status).toBe('review')
   })
 
-  it('sets completedAt when status changes to completed', () => {
-    const created = createTask({ teamId: TEAM_1, subject: 'Complete Me' })
-    const result = updateTask(TEAM_1, created.id, { status: 'completed' })
+  it('sets completedAt when status changes to completed', async () => {
+    const created = await createTask({ teamId: TEAM_1, subject: 'Complete Me' })
+    const result = await updateTask(TEAM_1, created.id, { status: 'completed' })
 
     expect(result.task!.completedAt).toBeDefined()
     expect(result.task!.status).toBe('completed')
   })
 
-  it('does not overwrite startedAt if already set', () => {
-    const created = createTask({ teamId: TEAM_1, subject: 'Already Started' })
+  it('does not overwrite startedAt if already set', async () => {
+    const created = await createTask({ teamId: TEAM_1, subject: 'Already Started' })
 
     // Move to in_progress first to set startedAt
-    const first = updateTask(TEAM_1, created.id, { status: 'in_progress' })
+    const first = await updateTask(TEAM_1, created.id, { status: 'in_progress' })
     const firstStartedAt = first.task!.startedAt
 
     // Move to review -- startedAt should not change
-    const second = updateTask(TEAM_1, created.id, { status: 'review' })
+    const second = await updateTask(TEAM_1, created.id, { status: 'review' })
     expect(second.task!.startedAt).toBe(firstStartedAt)
   })
 
-  it('detects unblocked tasks when a blocker is completed', () => {
-    const blocker = createTask({ teamId: TEAM_1, subject: 'Blocker' })
-    const blocked = createTask({
+  it('detects unblocked tasks when a blocker is completed', async () => {
+    const blocker = await createTask({ teamId: TEAM_1, subject: 'Blocker' })
+    const blocked = await createTask({
       teamId: TEAM_1,
       subject: 'Blocked',
       blockedBy: [blocker.id],
     })
 
-    const result = updateTask(TEAM_1, blocker.id, { status: 'completed' })
+    const result = await updateTask(TEAM_1, blocker.id, { status: 'completed' })
 
     expect(result.unblocked).toHaveLength(1)
     expect(result.unblocked[0].id).toBe(blocked.id)
   })
 
-  it('does not report unblocked if other blockers remain incomplete', () => {
-    const blocker1 = createTask({ teamId: TEAM_1, subject: 'Blocker 1' })
-    const blocker2 = createTask({ teamId: TEAM_1, subject: 'Blocker 2' })
-    createTask({
+  it('does not report unblocked if other blockers remain incomplete', async () => {
+    const blocker1 = await createTask({ teamId: TEAM_1, subject: 'Blocker 1' })
+    const blocker2 = await createTask({ teamId: TEAM_1, subject: 'Blocker 2' })
+    await createTask({
       teamId: TEAM_1,
       subject: 'Double Blocked',
       blockedBy: [blocker1.id, blocker2.id],
     })
 
     // Complete only the first blocker
-    const result = updateTask(TEAM_1, blocker1.id, { status: 'completed' })
+    const result = await updateTask(TEAM_1, blocker1.id, { status: 'completed' })
 
     expect(result.unblocked).toHaveLength(0)
   })
 
-  it('does not report unblocked when task was already completed before', () => {
-    const blocker = createTask({ teamId: TEAM_1, subject: 'Already Done' })
-    updateTask(TEAM_1, blocker.id, { status: 'completed' })
+  it('does not report unblocked when task was already completed before', async () => {
+    const blocker = await createTask({ teamId: TEAM_1, subject: 'Already Done' })
+    await updateTask(TEAM_1, blocker.id, { status: 'completed' })
 
-    createTask({
+    await createTask({
       teamId: TEAM_1,
       subject: 'Dep',
       blockedBy: [blocker.id],
     })
 
     // Update the already-completed blocker again -- wasCompleted is true so no unblock detection
-    const result = updateTask(TEAM_1, blocker.id, { status: 'completed' })
+    const result = await updateTask(TEAM_1, blocker.id, { status: 'completed' })
     expect(result.unblocked).toEqual([])
   })
 })
@@ -350,30 +357,30 @@ describe('updateTask', () => {
 // ============================================================================
 
 describe('deleteTask', () => {
-  it('removes the task and returns true', () => {
-    const task = createTask({ teamId: TEAM_1, subject: 'Delete Me' })
+  it('removes the task and returns true', async () => {
+    const task = await createTask({ teamId: TEAM_1, subject: 'Delete Me' })
 
-    const result = deleteTask(TEAM_1, task.id)
+    const result = await deleteTask(TEAM_1, task.id)
     expect(result).toBe(true)
 
     const remaining = loadTasks(TEAM_1)
     expect(remaining).toHaveLength(0)
   })
 
-  it('returns false when task does not exist', () => {
-    const result = deleteTask(TEAM_1, 'non-existent')
+  it('returns false when task does not exist', async () => {
+    const result = await deleteTask(TEAM_1, 'non-existent')
     expect(result).toBe(false)
   })
 
-  it('cleans up blockedBy references in other tasks', () => {
-    const blocker = createTask({ teamId: TEAM_1, subject: 'Blocker to Delete' })
-    const dependent = createTask({
+  it('cleans up blockedBy references in other tasks', async () => {
+    const blocker = await createTask({ teamId: TEAM_1, subject: 'Blocker to Delete' })
+    const dependent = await createTask({
       teamId: TEAM_1,
       subject: 'Dependent',
       blockedBy: [blocker.id],
     })
 
-    deleteTask(TEAM_1, blocker.id)
+    await deleteTask(TEAM_1, blocker.id)
 
     const remaining = loadTasks(TEAM_1)
     const updatedDependent = remaining.find(t => t.id === dependent.id)
@@ -381,16 +388,16 @@ describe('deleteTask', () => {
     expect(updatedDependent!.blockedBy).toEqual([])
   })
 
-  it('preserves other blockedBy entries when deleting one blocker', () => {
-    const blockerA = createTask({ teamId: TEAM_1, subject: 'Blocker A' })
-    const blockerB = createTask({ teamId: TEAM_1, subject: 'Blocker B' })
-    const dependent = createTask({
+  it('preserves other blockedBy entries when deleting one blocker', async () => {
+    const blockerA = await createTask({ teamId: TEAM_1, subject: 'Blocker A' })
+    const blockerB = await createTask({ teamId: TEAM_1, subject: 'Blocker B' })
+    const dependent = await createTask({
       teamId: TEAM_1,
       subject: 'Has Two Blockers',
       blockedBy: [blockerA.id, blockerB.id],
     })
 
-    deleteTask(TEAM_1, blockerA.id)
+    await deleteTask(TEAM_1, blockerA.id)
 
     const remaining = loadTasks(TEAM_1)
     const updated = remaining.find(t => t.id === dependent.id)

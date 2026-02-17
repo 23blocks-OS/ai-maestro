@@ -59,25 +59,33 @@ export async function POST(
         return NextResponse.json({ error: 'Only the source team COS or MANAGER can resolve this transfer' }, { status: 403 })
       }
 
-      // Resolve the request
-      resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Failed to resolve transfer request — concurrent resolve detected' }, { status: 409 })
-      }
-
-      // If approved, execute the actual transfer
+      // Look up destination team early so we can validate before marking as approved
       toTeam = teams.find(t => t.id === transferReq.toTeamId)
+
       if (action === 'approve') {
-        // Verify destination team still exists (R5.5 — may have been deleted since request was created)
+        // Verify destination team still exists BEFORE marking transfer as approved (R5.5)
+        // — must check before resolveTransferRequest so we don't mark approved on disk
+        // when the transfer cannot actually be completed
         if (!toTeam) {
           return NextResponse.json({ error: 'Destination team no longer exists — transfer cannot be completed' }, { status: 404 })
         }
+      }
+
+      // Resolve the request (mark as approved/rejected on disk)
+      resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
+      if (!resolved) {
+        // Concurrent resolve detected — another request resolved this transfer first
+        return NextResponse.json({ error: 'Transfer already resolved' }, { status: 409 })
+      }
+
+      // If approved, execute the actual transfer
+      if (action === 'approve') {
 
         const managerId = getManagerId()
 
         // Multi-closed-team constraint check (R4.1, R5.7)
         // If destination is a closed team and agent is normal (not MANAGER, not COS), verify constraint
-        if (toTeam.type === 'closed') {
+        if (toTeam!.type === 'closed') {
           const agentId = transferReq.agentId
           const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
           if (!isPrivileged) {
@@ -113,8 +121,12 @@ export async function POST(
           }
         }
 
-        // Single atomic save for both team mutations
-        saveTeams(teams)
+        // Single atomic save for both team mutations — check return value
+        // to detect write failures (disk full, permission error, etc.)
+        const saved = saveTeams(teams)
+        if (!saved) {
+          return NextResponse.json({ error: 'Failed to save team changes after transfer approval' }, { status: 500 })
+        }
       }
     } finally {
       releaseLock()

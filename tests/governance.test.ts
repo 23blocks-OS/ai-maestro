@@ -237,7 +237,7 @@ describe('isChiefOfStaffAnywhere', () => {
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
-    ] as any)
+    ])
 
     expect(isChiefOfStaffAnywhere('agent-cos-1')).toBe(true)
     expect(isChiefOfStaffAnywhere('agent-member-2')).toBe(false)
@@ -267,7 +267,7 @@ describe('isChiefOfStaffAnywhere', () => {
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
-    ] as any)
+    ])
 
     expect(isChiefOfStaffAnywhere('agent-cos-open')).toBe(false)
   })

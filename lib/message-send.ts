@@ -303,7 +303,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     const recipientFullAgent = getAgent(toResolved.agentId)
     const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
     const hasNoActiveSession = !toResolved.sessionName ||
-      !recipientFullAgent?.sessions?.some((s: any) => s.status === 'online')
+      !recipientFullAgent?.sessions?.some((s) => s.status === 'online')
 
     if (isAMPExternalAgent && hasNoActiveSession) {
       // Queue to AMP relay for external agent to poll
@@ -507,7 +507,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     const recipientFullAgent = getAgent(toResolved.agentId)
     const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
     const hasNoActiveSession = !toResolved.sessionName ||
-      !recipientFullAgent?.sessions?.some((s: any) => s.status === 'online')
+      !recipientFullAgent?.sessions?.some((s) => s.status === 'online')
 
     if (isAMPExternalAgent && hasNoActiveSession) {
       // Queue to AMP relay for external agent to poll

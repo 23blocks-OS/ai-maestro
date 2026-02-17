@@ -28,14 +28,23 @@ export default function TeamDashboardPage() {
   const { tasks } = useTasks(teamId)
   const { agents, loading: agentsLoading, error: agentsError, refreshAgents } = useAgents()
 
-  if (loading || !team) {
+  if (loading) {
     return (
       <div className="flex flex-col h-screen bg-gray-950 text-white">
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="w-10 h-10 mx-auto mb-3 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-gray-400">{loading ? 'Loading team...' : 'Team not found'}</p>
+            <p className="text-sm text-gray-400">Loading team...</p>
           </div>
+        </div>
+      </div>
+    )
+  }
+  if (!team) {
+    return (
+      <div className="flex flex-col h-screen bg-gray-950 text-white">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-gray-400">Team not found</p>
         </div>
       </div>
     )

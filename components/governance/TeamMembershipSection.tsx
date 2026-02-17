@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Building2, Lock, Unlock, Plus, X, ChevronDown, Clock, Check, XCircle } from 'lucide-react'
 import type { Team } from '@/types/team'
-import type { GovernanceRole } from '@/components/governance/RoleBadge'
+import type { GovernanceRole } from '@/types/governance'
 import type { TransferRequest } from '@/types/governance'
 
 interface TeamMembershipSectionProps {
@@ -70,6 +70,7 @@ export default function TeamMembershipSection({
 
   const handleJoin = async (teamId: string) => {
     setError(null)
+    setInfoMessage(null) // Clear stale info messages before new action
     setLoading(teamId)
     try {
       // Check if agent is in a closed team — if so, need transfer approval from that team's COS
@@ -79,7 +80,9 @@ export default function TeamMembershipSection({
 
       if (closedSourceTeams.length > 0 && onRequestTransfer && agentRole !== 'manager') {
         // Agent is in a closed team led by someone else — create transfer request
-        const sourceTeam = closedSourceTeams[0] // Use first closed team as source
+        // Business rule: an agent can only be in one closed team at a time (R3),
+        // so closedSourceTeams.length is always 0 or 1 in valid states.
+        const sourceTeam = closedSourceTeams[0]
         const result = await onRequestTransfer(agentId, sourceTeam.id, teamId)
         if (result.success) {
           setShowJoinDropdown(false)
@@ -107,6 +110,7 @@ export default function TeamMembershipSection({
 
   const handleLeave = async (teamId: string) => {
     setError(null)
+    setInfoMessage(null) // Clear stale info messages before new action
     setLoading(teamId)
     try {
       const result = await onLeaveTeam(teamId)

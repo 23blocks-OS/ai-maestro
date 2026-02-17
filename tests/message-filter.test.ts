@@ -171,6 +171,9 @@ describe('checkMessageAllowed', () => {
     expect(result.reason).toBeUndefined()
   })
 
+  // Defensive test: validates filter handles COS-not-in-agentIds edge case.
+  // In production, validateTeamMutation auto-adds COS to agentIds (R4.6),
+  // so this scenario represents data corruption, not normal operation.
   it('allows a normal member to message the COS of their team (COS is not a peer teammate)', () => {
     /**
      * A normal closed-team member messages the COS of their own team.

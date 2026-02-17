@@ -32,6 +32,9 @@ vi.mock('@/lib/file-lock', () => ({
   withLock: vi.fn((_name: string, fn: () => any) => Promise.resolve(fn())),
 }))
 
+// Note: team-registry is tested via its real implementation with a mocked 'fs' module.
+// This is an integration test pattern — the fs mock is picked up transitively.
+
 // ============================================================================
 // Imports (after mocks)
 // ============================================================================

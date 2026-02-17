@@ -36,7 +36,9 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
   // Compute chief-of-staff display name from agents list
   const cosDisplay = useMemo(() => {
     const cosAgent = agents.find(a => a.id === team.chiefOfStaffId)
-    return cosAgent ? (cosAgent.label || cosAgent.name || cosAgent.alias || team.chiefOfStaffId) : team.chiefOfStaffId
+    return cosAgent
+      ? (cosAgent.label || cosAgent.name || cosAgent.alias || team.chiefOfStaffId)
+      : (team.chiefOfStaffId ? `Unknown (${team.chiefOfStaffId.slice(0, 8)}...)` : null)
   }, [agents, team.chiefOfStaffId])
 
   const handleSaveName = async () => {

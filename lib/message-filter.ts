@@ -51,7 +51,11 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   const closedTeams = teams.filter(t => t.type === 'closed')
   const senderTeams = closedTeams.filter(t => t.agentIds.includes(senderAgentId))
   const recipientTeams = closedTeams.filter(t => t.agentIds.includes(recipientAgentId))
-  const senderInClosed = senderTeams.length > 0
+  // Defense-in-depth: also include teams where sender is COS via chiefOfStaffId,
+  // in case COS was not added to agentIds (data corruption edge case).
+  const senderCosTeams = closedTeams.filter(t => t.chiefOfStaffId === senderAgentId)
+  const allSenderTeamIds = [...new Set([...senderTeams.map(t => t.id), ...senderCosTeams.map(t => t.id)])]
+  const senderInClosed = senderTeams.length > 0 || senderCosTeams.length > 0
   const recipientInClosed = recipientTeams.length > 0
 
   // Helper: is the given agentId the manager?
@@ -80,7 +84,11 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
       return { allowed: true }
     }
     // COS can message members of ANY of their closed teams (R6.7 — plural, not singular)
-    if (senderTeams.some(team => team.agentIds.includes(recipientAgentId))) {
+    // Uses allSenderTeamIds to cover COS-not-in-agentIds edge case
+    const cosTeamMembers = closedTeams
+      .filter(t => allSenderTeamIds.includes(t.id))
+      .flatMap(t => t.agentIds)
+    if (cosTeamMembers.includes(recipientAgentId)) {
       return { allowed: true }
     }
     return {

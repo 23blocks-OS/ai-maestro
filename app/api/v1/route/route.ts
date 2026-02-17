@@ -91,7 +91,7 @@ function checkRateLimit(agentId: string): RateLimitResult {
 
   entry.count++
   // Periodic cleanup: remove expired entries every 100 checks
-  if (entry.count % 100 === 0) {
+  if (entry.count % 100 === 0 || rateLimitMap.size > 500) {
     for (const [key, val] of rateLimitMap) {
       if (now > val.resetAt) rateLimitMap.delete(key)
     }
@@ -309,6 +309,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
     // ── Body Validation ────────────────────────────────────────────────
     const body = await request.json() as AMPRouteRequest
+
+    // Post-parse size check: Content-Length can be spoofed or absent
+    const bodyStr = JSON.stringify(body)
+    if (bodyStr.length > MAX_PAYLOAD_SIZE) {
+      return NextResponse.json({ error: 'payload_too_large', message: 'Request body exceeds size limit' }, { status: 413 })
+    }
 
     if (!body.to || typeof body.to !== 'string') {
       return NextResponse.json({
@@ -572,7 +578,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     if (!filterResult.allowed) {
       return NextResponse.json({
         id: messageId, status: 'failed' as const,
-        error: 'message_blocked',
+        // Use standard AMP error code (forbidden) for governance-blocked messages
+        error: 'forbidden',
         message: filterResult.reason || 'Message blocked by team governance policy'
       }, { status: 403, headers: rateLimitHeaders })
     }

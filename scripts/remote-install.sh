@@ -29,7 +29,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # Version & config
-VERSION="0.23.12"
+VERSION="0.23.13"
 REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
 DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
 PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
@@ -1222,12 +1222,16 @@ act4_start_and_register() {
                     *)        gw_display="$gw_item" ;;
                 esac
                 if [ -n "$gw_list" ]; then
-                    gw_list="${gw_list}\n- ${gw_display}"
+                    gw_list="${gw_list}"$'\n'"- ${gw_display}"
                 else
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use awk for substitution since sed cannot handle real newlines in replacement on macOS
+            GW_LIST="$gw_list" awk '{
+                gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, ENVIRON["GW_LIST"])
+                print
+            }' "$MAILMAN_DIR/CLAUDE.md" > "$MAILMAN_DIR/CLAUDE.md.tmp" && mv "$MAILMAN_DIR/CLAUDE.md.tmp" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \

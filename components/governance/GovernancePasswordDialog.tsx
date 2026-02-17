@@ -31,6 +31,14 @@ export default function GovernancePasswordDialog({
     }
   }, [isOpen])
 
+  // Close dialog on Escape key press
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen])
+
   const handleClose = () => {
     if (submitting) return
     onClose()
@@ -41,6 +49,7 @@ export default function GovernancePasswordDialog({
   }
 
   const handleSubmit = async () => {
+    if (submitting) return // Guard against double-click firing multiple submissions
     setError(null)
 
     if (mode === 'setup') {
@@ -92,12 +101,13 @@ export default function GovernancePasswordDialog({
   return (
     <AnimatePresence>
       {isOpen && (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={handleClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-4">

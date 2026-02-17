@@ -207,6 +207,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           showToast('Message forwarded successfully!', 'success')
           fetchMessages()
           fetchUnreadCount()
+          fetchSentMessages()
+          fetchSentCount()
         } else {
           const error = await response.json()
           showToast(`Failed to forward: ${error.error}`, 'error')
@@ -237,6 +239,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           setComposeType('request')
           setView('inbox')
           showToast('Message sent successfully!', 'success')
+          fetchSentMessages()
+          fetchSentCount()
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Send failed' }))
           if (errorData.error?.includes('governance') || errorData.error?.includes('closed team') || response.status === 403) {
@@ -536,11 +540,11 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'text-red-600 bg-red-100'
-      case 'high': return 'text-orange-600 bg-orange-100'
-      case 'normal': return 'text-blue-600 bg-blue-100'
-      case 'low': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'urgent': return 'text-red-400 bg-red-900/30'
+      case 'high': return 'text-orange-400 bg-orange-900/30'
+      case 'normal': return 'text-blue-400 bg-blue-900/30'
+      case 'low': return 'text-gray-400 bg-gray-700'
+      default: return 'text-gray-400 bg-gray-700'
     }
   }
 
@@ -876,7 +880,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                   <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(selectedMessage.priority)}`}>
                     {selectedMessage.priority}
                   </span>
-                  <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-600">
+                  <span className="text-xs px-2 py-1 rounded bg-purple-900/30 text-purple-400">
                     {selectedMessage.content.type}
                   </span>
                 </div>
@@ -1068,7 +1072,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                   <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(selectedMessage.priority)}`}>
                     {selectedMessage.priority}
                   </span>
-                  <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-600">
+                  <span className="text-xs px-2 py-1 rounded bg-purple-900/30 text-purple-400">
                     {selectedMessage.content.type}
                   </span>
                 </div>

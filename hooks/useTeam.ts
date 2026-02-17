@@ -13,7 +13,7 @@ interface UseTeamResult {
 
 export function useTeam(teamId: string | null): UseTeamResult {
   const [team, setTeam] = useState<Team | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)  // Set false immediately by useEffect when teamId is null
   const [error, setError] = useState<string | null>(null)
 
   const fetchTeam = useCallback(async () => {
@@ -44,17 +44,22 @@ export function useTeam(teamId: string | null): UseTeamResult {
     if (!teamId) return
     // Optimistic update
     setTeam(prev => prev ? { ...prev, ...updates, updatedAt: new Date().toISOString() } : prev)
-    const res = await fetch(`/api/teams/${teamId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...updates, lastActivityAt: new Date().toISOString() }),
-    })
-    if (!res.ok) {
-      await fetchTeam() // Revert optimistic update
-      throw new Error('Failed to update team')
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updates, lastActivityAt: new Date().toISOString() }),
+      })
+      if (!res.ok) {
+        await fetchTeam()  // Revert optimistic update on HTTP error
+        throw new Error('Failed to update team')
+      }
+      const data = await res.json()
+      setTeam(data.team)
+    } catch (err) {
+      await fetchTeam()  // Revert optimistic update on network error too
+      throw err
     }
-    const data = await res.json()
-    setTeam(data.team)
   }, [teamId, fetchTeam])
 
   return {

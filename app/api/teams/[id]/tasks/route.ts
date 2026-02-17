@@ -8,20 +8,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const team = getTeam(id)
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  }
-  const agentId = request.headers.get('X-Agent-Id') || undefined
-  const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.reason }, { status: 403 })
-  }
+  try {
+    const { id } = await params
+    const team = getTeam(id)
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    }
+    const agentId = request.headers.get('X-Agent-Id') || undefined
+    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.reason }, { status: 403 })
+    }
 
-  const tasks = loadTasks(id)
-  const resolved = resolveTaskDeps(tasks)
-  return NextResponse.json({ tasks: resolved })
+    const tasks = loadTasks(id)
+    const resolved = resolveTaskDeps(tasks)
+    return NextResponse.json({ tasks: resolved })
+  } catch (error) {
+    console.error('Error loading tasks:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
 
 // POST /api/teams/[id]/tasks - Create a new task
@@ -70,7 +75,7 @@ export async function POST(
       }
     }
 
-    const task = createTask({
+    const task = await createTask({
       teamId: id,
       subject: subject.trim(),
       description,

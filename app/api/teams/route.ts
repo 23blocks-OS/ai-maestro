@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { loadTeams, createTeam, TeamValidationException } from '@/lib/team-registry'
 import { getManagerId } from '@/lib/governance'
 import { loadAgents } from '@/lib/agent-registry'
-import type { TeamType } from '@/types/governance'
 
 // GET /api/teams - List all teams
 // Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access

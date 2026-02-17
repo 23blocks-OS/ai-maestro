@@ -70,8 +70,10 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     setAgent(initialAgent)
   }, [initialAgent])
 
-  // Fetch repositories when component mounts
+  // Fetch repositories only when the repos section is expanded
   useEffect(() => {
+    if (!expandedSections.repositories) return
+
     const fetchRepos = async () => {
       setLoadingRepos(true)
       try {
@@ -88,7 +90,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     }
 
     fetchRepos()
-  }, [agent.id, baseUrl])
+  }, [agent.id, baseUrl, expandedSections.repositories])
 
   // Fetch used avatars
   useEffect(() => {
@@ -1010,7 +1012,7 @@ function EditableField({ label, value, onChange, icon, placeholder, multiline }:
   )
 }
 
-// Metric Card Component
+// Metric Card Component (simplified variant — AgentProfile.tsx has a trend prop; this zoom view omits it)
 interface MetricCardProps {
   icon: React.ReactNode
   value: string | number

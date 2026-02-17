@@ -17,7 +17,7 @@ export interface GovernanceState {
   cosTeams: Team[]
   memberTeams: Team[]
   allTeams: Team[]
-  refresh: () => void
+  refresh: (signal?: AbortSignal) => void
   setPassword: (pw: string, currentPw?: string) => Promise<{ success: boolean; error?: string }>
   assignManager: (agentId: string | null, pw: string) => Promise<{ success: boolean; error?: string }>
   assignCOS: (teamId: string, agentId: string | null, pw: string) => Promise<{ success: boolean; error?: string }>
@@ -60,24 +60,26 @@ export function useGovernance(agentId: string | null): GovernanceState {
     ? allTeams.filter((t) => t.agentIds.includes(agentId))
     : [], [agentId, allTeams])
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback((signal?: AbortSignal) => {
     // Fetch governance state and teams in parallel
     setLoading(true)
     Promise.all([
-      fetch('/api/governance').then((r) => {
+      fetch('/api/governance', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
       }).catch(() => ({ hasPassword: false, hasManager: false, managerId: null, managerName: null })),
-      fetch('/api/teams').then((r) => {
+      fetch('/api/teams', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
       }).catch(() => ({ teams: [] })),
-      fetch('/api/governance/transfers?status=pending').then((r) => {
+      fetch('/api/governance/transfers?status=pending', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
       }).catch(() => ({ requests: [] })),
     ])
       .then(([govData, teamsData, transfersData]) => {
+        if (signal?.aborted) return  // Stale response guard
+        // React 18+ batches these 6 setters into a single re-render automatically
         setHasPassword(govData.hasPassword ?? false)
         setHasManager(govData.hasManager ?? false)
         setManagerId(govData.managerId ?? null)
@@ -97,11 +99,13 @@ export function useGovernance(agentId: string | null): GovernanceState {
       .finally(() => {
         setLoading(false)
       })
-  }, [agentId])
+  }, [])
 
-  // Fetch on mount and when agentId changes
+  // Fetch on mount and when agentId changes; abort stale requests on re-render
   useEffect(() => {
-    refresh()
+    const controller = new AbortController()
+    refresh(controller.signal)
+    return () => controller.abort()
   }, [agentId, refresh])
 
   const setPassword = useCallback(
@@ -161,6 +165,9 @@ export function useGovernance(agentId: string | null): GovernanceState {
     [refresh]
   )
 
+  // Note: This uses a client-side read-modify-write pattern (GET team -> modify agentIds -> PUT).
+  // Concurrent calls can race. Server-side atomic add/remove operations would be the proper fix.
+  // For Phase 1, UI buttons are disabled during operations which mitigates the risk.
   const addAgentToTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -193,9 +200,12 @@ export function useGovernance(agentId: string | null): GovernanceState {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
       }
     },
-    [refresh, managerId]
+    [refresh]
   )
 
+  // Note: This uses a client-side read-modify-write pattern (GET team -> modify agentIds -> PUT).
+  // Concurrent calls can race. Server-side atomic add/remove operations would be the proper fix.
+  // For Phase 1, UI buttons are disabled during operations which mitigates the risk.
   const removeAgentFromTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -217,8 +227,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentIds: updatedAgentIds }),
         })
-        const data = await res.json()
-        if (!res.ok) return { success: false, error: data.error || 'Failed to remove agent from team' }
+        if (!res.ok) {
+          const errData = await res.json()
+          return { success: false, error: errData.error || 'Failed to remove agent from team' }
+        }
         refresh()
         return { success: true }
       } catch (err) {

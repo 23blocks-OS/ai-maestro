@@ -281,7 +281,9 @@ export async function updateTeam(
     if (index === -1) return null
 
     // Validate all business rules before applying the update (R1-R4, name sanitization)
-    const result = validateTeamMutation(teams, id, updates as Record<string, unknown>, managerId ?? null)
+    // Extract only governance-relevant fields for validation (avoids unsafe Record cast)
+    const govFields = { name: updates.name, type: updates.type, chiefOfStaffId: updates.chiefOfStaffId, agentIds: updates.agentIds }
+    const result = validateTeamMutation(teams, id, govFields, managerId ?? null)
     if (!result.valid) {
       throw new TeamValidationException(result.error, result.code)
     }
@@ -307,8 +309,11 @@ export async function deleteTeam(id: string): Promise<boolean> {
     if (filtered.length === teams.length) return false
     saveTeams(filtered)
     // Clean up orphaned task file for the deleted team
-    const taskFile = path.join(TEAMS_DIR, `tasks-${id}.json`)
-    try { if (fs.existsSync(taskFile)) fs.unlinkSync(taskFile) } catch {}
+    // Defense-in-depth: validate UUID format before constructing file path to prevent path traversal
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      const taskFile = path.join(TEAMS_DIR, path.basename(`tasks-${id}.json`))
+      try { if (fs.existsSync(taskFile)) fs.unlinkSync(taskFile) } catch { /* ignore */ }
+    }
     return true
   })
 }

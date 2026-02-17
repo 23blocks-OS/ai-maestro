@@ -10,6 +10,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { loadAgents } from '@/lib/agent-registry'
+import { withLock } from '@/lib/file-lock'
 import type { Task, TaskWithDeps, TasksFile } from '@/types/task'
 
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
@@ -22,7 +23,8 @@ function ensureTeamsDir() {
 
 function tasksFilePath(teamId: string): string {
   // Validate teamId is a proper UUID to prevent path traversal attacks
-  if (!/^[0-9a-f-]{36}$/i.test(teamId)) throw new Error('Invalid team ID')
+  // Strict UUID v4 pattern (8-4-4-4-12 hex groups) to prevent path traversal
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId)) throw new Error('Invalid team ID')
   // Defense-in-depth: use basename to strip any directory components
   return path.join(TEAMS_DIR, path.basename(`tasks-${teamId}.json`))
 }
@@ -99,26 +101,28 @@ export function createTask(data: {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
-}): Task {
-  const tasks = loadTasks(data.teamId)
-  const now = new Date().toISOString()
+}): Promise<Task> {
+  return withLock('tasks-' + data.teamId, () => {
+    const tasks = loadTasks(data.teamId)
+    const now = new Date().toISOString()
 
-  const task: Task = {
-    id: uuidv4(),
-    teamId: data.teamId,
-    subject: data.subject,
-    description: data.description,
-    status: 'pending',
-    assigneeAgentId: data.assigneeAgentId || null,
-    blockedBy: data.blockedBy || [],
-    priority: data.priority,
-    createdAt: now,
-    updatedAt: now,
-  }
+    const task: Task = {
+      id: uuidv4(),
+      teamId: data.teamId,
+      subject: data.subject,
+      description: data.description,
+      status: 'pending',
+      assigneeAgentId: data.assigneeAgentId || null,
+      blockedBy: data.blockedBy || [],
+      priority: data.priority,
+      createdAt: now,
+      updatedAt: now,
+    }
 
-  tasks.push(task)
-  saveTasks(data.teamId, tasks)
-  return task
+    tasks.push(task)
+    saveTasks(data.teamId, tasks)
+    return task
+  })
 }
 
 export function getTask(teamId: string, taskId: string): Task | null {
@@ -133,61 +137,65 @@ export function updateTask(
   teamId: string,
   taskId: string,
   updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority'>>
-): { task: Task | null; unblocked: Task[] } {
-  const tasks = loadTasks(teamId)
-  const index = tasks.findIndex(t => t.id === taskId)
-  if (index === -1) return { task: null, unblocked: [] }
+): Promise<{ task: Task | null; unblocked: Task[] }> {
+  return withLock('tasks-' + teamId, () => {
+    const tasks = loadTasks(teamId)
+    const index = tasks.findIndex(t => t.id === taskId)
+    if (index === -1) return { task: null, unblocked: [] }
 
-  const now = new Date().toISOString()
-  const wasCompleted = tasks[index].status === 'completed'
-  const isNowCompleted = updates.status === 'completed'
+    const now = new Date().toISOString()
+    const wasCompleted = tasks[index].status === 'completed'
+    const isNowCompleted = updates.status === 'completed'
 
-  tasks[index] = {
-    ...tasks[index],
-    ...updates,
-    updatedAt: now,
-  }
+    tasks[index] = {
+      ...tasks[index],
+      ...updates,
+      updatedAt: now,
+    }
 
-  // Set timestamps based on status changes
-  if ((updates.status === 'in_progress' || updates.status === 'review') && !tasks[index].startedAt) {
-    tasks[index].startedAt = now
-  }
-  if (updates.status === 'completed' && !tasks[index].completedAt) {
-    tasks[index].completedAt = now
-  }
+    // Set timestamps based on status changes
+    if ((updates.status === 'in_progress' || updates.status === 'review') && !tasks[index].startedAt) {
+      tasks[index].startedAt = now
+    }
+    if (updates.status === 'completed' && !tasks[index].completedAt) {
+      tasks[index].completedAt = now
+    }
 
-  // Find newly unblocked tasks when a task is completed
-  let unblocked: Task[] = []
-  if (!wasCompleted && isNowCompleted) {
-    unblocked = tasks.filter(t => {
-      if (!t.blockedBy.includes(taskId)) return false
-      // Check if ALL blockers are now completed
-      return t.blockedBy.every(depId => {
-        const dep = tasks.find(d => d.id === depId)
-        return dep && dep.status === 'completed'
+    // Find newly unblocked tasks when a task is completed
+    let unblocked: Task[] = []
+    if (!wasCompleted && isNowCompleted) {
+      unblocked = tasks.filter(t => {
+        if (!t.blockedBy.includes(taskId)) return false
+        // Check if ALL blockers are now completed
+        return t.blockedBy.every(depId => {
+          const dep = tasks.find(d => d.id === depId)
+          return dep && dep.status === 'completed'
+        })
       })
-    })
-  }
+    }
 
-  saveTasks(teamId, tasks)
-  return { task: tasks[index], unblocked }
+    saveTasks(teamId, tasks)
+    return { task: tasks[index], unblocked }
+  })
 }
 
 /**
  * Delete a task and clean up references in other tasks' blockedBy arrays
  */
-export function deleteTask(teamId: string, taskId: string): boolean {
-  const tasks = loadTasks(teamId)
-  const filtered = tasks
-    .filter(t => t.id !== taskId)
-    .map(t => ({
-      ...t,
-      blockedBy: t.blockedBy.filter(id => id !== taskId),
-    }))
+export function deleteTask(teamId: string, taskId: string): Promise<boolean> {
+  return withLock('tasks-' + teamId, () => {
+    const tasks = loadTasks(teamId)
+    const filtered = tasks
+      .filter(t => t.id !== taskId)
+      .map(t => ({
+        ...t,
+        blockedBy: t.blockedBy.filter(id => id !== taskId),
+      }))
 
-  if (filtered.length === tasks.length) return false
-  saveTasks(teamId, filtered)
-  return true
+    if (filtered.length === tasks.length) return false
+    saveTasks(teamId, filtered)
+    return true
+  })
 }
 
 /**

@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy are required' }, { status: 400 })
     }
 
-    // Verify requester has authority (must be MANAGER or COS)
+    // Note: requestedBy is validated for authority (manager/COS) but not existence.
+    // The authority check effectively validates the ID since only registered agents can be manager/COS.
     if (!isManager(requestedBy) && !isChiefOfStaffAnywhere(requestedBy)) {
       return NextResponse.json({ error: 'Only MANAGER or Chief-of-Staff can request transfers' }, { status: 403 })
     }

@@ -97,6 +97,8 @@ _sed_inplace() {
     sed -i.bak "$@" "$file" && rm -f "${file}.bak"
 }
 
+# Note: Version dots in patterns are unescaped regex wildcards, but false matches
+# are prevented by the specific surrounding context (e.g., "version": "X.Y.Z").
 update_file() {
     local file="$1"
     local pattern="$2"

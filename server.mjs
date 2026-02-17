@@ -9,6 +9,13 @@ import path from 'path'
 import { getHostById, isSelf } from './lib/hosts-config-server.mjs'
 import { hostHints } from './lib/host-hints-server.mjs'
 import { getOrCreateBuffer } from './lib/cerebellum/session-bridge.mjs'
+import {
+  sessionActivity,
+  terminalSessions,
+  statusSubscribers,
+  companionClients,
+  broadcastStatusUpdate
+} from './services/shared-state-bridge.mjs'
 
 // =============================================================================
 // GLOBAL ERROR HANDLERS - Must be first to catch all errors
@@ -76,8 +83,8 @@ const MAESTRO_MODE = process.env.MAESTRO_MODE || 'full'
 const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
 
 // Session state management
-const sessions = new Map() // sessionName -> { clients: Set, ptyProcess, logStream, lastActivity: timestamp }
-const sessionActivity = new Map() // sessionName -> lastActivityTimestamp
+// sessionActivity, terminalSessions, statusSubscribers, companionClients, broadcastStatusUpdate
+// are imported from shared-state-bridge.mjs (backed by globalThis._sharedState)
 const idleTimers = new Map() // sessionName -> { timer, wasActive }
 
 // Idle threshold in milliseconds (30 seconds)
@@ -162,7 +169,7 @@ function killPtyProcess(ptyProcess, sessionName, alreadyExited = false) {
  */
 function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlreadyExited = false) {
   if (!sessionState) {
-    sessionState = sessions.get(sessionName)
+    sessionState = terminalSessions.get(sessionName)
   }
   if (!sessionState) {
     return
@@ -211,8 +218,8 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
     sessionState.clients.clear()
   }
 
-  // Remove from sessions map
-  sessions.delete(sessionName)
+  // Remove from terminal sessions map
+  terminalSessions.delete(sessionName)
 
   // Clean up activity tracking
   sessionActivity.delete(sessionName)
@@ -222,7 +229,7 @@ function cleanupSession(sessionName, sessionState, reason = 'unknown', ptyAlread
   }
   idleTimers.delete(sessionName)
 
-  console.log(`[PTY] Session ${sessionName} cleaned up. Active sessions: ${sessions.size}`)
+  console.log(`[PTY] Session ${sessionName} cleaned up. Active sessions: ${terminalSessions.size}`)
 }
 
 /**
@@ -264,7 +271,7 @@ function startOrphanedPtyCleanup() {
   setInterval(() => {
     let orphanedCount = 0
 
-    sessions.forEach((sessionState, sessionName) => {
+    terminalSessions.forEach((sessionState, sessionName) => {
       // Skip if already cleaned up or being cleaned up
       if (sessionState.cleanedUp) {
         return
@@ -280,7 +287,7 @@ function startOrphanedPtyCleanup() {
     })
 
     if (orphanedCount > 0) {
-      console.log(`[PTY] Cleaned up ${orphanedCount} orphaned session(s). Active: ${sessions.size}`)
+      console.log(`[PTY] Cleaned up ${orphanedCount} orphaned session(s). Active: ${terminalSessions.size}`)
     }
   }, ORPHAN_CLEANUP_INTERVAL_MS)
 
@@ -357,32 +364,7 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
-// Status WebSocket subscribers (for real-time status updates)
-const statusSubscribers = new Set()
-
-// Broadcast status update to all subscribers
-function broadcastStatusUpdate(sessionName, status, hookStatus, notificationType) {
-  const message = JSON.stringify({
-    type: 'status_update',
-    sessionName,
-    status,
-    hookStatus,
-    notificationType,
-    timestamp: new Date().toISOString()
-  })
-
-  statusSubscribers.forEach(ws => {
-    if (ws.readyState === 1) { // WebSocket.OPEN
-      ws.send(message)
-    }
-  })
-}
-
-// Expose session state globally for API routes
-global.sessionActivity = sessionActivity
-global.terminalSessions = sessions  // PTY processes per session
-global.statusSubscribers = statusSubscribers
-global.broadcastStatusUpdate = broadcastStatusUpdate
+// statusSubscribers, broadcastStatusUpdate imported from shared-state-bridge.mjs
 
 /**
  * Start the HTTP server with the given request handler.
@@ -399,7 +381,7 @@ async function startServer(handleRequest) {
       if (parsedUrl.pathname === '/api/internal/pty-sessions') {
         res.setHeader('Content-Type', 'application/json')
         const sessionInfo = []
-        sessions.forEach((state, name) => {
+        terminalSessions.forEach((state, name) => {
           sessionInfo.push({
             name,
             clients: state.clients?.size || 0,
@@ -410,7 +392,7 @@ async function startServer(handleRequest) {
           })
         })
         res.end(JSON.stringify({
-          activeSessions: sessions.size,
+          activeSessions: terminalSessions.size,
           sessions: sessionInfo,
           timestamp: new Date().toISOString()
         }))
@@ -637,11 +619,7 @@ async function startServer(handleRequest) {
   // WebSocket server for companion speech events (/companion-ws)
   const companionWss = new WebSocketServer({ noServer: true })
 
-  // Map of agentId -> Set<WebSocket> for companion clients
-  const companionClients = new Map()
-
-  // Expose for agent cerebellum to send speech events
-  global.companionClients = companionClients
+  // companionClients imported from shared-state-bridge.mjs
 
   companionWss.on('connection', async (ws, query) => {
     const agentId = query.agent
@@ -840,7 +818,7 @@ async function startServer(handleRequest) {
     // Currently all agents are local tmux sessions
 
     // Get or create session state (for traditional local tmux sessions)
-    let sessionState = sessions.get(sessionName)
+    let sessionState = terminalSessions.get(sessionName)
 
     if (!sessionState) {
       let ptyProcess
@@ -889,7 +867,7 @@ async function startServer(handleRequest) {
             await new Promise(resolve => setTimeout(resolve, PTY_SPAWN_RETRY_DELAY_MS))
 
             // Check if another client already created the session state while we waited
-            sessionState = sessions.get(sessionName)
+            sessionState = terminalSessions.get(sessionName)
             if (sessionState) {
               console.log(`[PTY] Session ${sessionName} was created by another client during retry, reusing`)
               break
@@ -933,7 +911,7 @@ async function startServer(handleRequest) {
         cleanupTimer: null, // Timer for cleaning up PTY when no clients connected
         terminalBuffer: getOrCreateBuffer(sessionName) // Cerebellum terminal buffer for voice subsystem
       }
-      sessions.set(sessionName, sessionState)
+      terminalSessions.set(sessionName, sessionState)
 
       // Stream PTY output to all clients with flow control (backpressure)
       // This prevents overwhelming xterm.js with too much data at once
@@ -1211,10 +1189,10 @@ async function startServer(handleRequest) {
     console.log(`[Server] Received ${signal}, shutting down gracefully...`)
 
     // Kill all PTY processes FIRST and synchronously
-    const sessionCount = sessions.size
+    const sessionCount = terminalSessions.size
     console.log(`[Server] Cleaning up ${sessionCount} PTY sessions...`)
 
-    sessions.forEach((state, sessionName) => {
+    terminalSessions.forEach((state, sessionName) => {
       // Close log stream
       if (state.logStream) {
         try {
@@ -1241,8 +1219,8 @@ async function startServer(handleRequest) {
       }
     })
 
-    // Clear the sessions map
-    sessions.clear()
+    // Clear the terminal sessions map
+    terminalSessions.clear()
     console.log(`[Server] PTY cleanup complete`)
 
     // Now close the server

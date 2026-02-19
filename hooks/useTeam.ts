@@ -44,10 +44,14 @@ export function useTeam(teamId: string | null): UseTeamResult {
   // This is a deliberate pattern — unlike useGovernance which returns { success, error } objects.
   const updateTeam = useCallback(async (updates: { name?: string; description?: string; agentIds?: string[]; instructions?: string }) => {
     if (!teamId) return
-    // CC-007: Optimistic update — server validates via validateTeamMutation.
-    // TypeScript's excess property checking on object literals limits `updates` to declared keys,
-    // but structural typing could allow extra keys at runtime; server is the authority.
-    setTeam(prev => prev ? { ...prev, ...updates, updatedAt: new Date().toISOString() } : prev)
+    // CC-007: Optimistic update — pick only valid team-update keys before spreading.
+    // Structural typing could allow extra keys at runtime; explicit key filtering prevents
+    // unexpected properties from polluting the team object. Server is the authority.
+    const validKeys = ['name', 'description', 'type', 'agentIds', 'chiefOfStaffId', 'managerId'] as const
+    const safeUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([k]) => (validKeys as readonly string[]).includes(k))
+    )
+    setTeam(prev => prev ? { ...prev, ...safeUpdates, updatedAt: new Date().toISOString() } : prev)
     try {
       const res = await fetch(`/api/teams/${teamId}`, {
         method: 'PUT',

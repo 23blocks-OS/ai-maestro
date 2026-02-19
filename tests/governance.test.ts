@@ -23,6 +23,14 @@ vi.mock('fs', () => ({
       if (src in fsStore) fsStore[dest] = fsStore[src]
       else throw new Error(`ENOENT: no such file or directory, copy '${src}'`)
     }),
+    renameSync: vi.fn((oldPath: string, newPath: string) => {
+      if (oldPath in fsStore) {
+        fsStore[newPath] = fsStore[oldPath]
+        delete fsStore[oldPath]
+      } else {
+        throw new Error(`ENOENT: no such file or directory, rename '${oldPath}'`)
+      }
+    }),
   },
 }))
 

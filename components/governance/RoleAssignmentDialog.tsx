@@ -166,21 +166,35 @@ export default function RoleAssignmentDialog({
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         } else if (currentRole === 'chief-of-staff') {
-          // Sequential removal — partial failure is acceptable since each removal is independent.
-          // Server state is consistent after each step.
-          for (const team of governance.cosTeams) {
-            const result = await governance.assignCOS(team.id, null, password)
-            if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
+          // CC-003: Use Promise.allSettled for parallel COS removal — reports partial failures clearly
+          const removalResults = await Promise.allSettled(
+            governance.cosTeams.map(async (team) => {
+              const result = await governance.assignCOS(team.id, null, password)
+              if (!result.success) throw new Error(result.error || `Failed for ${team.name}`)
+            })
+          )
+          const failures = removalResults
+            .map((r, i) => r.status === 'rejected' ? governance.cosTeams[i].name : null)
+            .filter(Boolean)
+          if (failures.length > 0) {
+            throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
         }
       } else if (selectedRole === 'manager') {
         // Promote to manager: first remove COS if needed, then assign manager
         if (currentRole === 'chief-of-staff') {
-          // Sequential removal — partial failure is acceptable since each removal is independent.
-          // Server state is consistent after each step.
-          for (const team of governance.cosTeams) {
-            const result = await governance.assignCOS(team.id, null, password)
-            if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
+          // CC-003: Use Promise.allSettled for parallel COS removal — reports partial failures clearly
+          const removalResults = await Promise.allSettled(
+            governance.cosTeams.map(async (team) => {
+              const result = await governance.assignCOS(team.id, null, password)
+              if (!result.success) throw new Error(result.error || `Failed for ${team.name}`)
+            })
+          )
+          const failures = removalResults
+            .map((r, i) => r.status === 'rejected' ? governance.cosTeams[i].name : null)
+            .filter(Boolean)
+          if (failures.length > 0) {
+            throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
           }
         }
         const result = await governance.assignManager(agentId, password)
@@ -191,14 +205,21 @@ export default function RoleAssignmentDialog({
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         }
-        // Remove COS from teams no longer selected
-        // Sequential removal — partial failure is acceptable since each removal is independent.
-        // Server state is consistent after each step.
+        // CC-003: Remove COS from teams no longer selected — parallel with partial failure reporting
         if (currentRole === 'chief-of-staff') {
-          for (const team of governance.cosTeams) {
-            if (!selectedTeamIds.includes(team.id)) {
-              const result = await governance.assignCOS(team.id, null, password)
-              if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
+          const teamsToRemove = governance.cosTeams.filter(team => !selectedTeamIds.includes(team.id))
+          if (teamsToRemove.length > 0) {
+            const removalResults = await Promise.allSettled(
+              teamsToRemove.map(async (team) => {
+                const result = await governance.assignCOS(team.id, null, password)
+                if (!result.success) throw new Error(result.error || `Failed for ${team.name}`)
+              })
+            )
+            const failures = removalResults
+              .map((r, i) => r.status === 'rejected' ? teamsToRemove[i].name : null)
+              .filter(Boolean)
+            if (failures.length > 0) {
+              throw new Error(`Failed to remove COS from: ${failures.join(', ')}`)
             }
           }
         }

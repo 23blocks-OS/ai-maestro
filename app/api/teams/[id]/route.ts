@@ -90,7 +90,8 @@ export async function DELETE(
     // checkTeamAccess allows any member for resource access, but deletion is destructive
     const team = getTeam(id)
     if (team && team.type === 'closed') {
-      if (agentId && !isManager(agentId) && team.chiefOfStaffId !== agentId) {
+      // Guard: no agentId means unauthenticated — deny; otherwise must be MANAGER or COS
+      if (!agentId || (!isManager(agentId) && team.chiefOfStaffId !== agentId)) {
         return NextResponse.json(
           { error: 'Closed team deletion requires MANAGER or Chief-of-Staff authority' },
           { status: 403 }

@@ -58,13 +58,14 @@ export function loadGovernance(): GovernanceConfig {
   }
 }
 
-/** Write governance config to disk */
+/** Write governance config to disk using atomic temp-file-then-rename pattern */
 export function saveGovernance(config: GovernanceConfig): void {
   // Fail-fast: let errors propagate to callers (all wrapped in withLock try/catch)
   ensureAimaestroDir()
-  // Phase 1: non-atomic write acceptable for single-process localhost.
-  // Phase 2: use temp+rename for atomicity (write to tmp file, then fs.renameSync to target).
-  fs.writeFileSync(GOVERNANCE_FILE, JSON.stringify(config, null, 2), 'utf-8')
+  // Atomic write: write to temp file then rename to avoid corruption on crash
+  const tmpFile = GOVERNANCE_FILE + '.tmp'
+  fs.writeFileSync(tmpFile, JSON.stringify(config, null, 2), 'utf-8')
+  fs.renameSync(tmpFile, GOVERNANCE_FILE)
 }
 
 /** Set governance password (bcrypt hash with 12 salt rounds) */

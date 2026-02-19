@@ -35,7 +35,7 @@ export async function POST(
       return NextResponse.json({ error: 'title is required' }, { status: 400 })
     }
 
-    const document = createDocument({
+    const document = await createDocument({
       teamId: id,
       title,
       content: content || '',

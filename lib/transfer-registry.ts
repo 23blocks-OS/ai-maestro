@@ -32,7 +32,8 @@ export function loadTransfers(): TransferRequest[] {
     const raw = readFileSync(TRANSFERS_FILE, 'utf-8')
     const data: TransfersFile = JSON.parse(raw)
     return data.requests || []
-  } catch {
+  } catch (error) {
+    console.error('[transfer-registry] Error loading transfers:', error)
     return []
   }
 }
@@ -54,6 +55,16 @@ export async function createTransferRequest(params: {
 }): Promise<TransferRequest> {
   return withLock('transfers', () => {
     const requests = loadTransfers()
+    // Prevent duplicate pending transfers for the same agent+team combination
+    const duplicate = requests.find(r =>
+      r.agentId === params.agentId &&
+      r.fromTeamId === params.fromTeamId &&
+      r.toTeamId === params.toTeamId &&
+      r.status === 'pending'
+    )
+    if (duplicate) {
+      throw new Error('A pending transfer request already exists for this agent and team combination')
+    }
     const request: TransferRequest = {
       id: randomUUID(),
       agentId: params.agentId,

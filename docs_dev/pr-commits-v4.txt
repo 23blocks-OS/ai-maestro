@@ -1,0 +1,9 @@
+ec82db3 Fix v4 review findings SR-001 through SR-011, bump to v0.23.14
+3355219 Fix v2 review findings: 4 MUST-FIX, 19 SHOULD-FIX, 28 NIT across 38 files (v0.23.13)
+c39394e Fix all PR review findings: 13 MUST-FIX, 32 SHOULD-FIX, 18 NIT (v0.23.12)
+11a5193 Enforce governance business rules server-side and UI, add tests (v0.23.11)
+c482df8 chore: bump version to 0.23.10
+ca465a8 Fix governance code review issues 6-9, add file locking, caching, notifications, and tests
+da47b4b Fix governance UI review issues: SSOT type, nested overlay, COS reassignment, transfer filtering
+887b0f4 Add governance UI: role management, team membership, messaging filters, transfer approvals
+87cbac1 Add team governance: messaging isolation, role-based ACL, closed teams

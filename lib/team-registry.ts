@@ -181,6 +181,9 @@ export function validateTeamMutation(
   return { valid: true, sanitized }
 }
 
+// Module-level flag: ensures migration save runs at most once per process lifetime
+let migrationDone = false
+
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const TEAMS_DIR = path.join(AIMAESTRO_DIR, 'teams')
 const TEAMS_FILE = path.join(TEAMS_DIR, 'teams.json')
@@ -201,8 +204,10 @@ export function loadTeams(): Team[] {
     const parsed: TeamsFile = JSON.parse(data)
     const teams = Array.isArray(parsed.teams) ? parsed.teams : []
 
-    // One-time idempotent migration: safe without lock because migration is append-only and convergent
-    // Migration: ensure all teams have a type field (default to 'open')
+    // Idempotent convergent migration: ensure all teams have a type field (default to 'open').
+    // If two concurrent calls both trigger the migration, both produce the same result
+    // (every team without a type gets 'open'), so the last write wins safely.
+    // The migrationDone flag ensures we only persist the migration once per process.
     let needsSave = false
     for (const team of teams) {
       if (!team.type) {
@@ -210,7 +215,8 @@ export function loadTeams(): Team[] {
         needsSave = true
       }
     }
-    if (needsSave) {
+    if (needsSave && !migrationDone) {
+      migrationDone = true
       saveTeams(teams)
     }
 
@@ -258,7 +264,7 @@ export async function createTeam(
       name: (result.sanitized.name as string) ?? data.name,
       description: data.description,
       agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
-      type: data.type || 'open',
+      type: data.type ?? 'open',
       chiefOfStaffId: data.chiefOfStaffId,
       createdAt: now,
       updatedAt: now,
@@ -273,17 +279,18 @@ export async function createTeam(
 export async function updateTeam(
   id: string,
   updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId'>>,
-  managerId?: string | null
+  managerId?: string | null,
+  reservedNames?: string[]
 ): Promise<Team | null> {
   return withLock('teams', () => {
     const teams = loadTeams()
     const index = teams.findIndex(t => t.id === id)
     if (index === -1) return null
 
-    // Validate all business rules before applying the update (R1-R4, name sanitization)
+    // Validate all business rules before applying the update (R1-R4, name sanitization, agent name collision)
     // Extract only governance-relevant fields for validation (avoids unsafe Record cast)
     const govFields = { name: updates.name, type: updates.type, chiefOfStaffId: updates.chiefOfStaffId, agentIds: updates.agentIds }
-    const result = validateTeamMutation(teams, id, govFields, managerId ?? null)
+    const result = validateTeamMutation(teams, id, govFields, managerId ?? null, reservedNames)
     if (!result.valid) {
       throw new TeamValidationException(result.error, result.code)
     }

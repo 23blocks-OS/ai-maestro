@@ -1,0 +1,11 @@
+{
+  "name": "emasoft-pr-checking-plugin",
+  "version": "1.0.0",
+  "description": "Three-phase PR review pipeline: code correctness swarm, claim verification, and skeptical external review. Catches bugs that standard code audits miss by cross-referencing PR claims against actual implementation.",
+  "author": {
+    "name": "Emasoft",
+    "url": "https://github.com/Emasoft"
+  },
+  "license": "MIT",
+  "keywords": ["pr-review", "code-audit", "claim-verification", "quality"]
+}

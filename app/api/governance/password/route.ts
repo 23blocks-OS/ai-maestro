@@ -4,11 +4,17 @@ import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const { password, currentPassword } = body
 
     if (!password || typeof password !== 'string' || password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+    }
+    if (password.length > 72) {
+      return NextResponse.json({ error: 'Password must not exceed 72 characters (bcrypt limit)' }, { status: 400 })
     }
 
     const config = loadGovernance()
@@ -16,7 +22,7 @@ export async function POST(request: NextRequest) {
     // If password already set, require current password
     if (config.passwordHash) {
       // Rate limit password verification to prevent brute-force attacks
-      const rateCheck = checkRateLimit('governance-password')
+      const rateCheck = checkRateLimit('governance-password-change')
       if (!rateCheck.allowed) {
         return NextResponse.json(
           { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
@@ -25,11 +31,11 @@ export async function POST(request: NextRequest) {
       }
 
       if (!currentPassword || !(await verifyPassword(currentPassword))) {
-        recordFailure('governance-password')
+        recordFailure('governance-password-change')
         return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
       }
       // Password verified successfully — reset rate limit counter
-      resetRateLimit('governance-password')
+      resetRateLimit('governance-password-change')
     }
 
     const isChange = !!config.passwordHash

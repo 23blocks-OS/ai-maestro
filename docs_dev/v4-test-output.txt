@@ -1,0 +1,149 @@
+yarn run v1.22.22
+(node:74420) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning ../package.json: No license field
+$ vitest run
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/emanuelesabetta/ai-maestro[39m
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ [32m✓[39m tests/amp-auth.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/amp-address.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+[90mstderr[2m | tests/document-registry.test.ts[2m > [22m[2mloadDocuments[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load documents for team team-1: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadDocuments [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/document-registry.ts:34:44[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/document-registry.test.ts:105:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2mloadTeams[2m > [22m[2mreturns empty array for invalid JSON
+[22m[39mFailed to load teams: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:201:36[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:103:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2msaveTeams[2m > [22m[2mreturns false when writeFileSync throws
+[22m[39mFailed to save teams: Error: EACCES: permission denied
+    at Object.<anonymous> [90m(/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:115:13[90m)[39m
+    at Object.Mock [as writeFileSync] [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.saveTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:228:8[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:118:20
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load tasks for team aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:40:36[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:122:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/transfer-registry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m tests/document-registry.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m tests/agent-utils.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/governance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m tests/task-registry.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/content-security.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/team-registry.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m tests/transfer-resolve-route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mloadAgents[2m > [22m[2mreturns an empty array when registry file contains invalid JSON
+[22m[39mFailed to load agents: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at Module.loadAgents [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/agent-registry.ts:161:25[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/agent-registry.test.ts:153:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/document-api.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/team-api.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes agent by default (marks deletedAt, keeps in registry)
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes agent when hard=true (removes from registry)
+[22m[39m[Agent Registry] Killed tmux session: hard-delete-me
+[Agent Registry] Backed up agent hard-delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000001-2026-02-19T16-24-24-026Z
+[Agent Registry] Removed hard-delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Backed up agent delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000002-2026-02-19T16-24-24-046Z
+[Agent Registry] Removed delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns null for soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: soft-del-lookup
+[Agent Registry] Soft-deleted agent soft-del-lookup (id: 00000000-0000-0000-0000-000000000001)
+
+ [32m✓[39m tests/message-filter.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/validate-team-mutation.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns soft-deleted agent with includeDeleted=true
+[22m[39m[Agent Registry] Killed tmux session: soft-del-include
+[Agent Registry] Soft-deleted agent soft-del-include (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgentByName() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: soft-del-byname
+[Agent Registry] Soft-deleted agent soft-del-byname (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: list-delete
+[Agent Registry] Soft-deleted agent list-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2msearchAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: searchable-soft-del
+[Agent Registry] Soft-deleted agent searchable-soft-del (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mcreateAgent() succeeds with same name as soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: name-reuse-test
+[Agent Registry] Soft-deleted agent name-reuse-test (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents(true) includes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: listall-delete
+[Agent Registry] Soft-deleted agent listall-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrenames an agent successfully
+[22m[39m[Agent Registry] Renaming agent from "old-name" to "new-name"
+[Agent Registry] Updated AMP index: old-name -> new-name (00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mnormalizes new name to lowercase
+[22m[39m[Agent Registry] Renaming agent from "rename-case" to "upper-name"
+[Agent Registry] Updated AMP index: rename-case -> upper-name (00000000-0000-0000-0000-000000000001)
+
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrejects duplicate name on same host
+[22m[39m[Agent Registry] Cannot rename: agent "existing-name" already exists on host "test-host"
+
+ [32m✓[39m tests/agent-registry.test.ts [2m([22m[2m91 tests[22m[2m)[22m[32m 129[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m15 passed[39m[22m[90m (15)[39m
+[2m      Tests [22m [1m[32m336 passed[39m[22m[90m (336)[39m
+[2m   Start at [22m 17:24:23
+[2m   Duration [22m 543ms[2m (transform 954ms, setup 0ms, import 1.53s, tests 236ms, environment 1ms)[22m
+
+Done in 0.90s.

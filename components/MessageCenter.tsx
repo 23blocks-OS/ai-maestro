@@ -33,7 +33,6 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
   const [view, setView] = useState<'inbox' | 'sent' | 'compose'>('inbox')
   const [unreadCount, setUnreadCount] = useState(0)
-  const [sentCount, setSentCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [isForwarding, setIsForwarding] = useState(false)
   const [forwardingOriginalMessage, setForwardingOriginalMessage] = useState<Message | null>(null)
@@ -64,11 +63,22 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   // Toast notification state (replaces native alert/confirm)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Show a toast notification that auto-dismisses
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  // Cleanup toast and delete confirmation timers on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+    }
   }, [])
 
   // Governance reachability state
@@ -136,20 +146,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     }
   }, [messageIdentifier, apiBaseUrl])
 
-  // Fetch sent count
-  const fetchSentCount = useCallback(async () => {
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&action=sent-count`)
-      if (!response.ok) return
-      const data = await response.json()
-      setSentCount(data.count || 0)
-    } catch (error) {
-      console.error('Error fetching sent count:', error)
-    }
-  }, [messageIdentifier, apiBaseUrl])
-
   // Load message details
-  const loadMessage = async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
+  const loadMessage = useCallback(async (messageId: string, box: 'inbox' | 'sent' = 'inbox') => {
     try {
       const response = await fetch(`${apiBaseUrl}/api/messages?agent=${encodeURIComponent(messageIdentifier)}&id=${messageId}&box=${box}`)
       if (!response.ok) return
@@ -167,7 +165,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     } catch (error) {
       console.error('Error loading message:', error)
     }
-  }
+  }, [messageIdentifier, apiBaseUrl, fetchMessages, fetchUnreadCount])
 
   // Send message
   const sendMessage = async () => {
@@ -208,7 +206,6 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           fetchMessages()
           fetchUnreadCount()
           fetchSentMessages()
-          fetchSentCount()
         } else {
           const error = await response.json()
           showToast(`Failed to forward: ${error.error}`, 'error')
@@ -219,7 +216,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: sessionName,
+            from: messageIdentifier,
             to: composeTo,
             subject: composeSubject,
             priority: composePriority,
@@ -240,7 +237,6 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
           setView('inbox')
           showToast('Message sent successfully!', 'success')
           fetchSentMessages()
-          fetchSentCount()
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Send failed' }))
           if (errorData.error?.includes('governance') || errorData.error?.includes('closed team') || response.status === 403) {
@@ -261,9 +257,10 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
   const deleteMessage = async (messageId: string) => {
     if (pendingDelete !== messageId) {
       // First click: show confirmation
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
       setPendingDelete(messageId)
       showToast('Click delete again to confirm', 'info')
-      setTimeout(() => setPendingDelete(null), 5000) // Reset after 5s
+      deleteTimerRef.current = setTimeout(() => setPendingDelete(null), 5000) // Reset after 5s
       return
     }
 
@@ -411,8 +408,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     fetchMessages()
     fetchSentMessages()
     fetchUnreadCount()
-    fetchSentCount()
-  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount])
 
   // Polling - only when active
   useEffect(() => {
@@ -421,10 +417,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
       fetchMessages()
       fetchSentMessages()
       fetchUnreadCount()
-      fetchSentCount()
     }, 10000)
     return () => clearInterval(interval)
-  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount, fetchSentCount])
+  }, [messageIdentifier, isActive, fetchMessages, fetchSentMessages, fetchUnreadCount])
 
   // Close copy dropdown when clicking outside its container
   useEffect(() => {
@@ -1162,6 +1157,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                     return (
                       <div
                         key={agent.id}
+                        role="option"
+                        aria-selected={isSelected}
                         onClick={() => selectAgent(agent)}
                         className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
                           isUnreachable ? 'opacity-50' : ''
@@ -1273,7 +1270,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="compose-message" className="block text-sm font-medium text-gray-300 mb-1">
                 Message:
               </label>
               <textarea

@@ -3,6 +3,7 @@ import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
 import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+import { isValidUuid } from '@/lib/validation'
 
 export async function POST(
   request: NextRequest,
@@ -10,7 +11,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
     const { agentId: cosAgentId, password } = body
 
     if (!password || typeof password !== 'string') {
@@ -23,7 +28,7 @@ export async function POST(
     }
 
     // Rate limit password verification to prevent brute-force attacks
-    const rateCheck = checkRateLimit('governance-password')
+    const rateCheck = checkRateLimit('governance-cos-auth')
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
@@ -33,11 +38,11 @@ export async function POST(
 
     // Password auth is stronger than ACL — only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordFailure('governance-password')
+      recordFailure('governance-cos-auth')
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
     // Password verified successfully — reset rate limit counter
-    resetRateLimit('governance-password')
+    resetRateLimit('governance-cos-auth')
 
     const team = getTeam(id)
     if (!team) {

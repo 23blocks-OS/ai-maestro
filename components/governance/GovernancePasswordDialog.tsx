@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Lock, X } from 'lucide-react'
 
@@ -28,25 +28,29 @@ export default function GovernancePasswordDialog({
       setPassword('')
       setConfirmPassword('')
       setError(null)
+      setSubmitting(false) // Reset submitting state so dialog is never stuck in a disabled state
     }
   }, [isOpen])
 
-  // Close dialog on Escape key press
-  useEffect(() => {
-    if (!isOpen) return
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [isOpen])
-
-  const handleClose = () => {
+  // Close handler wrapped in useCallback to avoid stale closures in the Escape key effect
+  const handleClose = useCallback(() => {
     if (submitting) return
     onClose()
     // Reset state on close
     setPassword('')
     setConfirmPassword('')
     setError(null)
-  }
+  }, [submitting, onClose])
+
+  // Close dialog on Escape key press, with handleClose and submitting in deps to avoid stale captures
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) handleClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, submitting, handleClose])
 
   const handleSubmit = async () => {
     if (submitting) return // Guard against double-click firing multiple submissions
@@ -144,10 +148,11 @@ export default function GovernancePasswordDialog({
 
           {/* Password field */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="governance-password" className="block text-sm font-medium text-gray-300 mb-2">
               {mode === 'setup' ? 'New Password' : 'Password'}
             </label>
             <input
+              id="governance-password"
               type="password"
               value={password}
               onChange={(e) => {
@@ -158,6 +163,7 @@ export default function GovernancePasswordDialog({
                 if (e.key === 'Enter' && !isSubmitDisabled) handleSubmit()
               }}
               placeholder={mode === 'setup' ? 'Minimum 6 characters' : 'Enter governance password'}
+              autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
               className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
               autoFocus
             />
@@ -166,10 +172,11 @@ export default function GovernancePasswordDialog({
           {/* Confirm password field (setup mode only) */}
           {mode === 'setup' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="governance-confirm-password" className="block text-sm font-medium text-gray-300 mb-2">
                 Confirm Password
               </label>
               <input
+                id="governance-confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => {
@@ -180,6 +187,7 @@ export default function GovernancePasswordDialog({
                   if (e.key === 'Enter' && !isSubmitDisabled) handleSubmit()
                 }}
                 placeholder="Re-enter password"
+                autoComplete="new-password"
                 className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
               />
             </div>

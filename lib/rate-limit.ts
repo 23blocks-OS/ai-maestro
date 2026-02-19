@@ -1,6 +1,6 @@
 /**
  * Simple in-memory rate limiter for governance password operations.
- * Tracks failed attempts per key with a sliding time window.
+ * Tracks failed attempts per key with a fixed time window.
  * Phase 1 only — no distributed state needed for localhost.
  */
 
@@ -34,9 +34,12 @@ export function checkRateLimit(
 
 /** Record a failed attempt */
 export function recordFailure(key: string, windowMs: number = DEFAULT_WINDOW_MS): void {
+  let entry = limits.get(key)
   const now = Date.now()
-  const entry = limits.get(key) || { count: 0, resetAt: now + windowMs }
-  limits.set(key, { count: entry.count + 1, resetAt: entry.resetAt })
+  // Reset expired windows so stale counts are not reused
+  if (entry && now >= entry.resetAt) { entry = undefined; limits.delete(key) }
+  const fresh = entry || { count: 0, resetAt: now + windowMs }
+  limits.set(key, { count: fresh.count + 1, resetAt: fresh.resetAt })
 }
 
 /** Reset rate limit on successful attempt */
@@ -46,7 +49,8 @@ export function resetRateLimit(key: string): void {
 
 // Periodic cleanup to prevent Map from growing unbounded
 // (defensive — governance operations are infrequent so this rarely matters)
-if (typeof setInterval !== 'undefined') {
+// Guard: skip in test to avoid vitest "open handles" warnings
+if (typeof setInterval !== 'undefined' && process.env.NODE_ENV !== 'test') {
   setInterval(() => {
     const now = Date.now()
     for (const [key, entry] of limits) {

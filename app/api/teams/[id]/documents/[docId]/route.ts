@@ -33,7 +33,7 @@ export async function PUT(
     if (body.pinned !== undefined) updates.pinned = body.pinned
     if (body.tags !== undefined) updates.tags = body.tags
 
-    const document = updateDocument(id, docId, updates as any)
+    const document = await updateDocument(id, docId, updates as any)
     if (!document) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
@@ -54,7 +54,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const { id, docId } = await params
-  const deleted = deleteDocument(id, docId)
+  const deleted = await deleteDocument(id, docId)
   if (!deleted) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 })
   }

@@ -9,6 +9,18 @@
  * For multi-process deployments, replace with advisory file locks (e.g., proper-lockfile).
  */
 
+/**
+ * LOCK ORDERING INVARIANT:
+ * When acquiring multiple locks, always acquire in this order:
+ *   1. 'teams'
+ *   2. 'transfers'
+ *   3. 'governance'
+ * Violating this order will cause deadlock.
+ *
+ * Current nested lock usage:
+ * - transfers/[id]/resolve/route.ts: acquires 'teams' then 'transfers' (via resolveTransferRequest)
+ */
+
 // Map of lock name -> queue of pending resolve callbacks
 const locks = new Map<string, Array<() => void>>()
 // Set of currently held lock names

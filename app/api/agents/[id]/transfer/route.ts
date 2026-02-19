@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { getSelfHost } from '@/lib/hosts-config'
+import { isValidUuid } from '@/lib/validation'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -35,6 +36,15 @@ export async function POST(
   try {
     const { id } = await params
 
+    // Validate UUID format on path parameter to reject invalid IDs early
+    if (!isValidUuid(id)) {
+      // Fall through to alias lookup if not a valid UUID
+      const agentByAlias = getAgentByAlias(id)
+      if (!agentByAlias) {
+        return NextResponse.json({ error: 'Invalid agent ID format and no matching alias found' }, { status: 400 })
+      }
+    }
+
     // Find agent by ID or alias
     let agent = getAgent(id)
     if (!agent) {
@@ -45,20 +55,46 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    const body: HostTransferRequest = await request.json()
+    // Parse request body with error handling for malformed JSON
+    let body: HostTransferRequest
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+    }
+
     const { targetHostUrl, mode, newAlias, cloneRepositories } = body
+
+    // Validate targetHostUrl is a string type
+    if (typeof targetHostUrl !== 'string') {
+      return NextResponse.json({ error: 'targetHostUrl must be a string' }, { status: 400 })
+    }
 
     if (!targetHostUrl) {
       return NextResponse.json({ error: 'Target host URL required' }, { status: 400 })
     }
 
-    // Validate target URL
+    // Normalize the target URL
     let normalizedUrl = targetHostUrl.trim()
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `http://${normalizedUrl}`
     }
     // Remove trailing slash
     normalizedUrl = normalizedUrl.replace(/\/+$/, '')
+
+    // SSRF protection: validate the normalized URL is a proper HTTP/HTTPS URL
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(normalizedUrl)
+    } catch {
+      return NextResponse.json({ error: 'Invalid target URL' }, { status: 400 })
+    }
+    // Only allow http/https protocols to prevent SSRF via file://, ftp://, etc.
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are supported' }, { status: 400 })
+    }
+    // TODO Phase 2: Validate hostname against registered hosts in hosts.json
+    console.log(`[agent-transfer] Transfer initiated to ${parsedUrl.hostname} for agent ${id}`)
 
     // Step 1: Export the agent
     // Call our own export API - use self host URL, never localhost

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { loadTransfers, createTransferRequest, getPendingTransfersForAgent } from '@/lib/transfer-registry'
 import { loadTeams } from '@/lib/team-registry'
 import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { isValidUuid } from '@/lib/validation'
 
 // Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
 export async function GET(request: NextRequest) {
@@ -41,11 +42,25 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    // Fix: catch malformed JSON and return 400 instead of letting it bubble as 500
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const { agentId, fromTeamId, toTeamId, requestedBy, note } = body
 
     if (!agentId || !fromTeamId || !toTeamId || !requestedBy) {
       return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy are required' }, { status: 400 })
+    }
+
+    // Validate string types to reject numbers, booleans, objects etc.
+    if (typeof agentId !== 'string' || typeof fromTeamId !== 'string' || typeof toTeamId !== 'string') {
+      return NextResponse.json({ error: 'agentId, fromTeamId, and toTeamId must be strings' }, { status: 400 })
+    }
+
+    // Validate UUID format for all ID fields to prevent path traversal and invalid lookups
+    if (!isValidUuid(agentId) || !isValidUuid(fromTeamId) || !isValidUuid(toTeamId)) {
+      return NextResponse.json({ error: 'Invalid UUID format' }, { status: 400 })
     }
 
     // Note: requestedBy is validated for authority (manager/COS) but not existence.
@@ -59,7 +74,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Source and destination teams must be different' }, { status: 400 })
     }
 
-    // Verify the agent is actually in the fromTeam
+    // Team validation and duplicate check are performed here as a fast-fail optimization.
+    // TOCTOU note: createTransferRequest() re-checks for duplicates inside the file lock
+    // (see transfer-registry.ts), so the authoritative duplicate guard is atomic.
+    // The checks below are cheap pre-flight validations to return clear HTTP errors
+    // without acquiring the lock for obviously invalid requests.
     const teams = loadTeams()
     const fromTeam = teams.find(t => t.id === fromTeamId)
     if (!fromTeam) {
@@ -85,7 +104,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Transfer requests are only needed for closed teams. Use direct team update for open teams.' }, { status: 400 })
     }
 
-    // Check for duplicate pending requests
+    // Pre-flight duplicate check — fast-fail before acquiring the lock.
+    // The authoritative duplicate check runs inside createTransferRequest()'s lock.
     const pending = getPendingTransfersForAgent(agentId)
     const duplicate = pending.find(r => r.fromTeamId === fromTeamId && r.toTeamId === toTeamId)
     if (duplicate) {

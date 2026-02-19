@@ -1,0 +1,48 @@
+diff --git a/install.sh b/install.sh
+index b0635d4..38d9517 100755
+--- a/install.sh
++++ b/install.sh
+@@ -281,7 +281,7 @@ print_info "Checking for Node.js..."
+ if command -v node &> /dev/null; then
+     NODE_VERSION=$(node --version)
+     # Check if version is >= 18
+-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
++    NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1 | sed 's/v//')
+     if [ "$NODE_MAJOR" -ge 18 ]; then
+         print_success "Node.js installed ($NODE_VERSION)"
+     else
+@@ -369,14 +369,14 @@ if [ "$NEED_TAILSCALE" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+ if [ "$NEED_JQ" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+ if [ "$NEED_CURL" = true ]; then MISSING_COUNT=$((MISSING_COUNT + 1)); fi
+ 
+-if [ $MISSING_COUNT -eq 0 ]; then
++if [ "$MISSING_COUNT" -eq 0 ]; then
+     print_success "All prerequisites are installed!"
+ else
+     print_warning "Found $MISSING_COUNT missing prerequisite(s)"
+ fi
+ 
+ # Ask user if they want to install missing items
+-if [ $MISSING_COUNT -gt 0 ]; then
++if [ "$MISSING_COUNT" -gt 0 ]; then
+     echo ""
+     print_header "STEP 2: Install Missing Prerequisites"
+ 
+@@ -952,7 +952,7 @@ if [ -n "$INSTALL_DIR" ] && [ "$SKIP_TOOLS" != true ]; then
+         fi
+     fi
+ 
+-    if [ $TOOLS_INSTALLED -gt 0 ]; then
++    if [ "$TOOLS_INSTALLED" -gt 0 ]; then
+         print_success "$TOOLS_INSTALLED agent tool(s) installed"
+ 
+         # Verify installation
+@@ -979,7 +979,7 @@ if [ -n "$INSTALL_DIR" ]; then
+     echo ""
+     echo "1️⃣  Start AI Maestro:"
+     echo ""
+-    echo "   cd $INSTALL_DIR"
++    echo "   cd \"$INSTALL_DIR\""
+     echo "   yarn dev"
+     echo ""
+ 

@@ -10,6 +10,7 @@ import { isManager, getManagerId, isChiefOfStaffAnywhere } from '@/lib/governanc
 import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { acquireLock } from '@/lib/file-lock'
+import { isValidUuid } from '@/lib/validation'
 
 export async function POST(
   request: NextRequest,
@@ -17,8 +18,20 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
-    const { action, resolvedBy, rejectReason } = body
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid transfer ID format' }, { status: 400 })
+    }
+
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
+    }
+    const { action } = body
+    // Narrow unknown -> string for type-safety (body is Record<string, unknown>)
+    const resolvedBy = typeof body.resolvedBy === 'string' ? body.resolvedBy : ''
+    const rejectReason = typeof body.rejectReason === 'string' ? body.rejectReason : undefined
 
     if (!action || !resolvedBy) {
       return NextResponse.json({ error: 'action and resolvedBy are required' }, { status: 400 })
@@ -27,7 +40,8 @@ export async function POST(
       return NextResponse.json({ error: 'action must be "approve" or "reject"' }, { status: 400 })
     }
 
-    // Get the transfer request
+    // Optimization: check transfer status before acquiring lock.
+    // Real guard is inside resolveTransferRequest() under the 'transfers' lock.
     const transferReq = getTransferRequest(id)
     if (!transferReq) {
       return NextResponse.json({ error: 'Transfer request not found' }, { status: 404 })

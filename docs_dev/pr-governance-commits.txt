@@ -1,0 +1,125 @@
+11a5193ee729bde8f3fddd858083c4b22145e70d Enforce governance business rules server-side and UI, add tests (v0.23.11)
+
+Backend enforcement (Batch 1):
+- Add validateTeamMutation() with 8 business rules (R1-R4): duplicate name,
+  COS-closed invariant, multi-closed-team constraint, COS membership guard,
+  team type validation, agent name collision, COS removal guard
+- Harden team creation (POST /api/teams): validate type, COS-closed, agent
+  name collision via reservedNames
+- Protect PUT /api/teams/[id]: strip chiefOfStaffId and type from body
+- Enhance COS endpoint: auto-add COS to agentIds, auto-upgrade/downgrade type
+- Harden transfer creation: COS cannot be transferred, source≠destination
+- Harden transfer approval: multi-closed-team check, destination existence
+- Fix message filter: use plural getClosedTeamsForAgent for multi-team COS
+
+UI enforcement (Batch 2):
+- Teams page: real-time name validation (length, format, uniqueness, agent
+  collision) with visual feedback and disabled Create on error
+- New /api/teams/names endpoint for pre-loading reserved names
+- TeamOverviewSection: team type badge (lock/unlock), COS info banner
+- RoleAssignmentDialog: resolve COS UUID to human-readable agent name
+- useGovernance: client-side multi-closed-team and COS removal guards
+
+Tests (Batch 3):
+- validate-team-mutation.test.ts: 15 tests for sanitization and business rules
+- message-filter.test.ts: 10 tests for all 7 message filter steps
+
+Design document: docs_dev/governance-design-rules.md with 49 requirements (R1-R8)
+
+All 322 tests pass, clean build. Bumped to v0.23.11.
+
+c482df8de7d3adbc3f85b1c96dc7b2a54e4a696f chore: bump version to 0.23.10
+
+
+ca465a8bcce083d1e36760fe52eefc0a5cf1d8bd Fix governance code review issues 6-9, add file locking, caching, notifications, and tests
+
+Issue 6: Remove orphaned ForwardDialog.tsx (backed up to libs_dev/)
+Issue 7: Add in-process file lock (lib/file-lock.ts) to team-registry,
+  transfer-registry, and governance modules to prevent concurrent
+  read-modify-write races. All mutating functions are now async.
+Issue 8: Add 5-second TTL in-memory cache to /api/governance/reachable
+  endpoint to avoid redundant file reads per request.
+Issue 9: Loading state on transfer approve/reject buttons (prior commit).
+
+Additional improvements:
+- Add AMP tmux notification on transfer resolve (approve/reject)
+- Add await to all callers of now-async registry functions across
+  6 API route files
+- Update 3 existing test files for async function signatures
+- Add governance.test.ts (8 tests) and transfer-registry.test.ts (8 tests)
+
+All 297 tests pass. Build clean.
+
+da47b4b8575007c9f1f550057665cdc7427e8d34 Fix governance UI review issues: SSOT type, nested overlay, COS reassignment, transfer filtering
+
+- RoleBadge: import GovernanceRole from useGovernance (SSOT, was duplicated)
+- RoleAssignmentDialog: render password dialog outside overlay to prevent double backdrop
+- RoleAssignmentDialog: remove old COS team assignments before assigning new ones
+- TeamMembershipSection: filter pending transfers to current agent or COS of source team
+- TeamMembershipSection: add click-outside handler to close Join Team dropdown
+- TeamMembershipSection: add loading/disabled state to transfer approve/reject buttons
+
+887b0f4116a0e8872cd98cce15872b71b56d5f49 Add governance UI: role management, team membership, messaging filters, transfer approvals
+
+New components:
+- RoleBadge: colored chip (MANAGER amber, COS indigo, +Assign Role dashed)
+- GovernancePasswordDialog: setup/confirm password for role changes
+- RoleAssignmentDialog: radio-card role picker with password flow
+- TeamMembershipSection: real team membership with join/leave controls
+
+New hooks & libraries:
+- useGovernance: fetch governance state, derive role, mutation actions
+- transfer-registry: file-based CRUD for cross-COS transfer requests
+
+New API routes:
+- GET /api/governance/reachable: pre-compute messageable agents per sender
+- GET/POST /api/governance/transfers: list/create transfer requests
+- POST /api/governance/transfers/[id]/resolve: approve/reject transfers
+
+Modified components:
+- AgentProfile + AgentProfileTab: role badge in header, governance role row,
+  TeamMembershipSection replacing free-text team field, RoleAssignmentDialog
+- MessageCenter: autocomplete filters unreachable agents (Lock + Restricted badge),
+  governance error handling on send
+- ForwardDialog: reachableAgentIds prop filters agent dropdown
+
+Transfer approval system:
+- When COS moves agent from another COS's closed team, creates pending request
+- Source team COS or MANAGER can approve/reject
+- On approval, agent automatically moved between teams
+
+Plugin: updated agent-messaging SKILL.md with governance rules section
+
+87cbac12264cf443f41a2c19796a6a9640a4d668 Add team governance: messaging isolation, role-based ACL, closed teams
+
+Introduces a governance layer with two team types (open/closed), two
+privileged roles (MANAGER and Chief-of-Staff), messaging isolation for
+closed teams, and ACL guards on team resources.
+
+New files:
+- types/governance.ts: TeamType, GovernanceConfig types
+- lib/governance.ts: Password mgmt, MANAGER/COS role queries (bcryptjs)
+- lib/message-filter.ts: checkMessageAllowed() — unified message filter
+- lib/team-acl.ts: checkTeamAccess() — team resource ACL
+- app/api/governance/route.ts: GET governance status
+- app/api/governance/password/route.ts: POST set/change password
+- app/api/governance/manager/route.ts: POST assign/remove MANAGER
+- app/api/teams/[id]/chief-of-staff/route.ts: POST assign/remove COS
+
+Modified files:
+- types/team.ts: Added type? and chiefOfStaffId? to Team interface
+- lib/team-registry.ts: Migration (existing teams → open), extended
+  createTeam/updateTeam for type and chiefOfStaffId fields
+- app/api/v1/route/route.ts: Message filter before local delivery
+- lib/message-send.ts: Message filter before Web UI delivery
+- app/api/teams/[id]/route.ts: ACL guards + type/COS in PUT
+- app/api/teams/[id]/tasks/route.ts: ACL guards on GET/POST
+- app/api/teams/[id]/tasks/[taskId]/route.ts: ACL guards on PUT/DELETE
+- app/api/teams/route.ts: Accept type and chiefOfStaffId on create
+- install-messaging.sh: Add team-governance to skill install list
+- package.json/yarn.lock: Added bcryptjs dependency
+
+Key design: Open teams preserve ALL current behavior. Governance only
+applies to closed teams. Web UI requests (no X-Agent-Id header) always
+pass ACL checks — only agent-to-API requests are filtered.
+

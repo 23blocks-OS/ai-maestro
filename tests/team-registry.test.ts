@@ -144,6 +144,14 @@ describe('createTeam', () => {
     expect(team.description).toBe('A description')
   })
 
+  it('accepts minimum length name (4 chars)', async () => {
+    /** Verifies that a 4-character name (the minimum allowed) is accepted without error */
+    const team = await createTeam({ name: 'ABCD', agentIds: [] })
+
+    expect(team.name).toBe('ABCD')
+    expect(team.id).toMatch(/^uuid-/)
+  })
+
   it('persists to storage', async () => {
     await createTeam({ name: 'Persisted', agentIds: [] })
 

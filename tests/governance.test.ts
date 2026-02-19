@@ -32,7 +32,7 @@ vi.mock('uuid', () => ({
 
 vi.mock('bcryptjs', () => ({
   default: {
-    hash: vi.fn((plain: string) => Promise.resolve(`hashed:${plain}`)),
+    hash: vi.fn((plain: string, _rounds: number) => Promise.resolve(`hashed:${plain}`)),
     compare: vi.fn((plain: string, hash: string) => Promise.resolve(hash === `hashed:${plain}`)),
   },
 }))
@@ -90,13 +90,16 @@ beforeEach(() => {
 // ============================================================================
 
 describe('loadGovernance', () => {
-  it('returns defaults when no governance file exists on disk', () => {
+  it('returns defaults when no governance file exists on disk', async () => {
     /** Verifies that a fresh system with no governance.json returns the default config */
     const config = loadGovernance()
 
     expect(config).toEqual(DEFAULT_GOVERNANCE_CONFIG)
     expect(config.passwordHash).toBeNull()
     expect(config.managerId).toBeNull()
+    // CC-003: Verify first-run initialization writes defaults to disk (saveGovernance is called for first-time init)
+    const fsMock = (await import('fs')).default
+    expect(fsMock.writeFileSync).toHaveBeenCalled()
   })
 
   it('reads and returns existing governance config from disk', () => {
@@ -132,6 +135,9 @@ describe('setPassword', () => {
     expect(typeof config.passwordSetAt).toBe('string')
     // Verify the timestamp is a valid ISO date
     expect(new Date(config.passwordSetAt!).toISOString()).toBe(config.passwordSetAt)
+    // CC-002: Verify bcrypt.hash was called with the correct salt rounds (12)
+    const bcrypt = await import('bcryptjs')
+    expect(bcrypt.default.hash).toHaveBeenCalledWith('my-governance-pass', 12)
   })
 })
 
@@ -206,6 +212,13 @@ describe('isManager', () => {
     seedGovernance({ managerId: null })
 
     expect(isManager('')).toBe(false)
+  })
+
+  it('returns false when managerId is null and agentId is null', () => {
+    /** CC-015: Guards against null === null being true — isManager must reject null agentId even when managerId is null */
+    seedGovernance({ managerId: null })
+
+    expect(isManager(null as any)).toBe(false)
   })
 })
 

@@ -1,0 +1,5 @@
+In `lib/messageQueue.ts`, the `convertAMPToMessage()` function never populates the `amp` field (interface lines 60-67) which holds cryptographic verification data (`signature`, `senderPublicKey`, `signatureVerified`, etc.). The raw AMP envelope likely contains this data but it's discarded during conversion.
+
+This means signature verification status is lost when displaying AMP messages.
+
+Found during AIM-222 audit.

@@ -34,9 +34,25 @@ describe('parseAMPAddress', () => {
     expect(parseAMPAddress('alice@')).toBeNull()
   })
 
-  it('returns null for address with only provider (no org)', () => {
-    // "alice@local" has only 1 part after @, no org.provider split possible
-    expect(parseAMPAddress('alice@local')).toBeNull()
+  it('parses single-part domain address (e.g., agent@localhost)', () => {
+    // "alice@local" has only 1 part after @, treated as organization with provider='local'
+    const result = parseAMPAddress('alice@local')
+    expect(result).toEqual({
+      name: 'alice',
+      organization: 'local',
+      provider: 'local',
+      full: 'alice@local',
+    })
+  })
+
+  it('parses agent@localhost address', () => {
+    const result = parseAMPAddress('agent@localhost')
+    expect(result).toEqual({
+      name: 'agent',
+      organization: 'localhost',
+      provider: 'local',
+      full: 'agent@localhost',
+    })
   })
 
   it('handles hyphenated agent names', () => {

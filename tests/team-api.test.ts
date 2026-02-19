@@ -50,13 +50,19 @@ vi.mock('@/lib/agent-registry', () => ({
   loadAgents: vi.fn(() => []),
 }))
 
+// Mock validation module - isValidUuid accepts synthetic test UUIDs (uuid-1, uuid-2, etc.)
+vi.mock('@/lib/validation', () => ({
+  isValidUuid: vi.fn(() => true),
+}))
+
 // ============================================================================
 // Imports (after mocks)
 // ============================================================================
 
-import { createTeam, loadTeams } from '@/lib/team-registry'
+import { createTeam, loadTeams, updateTeam, getTeam } from '@/lib/team-registry'
 import { GET as getTeamRoute, PUT as updateTeamRoute, DELETE as deleteTeamRoute } from '@/app/api/teams/[id]/route'
 import { GET as listTeamsRoute, POST as createTeamRoute } from '@/app/api/teams/route'
+import { getManagerId, isManager } from '@/lib/governance'
 import { NextRequest } from 'next/server'
 
 // ============================================================================
@@ -170,6 +176,27 @@ describe('POST /api/teams', () => {
 
     expect(res.status).toBe(400)
   })
+
+  // CC-004: Verify managerId is passed through to createTeam when getManagerId returns a value
+  it('passes managerId from governance to createTeam', async () => {
+    vi.mocked(getManagerId).mockReturnValue('manager-uuid')
+    const spy = vi.spyOn(await import('@/lib/team-registry'), 'createTeam')
+
+    const req = makeRequest('/api/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Managed Team', agentIds: [] }),
+    })
+    const res = await createTeamRoute(req)
+
+    expect(res.status).toBe(201)
+    // createTeam should have received managerId as its second argument
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][1]).toBe('manager-uuid')
+
+    spy.mockRestore()
+    vi.mocked(getManagerId).mockReturnValue(null)
+  })
 })
 
 // ============================================================================
@@ -271,6 +298,35 @@ describe('PUT /api/teams/[id]', () => {
     const teams = loadTeams()
     expect(teams[0].instructions).toBe('Saved')
   })
+
+  // CC-005: PUT must strip chiefOfStaffId and type from body (only dedicated endpoints can change these)
+  it('ignores chiefOfStaffId and type in body', async () => {
+    const team = await createTeam({ name: 'Original Team', agentIds: [], type: 'open' })
+    const spy = vi.spyOn(await import('@/lib/team-registry'), 'updateTeam')
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'closed', chiefOfStaffId: 'some-agent', name: 'Updated Name' }),
+    })
+    const res = await updateTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    // Name should be updated
+    expect(data.team.name).toBe('Updated Name')
+    // type and chiefOfStaffId must NOT have been changed
+    expect(data.team.type).toBe('open')
+    expect(data.team.chiefOfStaffId).toBeUndefined()
+
+    // Verify updateTeam was called WITHOUT type or chiefOfStaffId in the updates object
+    expect(spy).toHaveBeenCalledTimes(1)
+    const updateArgs = spy.mock.calls[0][1]
+    expect(updateArgs).not.toHaveProperty('type')
+    expect(updateArgs).not.toHaveProperty('chiefOfStaffId')
+
+    spy.mockRestore()
+  })
 })
 
 // ============================================================================
@@ -295,5 +351,53 @@ describe('DELETE /api/teams/[id]', () => {
     const data = await res.json()
     expect(data.success).toBe(true)
     expect(loadTeams()).toHaveLength(0)
+  })
+
+  // CC-006: Closed team deletion guard - non-authorized agent gets 403
+  it('returns 403 when non-authorized agent deletes closed team', async () => {
+    const team = await createTeam({ name: 'Closed Team', agentIds: ['cos-agent'], type: 'closed', chiefOfStaffId: 'cos-agent' })
+    vi.mocked(isManager).mockReturnValue(false)
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'DELETE',
+      headers: { 'X-Agent-Id': 'random-agent' },
+    })
+    const res = await deleteTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(403)
+    const data = await res.json()
+    expect(data.error).toContain('MANAGER or Chief-of-Staff')
+  })
+
+  // CC-006: Closed team deletion guard - COS is allowed
+  it('allows COS to delete closed team', async () => {
+    const team = await createTeam({ name: 'COS Delete', agentIds: ['cos-agent'], type: 'closed', chiefOfStaffId: 'cos-agent' })
+    vi.mocked(isManager).mockReturnValue(false)
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'DELETE',
+      headers: { 'X-Agent-Id': 'cos-agent' },
+    })
+    const res = await deleteTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.success).toBe(true)
+  })
+
+  // CC-006: Closed team deletion guard - MANAGER is allowed
+  it('allows MANAGER to delete closed team', async () => {
+    const team = await createTeam({ name: 'Mgr Delete', agentIds: ['cos-agent'], type: 'closed', chiefOfStaffId: 'cos-agent' })
+    vi.mocked(isManager).mockReturnValue(true)
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'DELETE',
+      headers: { 'X-Agent-Id': 'manager-agent' },
+    })
+    const res = await deleteTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.success).toBe(true)
   })
 })

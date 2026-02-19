@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
 import { getManagerId, isManager } from '@/lib/governance'
 import { checkTeamAccess } from '@/lib/team-acl'
+import { isValidUuid } from '@/lib/validation'
 
 // GET /api/teams/[id] - Get a single team
 export async function GET(
@@ -10,6 +11,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -33,6 +37,9 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
     const agentId = request.headers.get('X-Agent-Id') || undefined
     const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
     if (!access.allowed) {
@@ -70,6 +77,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
     const agentId = request.headers.get('X-Agent-Id') || undefined
     const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
     if (!access.allowed) {

@@ -1,0 +1,30 @@
+[22m[39m[Agent Registry] Killed tmux session: searchable-soft-del
+[Agent Registry] Soft-deleted agent searchable-soft-del (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mcreateAgent() succeeds with same name as soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: name-reuse-test
+[Agent Registry] Soft-deleted agent name-reuse-test (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents(true) includes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: listall-delete
+[Agent Registry] Soft-deleted agent listall-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrenames an agent successfully
+[22m[39m[Agent Registry] Renaming agent from "old-name" to "new-name"
+[Agent Registry] Updated AMP index: old-name -> new-name (00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mnormalizes new name to lowercase
+[22m[39m[Agent Registry] Renaming agent from "rename-case" to "upper-name"
+[Agent Registry] Updated AMP index: rename-case -> upper-name (00000000-0000-0000-0000-000000000001)
+
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrejects duplicate name on same host
+[22m[39m[Agent Registry] Cannot rename: agent "existing-name" already exists on host "test-host"
+
+ [32m✓[39m tests/agent-registry.test.ts [2m([22m[2m91 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m      Tests [22m [1m[32m281 passed[39m[22m[90m (281)[39m
+[2m   Start at [22m 21:24:22
+[2m   Duration [22m 416ms[2m (transform 708ms, setup 0ms, import 978ms, tests 161ms, environment 1ms)[22m
+
+Done in 0.76s.

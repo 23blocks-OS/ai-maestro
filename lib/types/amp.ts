@@ -23,7 +23,8 @@ export type { AMPAgentIdentity, AMPExternalRegistration }
 /**
  * Relay TTL in days (default 7 per protocol spec, configurable via AMP_RELAY_TTL_DAYS env)
  */
-export const AMP_RELAY_TTL_DAYS = parseInt(process.env.AMP_RELAY_TTL_DAYS || '7', 10)
+const _parsedRelayTTL = parseInt(process.env.AMP_RELAY_TTL_DAYS || '7', 10)
+export const AMP_RELAY_TTL_DAYS = Number.isNaN(_parsedRelayTTL) ? 7 : _parsedRelayTTL
 
 /**
  * API key prefix format: amp_<environment>_<type>_<random>
@@ -87,13 +88,27 @@ export function parseAMPAddress(address: string): {
   provider: string
   full: string
 } | null {
-  const match = address.match(/^([^@]+)@([^.]+)\.(.+)$/)
+  const match = address.match(/^([^@]+)@(.+)$/)
   if (!match) return null
 
+  const domain = match[2]
+  const dotIndex = domain.indexOf('.')
+  if (dotIndex > 0) {
+    // Multi-part domain (e.g., "org.aimaestro.local")
+    return {
+      name: match[1],
+      organization: domain.substring(0, dotIndex),
+      provider: domain.substring(dotIndex + 1),
+      full: address,
+    }
+  }
+
+  // Single-part domain (e.g., "agent@localhost")
+  if (domain.length === 0) return null
   return {
     name: match[1],
-    organization: match[2],
-    provider: match[3],
+    organization: domain,
+    provider: 'local',
     full: address,
   }
 }
@@ -146,7 +161,7 @@ export interface AMPEnvelope {
  * The actual message content
  */
 export interface AMPPayload {
-  /** Content type */
+  /** Content type - Must stay in sync with Message.content.type values */
   type: 'request' | 'response' | 'notification' | 'alert' | 'task' | 'status' | 'handoff' | 'ack' | 'update' | 'system'
 
   /** Main message body */

@@ -1,0 +1,3 @@
+In `install.sh` around line 293, a variable is used without quotes in a path context. If the path contains spaces, the command will break.
+
+Found during AIM-222 audit.

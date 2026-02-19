@@ -24,13 +24,13 @@ export interface MessageFilterResult {
  * Check whether a message from sender to recipient is allowed.
  *
  * Algorithm (R6.1–R6.7):
- * 1. Mesh-forwarded (senderAgentId null): always allowed (trust mesh peers)
+ * 1. Mesh-forwarded (senderAgentId null): denied if recipient is in a closed team (unverified sender)
+ * 1b. Unresolved recipient (alias, not UUID) from closed-team sender: denied (prevents bypass)
  * 2. Neither in a closed team: allowed (open world, current behavior) (R6.4)
  * 3. Sender is MANAGER: always allowed (R6.3)
  * 4. Sender is COS of any closed team: can reach MANAGER, other COS, own team members (R6.2)
  * 5. Normal closed-team member: can reach same-team members and own COS (R6.1)
- * 6. Outside sender to closed-team recipient: denied (R6.5)
- * 7. Default: allowed
+ * 6. Outside sender to closed-team recipient: denied (R6.5) — always reached after Steps 2–5
  *
  * IMPORTANT (R6.7): Uses getClosedTeamsForAgent (plural) to correctly handle
  * COS agents who belong to multiple closed teams simultaneously.
@@ -38,17 +38,35 @@ export interface MessageFilterResult {
 export function checkMessageAllowed(input: MessageFilterInput): MessageFilterResult {
   const { senderAgentId, recipientAgentId } = input
 
-  // Step 1: Mesh-forwarded messages are always trusted
-  if (senderAgentId === null) {
-    return { allowed: true }
-  }
-
   // Single snapshot of all state — avoids redundant file reads from governance helpers
+  // Loaded before null-sender check so closedTeams is available for mesh-forward denial
   const teams = loadTeams()
   const governance = loadGovernance()
 
   // Derive closed-team membership from the single snapshot
   const closedTeams = teams.filter(t => t.type === 'closed')
+
+  // Step 1: Mesh-forwarded messages — deny if recipient is in a closed team (unverified sender)
+  if (senderAgentId === null) {
+    // Mesh-forwarded message: allow unless recipient is in a closed team
+    // TODO Phase 2: Verify mesh sender identity against registered hosts
+    const recipientInClosedTeam = closedTeams.some(t => t.agentIds.includes(recipientAgentId))
+    if (recipientInClosedTeam) {
+      return { allowed: false, reason: 'Mesh message denied: recipient is in a closed team and sender identity is unverified' }
+    }
+    return { allowed: true }
+  }
+
+  // Step 1b: Unresolved recipient (alias instead of UUID) with sender in closed team → deny
+  // Prevents governance bypass via alias that skips agentIds membership checks
+  const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}/.test(recipientAgentId)
+  if (!isUuidLike) {
+    const senderInClosedTeam = closedTeams.some(t => t.agentIds.includes(senderAgentId))
+    if (senderInClosedTeam) {
+      return { allowed: false, reason: 'Cannot send to unresolved recipient from closed team' }
+    }
+  }
+
   const senderTeams = closedTeams.filter(t => t.agentIds.includes(senderAgentId))
   const recipientTeams = closedTeams.filter(t => t.agentIds.includes(recipientAgentId))
   // Defense-in-depth: also include teams where sender is COS via chiefOfStaffId,
@@ -118,13 +136,10 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   }
 
   // Step 6: Sender is NOT in any closed team but recipient IS in a closed team (R6.5)
-  if (!senderInClosed && recipientInClosed) {
-    return {
-      allowed: false,
-      reason: 'Cannot message agents in closed teams from outside',
-    }
+  // After Steps 2–5, reaching here means !senderInClosed && recipientInClosed is always true,
+  // so no conditional needed — this is the only remaining case.
+  return {
+    allowed: false,
+    reason: 'Cannot message agents in closed teams from outside',
   }
-
-  // Step 7: Default — allow
-  return { allowed: true }
 }

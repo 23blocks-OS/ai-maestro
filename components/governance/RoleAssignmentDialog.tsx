@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { User, Shield, Crown, X, AlertTriangle } from 'lucide-react'
 import GovernancePasswordDialog from './GovernancePasswordDialog'
 import type { GovernanceState, GovernanceRole } from '@/hooks/useGovernance'
@@ -71,15 +71,21 @@ export default function RoleAssignmentDialog({
   const [phase, setPhase] = useState<Phase>('select')
   const [error, setError] = useState<string | null>(null)
 
-  // Reset all state when dialog opens or closes
+  // Reset all state when dialog opens; pre-select current COS teams so the checkbox state
+  // reflects the agent's existing team assignments and the confirm button correctly detects changes
   useEffect(() => {
     if (isOpen) {
       setSelectedRole(currentRole)
-      setSelectedTeamIds([])
+      // Pre-select the teams where this agent is currently COS
+      setSelectedTeamIds(
+        currentRole === 'chief-of-staff'
+          ? governance.cosTeams.map((t) => t.id)
+          : []
+      )
       setPhase('select')
       setError(null)
     }
-  }, [isOpen, currentRole])
+  }, [isOpen, currentRole, governance.cosTeams])
 
   // Close dialog on Escape key press
   useEffect(() => {
@@ -150,7 +156,7 @@ export default function RoleAssignmentDialog({
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         } else if (currentRole === 'chief-of-staff') {
-          // Remove COS from all teams where this agent is COS
+          // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
           for (const team of governance.cosTeams) {
             const result = await governance.assignCOS(team.id, null, password)
             if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
@@ -159,6 +165,7 @@ export default function RoleAssignmentDialog({
       } else if (selectedRole === 'manager') {
         // Promote to manager: first remove COS if needed, then assign manager
         if (currentRole === 'chief-of-staff') {
+          // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
           for (const team of governance.cosTeams) {
             const result = await governance.assignCOS(team.id, null, password)
             if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
@@ -173,6 +180,7 @@ export default function RoleAssignmentDialog({
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         }
         // Remove COS from teams no longer selected
+        // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
         if (currentRole === 'chief-of-staff') {
           for (const team of governance.cosTeams) {
             if (!selectedTeamIds.includes(team.id)) {
@@ -197,10 +205,8 @@ export default function RoleAssignmentDialog({
     }
   }
 
-  if (!isOpen) return null
-
   // Password phase: render the password dialog directly (it has its own overlay)
-  if (phase === 'password') {
+  if (isOpen && phase === 'password') {
     return (
       <GovernancePasswordDialog
         isOpen={true}
@@ -212,10 +218,13 @@ export default function RoleAssignmentDialog({
   }
 
   return (
+    <AnimatePresence>
+      {isOpen && (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -389,5 +398,7 @@ export default function RoleAssignmentDialog({
         )}
       </motion.div>
     </div>
+      )}
+    </AnimatePresence>
   )
 }

@@ -1,0 +1,3 @@
+In `update-aimaestro.sh` around line 262, the hooks installer is called without the `-y` (non-interactive) flag. During automated updates, this causes the installer to prompt interactively, blocking the update process.
+
+Found during AIM-222 audit.

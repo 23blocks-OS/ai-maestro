@@ -71,6 +71,20 @@ export default function TeamsPage() {
     }
   }, [creating])
 
+  // Close Create Team dialog on Escape key pressed anywhere in the document
+  useEffect(() => {
+    if (!creating) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCreating(false)
+        setCreateError(null)
+        setNameValidation({ error: null, warning: null })
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [creating])
+
   // Real-time team name validation (runs on every keystroke)
   const validateTeamName = useCallback((raw: string) => {
     // Same sanitization as server-side sanitizeTeamName()

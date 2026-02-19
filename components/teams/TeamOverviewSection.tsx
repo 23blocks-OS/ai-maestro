@@ -44,6 +44,10 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
   const handleSaveName = async () => {
     try {
       setError(null)
+      if (name.trim().length < 4) {
+        setError('Team name must be at least 4 characters')
+        return
+      }
       if (name.trim() && name !== team.name) {
         await onUpdateTeam({ name: name.trim() })
       }
@@ -65,10 +69,10 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
     }
   }
 
-  const handleRemoveAgent = async (agentId: string) => {
+  const handleRemoveAgent = async (targetAgentId: string) => {
     try {
       setError(null)
-      const newIds = team.agentIds.filter(id => id !== agentId)
+      const newIds = team.agentIds.filter(id => id !== targetAgentId)
       await onUpdateTeam({ agentIds: newIds })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove agent')
@@ -106,6 +110,7 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
               value={name}
               onChange={e => setName(e.target.value)}
               className="text-2xl font-bold bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-white focus:outline-none focus:border-emerald-500 flex-1"
+              maxLength={64}
               autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setName(team.name); setEditingName(false) } }}
             />
@@ -153,6 +158,7 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { setEditingDesc(false); setDescription(team.description || '') } }}
               className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 resize-none"
               rows={3}
               autoFocus

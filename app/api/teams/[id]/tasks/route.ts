@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { loadTasks, resolveTaskDeps, createTask } from '@/lib/task-registry'
 import { getTeam } from '@/lib/team-registry'
 import { checkTeamAccess } from '@/lib/team-acl'
+import { isValidUuid } from '@/lib/validation'
 
 // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
 export async function GET(
@@ -10,6 +11,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    // Validate UUID format to prevent path traversal and invalid lookups
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -36,6 +41,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    // Validate UUID format to prevent path traversal and invalid lookups
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -46,7 +55,12 @@ export async function POST(
       return NextResponse.json({ error: access.reason }, { status: 403 })
     }
 
-    const body = await request.json()
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
+    }
     const { subject, description, assigneeAgentId, blockedBy, priority } = body
 
     if (!subject || typeof subject !== 'string' || !subject.trim()) {

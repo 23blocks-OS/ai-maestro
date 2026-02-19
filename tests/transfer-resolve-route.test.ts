@@ -39,6 +39,10 @@ vi.mock('@/lib/governance', () => ({
   isChiefOfStaffAnywhere: (...args: unknown[]) => mockIsChiefOfStaffAnywhere(...args),
 }))
 
+vi.mock('@/lib/validation', () => ({
+  isValidUuid: vi.fn(() => true),
+}))
+
 vi.mock('@/lib/agent-registry', () => ({
   getAgent: vi.fn(() => null),
 }))
@@ -280,5 +284,65 @@ describe('SR-007: saveTeams failure triggers compensating revert', () => {
     expect(res.status).toBe(200)
     expect(data.success).toBe(true)
     expect(mockRevertTransferToPending).not.toHaveBeenCalled()
+  })
+})
+
+// ============================================================================
+// CC-007: 400 validation paths for missing/invalid fields
+// ============================================================================
+
+describe('CC-007: request body validation', () => {
+  it('returns 400 when action is missing', async () => {
+    /** Verifies that the route rejects requests where the action field is absent */
+    const req = makeRequest({ resolvedBy: 'cos-source' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toContain('action and resolvedBy are required')
+  })
+
+  it('returns 400 when resolvedBy is missing', async () => {
+    /** Verifies that the route rejects requests where the resolvedBy field is absent */
+    const req = makeRequest({ action: 'approve' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toContain('action and resolvedBy are required')
+  })
+
+  it('returns 400 when action is invalid', async () => {
+    /** Verifies that the route rejects requests where action is not "approve" or "reject" */
+    const req = makeRequest({ action: 'invalid', resolvedBy: 'cos-source' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toContain('action must be "approve" or "reject"')
+  })
+})
+
+// ============================================================================
+// CC-008: 403 authorization — resolver must be COS or MANAGER
+// ============================================================================
+
+describe('CC-008: authorization check', () => {
+  it('returns 403 when resolver is not COS or MANAGER', async () => {
+    /** Verifies that an agent who is neither the source team COS nor a global MANAGER is forbidden from resolving a transfer */
+    mockGetTransferRequest.mockReturnValue(pendingTransfer())
+    mockLoadTeams.mockReturnValue(teamsNoConflict())
+    // resolvedBy is 'random-agent', not the COS ('cos-source') of team-source
+    // isManager returns false (set in beforeEach), so neither condition is met
+    mockIsManager.mockReturnValue(false)
+
+    const req = makeRequest({ action: 'approve', resolvedBy: 'random-agent' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(data.error).toContain('Only the source team COS or MANAGER can resolve this transfer')
+    // Transfer must NOT have been resolved
+    expect(mockResolveTransferRequest).not.toHaveBeenCalled()
   })
 })

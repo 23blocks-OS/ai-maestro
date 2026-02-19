@@ -15,6 +15,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'agentId query parameter is required' }, { status: 400 })
     }
 
+    if (agentId && typeof agentId === 'string' && !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+      return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
+    }
+
     // Check cache first
     const cached = cache.get(agentId)
     if (cached && Date.now() < cached.expiresAt) {

@@ -1,0 +1,5 @@
+In `app/api/agents/[id]/chat/route.ts`, the GET handler's tmux capture-pane command (around line 174) uses single-quoted session target while the POST handler (fixed in PR #206) and all other tmux files use double-quoted targets.
+
+This is a cosmetic inconsistency — both work — but should be normalized for maintainability.
+
+Found during AIM-222 audit.

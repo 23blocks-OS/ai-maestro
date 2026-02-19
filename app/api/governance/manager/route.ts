@@ -5,7 +5,10 @@ import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const { agentId, password } = body
 
     if (!password || typeof password !== 'string') {
@@ -18,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit password verification to prevent brute-force attacks
-    const rateCheck = checkRateLimit('governance-password')
+    const rateCheck = checkRateLimit('governance-manager-auth')
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
@@ -27,11 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!(await verifyPassword(password))) {
-      recordFailure('governance-password')
+      recordFailure('governance-manager-auth')
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
     // Password verified successfully — reset rate limit counter
-    resetRateLimit('governance-password')
+    resetRateLimit('governance-manager-auth')
 
     // agentId === null removes the manager role; undefined/missing is invalid
     if (agentId === null) {

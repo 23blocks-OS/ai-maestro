@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
+import { withLock } from '@/lib/file-lock'
 import type { TeamDocument, TeamDocumentsFile } from '@/types/document'
 
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
@@ -62,49 +63,55 @@ export function createDocument(data: {
   content: string
   pinned?: boolean
   tags?: string[]
-}): TeamDocument {
-  const documents = loadDocuments(data.teamId)
-  const now = new Date().toISOString()
+}): Promise<TeamDocument> {
+  return withLock('documents-' + data.teamId, () => {
+    const documents = loadDocuments(data.teamId)
+    const now = new Date().toISOString()
 
-  const doc: TeamDocument = {
-    id: uuidv4(),
-    teamId: data.teamId,
-    title: data.title,
-    content: data.content,
-    pinned: data.pinned || false,
-    tags: data.tags || [],
-    createdAt: now,
-    updatedAt: now,
-  }
+    const doc: TeamDocument = {
+      id: uuidv4(),
+      teamId: data.teamId,
+      title: data.title,
+      content: data.content,
+      pinned: data.pinned || false,
+      tags: data.tags || [],
+      createdAt: now,
+      updatedAt: now,
+    }
 
-  documents.push(doc)
-  saveDocuments(data.teamId, documents)
-  return doc
+    documents.push(doc)
+    saveDocuments(data.teamId, documents)
+    return doc
+  })
 }
 
 export function updateDocument(
   teamId: string,
   docId: string,
   updates: Partial<Pick<TeamDocument, 'title' | 'content' | 'pinned' | 'tags'>>
-): TeamDocument | null {
-  const documents = loadDocuments(teamId)
-  const index = documents.findIndex(d => d.id === docId)
-  if (index === -1) return null
+): Promise<TeamDocument | null> {
+  return withLock('documents-' + teamId, () => {
+    const documents = loadDocuments(teamId)
+    const index = documents.findIndex(d => d.id === docId)
+    if (index === -1) return null
 
-  documents[index] = {
-    ...documents[index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  }
+    documents[index] = {
+      ...documents[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }
 
-  saveDocuments(teamId, documents)
-  return documents[index]
+    saveDocuments(teamId, documents)
+    return documents[index]
+  })
 }
 
-export function deleteDocument(teamId: string, docId: string): boolean {
-  const documents = loadDocuments(teamId)
-  const filtered = documents.filter(d => d.id !== docId)
-  if (filtered.length === documents.length) return false
-  saveDocuments(teamId, filtered)
-  return true
+export function deleteDocument(teamId: string, docId: string): Promise<boolean> {
+  return withLock('documents-' + teamId, () => {
+    const documents = loadDocuments(teamId)
+    const filtered = documents.filter(d => d.id !== docId)
+    if (filtered.length === documents.length) return false
+    saveDocuments(teamId, filtered)
+    return true
+  })
 }

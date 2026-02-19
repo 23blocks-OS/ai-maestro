@@ -44,6 +44,7 @@ export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
   }
 
   // 2. Team not found — let the caller deal with 404
+  // Non-existent team returns allowed: callers check team existence separately
   const team = getTeam(input.teamId)
   if (!team) {
     return { allowed: true }

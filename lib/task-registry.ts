@@ -61,6 +61,7 @@ export function saveTasks(teamId: string, tasks: Task[]): boolean {
  * Resolve task dependencies and compute derived fields
  */
 export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
+  // loadAgents() has internal caching (_cachedAgents), so repeated calls are cheap
   const agents = loadAgents()
   const taskMap = new Map(tasks.map(t => [t.id, t]))
 
@@ -111,6 +112,7 @@ export function createTask(data: {
       teamId: data.teamId,
       subject: data.subject,
       description: data.description,
+      // Default to 'pending' (skip 'backlog') — tasks created via API are considered already triaged
       status: 'pending',
       assigneeAgentId: data.assigneeAgentId || null,
       blockedBy: data.blockedBy || [],
@@ -159,6 +161,14 @@ export function updateTask(
     }
     if (updates.status === 'completed' && !tasks[index].completedAt) {
       tasks[index].completedAt = now
+    }
+
+    // Clear timestamps when moving backward in workflow
+    if (updates.status && updates.status !== 'completed') {
+      tasks[index].completedAt = undefined
+    }
+    if (updates.status && (updates.status === 'backlog' || updates.status === 'pending')) {
+      tasks[index].startedAt = undefined
     }
 
     // Find newly unblocked tasks when a task is completed

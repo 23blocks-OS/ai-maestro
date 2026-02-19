@@ -1,0 +1,46 @@
+## Summary
+
+- **Removes** the resume flag stripping logic from `POST /api/agents/[id]/wake` that silently dropped `--continue`, `--resume`, and similar flags on first agent launch
+- **Bug fixed**: creating a new agent pointing at a directory with existing Claude Code conversations caused `--continue` to be stripped because `launchCount === 0` (per-agent counter, not per-project-folder) — agent started fresh instead of resuming
+- **Version bump**: 0.22.2 → 0.22.3
+
+## Root Cause
+
+The `isFirstLaunch` check used `agent.launchCount === 0` as a proxy for "no prior session to resume." This is fundamentally broken because `launchCount` is per-agent, not per-project-folder. A newly created agent can point at a directory that already has Claude Code conversations from manual CLI usage or other agents.
+
+## Why removal is the right fix
+
+All supported programs handle resume flags gracefully when no prior session exists:
+
+| Program | Flag | Behavior when no session exists |
+|---------|------|---------------------------------|
+| Claude Code | `--continue` | Starts a new session |
+| Codex | `resume --last` | Shows "no sessions" message |
+| Gemini | `--resume` | Starts fresh |
+| Aider | `--restore-chat-history` | No-op (no history file) |
+| OpenCode | `--continue` | Starts fresh |
+| Cursor | `--resume` | Starts fresh |
+
+The stripping added complexity and bugs without solving a real problem.
+
+## What changed
+
+**Removed** from `app/api/agents/[id]/wake/route.ts`:
+- `RESUME_PATTERNS` regex map (6 programs × multiple patterns)
+- `stripResumeFlags()` function
+- `isFirstLaunch` conditional stripping block
+
+**Kept**:
+- `sanitizeArgs()` shell injection protection
+- `launchCount` field and increment (useful metadata, just no longer drives flag decisions)
+- `programArgs` passthrough to program command
+
+**Note**: The `plugin/` SKILL.md documents this behavior (lines 359–368) — that update belongs in a separate PR to the plugins submodule repo.
+
+## Test plan
+
+- [ ] Create agent with `programArgs: "--continue"` pointing at a directory WITH existing Claude Code conversations → verify `--continue` is preserved on first wake
+- [ ] Create agent with `programArgs: "--continue"` pointing at an empty directory → verify `--continue` is passed through (Claude handles it gracefully)
+- [ ] Wake agent multiple times → verify `programArgs` are always passed through unchanged
+- [ ] Verify `launchCount` still increments correctly on each wake
+- [ ] `yarn build` passes

@@ -43,9 +43,10 @@ interface ResolvedAgent {
  * Parse a qualified name (identifier@host-id)
  */
 function parseQualifiedName(qualifiedName: string): { identifier: string; hostId: string | null } {
-  const parts = qualifiedName.split('@')
-  if (parts.length === 2) {
-    return { identifier: parts[0], hostId: parts[1] }
+  // Use indexOf instead of split to handle multiple '@' signs robustly
+  const atIndex = qualifiedName.indexOf('@')
+  if (atIndex > 0 && atIndex < qualifiedName.length - 1) {
+    return { identifier: qualifiedName.substring(0, atIndex), hostId: qualifiedName.substring(atIndex + 1) }
   }
   return { identifier: qualifiedName, hostId: null }
 }
@@ -55,7 +56,8 @@ function parseQualifiedName(qualifiedName: string): { identifier: string; hostId
  */
 function generateMessageId(): string {
   const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2, 9)
+  // Use crypto.randomBytes instead of Math.random for better uniqueness
+  const random = crypto.randomBytes(6).toString('hex')
   return `msg-${timestamp}-${random}`
 }
 
@@ -85,7 +87,8 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
     subject: message.subject,
     priority: message.priority,
     timestamp: message.timestamp,
-    signature: message.amp?.signature || '',
+    // Use 'unsigned' instead of empty string so downstream can distinguish unsigned from missing
+    signature: message.amp?.signature || 'unsigned',
     thread_id: message.inReplyTo || msgIdNormalized,
   }
   if (message.inReplyTo) {
@@ -427,10 +430,12 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     id: generateMessageId(),
     from: fromResolved.agentId,
     fromAlias: fromResolved.alias,
+    fromLabel: fromResolved.displayName || fromResolved.alias,
     fromSession: fromResolved.sessionName,
     fromHost: fromHostId,
     to: toResolved.agentId,
     toAlias: toResolved.alias,
+    toLabel: toResolved.displayName || toResolved.alias,
     toSession: toResolved.sessionName,
     toHost: toHostId,
     timestamp: new Date().toISOString(),

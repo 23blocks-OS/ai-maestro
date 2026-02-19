@@ -13,7 +13,7 @@ interface UseTeamResult {
 
 export function useTeam(teamId: string | null): UseTeamResult {
   const [team, setTeam] = useState<Team | null>(null)
-  const [loading, setLoading] = useState(true)  // Set false immediately by useEffect when teamId is null
+  const [loading, setLoading] = useState(!!teamId)  // Start true only when teamId is provided, preventing "Team not found" flash
   const [error, setError] = useState<string | null>(null)
 
   const fetchTeam = useCallback(async () => {
@@ -67,6 +67,6 @@ export function useTeam(teamId: string | null): UseTeamResult {
     loading,
     error,
     updateTeam,
-    refreshTeam: fetchTeam,
+    refreshTeam: fetchTeam, // Note: refreshTeam does not manage loading state — only initial fetch does
   }
 }

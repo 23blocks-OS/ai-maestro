@@ -43,6 +43,12 @@ export function loadGovernance(): GovernanceConfig {
     // Distinguish read errors from parse errors — parse errors indicate disk corruption
     if (error instanceof SyntaxError) {
       console.error('[governance] CORRUPTION: governance.json contains invalid JSON — returning defaults. Manual inspection required:', GOVERNANCE_FILE)
+      // Backup corrupted file before returning defaults to prevent silent data loss
+      try {
+        const backupPath = GOVERNANCE_FILE + '.corrupted.' + Date.now()
+        fs.copyFileSync(GOVERNANCE_FILE, backupPath)
+        console.error(`[governance] Corrupted config backed up to ${backupPath}`)
+      } catch { /* backup is best-effort */ }
     } else {
       console.error('[governance] Failed to read governance config:', error)
     }
@@ -67,6 +73,7 @@ export async function setPassword(plaintext: string): Promise<void> {
   })
 }
 
+// Phase 1: No lock on read. Minor TOCTOU with setPassword(). Acceptable for single-user localhost.
 /** Verify plaintext against stored password hash. Returns false if no password set. */
 export async function verifyPassword(plaintext: string): Promise<boolean> {
   const config = loadGovernance()
@@ -78,6 +85,7 @@ export async function verifyPassword(plaintext: string): Promise<boolean> {
   return bcrypt.compare(plaintext, config.passwordHash)
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get the current manager agent ID, or null if none set */
 export function getManagerId(): string | null {
   const config = loadGovernance()
@@ -102,12 +110,16 @@ export async function removeManager(): Promise<void> {
   })
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Check if agentId is the singleton manager */
 export function isManager(agentId: string): boolean {
   const config = loadGovernance()
+  // Guard against null === null: both must be non-null strings for a valid match
+  if (!config.managerId || !agentId) return false
   return config.managerId === agentId
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Check if agentId is chief-of-staff for a specific team */
 export function isChiefOfStaff(agentId: string, teamId: string): boolean {
   const team = getTeam(teamId)
@@ -115,6 +127,7 @@ export function isChiefOfStaff(agentId: string, teamId: string): boolean {
   return team.chiefOfStaffId === agentId
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Check if agentId is chief-of-staff in any closed team */
 export function isChiefOfStaffAnywhere(agentId: string): boolean {
   const teams = loadTeams()
@@ -123,6 +136,7 @@ export function isChiefOfStaffAnywhere(agentId: string): boolean {
   )
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get the first closed team where agentId is a member (normal agents belong to at most one) */
 export function getClosedTeamForAgent(agentId: string): Team | null {
   const teams = loadTeams()
@@ -133,6 +147,7 @@ export function getClosedTeamForAgent(agentId: string): Team | null {
   )
 }
 
+// Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get all closed teams where agentId is a member (MANAGER/COS can be in multiple) */
 export function getClosedTeamsForAgent(agentId: string): Team[] {
   const teams = loadTeams()

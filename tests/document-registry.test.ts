@@ -145,47 +145,47 @@ describe('saveDocuments', () => {
 // ============================================================================
 
 describe('createDocument', () => {
-  it('creates a document with provided fields', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'New Doc', content: 'Hello' })
+  it('creates a document with provided fields', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'New Doc', content: 'Hello' })
 
     expect(doc.title).toBe('New Doc')
     expect(doc.content).toBe('Hello')
     expect(doc.teamId).toBe('team-1')
   })
 
-  it('generates a UUID for the document id', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'UUID Test', content: '' })
+  it('generates a UUID for the document id', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'UUID Test', content: '' })
 
     expect(doc.id).toMatch(/^uuid-/)
   })
 
-  it('sets createdAt and updatedAt to the same ISO timestamp', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'Timestamp Test', content: '' })
+  it('sets createdAt and updatedAt to the same ISO timestamp', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'Timestamp Test', content: '' })
 
     expect(doc.createdAt).toBe(doc.updatedAt)
     expect(new Date(doc.createdAt).toISOString()).toBe(doc.createdAt)
   })
 
-  it('persists the document to storage', () => {
-    createDocument({ teamId: 'team-1', title: 'Persisted Doc', content: 'data' })
+  it('persists the document to storage', async () => {
+    await createDocument({ teamId: 'team-1', title: 'Persisted Doc', content: 'data' })
 
     const loaded = loadDocuments('team-1')
     expect(loaded).toHaveLength(1)
     expect(loaded[0].title).toBe('Persisted Doc')
   })
 
-  it('defaults pinned to false when not provided', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'No Pin', content: '' })
+  it('defaults pinned to false when not provided', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'No Pin', content: '' })
     expect(doc.pinned).toBe(false)
   })
 
-  it('defaults tags to empty array when not provided', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'No Tags', content: '' })
+  it('defaults tags to empty array when not provided', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'No Tags', content: '' })
     expect(doc.tags).toEqual([])
   })
 
-  it('preserves pinned and tags when provided', () => {
-    const doc = createDocument({
+  it('preserves pinned and tags when provided', async () => {
+    const doc = await createDocument({
       teamId: 'team-1',
       title: 'Full Doc',
       content: 'body',
@@ -197,9 +197,9 @@ describe('createDocument', () => {
     expect(doc.tags).toEqual(['api', 'design'])
   })
 
-  it('appends to existing documents', () => {
-    createDocument({ teamId: 'team-1', title: 'First', content: '' })
-    createDocument({ teamId: 'team-1', title: 'Second', content: '' })
+  it('appends to existing documents', async () => {
+    await createDocument({ teamId: 'team-1', title: 'First', content: '' })
+    await createDocument({ teamId: 'team-1', title: 'Second', content: '' })
 
     const loaded = loadDocuments('team-1')
     expect(loaded).toHaveLength(2)
@@ -213,8 +213,8 @@ describe('createDocument', () => {
 // ============================================================================
 
 describe('getDocument', () => {
-  it('returns the document when it exists', () => {
-    createDocument({ teamId: 'team-1', title: 'Find Me', content: 'here' })
+  it('returns the document when it exists', async () => {
+    await createDocument({ teamId: 'team-1', title: 'Find Me', content: 'here' })
     const docs = loadDocuments('team-1')
     const docId = docs[0].id
 
@@ -223,8 +223,8 @@ describe('getDocument', () => {
     expect(found!.title).toBe('Find Me')
   })
 
-  it('returns null for a non-existent document ID', () => {
-    createDocument({ teamId: 'team-1', title: 'Exists', content: '' })
+  it('returns null for a non-existent document ID', async () => {
+    await createDocument({ teamId: 'team-1', title: 'Exists', content: '' })
 
     const found = getDocument('team-1', 'non-existent-id')
     expect(found).toBeNull()
@@ -241,14 +241,14 @@ describe('getDocument', () => {
 // ============================================================================
 
 describe('updateDocument', () => {
-  it('returns null when document does not exist', () => {
-    const result = updateDocument('team-1', 'non-existent', { title: 'Updated' })
+  it('returns null when document does not exist', async () => {
+    const result = await updateDocument('team-1', 'non-existent', { title: 'Updated' })
     expect(result).toBeNull()
   })
 
-  it('updates the title and sets updatedAt', () => {
-    const created = createDocument({ teamId: 'team-1', title: 'Original', content: '' })
-    const updated = updateDocument('team-1', created.id, { title: 'Updated' })
+  it('updates the title and sets updatedAt', async () => {
+    const created = await createDocument({ teamId: 'team-1', title: 'Original', content: '' })
+    const updated = await updateDocument('team-1', created.id, { title: 'Updated' })
 
     expect(updated).not.toBeNull()
     expect(updated!.title).toBe('Updated')
@@ -256,33 +256,33 @@ describe('updateDocument', () => {
     expect(new Date(updated!.updatedAt).toISOString()).toBe(updated!.updatedAt)
   })
 
-  it('updates content while preserving other fields', () => {
-    const created = createDocument({ teamId: 'team-1', title: 'Keep Title', content: 'old', pinned: true })
-    const updated = updateDocument('team-1', created.id, { content: 'new' })
+  it('updates content while preserving other fields', async () => {
+    const created = await createDocument({ teamId: 'team-1', title: 'Keep Title', content: 'old', pinned: true })
+    const updated = await updateDocument('team-1', created.id, { content: 'new' })
 
     expect(updated!.content).toBe('new')
     expect(updated!.title).toBe('Keep Title')
     expect(updated!.pinned).toBe(true)
   })
 
-  it('updates pinned status', () => {
-    const created = createDocument({ teamId: 'team-1', title: 'Pin Me', content: '' })
+  it('updates pinned status', async () => {
+    const created = await createDocument({ teamId: 'team-1', title: 'Pin Me', content: '' })
     expect(created.pinned).toBe(false)
 
-    const updated = updateDocument('team-1', created.id, { pinned: true })
+    const updated = await updateDocument('team-1', created.id, { pinned: true })
     expect(updated!.pinned).toBe(true)
   })
 
-  it('updates tags', () => {
-    const created = createDocument({ teamId: 'team-1', title: 'Tag Me', content: '', tags: ['old'] })
-    const updated = updateDocument('team-1', created.id, { tags: ['new', 'updated'] })
+  it('updates tags', async () => {
+    const created = await createDocument({ teamId: 'team-1', title: 'Tag Me', content: '', tags: ['old'] })
+    const updated = await updateDocument('team-1', created.id, { tags: ['new', 'updated'] })
 
     expect(updated!.tags).toEqual(['new', 'updated'])
   })
 
-  it('persists updates to storage', () => {
-    const created = createDocument({ teamId: 'team-1', title: 'Persist Update', content: '' })
-    updateDocument('team-1', created.id, { title: 'Persisted' })
+  it('persists updates to storage', async () => {
+    const created = await createDocument({ teamId: 'team-1', title: 'Persist Update', content: '' })
+    await updateDocument('team-1', created.id, { title: 'Persisted' })
 
     const loaded = loadDocuments('team-1')
     expect(loaded[0].title).toBe('Persisted')
@@ -294,37 +294,37 @@ describe('updateDocument', () => {
 // ============================================================================
 
 describe('deleteDocument', () => {
-  it('removes the document and returns true', () => {
-    const doc = createDocument({ teamId: 'team-1', title: 'Delete Me', content: '' })
+  it('removes the document and returns true', async () => {
+    const doc = await createDocument({ teamId: 'team-1', title: 'Delete Me', content: '' })
 
-    const result = deleteDocument('team-1', doc.id)
+    const result = await deleteDocument('team-1', doc.id)
     expect(result).toBe(true)
 
     const remaining = loadDocuments('team-1')
     expect(remaining).toHaveLength(0)
   })
 
-  it('returns false when document does not exist', () => {
-    const result = deleteDocument('team-1', 'non-existent')
+  it('returns false when document does not exist', async () => {
+    const result = await deleteDocument('team-1', 'non-existent')
     expect(result).toBe(false)
   })
 
-  it('preserves other documents when deleting one', () => {
-    const doc1 = createDocument({ teamId: 'team-1', title: 'Keep', content: '' })
-    const doc2 = createDocument({ teamId: 'team-1', title: 'Delete', content: '' })
+  it('preserves other documents when deleting one', async () => {
+    const doc1 = await createDocument({ teamId: 'team-1', title: 'Keep', content: '' })
+    const doc2 = await createDocument({ teamId: 'team-1', title: 'Delete', content: '' })
 
-    deleteDocument('team-1', doc2.id)
+    await deleteDocument('team-1', doc2.id)
 
     const remaining = loadDocuments('team-1')
     expect(remaining).toHaveLength(1)
     expect(remaining[0].id).toBe(doc1.id)
   })
 
-  it('works across different team IDs', () => {
-    const doc1 = createDocument({ teamId: 'team-a', title: 'Team A Doc', content: '' })
-    createDocument({ teamId: 'team-b', title: 'Team B Doc', content: '' })
+  it('works across different team IDs', async () => {
+    const doc1 = await createDocument({ teamId: 'team-a', title: 'Team A Doc', content: '' })
+    await createDocument({ teamId: 'team-b', title: 'Team B Doc', content: '' })
 
-    deleteDocument('team-a', doc1.id)
+    await deleteDocument('team-a', doc1.id)
 
     expect(loadDocuments('team-a')).toHaveLength(0)
     expect(loadDocuments('team-b')).toHaveLength(1)

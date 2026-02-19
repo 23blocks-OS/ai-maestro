@@ -1,0 +1,5 @@
+In `lib/messageQueue.ts`, the `convertAMPToMessage()` function (around line 215-233) never populates `fromLabel` or `toLabel` fields on the returned Message object. The Message interface defines these fields (lines 27, 33), and the old flat-format MessageSummary populates them (lines 318-319), but AMP-format messages always have undefined labels.
+
+This means AMP messages display without sender/recipient labels in the UI.
+
+Found during AIM-222 audit.

@@ -4,7 +4,7 @@ import { getManagerId } from '@/lib/governance'
 import { loadAgents } from '@/lib/agent-registry'
 
 // GET /api/teams - List all teams
-// Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
+// Phase 1: No ACL on team list — localhost only. TODO Phase 2: Add auth/ACL for remote access.
 export async function GET() {
   const teams = loadTeams()
   return NextResponse.json({ teams })
@@ -12,8 +12,12 @@ export async function GET() {
 
 // POST /api/teams - Create a new team
 export async function POST(request: NextRequest) {
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
   try {
-    const body = await request.json()
     const { name, description, agentIds, type, chiefOfStaffId } = body
 
     if (!name || typeof name !== 'string') {

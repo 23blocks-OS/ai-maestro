@@ -1,0 +1,91 @@
+## Summary
+
+Comprehensive implementation of all actionable fixes from the AIM-222 audit blueprint (`docs_dev/aim-222-proposed-fixes.md`, 5,092+ lines, 65+ issues across 12 categories).
+
+Three-pass audit methodology was applied:
+- **Pass 1** (6 agents): Found 15 issues → fixed in commit 2
+- **Pass 2** (20 agents): Found 3 additional issues → fixed in commit 3
+- **Pass 3** (20 deep-dive agents): Found 174 findings, triaged into 27 PR-introduced fixes, 93 pre-existing (tracked in #207-#212), 54 skipped → fixed in commit 4
+
+## Changes by Category
+
+### Memory System (1.x)
+- HNSW vector index: dim:384, m:50, ef_construction:200, distance:Cosine
+- onnxruntime resolutions to fix mutex crash
+- Embeddings singleton promise pattern with proper .catch() reset
+- Consolidation query fixes (escapeForCozo, orphan cleanup race)
+- Streaming line counter for delta indexer
+- Case-insensitive HNSW error matching
+
+### Terminal & UI (2.x)
+- Cmd+C clipboard fallthrough to SIGINT when no selection
+- Cmd+V clipboard denial logging
+- setTimeout cleanup with ref on page unmount
+
+### Agent Deletion (3.x)
+- Export prompt before hard delete
+- Block PATCH on soft-deleted agents (410)
+- Block double soft-delete (410 with original deletedAt)
+- Case-insensitive ?hard= parameter
+- Empty blob check before download
+- UTF-8 Content-Disposition support
+- Cross-disable export/delete buttons
+
+### SKILL.md Documentation (4.x)
+- 14 documentation fixes across all skill files
+
+### CLI Plugin (5.x)
+- Scanner/whitelist improvements
+
+### Type System (6.x)
+- Type consolidation fixes
+
+### Installer Scripts (7.x)
+- 27 fixes across install.sh, update-aimaestro.sh, remote-install.sh, install-messaging.sh, install-agent-cli.sh
+- Atomic settings writes, tool detection, relative paths
+- Git stash pop conflict handling, ls-remote timeout
+- Marker file check before destructive cleanup
+- Non-fatal log writes, PM2 restart gating
+- PATH grep false positive fix with -qx exact match
+- Copy-first-then-remove install order
+- Backup guard for install-messaging.sh
+
+### Agent Registry (misc)
+- backupAgentData: dereference symlinks in cpSync
+- getUsedLabelsAndAvatars: filter soft-deleted agents
+- invalidateAgentCache: called in all mutation paths
+
+### Message Queue (misc)
+- envelope.id validation in convertAMPToMessage
+- 5-min cache sweep interval with .unref()
+- Cache key normalization consistency
+
+### Tmux & Messaging (10.x)
+- Tmux race condition fix
+- Envelope validation
+- Reply routing cache
+
+## Commits
+
+1. `a39e217` - Initial implementation of 56 fixes (34 files, 628+/210-)
+2. `4b435a8` - Fix 15 issues from first-pass audit
+3. `cfeadab` - Fix 3 issues from second-pass audit
+4. `3f5c574` - Fix 27 issues from third-pass deep audit (15 files, 232+/110-)
+
+## Pre-existing Issues (separate tracking)
+
+93 pre-existing findings tracked in dedicated issues:
+- #207: Memory system pre-existing bugs
+- #208: Terminal/UI pre-existing issues
+- #209: Installer script pre-existing bugs
+- #210: API route pre-existing issues
+- #211: Message queue pre-existing bugs
+- #212: Agent registry pre-existing issues
+
+## Test Plan
+
+- [x] `yarn build` passes with no TypeScript errors
+- [ ] Manual test: create agent, wake, verify terminal
+- [ ] Manual test: soft-delete agent, verify PATCH returns 410
+- [ ] Manual test: run install-messaging.sh on clean system
+- [ ] Manual test: verify HNSW index creation with cosine distance

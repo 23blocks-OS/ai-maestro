@@ -1,0 +1,1541 @@
+yarn run v1.22.22
+(node:85372) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning ../package.json: No license field
+$ vitest run
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/emanuelesabetta/ai-maestro[39m
+
+ [32m✓[39m tests/content-security.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/message-filter.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstderr[2m | tests/document-registry.test.ts[2m > [22m[2mloadDocuments[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load documents for team team-1: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadDocuments [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/document-registry.ts:34:44[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/document-registry.test.ts:105:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns empty array when file does not exist
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:99:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns tasks from an existing file
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:107:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/agent-utils.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:115:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns empty array when tasks property is not an array
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:122:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/amp-auth.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2msaveTasks[2m > [22m[2mwrites tasks to the correct file path with version wrapper
+[22m[39mFailed to save tasks for team team-2: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:134:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2msaveTasks[2m > [22m[2mround-trips with loadTasks
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:145:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:147:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/document-registry.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/validate-team-mutation.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2mloadTeams[2m > [22m[2mreturns empty array for invalid JSON
+[22m[39mFailed to load teams: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:201:36[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:102:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mcreates a task with default status pending
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:159:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:159:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [32m✓[39m tests/transfer-registry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2msaveTeams[2m > [22m[2mreturns false when writeFileSync throws
+[22m[39mFailed to save teams: Error: EACCES: permission denied
+    at Object.<anonymous> [90m(/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:114:13[90m)[39m
+    at Object.Mock [as writeFileSync] [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.saveTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:228:8[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:117:20
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mgenerates a UUID for the task id
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:167:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:167:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2msets createdAt and updatedAt to the same ISO timestamp
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:173:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:173:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mpersists the task to storage
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:180:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:180:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:182:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mpreserves all optional fields when provided
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:188:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:188:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mdefaults blockedBy to empty array when not provided
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:204:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:204:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mdefaults assigneeAgentId to null when not provided
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:209:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:209:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mgetTask[2m > [22m[2mreturns the task when it exists
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:220:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:220:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:221:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mgetTask[2m > [22m[2mreturns null for a non-existent task ID
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:230:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:230:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.getTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:125:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:232:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mgetTask[2m > [22m[2mreturns null when team has no tasks file
+[22m[39mFailed to load tasks for team team-empty: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.getTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:125:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:237:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mreturns null task when task does not exist
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:248:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mupdates the subject and refreshes updatedAt
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:254:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:254:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:255:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2msets startedAt when status changes to in_progress
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:263:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:263:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:264:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2msets startedAt when status changes to review (if not already started)
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:271:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:271:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:272:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2msets completedAt when status changes to completed
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:279:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:279:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:280:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mdoes not overwrite startedAt if already set
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:287:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:287:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:290:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mdetects unblocked tasks when a blocker is completed
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:299:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:299:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:300:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:300:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:306:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mdoes not report unblocked if other blockers remain incomplete
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:313:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:313:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:314:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:314:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:315:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:315:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:322:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mupdateTask[2m > [22m[2mdoes not report unblocked when task was already completed before
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:328:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:328:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:329:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:331:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:331:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.updateTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:137:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:338:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [32m✓[39m tests/team-registry.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mdeleteTask[2m > [22m[2mremoves the task and returns true
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:349:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:349:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.deleteTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:180:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:351:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mdeleteTask[2m > [22m[2mreturns false when task does not exist
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.deleteTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:180:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:359:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [32m✓[39m tests/governance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mdeleteTask[2m > [22m[2mcleans up blockedBy references in other tasks
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:364:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:364:21
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:365:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:365:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.deleteTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:180:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:371:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:373:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mdeleteTask[2m > [22m[2mpreserves other blockedBy entries when deleting one blocker
+[22m[39mFailed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:380:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:380:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:381:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:381:22
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:103:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:382:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at Module.createTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:120:3[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:382:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.deleteTask [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:180:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:388:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:390:23
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mdetects a cycle through a 3-node chain (A blocks B blocks C, adding C->A)
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:476:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:478:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mdetects a transitive cycle through a 4-node chain
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:490:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:492:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mdetects a 2-node cycle (B depends on A, adding A depends on B)
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:508:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:511:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mreturns false when no cycle would be created
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:519:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:522:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mreturns false when dependency id does not exist in tasks
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:529:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:531:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mwouldCreateCycle[2m > [22m[2mreturns false for independent branches in a diamond graph
+[22m[39mFailed to save tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at Module.saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:50:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:543:5
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+Failed to load tasks for team team-1: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:25:47[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:33:22[90m)[39m
+    at Module.wouldCreateCycle [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:197:17[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:547:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [31m❯[39m tests/task-registry.test.ts [2m([22m[2m42 tests[22m[2m | [22m[31m17 failed[39m[2m)[22m[32m 24[2mms[22m[39m
+     [32m✓[39m returns empty array when file does not exist[32m 4[2mms[22m[39m
+[31m     [31m×[31m returns tasks from an existing file[39m[32m 2[2mms[22m[39m
+     [32m✓[39m returns empty array when file contains invalid JSON[32m 0[2mms[22m[39m
+     [32m✓[39m returns empty array when tasks property is not an array[32m 0[2mms[22m[39m
+[31m     [31m×[31m writes tasks to the correct file path with version wrapper[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m round-trips with loadTasks[39m[32m 0[2mms[22m[39m
+     [32m✓[39m creates a task with default status pending[32m 3[2mms[22m[39m
+     [32m✓[39m generates a UUID for the task id[32m 0[2mms[22m[39m
+     [32m✓[39m sets createdAt and updatedAt to the same ISO timestamp[32m 0[2mms[22m[39m
+[31m     [31m×[31m persists the task to storage[39m[32m 1[2mms[22m[39m
+     [32m✓[39m preserves all optional fields when provided[32m 0[2mms[22m[39m
+     [32m✓[39m defaults blockedBy to empty array when not provided[32m 0[2mms[22m[39m
+     [32m✓[39m defaults assigneeAgentId to null when not provided[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns the task when it exists[39m[32m 1[2mms[22m[39m
+     [32m✓[39m returns null for a non-existent task ID[32m 0[2mms[22m[39m
+     [32m✓[39m returns null when team has no tasks file[32m 0[2mms[22m[39m
+     [32m✓[39m returns null task when task does not exist[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates the subject and refreshes updatedAt[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m sets startedAt when status changes to in_progress[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m sets startedAt when status changes to review (if not already started)[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m sets completedAt when status changes to completed[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m does not overwrite startedAt if already set[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m detects unblocked tasks when a blocker is completed[39m[32m 1[2mms[22m[39m
+     [32m✓[39m does not report unblocked if other blockers remain incomplete[32m 1[2mms[22m[39m
+     [32m✓[39m does not report unblocked when task was already completed before[32m 0[2mms[22m[39m
+[31m     [31m×[31m removes the task and returns true[39m[32m 1[2mms[22m[39m
+     [32m✓[39m returns false when task does not exist[32m 0[2mms[22m[39m
+[31m     [31m×[31m cleans up blockedBy references in other tasks[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m preserves other blockedBy entries when deleting one blocker[39m[32m 1[2mms[22m[39m
+     [32m✓[39m computes blocks array (reverse of blockedBy)[32m 0[2mms[22m[39m
+     [32m✓[39m sets isBlocked to true when a dependency is not completed[32m 0[2mms[22m[39m
+     [32m✓[39m sets isBlocked to false when all dependencies are completed[32m 0[2mms[22m[39m
+     [32m✓[39m resolves assigneeName from agent label[32m 0[2mms[22m[39m
+     [32m✓[39m falls back to agent name when label is empty string[32m 0[2mms[22m[39m
+     [32m✓[39m leaves assigneeName undefined when no assignee[32m 0[2mms[22m[39m
+     [32m✓[39m handles empty task list[32m 0[2mms[22m[39m
+[31m     [31m×[31m detects a cycle through a 3-node chain (A blocks B blocks C, adding C->A)[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m detects a transitive cycle through a 4-node chain[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m detects a 2-node cycle (B depends on A, adding A depends on B)[39m[32m 0[2mms[22m[39m
+     [32m✓[39m returns false when no cycle would be created[32m 0[2mms[22m[39m
+     [32m✓[39m returns false when dependency id does not exist in tasks[32m 0[2mms[22m[39m
+     [32m✓[39m returns false for independent branches in a diamond graph[32m 0[2mms[22m[39m
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mloadAgents[2m > [22m[2mreturns an empty array when registry file contains invalid JSON
+[22m[39mFailed to load agents: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at Module.loadAgents [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/agent-registry.ts:161:25[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/agent-registry.test.ts:153:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+ [32m✓[39m tests/document-api.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/team-api.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes agent by default (marks deletedAt, keeps in registry)
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes agent when hard=true (removes from registry)
+[22m[39m[Agent Registry] Killed tmux session: hard-delete-me
+[Agent Registry] Backed up agent hard-delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000001-2026-02-16T23-08-44-429Z
+[Agent Registry] Removed hard-delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Backed up agent delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000002-2026-02-16T23-08-44-449Z
+[Agent Registry] Removed delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns null for soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: soft-del-lookup
+[Agent Registry] Soft-deleted agent soft-del-lookup (id: 00000000-0000-0000-0000-000000000001)
+
+ [32m✓[39m tests/amp-address.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns soft-deleted agent with includeDeleted=true
+[22m[39m[Agent Registry] Killed tmux session: soft-del-include
+[Agent Registry] Soft-deleted agent soft-del-include (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgentByName() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: soft-del-byname
+[Agent Registry] Soft-deleted agent soft-del-byname (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: list-delete
+[Agent Registry] Soft-deleted agent list-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2msearchAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: searchable-soft-del
+[Agent Registry] Soft-deleted agent searchable-soft-del (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mcreateAgent() succeeds with same name as soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: name-reuse-test
+[Agent Registry] Soft-deleted agent name-reuse-test (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents(true) includes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: listall-delete
+[Agent Registry] Soft-deleted agent listall-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrenames an agent successfully
+[22m[39m[Agent Registry] Renaming agent from "old-name" to "new-name"
+[Agent Registry] Updated AMP index: old-name -> new-name (00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mnormalizes new name to lowercase
+[22m[39m[Agent Registry] Renaming agent from "rename-case" to "upper-name"
+[Agent Registry] Updated AMP index: rename-case -> upper-name (00000000-0000-0000-0000-000000000001)
+
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrejects duplicate name on same host
+[22m[39m[Agent Registry] Cannot rename: agent "existing-name" already exists on host "test-host"
+
+ [32m✓[39m tests/agent-registry.test.ts [2m([22m[2m91 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 17 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mloadTasks[2m > [22mreturns tasks from an existing file
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m108:19[22m[39m
+    [90m106| [39m
+    [90m107| [39m    [35mconst[39m tasks [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m108| [39m    [34mexpect[39m(tasks)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                  [31m^[39m
+    [90m109| [39m    [34mexpect[39m(tasks[[34m0[39m][33m.[39mid)[33m.[39m[34mtoBe[39m([32m'task-a'[39m)
+    [90m110| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22msaveTasks[2m > [22mwrites tasks to the correct file path with version wrapper
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m136:20[22m[39m
+    [90m134| [39m    [35mconst[39m result [33m=[39m [34msaveTasks[39m([32m'team-2'[39m[33m,[39m [task])
+    [90m135| [39m
+    [90m136| [39m    [34mexpect[39m(result)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m137| [39m    [35mconst[39m written [33m=[39m [33mJSON[39m[33m.[39m[34mparse[39m(fsStore[[34mtasksFilePath[39m([32m'team-2'[39m)])
+    [90m138| [39m    [34mexpect[39m(written[33m.[39mversion)[33m.[39m[34mtoBe[39m([34m1[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22msaveTasks[2m > [22mround-trips with loadTasks
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m148:20[22m[39m
+    [90m146| [39m
+    [90m147| [39m    [35mconst[39m loaded [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m148| [39m    [34mexpect[39m(loaded)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m149| [39m    [34mexpect[39m(loaded[[34m0[39m][33m.[39msubject)[33m.[39m[34mtoBe[39m([32m'Round Trip'[39m)
+    [90m150| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mcreateTask[2m > [22mpersists the task to storage
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m183:20[22m[39m
+    [90m181| [39m
+    [90m182| [39m    [35mconst[39m loaded [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m183| [39m    [34mexpect[39m(loaded)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m184| [39m    [34mexpect[39m(loaded[[34m0[39m][33m.[39msubject)[33m.[39m[34mtoBe[39m([32m'Persisted Task'[39m)
+    [90m185| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mgetTask[2m > [22mreturns the task when it exists
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'id')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m222:29[22m[39m
+    [90m220| [39m    [34mcreateTask[39m({ teamId[33m:[39m [32m'team-1'[39m[33m,[39m subject[33m:[39m [32m'Find Me'[39m })
+    [90m221| [39m    [35mconst[39m tasks [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m222| [39m    [35mconst[39m taskId [33m=[39m tasks[[34m0[39m][33m.[39mid
+    [90m   | [39m                            [31m^[39m
+    [90m223| [39m
+    [90m224| [39m    [35mconst[39m found [33m=[39m [34mgetTask[39m([32m'team-1'[39m[33m,[39m taskId)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22mupdates the subject and refreshes updatedAt
+[31m[1mAssertionError[22m: expected null not to be null[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m257:29[22m[39m
+    [90m255| [39m    const result = updateTask('team-1', created.id, { subject: 'Update…
+    [90m256| [39m
+    [90m257| [39m    [34mexpect[39m(result[33m.[39mtask)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()
+    [90m   | [39m                            [31m^[39m
+    [90m258| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39msubject)[33m.[39m[34mtoBe[39m([32m'Updated'[39m)
+    [90m259| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mupdatedAt)[33m.[39m[34mtoBeDefined[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22msets startedAt when status changes to in_progress
+[31m[1mTypeError[22m: Cannot read properties of null (reading 'startedAt')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m266:25[22m[39m
+    [90m264| [39m    const result = updateTask('team-1', created.id, { status: 'in_prog…
+    [90m265| [39m
+    [90m266| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mstartedAt)[33m.[39m[34mtoBeDefined[39m()
+    [90m   | [39m                        [31m^[39m
+    [90m267| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m'in_progress'[39m)
+    [90m268| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22msets startedAt when status changes to review (if not already started)
+[31m[1mTypeError[22m: Cannot read properties of null (reading 'startedAt')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m274:25[22m[39m
+    [90m272| [39m    const result = updateTask('team-1', created.id, { status: 'review'…
+    [90m273| [39m
+    [90m274| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mstartedAt)[33m.[39m[34mtoBeDefined[39m()
+    [90m   | [39m                        [31m^[39m
+    [90m275| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m'review'[39m)
+    [90m276| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22msets completedAt when status changes to completed
+[31m[1mTypeError[22m: Cannot read properties of null (reading 'completedAt')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m282:25[22m[39m
+    [90m280| [39m    const result = updateTask('team-1', created.id, { status: 'complet…
+    [90m281| [39m
+    [90m282| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mcompletedAt)[33m.[39m[34mtoBeDefined[39m()
+    [90m   | [39m                        [31m^[39m
+    [90m283| [39m    [34mexpect[39m(result[33m.[39mtask[33m![39m[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m'completed'[39m)
+    [90m284| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22mdoes not overwrite startedAt if already set
+[31m[1mTypeError[22m: Cannot read properties of null (reading 'startedAt')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m291:40[22m[39m
+    [90m289| [39m    [90m// Move to in_progress first to set startedAt[39m
+    [90m290| [39m    const first = updateTask('team-1', created.id, { status: 'in_progr…
+    [90m291| [39m    [35mconst[39m firstStartedAt [33m=[39m first[33m.[39mtask[33m![39m[33m.[39mstartedAt
+    [90m   | [39m                                       [31m^[39m
+    [90m292| [39m
+    [90m293| [39m    [90m// Move to review -- startedAt should not change[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mupdateTask[2m > [22mdetects unblocked tasks when a blocker is completed
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m308:30[22m[39m
+    [90m306| [39m    const result = updateTask('team-1', blocker.id, { status: 'complet…
+    [90m307| [39m
+    [90m308| [39m    [34mexpect[39m(result[33m.[39munblocked)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                             [31m^[39m
+    [90m309| [39m    [34mexpect[39m(result[33m.[39munblocked[[34m0[39m][33m.[39mid)[33m.[39m[34mtoBe[39m(blocked[33m.[39mid)
+    [90m310| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mdeleteTask[2m > [22mremoves the task and returns true
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m352:20[22m[39m
+    [90m350| [39m
+    [90m351| [39m    [35mconst[39m result [33m=[39m [34mdeleteTask[39m([32m'team-1'[39m[33m,[39m task[33m.[39mid)
+    [90m352| [39m    [34mexpect[39m(result)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   | [39m                   [31m^[39m
+    [90m353| [39m
+    [90m354| [39m    [35mconst[39m remaining [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mdeleteTask[2m > [22mcleans up blockedBy references in other tasks
+[31m[1mAssertionError[22m: expected undefined to be defined[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m375:30[22m[39m
+    [90m373| [39m    [35mconst[39m remaining [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m374| [39m    [35mconst[39m updatedDependent [33m=[39m remaining[33m.[39m[34mfind[39m(t [33m=>[39m t[33m.[39mid [33m===[39m dependent[33m.[39mid)
+    [90m375| [39m    [34mexpect[39m(updatedDependent)[33m.[39m[34mtoBeDefined[39m()
+    [90m   | [39m                             [31m^[39m
+    [90m376| [39m    [34mexpect[39m(updatedDependent[33m![39m[33m.[39mblockedBy)[33m.[39m[34mtoEqual[39m([])
+    [90m377| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mdeleteTask[2m > [22mpreserves other blockedBy entries when deleting one blocker
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'blockedBy')[39m
+[36m [2m❯[22m tests/task-registry.test.ts:[2m392:21[22m[39m
+    [90m390| [39m    [35mconst[39m remaining [33m=[39m [34mloadTasks[39m([32m'team-1'[39m)
+    [90m391| [39m    [35mconst[39m updated [33m=[39m remaining[33m.[39m[34mfind[39m(t [33m=>[39m t[33m.[39mid [33m===[39m dependent[33m.[39mid)
+    [90m392| [39m    [34mexpect[39m(updated[33m![39m[33m.[39mblockedBy)[33m.[39m[34mtoEqual[39m([blockerB[33m.[39mid])
+    [90m   | [39m                    [31m^[39m
+    [90m393| [39m  })
+    [90m394| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mwouldCreateCycle[2m > [22mdetects a cycle through a 3-node chain (A blocks B blocks C, adding C->A)
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m478:50[22m[39m
+    [90m476| [39m    [34msaveTasks[39m([32m'team-1'[39m[33m,[39m tasks)
+    [90m477| [39m
+    [90m478| [39m    [34mexpect[39m([34mwouldCreateCycle[39m([32m'team-1'[39m[33m,[39m [32m'c'[39m[33m,[39m [32m'a'[39m))[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   | [39m                                                 [31m^[39m
+    [90m479| [39m  })
+    [90m480| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mwouldCreateCycle[2m > [22mdetects a transitive cycle through a 4-node chain
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m492:50[22m[39m
+    [90m490| [39m    [34msaveTasks[39m([32m'team-1'[39m[33m,[39m tasks)
+    [90m491| [39m
+    [90m492| [39m    [34mexpect[39m([34mwouldCreateCycle[39m([32m'team-1'[39m[33m,[39m [32m'd'[39m[33m,[39m [32m'a'[39m))[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   | [39m                                                 [31m^[39m
+    [90m493| [39m  })
+    [90m494| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/17]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/task-registry.test.ts[2m > [22mwouldCreateCycle[2m > [22mdetects a 2-node cycle (B depends on A, adding A depends on B)
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/task-registry.test.ts:[2m511:50[22m[39m
+    [90m509| [39m
+    [90m510| [39m    // "Would adding A as a dependency of B create a cycle?" -- yes, B…
+    [90m511| [39m    [34mexpect[39m([34mwouldCreateCycle[39m([32m'team-1'[39m[33m,[39m [32m'b'[39m[33m,[39m [32m'a'[39m))[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m   | [39m                                                 [31m^[39m
+    [90m512| [39m  })
+    [90m513| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/17]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m13 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[31m17 failed[39m[22m[2m | [22m[1m[32m313 passed[39m[22m[90m (330)[39m
+[2m   Start at [22m 00:08:44
+[2m   Duration [22m 444ms[2m (transform 948ms, setup 0ms, import 1.43s, tests 218ms, environment 1ms)[22m
+
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

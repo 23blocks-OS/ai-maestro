@@ -67,15 +67,27 @@ export function useGovernance(agentId: string | null): GovernanceState {
       fetch('/api/governance', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
-      }).catch(() => ({ hasPassword: false, hasManager: false, managerId: null, managerName: null })),
+      }).catch((err) => {
+        if (err?.name === 'AbortError') return // Component unmounted
+        console.error('[governance] fetch error:', err)
+        return { hasPassword: false, hasManager: false, managerId: null, managerName: null }
+      }),
       fetch('/api/teams', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
-      }).catch(() => ({ teams: [] })),
+      }).catch((err) => {
+        if (err?.name === 'AbortError') return // Component unmounted
+        console.error('[governance] fetch error:', err)
+        return { teams: [] }
+      }),
       fetch('/api/governance/transfers?status=pending', { signal }).then((r) => {
         if (!r.ok) throw new Error('Request failed')
         return r.json()
-      }).catch(() => ({ requests: [] })),
+      }).catch((err) => {
+        if (err?.name === 'AbortError') return // Component unmounted
+        console.error('[governance] fetch error:', err)
+        return { requests: [] }
+      }),
     ])
       .then(([govData, teamsData, transfersData]) => {
         if (signal?.aborted) return  // Stale response guard
@@ -99,7 +111,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
       .finally(() => {
         setLoading(false)
       })
-  }, [])
+  }, []) // No deps: only uses fetch + setState, signal is a parameter
 
   // Fetch on mount and when agentId changes; abort stale requests on re-render
   useEffect(() => {
@@ -118,7 +130,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to set password' }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to set password' }
@@ -137,7 +149,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign manager' }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign manager' }
@@ -156,7 +168,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign chief-of-staff' }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign chief-of-staff' }
@@ -196,7 +208,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to add agent to team' }
         }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
@@ -235,7 +247,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to remove agent from team' }
         }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to remove agent from team' }
@@ -246,6 +258,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   const requestTransfer = useCallback(
     async (targetAgentId: string, fromTeamId: string, toTeamId: string, note?: string): Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }> => {
+      if (!agentId) return { success: false, error: 'No agent selected' } // Guard against null agentId
       try {
         const res = await fetch('/api/governance/transfers', {
           method: 'POST',
@@ -254,7 +267,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to create transfer request' }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true, transferRequest: data.request }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to create transfer request' }
@@ -265,6 +278,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   const resolveTransfer = useCallback(
     async (transferId: string, action: 'approve' | 'reject', rejectReason?: string): Promise<{ success: boolean; error?: string }> => {
+      if (!agentId) return { success: false, error: 'No agent selected' } // Guard against null agentId
       try {
         const res = await fetch(`/api/governance/transfers/${transferId}/resolve`, {
           method: 'POST',
@@ -273,7 +287,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to resolve transfer' }
-        refresh()
+        refresh() // TODO: Pass AbortController signal to post-mutation refresh
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to resolve transfer' }

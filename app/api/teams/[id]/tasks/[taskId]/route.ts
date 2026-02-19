@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { getTeam } from '@/lib/team-registry'
 import { checkTeamAccess } from '@/lib/team-acl'
+import { isValidUuid } from '@/lib/validation'
 
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
@@ -10,6 +11,13 @@ export async function PUT(
 ) {
   try {
     const { id, taskId } = await params
+    // Validate UUID format on both path parameters
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
+    if (!isValidUuid(taskId)) {
+      return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -25,7 +33,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const body = await request.json()
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
+    }
     const { subject, description, status, assigneeAgentId, blockedBy, priority } = body
 
     // Validate priority is a non-negative number if provided
@@ -59,18 +72,19 @@ export async function PUT(
     }
 
     // Validate status enum
-    if (status !== undefined && !['backlog', 'pending', 'in_progress', 'review', 'completed'].includes(status)) {
+    if (status !== undefined && (typeof status !== 'string' || !['backlog', 'pending', 'in_progress', 'review', 'completed'].includes(status))) {
       return NextResponse.json({ error: 'Invalid status. Must be backlog, pending, in_progress, review, or completed' }, { status: 400 })
     }
 
-    const result = await updateTask(id, taskId, {
-      subject,
-      description,
-      status,
-      assigneeAgentId,
-      blockedBy,
-      priority,
-    })
+    // Build typed updates object — all fields were validated above so casts are safe
+    const updates: Partial<Pick<import('@/types/task').Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority'>> = {}
+    if (typeof subject === 'string') updates.subject = subject
+    if (typeof description === 'string') updates.description = description
+    if (typeof status === 'string') updates.status = status as import('@/types/task').Task['status']
+    if (typeof assigneeAgentId === 'string') updates.assigneeAgentId = assigneeAgentId
+    if (Array.isArray(blockedBy)) updates.blockedBy = blockedBy as string[]
+    if (typeof priority === 'number') updates.priority = priority
+    const result = await updateTask(id, taskId, updates)
 
     if (!result.task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
@@ -96,6 +110,13 @@ export async function DELETE(
 ) {
   try {
     const { id, taskId } = await params
+    // Validate UUID format on both path parameters
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+    }
+    if (!isValidUuid(taskId)) {
+      return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })

@@ -1,0 +1,2433 @@
+diff --git a/README.md b/README.md
+index 5d2598b1..7e36447a 100644
+--- a/README.md
++++ b/README.md
+@@ -8,7 +8,7 @@
+ 
+ **Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
+ 
+-[![Version](https://img.shields.io/badge/version-0.22.2-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
++[![Version](https://img.shields.io/badge/version-0.22.4-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+ [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+ [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+ [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
+diff --git a/agent-container/agent-server.js b/agent-container/agent-server.js
+index 4eb2db72..4497e504 100644
+--- a/agent-container/agent-server.js
++++ b/agent-container/agent-server.js
+@@ -104,7 +104,7 @@ async function configureGit() {
+ async function initializeTmuxSession() {
+   try {
+     // Check if session already exists
+-    const { stdout } = await exec(`tmux has-session -t ${SESSION_NAME} 2>&1`)
++    const { stdout } = await exec(`tmux has-session -t "${SESSION_NAME}" 2>&1`)
+     console.log(`✓ tmux session "${SESSION_NAME}" already exists`)
+   } catch (error) {
+     // Session doesn't exist, create it
+@@ -116,7 +116,7 @@ async function initializeTmuxSession() {
+ 
+       // Optionally start an AI tool in the session (e.g., 'claude', 'aider', 'cursor')
+       if (AI_TOOL) {
+-        await exec(`tmux send-keys -t ${SESSION_NAME} "${AI_TOOL}" C-m`)
++        await exec(`tmux send-keys -t "${SESSION_NAME}" "${AI_TOOL}" C-m`)
+         console.log(`✓ Started ${AI_TOOL} in session`)
+       } else {
+         console.log(`ℹ No AI_TOOL specified - session starts with shell only`)
+@@ -144,7 +144,7 @@ wss.on('connection', (ws, req) => {
+     console.log(`  → Total clients connected: ${sessionData.clients.size}`)
+ 
+     // Send current screen content to new client
+-    exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
++    exec(`tmux capture-pane -t "${sessionKey}" -p -e -S -50000 2>/dev/null || tmux capture-pane -t "${sessionKey}" -p 2>/dev/null || echo ""`)
+       .then(({ stdout }) => {
+         if (stdout && ws.readyState === 1) {
+           // Send captured content
+@@ -174,7 +174,7 @@ wss.on('connection', (ws, req) => {
+ 
+     // Capture and send initial screen content to first client
+     setTimeout(() => {
+-      exec(`tmux capture-pane -t ${sessionKey} -p -e -S -50000 2>/dev/null || tmux capture-pane -t ${sessionKey} -p 2>/dev/null || echo ""`)
++      exec(`tmux capture-pane -t "${sessionKey}" -p -e -S -50000 2>/dev/null || tmux capture-pane -t "${sessionKey}" -p 2>/dev/null || echo ""`)
+         .then(({ stdout }) => {
+           if (stdout && ws.readyState === 1) {
+             ws.send(stdout)
+diff --git a/app/api/agents/[id]/chat/route.ts b/app/api/agents/[id]/chat/route.ts
+index 56dd7b66..3cc831c2 100644
+--- a/app/api/agents/[id]/chat/route.ts
++++ b/app/api/agents/[id]/chat/route.ts
+@@ -171,7 +171,7 @@ export async function GET(
+       if (sessionName) {
+         try {
+           const { stdout } = await execAsync(
+-            `tmux capture-pane -t '${sessionName}' -p -S -40 2>/dev/null || echo ""`
++            `tmux capture-pane -t "${sessionName}" -p -S -40 2>/dev/null || echo ""`
+           )
+           const lines = stdout.trim().split('\n')
+ 
+@@ -306,29 +306,16 @@ export async function POST(
+       )
+     }
+ 
+-    // Escape the message for shell
+-    // Replace single quotes with escaped version for shell safety
+-    const escapedMessage = message
+-      .replace(/\\/g, '\\\\')
+-      .replace(/'/g, "'\\''")
+-      .replace(/"/g, '\\"')
+-      .replace(/\$/g, '\\$')
+-      .replace(/`/g, '\\`')
++    // Escape single quotes for shell (text is wrapped in single quotes, so only ' needs escaping)
++    const escapedMessage = message.replace(/'/g, "'\\''")
+ 
+     // Send message to tmux session
+-    // Using send-keys with the message followed by Enter
+-    // Note: Use -l (literal) to avoid interpreting special characters
+-    const tmuxCommand = `tmux send-keys -t '${sessionName}' -l '${escapedMessage}'`
+-    const enterCommand = `tmux send-keys -t '${sessionName}' Enter`
++    // Using send-keys with -l (literal) to avoid interpreting special characters
++    // Text and Enter are sent atomically via tmux \; command chaining to prevent race conditions
++    const tmuxCommand = `tmux send-keys -t "${sessionName}" -l '${escapedMessage}' \\; send-keys -t "${sessionName}" Enter`
+ 
+-    console.log('[Chat API] Session:', sessionName)
+-    console.log('[Chat API] Message:', message)
+-    console.log('[Chat API] Escaped:', escapedMessage)
+-    console.log('[Chat API] Command:', tmuxCommand)
+-
+-    // Send the text first, then Enter separately
++    // Send text and Enter atomically in a single tmux server round-trip
+     await execAsync(tmuxCommand)
+-    await execAsync(enterCommand)
+ 
+     console.log('[Chat API] Message sent successfully')
+ 
+diff --git a/app/api/agents/[id]/route.ts b/app/api/agents/[id]/route.ts
+index f13f8f0d..e4c2d0fc 100644
+--- a/app/api/agents/[id]/route.ts
++++ b/app/api/agents/[id]/route.ts
+@@ -33,6 +33,15 @@ export async function PATCH(
+   { params }: { params: { id: string } }
+ ) {
+   try {
++    // Check if agent exists and is not soft-deleted before allowing update
++    const existing = getAgent(params.id, true) // include deleted to distinguish 404 vs 410
++    if (!existing) {
++      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
++    }
++    if (existing.deletedAt) {
++      return NextResponse.json({ error: 'Cannot update a deleted agent' }, { status: 410 })
++    }
++
+     const body: UpdateAgentRequest = await request.json()
+ 
+     const agent = updateAgent(params.id, body)
+@@ -51,20 +60,35 @@ export async function PATCH(
+ 
+ /**
+  * DELETE /api/agents/[id]
+- * Delete an agent
++ * Delete an agent. Soft-delete by default (preserves data, marks as deleted).
++ * Pass ?hard=true for permanent deletion (creates backup first).
+  */
+ export async function DELETE(
+   request: Request,
+   { params }: { params: { id: string } }
+ ) {
+   try {
+-    const success = deleteAgent(params.id)
++    // Parse ?hard= query parameter for permanent deletion (case-insensitive)
++    const url = new URL(request.url)
++    const hardParam = url.searchParams.get('hard')?.toLowerCase()
++    const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
++
++    // Check if agent exists, and prevent double soft-delete (which would overwrite original deletedAt)
++    const agent = getAgent(params.id, true) // include deleted to distinguish 404 vs 410
++    if (!agent) {
++      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
++    }
++    if (agent.deletedAt && !hard) {
++      return NextResponse.json({ error: 'Agent already deleted', deletedAt: agent.deletedAt }, { status: 410 })
++    }
++
++    const success = deleteAgent(params.id, hard)
+ 
+     if (!success) {
+       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+     }
+ 
+-    return NextResponse.json({ success: true })
++    return NextResponse.json({ success: true, hard })
+   } catch (error) {
+     console.error('Failed to delete agent:', error)
+     return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 })
+diff --git a/app/api/agents/[id]/session/route.ts b/app/api/agents/[id]/session/route.ts
+index 96d53795..620fd464 100644
+--- a/app/api/agents/[id]/session/route.ts
++++ b/app/api/agents/[id]/session/route.ts
+@@ -166,13 +166,13 @@ export async function PATCH(
+     // Cancel copy-mode if active
+     await cancelCopyModeIfActive(sessionName)
+ 
+-    // Send keys via tmux
++    // Send keys via tmux using -l (literal) to avoid interpreting special characters
++    // When addNewline is true, text and Enter are sent atomically via tmux \; chaining to prevent race conditions
+     const escapedKeys = command.replace(/'/g, "'\\''")
+-    await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}'`)
+-
+-    // Send Enter key if requested
+     if (addNewline) {
+-      await execAsync(`tmux send-keys -t "${sessionName}" Enter`)
++      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}' \\; send-keys -t "${sessionName}" Enter`)
++    } else {
++      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}'`)
+     }
+ 
+     // Update activity timestamp
+@@ -301,8 +301,8 @@ export async function DELETE(
+         }
+       }
+ 
+-      // Delete the agent
+-      const success = deleteAgent(id)
++      // Hard delete with backup - session deletion means user explicitly wants agent removed
++      const success = deleteAgent(id, true)
+       if (!success) {
+         return NextResponse.json(
+           { error: 'Failed to delete agent' },
+diff --git a/app/api/sessions/[id]/command/route.ts b/app/api/sessions/[id]/command/route.ts
+index 5b7a4c51..006fd7f4 100644
+--- a/app/api/sessions/[id]/command/route.ts
++++ b/app/api/sessions/[id]/command/route.ts
+@@ -87,7 +87,6 @@ async function sendKeysToTmux(sessionName: string, keys: string): Promise<void>
+  * - command: string - The command to send
+  * - requireIdle: boolean - Only send if session is idle (default: true)
+  * - addNewline: boolean - Add Enter key to execute command (default: true)
+- * - forClaude: boolean - Format as a message for Claude to process (default: false)
+  */
+ export async function POST(
+   request: NextRequest,
+@@ -101,7 +100,6 @@ export async function POST(
+     const command = body.command as string
+     const requireIdle = body.requireIdle !== false // Default true
+     const addNewline = body.addNewline !== false // Default true
+-    const forClaude = body.forClaude === true // Default false
+ 
+     if (!command || typeof command !== 'string') {
+       return NextResponse.json(
+@@ -134,20 +132,16 @@ export async function POST(
+     }
+ 
+     // Format the command
+-    let keysToSend: string
+-    if (forClaude) {
+-      // Format as a message Claude can see and process
+-      keysToSend = command
+-    } else {
+-      keysToSend = command
+-    }
++    const keysToSend = command
+ 
+-    // Send keys via tmux
+-    await sendKeysToTmux(sessionName, keysToSend)
+-
+-    // Send Enter key if requested
++    // Send keys via tmux using -l (literal) to avoid interpreting special characters
++    // When addNewline is true, text and Enter are sent atomically via tmux \; chaining to prevent race conditions
+     if (addNewline) {
+-      await execAsync(`tmux send-keys -t "${sessionName}" Enter`)
++      await cancelCopyModeIfActive(sessionName)
++      const escapedKeys = keysToSend.replace(/'/g, "'\\''")
++      await execAsync(`tmux send-keys -t "${sessionName}" -l '${escapedKeys}' \\; send-keys -t "${sessionName}" Enter`)
++    } else {
++      await sendKeysToTmux(sessionName, keysToSend)
+     }
+ 
+     // Update activity timestamp
+diff --git a/app/api/sessions/[id]/route.ts b/app/api/sessions/[id]/route.ts
+index 39a28061..afafd74d 100644
+--- a/app/api/sessions/[id]/route.ts
++++ b/app/api/sessions/[id]/route.ts
+@@ -30,8 +30,8 @@ export async function DELETE(
+     const isCloudAgent = agent?.deployment?.type === 'cloud'
+ 
+     if (isCloudAgent) {
+-      // Delete the agent (this will clean up messages, data directories, etc.)
+-      deleteAgentBySession(sessionName)
++      // Hard delete with backup - explicit session deletion removes the agent
++      deleteAgentBySession(sessionName, true)
+ 
+       return NextResponse.json({ success: true, name: sessionName, type: 'cloud' })
+     }
+@@ -52,8 +52,8 @@ export async function DELETE(
+     // Remove from persistence
+     unpersistSession(sessionName)
+ 
+-    // Also delete from registry (if agent exists there)
+-    deleteAgentBySession(sessionName)
++    // Hard delete with backup - explicit session deletion removes the agent
++    deleteAgentBySession(sessionName, true)
+ 
+     return NextResponse.json({ success: true, name: sessionName })
+   } catch (error) {
+diff --git a/app/api/v1/agents/me/route.ts b/app/api/v1/agents/me/route.ts
+index 5cb4d60f..3a855593 100644
+--- a/app/api/v1/agents/me/route.ts
++++ b/app/api/v1/agents/me/route.ts
+@@ -125,8 +125,8 @@ export async function DELETE(request: NextRequest) {
+   // Revoke all API keys for this agent
+   revokeAllKeysForAgent(auth.agentId!)
+ 
+-  // Delete agent from registry
+-  const deleted = deleteAgent(auth.agentId!)
++  // Hard delete with backup - AMP deregistration means agent is leaving the system
++  const deleted = deleteAgent(auth.agentId!, true)
+   if (!deleted) {
+     return NextResponse.json({
+       error: 'not_found',
+diff --git a/app/page.tsx b/app/page.tsx
+index 1d38438b..785966e7 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,6 +1,6 @@
+ 'use client'
+ 
+-import { useState, useEffect, useMemo } from 'react'
++import { useState, useEffect, useMemo, useRef } from 'react'
+ import dynamic from 'next/dynamic'
+ import AgentList from '@/components/AgentList'
+ import TerminalView from '@/components/TerminalView'
+@@ -86,6 +86,7 @@ export default function DashboardPage() {
+   // PRIMARY STATE: Agent ID (no longer session-driven)
+   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
++  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   const [sidebarWidth, setSidebarWidth] = useState(() => {
+     if (typeof window === 'undefined') return 320
+     const saved = localStorage.getItem('sidebar-width')
+@@ -195,6 +196,13 @@ export default function DashboardPage() {
+     return () => window.removeEventListener('resize', checkMobile)
+   }, [])
+ 
++  // Clean up sidebar toggle resize timeout on unmount
++  useEffect(() => {
++    return () => {
++      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
++    }
++  }, [])
++
+   // Keyboard shortcuts for Phase 5 features
+   useEffect(() => {
+     const handleKeyDown = (e: KeyboardEvent) => {
+@@ -484,7 +492,14 @@ export default function DashboardPage() {
+   }
+ 
+   const toggleSidebar = () => {
+-    setSidebarCollapsed(!sidebarCollapsed)
++    setSidebarCollapsed(prev => !prev)
++    // Trigger terminal refit after the CSS transition completes (300ms duration + 50ms buffer)
++    // This dispatches a synthetic resize event that the global handler in TerminalContext picks up,
++    // calling fitAddon.fit() on all registered terminals so they fill the new available width
++    if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
++    resizeTimeoutRef.current = setTimeout(() => {
++      window.dispatchEvent(new Event('resize'))
++    }, 350)
+   }
+ 
+   const handleOnboardingComplete = () => {
+diff --git a/components/DeleteAgentDialog.tsx b/components/DeleteAgentDialog.tsx
+index 467eca70..3fbf23f8 100644
+--- a/components/DeleteAgentDialog.tsx
++++ b/components/DeleteAgentDialog.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useState } from 'react'
+ import { motion, AnimatePresence } from 'framer-motion'
+-import { AlertTriangle, Trash2, X, Zap, Skull } from 'lucide-react'
++import { AlertTriangle, Download, Trash2, X, Zap } from 'lucide-react'
+ 
+ interface DeleteAgentDialogProps {
+   isOpen: boolean
+@@ -24,6 +24,8 @@ export default function DeleteAgentDialog({
+   const [deleting, setDeleting] = useState(false)
+   const [confirmText, setConfirmText] = useState('')
+   const [phase, setPhase] = useState<'confirm' | 'deleting' | 'done'>('confirm')
++  const [exporting, setExporting] = useState(false)
++  const [exportError, setExportError] = useState<string | null>(null)
+ 
+   const displayName = agentDisplayName || agentAlias
+ 
+@@ -56,6 +58,43 @@ export default function DeleteAgentDialog({
+     onClose()
+     setPhase('confirm')
+     setConfirmText('')
++    setExportError(null)
++  }
++
++  // Download agent data as ZIP via fetch() with proper error handling
++  const handleExport = async () => {
++    setExporting(true)
++    setExportError(null)
++    try {
++      const res = await fetch(`/api/agents/${agentId}/export`)
++      if (!res.ok) {
++        const errBody = await res.text()
++        throw new Error(errBody || `Export failed (${res.status})`)
++      }
++      // Trigger browser download from the response blob
++      const blob = await res.blob()
++      if (blob.size === 0) {
++        setExportError('Export returned empty file')
++        return
++      }
++      const url = URL.createObjectURL(blob)
++      const a = document.createElement('a')
++      a.href = url
++      // Derive filename from Content-Disposition header or fall back to agent alias
++      const disposition = res.headers.get('Content-Disposition')
++      const filenameMatch = disposition?.match(/filename\*=UTF-8''([^;]+)/) || disposition?.match(/filename="?([^"]+)"?/)
++      a.download = filenameMatch?.[1] || `${agentAlias}-export.zip`
++      document.body.appendChild(a)
++      a.click()
++      // Cleanup the temporary link and object URL
++      document.body.removeChild(a)
++      URL.revokeObjectURL(url)
++    } catch (err) {
++      console.error('Agent export failed:', err)
++      setExportError(err instanceof Error ? err.message : 'Export failed')
++    } finally {
++      setExporting(false)
++    }
+   }
+ 
+   if (!isOpen) return null
+@@ -131,6 +170,29 @@ export default function DeleteAgentDialog({
+                   </ul>
+                 </div>
+ 
++                {/* Export prompt -- lets user download agent data before confirming deletion */}
++                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
++                  <div className="flex items-center justify-between">
++                    <div>
++                      <p className="text-sm text-blue-400 font-medium">Want to keep a backup?</p>
++                      <p className="text-xs text-zinc-400 mt-1">
++                        Export this agent as a ZIP file before deleting.
++                      </p>
++                    </div>
++                    <button
++                      onClick={handleExport}
++                      disabled={exporting || deleting}
++                      className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center gap-1.5"
++                    >
++                      <Download className="w-3.5 h-3.5" />
++                      {exporting ? 'Exporting...' : 'Export'}
++                    </button>
++                  </div>
++                  {exportError && (
++                    <p className="text-xs text-red-400 mt-2">Export failed: {exportError}</p>
++                  )}
++                </div>
++
+                 <div className="pt-2">
+                   <label className="block text-sm font-medium text-gray-300 mb-2">
+                     Type <span className="font-mono text-red-400">{agentAlias}</span> to confirm:
+@@ -156,7 +218,7 @@ export default function DeleteAgentDialog({
+                 </button>
+                 <button
+                   onClick={handleDelete}
+-                  disabled={confirmText !== agentAlias}
++                  disabled={confirmText !== agentAlias || deleting || exporting}
+                   className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                 >
+                   <Trash2 className="w-4 h-4" />
+diff --git a/components/TerminalView.tsx b/components/TerminalView.tsx
+index e0cb2568..7d1235d1 100644
+--- a/components/TerminalView.tsx
++++ b/components/TerminalView.tsx
+@@ -93,7 +93,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
+ 
+   const { registerTerminal, unregisterTerminal, reportActivity } = useTerminalRegistry()
+ 
+-  const { terminal, initializeTerminal, fitTerminal } = useTerminal({
++  const { terminal, initializeTerminal, fitTerminal, setSendData } = useTerminal({
+     sessionId: session.id,
+     onRegister: (fitAddon) => {
+       // Register terminal when it's fully initialized
+@@ -192,6 +192,18 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
+     },
+   })
+ 
++  // Keep the useTerminal sendData ref in sync with the current WebSocket sendMessage function
++  // This allows the Cmd+V paste handler in useTerminal.ts (registered once during init) to always
++  // use the latest WebSocket send function without re-registering the key handler
++  useEffect(() => {
++    if (isConnected) {
++      setSendData(sendMessage)
++    } else {
++      setSendData(null)
++    }
++    return () => setSendData(null)
++  }, [isConnected, sendMessage, setSendData])
++
+   // Initialize terminal ONCE on mount - never re-initialize
+   // Tab-based architecture: terminal stays mounted, just hidden via CSS
+   useEffect(() => {
+diff --git a/data/help-embeddings.json b/data/help-embeddings.json
+index 9890bc5d..255c477f 100644
+--- a/data/help-embeddings.json
++++ b/data/help-embeddings.json
+@@ -1,6 +1,6 @@
+ {
+   "modelVersion": "Xenova/bge-small-en-v1.5",
+-  "generatedAt": "2026-02-10T01:40:57.114Z",
++  "generatedAt": "2026-02-15T19:25:51.177Z",
+   "documentCount": 136,
+   "documents": [
+     {
+diff --git a/docs/BACKLOG.md b/docs/BACKLOG.md
+index 1522e136..13e7992a 100644
+--- a/docs/BACKLOG.md
++++ b/docs/BACKLOG.md
+@@ -3,7 +3,7 @@
+ **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
+ 
+ **Last Updated:** 2026-01-03
+-**Current Version:** v0.22.2
++**Current Version:** v0.22.4
+ 
+ ---
+ 
+diff --git a/docs/ai-index.html b/docs/ai-index.html
+index 0fb368fa..ecf1fd8b 100644
+--- a/docs/ai-index.html
++++ b/docs/ai-index.html
+@@ -32,7 +32,7 @@
+         "priceCurrency": "USD"
+       },
+       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
+-      "softwareVersion": "0.22.2",
++      "softwareVersion": "0.22.4",
+       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
+       "url": "https://ai-maestro.23blocks.com",
+       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
+@@ -88,7 +88,7 @@ <h1>AI Maestro: Complete Guide for AI Assistants</h1>
+             <h2>What is AI Maestro?</h2>
+             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
+ 
+-            <p><strong>Version:</strong> 0.19.26 (January 2026)</p>
++            <p><strong>Version:</strong> 0.22.4 (February 2026)</p>
+             <p><strong>License:</strong> MIT (Free and Open Source)</p>
+             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
+             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
+@@ -387,7 +387,7 @@ <h2>Documentation Links</h2>
+         <section>
+             <h2>Quick Facts for LLMs</h2>
+             <ul>
+-                <li><strong>Current Version:</strong> 0.19.26 (January 2026)</li>
++                <li><strong>Current Version:</strong> 0.22.4 (February 2026)</li>
+                 <li><strong>License:</strong> MIT (completely free)</li>
+                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
+                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
+diff --git a/docs/index.html b/docs/index.html
+index 3f019c5f..515c5d08 100644
+--- a/docs/index.html
++++ b/docs/index.html
+@@ -77,7 +77,7 @@
+         "priceCurrency": "USD"
+       },
+       "description": "The future of work platform. Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. One human, multiple AI agents, working together.",
+-      "softwareVersion": "0.22.2",
++      "softwareVersion": "0.22.4",
+       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
+       "url": "https://ai-maestro.23blocks.com",
+       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
+@@ -446,7 +446,7 @@ <h1 class="font-display text-5xl md:text-7xl lg:text-8xl font-extrabold leading-
+                 <div class="flex flex-wrap gap-8 text-sm font-mono text-slate-500" id="stats" style="opacity: 0;">
+                     <div class="flex items-center gap-2">
+                         <span class="text-cyan-400">▸</span>
+-                        <span>v0.22.2</span>
++                        <span>v0.22.4</span>
+                     </div>
+                     <div class="flex items-center gap-2">
+                         <span class="text-cyan-400">▸</span>
+diff --git a/hooks/useTerminal.ts b/hooks/useTerminal.ts
+index 0ad9125f..f5a54779 100644
+--- a/hooks/useTerminal.ts
++++ b/hooks/useTerminal.ts
+@@ -28,6 +28,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+   const fitAddonRef = useRef<FitAddon | null>(null)
+   const webglAddonRef = useRef<WebglAddon | null>(null)
+   const optionsRef = useRef(options)
++  // Ref for sending data to PTY via WebSocket - set by TerminalView which has WebSocket access
++  const sendDataRef = useRef<((data: string) => void) | null>(null)
+ 
+   // Keep options ref up to date
+   useEffect(() => {
+@@ -194,7 +196,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+ 
+     resizeObserver.observe(container)
+ 
+-    // Add keyboard shortcuts for scrolling
++    // Add keyboard shortcuts for scrolling, copy, and paste
+     terminal.attachCustomKeyEventHandler((event) => {
+       // Calculate scroll amount based on terminal height (scroll by page)
+       const scrollAmount = Math.max(1, terminal.rows - 2)
+@@ -229,9 +231,56 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+         terminal.scrollToBottom()
+         return false
+       }
++
++      // Cmd+C (macOS) or Ctrl+Shift+C (Linux) - Copy selection to clipboard
++      // When there IS a selection, copy it; when there is NO selection, let Ctrl+C pass through as interrupt
++      if ((event.metaKey && event.key === 'c') || (event.ctrlKey && event.shiftKey && event.key === 'C')) {
++        if (event.type === 'keydown') {
++          const selection = terminal.getSelection()
++          if (selection) {
++            navigator.clipboard.writeText(selection).catch((err) => {
++              // Clipboard failed but user had a selection, so copy was the intent - no SIGINT needed
++              console.warn('[Terminal] Failed to copy selection:', err)
++            })
++            return false // Prevent sending Ctrl+C interrupt to PTY (copy was intent since selection existed)
++          }
++          // No selection: fall through to let Ctrl+C pass as SIGINT (return true at end of handler)
++        }
++      }
++
++      // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard into PTY via WebSocket
++      if ((event.metaKey && event.key === 'v') || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
++        if (event.type === 'keydown') {
++          navigator.clipboard.readText().then((text) => {
++            if (text && sendDataRef.current) {
++              // Use bracketed paste mode so multi-line content is handled correctly by the shell
++              const PASTE_START = '\x1b[200~'
++              const PASTE_END = '\x1b[201~'
++              // Normalize line endings: convert \r\n and \n to \r (what PTY expects)
++              const normalized = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r')
++              sendDataRef.current(PASTE_START + normalized + PASTE_END)
++            }
++          }).catch((err) => {
++            console.warn('Clipboard read denied:', err)
++          })
++          return false // Prevent default browser paste behavior
++        }
++      }
++
+       return true
+     })
+ 
++    // Auto-copy selection to clipboard when user selects 3+ characters
++    // Threshold of 3 chars prevents accidental clipboard overwrites from stray clicks
++    terminal.onSelectionChange(() => {
++      const sel = terminal.getSelection()
++      if (sel && sel.length >= 3) {
++        navigator.clipboard.writeText(sel).catch(() => {
++          // Clipboard API may be blocked in non-secure contexts; silently ignore
++        })
++      }
++    })
++
+     // Cleanup function
+     return () => {
+       resizeObserver.disconnect()
+@@ -246,6 +295,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+       terminal.dispose()
+       terminalRef.current = null
+       fitAddonRef.current = null
++      // Clear send function reference to prevent stale callbacks
++      sendDataRef.current = null
+     }
+   }, [])
+ 
+@@ -275,6 +326,11 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+     }
+   }, [])
+ 
++  // Allow TerminalView to set the WebSocket send function for paste support
++  const setSendData = useCallback((fn: ((data: string) => void) | null) => {
++    sendDataRef.current = fn
++  }, [])
++
+   return {
+     terminal: terminalRef.current,
+     initializeTerminal,
+@@ -282,5 +338,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
+     fitTerminal,
+     clearTerminal,
+     writeToTerminal,
++    setSendData,
+   }
+ }
+diff --git a/install-agent-cli.sh b/install-agent-cli.sh
+index ff475c2c..81c85a26 100755
+--- a/install-agent-cli.sh
++++ b/install-agent-cli.sh
+@@ -23,7 +23,7 @@
+ # Version: 1.0.2
+ #
+ 
+-set -euo pipefail
++set -eo pipefail
+ 
+ # ============================================================================
+ # Constants
+@@ -332,15 +332,20 @@ cmd_install() {
+     else
+         shell_config="$(get_shell_config_file)"
+ 
+-        # Check if already configured - use more specific pattern with word boundaries
+-        if [[ -f "$shell_config" ]] && grep -qE '#[[:space:]]*AI Maestro Agent CLI - Bash' "$shell_config" 2>/dev/null; then
++        # Dual guard: check for AI Maestro marker (any installer) or specific Agent CLI marker
++        # Use pattern that requires /.local/bin to end at a word boundary (: " ' or EOL) to prevent
++        # false positives like /.local/bin-extra matching
++        if [[ -f "$shell_config" ]] && { grep -qF "# AI Maestro" "$shell_config" 2>/dev/null || grep -qE '/\.local/bin(["'"'"':]|$)' "$shell_config" 2>/dev/null; }; then
+             print_success "PATH already configured in $(basename "$shell_config")"
+         else
+-            # Create backup before modifying
++            # Create backup before modifying (daily limit: only one backup per day)
+             if [[ -f "$shell_config" ]]; then
+-                cp "$shell_config" "${shell_config}.aimaestro-backup.$(date +%Y%m%d%H%M%S)" || {
+-                    print_warning "Could not create backup of shell config (continuing anyway)"
+-                }
++                local today_backup="${shell_config}.aimaestro-backup.$(date +%Y%m%d)"
++                if [[ ! -f "$today_backup" ]]; then
++                    cp "$shell_config" "$today_backup" || {
++                        print_warning "Could not create backup of shell config (continuing anyway)"
++                    }
++                fi
+             fi
+             
+             # Add to shell config
+diff --git a/install-doc-tools.sh b/install-doc-tools.sh
+index f30d618a..529f492f 100755
+--- a/install-doc-tools.sh
++++ b/install-doc-tools.sh
+@@ -125,7 +125,12 @@ for script in "$SCRIPT_DIR/plugin/plugins/ai-maestro/scripts"/docs-*.sh "$SCRIPT
+             continue
+         fi
+         # Modify script to use installed helper location
+-        sed 's|source "${SCRIPT_DIR}/docs-helper.sh"|source "${HOME}/.local/share/aimaestro/shell-helpers/docs-helper.sh"|g' "$script" > "$INSTALL_DIR/$script_name"
++        # Pattern handles: source or dot-source, with or without braces around SCRIPT_DIR
++        sed -E 's#(source|\.) +"?\$\{?SCRIPT_DIR\}?/docs-helper\.sh"?#source "${HOME}/.local/share/aimaestro/shell-helpers/docs-helper.sh"#g' "$script" > "$INSTALL_DIR/$script_name"
++        # Verify the substitution succeeded (installed script should NOT still reference SCRIPT_DIR/docs-helper.sh)
++        if grep -q 'SCRIPT_DIR.*/docs-helper\.sh' "$INSTALL_DIR/$script_name"; then
++            echo "  WARNING: sed substitution may have failed for $script_name - source path was not rewritten"
++        fi
+         chmod +x "$INSTALL_DIR/$script_name"
+         echo "  Installed: $script_name"
+     fi
+@@ -136,6 +141,7 @@ echo ""
+ echo "Installing docs-search skill to $SKILL_DIR..."
+ if [ -f "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" ]; then
+     cp "$SCRIPT_DIR/plugin/plugins/ai-maestro/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
++    echo "  Installed: SKILL.md"
+ elif [ -f "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" ]; then
+     cp "$SCRIPT_DIR/plugin/skills/docs-search/SKILL.md" "$SKILL_DIR/SKILL.md"
+     echo "  Installed: SKILL.md"
+diff --git a/install-messaging.sh b/install-messaging.sh
+index 9e37d212..0c659728 100755
+--- a/install-messaging.sh
++++ b/install-messaging.sh
+@@ -88,13 +88,14 @@ print_info() {
+     echo -e "${BLUE}${INFO}$1${NC}"
+ }
+ 
+-# Check if we're in the right directory
+-PLUGIN_DIR="plugin/plugins/ai-maestro"
++# Derive absolute path from script location so it works when called from any CWD
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++PLUGIN_DIR="$SCRIPT_DIR/plugin/plugins/ai-maestro"
+ if [ ! -d "$PLUGIN_DIR" ] || [ ! -d "$PLUGIN_DIR/scripts" ]; then
+     # Try to auto-initialize the submodule
+-    if [ -f ".gitmodules" ] && command -v git &> /dev/null; then
++    if [ -f "$SCRIPT_DIR/.gitmodules" ] && command -v git &> /dev/null; then
+         print_warning "Plugin submodule not initialized. Initializing now..."
+-        git submodule update --init --recursive
++        git -C "$SCRIPT_DIR" submodule update --init --recursive
+         if [ -d "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR/scripts" ]; then
+             print_success "Submodule initialized"
+         else
+@@ -321,12 +322,15 @@ distribute_shared_to_per_agent() {
+     fi
+ 
+     if [ "$DISTRIBUTED" -gt 0 ]; then
+-        print_success "Distributed $DISTRIBUTED messages to per-agent directories (AMP format)"
++        # Redirect informational output to stderr so stdout only contains the count
++        print_success "Distributed $DISTRIBUTED messages to per-agent directories (AMP format)" >&2
+     fi
+     if [ "$SKIPPED" -gt 0 ]; then
+-        print_warning "Skipped $SKIPPED messages (could not determine recipient/sender)"
++        # Redirect informational output to stderr so stdout only contains the count
++        print_warning "Skipped $SKIPPED messages (could not determine recipient/sender)" >&2
+     fi
+ 
++    # Only the numeric count goes to stdout for $() capture
+     echo "$DISTRIBUTED"
+ }
+ 
+@@ -613,9 +617,15 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
+     OLD_REMOVED=0
+     for old_script in "${OLD_SCRIPTS[@]}"; do
+         if [ -f "$HOME/.local/bin/$old_script" ]; then
+-            rm -f "$HOME/.local/bin/$old_script"
+-            print_success "Removed old script: $old_script"
+-            OLD_REMOVED=$((OLD_REMOVED + 1))
++            # Safety check: only delete if script has AI Maestro header marker
++            # to avoid accidentally deleting user scripts with the same name
++            if head -5 "$HOME/.local/bin/$old_script" | grep -qi "AI Maestro" 2>/dev/null; then
++                rm -f "$HOME/.local/bin/$old_script"
++                print_success "Removed old script: $old_script"
++                OLD_REMOVED=$((OLD_REMOVED + 1))
++            else
++                print_warning "Skipped $old_script (no AI Maestro header - may be a user script)"
++            fi
+         fi
+     done
+     if [ "$OLD_REMOVED" -gt 0 ]; then
+@@ -653,8 +663,8 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
+     echo ""
+     print_info "Installing shell helpers..."
+     mkdir -p ~/.local/share/aimaestro/shell-helpers
+-    if [ -f "scripts/shell-helpers/common.sh" ]; then
+-        cp "scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
++    if [ -f "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ]; then
++        cp "$SCRIPT_DIR/scripts/shell-helpers/common.sh" ~/.local/share/aimaestro/shell-helpers/
+         chmod +x ~/.local/share/aimaestro/shell-helpers/common.sh
+         print_success "Installed: shell-helpers/common.sh"
+     fi
+@@ -663,9 +673,12 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
+     echo ""
+     print_info "Configuring PATH..."
+ 
+-    # Check if ~/.local/bin is in PATH
+-    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+-        # Detect shell
++    # Dual guard: check runtime PATH and shell config marker to avoid duplicates
++    if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
++        # Already in runtime PATH - no action needed
++        print_info "~/.local/bin already in PATH"
++    else
++        # Detect shell config file
+         SHELL_RC=""
+         if [ -n "$ZSH_VERSION" ] || [ "$SHELL" = "/bin/zsh" ]; then
+             SHELL_RC="$HOME/.zshrc"
+@@ -674,20 +687,19 @@ if [ "$INSTALL_SCRIPTS" = true ]; then
+         fi
+ 
+         if [ -n "$SHELL_RC" ] && [ -f "$SHELL_RC" ]; then
+-            if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$SHELL_RC" 2>/dev/null; then
++            # Check for AI Maestro marker OR existing PATH entry to prevent duplicates
++            if grep -qF "# AI Maestro" "$SHELL_RC" 2>/dev/null || grep -qF '/.local/bin' "$SHELL_RC" 2>/dev/null; then
++                print_info "PATH already configured in $SHELL_RC"
++            else
+                 echo '' >> "$SHELL_RC"
+-                echo '# Added by AI Maestro installer' >> "$SHELL_RC"
++                echo '# AI Maestro PATH (added by installer)' >> "$SHELL_RC"
+                 echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+                 print_success "Added ~/.local/bin to PATH in $SHELL_RC"
+-            else
+-                print_info "PATH already configured in $SHELL_RC"
+             fi
+         fi
+ 
+         # Also add to current session
+         export PATH="$HOME/.local/bin:$PATH"
+-    else
+-        print_info "~/.local/bin already in PATH"
+     fi
+ fi
+ 
+@@ -700,17 +712,41 @@ if [ "$INSTALL_SKILL" = true ]; then
+ 
+     # Install AMP messaging skill from plugin
+     if [ -d "$PLUGIN_DIR/skills/agent-messaging" ]; then
+-        # Remove old agent-messaging skill if exists
++        SKILL_INSTALL_OK=true
++        # Back up existing skill before replacing (preserves user customizations)
+         if [ -d ~/.claude/skills/agent-messaging ]; then
+-            rm -rf ~/.claude/skills/agent-messaging
++            if ! cp -r ~/.claude/skills/agent-messaging ~/.claude/skills/agent-messaging.backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
++                print_warning "Backup failed for agent-messaging skill, skipping install (existing skill preserved)"
++                SKILL_INSTALL_OK=false
++            fi
+         fi
+ 
+-        cp -r "$PLUGIN_DIR/skills/agent-messaging" ~/.claude/skills/agent-messaging
+-        print_success "Installed: agent-messaging skill (AMP protocol)"
+-
+-        if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
+-            SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
+-            print_success "Skill file verified (${SKILL_SIZE} bytes)"
++        if [ "$SKILL_INSTALL_OK" = true ]; then
++            # Copy new version to temp location first, then swap (safe against cp failure)
++            TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/agent-messaging.tmp.XXXXXX)
++            if cp -r "$PLUGIN_DIR/skills/agent-messaging/." "$TEMP_SKILL_DIR/"; then
++                # Copy succeeded - remove old and rename temp to final
++                rm -rf ~/.claude/skills/agent-messaging
++                mv "$TEMP_SKILL_DIR" ~/.claude/skills/agent-messaging
++                print_success "Installed: agent-messaging skill (AMP protocol)"
++
++                if [ -f ~/.claude/skills/agent-messaging/SKILL.md ]; then
++                    SKILL_SIZE=$(wc -c < ~/.claude/skills/agent-messaging/SKILL.md)
++                    print_success "Skill file verified (${SKILL_SIZE} bytes)"
++                fi
++            else
++                # Copy failed - clean up temp, restore backup if we made one
++                rm -rf "$TEMP_SKILL_DIR"
++                if [ ! -d ~/.claude/skills/agent-messaging ]; then
++                    # Original was removed somehow, restore from latest backup
++                    LATEST_BACKUP=$(ls -1d ~/.claude/skills/agent-messaging.backup-* 2>/dev/null | tail -1)
++                    if [ -n "$LATEST_BACKUP" ]; then
++                        mv "$LATEST_BACKUP" ~/.claude/skills/agent-messaging
++                        print_warning "Install failed, restored agent-messaging from backup"
++                    fi
++                fi
++                print_error "Failed to install agent-messaging skill"
++            fi
+         fi
+     else
+         print_error "AMP messaging skill not found in plugin"
+@@ -721,11 +757,36 @@ if [ "$INSTALL_SKILL" = true ]; then
+ 
+     for skill in "${OTHER_SKILLS[@]}"; do
+         if [ -d "$PLUGIN_DIR/skills/$skill" ]; then
++            SKILL_INSTALL_OK=true
++            # Back up existing skill before replacing (preserves user customizations)
+             if [ -d ~/.claude/skills/"$skill" ]; then
+-                rm -rf ~/.claude/skills/"$skill"
++                if ! cp -r ~/.claude/skills/"$skill" ~/.claude/skills/"$skill".backup-"$(date +%Y%m%d%H%M%S)" 2>/dev/null; then
++                    print_warning "Backup failed for $skill skill, skipping install (existing skill preserved)"
++                    SKILL_INSTALL_OK=false
++                fi
++            fi
++
++            if [ "$SKILL_INSTALL_OK" = true ]; then
++                # Copy new version to temp location first, then swap (safe against cp failure)
++                TEMP_SKILL_DIR=$(mktemp -d ~/.claude/skills/"$skill".tmp.XXXXXX)
++                if cp -r "$PLUGIN_DIR/skills/$skill/." "$TEMP_SKILL_DIR/"; then
++                    # Copy succeeded - remove old and rename temp to final
++                    rm -rf ~/.claude/skills/"$skill"
++                    mv "$TEMP_SKILL_DIR" ~/.claude/skills/"$skill"
++                    print_success "Installed: $skill skill"
++                else
++                    # Copy failed - clean up temp, restore backup if needed
++                    rm -rf "$TEMP_SKILL_DIR"
++                    if [ ! -d ~/.claude/skills/"$skill" ]; then
++                        LATEST_BACKUP=$(ls -1d ~/.claude/skills/"$skill".backup-* 2>/dev/null | tail -1)
++                        if [ -n "$LATEST_BACKUP" ]; then
++                            mv "$LATEST_BACKUP" ~/.claude/skills/"$skill"
++                            print_warning "Install failed for $skill, restored from backup"
++                        fi
++                    fi
++                    print_error "Failed to install $skill skill"
++                fi
+             fi
+-            cp -r "$PLUGIN_DIR/skills/$skill" ~/.claude/skills/
+-            print_success "Installed: $skill skill"
+         fi
+     done
+ fi
+diff --git a/install.sh b/install.sh
+index b0635d49..a6d2af8d 100755
+--- a/install.sh
++++ b/install.sh
+@@ -106,13 +106,22 @@ echo ""
+ fi
+ 
+ # Function to print colored messages
+-# When called from remote-install.sh, suppress non-error output to avoid
+-# two competing UI voices (Maestro-style vs emoji-style)
++# When called from remote-install.sh, redirect non-error output to a log file
++# instead of suppressing it entirely, so warnings are preserved for debugging.
++# INSTALL_DIR is not yet set at definition time, but bash evaluates variables
++# at call time, so ${INSTALL_DIR:-.} resolves correctly when functions are invoked.
+ if [ "$FROM_REMOTE" = true ]; then
+-    print_success() { :; }
+-    print_warning() { :; }
+-    print_info() { :; }
+-    print_step() { :; }
++    LOG_FILE=""
++    _get_log_file() {
++        if [ -z "$LOG_FILE" ]; then
++            LOG_FILE="${INSTALL_DIR:-.}/install.log"
++        fi
++        echo "$LOG_FILE"
++    }
++    print_success() { echo "[SUCCESS] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
++    print_warning() { echo "[WARNING] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
++    print_info() { echo "[INFO] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
++    print_step() { echo "[STEP] $1" >> "$(_get_log_file)" 2>/dev/null || true; }
+ else
+     print_success() { echo -e "${GREEN}${CHECK} $1${NC}"; }
+     print_warning() { echo -e "${YELLOW}${WARN} $1${NC}"; }
+@@ -646,8 +655,14 @@ if [ -n "$INSTALL_DIR" ]; then
+         if [ "$NON_INTERACTIVE" = true ]; then
+             # Safety: only auto-delete paths under $HOME
+             if [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+-                print_info "Non-interactive mode: deleting existing directory..."
+-                DELETE_DIR="y"
++                # Only delete if this is actually an AI Maestro installation
++                if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
++                    print_info "Non-interactive mode: replacing existing AI Maestro installation..."
++                    DELETE_DIR="y"
++                else
++                    print_error "Directory exists but is not an AI Maestro installation. Aborting."
++                    exit 1
++                fi
+             else
+                 print_error "Refusing to auto-delete $INSTALL_DIR (not under \$HOME)"
+                 exit 1
+diff --git a/lib/agent-registry.ts b/lib/agent-registry.ts
+index 3c600478..ae0e29b2 100644
+--- a/lib/agent-registry.ts
++++ b/lib/agent-registry.ts
+@@ -6,6 +6,7 @@ import type { Agent, AgentSummary, AgentSession, CreateAgentRequest, UpdateAgent
+ import { parseSessionName, computeSessionName } from '@/types/agent'
+ import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
+ import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
++import { invalidateAgentCache } from '@/lib/messageQueue'
+ 
+ const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
+ const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
+@@ -64,7 +65,7 @@ function generateAvatarUrl(agentId: string): string {
+  * Get all used labels and avatars for a specific host
+  */
+ function getUsedLabelsAndAvatars(hostId: string): { labels: Set<string>, avatars: Set<string> } {
+-  const agents = loadAgents()
++  const agents = loadAgents().filter(a => !a.deletedAt)
+   const labels = new Set<string>()
+   const avatars = new Set<string>()
+ 
+@@ -206,11 +207,15 @@ export function saveAgents(agents: Agent[]): boolean {
+ }
+ 
+ /**
+- * Get agent by ID
++ * Get agent by ID.
++ * By default excludes soft-deleted agents. Pass includeDeleted=true to include them.
+  */
+-export function getAgent(id: string): Agent | null {
++export function getAgent(id: string, includeDeleted: boolean = false): Agent | null {
+   const agents = loadAgents()
+-  return agents.find(a => a.id === id) || null
++  const agent = agents.find(a => a.id === id) || null
++  // If the agent is soft-deleted and caller didn't ask for deleted agents, return null
++  if (agent && agent.deletedAt && !includeDeleted) return null
++  return agent
+ }
+ 
+ /**
+@@ -225,16 +230,18 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
+   const normalizedName = name.toLowerCase()
+ 
+   if (hostId) {
+-    // Scoped to specific host
++    // Scoped to specific host; exclude soft-deleted agents
+     return agents.find(a =>
++      !a.deletedAt &&
+       a.name?.toLowerCase() === normalizedName &&
+       a.hostId?.toLowerCase() === hostId.toLowerCase()
+     ) || null
+   }
+ 
+-  // Default: search on self host only
++  // Default: search on self host only; exclude soft-deleted agents
+   const selfHostId = getSelfHostId().toLowerCase()
+   return agents.find(a =>
++    !a.deletedAt &&
+     a.name?.toLowerCase() === normalizedName &&
+     a.hostId?.toLowerCase() === selfHostId
+   ) || null
+@@ -246,7 +253,8 @@ export function getAgentByName(name: string, hostId?: string): Agent | null {
+  */
+ export function getAgentByNameAnyHost(name: string): Agent | null {
+   const agents = loadAgents()
+-  return agents.find(a => a.name?.toLowerCase() === name.toLowerCase()) || null
++  // Exclude soft-deleted agents from name lookups
++  return agents.find(a => !a.deletedAt && a.name?.toLowerCase() === name.toLowerCase()) || null
+ }
+ 
+ /**
+@@ -263,8 +271,9 @@ export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
+   // Determine which host to search on
+   const targetHostId = hostId?.toLowerCase() || getSelfHostId().toLowerCase()
+ 
+-  // Try name first (on specific host), then deprecated alias field
++  // Try name first (on specific host), then deprecated alias field; exclude soft-deleted
+   return agents.find(a =>
++    !a.deletedAt &&
+     (a.name?.toLowerCase() === normalizedAlias ||
+      a.alias?.toLowerCase() === normalizedAlias) &&
+     a.hostId?.toLowerCase() === targetHostId
+@@ -278,9 +287,11 @@ export function getAgentByAlias(alias: string, hostId?: string): Agent | null {
+ export function getAgentByAliasAnyHost(alias: string): Agent | null {
+   const agents = loadAgents()
+   const normalizedAlias = alias.toLowerCase()
++  // Exclude soft-deleted agents from alias lookups
+   return agents.find(a =>
+-    a.name?.toLowerCase() === normalizedAlias ||
+-    a.alias?.toLowerCase() === normalizedAlias
++    !a.deletedAt &&
++    (a.name?.toLowerCase() === normalizedAlias ||
++     a.alias?.toLowerCase() === normalizedAlias)
+   ) || null
+ }
+ 
+@@ -292,7 +303,9 @@ export function getAgentByAliasAnyHost(alias: string): Agent | null {
+ export function getAgentByPartialName(partialName: string): Agent | null {
+   const agents = loadAgents()
+   const lower = partialName.toLowerCase()
++  // Exclude soft-deleted agents from partial name lookups
+   const matches = agents.filter(a => {
++    if (a.deletedAt) return false
+     const agentName = a.name || a.alias || ''
+     const segments = agentName.split(/[-_]/)
+     return segments.length > 1 && segments[segments.length - 1].toLowerCase() === lower
+@@ -437,6 +450,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
+ 
+   agents.push(agent)
+   saveAgents(agents)
++  invalidateAgentCache()
+ 
+   return agent
+ }
+@@ -522,6 +536,7 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
+   }
+ 
+   saveAgents(agents)
++  invalidateAgentCache()
+   return agents[index]
+ }
+ 
+@@ -577,10 +592,112 @@ export function incrementAgentMetric(
+ }
+ 
+ /**
+- * Delete an agent and clean up associated data
+- * Also kills any tmux sessions belonging to this agent
++ * Kill all tmux sessions belonging to an agent.
++ * Extracted from deleteAgent() so it can be reused by both soft-delete and hard-delete paths.
+  */
+-export function deleteAgent(id: string): boolean {
++function killAgentSessions(agent: Agent): void {
++  const agentName = agent.name || agent.alias
++  if (!agentName) return
++
++  const { execSync } = require('child_process')
++
++  // Kill sessions for all indices in the sessions array
++  const sessions = agent.sessions || []
++  for (const session of sessions) {
++    const sessionName = computeSessionName(agentName, session.index)
++    try {
++      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
++      console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
++    } catch (error) {
++      console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
++    }
++  }
++
++  // Also try to kill the base session name (in case sessions array is empty)
++  if (sessions.length === 0) {
++    try {
++      execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
++      console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
++    } catch (error) {
++      console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
++    }
++  }
++}
++
++/**
++ * Create a backup of all agent data before permanent deletion.
++ * Backup location: ~/.aimaestro/backups/agents/{id}-{timestamp}/
++ * Backs up: agent data dir, legacy message dirs, AMP dir, registry entry, AMP index entry.
++ */
++function backupAgentData(agent: Agent): string | null {
++  const agentName = agent.name || agent.alias
++  const backupBaseDir = path.join(AIMAESTRO_DIR, 'backups', 'agents')
++  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
++  const backupDir = path.join(backupBaseDir, `${agent.id}-${timestamp}`)
++
++  try {
++    fs.mkdirSync(backupDir, { recursive: true })
++
++    // Backup agent data directory (~/.aimaestro/agents/{id}/)
++    const agentDir = path.join(AGENTS_DIR, agent.id)
++    if (fs.existsSync(agentDir)) {
++      const backupAgentDir = path.join(backupDir, 'agent-data')
++      fs.cpSync(agentDir, backupAgentDir, { recursive: true, dereference: true })
++    }
++
++    // Backup legacy message directories (~/.aimaestro/messages/{inbox,sent,archived}/{id}/)
++    const messagesDir = path.join(AIMAESTRO_DIR, 'messages')
++    for (const folder of ['inbox', 'sent', 'archived']) {
++      const msgDir = path.join(messagesDir, folder, agent.id)
++      if (fs.existsSync(msgDir)) {
++        const backupMsgDir = path.join(backupDir, 'messages', folder)
++        fs.cpSync(msgDir, backupMsgDir, { recursive: true, dereference: true })
++      }
++    }
++
++    // Backup AMP directory (~/.agent-messaging/agents/{id}/)
++    const ampAgentsDir = path.join(os.homedir(), '.agent-messaging', 'agents')
++    const ampUuidDir = path.join(ampAgentsDir, agent.id)
++    if (fs.existsSync(ampUuidDir)) {
++      const backupAmpDir = path.join(backupDir, 'amp-data')
++      fs.cpSync(ampUuidDir, backupAmpDir, { recursive: true, dereference: true })
++    }
++
++    // Save registry entry as JSON (for restore)
++    fs.writeFileSync(
++      path.join(backupDir, 'registry-entry.json'),
++      JSON.stringify(agent, null, 2)
++    )
++
++    // Save AMP name-to-UUID index entry (for restore)
++    const ampIndexEntry = {
++      agentName: agentName,
++      agentId: agent.id,
++      backedUpAt: new Date().toISOString(),
++    }
++    fs.writeFileSync(
++      path.join(backupDir, 'amp-index-entry.json'),
++      JSON.stringify(ampIndexEntry, null, 2)
++    )
++
++    console.log(`[Agent Registry] Backed up agent ${agentName} to ${backupDir}`)
++    return backupDir
++  } catch (backupError) {
++    console.warn(`[Agent Registry] Could not create pre-delete backup for ${agentName}:`, backupError)
++    // Return null but do NOT block deletion — backup is best-effort
++    return null
++  }
++}
++
++/**
++ * Delete an agent.
++ *
++ * @param id - Agent UUID
++ * @param hard - If false (default), soft-delete: kill tmux sessions and mark agent as deleted
++ *               in the registry but preserve all data on disk for potential restore.
++ *               If true, hard-delete: create a backup first, then permanently remove all data.
++ */
++export function deleteAgent(id: string, hard: boolean = false): boolean {
+   const agents = loadAgents()
+   const agentToDelete = agents.find(a => a.id === id)
+ 
+@@ -588,38 +705,31 @@ export function deleteAgent(id: string): boolean {
+     return false // Agent not found
+   }
+ 
+-  // Get agent name (use new name field, fallback to deprecated alias)
+   const agentName = agentToDelete.name || agentToDelete.alias
+ 
+-  // Kill all tmux sessions belonging to this agent
+-  if (agentName) {
+-    const { execSync } = require('child_process')
++  // Kill all tmux sessions belonging to this agent (both soft and hard delete)
++  killAgentSessions(agentToDelete)
+ 
+-    // Kill sessions for all indices in the sessions array
+-    const sessions = agentToDelete.sessions || []
+-    for (const session of sessions) {
+-      const sessionName = computeSessionName(agentName, session.index)
+-      try {
+-        execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+-        console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
+-      } catch (error) {
+-        console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
+-      }
+-    }
+-
+-    // Also try to kill the base session name (in case sessions array is empty)
+-    if (sessions.length === 0) {
+-      try {
+-        execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+-        console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
+-      } catch (error) {
+-        console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
+-      }
+-    }
++  if (!hard) {
++    // --- Soft-delete path: mark as deleted, preserve all data on disk ---
++    const agentIndex = agents.findIndex(a => a.id === id)
++    agents[agentIndex].deletedAt = new Date().toISOString()
++    agents[agentIndex].status = 'deleted'
++    saveAgents(agents)
++    invalidateAgentCache()
++    console.log(`[Agent Registry] Soft-deleted agent ${agentName} (id: ${id})`)
++    return true
+   }
+ 
++  // --- Hard-delete path: backup first, then permanently remove all data ---
++
++  // Create automatic backup before any destructive operation
++  backupAgentData(agentToDelete)
++
++  // Remove agent from registry
+   const filtered = agents.filter(a => a.id !== id)
+   saveAgents(filtered)
++  invalidateAgentCache()
+ 
+   // Clean up agent-specific directory (database, etc.)
+   const agentDir = path.join(AGENTS_DIR, id)
+@@ -672,11 +782,13 @@ export function deleteAgent(id: string): boolean {
+ 
+ /**
+  * List all agents (summary view)
++ * By default excludes soft-deleted agents. Pass includeDeleted=true to include them.
+  */
+-export function listAgents(): AgentSummary[] {
++export function listAgents(includeDeleted: boolean = false): AgentSummary[] {
+   const agents = loadAgents()
++  const filtered = includeDeleted ? agents : agents.filter(a => !a.deletedAt)
+ 
+-  return agents.map(a => {
++  return filtered.map(a => {
+     const agentName = a.name || a.alias || 'unknown'
+     const sessions: AgentSession[] = a.sessions || []
+ 
+@@ -695,6 +807,7 @@ export function listAgents(): AgentSummary[] {
+       lastActive: a.lastActive,
+       sessions,
+       deployment: a.deployment,
++      deletedAt: a.deletedAt,
+       // DEPRECATED: for backward compatibility
+       alias: agentName,
+       currentSession,
+@@ -713,10 +826,17 @@ export function updateAgentStatus(id: string, status: Agent['status']): boolean
+     return false
+   }
+ 
++  // Prevent accidentally resurrecting soft-deleted agents
++  if (agents[index].deletedAt && status !== 'deleted') {
++    return false
++  }
++
+   agents[index].status = status
+   agents[index].lastActive = new Date().toISOString()
+ 
+-  return saveAgents(agents)
++  const saved = saveAgents(agents)
++  if (saved) invalidateAgentCache()
++  return saved
+ }
+ 
+ /**
+@@ -763,7 +883,9 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
+   agents[index].status = 'active'
+   agents[index].lastActive = new Date().toISOString()
+ 
+-  return saveAgents(agents)
++  const saved = saveAgents(agents)
++  if (saved) invalidateAgentCache()
++  return saved
+ }
+ 
+ /**
+@@ -844,7 +966,9 @@ export function unlinkSession(agentId: string, sessionIndex?: number): boolean {
+   agents[index].status = hasOnlineSession ? 'active' : 'offline'
+   agents[index].lastActive = new Date().toISOString()
+ 
+-  return saveAgents(agents)
++  const saved = saveAgents(agents)
++  if (saved) invalidateAgentCache()
++  return saved
+ }
+ 
+ /**
+@@ -863,6 +987,7 @@ export function searchAgents(query: string): Agent[] {
+   const lowerQuery = query.toLowerCase()
+ 
+   return agents.filter(a => {
++    if (a.deletedAt) return false
+     const agentName = a.name || a.alias || ''
+     const agentLabel = a.label || ''
+     return (
+@@ -936,6 +1061,7 @@ export function renameAgent(agentId: string, newName: string): boolean {
+   agents[index].lastActive = new Date().toISOString()
+ 
+   const saved = saveAgents(agents)
++  if (saved) invalidateAgentCache(oldName || undefined)
+ 
+   // Update AMP name→UUID index and config.json
+   if (saved && oldName) {
+@@ -996,14 +1122,15 @@ export function renameAgentSession(oldSessionName: string, newSessionName: strin
+ /**
+  * Delete agent by session name
+  * Parses session name to find agent, then deletes it
++ * @param hard - If true, permanently delete (with backup). Default false (soft-delete).
+  */
+-export function deleteAgentBySession(sessionName: string): boolean {
++export function deleteAgentBySession(sessionName: string, hard: boolean = false): boolean {
+   const agent = getAgentBySession(sessionName)
+   if (!agent) {
+     return false
+   }
+ 
+-  return deleteAgent(agent.id)
++  return deleteAgent(agent.id, hard)
+ }
+ 
+ /**
+@@ -1115,6 +1242,7 @@ export function getEmailIndex(): EmailIndexResponse {
+   const index: EmailIndexResponse = {}
+ 
+   for (const agent of agents) {
++    if (agent.deletedAt) continue
+     const agentName = agent.name || agent.alias || 'unknown'
+     const addresses = agent.tools?.email?.addresses || []
+ 
+@@ -1155,6 +1283,7 @@ export function findAgentByEmail(email: string): string | null {
+   const agents = loadAgents()
+ 
+   for (const agent of agents) {
++    if (agent.deletedAt) continue
+     // Check legacy single-address format
+     if (agent.tools?.email?.address) {
+       if (normalizeEmail(agent.tools.email.address) === normalizedEmail) {
+@@ -1414,6 +1543,7 @@ export function getAMPAddressIndex(): Record<string, AMPAddressIndexEntry> {
+   const index: Record<string, AMPAddressIndexEntry> = {}
+ 
+   for (const agent of agents) {
++    if (agent.deletedAt) continue
+     const agentName = agent.name || agent.alias || 'unknown'
+     const addresses = agent.tools?.amp?.addresses || []
+ 
+@@ -1453,6 +1583,7 @@ export function findAgentByAMPAddress(address: string): string | null {
+   const agents = loadAgents()
+ 
+   for (const agent of agents) {
++    if (agent.deletedAt) continue
+     // Check legacy single-address in metadata
+     if (agent.metadata?.amp?.address) {
+       if (normalizeAMPAddress(agent.metadata.amp.address) === normalizedAddr) {
+@@ -2074,11 +2205,13 @@ export function normalizeAllAgentHostIds(): {
+  * Get agents grouped by hostId for mesh directory
+  * @returns Map of hostId -> array of agents
+  */
+-export function getAgentsByHost(): Map<string, Agent[]> {
++export function getAgentsByHost(includeDeleted: boolean = false): Map<string, Agent[]> {
+   const agents = loadAgents()
+   const byHost = new Map<string, Agent[]>()
+ 
+   for (const agent of agents) {
++    // Skip soft-deleted agents unless caller explicitly requests them
++    if (!includeDeleted && agent.deletedAt) continue
+     const hostId = normalizeHostId(agent.hostId)
+     if (!byHost.has(hostId)) {
+       byHost.set(hostId, [])
+@@ -2321,7 +2454,7 @@ export function markAgentAsAMPRegistered(
+  */
+ export function getAMPRegisteredAgents(): Agent[] {
+   const agents = loadAgents()
+-  return agents.filter(a => a.ampRegistered === true)
++  return agents.filter(a => !a.deletedAt && a.ampRegistered === true)
+ }
+ 
+ /**
+@@ -2329,5 +2462,5 @@ export function getAMPRegisteredAgents(): Agent[] {
+  */
+ export function getLegacyAgents(): Agent[] {
+   const agents = loadAgents()
+-  return agents.filter(a => a.ampRegistered !== true)
++  return agents.filter(a => !a.deletedAt && a.ampRegistered !== true)
+ }
+diff --git a/lib/cozo-schema-memory.ts b/lib/cozo-schema-memory.ts
+index 3f48ba3d..56ece0d0 100644
+--- a/lib/cozo-schema-memory.ts
++++ b/lib/cozo-schema-memory.ts
+@@ -55,6 +55,34 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
+     }
+   }
+ 
++  // Helper for HNSW index creation — uses case-insensitive multi-pattern
++  // error matching because ::hnsw create DDL may throw different error codes
++  // or messages across CozoDB versions (not just eval::stored_relation_conflict).
++  const createHnswIndexIfNotExists = async (db: AgentDatabase, ddl: string) => {
++    try {
++      await db.run(ddl)
++      console.log('[MEMORY-SCHEMA] ✓ Created HNSW index: memory_vec:hnsw')
++    } catch (error: any) {
++      // CozoDB error format varies across versions — the error code field,
++      // message wording, and casing are all unstable.  We normalise to a
++      // lowercase string that covers the known variants so that a CozoDB
++      // upgrade does not silently break idempotent schema creation.
++      const errMsg = (String(error.message ?? '') + ' ' + String(error.code ?? '')).toLowerCase()
++      if (
++        errMsg.includes('already exists') ||
++        errMsg.includes('stored_relation_conflict') ||
++        errMsg.includes('duplicate') ||
++        errMsg.includes('index_already')
++      ) {
++        // Index already exists — expected on every run after the first
++        console.log('[MEMORY-SCHEMA] ℹ HNSW index memory_vec:hnsw already exists')
++      } else {
++        console.error('[MEMORY-SCHEMA] ✗ Failed to create HNSW index:', error)
++        throw error
++      }
++    }
++  }
++
+   // 1. Memories table - Core long-term memory storage
+   await createTableIfNotExists('memories', `
+     :create memories {
+@@ -88,6 +116,19 @@ export async function initializeMemorySchema(agentDb: AgentDatabase): Promise<vo
+     }
+   `)
+ 
++  // 2b. HNSW vector index for semantic search on memory_vec
++  // Required by searchMemoriesByEmbedding() which queries ~memory_vec:hnsw{...}
++  await createHnswIndexIfNotExists(agentDb, `
++    ::hnsw create memory_vec:hnsw {
++        dim: 384,
++        m: 50,
++        dtype: F32,
++        fields: [vec],
++        distance: Cosine,
++        ef_construction: 200,
++    }
++  `)
++
+   // 3. Memory links - Graph relationships between memories
+   await createTableIfNotExists('memory_links', `
+     :create memory_links {
+diff --git a/lib/index-delta.ts b/lib/index-delta.ts
+index 55cf7177..1d517059 100644
+--- a/lib/index-delta.ts
++++ b/lib/index-delta.ts
+@@ -345,8 +345,26 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
+ // STREAMING LINE COUNTER (avoids loading entire file into memory)
+ // ============================================================================
+ function countFileLines(filePath: string): number {
+-  const content = fs.readFileSync(filePath, 'utf-8')
+-  return content.split('\n').filter(line => line.trim()).length
++  const buffer = Buffer.alloc(64 * 1024) // 64KB read buffer
++  const fd = fs.openSync(filePath, 'r')
++  let count = 0
++  let bytesRead: number
++  let leftover = ''
++
++  try {
++    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
++      const chunk = leftover + buffer.toString('utf-8', 0, bytesRead)
++      const lines = chunk.split('\n')
++      leftover = lines.pop() || ''
++      for (const line of lines) {
++        if (line.trim()) count++
++      }
++    }
++    if (leftover.trim()) count++
++  } finally {
++    fs.closeSync(fd)
++  }
++  return count
+ }
+ 
+ // ============================================================================
+diff --git a/lib/memory/consolidate.ts b/lib/memory/consolidate.ts
+index 2dbb6405..7b55b63a 100644
+--- a/lib/memory/consolidate.ts
++++ b/lib/memory/consolidate.ts
+@@ -7,6 +7,7 @@
+ 
+ import { v4 as uuidv4 } from 'uuid'
+ import { AgentDatabase } from '../cozo-db'
++import { escapeForCozo } from '../cozo-utils'
+ import { embedTexts } from '../rag/embeddings'
+ 
+ // Helper to embed a single text
+@@ -384,7 +385,7 @@ export async function promoteMemories(
+   const result = await agentDb.run(`
+     ?[memory_id, reinforcement_count, created_at] :=
+       *memories{memory_id, agent_id, tier, reinforcement_count, created_at},
+-      agent_id = '${agentId}',
++      agent_id = ${escapeForCozo(agentId)},
+       tier = 'warm',
+       reinforcement_count >= ${minReinforcements},
+       created_at <= ${cutoffTime}
+@@ -399,7 +400,7 @@ export async function promoteMemories(
+       try {
+         await agentDb.run(`
+           ?[memory_id, tier, promoted_at] <- [[
+-            '${memoryId}',
++            ${escapeForCozo(memoryId)},
+             'long',
+             ${Date.now()}
+           ]]
+@@ -439,12 +440,14 @@ export async function pruneShortTermMemory(
+   const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000)
+ 
+   // Find messages older than retention that are in consolidated conversations
++  // Fix: messages table has columns (msg_id, conversation_file, role, ts, text) — no agent_id or timestamp
++  // Filter by agent_id via consolidated_conversations which does have that column
+   const result = await agentDb.run(`
+     ?[msg_id, conversation_file] :=
+-      *messages{msg_id, agent_id, conversation_file, timestamp},
+-      agent_id = '${agentId}',
+-      timestamp < ${cutoffTime},
+-      *consolidated_conversations{conversation_file}
++      *messages{msg_id, conversation_file, ts},
++      ts < ${cutoffTime},
++      *consolidated_conversations{conversation_file, agent_id},
++      agent_id = ${escapeForCozo(agentId)}
+   `)
+ 
+   const toPrune = result.rows.length
+@@ -455,12 +458,12 @@ export async function pruneShortTermMemory(
+       const msgId = row[0] as string
+       try {
+         await agentDb.run(`
+-          ?[msg_id] <- [['${msgId}']]
++          ?[msg_id] <- [[${escapeForCozo(msgId)}]]
+           :delete messages
+         `)
+         // Also delete embeddings
+         await agentDb.run(`
+-          ?[msg_id] <- [['${msgId}']]
++          ?[msg_id] <- [[${escapeForCozo(msgId)}]]
+           :delete msg_vec
+         `)
+       } catch (error: any) {
+@@ -468,6 +471,58 @@ export async function pruneShortTermMemory(
+       }
+     }
+     console.log(`[CONSOLIDATE] Pruned ${toPrune} old messages`)
++
++    // Orphan cleanup: best-effort, non-fatal
++    // If process crashes between memory deletion and orphan cleanup,
++    // orphans will accumulate but won't cause data corruption.
++    // The outer try/catch ensures orphan cleanup failures never crash pruning.
++    try {
++      // Delete orphaned msg_terms rows whose msg_id no longer exists in messages
++      try {
++        const orphanedTerms = await agentDb.run(`
++          ?[msg_id, term] :=
++            *msg_terms{msg_id, term},
++            not *messages{msg_id}
++        `)
++        if (orphanedTerms.rows.length > 0) {
++          for (const row of orphanedTerms.rows) {
++            const orphanMsgId = row[0] as string
++            const orphanTerm = row[1] as string
++            await agentDb.run(`
++              ?[msg_id, term] <- [[${escapeForCozo(orphanMsgId)}, ${escapeForCozo(orphanTerm)}]]
++              :delete msg_terms
++            `)
++          }
++          console.log(`[CONSOLIDATE] Deleted ${orphanedTerms.rows.length} orphaned msg_terms rows`)
++        }
++      } catch (error: any) {
++        console.error(`[CONSOLIDATE] Failed to delete orphaned msg_terms:`, error.message)
++      }
++
++      // Delete orphaned code_symbols rows whose msg_id no longer exists in messages
++      try {
++        const orphanedSymbols = await agentDb.run(`
++          ?[msg_id, symbol] :=
++            *code_symbols{msg_id, symbol},
++            not *messages{msg_id}
++        `)
++        if (orphanedSymbols.rows.length > 0) {
++          for (const row of orphanedSymbols.rows) {
++            const orphanMsgId = row[0] as string
++            const orphanSymbol = row[1] as string
++            await agentDb.run(`
++              ?[msg_id, symbol] <- [[${escapeForCozo(orphanMsgId)}, ${escapeForCozo(orphanSymbol)}]]
++              :delete code_symbols
++            `)
++          }
++          console.log(`[CONSOLIDATE] Deleted ${orphanedSymbols.rows.length} orphaned code_symbols rows`)
++        }
++      } catch (error: any) {
++        console.error(`[CONSOLIDATE] Failed to delete orphaned code_symbols:`, error.message)
++      }
++    } catch (orphanErr) {
++      console.warn('[CONSOLIDATE] Non-fatal: orphan cleanup failed:', orphanErr)
++    }
+   }
+ 
+   return { pruned: options.dryRun ? toPrune : toPrune }
+diff --git a/lib/messageQueue.ts b/lib/messageQueue.ts
+index d5ca179b..020161de 100644
+--- a/lib/messageQueue.ts
++++ b/lib/messageQueue.ts
+@@ -194,6 +194,18 @@ function convertAMPToMessage(ampMsg: any): Message | null {
+   const payload = ampMsg.payload
+   if (!envelope || !payload) return null
+ 
++  // Validate required envelope fields individually (defense-in-depth against malformed AMP messages)
++  if (!envelope.id || !envelope.from || !envelope.to || !envelope.subject) {
++    console.warn('[MessageQueue] Skipping message with missing required envelope fields:', {
++      id: envelope.id || 'unknown',
++      hasId: !!envelope.id,
++      hasFrom: !!envelope.from,
++      hasTo: !!envelope.to,
++      hasSubject: !!envelope.subject,
++    })
++    return null
++  }
++
+   const fromName = extractAgentNameFromAddress(envelope.from)
+   const toName = extractAgentNameFromAddress(envelope.to)
+   const fromHost = extractHostFromAddress(envelope.from)
+@@ -209,7 +221,7 @@ function convertAMPToMessage(ampMsg: any): Message | null {
+     to: toName,
+     toAlias: toName,
+     toHost,
+-    timestamp: envelope.timestamp,
++    timestamp: envelope.timestamp || new Date().toISOString(),
+     subject: envelope.subject,
+     priority: envelope.priority || 'normal',
+     status: status as Message['status'],
+@@ -285,9 +297,11 @@ async function collectMessagesFromAMPDir(
+             id: msg.id,
+             from: msg.from,
+             fromAlias: msg.fromAlias,
++            fromLabel: msg.fromLabel,
+             fromHost: msg.fromHost,
+             to: msg.to,
+             toAlias: msg.toAlias,
++            toLabel: msg.toLabel,
+             toHost: msg.toHost,
+             timestamp: msg.timestamp,
+             subject: msg.subject,
+@@ -403,6 +417,22 @@ async function findMessageInAMPDir(
+   return null
+ }
+ 
++// In-memory cache for resolved agent addresses (avoids expensive 8-step resolution on every call).
++// Entries expire after AGENT_CACHE_TTL_MS. Primary use case: when a message arrives from an external
++// agent, the sender's address is cached so that replies route back without re-resolving.
++const AGENT_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
++const agentAddressCache = new Map<string, { resolved: ResolvedAgent; resolvedAt: number }>()
++
++// Proactive cache sweep every 5 minutes to prevent unbounded memory growth
++setInterval(() => {
++  const now = Date.now()
++  for (const [key, entry] of agentAddressCache) {
++    if (now - entry.resolvedAt > AGENT_CACHE_TTL_MS) {
++      agentAddressCache.delete(key)
++    }
++  }
++}, 5 * 60 * 1000).unref()
++
+ /**
+  * Resolve an agent identifier (alias, ID, session name, or name@host) to full agent info
+  * Supports formats:
+@@ -411,9 +441,20 @@ async function findMessageInAMPDir(
+  *   - "name" → resolve on self host, then any host
+  *   - "session_name" → parse and resolve
+  *
+- * Priority: 1) name@host, 2) exact ID match, 3) name on self host, 4) session name, 5) partial match
++ * Results are cached in-memory for 5 minutes to speed up reply routing.
++ *
++ * Priority: 1) cache hit, 2) name@host, 3) exact ID match, 4) name on self host, 5) session name, 6) partial match
+  */
+ function resolveAgent(identifier: string): ResolvedAgent | null {
++  // Normalize cache key to lowercase since all getAgentBy* functions use case-insensitive matching;
++  // without this, "Alice" and "alice" would resolve to the same agent but cache as separate entries
++  const cacheKey = identifier.toLowerCase()
++
++  // Check in-memory cache first (avoids the expensive 8-step resolution chain)
++  const cached = agentAddressCache.get(cacheKey)
++  if (cached && (Date.now() - cached.resolvedAt) < AGENT_CACHE_TTL_MS) {
++    return cached.resolved
++  }
+   let agent: Agent | null = null
+ 
+   // 0. Check for name@host format first (explicit host targeting)
+@@ -481,7 +522,7 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
+   const selfHost = getSelfHost()
+   const hostUrl = agent.hostUrl || selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
+ 
+-  return {
++  const result: ResolvedAgent = {
+     agentId: agent.id,
+     alias: agentName,
+     displayName: agent.label,
+@@ -489,6 +530,25 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
+     hostId,
+     hostUrl
+   }
++
++  // Cache the successful resolution so subsequent lookups (e.g., reply routing) skip the 8-step chain
++  agentAddressCache.set(cacheKey, { resolved: result, resolvedAt: Date.now() })
++
++  return result
++}
++
++/**
++ * Invalidate the agent address resolution cache.
++ * Call when agents are renamed, deleted, or re-registered to prevent stale routing.
++ * With no argument, clears the entire cache. With an identifier, removes only that entry.
++ */
++export function invalidateAgentCache(identifier?: string): void {
++  if (identifier) {
++    // Normalize to lowercase to match the cache key format used in resolveAgent()
++    agentAddressCache.delete(identifier.toLowerCase())
++  } else {
++    agentAddressCache.clear()
++  }
+ }
+ 
+ /**
+diff --git a/lib/notification-service.ts b/lib/notification-service.ts
+index 4a430238..8b6a0f33 100644
+--- a/lib/notification-service.ts
++++ b/lib/notification-service.ts
+@@ -65,11 +65,11 @@ async function sendTmuxNotification(sessionName: string, message: string): Promi
+   // Target the first pane of the first window
+   const target = `${sessionName}:0.0`
+ 
+-  // Send message first, then Enter separately (tmux quirk - Enter must be separate for reliability)
+-  // See: https://github.com/23blocks-OS/ai-maestro/issues/95
+-  await execAsync(`tmux send-keys -t "${target}" "echo '${escapedMessage}'"`)
+-  await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+-  await execAsync(`tmux send-keys -t "${target}" Enter`)
++  // Send text and Enter atomically via tmux \; command chaining to prevent race conditions
++  // Uses -l (literal) flag to prevent tmux from misinterpreting key names in notification text
++  // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
++  // will be typed as input to that program. Notifications are designed for idle shell prompts.
++  await execAsync(`tmux send-keys -t "${target}" -l "echo '${escapedMessage}'" \\; send-keys -t "${target}" Enter`)
+ }
+ 
+ /**
+diff --git a/lib/rag/embeddings.ts b/lib/rag/embeddings.ts
+index 1dea74b2..0b9acac9 100644
+--- a/lib/rag/embeddings.ts
++++ b/lib/rag/embeddings.ts
+@@ -46,7 +46,12 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
+ 
+     extractor = ext;
+     return ext;
+-  })();
++  })().catch((err) => {
++    // Reset so the next call retries initialization instead of permanently caching the failed promise.
++    // Only extractorPromise matters here: extractor was never assigned if pipeline() threw.
++    extractorPromise = null;
++    throw err;
++  });
+ 
+   return extractorPromise;
+ }
+diff --git a/package.json b/package.json
+index 4a267e97..ceb9aa9f 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "ai-maestro",
+-  "version": "0.22.2",
++  "version": "0.22.4",
+   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
+   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
+   "license": "MIT",
+@@ -63,6 +63,9 @@
+     "ws": "^8.18.0",
+     "yauzl": "^3.2.0"
+   },
++  "resolutions": {
++    "onnxruntime-node": "1.24.1"
++  },
+   "devDependencies": {
+     "@types/archiver": "^7.0.0",
+     "@types/node": "^20.14.0",
+diff --git a/scripts/claude-hooks/install-hooks.sh b/scripts/claude-hooks/install-hooks.sh
+index 82b041c2..e878dc00 100755
+--- a/scripts/claude-hooks/install-hooks.sh
++++ b/scripts/claude-hooks/install-hooks.sh
+@@ -105,8 +105,17 @@ for (const [event, configs] of Object.entries(hooks.hooks)) {
+ console.log(JSON.stringify(existing, null, 2));
+ " "$EXISTING_SETTINGS" "$HOOKS_CONFIG")
+ 
+-# Write merged settings
+-echo "$MERGED_SETTINGS" > "$CLAUDE_SETTINGS_FILE"
++# Write merged settings atomically: write to temp file, validate JSON, then move
++TEMP_SETTINGS=$(mktemp "${CLAUDE_SETTINGS_FILE}.XXXXXX")
++echo "$MERGED_SETTINGS" > "$TEMP_SETTINGS"
++# Validate JSON before replacing (uses process.argv to avoid shell injection)
++if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$TEMP_SETTINGS" 2>/dev/null; then
++    mv "$TEMP_SETTINGS" "$CLAUDE_SETTINGS_FILE"
++else
++    rm -f "$TEMP_SETTINGS"
++    echo "ERROR: Merged settings JSON is invalid, keeping original"
++    exit 1
++fi
+ 
+ echo ""
+ echo "Hooks installed successfully!"
+diff --git a/scripts/remote-install.sh b/scripts/remote-install.sh
+index 49fa7ebd..e18228be 100755
+--- a/scripts/remote-install.sh
++++ b/scripts/remote-install.sh
+@@ -29,7 +29,7 @@ DIM='\033[2m'
+ NC='\033[0m'
+ 
+ # Version & config
+-VERSION="0.22.2"
++VERSION="0.22.4"
+ REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
+ DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
+ PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
+@@ -161,16 +161,26 @@ cleanup() {
+         echo ""
+         maestro_fail "Something went wrong (exit code $exit_code)"
+         maestro_info "Check the output above for details"
+-        # Remove partial clone if install dir was created but has no package.json
++        # Remove partial clone if install dir was created but is not a valid AI Maestro installation
+         # Safety: only auto-remove paths under $HOME (never system dirs)
+-        if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
++        # Defense-in-depth: require both package.json existence AND ai-maestro name match to consider it a real install
++        local is_aimaestro_install=false
++        if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "ai-maestro"' "$INSTALL_DIR/package.json" 2>/dev/null; then
++            is_aimaestro_install=true
++        fi
++        if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ "$is_aimaestro_install" = false ] \
+            && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+-            if [ "$NON_INTERACTIVE" = true ]; then
+-                rm -rf "$INSTALL_DIR"
+-                maestro_info "Removed partial installation at $INSTALL_DIR"
++            # Only auto-remove if the directory was created by this installer (marker file present)
++            if [ -f "$INSTALL_DIR/.ai-maestro-install-marker" ]; then
++                if [ "$NON_INTERACTIVE" = true ]; then
++                    rm -rf "$INSTALL_DIR"
++                    maestro_info "Removed partial installation at $INSTALL_DIR"
++                else
++                    maestro_warn "Partial installation detected at $INSTALL_DIR"
++                    maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
++                fi
+             else
+-                maestro_warn "Partial installation detected at $INSTALL_DIR"
+-                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
++                maestro_warn "Not removing $INSTALL_DIR (not created by this installer)"
+             fi
+         fi
+         maestro_info "You can re-run the installer to try again"
+@@ -937,7 +947,16 @@ act3_clone_and_build() {
+             if [ -f "$INSTALL_DIR/package.json" ]; then
+                 old_version=$(grep '"version"' "$INSTALL_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version".*"\([^"]*\)".*/\1/')
+             fi
+-            if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
++            # Compare both version string and git commit hash to catch code changes at same version
++            local old_commit
++            old_commit=$(cd "$INSTALL_DIR" && git rev-parse HEAD 2>/dev/null)
++            local new_commit
++            if command -v timeout >/dev/null 2>&1; then
++                new_commit=$(timeout 30 git ls-remote "$REPO_URL" HEAD 2>/dev/null | cut -f1)
++            else
++                new_commit=$(git ls-remote "$REPO_URL" HEAD 2>/dev/null | cut -f1)
++            fi
++            if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ] && [ -n "$old_commit" ] && [ "$old_commit" = "$new_commit" ]; then
+                 maestro_ok "AI Maestro v${VERSION} is already up to date"
+                 maestro_info "Dashboard: http://localhost:${PORT}"
+                 return
+@@ -963,10 +982,9 @@ act3_clone_and_build() {
+                 git pull origin main 2>/dev/null || git pull
+                 if [ "$had_stash" = true ]; then
+                     if ! git stash pop --quiet 2>/dev/null; then
+-                        maestro_warn "Could not cleanly restore your local changes after update."
+-                        maestro_info "Your changes are saved in git stash. To recover:"
+-                        echo "   cd $INSTALL_DIR && git stash list"
+-                        echo "   git stash pop   # (resolve any conflicts manually)"
++                        maestro_warn "git stash pop failed (merge conflict). Your stashed changes are preserved in the stash."
++                        maestro_info "Run 'git stash show' to see them and 'git stash drop' after manual resolution."
++                        # Don't exit - the update itself succeeded
+                     fi
+                 fi
+                 git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
+@@ -980,7 +998,7 @@ act3_clone_and_build() {
+                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
+                     # On update: only reinstall tools that are already present
+                     local tool_flags=""
+-                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
++                    [ ! -f "$HOME/.local/bin/amp-send.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                     chmod +x install.sh
+                     # shellcheck disable=SC2086
+                     ./install.sh --from-remote -y $tool_flags
+@@ -1024,6 +1042,8 @@ act3_clone_and_build() {
+         maestro_fail "Failed to clone repository. Check your network connection."
+         exit 1
+     fi
++    # Mark this directory as created by the installer (used by cleanup to avoid removing pre-existing dirs)
++    touch "$INSTALL_DIR/.ai-maestro-install-marker"
+     cd "$INSTALL_DIR"
+     git submodule update --init --recursive || maestro_warn "Some submodules failed to initialize"
+     maestro_step 1 "$total_steps" "Downloading..." "done"
+@@ -1047,28 +1067,30 @@ act3_clone_and_build() {
+             for gw in "${GW_ARRAY[@]}"; do
+                 local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
+                 if [ -d "$gw_dir" ]; then
+-                    cd "$gw_dir"
+-                    npm install --silent 2>/dev/null || npm install || {
++                    # Use subshell to protect working directory from cd side effects
++                    (
++                        cd "$gw_dir" || exit 1
++                        npm install --silent 2>/dev/null || npm install || exit 1
++                        # Copy .env.example to .env with defaults
++                        if [ -f ".env.example" ] && [ ! -f ".env" ]; then
++                            cp .env.example .env
++                            # Pre-set AI Maestro connection and default agent
++                            # Note: double quotes so ${PORT} expands to the actual port value
++                            if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
++                                portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
++                            else
++                                echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
++                            fi
++                            if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
++                                portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
++                            else
++                                echo "DEFAULT_AGENT=mailman" >> .env
++                            fi
++                        fi
++                    ) || {
+                         maestro_warn "npm install failed for ${gw}-gateway — skipping"
+-                        cd "$INSTALL_DIR"
+                         continue
+                     }
+-                    # Copy .env.example to .env with defaults
+-                    if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+-                        cp .env.example .env
+-                        # Pre-set AI Maestro connection and default agent
+-                        if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+-                        else
+-                            echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
+-                        fi
+-                        if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
+-                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+-                        else
+-                            echo "DEFAULT_AGENT=mailman" >> .env
+-                        fi
+-                    fi
+-                    cd "$INSTALL_DIR"
+                 fi
+             done
+             maestro_ok "Gateways installed: $SELECTED_GATEWAYS"
+diff --git a/scripts/shell-helpers/common.sh b/scripts/shell-helpers/common.sh
+index 7d21d7b7..361d862d 100644
+--- a/scripts/shell-helpers/common.sh
++++ b/scripts/shell-helpers/common.sh
+@@ -436,17 +436,19 @@ setup_local_bin_path() {
+         return 0
+     fi
+ 
+-    # Check if already in shell config
+-    if grep -q 'export PATH=.*\.local/bin' "$SHELL_RC" 2>/dev/null; then
++    # Dual guard: check for AI Maestro marker OR existing .local/bin PATH entry
++    # Use pattern that requires /.local/bin to end at a word boundary (: " ' or EOL) to prevent
++    # false positives like /.local/bin-extra matching
++    if grep -qF "# AI Maestro" "$SHELL_RC" 2>/dev/null || grep -qE '/\.local/bin(["'"'"':]|$)' "$SHELL_RC" 2>/dev/null; then
+         [ "$quiet" = false ] && echo "✅ PATH configured in $SHELL_RC (restart terminal or run: source $SHELL_RC)"
+         # Add to current session
+         export PATH="$HOME/.local/bin:$PATH"
+         return 0
+     fi
+ 
+-    # Add to shell config
++    # Add to shell config with marker comment to prevent future duplicates
+     echo "" >> "$SHELL_RC"
+-    echo "# AI Maestro - Added by installer" >> "$SHELL_RC"
++    echo "# AI Maestro PATH (added by installer)" >> "$SHELL_RC"
+     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+ 
+     # Add to current session
+diff --git a/server.mjs b/server.mjs
+index 2be6b332..00edc930 100644
+--- a/server.mjs
++++ b/server.mjs
+@@ -837,7 +837,7 @@ app.prepare().then(() => {
+           // The -S -2000 flag captures scrollback history, not just visible pane
+           // Reduced from 5000 to 2000 for faster loading
+           const { stdout } = await execAsync(
+-            `tmux capture-pane -t ${sessionName} -p -S -2000 2>/dev/null || tmux capture-pane -t ${sessionName} -p`,
++            `tmux capture-pane -t "${sessionName}" -p -S -2000 2>/dev/null || tmux capture-pane -t "${sessionName}" -p`,
+             { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
+           )
+           historyContent = stdout
+diff --git a/tests/agent-registry.test.ts b/tests/agent-registry.test.ts
+index 2a5d9fa2..36bac94b 100644
+--- a/tests/agent-registry.test.ts
++++ b/tests/agent-registry.test.ts
+@@ -433,12 +433,25 @@ describe('updateAgent', () => {
+ // ============================================================================
+ 
+ describe('deleteAgent', () => {
+-  it('removes agent from registry', () => {
++  it('soft-deletes agent by default (marks deletedAt, keeps in registry)', () => {
+     const agent = createAgent(makeCreateRequest({ name: 'delete-me' }))
+     expect(loadAgents()).toHaveLength(1)
+ 
+     const result = deleteAgent(agent.id)
+     expect(result).toBe(true)
++    // Soft-delete keeps agent in array but marks it deleted
++    const agents = loadAgents()
++    expect(agents).toHaveLength(1)
++    expect(agents[0].deletedAt).toBeDefined()
++    expect(agents[0].status).toBe('deleted')
++  })
++
++  it('hard-deletes agent when hard=true (removes from registry)', () => {
++    const agent = createAgent(makeCreateRequest({ name: 'hard-delete-me' }))
++    expect(loadAgents()).toHaveLength(1)
++
++    const result = deleteAgent(agent.id, true)
++    expect(result).toBe(true)
+     expect(loadAgents()).toHaveLength(0)
+   })
+ 
+@@ -447,17 +460,97 @@ describe('deleteAgent', () => {
+     expect(result).toBe(false)
+   })
+ 
+-  it('removes the correct agent when multiple exist', () => {
++  it('soft-deletes the correct agent when multiple exist', () => {
+     const a1 = createAgent(makeCreateRequest({ name: 'keep-me' }))
+     const a2 = createAgent(makeCreateRequest({ name: 'delete-me' }))
+ 
+     deleteAgent(a2.id)
+     const remaining = loadAgents()
++    // Both agents still in array, but a2 is soft-deleted
++    expect(remaining).toHaveLength(2)
++    const kept = remaining.find(a => a.id === a1.id)
++    const deleted = remaining.find(a => a.id === a2.id)
++    expect(kept!.deletedAt).toBeUndefined()
++    expect(deleted!.deletedAt).toBeDefined()
++    expect(deleted!.status).toBe('deleted')
++  })
++
++  it('hard-deletes the correct agent when multiple exist', () => {
++    const a1 = createAgent(makeCreateRequest({ name: 'keep-me' }))
++    const a2 = createAgent(makeCreateRequest({ name: 'delete-me' }))
++
++    deleteAgent(a2.id, true)
++    const remaining = loadAgents()
+     expect(remaining).toHaveLength(1)
+     expect(remaining[0].id).toBe(a1.id)
+   })
+ })
+ 
++// ============================================================================
++// Soft-delete filtering
++// ============================================================================
++
++describe('soft-delete filtering', () => {
++  it('getAgent() returns null for soft-deleted agent', () => {
++    const agent = createAgent(makeCreateRequest({ name: 'soft-del-lookup' }))
++    deleteAgent(agent.id) // soft-delete (default)
++
++    const found = getAgent(agent.id)
++    expect(found).toBeNull()
++  })
++
++  it('getAgent() returns soft-deleted agent with includeDeleted=true', () => {
++    const agent = createAgent(makeCreateRequest({ name: 'soft-del-include' }))
++    deleteAgent(agent.id) // soft-delete
++
++    const found = getAgent(agent.id, true)
++    expect(found).not.toBeNull()
++    expect(found!.id).toBe(agent.id)
++    expect(found!.deletedAt).toBeDefined()
++    expect(found!.status).toBe('deleted')
++  })
++
++  it('getAgentByName() excludes soft-deleted agents', () => {
++    const agent = createAgent(makeCreateRequest({ name: 'soft-del-byname' }))
++    expect(getAgentByName('soft-del-byname')).not.toBeNull()
++
++    deleteAgent(agent.id) // soft-delete
++
++    const found = getAgentByName('soft-del-byname')
++    expect(found).toBeNull()
++  })
++
++  it('listAgents() excludes soft-deleted agents', () => {
++    const a1 = createAgent(makeCreateRequest({ name: 'list-keep' }))
++    const a2 = createAgent(makeCreateRequest({ name: 'list-delete' }))
++
++    deleteAgent(a2.id) // soft-delete a2
++
++    const listed = listAgents()
++    expect(listed).toHaveLength(1)
++    expect(listed[0].id).toBe(a1.id)
++    expect(listed[0].name).toBe('list-keep')
++  })
++
++  it('listAgents(true) includes soft-deleted agents', () => {
++    const a1 = createAgent(makeCreateRequest({ name: 'listall-keep' }))
++    const a2 = createAgent(makeCreateRequest({ name: 'listall-delete' }))
++
++    deleteAgent(a2.id) // soft-delete a2
++
++    const listed = listAgents(true)
++    expect(listed).toHaveLength(2)
++
++    const kept = listed.find(a => a.id === a1.id)
++    const deleted = listed.find(a => a.id === a2.id)
++    expect(kept).toBeDefined()
++    expect(kept!.deletedAt).toBeUndefined()
++    expect(deleted).toBeDefined()
++    expect(deleted!.deletedAt).toBeDefined()
++    expect(deleted!.name).toBe('listall-delete')
++  })
++})
++
+ // ============================================================================
+ // linkSession / unlinkSession
+ // ============================================================================
+diff --git a/types/agent.ts b/types/agent.ts
+index 9eb46653..435efb93 100644
+--- a/types/agent.ts
++++ b/types/agent.ts
+@@ -10,6 +10,12 @@
+  * - An agent can have multiple sessions (multi-brain support)
+  */
+ 
++// Skills types - canonical definitions live in types/marketplace.ts
++// Re-exported here for backward compatibility (agent-registry, API routes import from here)
++// AgentSkillsConfig is also used locally by the Agent interface below
++export type { AgentSkillsConfig, AgentMarketplaceSkill, AgentCustomSkill } from './marketplace'
++import type { AgentSkillsConfig } from './marketplace'
++
+ // ============================================================================
+ // AMP Identity Types (Cryptographic Identity for Messaging)
+ // ============================================================================
+@@ -216,47 +222,9 @@ export interface Agent {
+ 
+   // AMP Registration Status (Phase 2: AMP Protocol)
+   ampRegistered?: boolean        // True if agent was registered via AMP protocol
+-}
+-
+-/**
+- * Skills configuration for an agent
+- * Agents can have skills from marketplaces, AI Maestro, and custom skills
+- */
+-export interface AgentSkillsConfig {
+-  // Skills from Claude Code marketplaces
+-  marketplace: AgentMarketplaceSkill[]
+-
+-  // AI Maestro built-in skills
+-  aiMaestro: {
+-    enabled: boolean              // Include AI Maestro skills?
+-    skills: string[]              // Which skills (default: all)
+-  }
+ 
+-  // Custom skills specific to this agent
+-  custom: AgentCustomSkill[]
+-}
+-
+-/**
+- * A marketplace skill installed on an agent
+- */
+-export interface AgentMarketplaceSkill {
+-  id: string                      // Full skill ID (marketplace:plugin:skill)
+-  marketplace: string             // Source marketplace
+-  plugin: string                  // Source plugin
+-  name: string                    // Skill name
+-  version?: string                // Installed version
+-  installedAt: string             // When installed (ISO timestamp)
+-}
+-
+-/**
+- * A custom skill created for a specific agent
+- */
+-export interface AgentCustomSkill {
+-  name: string                    // Skill name
+-  path: string                    // Relative path within agent folder
+-  description?: string            // Optional description
+-  createdAt: string               // When created
+-  updatedAt?: string              // When last modified
++  // Soft-delete: when set, agent is marked as deleted but data is preserved for restore
++  deletedAt?: string             // ISO timestamp when soft-deleted, undefined = active
+ }
+ 
+ export type DeploymentType = 'local' | 'cloud'
+@@ -426,7 +394,7 @@ export interface AgentMetrics {
+   customMetrics?: Record<string, number | string>
+ }
+ 
+-export type AgentStatus = 'active' | 'idle' | 'offline'
++export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
+ 
+ /**
+  * Simplified agent for listings
+@@ -442,6 +410,8 @@ export interface AgentSummary {
+   lastActive: string
+   sessions: AgentSession[]      // Session(s) with their status
+   deployment?: AgentDeployment  // Deployment configuration (needed for icon display)
++  // Soft-delete: when set, agent is marked as deleted but data is preserved
++  deletedAt?: string            // ISO timestamp when soft-deleted, undefined = active
+   // DEPRECATED: for backward compatibility during migration
+   alias?: string
+   displayName?: string
+diff --git a/types/marketplace.ts b/types/marketplace.ts
+index 87b37d01..95717a1f 100644
+--- a/types/marketplace.ts
++++ b/types/marketplace.ts
+@@ -186,15 +186,21 @@ export interface InstalledMarketplaceSkill {
+ 
+ /**
+  * A custom skill created specifically for an agent
++ * Canonical definition - also re-exported as AgentCustomSkill from types/agent.ts
+  */
+ export interface CustomSkill {
+   name: string                    // Skill name
+   path: string                    // Relative path within agent folder
+-  content?: string                // Skill content (SKILL.md)
++  description?: string            // Short summary of the skill's purpose
++  content?: string                // Full skill file content (SKILL.md)
+   createdAt: string               // When created
+   updatedAt?: string              // When last modified
+ }
+ 
++// Compatibility aliases - canonical names used by agent-registry and API routes
++export type AgentMarketplaceSkill = InstalledMarketplaceSkill
++export type AgentCustomSkill = CustomSkill
++
+ // ============================================================================
+ // API Types
+ // ============================================================================
+diff --git a/update-aimaestro.sh b/update-aimaestro.sh
+index 0cbd4e8d..599ab0e8 100755
+--- a/update-aimaestro.sh
++++ b/update-aimaestro.sh
+@@ -133,7 +133,7 @@ if [ -n "$(git status --porcelain)" ]; then
+ 
+     if [ "$STASH_CHOICE" = "1" ]; then
+         print_info "Stashing changes..."
+-        git stash
++        git stash push -m "ai-maestro-update-$(date +%Y%m%d-%H%M%S)"
+         print_success "Changes stashed (use 'git stash pop' to restore)"
+     else
+         print_warning "Update cancelled"
+@@ -193,13 +193,22 @@ NEW_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([
+ 
+ echo ""
+ print_step "$BUILD" "Installing dependencies..."
+-yarn install --frozen-lockfile 2>/dev/null || yarn install
++# Issue 7.1: Don't let yarn install failure abort the entire update under set -e
++yarn install --frozen-lockfile 2>/dev/null || yarn install || { print_warning "yarn install had warnings but continuing..."; }
+ print_success "Dependencies installed"
+ 
++# Issue 7.2: Track build failure so tool reinstallation still proceeds under set -e
++BUILD_FAILED=false
++VERIFICATION_WARNINGS=false
++
+ echo ""
+ print_step "$BUILD" "Building application..."
+-yarn build
+-print_success "Build complete"
++if yarn build; then
++    print_success "Build complete"
++else
++    print_warning "Build failed - continuing with tool reinstallation"
++    BUILD_FAILED=true
++fi
+ 
+ echo ""
+ print_step "$ROCKET" "Reinstalling scripts and skills..."
+@@ -257,43 +266,65 @@ fi
+ # 7. Marketplace plugin auto-updates via Claude Code /install update
+ # No manual sync needed — the ai-maestro-plugins repo is the single source
+ 
+-# 4. Verify the installation
++# Issue 7.12: Capture verification exit code instead of piping to || true
+ if [ -f "verify-installation.sh" ]; then
+     echo ""
+     print_info "Running installation verification..."
+-    ./verify-installation.sh || true
++    if ! ./verify-installation.sh; then
++        print_warning "Some verification checks failed. Review the output above."
++        VERIFICATION_WARNINGS=true
++    fi
+ fi
+ 
+ # Check if PM2 is managing ai-maestro
+ echo ""
+ if command -v pm2 &> /dev/null; then
+     if pm2 list | grep -q "ai-maestro"; then
+-        print_step "$RESTART" "Restarting AI Maestro via PM2..."
+-        pm2 restart ai-maestro
+-        print_success "AI Maestro restarted"
+-
+-        # Wait a moment for startup
+-        sleep 2
+-
+-        # Check status
+-        if pm2 list | grep "ai-maestro" | grep -q "online"; then
+-            print_success "AI Maestro is running"
++        if [[ "$BUILD_FAILED" != "true" ]]; then
++            print_step "$RESTART" "Restarting AI Maestro via PM2..."
++            pm2 restart ai-maestro
++            print_success "AI Maestro restarted"
++
++            # Wait a moment for startup
++            sleep 2
++
++            # Check status
++            if pm2 list | grep "ai-maestro" | grep -q "online"; then
++                print_success "AI Maestro is running"
++            else
++                print_warning "AI Maestro may not have started correctly"
++                echo "         Check logs with: pm2 logs ai-maestro"
++            fi
+         else
+-            print_warning "AI Maestro may not have started correctly"
+-            echo "         Check logs with: pm2 logs ai-maestro"
++            print_warning "Skipping PM2 restart due to build failure"
++            echo "         Fix the build errors and run: pm2 restart ai-maestro"
+         fi
+     else
+         print_info "AI Maestro not found in PM2 process list"
+-        echo "         Start it with: pm2 start ecosystem.config.cjs"
++        echo "         Start it with: pm2 start ecosystem.config.js"
+     fi
+ else
+     print_info "PM2 not installed - skipping automatic restart"
+     echo "         Start manually with: yarn start"
+ fi
+ 
++# Report accumulated warnings from build/verification at the end
++if [ "$BUILD_FAILED" = true ]; then
++    echo ""
++    print_error "Build failed during update - please check TypeScript errors and run 'yarn build' manually"
++fi
++if [ "$VERIFICATION_WARNINGS" = true ]; then
++    echo ""
++    print_warning "Installation verification reported issues - review the warnings above"
++fi
++
+ echo ""
+ echo "╔════════════════════════════════════════════════════════════════╗"
++if [ "$BUILD_FAILED" = true ] || [ "$VERIFICATION_WARNINGS" = true ]; then
++echo "║               Update Complete (with warnings)                  ║"
++else
+ echo "║                     Update Complete!                           ║"
++fi
+ echo "╚════════════════════════════════════════════════════════════════╝"
+ echo ""
+ 
+diff --git a/verify-installation.sh b/verify-installation.sh
+index 21e502e2..7e7debb0 100755
+--- a/verify-installation.sh
++++ b/verify-installation.sh
+@@ -202,7 +202,7 @@ for helper in common.sh agent-helper.sh docs-helper.sh; do
+ done
+ 
+ # Key scripts in bin
+-for script in aimaestro-agent.sh messaging-helper.sh memory-helper.sh graph-helper.sh; do
++for script in aimaestro-agent.sh memory-helper.sh graph-helper.sh; do
+     local_path="$HOME/.local/bin/$script"
+     if [ -f "$local_path" ]; then
+         if bash -n "$local_path" 2>/dev/null; then
+diff --git a/version.json b/version.json
+index 3ca51ebf..82a7b9f0 100644
+--- a/version.json
++++ b/version.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "0.22.2",
+-  "releaseDate": "2026-02-09",
++  "version": "0.22.4",
++  "releaseDate": "2026-02-15",
+   "changelog": "https://github.com/23blocks-OS/ai-maestro/releases",
+   "minSupportedVersion": "0.10.0"
+ }

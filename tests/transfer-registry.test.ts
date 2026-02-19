@@ -8,6 +8,7 @@ import os from 'os'
 
 let fsStore: Record<string, string> = {}
 
+// Named exports mock (not default) because transfer-registry.ts uses named imports: import { readFileSync, ... } from 'fs'
 vi.mock('fs', () => ({
   existsSync: vi.fn((filePath: string) => filePath in fsStore),
   mkdirSync: vi.fn(),

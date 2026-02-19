@@ -165,9 +165,11 @@ export function useGovernance(agentId: string | null): GovernanceState {
     [refresh]
   )
 
-  // Note: This uses a client-side read-modify-write pattern (GET team -> modify agentIds -> PUT).
-  // Concurrent calls can race. Server-side atomic add/remove operations would be the proper fix.
-  // For Phase 1, UI buttons are disabled during operations which mitigates the risk.
+  // KNOWN LIMITATION (Phase 1): Client-side read-modify-write pattern.
+  // Two concurrent browser tabs modifying the same team's agentIds can cause lost updates.
+  // TODO Phase 2: Replace with atomic server-side POST /api/teams/{id}/members endpoint
+  // that accepts { action: 'add'|'remove', agentId: string } and performs the operation
+  // under withLock, eliminating the race condition entirely.
   const addAgentToTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -203,9 +205,11 @@ export function useGovernance(agentId: string | null): GovernanceState {
     [refresh]
   )
 
-  // Note: This uses a client-side read-modify-write pattern (GET team -> modify agentIds -> PUT).
-  // Concurrent calls can race. Server-side atomic add/remove operations would be the proper fix.
-  // For Phase 1, UI buttons are disabled during operations which mitigates the risk.
+  // KNOWN LIMITATION (Phase 1): Client-side read-modify-write pattern.
+  // Two concurrent browser tabs modifying the same team's agentIds can cause lost updates.
+  // TODO Phase 2: Replace with atomic server-side POST /api/teams/{id}/members endpoint
+  // that accepts { action: 'add'|'remove', agentId: string } and performs the operation
+  // under withLock, eliminating the race condition entirely.
   const removeAgentFromTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
       try {

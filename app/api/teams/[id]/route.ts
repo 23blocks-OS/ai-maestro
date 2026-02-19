@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
-import { getManagerId } from '@/lib/governance'
+import { getManagerId, isManager } from '@/lib/governance'
 import { checkTeamAccess } from '@/lib/team-acl'
 
 // GET /api/teams/[id] - Get a single team
@@ -74,6 +74,17 @@ export async function DELETE(
     const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
     if (!access.allowed) {
       return NextResponse.json({ error: access.reason }, { status: 403 })
+    }
+    // SR-002 fix: Closed team deletion requires elevated authority (MANAGER or COS)
+    // checkTeamAccess allows any member for resource access, but deletion is destructive
+    const team = getTeam(id)
+    if (team && team.type === 'closed') {
+      if (agentId && !isManager(agentId) && team.chiefOfStaffId !== agentId) {
+        return NextResponse.json(
+          { error: 'Closed team deletion requires MANAGER or Chief-of-Staff authority' },
+          { status: 403 }
+        )
+      }
     }
     const deleted = await deleteTeam(id)
     if (!deleted) {

@@ -29,18 +29,23 @@ function ensureAimaestroDir() {
 
 /** Load governance config from disk, creating with defaults if missing */
 export function loadGovernance(): GovernanceConfig {
+  ensureAimaestroDir()
+  if (!fs.existsSync(GOVERNANCE_FILE)) {
+    // First-time initialization: write defaults and return them
+    saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
+    return { ...DEFAULT_GOVERNANCE_CONFIG }
+  }
   try {
-    ensureAimaestroDir()
-    if (!fs.existsSync(GOVERNANCE_FILE)) {
-      // First-time initialization: write defaults and return them
-      saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
-      return { ...DEFAULT_GOVERNANCE_CONFIG }
-    }
     const data = fs.readFileSync(GOVERNANCE_FILE, 'utf-8')
     const parsed: GovernanceConfig = JSON.parse(data)
     return parsed
   } catch (error) {
-    console.error('Failed to load governance config:', error)
+    // Distinguish read errors from parse errors — parse errors indicate disk corruption
+    if (error instanceof SyntaxError) {
+      console.error('[governance] CORRUPTION: governance.json contains invalid JSON — returning defaults. Manual inspection required:', GOVERNANCE_FILE)
+    } else {
+      console.error('[governance] Failed to read governance config:', error)
+    }
     return { ...DEFAULT_GOVERNANCE_CONFIG }
   }
 }
@@ -54,23 +59,23 @@ export function saveGovernance(config: GovernanceConfig): void {
 
 /** Set governance password (bcrypt hash with 12 salt rounds) */
 export async function setPassword(plaintext: string): Promise<void> {
-  return withLock('governance', () => {
+  return withLock('governance', async () => {
     const config = loadGovernance()
-    config.passwordHash = bcrypt.hashSync(plaintext, BCRYPT_SALT_ROUNDS)
+    config.passwordHash = await bcrypt.hash(plaintext, BCRYPT_SALT_ROUNDS)
     config.passwordSetAt = new Date().toISOString()
     saveGovernance(config)
   })
 }
 
 /** Verify plaintext against stored password hash. Returns false if no password set. */
-export function verifyPassword(plaintext: string): boolean {
+export async function verifyPassword(plaintext: string): Promise<boolean> {
   const config = loadGovernance()
   if (!config.passwordHash) {
     // Phase 1 (localhost-only): timing difference between "no password" and "wrong password"
     // is accepted risk. No remote attackers can observe timing in this deployment model.
     return false
   }
-  return bcrypt.compareSync(plaintext, config.passwordHash)
+  return bcrypt.compare(plaintext, config.passwordHash)
 }
 
 /** Get the current manager agent ID, or null if none set */

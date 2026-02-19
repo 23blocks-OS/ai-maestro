@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
+import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 
 export async function POST(
   request: NextRequest,
@@ -21,10 +22,22 @@ export async function POST(
       return NextResponse.json({ error: 'Governance password not set' }, { status: 400 })
     }
 
+    // Rate limit password verification to prevent brute-force attacks
+    const rateCheck = checkRateLimit('governance-password')
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
+        { status: 429 }
+      )
+    }
+
     // Password auth is stronger than ACL — only managers know the governance password
-    if (!verifyPassword(password)) {
+    if (!(await verifyPassword(password))) {
+      recordFailure('governance-password')
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
+    // Password verified successfully — reset rate limit counter
+    resetRateLimit('governance-password')
 
     const team = getTeam(id)
     if (!team) {

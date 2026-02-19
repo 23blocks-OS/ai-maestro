@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, setManager, removeManager, loadGovernance } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
+import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,9 +17,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Governance password not set. Set a password first via POST /api/governance/password' }, { status: 400 })
     }
 
-    if (!verifyPassword(password)) {
+    // Rate limit password verification to prevent brute-force attacks
+    const rateCheck = checkRateLimit('governance-password')
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
+        { status: 429 }
+      )
+    }
+
+    if (!(await verifyPassword(password))) {
+      recordFailure('governance-password')
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
+    // Password verified successfully — reset rate limit counter
+    resetRateLimit('governance-password')
 
     // agentId === null removes the manager role; undefined/missing is invalid
     if (agentId === null) {

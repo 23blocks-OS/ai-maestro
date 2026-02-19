@@ -113,6 +113,27 @@ export async function resolveTransferRequest(
   })
 }
 
+/** Revert an approved/rejected transfer back to pending state.
+ *  Used as a compensating action when a downstream operation (e.g. saveTeams)
+ *  fails after the transfer was already marked as approved on disk. */
+export async function revertTransferToPending(id: string): Promise<boolean> {
+  return withLock('transfers', () => {
+    const requests = loadTransfers()
+    const idx = requests.findIndex(r => r.id === id)
+    if (idx === -1) return false
+
+    requests[idx] = {
+      ...requests[idx],
+      status: 'pending',
+      resolvedAt: undefined,
+      resolvedBy: undefined,
+      rejectReason: undefined,
+    }
+    saveTransfers(requests)
+    return true
+  })
+}
+
 // Exported for future scheduled cleanup integration
 /** Clean up old resolved requests (older than 30 days) */
 export async function cleanupOldTransfers(): Promise<number> {

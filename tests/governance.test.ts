@@ -32,8 +32,8 @@ vi.mock('uuid', () => ({
 
 vi.mock('bcryptjs', () => ({
   default: {
-    hashSync: vi.fn((plain: string) => `hashed:${plain}`),
-    compareSync: vi.fn((plain: string, hash: string) => hash === `hashed:${plain}`),
+    hash: vi.fn((plain: string) => Promise.resolve(`hashed:${plain}`)),
+    compare: vi.fn((plain: string, hash: string) => Promise.resolve(hash === `hashed:${plain}`)),
   },
 }))
 
@@ -140,19 +140,19 @@ describe('setPassword', () => {
 // ============================================================================
 
 describe('verifyPassword', () => {
-  it('returns true for correct password and false for wrong password', () => {
+  it('returns true for correct password and false for wrong password', async () => {
     /** Verifies password comparison against stored hash returns correct boolean */
     seedGovernance({ passwordHash: 'hashed:correctpass' })
 
-    expect(verifyPassword('correctpass')).toBe(true)
-    expect(verifyPassword('wrongpass')).toBe(false)
+    expect(await verifyPassword('correctpass')).toBe(true)
+    expect(await verifyPassword('wrongpass')).toBe(false)
   })
 
-  it('returns false when no password has been set', () => {
+  it('returns false when no password has been set', async () => {
     /** Verifies that verifyPassword returns false when passwordHash is null (no password configured) */
     seedGovernance({ passwordHash: null })
 
-    expect(verifyPassword('anypassword')).toBe(false)
+    expect(await verifyPassword('anypassword')).toBe(false)
   })
 })
 

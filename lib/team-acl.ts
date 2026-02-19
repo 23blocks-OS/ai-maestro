@@ -33,7 +33,12 @@ export interface TeamAccessResult {
  *  7. Otherwise                → denied
  */
 export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
-  // 1. Web UI requests (no X-Agent-Id header) always pass
+  // 1. Web UI requests (no X-Agent-Id header) always pass.
+  // KNOWN LIMITATION (Phase 1, localhost-only): Any local process that omits X-Agent-Id
+  // gets full access, not just the web UI. Acceptable because Phase 1 runs on localhost
+  // where all local processes are trusted.
+  // TODO Phase 2: Add X-Request-Source header with per-session CSRF token to distinguish
+  // genuine web UI requests from other local processes.
   if (input.requestingAgentId === undefined) {
     return { allowed: true }
   }

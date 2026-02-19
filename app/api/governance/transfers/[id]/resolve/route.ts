@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getTransferRequest, resolveTransferRequest } from '@/lib/transfer-registry'
+import { getTransferRequest, resolveTransferRequest, revertTransferToPending } from '@/lib/transfer-registry'
 import { loadTeams, saveTeams, TeamValidationException } from '@/lib/team-registry'
 import { isManager, getManagerId, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
@@ -69,23 +69,11 @@ export async function POST(
         if (!toTeam) {
           return NextResponse.json({ error: 'Destination team no longer exists — transfer cannot be completed' }, { status: 404 })
         }
-      }
 
-      // Resolve the request (mark as approved/rejected on disk)
-      resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
-      if (!resolved) {
-        // Concurrent resolve detected — another request resolved this transfer first
-        return NextResponse.json({ error: 'Transfer already resolved' }, { status: 409 })
-      }
-
-      // If approved, execute the actual transfer
-      if (action === 'approve') {
-
+        // Multi-closed-team constraint check (R4.1, R5.7) — runs BEFORE resolveTransferRequest
+        // so that a constraint violation does not leave an inconsistent "approved but not moved" state (SR-001)
         const managerId = getManagerId()
-
-        // Multi-closed-team constraint check (R4.1, R5.7)
-        // If destination is a closed team and agent is normal (not MANAGER, not COS), verify constraint
-        if (toTeam!.type === 'closed') {
+        if (toTeam.type === 'closed') {
           const agentId = transferReq.agentId
           const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
           if (!isPrivileged) {
@@ -99,7 +87,18 @@ export async function POST(
             }
           }
         }
+      }
 
+      // Resolve the request (mark as approved/rejected on disk)
+      // All pre-approval validation has passed at this point
+      resolved = await resolveTransferRequest(id, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
+      if (!resolved) {
+        // Concurrent resolve detected — another request resolved this transfer first
+        return NextResponse.json({ error: 'Transfer already resolved' }, { status: 409 })
+      }
+
+      // If approved, execute the actual team mutations
+      if (action === 'approve') {
         // Remove agent from source team — direct mutation under the held lock
         // (avoids calling updateTeam which would re-acquire the non-reentrant lock)
         const fromIdx = teams.findIndex(t => t.id === fromTeam!.id)
@@ -125,7 +124,10 @@ export async function POST(
         // to detect write failures (disk full, permission error, etc.)
         const saved = saveTeams(teams)
         if (!saved) {
-          return NextResponse.json({ error: 'Failed to save team changes after transfer approval' }, { status: 500 })
+          // Compensating action (SR-007): revert transfer from 'approved' back to 'pending'
+          // to maintain consistency when team save fails
+          await revertTransferToPending(id)
+          return NextResponse.json({ error: 'Failed to save team changes after transfer approval — transfer reverted to pending' }, { status: 500 })
         }
       }
     } finally {

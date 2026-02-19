@@ -828,13 +828,14 @@ async function startServer(handleRequest) {
       // tmux may still be detaching. Retrying after a short delay resolves this.
       const PTY_SPAWN_MAX_RETRIES = 3
       const PTY_SPAWN_RETRY_DELAY_MS = 500
+      const socketPath = query.socket || undefined
 
       for (let attempt = 1; attempt <= PTY_SPAWN_MAX_RETRIES; attempt++) {
         try {
           // Verify tmux session exists before attempting to attach
           if (attempt === 1) {
             const { sessionExistsSync } = await import('./lib/agent-runtime.ts')
-            if (!sessionExistsSync(sessionName)) {
+            if (!sessionExistsSync(sessionName, socketPath)) {
               // tmux session does not exist
               console.error(`[PTY] tmux session "${sessionName}" does not exist`)
               try {
@@ -850,7 +851,7 @@ async function startServer(handleRequest) {
           }
 
           const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
-          const { command: attachCmd, args: attachArgs } = getRt().getAttachCommand(sessionName)
+          const { command: attachCmd, args: attachArgs } = getRt().getAttachCommand(sessionName, socketPath)
           ptyProcess = pty.spawn(attachCmd, attachArgs, {
             name: 'xterm-256color',
             cols: 80,

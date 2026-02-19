@@ -86,8 +86,9 @@ vi.mock('@/lib/amp-inbox-writer', () => mockAmpInboxWriter)
 vi.mock('@/services/shared-state', () => mockSharedState)
 vi.mock('fs', () => mockFs)
 vi.mock('child_process', () => ({
-  // exec must be callback-style for promisify to work
+  // exec/execFile must be callback-style for promisify to work
   exec: vi.fn((_cmd: string, cb: Function) => cb(null, { stdout: '', stderr: '' })),
+  execFile: vi.fn((_file: string, _args: string[], _opts: any, cb: Function) => cb(null, { stdout: '', stderr: '' })),
   execSync: vi.fn().mockReturnValue(''),
 }))
 

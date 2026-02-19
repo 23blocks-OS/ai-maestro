@@ -19,7 +19,7 @@
  *   POST   /api/sessions/activity/update -> broadcastActivityUpdate
  */
 
-import { exec } from 'child_process'
+import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import http from 'http'
 import https from 'https'
@@ -38,6 +38,7 @@ import { getRuntime } from '@/lib/agent-runtime'
 import crypto from 'crypto'
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // ---------------------------------------------------------------------------
 // Types
@@ -307,6 +308,50 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
       // Docker not available
     }
 
+    // Discover OpenClaw sessions (custom tmux sockets)
+    try {
+      const openclawSocketDir = process.env.OPENCLAW_TMUX_SOCKET_DIR
+        || path.join(os.tmpdir(), 'clawdbot-tmux-sockets')
+
+      if (fs.existsSync(openclawSocketDir)) {
+        const socketFiles = fs.readdirSync(openclawSocketDir)
+          .filter(f => !f.startsWith('.'))
+
+        for (const socketFile of socketFiles) {
+          const socketPath = path.join(openclawSocketDir, socketFile)
+          try {
+            const { stdout } = await execFileAsync(
+              'tmux', ['-S', socketPath, 'list-sessions'],
+              { timeout: 3000 }
+            )
+            if (!stdout.trim()) continue
+
+            for (const line of stdout.trim().split('\n')) {
+              const match = line.match(/^([^:]+):\s+(\d+)\s+windows?/)
+              if (!match) continue
+              const [, sessionName, windows] = match
+              if (sessions.find(s => s.id === sessionName)) continue
+
+              sessions.push({
+                id: sessionName,
+                name: sessionName,
+                workingDirectory: '',
+                status: 'idle',
+                createdAt: new Date().toISOString(),
+                lastActivity: new Date().toISOString(),
+                windows: parseInt(windows, 10),
+                hostId,
+                version: AI_MAESTRO_VERSION,
+                socketPath,
+              })
+            }
+          } catch { /* socket file may be stale */ }
+        }
+      }
+    } catch {
+      // OpenClaw not installed or socket dir doesn't exist
+    }
+
     return sessions
   } catch (error) {
     console.error('[Sessions] Error fetching local sessions:', error)
@@ -564,6 +609,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     else if (selectedProgram.includes('cursor')) startCommand = 'cursor'
     else if (selectedProgram.includes('gemini')) startCommand = 'gemini'
     else if (selectedProgram.includes('opencode')) startCommand = 'opencode'
+    else if (selectedProgram.includes('openclaw')) startCommand = 'openclaw'
     else startCommand = 'claude'
 
     if (programArgs && typeof programArgs === 'string') {

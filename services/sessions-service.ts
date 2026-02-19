@@ -332,10 +332,59 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
               const [, sessionName, windows] = match
               if (sessions.find(s => s.id === sessionName)) continue
 
+              // Validate session name (same rules as session creation)
+              if (!/^[a-zA-Z0-9_-]+$/.test(sessionName)) continue
+
+              // Auto-register agent if not already registered
+              let agentId: string | undefined
+              let resolvedWorkingDirectory = ''
+              const existingAgent = getAgentByName(sessionName)
+              if (existingAgent) {
+                agentId = existingAgent.id
+                resolvedWorkingDirectory = existingAgent.workingDirectory || ''
+              } else {
+                try {
+                  // Query working directory only for new agents
+                  try {
+                    const { stdout: cwdOut } = await execFileAsync(
+                      'tmux', ['-S', socketPath, 'display-message', '-t', sessionName, '-p', '#{pane_current_path}'],
+                      { timeout: 3000 }
+                    )
+                    resolvedWorkingDirectory = cwdOut.trim()
+                  } catch { /* fallback to empty */ }
+
+                  const { tags } = parseNameForDisplay(sessionName)
+                  const agent = createAgent({
+                    name: sessionName,
+                    program: 'openclaw',
+                    taskDescription: `OpenClaw agent ${sessionName}`,
+                    tags,
+                    owner: os.userInfo().username,
+                    createSession: true,
+                    workingDirectory: resolvedWorkingDirectory || undefined,
+                  })
+                  agentId = agent.id
+                  console.log(`[Sessions] Auto-registered OpenClaw agent: ${sessionName} (${agent.id})`)
+
+                  // Initialize AMP only on first registration (non-fatal)
+                  try {
+                    await initAgentAMPHome(sessionName, agent.id)
+                    const ampDir = getAgentAMPDir(sessionName, agent.id)
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AMP_DIR', ampDir], { timeout: 3000 })
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AIM_AGENT_NAME', sessionName], { timeout: 3000 })
+                    await execFileAsync('tmux', ['-S', socketPath, 'set-environment', '-t', sessionName, 'AIM_AGENT_ID', agent.id], { timeout: 3000 })
+                  } catch (ampError) {
+                    console.warn(`[Sessions] Could not set up AMP for OpenClaw agent ${sessionName}:`, ampError)
+                  }
+                } catch (regError) {
+                  console.warn(`[Sessions] Could not register OpenClaw agent ${sessionName}:`, regError)
+                }
+              }
+
               sessions.push({
                 id: sessionName,
                 name: sessionName,
-                workingDirectory: '',
+                workingDirectory: resolvedWorkingDirectory,
                 status: 'idle',
                 createdAt: new Date().toISOString(),
                 lastActivity: new Date().toISOString(),
@@ -343,6 +392,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                 hostId,
                 version: AI_MAESTRO_VERSION,
                 socketPath,
+                ...(agentId && { agentId }),
               })
             }
           } catch { /* socket file may be stale */ }

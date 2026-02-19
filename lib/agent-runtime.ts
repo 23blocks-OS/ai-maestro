@@ -8,7 +8,7 @@
  * Phase 4 of the service-layer refactoring.
  */
 
-import { exec, execSync as nodeExecSync } from 'child_process'
+import { exec, execSync as nodeExecSync, execFileSync as nodeExecFileSync } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -50,7 +50,7 @@ export interface AgentRuntime {
   unsetEnvironment(name: string, key: string): Promise<void>
 
   // PTY (returns spawn args for node-pty -- runtime doesn't own the PTY)
-  getAttachCommand(name: string): { command: string; args: string[] }
+  getAttachCommand(name: string, socketPath?: string): { command: string; args: string[] }
 }
 
 // ---------------------------------------------------------------------------
@@ -220,7 +220,10 @@ export class TmuxRuntime implements AgentRuntime {
 
   // -- PTY -----------------------------------------------------------------
 
-  getAttachCommand(name: string): { command: string; args: string[] } {
+  getAttachCommand(name: string, socketPath?: string): { command: string; args: string[] } {
+    if (socketPath) {
+      return { command: 'tmux', args: ['-S', socketPath, 'attach-session', '-t', name] }
+    }
     return { command: 'tmux', args: ['attach-session', '-t', name] }
   }
 }
@@ -243,9 +246,12 @@ export function setRuntime(r: AgentRuntime): void {
 // Sync helpers for lib/agent-registry.ts (uses execSync, can't be async)
 // ---------------------------------------------------------------------------
 
-export function sessionExistsSync(name: string): boolean {
+export function sessionExistsSync(name: string, socketPath?: string): boolean {
   try {
-    nodeExecSync(`tmux has-session -t "${name}" 2>/dev/null`, { timeout: 2000 })
+    const args = socketPath
+      ? ['-S', socketPath, 'has-session', '-t', name]
+      : ['has-session', '-t', name]
+    nodeExecFileSync('tmux', args, { timeout: 2000, stdio: 'ignore' })
     return true
   } catch {
     return false

@@ -3,6 +3,33 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.9] - 2026-02-19
+
+### Added
+- **OpenClaw agents as first-class citizens** — Auto-register OpenClaw agents in the agent registry on discovery, enabling AMP messaging, kanban task assignment, and team meeting participation
+- Auto-query working directory from OpenClaw tmux sessions via `display-message`
+- Auto-initialize AMP home directory and set `AMP_DIR`, `AIM_AGENT_NAME`, `AIM_AGENT_ID` environment variables in OpenClaw tmux sessions
+- Session name validation (`/^[a-zA-Z0-9_-]+$/`) for OpenClaw-discovered sessions to prevent path traversal
+
+### Changed
+- AMP initialization only runs on first agent registration (not every poll cycle)
+- Plugin submodule updated: `CLAUDE_AGENT_*` env vars renamed to `AIM_AGENT_*` with backward compatibility fallback
+- Plugin README consolidated from root + plugin into single comprehensive document
+
+### Fixed
+- CI build: create `data/` directory before touch in workflow
+
+## [0.24.8] - 2026-02-18
+
+### Added
+- **OpenClaw tmux session discovery** — Detect agents running in OpenClaw's custom tmux sockets at `/tmp/clawdbot-tmux-sockets/`
+- Terminal streaming for OpenClaw sessions via WebSocket
+
+## [0.24.7] - 2026-02-17
+
+### Fixed
+- Updater `ecosystem.config.js` detection — fix 5 issues related to PM2 config discovery
+
 ## [0.24.6] - 2026-02-16
 
 ### Fixed

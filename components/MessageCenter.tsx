@@ -384,8 +384,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
     setView('compose')
   }
 
-  // Fetch reachable agents for governance filtering
+  // Fetch reachable agents for governance filtering (guarded by isActive to prevent API flood with 40+ agents)
   useEffect(() => {
+    if (!isActive) return
     const fetchReachable = async () => {
       try {
         if (!agentId) return
@@ -400,7 +401,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
       }
     }
     fetchReachable()
-  }, [agentId, apiBaseUrl])
+  }, [agentId, apiBaseUrl, isActive])
 
   // Only fetch when this agent is active (prevents API flood with 40+ agents)
   useEffect(() => {
@@ -592,7 +593,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setView('inbox')}
+            onClick={() => { setView('inbox'); setSelectedMessage(null) }}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               view === 'inbox'
                 ? 'bg-blue-600 text-white'
@@ -608,7 +609,7 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
             )}
           </button>
           <button
-            onClick={() => setView('sent')}
+            onClick={() => { setView('sent'); setSelectedMessage(null) }}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               view === 'sent'
                 ? 'bg-blue-600 text-white'
@@ -812,7 +813,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    {/* Copy Button with Dropdown */}
+                    {/* Copy Button with Dropdown
+                       Single ref is correct — only one copy dropdown can be open at a time
+                       regardless of view, since inbox and sent views are mutually exclusive */}
                     <div ref={copyDropdownRef} className="relative">
                       <button
                         onClick={() => setShowCopyDropdown(!showCopyDropdown)}
@@ -1026,7 +1029,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    {/* Copy Button with Dropdown */}
+                    {/* Copy Button with Dropdown
+                       Single ref is correct — only one copy dropdown can be open at a time
+                       regardless of view, since inbox and sent views are mutually exclusive */}
                     <div ref={copyDropdownRef} className="relative">
                       <button
                         onClick={() => setShowCopyDropdown(!showCopyDropdown)}

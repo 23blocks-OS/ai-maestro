@@ -31,7 +31,8 @@ export function loadTransfers(): TransferRequest[] {
   try {
     const raw = readFileSync(TRANSFERS_FILE, 'utf-8')
     const data: TransfersFile = JSON.parse(raw)
-    return data.requests || []
+    // Validate requests is actually an array (matches team-registry pattern)
+    return Array.isArray(data.requests) ? data.requests : []
   } catch (error) {
     console.error('[transfer-registry] Error loading transfers:', error)
     return []
@@ -132,6 +133,8 @@ export async function revertTransferToPending(id: string): Promise<boolean> {
     const requests = loadTransfers()
     const idx = requests.findIndex(r => r.id === id)
     if (idx === -1) return false
+    // Already pending -- skip redundant disk write
+    if (requests[idx].status === 'pending') return true
 
     requests[idx] = {
       ...requests[idx],

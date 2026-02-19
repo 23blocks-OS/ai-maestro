@@ -17,6 +17,7 @@ export interface Team {
   agentIds: string[]      // Agent UUIDs (order = display order)
   instructions?: string   // Team-level markdown (like a per-team CLAUDE.md)
   type: TeamType           // 'open' (default) or 'closed' — governs messaging isolation and ACL
+                           // Always present at runtime — loadTeams() migration guarantees this field is populated
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
   createdAt: string       // ISO
   updatedAt: string       // ISO

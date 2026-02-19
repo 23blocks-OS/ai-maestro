@@ -5,8 +5,10 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 // ============================================================================
 
 const mockLoadGovernance = vi.fn(() => ({
+  version: 1 as const,
   managerId: null as string | null,
   passwordHash: null as string | null,
+  passwordSetAt: null as string | null,
 }))
 
 const mockLoadTeams = vi.fn(() => [] as ReturnType<typeof makeClosedTeam>[])
@@ -59,14 +61,14 @@ const OPEN_B     = 'e0000000-0000-0000-0000-000000000002'
 const OUTSIDE_SENDER = 'f0000000-0000-0000-0000-000000000001'
 
 // ============================================================================
-// Tests — 14 scenarios covering all branches of checkMessageAllowed
+// Tests — 15 scenarios covering all branches of checkMessageAllowed
 // ============================================================================
 
 describe('checkMessageAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
     mockLoadTeams.mockReturnValue([])
   })
 
@@ -97,7 +99,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: MANAGER, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: MANAGER, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: MANAGER,
@@ -112,7 +114,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: MANAGER, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: MANAGER, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: COS_ALPHA,
@@ -128,7 +130,7 @@ describe('checkMessageAllowed', () => {
     const teamBeta = makeClosedTeam('beta', [COS_BETA, MEMBER_B1], COS_BETA)
 
     mockLoadTeams.mockReturnValue([teamAlpha, teamBeta])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: COS_ALPHA,
@@ -143,7 +145,31 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1, MEMBER_A2], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
+
+    const result = checkMessageAllowed({
+      senderAgentId: COS_ALPHA,
+      recipientAgentId: MEMBER_A1,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  // ---------------------------------------------------------------------------
+  // CC-006: COS sender identified via chiefOfStaffId but NOT in agentIds
+  // ---------------------------------------------------------------------------
+  it('allows COS sender who is chiefOfStaffId but not in agentIds to message team members', () => {
+    /**
+     * COS_ALPHA is chiefOfStaffId of teamAlpha but is NOT listed in agentIds
+     * (data corruption edge case — validateTeamMutation normally auto-adds COS).
+     * COS_ALPHA messages MEMBER_A1 who IS in agentIds.
+     * The defense-in-depth path (senderCosTeams via chiefOfStaffId) must detect
+     * the COS role and allow the message — step 4, branch 3 (R6.7).
+     */
+    const teamAlpha = makeClosedTeam('alpha', [MEMBER_A1, MEMBER_A2], COS_ALPHA)
+
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: COS_ALPHA,
@@ -158,7 +184,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: COS_ALPHA,
@@ -174,7 +200,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1, MEMBER_A2], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: MEMBER_A1,
@@ -197,7 +223,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [MEMBER_A1, MEMBER_A2], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: MEMBER_A1,
@@ -213,7 +239,7 @@ describe('checkMessageAllowed', () => {
     const teamBeta = makeClosedTeam('beta', [COS_BETA, MEMBER_B1], COS_BETA)
 
     mockLoadTeams.mockReturnValue([teamAlpha, teamBeta])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: MEMBER_A1,
@@ -238,7 +264,7 @@ describe('checkMessageAllowed', () => {
     const closedTeamB = makeClosedTeam('team-b', [COS_MULTI, MEMBER_B1, AGENT_X], COS_MULTI)
 
     mockLoadTeams.mockReturnValue([closedTeamA, closedTeamB])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: COS_MULTI,
@@ -260,7 +286,7 @@ describe('checkMessageAllowed', () => {
     const teamGamma = makeClosedTeam('gamma', [COS_ALPHA, AGENT_Y], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamGamma])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: null,
@@ -284,7 +310,7 @@ describe('checkMessageAllowed', () => {
     const teamDelta = makeClosedTeam('delta', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamDelta])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: MEMBER_A1,
@@ -300,7 +326,7 @@ describe('checkMessageAllowed', () => {
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
-    mockLoadGovernance.mockReturnValue({ managerId: null, passwordHash: null })
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
 
     const result = checkMessageAllowed({
       senderAgentId: OUTSIDE_SENDER,

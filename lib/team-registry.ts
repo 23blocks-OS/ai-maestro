@@ -89,6 +89,7 @@ export function validateTeamMutation(
       return { valid: false, error: 'Team name must start with a letter or number', code: 400 }
     }
     // Only safe display characters: letters, digits, spaces, hyphens, underscores, dots, ampersands, parens
+    // CC-009: Note: \w includes underscore implicitly (equivalent to [a-zA-Z0-9_])
     if (/[^\w \-.&()]/.test(clean)) {
       return { valid: false, error: 'Team name contains invalid characters (allowed: letters, numbers, spaces, hyphens, underscores, dots, ampersands, parentheses)', code: 400 }
     }
@@ -215,6 +216,8 @@ export function loadTeams(): Team[] {
         needsSave = true
       }
     }
+    // CC-003: Migration write is idempotent and safe without lock — worst case is a redundant write.
+    // When called from getTeam() (no lock), two concurrent migrations may both write, but produce identical output.
     if (needsSave && !migrationDone) {
       migrationDone = true
       saveTeams(teams)
@@ -261,6 +264,7 @@ export async function createTeam(
     const now = new Date().toISOString()
     const team: Team = {
       id: uuidv4(),
+      // CC-011: Type assertion needed because sanitized is Record<string, unknown> from validateTeamMutation
       name: (result.sanitized.name as string) ?? data.name,
       description: data.description,
       agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
@@ -320,6 +324,9 @@ export async function deleteTeam(id: string): Promise<boolean> {
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       const taskFile = path.join(TEAMS_DIR, path.basename(`tasks-${id}.json`))
       try { if (fs.existsSync(taskFile)) fs.unlinkSync(taskFile) } catch { /* ignore */ }
+      // CC-002: Also clean up orphaned document file for the deleted team
+      const docsFile = path.join(TEAMS_DIR, path.basename(`docs-${id}.json`))
+      try { if (fs.existsSync(docsFile)) fs.unlinkSync(docsFile) } catch { /* ignore */ }
     }
     return true
   })

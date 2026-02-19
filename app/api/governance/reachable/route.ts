@@ -4,6 +4,8 @@ import { loadAgents } from '@/lib/agent-registry'
 
 // In-memory cache: avoids re-reading governance + teams files for every agent
 // on each request. TTL of 5 seconds balances freshness with performance.
+// Note: Cache does not auto-invalidate when governance/team config changes.
+// TTL-based expiry handles staleness. Phase 2: add event-driven invalidation.
 const cache = new Map<string, { ids: string[]; expiresAt: number }>()
 const CACHE_TTL_MS = 5_000
 
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'agentId query parameter is required' }, { status: 400 })
     }
 
-    if (agentId && typeof agentId === 'string' && !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) {
       return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
     }
 

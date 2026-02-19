@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Note: team-api tests mock 'fs' directly at the module level below, not via
+// team-registry — the fs mock intercepts all filesystem calls from any module
+// (including team-registry) that the route handlers import.
+
 // ============================================================================
 // Mocks
 // ============================================================================
@@ -63,6 +67,7 @@ import { createTeam, loadTeams, updateTeam, getTeam } from '@/lib/team-registry'
 import { GET as getTeamRoute, PUT as updateTeamRoute, DELETE as deleteTeamRoute } from '@/app/api/teams/[id]/route'
 import { GET as listTeamsRoute, POST as createTeamRoute } from '@/app/api/teams/route'
 import { getManagerId, isManager } from '@/lib/governance'
+import { isValidUuid } from '@/lib/validation'
 import { NextRequest } from 'next/server'
 
 // ============================================================================
@@ -180,6 +185,8 @@ describe('POST /api/teams', () => {
   // CC-004: Verify managerId is passed through to createTeam when getManagerId returns a value
   it('passes managerId from governance to createTeam', async () => {
     vi.mocked(getManagerId).mockReturnValue('manager-uuid')
+    // vi.spyOn on dynamic import works in Vitest because await import() returns
+    // the same module instance as the route's static import when vi.mock is active.
     const spy = vi.spyOn(await import('@/lib/team-registry'), 'createTeam')
 
     const req = makeRequest('/api/teams', {
@@ -204,6 +211,18 @@ describe('POST /api/teams', () => {
 // ============================================================================
 
 describe('GET /api/teams/[id]', () => {
+  // CC-002: Verify the 400 response path when isValidUuid returns false
+  it('returns 400 for invalid UUID format', async () => {
+    vi.mocked(isValidUuid).mockReturnValueOnce(false)
+
+    const req = makeRequest('/api/teams/not-a-valid-uuid')
+    const res = await getTeamRoute(req, makeParams('not-a-valid-uuid') as any)
+
+    expect(res.status).toBe(400)
+    const data = await res.json()
+    expect(data.error).toContain('Invalid team ID format')
+  })
+
   it('returns 404 for non-existent team', async () => {
     const req = makeRequest('/api/teams/non-existent')
     const res = await getTeamRoute(req, makeParams('non-existent') as any)
@@ -302,6 +321,8 @@ describe('PUT /api/teams/[id]', () => {
   // CC-005: PUT must strip chiefOfStaffId and type from body (only dedicated endpoints can change these)
   it('ignores chiefOfStaffId and type in body', async () => {
     const team = await createTeam({ name: 'Original Team', agentIds: [], type: 'open' })
+    // vi.spyOn on dynamic import works in Vitest because await import() returns
+    // the same module instance as the route's static import when vi.mock is active.
     const spy = vi.spyOn(await import('@/lib/team-registry'), 'updateTeam')
 
     const req = makeRequest(`/api/teams/${team.id}`, {

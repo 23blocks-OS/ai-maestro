@@ -8,11 +8,16 @@ import { loadAgents } from '@/lib/agent-registry'
  */
 // Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
 export async function GET() {
-  const teams = loadTeams()
-  // loadAgents() called per request; acceptable for Phase 1 traffic levels
-  const agents = loadAgents()
-  return NextResponse.json({
-    teamNames: teams.map(t => t.name),
-    agentNames: agents.map(a => a.name).filter(Boolean),
-  })
+  try {
+    const teams = loadTeams()
+    // loadAgents() called per request; acceptable for Phase 1 traffic levels
+    const agents = loadAgents()
+    return NextResponse.json({
+      teamNames: teams.map(t => t.name),
+      agentNames: agents.map(a => a.name).filter(Boolean),
+    })
+  } catch (error) {
+    console.error('[teams/names] GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

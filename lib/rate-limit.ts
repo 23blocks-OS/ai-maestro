@@ -9,6 +9,9 @@ const limits = new Map<string, { count: number; resetAt: number }>()
 const DEFAULT_MAX_ATTEMPTS = 5
 const DEFAULT_WINDOW_MS = 60_000 // 1 minute
 
+// Note: check and record are not atomic — acceptable for Phase 1 single-process localhost.
+// Phase 2: use atomic increment.
+
 /** Check if the rate limit allows another attempt */
 export function checkRateLimit(
   key: string,

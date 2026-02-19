@@ -61,6 +61,7 @@ export function saveTasks(teamId: string, tasks: Task[]): boolean {
  * Resolve task dependencies and compute derived fields
  */
 export function resolveTaskDeps(tasks: Task[]): TaskWithDeps[] {
+  if (tasks.length === 0) return []
   // loadAgents() has internal caching (_cachedAgents), so repeated calls are cheap
   const agents = loadAgents()
   const taskMap = new Map(tasks.map(t => [t.id, t]))
@@ -114,8 +115,8 @@ export function createTask(data: {
       description: data.description,
       // Default to 'pending' (skip 'backlog') — tasks created via API are considered already triaged
       status: 'pending',
-      assigneeAgentId: data.assigneeAgentId || null,
-      blockedBy: data.blockedBy || [],
+      assigneeAgentId: data.assigneeAgentId ?? null,
+      blockedBy: data.blockedBy ?? [],
       priority: data.priority,
       createdAt: now,
       updatedAt: now,
@@ -155,20 +156,20 @@ export function updateTask(
       updatedAt: now,
     }
 
-    // Set timestamps based on status changes
-    if ((updates.status === 'in_progress' || updates.status === 'review') && !tasks[index].startedAt) {
-      tasks[index].startedAt = now
-    }
-    if (updates.status === 'completed' && !tasks[index].completedAt) {
-      tasks[index].completedAt = now
-    }
-
-    // Clear timestamps when moving backward in workflow
+    // Clear timestamps first when moving backward in workflow
     if (updates.status && updates.status !== 'completed') {
       tasks[index].completedAt = undefined
     }
     if (updates.status && (updates.status === 'backlog' || updates.status === 'pending')) {
       tasks[index].startedAt = undefined
+    }
+
+    // Then set timestamps based on status changes (after clearing, so intent is unambiguous)
+    if ((updates.status === 'in_progress' || updates.status === 'review') && !tasks[index].startedAt) {
+      tasks[index].startedAt = now
+    }
+    if (updates.status === 'completed' && !tasks[index].completedAt) {
+      tasks[index].completedAt = now
     }
 
     // Find newly unblocked tasks when a task is completed

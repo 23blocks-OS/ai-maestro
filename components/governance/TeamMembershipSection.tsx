@@ -48,12 +48,16 @@ export default function TeamMembershipSection({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showJoinDropdown])
 
-  // Determine which teams this agent can join
+  // Determine which teams this agent can join.
+  // Managers and COS can SEE closed teams in the dropdown, but joining a closed team
+  // requires a transfer request — the Join button opens a transfer request flow rather
+  // than directly adding the agent. Direct joining is only allowed for open teams.
+  // Managers bypass the transfer requirement entirely (they have full authority).
   const memberTeamIds = new Set(memberTeams.map(t => t.id))
-  const canJoinClosedTeams = agentRole === 'manager' || agentRole === 'chief-of-staff'
+  const canSeeClosedTeams = agentRole === 'manager' || agentRole === 'chief-of-staff'
   const joinableTeams = allTeams.filter(t => {
     if (memberTeamIds.has(t.id)) return false
-    if (canJoinClosedTeams) return true
+    if (canSeeClosedTeams) return true
     // Normal agents can only join non-closed teams
     return t.type !== 'closed'
   })
@@ -73,27 +77,61 @@ export default function TeamMembershipSection({
     setInfoMessage(null) // Clear stale info messages before new action
     setLoading(teamId)
     try {
-      // Check if agent is in a closed team — if so, need transfer approval from that team's COS
+      const targetTeam = allTeams.find(t => t.id === teamId)
+
+      // Managers bypass all transfer requirements — they have full authority
+      if (agentRole === 'manager') {
+        const result = await onJoinTeam(teamId)
+        if (result.success) {
+          setShowJoinDropdown(false)
+        } else {
+          setError(result.error || 'Failed to join team')
+        }
+        return
+      }
+
+      // Check if a transfer request is needed. Two scenarios require transfers:
+      // 1. The agent is currently in a closed team led by someone else (source COS must approve departure)
+      // 2. The target team is closed (target COS must approve entry)
+      // Direct joining is only allowed for open teams when the agent is not locked in a closed team.
       const closedSourceTeams = memberTeams.filter(t =>
         t.type === 'closed' && t.chiefOfStaffId && t.chiefOfStaffId !== agentId
       )
+      const targetIsClosed = targetTeam?.type === 'closed'
 
-      if (closedSourceTeams.length > 0 && onRequestTransfer && agentRole !== 'manager') {
-        // Agent is in a closed team led by someone else — create transfer request
-        // Business rule: an agent can only be in one closed team at a time (R3),
-        // so closedSourceTeams.length is always 0 or 1 in valid states.
-        const sourceTeam = closedSourceTeams[0]
+      // Transfer request needed if source team is closed (departure approval)
+      // or target team is closed (entry approval) — either case requires COS oversight
+      const needsTransfer = closedSourceTeams.length > 0 || targetIsClosed
+
+      if (needsTransfer && onRequestTransfer) {
+        // Determine the source team for the transfer request.
+        // If the agent is in a closed team, use that as the source (departure + arrival approval).
+        // If the agent is NOT in a closed team but the target is closed, use the agent's
+        // first team as source context (the target COS still needs to approve entry).
+        const sourceTeam = closedSourceTeams.length > 0
+          ? closedSourceTeams[0]  // Business rule R3: agent can only be in one closed team at a time
+          : memberTeams[0]        // Fallback: use first team as transfer source context
+
+        if (!sourceTeam) {
+          // Agent has no teams yet — cannot create a transfer request, server must enforce
+          setError('Cannot join a closed team without an existing team membership. Contact the team\'s Chief-of-Staff.')
+          return
+        }
+
         const result = await onRequestTransfer(agentId, sourceTeam.id, teamId)
         if (result.success) {
           setShowJoinDropdown(false)
           setError(null)
           // Show info message that transfer is pending
-          setInfoMessage(`Transfer request sent. Awaiting approval from ${sourceTeam.name}'s Chief-of-Staff.`)
+          const approverDesc = targetIsClosed && closedSourceTeams.length === 0
+            ? `${targetTeam?.name || 'target team'}'s`
+            : `${sourceTeam.name}'s`
+          setInfoMessage(`Transfer request sent. Awaiting approval from ${approverDesc} Chief-of-Staff.`)
         } else {
           setError(result.error || 'Failed to request transfer')
         }
       } else {
-        // Direct join (open team, or agent not in a closed team, or agent is MANAGER)
+        // Direct join — only reaches here for open target teams when agent is not in a closed team
         const result = await onJoinTeam(teamId)
         if (result.success) {
           setShowJoinDropdown(false)

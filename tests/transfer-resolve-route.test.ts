@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 // ============================================================================
 // Mocks — must be declared before importing the module under test
@@ -39,8 +39,10 @@ vi.mock('@/lib/governance', () => ({
   isChiefOfStaffAnywhere: (...args: unknown[]) => mockIsChiefOfStaffAnywhere(...args),
 }))
 
+const mockIsValidUuid = vi.fn(() => true)
+
 vi.mock('@/lib/validation', () => ({
-  isValidUuid: vi.fn(() => true),
+  isValidUuid: (...args: unknown[]) => mockIsValidUuid(...args),
 }))
 
 vi.mock('@/lib/agent-registry', () => ({
@@ -158,6 +160,9 @@ function teamsNoConflict() {
 beforeEach(() => {
   vi.clearAllMocks()
 
+  // Default: all UUIDs are valid
+  mockIsValidUuid.mockReturnValue(true)
+
   // Default: lock always succeeds and returns a release function
   mockAcquireLock.mockResolvedValue(vi.fn())
 
@@ -183,7 +188,7 @@ describe('SR-001: multi-closed-team constraint check ordering', () => {
 
     // The constraint check must return 409 conflict
     expect(res.status).toBe(409)
-    expect(data.error).toContain('already in closed team')
+    expect(data.error).toContain('already in another closed team')
 
     // CRITICAL: resolveTransferRequest must NOT have been called — the transfer
     // must remain in 'pending' state on disk, not marked as 'approved'
@@ -191,7 +196,10 @@ describe('SR-001: multi-closed-team constraint check ordering', () => {
   })
 
   it('allows approval when there is no multi-closed-team conflict', async () => {
-    /** Verifies that the constraint check passes and resolveTransferRequest is called when there is no multi-closed conflict */
+    /** Verifies that the constraint check passes and resolveTransferRequest is called when there is no multi-closed conflict, and that the lock is released after completion (CC-020) */
+    const releaseFn = vi.fn()
+    mockAcquireLock.mockResolvedValue(releaseFn)
+
     mockGetTransferRequest.mockReturnValue(pendingTransfer())
     mockLoadTeams.mockReturnValue(teamsNoConflict())
     mockResolveTransferRequest.mockResolvedValue({
@@ -209,6 +217,8 @@ describe('SR-001: multi-closed-team constraint check ordering', () => {
     expect(res.status).toBe(200)
     expect(data.success).toBe(true)
     expect(mockResolveTransferRequest).toHaveBeenCalledOnce()
+    // CC-020: verify the lock release function was called to prevent deadlocks
+    expect(releaseFn).toHaveBeenCalled()
   })
 
   it('still allows rejection even when multi-closed constraint would fail', async () => {
@@ -343,6 +353,92 @@ describe('CC-008: authorization check', () => {
     expect(res.status).toBe(403)
     expect(data.error).toContain('Only the source team COS or MANAGER can resolve this transfer')
     // Transfer must NOT have been resolved
+    expect(mockResolveTransferRequest).not.toHaveBeenCalled()
+  })
+})
+
+// ============================================================================
+// CC-009: 404 when source team not found
+// ============================================================================
+
+describe('CC-009: source team not found', () => {
+  it('returns 404 when the source team does not exist in the teams list', async () => {
+    /** Verifies that the route returns 404 when loadTeams does not include the transfer's fromTeamId, preventing operations on orphaned transfers */
+    mockGetTransferRequest.mockReturnValue(pendingTransfer({ fromTeamId: 'team-source' }))
+    // Return teams that do NOT include 'team-source' — only destination team exists
+    mockLoadTeams.mockReturnValue([
+      {
+        id: 'team-dest',
+        name: 'Dest Team',
+        type: 'closed',
+        chiefOfStaffId: 'cos-dest',
+        agentIds: [],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ])
+
+    const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(data.error).toContain('Source team not found')
+    // Transfer must NOT have been resolved since source team is missing
+    expect(mockResolveTransferRequest).not.toHaveBeenCalled()
+  })
+})
+
+// ============================================================================
+// CC-010: 404 when destination team not found during approval
+// ============================================================================
+
+describe('CC-010: destination team not found during approval', () => {
+  it('returns 404 when the destination team does not exist during approval', async () => {
+    /** Verifies that the route returns 404 when approving a transfer whose destination team no longer exists, preventing agents from being moved to a non-existent team */
+    mockGetTransferRequest.mockReturnValue(pendingTransfer({ fromTeamId: 'team-source', toTeamId: 'team-dest' }))
+    // Return teams that include the source team but NOT the destination team
+    mockLoadTeams.mockReturnValue([
+      {
+        id: 'team-source',
+        name: 'Source Team',
+        type: 'closed',
+        chiefOfStaffId: 'cos-source',
+        agentIds: ['agent-normal'],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ])
+
+    const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
+    const res = await POST(req, makeParams('tr-1'))
+    const data = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(data.error).toContain('Destination team no longer exists')
+    // Transfer must NOT have been resolved since destination team is missing
+    expect(mockResolveTransferRequest).not.toHaveBeenCalled()
+  })
+})
+
+// ============================================================================
+// CC-011: 400 when transfer ID has invalid UUID format
+// ============================================================================
+
+describe('CC-011: invalid transfer ID format', () => {
+  it('returns 400 when the transfer ID fails UUID validation', async () => {
+    /** Verifies that the isValidUuid guard rejects malformed transfer IDs before any further processing occurs */
+    // Make isValidUuid return false for the invalid transfer ID
+    mockIsValidUuid.mockReturnValue(false)
+
+    const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
+    const res = await POST(req, makeParams('not-a-valid-uuid!!!'))
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toContain('Invalid transfer ID format')
+    // No further processing should occur — transfer lookup must be skipped
+    expect(mockGetTransferRequest).not.toHaveBeenCalled()
     expect(mockResolveTransferRequest).not.toHaveBeenCalled()
   })
 })

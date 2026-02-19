@@ -32,7 +32,8 @@ export default function TeamsPage() {
       const data = await res.json()
       const teamsData: Team[] = data.teams || []
 
-      // Fetch task and doc counts for each team in parallel
+      // Phase 1: Client-side count via full fetch. Phase 2: Add /api/teams/[id]/stats endpoint for efficient counts.
+      // (N+1 query pattern: fetches all tasks/documents per team to derive counts)
       const enriched = await Promise.all(
         teamsData.map(async (team) => {
           const [tasksRes, docsRes] = await Promise.all([
@@ -77,6 +78,7 @@ export default function TeamsPage() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setCreating(false)
+        setNewTeamName('')
         setCreateError(null)
         setNameValidation({ error: null, warning: null })
       }
@@ -256,7 +258,7 @@ export default function TeamsPage() {
                     nameValidation.error ? 'border-red-500 focus:border-red-500' : createError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-emerald-500'
                   }`}
                   autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter' && !nameValidation.error) handleCreateTeam(); if (e.key === 'Escape') { setCreating(false); setCreateError(null) } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !nameValidation.error) handleCreateTeam(); if (e.key === 'Escape') { setCreating(false); setNewTeamName(''); setCreateError(null) } }}
                 />
                 {nameValidation.error && (
                   <p className="text-xs text-red-400 mb-1 flex items-center gap-1">

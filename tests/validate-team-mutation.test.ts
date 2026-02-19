@@ -1,8 +1,8 @@
 /**
  * Unit tests for sanitizeTeamName and validateTeamMutation from lib/team-registry.ts
  *
- * Coverage: 15 tests covering name sanitization, name validation, duplicate checks,
- * type validation, COS rules, and multi-closed-team constraints.
+ * Coverage: 18 tests covering name sanitization, name validation, duplicate checks,
+ * type validation, COS rules, COS removal guard, and multi-closed-team constraints.
  *
  * These are PURE functions - no I/O. Only module-level imports (fs, uuid, file-lock)
  * need mocking to allow the module to load.
@@ -239,7 +239,36 @@ describe('validateTeamMutation', () => {
     })
   })
 
-  // --- Multi-closed-team constraint (2 tests) ---
+  // --- COS removal guard (1 test) ---
+
+  describe('COS removal guard', () => {
+    it('rejects removing the COS from agentIds without removing the COS role first (R4.7)', () => {
+      /** An update that drops the COS agent from agentIds while keeping chiefOfStaffId must fail */
+      const existingTeams = [
+        makeTeam({
+          id: 'team-closed',
+          name: 'Closed Team',
+          type: 'closed',
+          chiefOfStaffId: 'cos-agent-id',
+          agentIds: ['cos-agent-id', 'agent-1', 'agent-2'],
+        }),
+      ]
+      // Update agentIds to exclude the COS but do NOT change chiefOfStaffId
+      const result = validateTeamMutation(
+        existingTeams,
+        'team-closed',
+        { agentIds: ['agent-1', 'agent-2'] },
+        null,
+      )
+      expect(result).toEqual({
+        valid: false,
+        error: expect.stringContaining('Cannot remove the Chief-of-Staff from team members'),
+        code: 400,
+      })
+    })
+  })
+
+  // --- Multi-closed-team constraint (4 tests) ---
 
   describe('multi-closed-team constraint', () => {
     it('rejects a normal agent that is already in another closed team (R4.1)', () => {
@@ -293,6 +322,64 @@ describe('validateTeamMutation', () => {
           agentIds: ['agent-cos-new', managerId],
         },
         managerId,
+      )
+      expect(result).toEqual({
+        valid: true,
+        sanitized: { name: 'New Closed Team' },
+      })
+    })
+
+    it('allows an agent assigned as COS in the current mutation to be in multiple closed teams (R4.4 effectiveCOS)', () => {
+      /** An agent being assigned as COS is exempt from the one-closed-team constraint */
+      const cosAgentId = 'agent-promoted-cos'
+      const existingTeams = [
+        makeTeam({
+          id: 'team-existing',
+          name: 'Existing Closed',
+          type: 'closed',
+          chiefOfStaffId: 'agent-cos-existing',
+          agentIds: ['agent-cos-existing', cosAgentId],
+        }),
+      ]
+      const result = validateTeamMutation(
+        existingTeams,
+        null,
+        {
+          name: 'New Closed Team',
+          type: 'closed',
+          chiefOfStaffId: cosAgentId,
+          agentIds: [cosAgentId, 'agent-other'],
+        },
+        null,
+      )
+      expect(result).toEqual({
+        valid: true,
+        sanitized: { name: 'New Closed Team' },
+      })
+    })
+
+    it('allows an agent who is COS in another team to be added to a new closed team (R4.4 isCOSAnywhere)', () => {
+      /** An agent who is already COS of an existing team can join additional closed teams */
+      const cosElsewhere = 'agent-cos-elsewhere'
+      const existingTeams = [
+        makeTeam({
+          id: 'team-other',
+          name: 'Other Closed',
+          type: 'closed',
+          chiefOfStaffId: cosElsewhere,
+          agentIds: [cosElsewhere],
+        }),
+      ]
+      const result = validateTeamMutation(
+        existingTeams,
+        null,
+        {
+          name: 'New Closed Team',
+          type: 'closed',
+          chiefOfStaffId: 'agent-new-cos',
+          agentIds: ['agent-new-cos', cosElsewhere],
+        },
+        null,
       )
       expect(result).toEqual({
         valid: true,

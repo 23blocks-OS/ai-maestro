@@ -91,6 +91,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
     ])
       .then(([govData, teamsData, transfersData]) => {
         if (signal?.aborted) return  // Stale response guard
+        // CC-003: Guard against undefined data (AbortError catch returns undefined)
+        if (!govData || !teamsData || !transfersData) return
         // React 18+ batches these 6 setters into a single re-render automatically
         setHasPassword(govData.hasPassword ?? false)
         setHasManager(govData.hasManager ?? false)
@@ -109,16 +111,22 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setPendingTransfers([])
       })
       .finally(() => {
+        // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)
+        if (signal?.aborted) return
         setLoading(false)
       })
-  }, []) // No deps: only uses fetch + setState, signal is a parameter
+  // CC-009: Empty deps is intentional — refresh only uses fetch (global) + setState (stable),
+  // signal is passed as a parameter. refresh never changes identity, which is the desired behavior.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch on mount and when agentId changes; abort stale requests on re-render
   useEffect(() => {
     const controller = new AbortController()
     refresh(controller.signal)
     return () => controller.abort()
-  }, [agentId, refresh])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (empty deps), only agentId triggers re-fetch
+  }, [agentId])
 
   const setPassword = useCallback(
     async (pw: string, currentPw?: string): Promise<{ success: boolean; error?: string }> => {
@@ -130,7 +138,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to set password' }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to set password' }
@@ -149,7 +157,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign manager' }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign manager' }
@@ -168,7 +176,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign chief-of-staff' }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign chief-of-staff' }
@@ -179,6 +187,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // KNOWN LIMITATION (Phase 1): Client-side read-modify-write pattern.
   // Two concurrent browser tabs modifying the same team's agentIds can cause lost updates.
+  // CC-006: TOCTOU race — Server validates via validateTeamMutation, so client-side
+  // optimistic update may be reverted if the server rejects the mutation.
   // TODO Phase 2: Replace with atomic server-side POST /api/teams/{id}/members endpoint
   // that accepts { action: 'add'|'remove', agentId: string } and performs the operation
   // under withLock, eliminating the race condition entirely.
@@ -208,7 +218,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to add agent to team' }
         }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
@@ -219,6 +229,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // KNOWN LIMITATION (Phase 1): Client-side read-modify-write pattern.
   // Two concurrent browser tabs modifying the same team's agentIds can cause lost updates.
+  // CC-006: TOCTOU race — Server validates via validateTeamMutation, so client-side
+  // optimistic update may be reverted if the server rejects the mutation.
   // TODO Phase 2: Replace with atomic server-side POST /api/teams/{id}/members endpoint
   // that accepts { action: 'add'|'remove', agentId: string } and performs the operation
   // under withLock, eliminating the race condition entirely.
@@ -247,7 +259,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to remove agent from team' }
         }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to remove agent from team' }
@@ -267,7 +279,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to create transfer request' }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true, transferRequest: data.request }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to create transfer request' }
@@ -287,7 +299,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to resolve transfer' }
-        refresh() // TODO: Pass AbortController signal to post-mutation refresh
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to resolve transfer' }

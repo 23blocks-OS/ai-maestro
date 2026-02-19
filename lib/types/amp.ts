@@ -91,6 +91,10 @@ export function parseAMPAddress(address: string): {
   const match = address.match(/^([^@]+)@(.+)$/)
   if (!match) return null
 
+  // Validate name part: only alphanumeric, underscore, hyphen, dot allowed
+  // Prevents spaces, control chars, path traversal sequences (e.g. "../") in agent names
+  if (!/^[a-zA-Z0-9_.-]+$/.test(match[1])) return null
+
   const domain = match[2]
   const dotIndex = domain.indexOf('.')
   if (dotIndex > 0) {

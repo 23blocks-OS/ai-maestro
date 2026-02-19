@@ -25,7 +25,7 @@ export interface TeamAccessResult {
  *
  * Decision order:
  *  1. Web UI (no agentId)      → allowed
- *  2. Team not found           → allowed (caller handles 404)
+ *  2. Team not found           → denied (caller handles 404)
  *  3. Team is open / untyped   → allowed
  *  4. Requester is MANAGER     → allowed
  *  5. Requester is chief-of-staff → allowed
@@ -43,11 +43,10 @@ export function checkTeamAccess(input: TeamAccessInput): TeamAccessResult {
     return { allowed: true }
   }
 
-  // 2. Team not found — let the caller deal with 404
-  // Non-existent team returns allowed: callers check team existence separately
+  // 2. Team not found — deny access; callers should check team existence for 404 responses
   const team = getTeam(input.teamId)
   if (!team) {
-    return { allowed: true }
+    return { allowed: false, reason: 'Team not found' }
   }
 
   // 3. Open teams (or teams with no explicit type) have no ACL

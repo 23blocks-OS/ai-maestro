@@ -5,7 +5,7 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Validates that a string is a valid UUID v4 format.
+ * Validates that a string is a valid UUID format (any version).
  * Used for path parameter validation to prevent path traversal and invalid lookups.
  */
 export function isValidUuid(id: string): boolean {

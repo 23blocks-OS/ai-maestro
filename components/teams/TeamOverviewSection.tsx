@@ -82,6 +82,8 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
   const handleAddAgent = async (agentId: string) => {
     try {
       setError(null)
+      // CC-007: Prevent adding duplicate agent members
+      if (team.agentIds.includes(agentId)) { setError('Agent is already a member'); return }
       const newIds = [...team.agentIds, agentId]
       await onUpdateTeam({ agentIds: newIds })
       setShowAddAgent(false)

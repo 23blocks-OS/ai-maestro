@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadDocuments, createDocument } from '@/lib/document-registry'
 import { getTeam } from '@/lib/team-registry'
+import { isValidUuid } from '@/lib/validation'
+
+// Phase 1: No checkTeamAccess — document routes rely on team existence check only. Phase 2: add ACL.
 
 // GET /api/teams/[id]/documents - List all documents for a team
 export async function GET(
@@ -8,6 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
+  }
   const team = getTeam(id)
   if (!team) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -23,6 +29,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
+    }
     const team = getTeam(id)
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
@@ -33,6 +42,14 @@ export async function POST(
 
     if (!title || typeof title !== 'string') {
       return NextResponse.json({ error: 'title is required' }, { status: 400 })
+    }
+
+    // Validate optional field types to prevent invalid data in storage
+    if (pinned !== undefined && typeof pinned !== 'boolean') {
+      return NextResponse.json({ error: 'pinned must be a boolean' }, { status: 400 })
+    }
+    if (tags !== undefined && (!Array.isArray(tags) || !tags.every((t: unknown) => typeof t === 'string'))) {
+      return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 })
     }
 
     const document = await createDocument({

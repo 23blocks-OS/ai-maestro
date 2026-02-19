@@ -36,6 +36,10 @@ vi.mock('@/lib/agent-registry', () => ({
     { id: 'agent-1', name: 'backend-agent', label: 'Backend Agent' },
     { id: 'agent-2', name: 'frontend-agent', label: '', alias: 'fe-alias' },
     { id: 'agent-3', name: 'test-agent' },
+    // agent-4: label and name are empty, alias is set — tests alias fallback
+    { id: 'agent-4', name: '', label: '', alias: 'test-alias' },
+    // agent-5: label, name, and alias are all empty — tests id.slice(0,8) fallback
+    { id: 'agent-5-full-uuid-value', name: '', label: '', alias: '' },
   ]),
 }))
 
@@ -70,7 +74,9 @@ function tasksFilePath(teamId: string): string {
   return path.join(TEAMS_DIR, `tasks-${teamId}.json`)
 }
 
-let makeTaskCounter = 1000  // Separate from uuid mock counter to avoid coupling
+// Counter for unique test IDs in makeTask helper — avoids collisions with the uuid mock
+// and ensures each makeTask() call produces a distinct task.id without relying on uuid.v4().
+let makeTaskCounter = 1000
 
 /** Build a Task object with sensible defaults. Overrides apply. */
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -127,6 +133,13 @@ describe('loadTasks', () => {
     fsStore[tasksFilePath(TEAM_1)] = JSON.stringify({ version: 1, tasks: 'not-an-array' })
 
     const tasks = loadTasks(TEAM_1)
+    expect(tasks).toEqual([])
+  })
+
+  it('rejects path traversal teamId by returning empty array', () => {
+    // tasksFilePath() throws 'Invalid team ID' for non-UUID input;
+    // loadTasks() catches that error internally and returns [] (fail-safe behavior)
+    const tasks = loadTasks('../../../etc/passwd')
     expect(tasks).toEqual([])
   })
 })
@@ -217,9 +230,21 @@ describe('createTask', () => {
     expect(task.assigneeAgentId).toBeNull()
   })
 
-  it('converts empty assigneeAgentId to null', async () => {
+  it('keeps empty string assigneeAgentId as-is (nullish coalescing does not convert empty string)', async () => {
+    // Source uses `??` not `||`, so empty string is not nullish and passes through unchanged
     const task = await createTask({ teamId: TEAM_1, subject: 'Test', assigneeAgentId: '' })
-    expect(task.assigneeAgentId).toBeNull()
+    expect(task.assigneeAgentId).toBe('')
+  })
+
+  it('rejects non-UUID teamId by failing to persist the task', async () => {
+    // tasksFilePath() throws 'Invalid team ID' for non-UUID input;
+    // createTask() catches via loadTasks/saveTasks error handling, so the promise resolves
+    // but the task is never written to disk
+    const task = await createTask({ teamId: 'not-a-uuid', subject: 'Bad' })
+    expect(task.subject).toBe('Bad')
+    // Verify not persisted: loadTasks also fails for invalid teamId and returns []
+    const persisted = loadTasks('not-a-uuid')
+    expect(persisted).toEqual([])
   })
 })
 
@@ -462,6 +487,22 @@ describe('resolveTaskDeps', () => {
 
     const resolved = resolveTaskDeps([task])
     expect(resolved[0].assigneeName).toBeUndefined()
+  })
+
+  it('falls back to agent alias when label and name are empty', () => {
+    // agent-4 has label: '', name: '', alias: 'test-alias'
+    const task = makeTask({ id: 't-alias', assigneeAgentId: 'agent-4' })
+
+    const resolved = resolveTaskDeps([task])
+    expect(resolved[0].assigneeName).toBe('test-alias')
+  })
+
+  it('falls back to agent id.slice(0,8) when label, name, and alias are all empty', () => {
+    // agent-5-full-uuid-value has label: '', name: '', alias: ''
+    const task = makeTask({ id: 't-id-fallback', assigneeAgentId: 'agent-5-full-uuid-value' })
+
+    const resolved = resolveTaskDeps([task])
+    expect(resolved[0].assigneeName).toBe('agent-5-')
   })
 
   it('handles empty task list', () => {

@@ -40,7 +40,9 @@ interface ResolvedAgent {
 }
 
 /**
- * Parse a qualified name (identifier@host-id)
+ * Parse a qualified name in `name@hostId` format (NOT full AMP addresses like `name@org.aimaestro.local`).
+ * Splits on the first '@' and treats everything after as hostId.
+ * For AMP address parsing, use parseAMPAddress() from lib/types/amp.ts instead.
  */
 function parseQualifiedName(qualifiedName: string): { identifier: string; hostId: string | null } {
   // Use indexOf instead of split to handle multiple '@' signs robustly
@@ -87,8 +89,8 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
     subject: message.subject,
     priority: message.priority,
     timestamp: message.timestamp,
-    // Use 'unsigned' instead of empty string so downstream can distinguish unsigned from missing
-    signature: message.amp?.signature || 'unsigned',
+    // Use nullish coalescing to preserve explicit empty strings; 'unsigned' only when signature is null/undefined
+    signature: message.amp?.signature ?? 'unsigned',
     thread_id: message.inReplyTo || msgIdNormalized,
   }
   if (message.inReplyTo) {
@@ -153,16 +155,21 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   }
 
   // ── Governance: Message Filter ──────────────────────────────────────
-  // Always check when sender is known - use fallback for unresolved recipients
-  // so messages from agents in closed teams are still filtered
-  if (fromAgent?.agentId) {
-    const filterResult = checkMessageAllowed({
-      senderAgentId: fromAgent.agentId,
-      recipientAgentId: toResolved.agentId || toResolved.alias || 'unknown',
-    })
-    if (!filterResult.allowed) {
-      throw new Error(filterResult.reason || 'Message blocked by team governance policy')
-    }
+  // Always check governance regardless of sender resolution.
+  // When sender is unresolved, pass null — checkMessageAllowed already handles
+  // null senders (denies mesh-forward into closed teams).
+  // When recipient is unresolved (both agentId and alias empty), deny by default
+  // to prevent the literal 'unknown' from bypassing closed-team isolation.
+  const recipientIdForFilter = toResolved.agentId || toResolved.alias
+  if (!recipientIdForFilter) {
+    throw new Error('Cannot send message: recipient could not be resolved to any known agent or alias')
+  }
+  const filterResult = checkMessageAllowed({
+    senderAgentId: fromAgent?.agentId || null,
+    recipientAgentId: recipientIdForFilter,
+  })
+  if (!filterResult.allowed) {
+    throw new Error(filterResult.reason || 'Message blocked by team governance policy')
   }
 
   // Determine host info
@@ -238,13 +245,16 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     } : undefined,
   }
 
-  // Content security
-  const { flags: securityFlags } = applyContentSecurity(
+  // Content security — capture sanitized content and apply it to the message
+  // so both local deliver() and remote HTTP forward use the sanitized version
+  const { content: sanitizedContent, flags: securityFlags } = applyContentSecurity(
     message.content,
     isFromVerified,
     message.fromAlias || from,
     fromHostId
   )
+  // Cast back to Message['content'] — applyContentSecurity preserves the type field unchanged
+  message.content = sanitizedContent as Message['content']
   if (securityFlags.length > 0) {
     console.log(`[SECURITY] Message from ${message.fromAlias || from}: ${securityFlags.length} injection pattern(s) flagged`)
   }
@@ -297,13 +307,13 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error(`Remote delivery to ${targetHostId} timed out`)
+        throw new Error(`Remote delivery to ${targetHostId} timed out`, { cause: error })
       }
-      throw new Error(`Failed to deliver message to remote agent: ${error}`)
+      throw new Error(`Failed to deliver message to remote agent`, { cause: error })
     }
   } else {
     // Local recipient
-    const recipientFullAgent = getAgent(toResolved.agentId)
+    const recipientFullAgent = toResolved.agentId ? getAgent(toResolved.agentId) : null
     const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
     const hasNoActiveSession = !toResolved.sessionName ||
       !recipientFullAgent?.sessions?.some((s) => s.status === 'online')
@@ -388,15 +398,18 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
   }
 
   // ── Governance: Message Filter ──────────────────────────────────────
-  // Apply the same governance check as sendFromUI() for forwarded messages
-  if (fromResolved.agentId) {
-    const filterResult = checkMessageAllowed({
-      senderAgentId: fromResolved.agentId,
-      recipientAgentId: toResolved.agentId || toResolved.alias || 'unknown',
-    })
-    if (!filterResult.allowed) {
-      throw new Error(filterResult.reason || 'Message blocked by team governance policy')
-    }
+  // Always check governance for forwarded messages, consistent with sendFromUI().
+  // Deny if recipient cannot be resolved to avoid 'unknown' bypass.
+  const fwdRecipientIdForFilter = toResolved.agentId || toResolved.alias
+  if (!fwdRecipientIdForFilter) {
+    throw new Error('Cannot forward message: recipient could not be resolved to any known agent or alias')
+  }
+  const fwdFilterResult = checkMessageAllowed({
+    senderAgentId: fromResolved.agentId || null,
+    recipientAgentId: fwdRecipientIdForFilter,
+  })
+  if (!fwdFilterResult.allowed) {
+    throw new Error(fwdFilterResult.reason || 'Message blocked by team governance policy')
   }
 
   // Get original message
@@ -503,13 +516,14 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error(`Forward to ${targetHostId} timed out`)
+        throw new Error(`Forward to ${targetHostId} timed out`, { cause: error })
       }
-      throw new Error(`Failed to forward message to remote agent: ${error}`)
+      throw new Error(`Failed to forward message to remote agent`, { cause: error })
     }
   } else {
     // Check if recipient is an AMP-external agent without active session
-    const recipientFullAgent = getAgent(toResolved.agentId)
+    // Guard against empty agentId to avoid wasted getAgent('') lookup
+    const recipientFullAgent = toResolved.agentId ? getAgent(toResolved.agentId) : null
     const isAMPExternalAgent = recipientFullAgent?.metadata?.amp?.registeredVia === 'amp-v1-api'
     const hasNoActiveSession = !toResolved.sessionName ||
       !recipientFullAgent?.sessions?.some((s) => s.status === 'online')

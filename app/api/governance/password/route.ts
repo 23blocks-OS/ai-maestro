@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (!currentPassword || !(await verifyPassword(currentPassword))) {
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        recordFailure('governance-password-change')
+        return NextResponse.json({ error: 'Invalid current password' }, { status: 400 })
+      }
+      if (!(await verifyPassword(currentPassword))) {
         recordFailure('governance-password-change')
         return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
       }

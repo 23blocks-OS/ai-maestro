@@ -24,8 +24,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Team name is required' }, { status: 400 })
     }
 
-    if (agentIds && !Array.isArray(agentIds)) {
-      return NextResponse.json({ error: 'agentIds must be an array' }, { status: 400 })
+    // CC-007: Validate type field is a known team type if provided
+    if (type !== undefined && type !== 'open' && type !== 'closed') {
+      return NextResponse.json({ error: 'type must be "open" or "closed"' }, { status: 400 })
+    }
+
+    // CC-011: Validate agentIds is an array of strings
+    if (agentIds && (!Array.isArray(agentIds) || !agentIds.every((id: unknown) => typeof id === 'string'))) {
+      return NextResponse.json({ error: 'agentIds must be an array of strings' }, { status: 400 })
     }
 
     // Pass managerId for multi-closed-team constraint checks (R4.1)

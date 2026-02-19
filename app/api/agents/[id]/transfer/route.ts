@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
-import { getSelfHost } from '@/lib/hosts-config'
+import { getSelfHost, getHosts } from '@/lib/hosts-config'
 import { isValidUuid } from '@/lib/validation'
 import fs from 'fs'
 import path from 'path'
@@ -12,7 +12,7 @@ const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
 
 // Named HostTransferRequest to avoid collision with governance TransferRequest in transfer-registry.ts
 interface HostTransferRequest {
-  targetHostId: string
+  targetHostId?: string // CC-009: Optional — reserved for Phase 2 hostname validation against hosts.json
   targetHostUrl: string
   mode: 'move' | 'clone'
   newAlias?: string
@@ -36,21 +36,11 @@ export async function POST(
   try {
     const { id } = await params
 
-    // Validate UUID format on path parameter to reject invalid IDs early
-    if (!isValidUuid(id)) {
-      // Fall through to alias lookup if not a valid UUID
-      const agentByAlias = getAgentByAlias(id)
-      if (!agentByAlias) {
-        return NextResponse.json({ error: 'Invalid agent ID format and no matching alias found' }, { status: 400 })
-      }
-    }
-
-    // Find agent by ID or alias
-    let agent = getAgent(id)
+    // CC-003 fix: Resolve agent by UUID or alias in a single pass, no duplicate lookups
+    let agent = isValidUuid(id) ? getAgent(id) : null
     if (!agent) {
       agent = getAgentByAlias(id)
     }
-
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
@@ -64,6 +54,11 @@ export async function POST(
     }
 
     const { targetHostUrl, mode, newAlias, cloneRepositories } = body
+
+    // CC-014 fix: Runtime validation for mode — TypeScript types are not enforced at runtime
+    if (mode !== 'move' && mode !== 'clone') {
+      return NextResponse.json({ error: 'mode must be "move" or "clone"' }, { status: 400 })
+    }
 
     // Validate targetHostUrl is a string type
     if (typeof targetHostUrl !== 'string') {
@@ -93,8 +88,28 @@ export async function POST(
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are supported' }, { status: 400 })
     }
-    // TODO Phase 2: Validate hostname against registered hosts in hosts.json
-    console.log(`[agent-transfer] Transfer initiated to ${parsedUrl.hostname} for agent ${id}`)
+
+    // CC-008 fix: Validate hostname against registered hosts in hosts.json to prevent SSRF.
+    // Block requests to hostnames that are not registered in the mesh network.
+    const registeredHosts = getHosts()
+    const targetHostname = parsedUrl.hostname.toLowerCase()
+    const isRegisteredHost = registeredHosts.some(h => {
+      try {
+        const hostUrl = new URL(h.url)
+        return hostUrl.hostname.toLowerCase() === targetHostname
+      } catch {
+        return false
+      }
+    })
+    if (!isRegisteredHost) {
+      return NextResponse.json(
+        { error: 'Target host is not registered in hosts.json. Register the host before transferring agents.' },
+        { status: 400 }
+      )
+    }
+
+    // CC-016 fix: Redact agent ID from log to prevent info leakage in multi-user scenarios
+    console.log(`[agent-transfer] Transfer initiated to ${parsedUrl.hostname}`)
 
     // Step 1: Export the agent
     // Call our own export API - use self host URL, never localhost

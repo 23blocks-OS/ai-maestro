@@ -71,6 +71,7 @@ export async function PUT(
 }
 
 // DELETE /api/teams/[id] - Delete a team
+// Phase 1: localhost-only, no X-Agent-Id auth required. Phase 2: require authenticated agent identity for delete operations.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

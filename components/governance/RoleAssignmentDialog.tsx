@@ -87,13 +87,22 @@ export default function RoleAssignmentDialog({
     }
   }, [isOpen, currentRole, governance.cosTeams])
 
+  // CC-009: Defensive close handler — resets internal state before calling parent onClose,
+  // so stale state never persists even if parent does not toggle isOpen immediately.
+  const handleClose = useCallback(() => {
+    setSelectedTeamIds([])
+    setError(null)
+    setPhase('select')
+    onClose()
+  }, [onClose])
+
   // Close dialog on Escape key press
   useEffect(() => {
     if (!isOpen) return
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [isOpen, onClose])
+  }, [isOpen, handleClose])
 
   // Agent name lookup map for resolving COS UUIDs to human-readable names (R7.8)
   const [agentNameMap, setAgentNameMap] = useState<Map<string, string>>(new Map())
@@ -129,6 +138,7 @@ export default function RoleAssignmentDialog({
       // For COS, check if team selection changed
       const currentCosTeamIds = governance.cosTeams.map((t) => t.id).sort()
       const selected = [...selectedTeamIds].sort()
+      // JSON.stringify for shallow array comparison — acceptable for small team ID arrays
       if (JSON.stringify(currentCosTeamIds) === JSON.stringify(selected)) return true
     }
     // COS requires at least one team selected
@@ -156,7 +166,8 @@ export default function RoleAssignmentDialog({
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         } else if (currentRole === 'chief-of-staff') {
-          // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
+          // Sequential removal — partial failure is acceptable since each removal is independent.
+          // Server state is consistent after each step.
           for (const team of governance.cosTeams) {
             const result = await governance.assignCOS(team.id, null, password)
             if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
@@ -165,7 +176,8 @@ export default function RoleAssignmentDialog({
       } else if (selectedRole === 'manager') {
         // Promote to manager: first remove COS if needed, then assign manager
         if (currentRole === 'chief-of-staff') {
-          // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
+          // Sequential removal — partial failure is acceptable since each removal is independent.
+          // Server state is consistent after each step.
           for (const team of governance.cosTeams) {
             const result = await governance.assignCOS(team.id, null, password)
             if (!result.success) throw new Error(result.error || `Failed to remove COS from team ${team.name}`)
@@ -180,7 +192,8 @@ export default function RoleAssignmentDialog({
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')
         }
         // Remove COS from teams no longer selected
-        // Note: COS removal is sequential; partial failure leaves agent in partially-demoted state. Server-side enforcement prevents inconsistency.
+        // Sequential removal — partial failure is acceptable since each removal is independent.
+        // Server state is consistent after each step.
         if (currentRole === 'chief-of-staff') {
           for (const team of governance.cosTeams) {
             if (!selectedTeamIds.includes(team.id)) {
@@ -189,7 +202,10 @@ export default function RoleAssignmentDialog({
             }
           }
         }
-        for (const teamId of selectedTeamIds) {
+        // CC-001: Only assign COS to teams where this agent is not already COS — avoids redundant API calls
+        const existingCosTeamIds = governance.cosTeams.map(t => t.id)
+        const newTeamIds = selectedTeamIds.filter(id => !existingCosTeamIds.includes(id))
+        for (const teamId of newTeamIds) {
           const result = await governance.assignCOS(teamId, agentId, password)
           if (!result.success) throw new Error(result.error || 'Failed to assign chief-of-staff')
         }
@@ -197,7 +213,7 @@ export default function RoleAssignmentDialog({
 
       // Success: notify parent and close
       onRoleChanged()
-      onClose()
+      handleClose()
     } catch (err: unknown) {
       governance.refresh()  // Reload actual state after partial failure
       setError(err instanceof Error ? err.message : 'Failed to update governance role')
@@ -220,7 +236,7 @@ export default function RoleAssignmentDialog({
   return (
     <AnimatePresence>
       {isOpen && (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={handleClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -244,7 +260,7 @@ export default function RoleAssignmentDialog({
                   </div>
                 </div>
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="p-2 rounded-lg hover:bg-gray-800 transition-all text-gray-400 hover:text-gray-200"
                 >
                   <X className="w-5 h-5" />
@@ -346,7 +362,7 @@ export default function RoleAssignmentDialog({
             {/* Footer */}
             <div className="border-t border-gray-800 px-6 py-4 flex items-center justify-end gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
               >
                 Cancel
@@ -382,7 +398,7 @@ export default function RoleAssignmentDialog({
             </div>
             <div className="flex items-center justify-end gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
               >
                 Close

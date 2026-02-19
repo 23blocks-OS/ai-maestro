@@ -19,6 +19,10 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
+    copyFileSync: vi.fn((src: string, dest: string) => {
+      if (src in fsStore) fsStore[dest] = fsStore[src]
+      else throw new Error(`ENOENT: no such file or directory, copy '${src}'`)
+    }),
   },
 }))
 
@@ -30,6 +34,8 @@ vi.mock('uuid', () => ({
   }),
 }))
 
+// Note: Mock uses simple string comparison, not constant-time comparison like real bcrypt.
+// This is acceptable for Phase 1 (localhost-only) — timing-attack resistance is not tested here.
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn((plain: string, _rounds: number) => Promise.resolve(`hashed:${plain}`)),
@@ -116,6 +122,34 @@ describe('loadGovernance', () => {
     expect(config.passwordHash).toBe('hashed:secret123')
     expect(config.passwordSetAt).toBe('2025-06-01T12:00:00.000Z')
     expect(config.managerId).toBe('agent-mgr-001')
+  })
+
+  it('returns defaults and backs up when governance file contains invalid JSON', async () => {
+    /** CC-015: Verifies that corrupted governance.json triggers fallback to defaults, backup of corrupt file, and self-healing write */
+    // Seed with invalid JSON to simulate disk corruption
+    fsStore[GOVERNANCE_FILE] = '{not-valid-json'
+
+    const config = loadGovernance()
+
+    // Must return DEFAULT_GOVERNANCE_CONFIG values
+    expect(config.managerId).toBeNull()
+    expect(config.passwordHash).toBeNull()
+    expect(config.version).toBe(1)
+    expect(config.passwordSetAt).toBeNull()
+
+    // Verify corrupt file was backed up (copyFileSync called with governance file as source)
+    const fsMock = (await import('fs')).default
+    expect(fsMock.copyFileSync).toHaveBeenCalledWith(
+      GOVERNANCE_FILE,
+      expect.stringContaining('.corrupted.')
+    )
+
+    // Verify self-healing: defaults written back to disk after corruption
+    expect(fsMock.writeFileSync).toHaveBeenCalled()
+    const writtenData = JSON.parse(fsStore[GOVERNANCE_FILE])
+    expect(writtenData.managerId).toBeNull()
+    expect(writtenData.passwordHash).toBeNull()
+    expect(writtenData.version).toBe(1)
   })
 })
 

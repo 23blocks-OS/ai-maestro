@@ -53,20 +53,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy are required' }, { status: 400 })
     }
 
-    // Validate string types to reject numbers, booleans, objects etc.
-    if (typeof agentId !== 'string' || typeof fromTeamId !== 'string' || typeof toTeamId !== 'string') {
-      return NextResponse.json({ error: 'agentId, fromTeamId, and toTeamId must be strings' }, { status: 400 })
+    // Validate string types for all ID fields to reject numbers, booleans, objects etc. (CC-003)
+    if (typeof agentId !== 'string' || typeof fromTeamId !== 'string' || typeof toTeamId !== 'string' || typeof requestedBy !== 'string') {
+      return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy must be strings' }, { status: 400 })
     }
 
-    // Validate UUID format for all ID fields to prevent path traversal and invalid lookups
-    if (!isValidUuid(agentId) || !isValidUuid(fromTeamId) || !isValidUuid(toTeamId)) {
+    // Validate UUID format for all ID fields to prevent path traversal and invalid lookups (CC-001)
+    if (!isValidUuid(agentId) || !isValidUuid(fromTeamId) || !isValidUuid(toTeamId) || !isValidUuid(requestedBy)) {
       return NextResponse.json({ error: 'Invalid UUID format' }, { status: 400 })
     }
 
-    // Note: requestedBy is validated for authority (manager/COS) but not existence.
-    // The authority check effectively validates the ID since only registered agents can be manager/COS.
+    // requestedBy is now UUID-validated above; also check authority (manager/COS)
     if (!isManager(requestedBy) && !isChiefOfStaffAnywhere(requestedBy)) {
       return NextResponse.json({ error: 'Only MANAGER or Chief-of-Staff can request transfers' }, { status: 403 })
+    }
+
+    // Validate optional note field: must be a string with max 1000 chars (CC-007)
+    if (note !== undefined && note !== null) {
+      if (typeof note !== 'string') {
+        return NextResponse.json({ error: 'note must be a string' }, { status: 400 })
+      }
+      if (note.length > 1000) {
+        return NextResponse.json({ error: 'note must not exceed 1000 characters' }, { status: 400 })
+      }
+    }
+
+    // Validate optional free-text fields max length to prevent oversized payloads (CC-008)
+    if (body.rejectReason !== undefined && body.rejectReason !== null) {
+      if (typeof body.rejectReason !== 'string' || body.rejectReason.length > 500) {
+        return NextResponse.json({ error: 'rejectReason must be a string of at most 500 characters' }, { status: 400 })
+      }
+    }
+    if (body.resolution !== undefined && body.resolution !== null) {
+      if (typeof body.resolution !== 'string' || body.resolution.length > 500) {
+        return NextResponse.json({ error: 'resolution must be a string of at most 500 characters' }, { status: 400 })
+      }
     }
 
     // Validate source and destination are different teams (R5.6)

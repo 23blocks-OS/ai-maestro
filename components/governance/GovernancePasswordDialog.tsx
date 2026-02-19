@@ -8,7 +8,7 @@ interface GovernancePasswordDialogProps {
   isOpen: boolean
   onClose: () => void
   mode: 'setup' | 'confirm'
-  onPasswordConfirmed: (password: string) => void
+  onPasswordConfirmed: (password: string) => void | Promise<void>
 }
 
 export default function GovernancePasswordDialog({
@@ -91,8 +91,16 @@ export default function GovernancePasswordDialog({
       }
     } else {
       // Confirm mode: pass the password back to the caller for server-side validation
-      onPasswordConfirmed(password)
-      setPassword('')
+      // Wrapped in try/catch with submitting state to match setup mode's error handling pattern (CC-002)
+      setSubmitting(true)
+      try {
+        await onPasswordConfirmed?.(password)
+        setPassword('')
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Confirmation failed')
+      } finally {
+        setSubmitting(false)
+      }
     }
   }
 
@@ -159,6 +167,9 @@ export default function GovernancePasswordDialog({
                 setPassword(e.target.value)
                 setError(null)
               }}
+              // CC-015: No stale closure risk -- React inline event handlers always capture the
+              // latest render's closure, so `password`, `isSubmitDisabled`, and `handleSubmit`
+              // are always current without needing useCallback or a dependency array.
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !isSubmitDisabled) handleSubmit()
               }}

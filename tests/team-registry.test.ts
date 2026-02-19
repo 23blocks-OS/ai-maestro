@@ -55,6 +55,8 @@ import type { Team } from '@/types/team'
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
 const TEAMS_FILE = path.join(TEAMS_DIR, 'teams.json')
 
+// Counter for generating unique IDs in the makeTeam helper (e.g. "team-1", "team-2").
+// Reset to 0 in beforeEach to ensure test isolation between test cases.
 let makeTeamCounter = 0
 
 function makeTeam(overrides: Partial<Team> = {}): Team {
@@ -109,6 +111,17 @@ describe('loadTeams', () => {
 // ============================================================================
 
 describe('saveTeams', () => {
+  it('returns true and writes teams in versioned format', () => {
+    const teams = [makeTeam({ id: 'team-s1', name: 'Saved' })]
+    const result = saveTeams(teams)
+
+    expect(result).toBe(true)
+    expect(fsStore[TEAMS_FILE]).toBeDefined()
+
+    const written = JSON.parse(fsStore[TEAMS_FILE])
+    expect(written).toEqual({ version: 1, teams })
+  })
+
   it('returns false when writeFileSync throws', async () => {
     const fs = await import('fs')
     vi.mocked(fs.default.writeFileSync).mockImplementationOnce(() => {

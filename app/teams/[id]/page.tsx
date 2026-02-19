@@ -101,7 +101,7 @@ export default function TeamDashboardPage() {
               team={team}
               agents={agents}
               agentsLoading={agentsLoading}
-              agentsError={agentsError ? agentsError.message : null}
+              agentsError={agentsError instanceof Error ? agentsError.message : agentsError ? String(agentsError) : null}
               onRetryAgents={refreshAgents}
               taskCount={tasks.length}
               docCount={documents.length}

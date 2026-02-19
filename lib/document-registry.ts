@@ -21,7 +21,11 @@ function ensureTeamsDir() {
 }
 
 function docsFilePath(teamId: string): string {
-  return path.join(TEAMS_DIR, `docs-${teamId}.json`)
+  // Validate teamId is a strict UUID to prevent path traversal (CC-001)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId))
+    throw new Error('Invalid team ID')
+  // path.basename() as defense-in-depth against directory traversal
+  return path.join(TEAMS_DIR, path.basename(`docs-${teamId}.json`))
 }
 
 export function loadDocuments(teamId: string): TeamDocument[] {
@@ -73,8 +77,8 @@ export function createDocument(data: {
       teamId: data.teamId,
       title: data.title,
       content: data.content,
-      pinned: data.pinned || false,
-      tags: data.tags || [],
+      pinned: data.pinned ?? false,
+      tags: data.tags ?? [],
       createdAt: now,
       updatedAt: now,
     }

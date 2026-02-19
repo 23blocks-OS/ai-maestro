@@ -38,7 +38,7 @@ export interface Message {
   priority: 'low' | 'normal' | 'high' | 'urgent'
   status: 'unread' | 'read' | 'archived'
   content: {
-    type: 'request' | 'response' | 'notification' | 'update'
+    type: 'request' | 'response' | 'notification' | 'alert' | 'task' | 'status' | 'handoff' | 'ack' | 'update' | 'system' // Aligned with AMPPayload.type in lib/types/amp.ts
     message: string
     context?: Record<string, any>
     attachments?: Array<{
@@ -82,7 +82,7 @@ export interface MessageSummary {
   subject: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
   status: 'unread' | 'read' | 'archived'
-  type: 'request' | 'response' | 'notification' | 'update'
+  type: 'request' | 'response' | 'notification' | 'alert' | 'task' | 'status' | 'handoff' | 'ack' | 'update' | 'system' // Aligned with Message.content.type
   preview: string
   viaSlack?: boolean  // True if message originated from Slack bridge
 }

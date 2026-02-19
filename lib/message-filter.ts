@@ -9,6 +9,7 @@
 
 import { loadGovernance } from './governance'
 import { loadTeams } from './team-registry'
+import { isValidUuid } from './validation'
 
 export interface MessageFilterInput {
   senderAgentId: string | null // null = mesh-forwarded message
@@ -59,7 +60,7 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
 
   // Step 1b: Unresolved recipient (alias instead of UUID) with sender in closed team → deny
   // Prevents governance bypass via alias that skips agentIds membership checks
-  const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}/.test(recipientAgentId)
+  const isUuidLike = isValidUuid(recipientAgentId)
   if (!isUuidLike) {
     const senderInClosedTeam = closedTeams.some(t => t.agentIds.includes(senderAgentId))
     if (senderInClosedTeam) {
@@ -77,6 +78,7 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   const recipientInClosed = recipientTeams.length > 0
 
   // Helper: is the given agentId the manager?
+  // When governance.managerId is null (no manager appointed), this returns false for all agents.
   const agentIsManager = (id: string) => governance.managerId === id
   // Helper: is the given agentId chief-of-staff in any closed team?
   const agentIsCOS = (id: string) => closedTeams.some(t => t.chiefOfStaffId === id)

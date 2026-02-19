@@ -36,6 +36,10 @@ export async function POST(
     if (!action || !resolvedBy) {
       return NextResponse.json({ error: 'action and resolvedBy are required' }, { status: 400 })
     }
+    // Defense-in-depth: validate resolvedBy as UUID before authority check (CC-002)
+    if (!isValidUuid(resolvedBy)) {
+      return NextResponse.json({ error: 'Invalid resolvedBy UUID format' }, { status: 400 })
+    }
     if (action !== 'approve' && action !== 'reject') {
       return NextResponse.json({ error: 'action must be "approve" or "reject"' }, { status: 400 })
     }
@@ -96,7 +100,7 @@ export async function POST(
             )
             if (otherClosedTeam) {
               return NextResponse.json({
-                error: `Agent is already in closed team "${otherClosedTeam.name}" — normal agents can only be in one closed team`,
+                error: 'Agent is already in another closed team — normal agents can only be in one closed team',
               }, { status: 409 })
             }
           }

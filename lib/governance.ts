@@ -49,6 +49,8 @@ export function loadGovernance(): GovernanceConfig {
         fs.copyFileSync(GOVERNANCE_FILE, backupPath)
         console.error(`[governance] Corrupted config backed up to ${backupPath}`)
       } catch { /* backup is best-effort */ }
+      // Heal the corrupted file by writing defaults, matching the first-time init path (lines 34-36)
+      saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
     } else {
       console.error('[governance] Failed to read governance config:', error)
     }
@@ -60,6 +62,8 @@ export function loadGovernance(): GovernanceConfig {
 export function saveGovernance(config: GovernanceConfig): void {
   // Fail-fast: let errors propagate to callers (all wrapped in withLock try/catch)
   ensureAimaestroDir()
+  // Phase 1: non-atomic write acceptable for single-process localhost.
+  // Phase 2: use temp+rename for atomicity (write to tmp file, then fs.renameSync to target).
   fs.writeFileSync(GOVERNANCE_FILE, JSON.stringify(config, null, 2), 'utf-8')
 }
 
@@ -74,6 +78,8 @@ export async function setPassword(plaintext: string): Promise<void> {
 }
 
 // Phase 1: No lock on read. Minor TOCTOU with setPassword(). Acceptable for single-user localhost.
+// Returns false for both 'no password set' and 'wrong password'.
+// Callers should check hasPassword (config.passwordHash) separately if they need to distinguish.
 /** Verify plaintext against stored password hash. Returns false if no password set. */
 export async function verifyPassword(plaintext: string): Promise<boolean> {
   const config = loadGovernance()
@@ -122,6 +128,9 @@ export function isManager(agentId: string): boolean {
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Check if agentId is chief-of-staff for a specific team */
 export function isChiefOfStaff(agentId: string, teamId: string): boolean {
+  // Guard against null/undefined agentId to prevent false positive from null === null
+  // (mirrors the defensive pattern in isManager above)
+  if (!agentId) return false
   const team = getTeam(teamId)
   if (!team) return false
   return team.chiefOfStaffId === agentId

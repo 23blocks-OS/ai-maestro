@@ -65,6 +65,9 @@ export interface Host {
     docker?: boolean
     dockerVersion?: string
   }
+
+  /** Ed25519 public key hex for role attestation verification (Layer 2) */
+  publicKeyHex?: string
 }
 
 export interface HostsConfig {

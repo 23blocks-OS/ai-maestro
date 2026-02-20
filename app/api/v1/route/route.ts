@@ -20,7 +20,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
 
   const body = await request.json() as AMPRouteRequest
 
-  const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength)
+  const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength, {
+    senderRole: request.headers.get('X-AMP-Sender-Role'),
+    senderAgentId: request.headers.get('X-AMP-Sender-Agent-Id'),
+    senderRoleAttestation: request.headers.get('X-AMP-Sender-Role-Attestation'),
+  })
   return NextResponse.json(result.data!, {
     status: result.status,
     headers: result.headers

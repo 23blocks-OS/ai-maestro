@@ -340,3 +340,143 @@ describe('checkMessageAllowed', () => {
     expect(result.reason).toContain('Cannot message agents in closed teams from outside')
   })
 })
+
+// ============================================================================
+// Layer 2: attestation-aware mesh messages (10 scenarios)
+// Tests cross-host messages where senderAgentId is null but the sending host
+// provides a verified role attestation (senderRole + senderHostId).
+// ============================================================================
+
+describe('Layer 2: attestation-aware mesh messages', () => {
+  // Identifiers for remote host attestation
+  const REMOTE_HOST = 'host-00000000-0000-0000-0000-000000000099'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: MANAGER, passwordHash: null, passwordSetAt: null })
+    // Default: one closed team with COS_ALPHA as COS and MEMBER_A1/MEMBER_A2 as members
+    const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1, MEMBER_A2], COS_ALPHA)
+    mockLoadTeams.mockReturnValue([teamAlpha])
+  })
+
+  it('allows attested MANAGER mesh message to closed-team recipient (R6.3 cross-host)', () => {
+    /** Attested MANAGER from remote host can reach any agent, even inside closed teams */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MEMBER_A1,
+      senderRole: 'manager',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('allows attested MANAGER mesh message to open-world recipient', () => {
+    /** Attested MANAGER can reach open-world agents too — trivially allowed */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: OUTSIDER,
+      senderRole: 'manager',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('allows attested COS mesh message to MANAGER recipient', () => {
+    /** Cross-host COS can always reach the MANAGER — COS→MANAGER bridge */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MANAGER,
+      senderRole: 'chief-of-staff',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('allows attested COS mesh message to another COS recipient', () => {
+    /** Cross-host COS can reach any local COS — COS-to-COS bridge */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: COS_ALPHA,
+      senderRole: 'chief-of-staff',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('allows attested COS mesh message to agent not in any closed team', () => {
+    /** Cross-host COS can reach open-world agents — not in any closed team */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: OUTSIDER,
+      senderRole: 'chief-of-staff',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('denies attested COS mesh message to normal closed-team member', () => {
+    /** Cross-host COS cannot reach a closed-team member — no same-team verification at Layer 2 */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MEMBER_A1,
+      senderRole: 'chief-of-staff',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toContain('Cross-host COS message denied')
+    expect(result.reason).toContain('closed team')
+  })
+
+  it('denies attested member mesh message to closed-team recipient', () => {
+    /** Attested member role has no special privileges — falls through to no-attestation denial */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MEMBER_A1,
+      senderRole: 'member',
+      senderHostId: REMOTE_HOST,
+    })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toContain('Mesh message denied')
+    expect(result.reason).toContain('closed team')
+  })
+
+  it('denies no-attestation mesh message to closed-team recipient (original behavior)', () => {
+    /** No senderRole/senderHostId — original mesh-forward denial for closed-team recipients */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MEMBER_A1,
+    })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toContain('Mesh message denied')
+    expect(result.reason).toContain('closed team')
+  })
+
+  it('allows no-attestation mesh message to open-world recipient (original behavior)', () => {
+    /** No attestation, recipient not in closed team — original allow behavior */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: OUTSIDER,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('denies attested MANAGER with no senderHostId (incomplete attestation) to closed-team recipient', () => {
+    /** senderRole=manager but senderHostId missing — attestation is incomplete, falls through to no-attestation path */
+    const result = checkMessageAllowed({
+      senderAgentId: null,
+      recipientAgentId: MEMBER_A1,
+      senderRole: 'manager',
+      senderHostId: null,
+    })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toContain('Mesh message denied')
+    expect(result.reason).toContain('closed team')
+  })
+})

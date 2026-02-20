@@ -90,3 +90,14 @@ export interface GovernancePeerState {
   lastSyncAt: string         // ISO — when this peer last sent us an update
   ttl: number                // Seconds before this data is considered stale (default 300)
 }
+
+// ─── Cross-Host Role Attestation (Layer 2) ──────────────────────────────────
+
+/** Signed role attestation for cross-host mesh messages */
+export interface HostAttestation {
+  role: 'manager' | 'chief-of-staff' | 'member'
+  agentId: string
+  hostId: string
+  timestamp: string  // ISO
+  signature: string  // base64
+}

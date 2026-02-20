@@ -10,10 +10,14 @@
 import { loadGovernance } from './governance'
 import { loadTeams } from './team-registry'
 import { isValidUuid } from './validation'
+import type { AgentRole } from '@/types/agent'
 
 export interface MessageFilterInput {
-  senderAgentId: string | null // null = mesh-forwarded message
+  senderAgentId: string | null // null = mesh-forwarded message with no attestation
   recipientAgentId: string
+  // Layer 2: attested sender identity from a verified role attestation (cross-host)
+  senderRole?: AgentRole | null       // verified governance role from attestation
+  senderHostId?: string | null        // host that signed the attestation
 }
 
 export interface MessageFilterResult {
@@ -47,11 +51,36 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   // Derive closed-team membership from the single snapshot
   const closedTeams = teams.filter(t => t.type === 'closed')
 
-  // Step 1: Mesh-forwarded messages — deny if recipient is in a closed team (unverified sender)
+  // Step 1: Mesh-forwarded messages — apply attestation-aware rules
   if (senderAgentId === null) {
-    // Mesh-forwarded message: allow unless recipient is in a closed team
-    // TODO Phase 2: Verify mesh sender identity against registered hosts
     const recipientInClosedTeam = closedTeams.some(t => t.agentIds.includes(recipientAgentId))
+
+    // Layer 2: If sender has a verified role attestation, apply governance rules
+    if (input.senderRole && input.senderHostId) {
+      // Attested MANAGER: always allowed (R6.3 cross-host)
+      if (input.senderRole === 'manager') {
+        return { allowed: true }
+      }
+      // Attested COS: can reach MANAGER, other COS, open-world agents
+      if (input.senderRole === 'chief-of-staff') {
+        // COS → MANAGER: always allowed
+        if (governance.managerId === recipientAgentId) {
+          return { allowed: true }
+        }
+        // COS → other COS: allowed
+        if (closedTeams.some(t => t.chiefOfStaffId === recipientAgentId)) {
+          return { allowed: true }
+        }
+        // COS → agent not in any closed team: allowed
+        if (!recipientInClosedTeam) {
+          return { allowed: true }
+        }
+        // COS → closed-team member: denied unless same team (requires peer cache lookup — Layer 3+)
+        return { allowed: false, reason: 'Cross-host COS message denied: recipient is in a closed team on this host' }
+      }
+    }
+
+    // No attestation or member role: deny if recipient is in a closed team (unverified sender)
     if (recipientInClosedTeam) {
       return { allowed: false, reason: 'Mesh message denied: recipient is in a closed team and sender identity is unverified' }
     }

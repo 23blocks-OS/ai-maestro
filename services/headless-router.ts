@@ -1012,6 +1012,12 @@ const routes: Route[] = [
       getHeader(req, 'X-AMP-Envelope-Id'),
       getHeader(req, 'X-AMP-Signature'),
       getHeader(req, 'Content-Length'),
+      // Layer 2: pass attestation headers for mesh-forwarded role verification
+      {
+        senderRole: getHeader(req, 'X-AMP-Sender-Role'),
+        senderAgentId: getHeader(req, 'X-AMP-Sender-Agent-Id'),
+        senderRoleAttestation: getHeader(req, 'X-AMP-Sender-Role-Attestation'),
+      },
     )
     sendServiceResult(res, result)
   }},

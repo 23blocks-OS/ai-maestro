@@ -35,6 +35,10 @@ import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader,
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
+import { checkMessageAllowed } from '@/lib/message-filter'
+import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { createRoleAttestation, serializeAttestation, deserializeAttestation, verifyRoleAttestation } from '@/lib/role-attestation'
+import { getHostPublicKeyHex } from '@/lib/host-keys'
 import { deliverViaWebSocket } from '@/lib/amp-websocket'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getSelfHost, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
@@ -328,13 +332,16 @@ function generateMessageId(): string {
 
 /**
  * Forward a message to a remote mesh host via HTTP.
+ * If senderAttestation is provided, includes role attestation headers
+ * so the receiving host can verify the sender's governance role.
  */
 async function forwardToHost(
   remoteHost: { url: string; id: string },
   recipientName: string,
   envelope: AMPEnvelope,
   body: AMPRouteRequest,
-  selfHostId: string
+  selfHostId: string,
+  senderAttestation?: { role: string; agentId: string; attestationBase64: string }
 ): Promise<{ ok: boolean; result?: Record<string, unknown>; error?: string }> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), FORWARD_TIMEOUT_MS)
@@ -348,6 +355,12 @@ async function forwardToHost(
         'X-Forwarded-From': selfHostId,
         'X-AMP-Envelope-Id': envelope.id,
         ...(envelope.signature ? { 'X-AMP-Signature': envelope.signature } : {}),
+        // Layer 2: Include role attestation headers when sender has a privileged role
+        ...(senderAttestation ? {
+          'X-AMP-Sender-Role': senderAttestation.role,
+          'X-AMP-Sender-Agent-Id': senderAttestation.agentId,
+          'X-AMP-Sender-Role-Attestation': senderAttestation.attestationBase64,
+        } : {}),
       },
       body: JSON.stringify({
         from: envelope.from,
@@ -731,17 +744,28 @@ export async function registerAgent(
 // POST /api/v1/route
 // ---------------------------------------------------------------------------
 
+/** Optional attestation headers extracted from incoming mesh-forwarded requests */
+export interface MeshAttestationHeaders {
+  senderRole: string | null
+  senderAgentId: string | null
+  senderRoleAttestation: string | null
+}
+
 export async function routeMessage(
   body: AMPRouteRequest,
   authHeader: string | null,
   forwardedFrom: string | null,
   envelopeIdHeader: string | null,
   signatureHeader: string | null,
-  contentLength: string | null
+  contentLength: string | null,
+  attestationHeaders?: MeshAttestationHeaders
 ): Promise<ServiceResult<AMPRouteResponse | AMPError>> {
   try {
     // ── Authentication ─────────────────────────────────────────────────
     let auth = authenticateRequest(authHeader)
+    // Layer 2: verified sender role from attestation (null until verified below)
+    let verifiedSenderRole: string | null = null
+    let verifiedSenderAgentId: string | null = null
 
     if (!auth.authenticated && forwardedFrom) {
       const forwardingHost = getHostById(forwardedFrom)
@@ -752,7 +776,22 @@ export async function routeMessage(
           tenantId: getOrganization() || 'default',
           address: `mesh@${forwardedFrom}`
         }
-        console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom} (signature NOT verified -- trusted host)`)
+
+        // Layer 2: Verify role attestation if present
+        if (attestationHeaders?.senderRoleAttestation && forwardingHost.publicKeyHex) {
+          const attestation = deserializeAttestation(attestationHeaders.senderRoleAttestation)
+          if (attestation && verifyRoleAttestation(attestation, forwardingHost.publicKeyHex)) {
+            verifiedSenderRole = attestation.role
+            verifiedSenderAgentId = attestation.agentId
+            // Override the generic mesh-* agentId with the attested real agent ID
+            auth.agentId = attestation.agentId
+            console.log(`[AMP Route] Verified role attestation from ${forwardedFrom}: agent=${attestation.agentId} role=${attestation.role}`)
+          } else {
+            console.warn(`[AMP Route] Invalid role attestation from ${forwardedFrom} — ignoring`)
+          }
+        } else {
+          console.log(`[AMP Route] Accepting mesh-forwarded request from ${forwardedFrom} (no attestation)`)
+        }
       }
     }
 
@@ -815,7 +854,11 @@ export async function routeMessage(
     }
 
     // ── Sender Resolution ──────────────────────────────────────────────
-    const isMeshForwarded = !!forwardedFrom && auth.agentId?.startsWith('mesh-')
+    // Layer 2: isMeshForwarded is true if original request was forwarded AND auth is mesh-*
+    // OR if it was forwarded and we have verified attestation (auth.agentId overridden)
+    const isMeshForwarded = !!forwardedFrom && (
+      auth.agentId?.startsWith('mesh-') || !!verifiedSenderAgentId
+    )
     const senderAgent = isMeshForwarded ? null : getAgent(auth.agentId!)
 
     if (!senderAgent && !isMeshForwarded) {
@@ -995,8 +1038,21 @@ export async function routeMessage(
         }
       }
 
+      // Layer 2: Create role attestation if sender has a privileged governance role
+      let senderAttestation: { role: string; agentId: string; attestationBase64: string } | undefined
+      if (auth.agentId && !isMeshForwarded) {
+        const agentId = auth.agentId
+        if (isManager(agentId)) {
+          const attestation = createRoleAttestation(agentId, 'manager')
+          senderAttestation = { role: 'manager', agentId, attestationBase64: serializeAttestation(attestation) }
+        } else if (isChiefOfStaffAnywhere(agentId)) {
+          const attestation = createRoleAttestation(agentId, 'chief-of-staff')
+          senderAttestation = { role: 'chief-of-staff', agentId, attestationBase64: serializeAttestation(attestation) }
+        }
+      }
+
       console.log(`[AMP Route] Forwarding to ${recipientName}@${resolvedHostId} via ${remoteHost.url}`)
-      const fwd = await forwardToHost(remoteHost, recipientName, envelope, body, selfHostIdValue)
+      const fwd = await forwardToHost(remoteHost, recipientName, envelope, body, selfHostIdValue, senderAttestation)
 
       if (fwd.ok) {
         return {
@@ -1045,6 +1101,22 @@ export async function routeMessage(
     }
 
     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
+
+    // Layer 2: Governance message filter — enforces closed-team isolation
+    // For mesh-forwarded messages, pass attested role so the filter can allow privileged senders
+    const filterResult = checkMessageAllowed({
+      senderAgentId: senderAgent?.id || null,
+      recipientAgentId: localAgent.id,
+      senderRole: (verifiedSenderRole as import('@/types/agent').AgentRole | null) ?? null,
+      senderHostId: forwardedFrom,
+    })
+    if (!filterResult.allowed) {
+      return {
+        data: { error: 'message_blocked', message: filterResult.reason || 'Message blocked by team governance policy' } as AMPError,
+        status: 403,
+        headers: rateLimitHeaders,
+      }
+    }
 
     try {
       await deliverLocally({

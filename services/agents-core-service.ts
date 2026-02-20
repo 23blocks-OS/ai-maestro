@@ -62,6 +62,8 @@ import { initAgentAMPHome, getAgentAMPDir } from '@/lib/amp-inbox-writer'
 import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
+import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { loadTeams } from '@/lib/team-registry'
 import type { Host } from '@/types/host'
 
 // ---------------------------------------------------------------------------
@@ -600,7 +602,16 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 // POST /api/agents -- create new agent
 // ---------------------------------------------------------------------------
 
-export function createNewAgent(body: CreateAgentRequest): ServiceResult<{ agent: Agent }> {
+export function createNewAgent(body: CreateAgentRequest, requestingAgentId?: string | null): ServiceResult<{ agent: Agent }> {
+  // Layer 6: When a requesting agent is identified, enforce governance roles
+  if (requestingAgentId) {
+    const isReqManager = isManager(requestingAgentId)
+    const isReqCOS = isChiefOfStaffAnywhere(requestingAgentId)
+    if (!isReqManager && !isReqCOS) {
+      return { error: 'Only MANAGER or Chief-of-Staff can create agents', status: 403 }
+    }
+  }
+
   try {
     const agent = createAgent(body)
     return { data: { agent }, status: 201 }
@@ -632,7 +643,7 @@ export function getAgentById(id: string): ServiceResult<{ agent: Agent }> {
 // PATCH /api/agents/[id] -- update agent
 // ---------------------------------------------------------------------------
 
-export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceResult<{ agent: Agent }> {
+export function updateAgentById(id: string, body: UpdateAgentRequest, requestingAgentId?: string | null): ServiceResult<{ agent: Agent }> {
   try {
     // Check if agent exists and is not soft-deleted
     const existing = getAgent(id, true) // include deleted to distinguish 404 vs 410
@@ -641,6 +652,25 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
     }
     if (existing.deletedAt) {
       return { error: 'Cannot update a deleted agent', status: 410 }
+    }
+
+    // Layer 6: When a requesting agent is identified, enforce governance roles
+    if (requestingAgentId) {
+      const isReqManager = isManager(requestingAgentId)
+      const isReqCOS = isChiefOfStaffAnywhere(requestingAgentId)
+      const isSelf = requestingAgentId === id  // Agent updating itself
+
+      if (!isReqManager && !isReqCOS && !isSelf) {
+        // Check if requester is COS of a team the target agent belongs to
+        const teams = loadTeams()
+        const closedTeams = teams.filter(t => t.type === 'closed')
+        const agentTeams = closedTeams.filter(t => t.agentIds.includes(id))
+        const isOwningCOS = agentTeams.some(t => t.chiefOfStaffId === requestingAgentId)
+
+        if (!isOwningCOS) {
+          return { error: 'Only MANAGER, owning Chief-of-Staff, or the agent itself can update this agent', status: 403 }
+        }
+      }
     }
 
     const agent = updateAgent(id, body)
@@ -660,7 +690,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest): ServiceRe
 // DELETE /api/agents/[id] -- delete agent (soft or hard)
 // ---------------------------------------------------------------------------
 
-export function deleteAgentById(id: string, hard: boolean): ServiceResult<{ success: boolean; hard: boolean }> {
+export function deleteAgentById(id: string, hard: boolean, requestingAgentId?: string | null): ServiceResult<{ success: boolean; hard: boolean }> {
   try {
     const agent = getAgent(id, true) // include deleted to distinguish 404 vs 410
     if (!agent) {
@@ -669,6 +699,14 @@ export function deleteAgentById(id: string, hard: boolean): ServiceResult<{ succ
     if (agent.deletedAt && !hard) {
       // Return 410 with extra context: already deleted
       return { error: 'Agent already deleted', status: 410 }
+    }
+
+    // Layer 6: When a requesting agent is identified, only MANAGER can delete
+    if (requestingAgentId) {
+      const isReqManager = isManager(requestingAgentId)
+      if (!isReqManager) {
+        return { error: 'Only MANAGER can delete agents', status: 403 }
+      }
     }
 
     const success = deleteAgent(id, hard)

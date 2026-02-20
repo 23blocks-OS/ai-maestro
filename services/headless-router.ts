@@ -601,7 +601,13 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createNewAgent(body))
+    // Layer 6: optional governance enforcement when agent identity is provided
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    // auth.agentId is undefined when no auth header — governance not enforced (backward compat)
+    sendServiceResult(res, createNewAgent(body, auth.error ? null : auth.agentId))
   }},
 
   // =========================================================================
@@ -956,10 +962,20 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateAgentById(params.id, body))
+    // Layer 6: optional governance enforcement when agent identity is provided
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    sendServiceResult(res, updateAgentById(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true'))
+    // Layer 6: optional governance enforcement when agent identity is provided
+    const auth = authenticateAgent(
+      getHeader(_req, 'Authorization'),
+      getHeader(_req, 'X-Agent-Id')
+    )
+    sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true', auth.error ? null : auth.agentId))
   }},
 
   // =========================================================================

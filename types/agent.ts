@@ -408,6 +408,15 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  */
 export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
 
+/** Agent configuration fields governed by MANAGER/COS roles (Layer 6) */
+export interface AgentConfiguration {
+  skills?: string[]                    // Skill names to enable
+  mcpServers?: Record<string, unknown> // MCP server configs
+  hooks?: Record<string, unknown>      // Hook configs
+  model?: string                       // Preferred model
+  programArgs?: string                 // CLI arguments
+}
+
 /**
  * Simplified agent for listings
  */

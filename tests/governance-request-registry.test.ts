@@ -400,7 +400,7 @@ describe('createGovernanceRequest', () => {
       sourceHostId: 'host-src',
       targetHostId: 'host-dst',
       requestedBy: 'agent-mgr@host-src',
-      requestedByRole: 'chiefOfStaff',
+      requestedByRole: 'chief-of-staff',
       payload: { agentId: 'agent-moving', fromTeamId: 'team-old', toTeamId: 'team-new' },
       note: 'Urgently needed for the new project team',
     })

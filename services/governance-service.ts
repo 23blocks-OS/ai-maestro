@@ -15,6 +15,8 @@
  */
 
 import { loadGovernance, verifyPassword, setManager, removeManager, setPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
+import { addTrustedManager, removeTrustedManager, getTrustedManagers } from '@/lib/manager-trust'
+import type { ManagerTrust } from '@/lib/manager-trust'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 import { checkMessageAllowed } from '@/lib/message-filter'
@@ -448,4 +450,77 @@ export async function resolveTransferReq(
     console.error('[governance] Error resolving transfer:', error)
     return { error: 'Internal server error', status: 500 }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Manager Trust (Layer 4)
+// ---------------------------------------------------------------------------
+
+/** GET /api/governance/trust — List all trusted managers */
+export function listTrustedManagers(): ServiceResult<ManagerTrust[]> {
+  return { data: getTrustedManagers(), status: 200 }
+}
+
+/** POST /api/governance/trust — Add a trusted manager (requires governance password) */
+export async function addTrust(params: {
+  hostId?: string
+  managerId?: string
+  managerName?: string
+  autoApprove?: boolean
+  password?: string
+}): Promise<ServiceResult<{ success: boolean; trust: ManagerTrust }>> {
+  const { hostId, managerId, managerName, password, autoApprove } = params
+
+  if (!password || typeof password !== 'string') {
+    return { error: 'Governance password is required', status: 400 }
+  }
+  if (!hostId || !managerId || !managerName) {
+    return { error: 'hostId, managerId, and managerName are required', status: 400 }
+  }
+
+  const config = loadGovernance()
+  if (!config.passwordHash) {
+    return { error: 'Governance password not set', status: 400 }
+  }
+
+  const rateCheck = checkRateLimit('governance-trust-auth')
+  if (!rateCheck.allowed) {
+    return { error: `Too many failed attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
+  }
+
+  const valid = await verifyPassword(password)
+  if (!valid) {
+    recordFailure('governance-trust-auth')
+    return { error: 'Invalid governance password', status: 401 }
+  }
+  resetRateLimit('governance-trust-auth')
+
+  const trust = await addTrustedManager({ hostId, managerId, managerName, autoApprove })
+  return { data: { success: true, trust }, status: 201 }
+}
+
+/** DELETE /api/governance/trust/:hostId — Remove a trusted manager */
+export async function removeTrust(
+  hostId: string,
+  password?: string
+): Promise<ServiceResult<{ success: boolean }>> {
+  if (!password || typeof password !== 'string') {
+    return { error: 'Governance password is required', status: 400 }
+  }
+
+  const config = loadGovernance()
+  if (!config.passwordHash) {
+    return { error: 'Governance password not set', status: 400 }
+  }
+
+  const valid = await verifyPassword(password)
+  if (!valid) {
+    return { error: 'Invalid governance password', status: 401 }
+  }
+
+  const removed = await removeTrustedManager(hostId)
+  if (!removed) {
+    return { error: `No trust record found for host '${hostId}'`, status: 404 }
+  }
+  return { data: { success: true }, status: 200 }
 }

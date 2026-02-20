@@ -26,6 +26,7 @@ import {
 } from '@/lib/governance-request-registry'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
 import { loadTeams, saveTeams } from '@/lib/team-registry'
+import { shouldAutoApprove } from '@/lib/manager-trust'
 
 /** Timeout for outbound HTTP requests to peer hosts (milliseconds) -- matches governance-sync.ts */
 const FETCH_TIMEOUT_MS = 5000
@@ -142,6 +143,19 @@ export async function receiveCrossHostRequest(
   })
 
   console.log(`${LOG_PREFIX} Received request ${request.id} (type=${request.type}) from host ${fromHostId}`)
+
+  // Layer 4: Auto-approve if the requesting manager is in the trust registry
+  if (shouldAutoApprove(request)) {
+    console.log(`${LOG_PREFIX} Auto-approving request ${request.id} from trusted manager on host ${fromHostId}`)
+    // Auto-approve as targetManager (we are the target host)
+    const localManagerId = (await import('@/lib/governance')).getManagerId()
+    if (localManagerId) {
+      const approvedRequest = await approveGovernanceRequest(request.id, localManagerId, 'targetManager')
+      if (approvedRequest?.status === 'executed') {
+        await performRequestExecution(approvedRequest)
+      }
+    }
+  }
 
   return {
     data: { ok: true, requestId: request.id },

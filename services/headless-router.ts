@@ -228,6 +228,9 @@ import {
   listTransferRequests,
   createTransferReq,
   resolveTransferReq,
+  listTrustedManagers,
+  addTrust,
+  removeTrust,
 } from '@/services/governance-service'
 
 import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
@@ -1253,6 +1256,19 @@ const routes: Route[] = [
       return
     }
     sendServiceResult(res, await rejectCrossHostRequest(params.id, body.rejectorAgentId, body.password, body.reason))
+  }},
+
+  // ── Manager Trust (Layer 4: host-scoped manager authority) ──────────────
+  { method: 'GET', pattern: /^\/api\/governance\/trust$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, listTrustedManagers())
+  }},
+  { method: 'POST', pattern: /^\/api\/governance\/trust$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await addTrust(body))
+  }},
+  { method: 'DELETE', pattern: /^\/api\/governance\/trust\/([^/]+)$/, paramNames: ['hostId'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await removeTrust(params.hostId, body?.password))
   }},
 
   // =========================================================================

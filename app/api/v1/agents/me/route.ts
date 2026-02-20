@@ -1,73 +1,25 @@
 /**
  * AMP v1 Agent Self-Management Endpoint
  *
- * GET    /api/v1/agents/me  — Get current agent info
- * PATCH  /api/v1/agents/me  — Update current agent
- * DELETE /api/v1/agents/me  — Deregister current agent
+ * GET    /api/v1/agents/me
+ * PATCH  /api/v1/agents/me
+ * DELETE /api/v1/agents/me
+ *
+ * Thin wrapper - business logic in services/amp-service.ts
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticateRequest } from '@/lib/amp-auth'
-import { getAgent, updateAgent, deleteAgent } from '@/lib/agent-registry'
-import { loadKeyPair } from '@/lib/amp-keys'
-import { revokeAllKeysForAgent } from '@/lib/amp-auth'
+import { getAgentSelf, updateAgentSelf, deleteAgentSelf } from '@/services/amp-service'
 import type { AMPError } from '@/lib/types/amp'
 
-/**
- * GET /api/v1/agents/me — Get current authenticated agent info
- */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
-
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  const agent = getAgent(auth.agentId!)
-  if (!agent) {
-    return NextResponse.json({
-      error: 'not_found',
-      message: 'Agent not found'
-    } as AMPError, { status: 404 })
-  }
-
-  const keyPair = loadKeyPair(auth.agentId!)
-
-  return NextResponse.json({
-    address: auth.address,
-    alias: agent.alias || agent.label,
-    delivery: agent.metadata?.amp?.delivery || {},
-    fingerprint: keyPair?.fingerprint || agent.metadata?.amp?.fingerprint || null,
-    registered_at: agent.metadata?.amp?.registeredAt || agent.createdAt,
-    last_seen_at: agent.lastActive || null,
-  })
+  const result = getAgentSelf(authHeader)
+  return NextResponse.json(result.data!, { status: result.status })
 }
 
-/**
- * PATCH /api/v1/agents/me — Update current agent
- */
 export async function PATCH(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
-
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  const agent = getAgent(auth.agentId!)
-  if (!agent) {
-    return NextResponse.json({
-      error: 'not_found',
-      message: 'Agent not found'
-    } as AMPError, { status: 404 })
-  }
 
   let body: { alias?: string; delivery?: Record<string, unknown>; metadata?: Record<string, unknown> }
   try {
@@ -79,64 +31,12 @@ export async function PATCH(request: NextRequest) {
     } as AMPError, { status: 400 })
   }
 
-  // Update allowed fields
-  const updates: Record<string, unknown> = {}
-  if (body.alias !== undefined) {
-    updates.label = body.alias
-  }
-
-  // Merge delivery and metadata into agent's amp metadata
-  if (body.delivery !== undefined || body.metadata !== undefined) {
-    const existingAmpMeta = (agent.metadata?.amp || {}) as Record<string, unknown>
-    if (body.delivery !== undefined) {
-      existingAmpMeta.delivery = { ...(existingAmpMeta.delivery as Record<string, unknown> || {}), ...body.delivery }
-    }
-    updates.metadata = {
-      ...agent.metadata,
-      amp: existingAmpMeta,
-      ...(body.metadata || {})
-    }
-  }
-
-  if (Object.keys(updates).length > 0) {
-    updateAgent(auth.agentId!, updates as any)
-  }
-
-  return NextResponse.json({
-    updated: true,
-    address: auth.address,
-  })
+  const result = await updateAgentSelf(authHeader, body)
+  return NextResponse.json(result.data!, { status: result.status })
 }
 
-/**
- * DELETE /api/v1/agents/me — Deregister current agent
- */
 export async function DELETE(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
-  const auth = authenticateRequest(authHeader)
-
-  if (!auth.authenticated) {
-    return NextResponse.json({
-      error: auth.error || 'unauthorized',
-      message: auth.message || 'Authentication required'
-    } as AMPError, { status: 401 })
-  }
-
-  // Revoke all API keys for this agent
-  revokeAllKeysForAgent(auth.agentId!)
-
-  // Hard delete with backup - AMP deregistration means agent is leaving the system
-  const deleted = deleteAgent(auth.agentId!, true)
-  if (!deleted) {
-    return NextResponse.json({
-      error: 'not_found',
-      message: 'Agent not found'
-    } as AMPError, { status: 404 })
-  }
-
-  return NextResponse.json({
-    deregistered: true,
-    address: auth.address,
-    deregistered_at: new Date().toISOString(),
-  })
+  const result = await deleteAgentSelf(authHeader)
+  return NextResponse.json(result.data!, { status: result.status })
 }

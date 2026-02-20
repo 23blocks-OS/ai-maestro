@@ -9,6 +9,7 @@ const WS_MAX_RECONNECT_ATTEMPTS = 5
 interface UseWebSocketOptions {
   sessionId: string
   hostId?: string  // Host ID for remote sessions (peer mesh network)
+  socketPath?: string  // Custom tmux socket path (e.g., OpenClaw agents)
   onMessage?: (data: string) => void
   onOpen?: () => void
   onClose?: () => void
@@ -19,6 +20,7 @@ interface UseWebSocketOptions {
 export function useWebSocket({
   sessionId,
   hostId,
+  socketPath,
   onMessage,
   onOpen,
   onClose,
@@ -60,8 +62,13 @@ export function useWebSocket({
       url += `&host=${encodeURIComponent(hostId)}`
     }
 
+    // Add socket parameter for custom tmux sockets (e.g., OpenClaw)
+    if (socketPath) {
+      url += `&socket=${encodeURIComponent(socketPath)}`
+    }
+
     return url
-  }, [sessionId, hostId])
+  }, [sessionId, hostId, socketPath])
 
   const sendMessage = useCallback((data: string | WebSocketMessage) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {

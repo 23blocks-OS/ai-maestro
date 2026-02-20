@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAgent, updateAgent, deleteAgent } from '@/lib/agent-registry'
+import { getAgentById, updateAgentById, deleteAgentById } from '@/services/agents-core-service'
 import type { UpdateAgentRequest } from '@/types/agent'
 
 /**
@@ -8,20 +8,15 @@ import type { UpdateAgentRequest } from '@/types/agent'
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const agent = getAgent(params.id)
+  const { id } = await params
+  const result = getAgentById(id)
 
-    if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ agent })
-  } catch (error) {
-    console.error('Failed to get agent:', error)
-    return NextResponse.json({ error: 'Failed to get agent' }, { status: 500 })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -30,32 +25,16 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    // Check if agent exists and is not soft-deleted before allowing update
-    const existing = getAgent(params.id, true) // include deleted to distinguish 404 vs 410
-    if (!existing) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-    if (existing.deletedAt) {
-      return NextResponse.json({ error: 'Cannot update a deleted agent' }, { status: 410 })
-    }
+  const { id } = await params
+  const body: UpdateAgentRequest = await request.json()
+  const result = updateAgentById(id, body)
 
-    const body: UpdateAgentRequest = await request.json()
-
-    const agent = updateAgent(params.id, body)
-
-    if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ agent })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update agent'
-    console.error('Failed to update agent:', error)
-    return NextResponse.json({ error: message }, { status: 400 })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -65,32 +44,17 @@ export async function PATCH(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    // Parse ?hard= query parameter for permanent deletion (case-insensitive)
-    const url = new URL(request.url)
-    const hardParam = url.searchParams.get('hard')?.toLowerCase()
-    const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
+  const { id } = await params
+  const url = new URL(request.url)
+  const hardParam = url.searchParams.get('hard')?.toLowerCase()
+  const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
 
-    // Check if agent exists, and prevent double soft-delete (which would overwrite original deletedAt)
-    const agent = getAgent(params.id, true) // include deleted to distinguish 404 vs 410
-    if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-    if (agent.deletedAt && !hard) {
-      return NextResponse.json({ error: 'Agent already deleted', deletedAt: agent.deletedAt }, { status: 410 })
-    }
+  const result = deleteAgentById(id, hard)
 
-    const success = deleteAgent(params.id, hard)
-
-    if (!success) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true, hard })
-  } catch (error) {
-    console.error('Failed to delete agent:', error)
-    return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }

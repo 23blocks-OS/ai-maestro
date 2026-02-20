@@ -184,8 +184,14 @@ else
 
     echo ""
     print_step "$DOWNLOAD" "Pulling latest changes..."
+    BEFORE_SHA=$(git rev-parse HEAD)
     git pull origin main
     print_success "Code updated"
+
+    # Detect ecosystem.config.js changes that require PM2 config reload
+    if ! git diff --quiet "$BEFORE_SHA" HEAD -- ecosystem.config.js ecosystem.config.cjs 2>/dev/null; then
+        ECOSYSTEM_CHANGED=true
+    fi
 fi
 
 # Get new version
@@ -200,6 +206,7 @@ print_success "Dependencies installed"
 # Issue 7.2: Track build failure so tool reinstallation still proceeds under set -e
 BUILD_FAILED=false
 VERIFICATION_WARNINGS=false
+ECOSYSTEM_CHANGED=${ECOSYSTEM_CHANGED:-false}
 
 echo ""
 print_step "$BUILD" "Building application..."
@@ -281,8 +288,17 @@ echo ""
 if command -v pm2 &> /dev/null; then
     if pm2 list | grep -q "ai-maestro"; then
         if [[ "$BUILD_FAILED" != "true" ]]; then
-            print_step "$RESTART" "Restarting AI Maestro via PM2..."
-            pm2 restart ai-maestro
+            if [ "$ECOSYSTEM_CHANGED" = true ]; then
+                print_warning "ecosystem.config.js changed — reloading PM2 config..."
+                pm2 delete ai-maestro 2>/dev/null || true
+                pm2 start ecosystem.config.js 2>/dev/null || pm2 start ecosystem.config.cjs 2>/dev/null || {
+                    print_error "Failed to start with ecosystem config — falling back to pm2 restart"
+                    pm2 start "yarn start" --name ai-maestro
+                }
+            else
+                print_step "$RESTART" "Restarting AI Maestro via PM2..."
+                pm2 restart ai-maestro
+            fi
             print_success "AI Maestro restarted"
 
             # Wait a moment for startup

@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { loadDocuments, createDocument } from '@/lib/document-registry'
-import { getTeam } from '@/lib/team-registry'
-import { isValidUuid } from '@/lib/validation'
-
-// Phase 1: No checkTeamAccess — document routes rely on team existence check only. Phase 2: add ACL.
+import { listTeamDocuments, createTeamDocument } from '@/services/teams-service'
 
 // GET /api/teams/[id]/documents - List all documents for a team
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  if (!isValidUuid(id)) {
-    return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
+  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const result = listTeamDocuments(id, requestingAgentId)
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  const team = getTeam(id)
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-  }
-  const documents = loadDocuments(id)
-  return NextResponse.json({ documents })
+  return NextResponse.json(result.data)
 }
 
 // POST /api/teams/[id]/documents - Create a new document
@@ -27,45 +21,20 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+
+  let body
   try {
-    const { id } = await params
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
-    }
-    const team = getTeam(id)
-    if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-    }
-
-    const body = await request.json()
-    const { title, content, pinned, tags } = body
-
-    if (!title || typeof title !== 'string') {
-      return NextResponse.json({ error: 'title is required' }, { status: 400 })
-    }
-
-    // Validate optional field types to prevent invalid data in storage
-    if (pinned !== undefined && typeof pinned !== 'boolean') {
-      return NextResponse.json({ error: 'pinned must be a boolean' }, { status: 400 })
-    }
-    if (tags !== undefined && (!Array.isArray(tags) || !tags.every((t: unknown) => typeof t === 'string'))) {
-      return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 })
-    }
-
-    const document = await createDocument({
-      teamId: id,
-      title,
-      content: content || '',
-      pinned,
-      tags,
-    })
-
-    return NextResponse.json({ document }, { status: 201 })
-  } catch (error) {
-    console.error('Failed to create document:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create document' },
-      { status: 500 }
-    )
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
+
+  const result = createTeamDocument(id, { ...body, requestingAgentId })
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

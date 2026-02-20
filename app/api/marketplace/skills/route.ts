@@ -11,54 +11,25 @@
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import {
-  getAllMarketplaceSkills,
-  hasClaudePlugins,
-} from '@/lib/marketplace-skills'
-import type { SkillSearchParams } from '@/types/marketplace'
+import { listMarketplaceSkills } from '@/services/marketplace-service'
 
 export async function GET(request: NextRequest) {
-  try {
-    // Check if Claude plugins directory exists
-    const hasPlugins = await hasClaudePlugins()
-    if (!hasPlugins) {
-      return NextResponse.json(
-        {
-          skills: [],
-          marketplaces: [],
-          stats: {
-            totalSkills: 0,
-            totalMarketplaces: 0,
-            totalPlugins: 0,
-          },
-          warning: 'Claude Code plugins directory not found. Install Claude Code and add some marketplaces.',
-        },
-        { status: 200 }
-      )
-    }
+  const searchParams = request.nextUrl.searchParams
+  const params = {
+    marketplace: searchParams.get('marketplace') || undefined,
+    plugin: searchParams.get('plugin') || undefined,
+    category: searchParams.get('category') || undefined,
+    search: searchParams.get('search') || undefined,
+    includeContent: searchParams.get('includeContent') === 'true',
+  }
 
-    // Parse query params
-    const searchParams = request.nextUrl.searchParams
-    const params: SkillSearchParams = {
-      marketplace: searchParams.get('marketplace') || undefined,
-      plugin: searchParams.get('plugin') || undefined,
-      category: searchParams.get('category') || undefined,
-      search: searchParams.get('search') || undefined,
-      includeContent: searchParams.get('includeContent') === 'true',
-    }
+  const result = await listMarketplaceSkills(params)
 
-    // Get all skills
-    const result = await getAllMarketplaceSkills(params)
-
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error('Error fetching marketplace skills:', error)
+  if (result.error) {
     return NextResponse.json(
-      {
-        error: 'Failed to fetch marketplace skills',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
+      { error: result.error },
+      { status: result.status }
     )
   }
+  return NextResponse.json(result.data)
 }

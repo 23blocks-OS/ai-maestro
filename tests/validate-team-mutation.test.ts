@@ -182,8 +182,8 @@ describe('validateTeamMutation', () => {
       })
     })
 
-    it('rejects a closed team without a Chief-of-Staff (COS-closed invariant R1.3/R1.4)', () => {
-      /** Closed teams must always have a COS assigned */
+    it('auto-downgrades closed team without COS to open (G5: COS-closed invariant R1.3/R1.4)', () => {
+      /** G5 (v2 Rule 14): When a closed team loses its COS, it is automatically downgraded to open */
       const result = validateTeamMutation(
         [],
         null,
@@ -191,9 +191,11 @@ describe('validateTeamMutation', () => {
         null,
       )
       expect(result).toEqual({
-        valid: false,
-        error: 'A closed team must have a Chief-of-Staff assigned',
-        code: 400,
+        valid: true,
+        sanitized: {
+          name: 'SecureTeam',
+          type: 'open',
+        },
       })
     })
   })
@@ -329,8 +331,8 @@ describe('validateTeamMutation', () => {
       })
     })
 
-    it('allows an agent assigned as COS in the current mutation to be in multiple closed teams (R4.4 effectiveCOS)', () => {
-      /** An agent being assigned as COS is exempt from the one-closed-team constraint */
+    it('rejects COS agent already in another closed team (G2: COS limited to 1 closed team, v2 Rule 21)', () => {
+      /** G2: COS is NOT exempt from multi-closed-team constraint — max 1 closed team */
       const cosAgentId = 'agent-promoted-cos'
       const existingTeams = [
         makeTeam({
@@ -353,13 +355,14 @@ describe('validateTeamMutation', () => {
         null,
       )
       expect(result).toEqual({
-        valid: true,
-        sanitized: { name: 'New Closed Team' },
+        valid: false,
+        error: expect.stringContaining('agent-promoted-cos is already in closed team'),
+        code: 409,
       })
     })
 
-    it('allows an agent who is COS in another team to be added to a new closed team (R4.4 isCOSAnywhere)', () => {
-      /** An agent who is already COS of an existing team can join additional closed teams */
+    it('rejects agent who is COS elsewhere from joining a new closed team (G2: max 1 closed team)', () => {
+      /** G2: An agent already COS of one closed team cannot join another closed team */
       const cosElsewhere = 'agent-cos-elsewhere'
       const existingTeams = [
         makeTeam({
@@ -382,8 +385,9 @@ describe('validateTeamMutation', () => {
         null,
       )
       expect(result).toEqual({
-        valid: true,
-        sanitized: { name: 'New Closed Team' },
+        valid: false,
+        error: expect.stringContaining('agent-cos-elsewhere is already in closed team'),
+        code: 409,
       })
     })
   })

@@ -387,7 +387,7 @@ describe('DELETE /api/teams/[id]', () => {
 
     expect(res.status).toBe(403)
     const data = await res.json()
-    expect(data.error).toContain('MANAGER or Chief-of-Staff')
+    expect(data.error).toContain('MANAGER or the team Chief-of-Staff')
   })
 
   // CC-006: Closed team deletion guard - COS is allowed
@@ -409,7 +409,8 @@ describe('DELETE /api/teams/[id]', () => {
   // CC-006: Closed team deletion guard - MANAGER is allowed
   it('allows MANAGER to delete closed team', async () => {
     const team = await createTeam({ name: 'Mgr Delete', agentIds: ['cos-agent'], type: 'closed', chiefOfStaffId: 'cos-agent' })
-    vi.mocked(isManager).mockReturnValue(true)
+    // deleteTeamById checks getManagerId() === requestingAgentId, not isManager()
+    vi.mocked(getManagerId).mockReturnValue('manager-agent')
 
     const req = makeRequest(`/api/teams/${team.id}`, {
       method: 'DELETE',
@@ -420,5 +421,8 @@ describe('DELETE /api/teams/[id]', () => {
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.success).toBe(true)
+
+    // Restore default
+    vi.mocked(getManagerId).mockReturnValue(null)
   })
 })

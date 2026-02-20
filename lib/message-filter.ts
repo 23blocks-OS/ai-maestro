@@ -111,6 +111,11 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     if (cosTeamMembers.includes(recipientAgentId)) {
       return { allowed: true }
     }
+    // G1: COS can message agents NOT in any closed team (v2 Rule 6)
+    // This includes open-team agents and unaffiliated agents
+    if (!recipientInClosed) {
+      return { allowed: true }
+    }
     return {
       allowed: false,
       reason: 'Chief-of-Staff can only message MANAGER, other Chiefs-of-Staff, and own team members',

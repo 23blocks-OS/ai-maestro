@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import { unpersistSession } from '@/lib/session-persistence'
-import { deleteAgentBySession, getAgentBySession } from '@/lib/agent-registry'
-
-const execAsync = promisify(exec)
+import { deleteSession } from '@/services/sessions-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,38 +19,13 @@ export async function DELETE(
   logDeprecation()
   try {
     const { id: sessionName } = await params
+    const result = await deleteSession(sessionName)
 
-    // Look up the agent associated with this session
-    const agent = getAgentBySession(sessionName)
-    const isCloudAgent = agent?.deployment?.type === 'cloud'
-
-    if (isCloudAgent) {
-      // Hard delete with backup - explicit session deletion removes the agent
-      deleteAgentBySession(sessionName, true)
-
-      return NextResponse.json({ success: true, name: sessionName, type: 'cloud' })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
 
-    // Handle local tmux session
-    // Check if session exists
-    const { stdout: existingCheck } = await execAsync(
-      `tmux has-session -t "${sessionName}" 2>&1 || echo "not_found"`
-    )
-
-    if (existingCheck.includes('not_found')) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-    }
-
-    // Kill the tmux session
-    await execAsync(`tmux kill-session -t "${sessionName}"`)
-
-    // Remove from persistence
-    unpersistSession(sessionName)
-
-    // Hard delete with backup - explicit session deletion removes the agent
-    deleteAgentBySession(sessionName, true)
-
-    return NextResponse.json({ success: true, name: sessionName })
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     console.error('Failed to delete session:', error)
     return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 })

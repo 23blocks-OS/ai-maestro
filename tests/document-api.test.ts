@@ -34,6 +34,29 @@ vi.mock('@/lib/file-lock', () => ({
   withLock: vi.fn((_name: string, fn: () => any) => Promise.resolve(fn())),
 }))
 
+// Mock governance module - getManagerId returns null (no manager configured) for document tests
+vi.mock('@/lib/governance', () => ({
+  getManagerId: vi.fn(() => null),
+  isManager: vi.fn(() => false),
+  loadGovernance: vi.fn(() => ({ managerId: null, passwordHash: null, createdAt: null, updatedAt: null })),
+  verifyPassword: vi.fn(() => false),
+}))
+
+// Mock team-acl module - checkTeamAccess allows all access by default in document tests
+vi.mock('@/lib/team-acl', () => ({
+  checkTeamAccess: vi.fn(() => ({ allowed: true })),
+}))
+
+// Mock agent-registry module - loadAgents returns empty array for document tests
+vi.mock('@/lib/agent-registry', () => ({
+  loadAgents: vi.fn(() => []),
+}))
+
+// Mock validation module - isValidUuid accepts synthetic test UUIDs
+vi.mock('@/lib/validation', () => ({
+  isValidUuid: vi.fn(() => true),
+}))
+
 // Note: team-registry is tested via its real implementation with a mocked 'fs' module.
 // This is an integration test pattern — the fs mock is picked up transitively.
 

@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { broadcastActivityUpdate } from '@/services/sessions-service'
 
 // Disable caching
 export const dynamic = 'force-dynamic'
-
-declare global {
-  var broadcastStatusUpdate: ((sessionName: string, status: string, hookStatus?: string, notificationType?: string) => void) | undefined
-}
 
 /**
  * POST /api/sessions/activity/update
@@ -13,22 +10,18 @@ declare global {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { sessionName, status, hookStatus, notificationType } = body
+    const { sessionName, status, hookStatus, notificationType } = await request.json()
 
-    if (!sessionName) {
+    const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType)
+
+    if (result.error) {
       return NextResponse.json(
-        { success: false, error: 'sessionName is required' },
-        { status: 400 }
+        { success: false, error: result.error },
+        { status: result.status }
       )
     }
 
-    // Broadcast to all WebSocket subscribers
-    if (global.broadcastStatusUpdate) {
-      global.broadcastStatusUpdate(sessionName, status, hookStatus, notificationType)
-    }
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     console.error('[Activity Update API] Error:', error)
     return NextResponse.json(

@@ -126,12 +126,22 @@ export function validateTeamMutation(
   const effectiveAgentIds = data.agentIds ?? existingTeam?.agentIds ?? []
 
   // --- COS-Closed Invariant (R1.3, R1.4) ---
+  // G5 (v2 Rule 14): If a closed team loses its COS, auto-downgrade to open
   if (effectiveType === 'closed' && !effectiveCOS) {
-    return { valid: false, error: 'A closed team must have a Chief-of-Staff assigned', code: 400 }
+    sanitized.type = 'open'
   }
   // --- COS on open team is invalid (R1.8) ---
   if (effectiveType === 'open' && effectiveCOS) {
     return { valid: false, error: 'Cannot assign a Chief-of-Staff to an open team (change type to closed first)', code: 400 }
+  }
+
+  // --- COS Already-Assigned-Elsewhere Check (G3, v2 Rule 7) ---
+  // An agent already serving as COS of another team cannot be assigned as COS of this team
+  if (effectiveCOS) {
+    const alreadyCOSOf = teams.find(t => t.chiefOfStaffId === effectiveCOS && t.id !== teamId)
+    if (alreadyCOSOf) {
+      return { valid: false, error: `Agent is already Chief-of-Staff of team "${alreadyCOSOf.name}"`, code: 409 }
+    }
   }
 
   // --- COS Membership Invariant (R4.6) — auto-add COS to agentIds if missing ---
@@ -150,22 +160,19 @@ export function validateTeamMutation(
     }
   }
 
-  // --- Multi-Closed-Team Constraint for Normal Agents (R4.1) ---
-  // MANAGER (R4.3) and COS (R4.4) are exempt and can be in multiple closed teams
+  // --- Multi-Closed-Team Constraint (R4.1) ---
+  // MANAGER is exempt and can be in unlimited closed teams (R4.3, v2 Rule 20)
+  // COS is NOT exempt from multi-closed-team constraint (v2 Rule 21: max 1 closed team)
+  // Only skip the check for the COS being assigned to THIS specific team in this mutation
   if (effectiveType === 'closed') {
     for (const agentId of finalAgentIds) {
       // Skip agents already in the existing team (not newly added)
       if (existingTeam?.agentIds.includes(agentId)) continue
 
-      // MANAGER is exempt (R4.3)
+      // MANAGER is exempt — can be in unlimited closed teams (R4.3, v2 Rule 20)
       if (agentId === managerId) continue
-      // Agent being assigned as COS in this mutation is exempt (R4.4)
-      if (agentId === effectiveCOS) continue
-      // Agent who is COS in any existing team is exempt (R4.4)
-      const isCOSAnywhere = teams.some(t => t.chiefOfStaffId === agentId)
-      if (isCOSAnywhere) continue
 
-      // Normal agent: must not be in another closed team already
+      // Agent (including COS): must not be in another closed team already
       const otherClosedTeam = teams.find(t =>
         t.type === 'closed' && t.id !== teamId && t.agentIds.includes(agentId)
       )
@@ -276,6 +283,26 @@ export async function createTeam(
 
     teams.push(team)
     saveTeams(teams)
+
+    // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke their open team memberships
+    if (team.type === 'closed') {
+      let openTeamsChanged = false
+      for (const agentId of team.agentIds) {
+        // MANAGER is exempt from membership restrictions (v2 Rule 20)
+        if (agentId === managerId) continue
+        // Remove agent from all open teams
+        for (const otherTeam of teams) {
+          if (otherTeam.id === team.id || otherTeam.type !== 'open') continue
+          const idx = otherTeam.agentIds.indexOf(agentId)
+          if (idx !== -1) {
+            otherTeam.agentIds.splice(idx, 1)
+            openTeamsChanged = true
+          }
+        }
+      }
+      if (openTeamsChanged) saveTeams(teams)
+    }
+
     return team
   })
 }
@@ -290,6 +317,9 @@ export async function updateTeam(
     const teams = loadTeams()
     const index = teams.findIndex(t => t.id === id)
     if (index === -1) return null
+
+    // Capture pre-update state for G4 open-team revocation logic
+    const previousAgentIds = [...teams[index].agentIds]
 
     // Validate all business rules before applying the update (R1-R4, name sanitization, agent name collision)
     // Extract only governance-relevant fields for validation (avoids unsafe Record cast)
@@ -309,7 +339,30 @@ export async function updateTeam(
     }
 
     saveTeams(teams)
-    return teams[index]
+
+    // G4 (v2 Rule 22): When a normal agent is added to a closed team, revoke their open team memberships
+    const updatedTeam = teams[index]
+    if (updatedTeam.type === 'closed' && updates.agentIds) {
+      const newlyAdded = updatedTeam.agentIds.filter(aid => !previousAgentIds.includes(aid))
+      if (newlyAdded.length > 0) {
+        const currentManagerId = managerId ?? null
+        let openTeamsChanged = false
+        for (const agentId of newlyAdded) {
+          if (agentId === currentManagerId) continue
+          for (const otherTeam of teams) {
+            if (otherTeam.id === updatedTeam.id || otherTeam.type !== 'open') continue
+            const idx = otherTeam.agentIds.indexOf(agentId)
+            if (idx !== -1) {
+              otherTeam.agentIds.splice(idx, 1)
+              openTeamsChanged = true
+            }
+          }
+        }
+        if (openTeamsChanged) saveTeams(teams)
+      }
+    }
+
+    return updatedTeam
   })
 }
 

@@ -1,37 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { loadTasks, resolveTaskDeps, createTask } from '@/lib/task-registry'
-import { getTeam } from '@/lib/team-registry'
-import { checkTeamAccess } from '@/lib/team-acl'
-import { isValidUuid } from '@/lib/validation'
+import { listTeamTasks, createTeamTask } from '@/services/teams-service'
 
 // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params
-    // Validate UUID format to prevent path traversal and invalid lookups
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
-    }
-    const team = getTeam(id)
-    if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-    }
-    const agentId = request.headers.get('X-Agent-Id') || undefined
-    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
-    if (!access.allowed) {
-      return NextResponse.json({ error: access.reason }, { status: 403 })
-    }
+  const { id } = await params
+  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
 
-    const tasks = loadTasks(id)
-    const resolved = resolveTaskDeps(tasks)
-    return NextResponse.json({ tasks: resolved })
-  } catch (error) {
-    console.error('Error loading tasks:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  const result = listTeamTasks(id, requestingAgentId)
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 // POST /api/teams/[id]/tasks - Create a new task
@@ -39,71 +22,20 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+
+  let body: Record<string, unknown>
   try {
-    const { id } = await params
-    // Validate UUID format to prevent path traversal and invalid lookups
-    if (!isValidUuid(id)) {
-      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
-    }
-    const team = getTeam(id)
-    if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-    }
-    const agentId = request.headers.get('X-Agent-Id') || undefined
-    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
-    if (!access.allowed) {
-      return NextResponse.json({ error: access.reason }, { status: 403 })
-    }
-
-    let body: Record<string, unknown>
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
-    }
-    const { subject, description, assigneeAgentId, blockedBy, priority } = body
-
-    if (!subject || typeof subject !== 'string' || !subject.trim()) {
-      return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
-    }
-
-    // Validate priority is a non-negative number if provided
-    if (priority !== undefined && (typeof priority !== 'number' || priority < 0)) {
-      return NextResponse.json({ error: 'priority must be a non-negative number' }, { status: 400 })
-    }
-
-    // Validate description is a string if provided
-    if (description !== undefined && typeof description !== 'string') {
-      return NextResponse.json({ error: 'description must be a string' }, { status: 400 })
-    }
-
-    // Validate assigneeAgentId is a string if provided
-    if (assigneeAgentId !== undefined && typeof assigneeAgentId !== 'string') {
-      return NextResponse.json({ error: 'assigneeAgentId must be a string' }, { status: 400 })
-    }
-
-    // Validate blockedBy is an array of strings if provided
-    if (blockedBy !== undefined) {
-      if (!Array.isArray(blockedBy) || !blockedBy.every((id: unknown) => typeof id === 'string')) {
-        return NextResponse.json({ error: 'blockedBy must be an array of task ID strings' }, { status: 400 })
-      }
-    }
-
-    const task = await createTask({
-      teamId: id,
-      subject: subject.trim(),
-      description,
-      assigneeAgentId,
-      blockedBy,
-      priority,
-    })
-
-    return NextResponse.json({ task }, { status: 201 })
-  } catch (error) {
-    console.error('Failed to create task:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create task' },
-      { status: 500 }
-    )
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
   }
+
+  const result = createTeamTask(id, { ...body, requestingAgentId })
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

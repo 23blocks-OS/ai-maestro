@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getDomain, deleteDomain, updateDomain } from '@/lib/domain-service'
+import { getDomainById, updateDomainById, deleteDomainById } from '@/services/domains-service'
 
 /**
  * GET /api/domains/[id]
@@ -7,26 +7,15 @@ import { getDomain, deleteDomain, updateDomain } from '@/lib/domain-service'
  */
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const domain = getDomain(params.id)
+  const { id } = await params
+  const result = getDomainById(id)
 
-    if (!domain) {
-      return NextResponse.json(
-        { error: 'Domain not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({ domain })
-  } catch (error) {
-    console.error('Failed to get domain:', error)
-    return NextResponse.json(
-      { error: 'Failed to get domain' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -35,31 +24,16 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const body = await request.json()
+  const { id } = await params
+  const body = await request.json()
+  const result = updateDomainById(id, body)
 
-    const domain = updateDomain(params.id, {
-      description: body.description,
-      isDefault: body.isDefault,
-    })
-
-    if (!domain) {
-      return NextResponse.json(
-        { error: 'Domain not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({ domain })
-  } catch (error) {
-    console.error('Failed to update domain:', error)
-    return NextResponse.json(
-      { error: 'Failed to update domain' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -68,24 +42,13 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const success = deleteDomain(params.id)
+  const { id } = await params
+  const result = deleteDomainById(id)
 
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Domain not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Failed to delete domain:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete domain' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }

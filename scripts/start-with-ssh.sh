@@ -26,4 +26,4 @@ fi
 
 # Step 3: Start the actual server
 echo "[AI Maestro] Starting server..."
-exec node server.mjs
+exec ./node_modules/.bin/tsx server.mjs

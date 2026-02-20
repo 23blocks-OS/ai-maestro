@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
-import {
-  getWebhook,
-  deleteWebhook,
-} from '@/lib/webhook-service'
+import { getWebhookById, deleteWebhookById } from '@/services/webhooks-service'
 
 /**
  * GET /api/webhooks/[id]
@@ -10,32 +7,15 @@ import {
  */
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const webhook = getWebhook(params.id)
+  const { id } = await params
+  const result = getWebhookById(id)
 
-    if (!webhook) {
-      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
-    }
-
-    // Don't expose secret
-    return NextResponse.json({
-      id: webhook.id,
-      url: webhook.url,
-      events: webhook.events,
-      createdAt: webhook.createdAt,
-      lastDeliveryAt: webhook.lastDeliveryAt,
-      lastDeliveryStatus: webhook.lastDeliveryStatus,
-      failureCount: webhook.failureCount,
-    })
-  } catch (error) {
-    console.error('Failed to get webhook:', error)
-    return NextResponse.json(
-      { error: 'Failed to get webhook' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
@@ -44,21 +24,13 @@ export async function GET(
  */
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const success = deleteWebhook(params.id)
+  const { id } = await params
+  const result = deleteWebhookById(id)
 
-    if (!success) {
-      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Failed to delete webhook:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete webhook' },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }

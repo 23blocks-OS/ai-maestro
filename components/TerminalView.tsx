@@ -192,6 +192,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const { isConnected, sendMessage, connectionError, errorHint, connectionMessage } = useWebSocket({
     sessionId: session.id,
     hostId: session.hostId,  // Pass host ID for remote session routing
+    socketPath: session.socketPath,  // Custom tmux socket (e.g., OpenClaw agents)
     autoConnect: isVisible,  // Only auto-connect when visible
     onOpen: () => {
       // Reset historyLoaded - server will send new history on each connect

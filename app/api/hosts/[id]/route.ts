@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server'
-import { updateHost, deleteHost } from '@/lib/hosts-config'
-import type { Host } from '@/types/host'
+import { NextRequest, NextResponse } from 'next/server'
+import { updateExistingHost, deleteExistingHost } from '@/services/hosts-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,33 +9,17 @@ export const dynamic = 'force-dynamic'
  * Update an existing host configuration.
  */
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params
-    const host: Partial<Host> = await request.json()
+  const { id } = await params
+  const hostData = await request.json()
 
-    // Validate URL if provided
-    if (host.url) {
-      try {
-        new URL(host.url)
-      } catch {
-        return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
-      }
-    }
-
-    // Update host
-    const result = updateHost(id, host)
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.error?.includes('not found') ? 404 : 400 })
-    }
-
-    return NextResponse.json({ success: true, host: result.host })
-  } catch (error) {
-    console.error(`[Hosts API] Failed to update host:`, error)
-    return NextResponse.json({ error: 'Failed to update host' }, { status: 500 })
+  const result = await updateExistingHost(id, hostData)
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 /**
@@ -45,21 +28,14 @@ export async function PUT(
  * Delete a host from the configuration.
  */
 export async function DELETE(
-  request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params
+  const { id } = await params
 
-    // Delete host
-    const result = deleteHost(id)
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.error?.includes('not found') ? 404 : 400 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error(`[Hosts API] Failed to delete host:`, error)
-    return NextResponse.json({ error: 'Failed to delete host' }, { status: 500 })
+  const result = await deleteExistingHost(id)
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data, { status: result.status })
 }

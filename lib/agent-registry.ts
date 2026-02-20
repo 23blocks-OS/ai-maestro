@@ -7,6 +7,7 @@ import { parseSessionName, computeSessionName } from '@/types/agent'
 import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
+import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -482,15 +483,9 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
     // Also rename the tmux session if it exists
     if (currentName) {
       try {
-        const { execSync } = require('child_process')
-        // Check if tmux session exists
-        try {
-          execSync(`tmux has-session -t "${currentName}" 2>/dev/null`)
-          // Session exists, rename it
-          execSync(`tmux rename-session -t "${currentName}" "${newName}"`)
+        if (sessionExistsSync(currentName)) {
+          renameSessionSync(currentName, newName)
           console.log(`[Agent Registry] Renamed tmux session: ${currentName} -> ${newName}`)
-        } catch {
-          // Session doesn't exist, that's fine
         }
       } catch (err) {
         console.error(`[Agent Registry] Failed to rename tmux session:`, err)
@@ -599,28 +594,18 @@ function killAgentSessions(agent: Agent): void {
   const agentName = agent.name || agent.alias
   if (!agentName) return
 
-  const { execSync } = require('child_process')
-
   // Kill sessions for all indices in the sessions array
   const sessions = agent.sessions || []
   for (const session of sessions) {
     const sessionName = computeSessionName(agentName, session.index)
-    try {
-      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
-      console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
-    } catch (error) {
-      console.log(`[Agent Registry] Could not kill tmux session ${sessionName} (may not exist)`)
-    }
+    killSessionSync(sessionName)
+    console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
   }
 
   // Also try to kill the base session name (in case sessions array is empty)
   if (sessions.length === 0) {
-    try {
-      execSync(`tmux kill-session -t "${agentName}" 2>/dev/null || true`, { encoding: 'utf-8' })
-      console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
-    } catch (error) {
-      console.log(`[Agent Registry] Could not kill tmux session ${agentName} (may not exist)`)
-    }
+    killSessionSync(agentName)
+    console.log(`[Agent Registry] Killed tmux session: ${agentName}`)
   }
 }
 
@@ -1197,8 +1182,7 @@ export function removeSessionFromAgent(agentId: string, sessionIndex: number): b
   if (agentName) {
     const sessionName = computeSessionName(agentName, sessionIndex)
     try {
-      const { execSync } = require('child_process')
-      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null || true`, { encoding: 'utf-8' })
+      killSessionSync(sessionName)
       console.log(`[Agent Registry] Killed tmux session: ${sessionName}`)
     } catch (error) {
       // Session might not exist

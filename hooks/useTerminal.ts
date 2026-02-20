@@ -251,6 +251,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       // Cmd+V (macOS) or Ctrl+Shift+V (Linux) - Paste from clipboard into PTY via WebSocket
       if ((event.metaKey && event.key === 'v') || (event.ctrlKey && event.shiftKey && event.key === 'V')) {
         if (event.type === 'keydown') {
+          // preventDefault stops the browser from ALSO firing a 'paste' event on the
+          // hidden textarea, which xterm would process via onData — causing double paste.
+          event.preventDefault()
           navigator.clipboard.readText().then((text) => {
             if (text && sendDataRef.current) {
               // Use bracketed paste mode so multi-line content is handled correctly by the shell
@@ -263,7 +266,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
           }).catch((err) => {
             console.warn('Clipboard read denied:', err)
           })
-          return false // Prevent default browser paste behavior
+          return false // Tell xterm to not process this key
         }
       }
 

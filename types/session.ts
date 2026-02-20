@@ -30,6 +30,9 @@ export interface Session {
   // Docker container metadata
   containerAgent?: boolean      // true if this session runs in a Docker container
   containerPort?: number        // Host port mapped to container's 23000
+
+  // Custom tmux socket (e.g., OpenClaw agents)
+  socketPath?: string           // Custom tmux socket path for -S flag
 }
 
 export type SessionStatus = Session['status']

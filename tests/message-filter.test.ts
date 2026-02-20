@@ -21,6 +21,11 @@ vi.mock('@/lib/team-registry', () => ({
   loadTeams: () => mockLoadTeams(),
 }))
 
+// Mock validation module — isValidUuid returns true for UUID-format strings used in tests
+vi.mock('@/lib/validation', () => ({
+  isValidUuid: vi.fn((id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)),
+}))
+
 // ============================================================================
 // Import module under test (after mocks)
 // ============================================================================
@@ -179,8 +184,8 @@ describe('checkMessageAllowed', () => {
     expect(result.reason).toBeUndefined()
   })
 
-  it('denies COS messaging an agent outside all their teams', () => {
-    /** COS cannot reach agents not in any of their teams — step 4, denial branch (R6.2) */
+  it('allows COS to message an agent not in any closed team (G1: COS can reach open-world agents)', () => {
+    /** G1 (v2 Rule 6): COS can message agents NOT in any closed team — step 4, open-world branch */
     const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
 
     mockLoadTeams.mockReturnValue([teamAlpha])
@@ -190,9 +195,8 @@ describe('checkMessageAllowed', () => {
       senderAgentId: COS_ALPHA,
       recipientAgentId: OUTSIDER,
     })
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toContain('Chief-of-Staff')
-    expect(result.reason).toContain('own team members')
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
   })
 
   it('allows a normal closed-team member to message a teammate in the same team', () => {

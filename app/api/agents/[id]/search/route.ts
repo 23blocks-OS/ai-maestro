@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentRegistry } from '@/lib/agent'
-import { hybridSearch, semanticSearch, searchByTerm, searchBySymbol } from '@/lib/rag/search'
-import { getSelfHost } from '@/lib/hosts-config'
+import { searchConversations, ingestConversations } from '@/services/agents-memory-service'
 
 /**
  * GET /api/agents/:id/search
@@ -24,102 +22,31 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id: agentId } = await params
-    const searchParams = request.nextUrl.searchParams
+  const { id: agentId } = await params
+  const searchParams = request.nextUrl.searchParams
 
-    // Get query parameter
-    const query = searchParams.get('q')
-    if (!query) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing required parameter: q (query)'
-        },
-        { status: 400 }
-      )
-    }
+  const result = await searchConversations(agentId, {
+    query: searchParams.get('q') || '',
+    mode: searchParams.get('mode') || undefined,
+    limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined,
+    minScore: searchParams.get('minScore') ? parseFloat(searchParams.get('minScore')!) : undefined,
+    roleFilter: searchParams.get('role') as 'user' | 'assistant' | 'system' | null,
+    conversationFile: searchParams.get('conversation_file') || undefined,
+    startTs: searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!) : undefined,
+    endTs: searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!) : undefined,
+    useRrf: searchParams.get('useRrf') !== 'false',
+    bm25Weight: searchParams.get('bm25Weight') ? parseFloat(searchParams.get('bm25Weight')!) : undefined,
+    semanticWeight: searchParams.get('semanticWeight') ? parseFloat(searchParams.get('semanticWeight')!) : undefined,
+  })
 
-    // Get search mode
-    const mode = searchParams.get('mode') || 'hybrid'
-    if (!['hybrid', 'semantic', 'term', 'symbol'].includes(mode)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid mode. Must be: hybrid, semantic, term, or symbol'
-        },
-        { status: 400 }
-      )
-    }
-
-    // Parse options
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const minScore = parseFloat(searchParams.get('minScore') || '0.0')
-    const roleFilter = searchParams.get('role') as 'user' | 'assistant' | 'system' | null
-    const conversationFile = searchParams.get('conversation_file') || undefined
-    const startTs = searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!) : undefined
-    const endTs = searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!) : undefined
-    const useRrf = searchParams.get('useRrf') !== 'false'
-    const bm25Weight = parseFloat(searchParams.get('bm25Weight') || '0.4')
-    const semanticWeight = parseFloat(searchParams.get('semanticWeight') || '0.6')
-
-    console.log(`[Search API] Agent: ${agentId}, Query: "${query}", Mode: ${mode}`)
-
-    // Trigger delta indexing before search (ensures fresh results)
-    triggerBackgroundDeltaIndexing(agentId).catch((err) => {
-      console.error('[Search API] Background delta indexing failed:', err)
-    })
-
-    // Get or create agent (will initialize with subconscious if first time)
-    const agent = await agentRegistry.getAgent(agentId)
-    const agentDb = await agent.getDatabase()
-
-    // Perform search based on mode
-    let results: Awaited<ReturnType<typeof hybridSearch>> = []
-
-    if (mode === 'hybrid') {
-      results = await hybridSearch(agentDb, query, {
-        limit,
-        minScore,
-        useRrf,
-        bm25Weight,
-        semanticWeight,
-        roleFilter: roleFilter || undefined,
-        conversationFile: conversationFile || undefined,
-        timeRange: startTs && endTs ? { start: startTs, end: endTs } : undefined
-      })
-    } else if (mode === 'semantic') {
-      results = await semanticSearch(agentDb, query, limit, conversationFile)
-    } else if (mode === 'term') {
-      results = await searchByTerm(agentDb, query, limit, conversationFile)
-    } else if (mode === 'symbol') {
-      results = await searchBySymbol(agentDb, query, limit, conversationFile)
-    }
-
-    // NOTE: Don't close agentDb - it's owned by the agent and stays open
-
-    return NextResponse.json({
-      success: true,
-      agent_id: agentId,
-      query,
-      mode,
-      results,
-      count: results.length
-    })
-  } catch (error) {
-    console.error('[Search API] Error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
   }
+  return NextResponse.json(result.data)
 }
 
 /**
- * POST /api/agents/:id/search/ingest
+ * POST /api/agents/:id/search
  * Manually trigger ingestion of conversation files for an agent
  *
  * Body:
@@ -130,84 +57,16 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id: agentId } = await params
-    const body = await request.json()
+  const { id: agentId } = await params
+  const body = await request.json()
 
-    const { conversationFiles, batchSize = 10 } = body
+  const result = await ingestConversations(agentId, {
+    conversationFiles: body.conversationFiles,
+    batchSize: body.batchSize,
+  })
 
-    if (!conversationFiles || !Array.isArray(conversationFiles)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing or invalid conversationFiles array'
-        },
-        { status: 400 }
-      )
-    }
-
-    console.log(`[Search API] Ingesting ${conversationFiles.length} conversations for agent ${agentId}`)
-
-    // Get or create agent (will initialize with subconscious if first time)
-    const agent = await agentRegistry.getAgent(agentId)
-    const agentDb = await agent.getDatabase()
-
-    // Import ingestion functions
-    const { ingestAllConversations } = await import('@/lib/rag/ingest')
-
-    // Perform ingestion
-    const stats = await ingestAllConversations(agentDb, conversationFiles, {
-      batchSize,
-      onProgress: (fileIdx, totalFiles, currentStats) => {
-        console.log(`[Search API] Progress: ${fileIdx}/${totalFiles} files (${currentStats.processedMessages} messages)`)
-      }
-    })
-
-    // NOTE: Don't close agentDb - it's owned by the agent and stays open
-
-    return NextResponse.json({
-      success: true,
-      agent_id: agentId,
-      stats
-    })
-  } catch (error) {
-    console.error('[Search API] Ingestion Error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+  if (result.error) {
+    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
   }
-}
-
-/**
- * Trigger delta indexing in the background (non-blocking)
- */
-async function triggerBackgroundDeltaIndexing(agentId: string): Promise<void> {
-  console.log(`[Search API] Triggering background delta indexing for agent ${agentId}`)
-
-  try {
-    // Use self host URL, never localhost
-    const selfHost = getSelfHost()
-    const response = await fetch(`${selfHost.url}/api/agents/${agentId}/index-delta`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      console.error(`[Search API] Delta indexing returned status ${response.status}`)
-      return
-    }
-
-    const result = await response.json()
-    if (result.success && result.total_messages_processed > 0) {
-      console.log(`[Search API] ✅ Delta indexed ${result.total_messages_processed} messages`)
-    }
-  } catch (error) {
-    console.error('[Search API] Failed to trigger delta indexing:', error)
-  }
+  return NextResponse.json(result.data)
 }

@@ -21,7 +21,9 @@ vi.mock('@/lib/amp-inbox-writer', () => ({
 }))
 
 // Mock child_process to prevent tmux commands
+// Must include exec (used by agent-runtime.ts) and execSync (used by agent-registry.ts sync helpers)
 vi.mock('child_process', () => ({
+  exec: vi.fn((cmd: string, cb: Function) => cb(null, '', '')),
   execSync: vi.fn(),
 }))
 

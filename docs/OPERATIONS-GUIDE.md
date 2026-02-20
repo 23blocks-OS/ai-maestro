@@ -474,7 +474,7 @@ yarn dev
 
 # Production mode (with PM2 for auto-restart)
 yarn build
-pm2 start server.mjs --name ai-maestro
+pm2 start ecosystem.config.js
 
 # Custom port and hostname
 PORT=3001 yarn dev
@@ -1021,7 +1021,7 @@ Ctrl+D                        # Exit AI tool (closes agent)
 yarn dev                      # Start dashboard
 open http://localhost:23000   # Open dashboard
 Ctrl+C                        # Stop dashboard
-pm2 start server.mjs --name ai-maestro  # Start with PM2
+pm2 start ecosystem.config.js            # Start with PM2
 
 # Helper Scripts (if created)
 start-ai-session name agent   # Create agent with AI tool

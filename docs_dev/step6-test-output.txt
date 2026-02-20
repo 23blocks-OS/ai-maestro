@@ -1,0 +1,2279 @@
+yarn run v1.22.22
+(node:62083) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+warning ../package.json: No license field
+$ vitest run
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/emanuelesabetta/ai-maestro[39m
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2mloadTeams[2m > [22m[2mreturns empty array for invalid JSON
+[22m[39mFailed to load teams: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:212:36[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:105:12
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/team-registry.test.ts[2m > [22m[2msaveTeams[2m > [22m[2mreturns false when writeFileSync throws
+[22m[39mFailed to save teams: Error: EACCES: permission denied
+    at Object.<anonymous> [90m(/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:128:13[90m)[39m
+    at Object.Mock [as writeFileSync] [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.saveTeams [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/team-registry.ts:244:8[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/team-registry.test.ts:131:20
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstderr[2m | tests/document-registry.test.ts[2m > [22m[2mloadDocuments[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load documents for team 00000000-0000-4000-8000-000000000001: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadDocuments [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/document-registry.ts:39:44[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/document-registry.test.ts:117:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mreturns empty array when file contains invalid JSON
+[22m[39mFailed to load tasks for team aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+    at JSON.parse (<anonymous>)
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:40:36[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:128:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mloadTasks[2m > [22m[2mrejects path traversal teamId by returning empty array
+[22m[39mFailed to load tasks for team ../../../etc/passwd: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:27:94[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:35:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:142:19
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mrejects non-UUID teamId by failing to persist the task
+[22m[39mFailed to load tasks for team not-a-uuid: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:27:94[90m)[39m
+    at loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:35:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:108:19
+    at withLock [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/file-lock.ts:80:18[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:243:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+Failed to save tasks for team not-a-uuid: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:27:94[90m)[39m
+    at saveTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:52:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:126:5
+    at withLock [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/file-lock.ts:80:18[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:243:18
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstderr[2m | tests/task-registry.test.ts[2m > [22m[2mcreateTask[2m > [22m[2mrejects non-UUID teamId by failing to persist the task
+[22m[39mFailed to load tasks for team not-a-uuid: Error: Invalid team ID
+    at tasksFilePath [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:27:94[90m)[39m
+    at Module.loadTasks [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/task-registry.ts:35:22[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/task-registry.test.ts:246:23
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+ [32m✓[39m tests/team-registry.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/document-registry.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/transfer-registry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/task-registry.test.ts [2m([22m[2m47 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstderr[2m | tests/governance.test.ts[2m > [22m[2mloadGovernance[2m > [22m[2mreturns defaults and backs up when governance file contains invalid JSON
+[22m[39m[governance] CORRUPTION: governance.json contains invalid JSON — returning defaults. Manual inspection required: /Users/emanuelesabetta/.aimaestro/governance.json
+[governance] Corrupted config backed up to /Users/emanuelesabetta/.aimaestro/governance.json.corrupted.1771561914477
+
+ [32m✓[39m tests/agent-utils.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/governance.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/transfer-resolve-route.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mreturns empty list when no agents and no sessions
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mreturns agents from registry with session status
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mcreates orphan agents for sessions without registry entries
+[22m[39m[Agents] Found 1 local tmux session(s)
+[Agents] Auto-registered 1 orphan session(s) as agents
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mmarks agents offline when no matching tmux session
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mmarks agents active when matching tmux session exists
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2msorts online agents before offline
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mincludes host info in response
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistSessions[2m > [22m[2mreturns sessions and caches subsequent calls
+[22m[39m[Sessions] Fetching from 1 host(s)...
+
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mloadAgents[2m > [22m[2mreturns an empty array when registry file contains invalid JSON
+[22m[39mFailed to load agents: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at Module.loadAgents [90m(/Users/emanuelesabetta/ai-maestro/[39mlib/agent-registry.ts:162:25[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/agent-registry.test.ts:155:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistSessions[2m > [22m[2mreturns sessions and caches subsequent calls
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns local sessions
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns empty when no self host configured
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns empty when no sessions found
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mreturns 500 on unexpected error
+[22m[39m[Agents] Failed to fetch agents: Error: disk error
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:247:67
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.listAgents [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/agents-core-service.ts:414:20[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:249:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mcreateNewAgent[2m > [22m[2mreturns 400 when createAgent throws (e.g., duplicate name)
+[22m[39mFailed to create agent: Error: Agent name already exists
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:301:68
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.createNewAgent [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/agents-core-service.ts:605:19[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:303:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mgetAgentById[2m > [22m[2mreturns 500 on unexpected error
+[22m[39mFailed to get agent: Error: read error
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:338:65
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.getAgentById [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/agents-core-service.ts:620:19[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:340:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mupdateAgentById[2m > [22m[2mreturns 400 when updateAgent throws (e.g., duplicate name)
+[22m[39mFailed to update agent: Error: Name taken
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:384:68
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.updateAgentById [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/agents-core-service.ts:646:19[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:386:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstderr[2m | tests/services/teams-service.test.ts[2m > [22m[2mcreateTeamTask[2m > [22m[2mreturns 500 when createTask throws
+[22m[39mFailed to create task: Error: boom
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:409:59
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.createTeamTask [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/teams-service.ts:317:24[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:411:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as active when recently active
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as disconnected when no activity recorded
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as idle when activity is old
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mlinks agentId from registry
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstderr[2m | tests/services/teams-service.test.ts[2m > [22m[2mupdateTeamTask[2m > [22m[2mreturns 500 when updateTask throws
+[22m[39mFailed to update task: Error: write fail
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:519:59
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.updateTeamTask [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/teams-service.ts:383:26[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:521:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes agent by default (marks deletedAt, keeps in registry)
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes agent when hard=true (removes from registry)
+[22m[39m[Agent Registry] Killed tmux session: hard-delete-me
+[Agent Registry] Backed up agent hard-delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000001-2026-02-20T04-31-54-564Z
+[Agent Registry] Removed hard-delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Backed up agent delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000002-2026-02-20T04-31-54-565Z
+[Agent Registry] Removed delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns null for soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: soft-del-lookup
+[Agent Registry] Soft-deleted agent soft-del-lookup (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns soft-deleted agent with includeDeleted=true
+[22m[39m[Agent Registry] Killed tmux session: soft-del-include
+[Agent Registry] Soft-deleted agent soft-del-include (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgentByName() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: soft-del-byname
+[Agent Registry] Soft-deleted agent soft-del-byname (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: list-delete
+[Agent Registry] Soft-deleted agent list-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2msearchAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: searchable-soft-del
+[Agent Registry] Soft-deleted agent searchable-soft-del (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mcreateAgent() succeeds with same name as soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: name-reuse-test
+[Agent Registry] Soft-deleted agent name-reuse-test (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstderr[2m | tests/services/teams-service.test.ts[2m > [22m[2mcreateTeamDocument[2m > [22m[2mreturns 500 when createDocument throws
+[22m[39mFailed to create document: Error: boom
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:666:62
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.createTeamDocument [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/teams-service.ts:481:28[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:668:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents(true) includes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: listall-delete
+[Agent Registry] Soft-deleted agent listall-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstderr[2m | tests/services/teams-service.test.ts[2m > [22m[2mupdateTeamDocument[2m > [22m[2mreturns 500 when updateDocument throws
+[22m[39mFailed to update document: Error: write error
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:750:62
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.updateTeamDocument [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/teams-service.ts:546:28[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/teams-service.test.ts:752:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [31m❯[39m tests/services/teams-service.test.ts [2m([22m[2m70 tests[22m[2m | [22m[31m44 failed[39m[2m)[22m[32m 39[2mms[22m[39m
+     [32m✓[39m returns empty list when no teams exist[32m 1[2mms[22m[39m
+     [32m✓[39m returns populated list of teams[32m 2[2mms[22m[39m
+[31m     [31m×[31m creates a team successfully[39m[32m 7[2mms[22m[39m
+[31m     [31m×[31m creates a team with description and agentIds[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 400 when name is missing[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 400 when name is not a string[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when agentIds is not an array[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 500 when createTeam throws[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m defaults agentIds to empty array when not provided[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns team when found[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates team successfully[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m passes all update fields[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 500 when updateTeam throws[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m deletes team successfully[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+     [32m✓[39m returns resolved tasks for existing team[32m 0[2mms[22m[39m
+     [32m✓[39m returns empty tasks array[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 when team not found[32m 0[2mms[22m[39m
+[31m     [31m×[31m creates task successfully[39m[32m 0[2mms[22m[39m
+     [32m✓[39m passes all task fields to createTask[32m 1[2mms[22m[39m
+     [32m✓[39m trims subject whitespace[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when subject is missing[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when subject is whitespace only[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when blockedBy is not an array of strings[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 500 when createTask throws[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m updates task successfully[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns unblocked tasks[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when task not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 for self-dependency[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 for circular dependency[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 for invalid status[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m accepts valid status values[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 400 for non-string blockedBy entries[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 500 when updateTask throws[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when updateTask returns null task[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m deletes task successfully[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when task not found[39m[32m 0[2mms[22m[39m
+     [32m✓[39m returns documents for existing team[32m 0[2mms[22m[39m
+     [32m✓[39m returns empty list when no documents[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 when team not found[32m 0[2mms[22m[39m
+[31m     [31m×[31m creates document successfully[39m[32m 0[2mms[22m[39m
+     [32m✓[39m passes all fields to createDocument[32m 0[2mms[22m[39m
+     [32m✓[39m defaults content to empty string[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when title is missing[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m returns 500 when createDocument throws[39m[32m 1[2mms[22m[39m
+     [32m✓[39m returns document when found[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 when team not found[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 when document not found[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates document successfully[39m[32m 0[2mms[22m[39m
+     [32m✓[39m passes only provided fields[32m 0[2mms[22m[39m
+     [32m✓[39m passes pinned and tags when provided[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when document not found[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 500 when updateDocument throws[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m deletes document successfully[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when document not found[39m[32m 0[2mms[22m[39m
+     [32m✓[39m notifies all agents successfully[32m 0[2mms[22m[39m
+     [32m✓[39m handles agent not found gracefully[32m 0[2mms[22m[39m
+     [32m✓[39m handles partial failure (some agents not found)[32m 0[2mms[22m[39m
+     [32m✓[39m handles notification failure for an agent[32m 0[2mms[22m[39m
+     [32m✓[39m returns 400 when agentIds is missing[32m 0[2mms[22m[39m
+     [32m✓[39m returns 400 when agentIds is not an array[32m 0[2mms[22m[39m
+     [32m✓[39m returns 400 when teamName is missing[32m 0[2mms[22m[39m
+     [32m✓[39m returns 400 when teamName is not a string[32m 0[2mms[22m[39m
+     [32m✓[39m uses agent name or alias for notification[32m 0[2mms[22m[39m
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Registered new agent: my-agent (new-agent-id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mwakes a hibernated agent
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mwakes a hibernated agent
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mpersists session metadata on wake
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mpersists session metadata on wake
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2msets up AMP for the session
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2msets up AMP for the session
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2muses session index for multi-brain sessions
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2muses session index for multi-brain sessions
+[22m[39m[Wake] Agent my-agent (agent-1) session 2 woken up successfully
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mreturns 500 when tmux session creation fails
+[22m[39m[Wake] Failed to create tmux session: Error: tmux error
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:643:49
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+    at trace [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrenames an agent successfully
+[22m[39m[Agent Registry] Renaming agent from "old-name" to "new-name"
+[Agent Registry] Updated AMP index: old-name -> new-name (00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mnormalizes new name to lowercase
+[22m[39m[Agent Registry] Renaming agent from "rename-case" to "upper-name"
+[Agent Registry] Updated AMP index: rename-case -> upper-name (00000000-0000-0000-0000-000000000001)
+
+[90mstderr[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrejects duplicate name on same host
+[22m[39m[Agent Registry] Cannot rename: agent "existing-name" already exists on host "test-host"
+
+ [31m❯[39m tests/team-api.test.ts [2m([22m[2m22 tests[22m[2m | [22m[31m17 failed[39m[2m)[22m[32m 25[2mms[22m[39m
+     [32m✓[39m returns empty array when no teams[32m 5[2mms[22m[39m
+     [32m✓[39m returns all teams[32m 7[2mms[22m[39m
+[31m     [31m×[31m creates team with name and agents[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m creates team with empty agentIds[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m creates team without agentIds field (defaults to empty)[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when name is missing[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 400 when agentIds is not an array[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m passes managerId from governance to createTeam[39m[32m 1[2mms[22m[39m
+     [32m✓[39m returns 400 for invalid UUID format[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 for non-existent team[32m 0[2mms[22m[39m
+     [32m✓[39m returns team when it exists[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 for non-existent team[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m updates team name[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m updates instructions via PUT[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates lastActivityAt via PUT[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m persists instructions to storage[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m ignores chiefOfStaffId and type in body[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 for non-existent team[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m deletes team and returns success[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 403 when non-authorized agent deletes closed team[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m allows COS to delete closed team[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m allows MANAGER to delete closed team[39m[32m 0[2mms[22m[39m
+ [32m✓[39m tests/agent-registry.test.ts [2m([22m[2m91 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [31m❯[39m tests/document-api.test.ts [2m([22m[2m21 tests[22m[2m | [22m[31m15 failed[39m[2m)[22m[32m 23[2mms[22m[39m
+     [32m✓[39m returns 404 when team does not exist[32m 5[2mms[22m[39m
+     [32m✓[39m returns empty documents array for team with no docs[32m 3[2mms[22m[39m
+     [32m✓[39m returns documents for a team[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 404 when team does not exist[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m returns 400 when title is missing[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m creates a document with 201 status[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m persists created document[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m stores HTML content verbatim without sanitization (frontend concern)[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m defaults content to empty string when not provided[39m[32m 0[2mms[22m[39m
+     [32m✓[39m returns 404 when team does not exist[32m 1[2mms[22m[39m
+     [32m✓[39m returns 404 when document does not exist[32m 0[2mms[22m[39m
+     [32m✓[39m returns the document when it exists[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when document does not exist[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m returns 404 with "Team not found" when team does not exist[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates document title[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates document content[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates pinned status[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m updates document tags[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 when document does not exist[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m returns 404 with "Team not found" when team does not exist[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m deletes document and returns success[39m[32m 0[2mms[22m[39m
+ [31m❯[39m tests/validate-team-mutation.test.ts [2m([22m[2m18 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[32m 10[2mms[22m[39m
+     [32m✓[39m strips control characters and trims leading/trailing whitespace[32m 1[2mms[22m[39m
+     [32m✓[39m collapses multiple spaces into a single space[32m 0[2mms[22m[39m
+     [32m✓[39m returns empty string for whitespace-only input[32m 0[2mms[22m[39m
+       [32m✓[39m rejects names shorter than 4 characters after sanitization[32m 0[2mms[22m[39m
+       [32m✓[39m rejects names longer than 64 characters[32m 0[2mms[22m[39m
+       [32m✓[39m rejects names not starting with a letter or number[32m 0[2mms[22m[39m
+       [32m✓[39m rejects names with invalid characters like angle brackets[32m 0[2mms[22m[39m
+       [32m✓[39m rejects duplicate team name with case-insensitive comparison (R2.1/R2.3)[32m 0[2mms[22m[39m
+       [32m✓[39m rejects team name that collides with a reserved agent name[32m 0[2mms[22m[39m
+       [32m✓[39m rejects invalid team type values (R1.7)[32m 1[2mms[22m[39m
+[31m       [31m×[31m rejects a closed team without a Chief-of-Staff (COS-closed invariant R1.3/R1.4)[39m[32m 4[2mms[22m[39m
+       [32m✓[39m rejects assigning a COS on an open team (R1.8)[32m 0[2mms[22m[39m
+       [32m✓[39m auto-adds COS to agentIds in the sanitized output when COS is not a member (R4.6)[32m 0[2mms[22m[39m
+       [32m✓[39m rejects removing the COS from agentIds without removing the COS role first (R4.7)[32m 0[2mms[22m[39m
+       [32m✓[39m rejects a normal agent that is already in another closed team (R4.1)[32m 0[2mms[22m[39m
+       [32m✓[39m allows the MANAGER agent to be in multiple closed teams (R4.3)[32m 0[2mms[22m[39m
+[31m       [31m×[31m allows an agent assigned as COS in the current mutation to be in multiple closed teams (R4.4 effectiveCOS)[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m allows an agent who is COS in another team to be added to a new closed team (R4.4 isCOSAnywhere)[39m[32m 0[2mms[22m[39m
+ [32m✓[39m tests/content-security.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/amp-address.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/amp-auth.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [31m❯[39m tests/message-filter.test.ts [2m([22m[2m15 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 7[2mms[22m[39m
+     [32m✓[39m allows mesh-forwarded messages when senderAgentId is null and recipient not in closed team[32m 1[2mms[22m[39m
+     [32m✓[39m allows messages when neither sender nor recipient is in a closed team[32m 0[2mms[22m[39m
+     [32m✓[39m allows messages when sender is MANAGER regardless of teams[32m 0[2mms[22m[39m
+     [32m✓[39m allows COS to message the MANAGER[32m 0[2mms[22m[39m
+     [32m✓[39m allows COS to message another COS (COS-to-COS bridge)[32m 0[2mms[22m[39m
+     [32m✓[39m allows COS to message a member of their own closed team[32m 0[2mms[22m[39m
+     [32m✓[39m allows COS sender who is chiefOfStaffId but not in agentIds to message team members[32m 0[2mms[22m[39m
+[31m     [31m×[31m denies COS messaging an agent outside all their teams[39m[32m 3[2mms[22m[39m
+     [32m✓[39m allows a normal closed-team member to message a teammate in the same team[32m 0[2mms[22m[39m
+     [32m✓[39m allows a normal member to message the COS of their team (COS is not a peer teammate)[32m 0[2mms[22m[39m
+     [32m✓[39m denies a normal closed-team member messaging an agent outside their team[32m 0[2mms[22m[39m
+     [32m✓[39m allows COS managing two closed teams to message a member of the second team[32m 0[2mms[22m[39m
+     [32m✓[39m denies mesh-forwarded (null sender) messages to closed-team recipients[32m 0[2mms[22m[39m
+     [32m✓[39m denies closed-team sender messaging a non-UUID alias recipient[32m 0[2mms[22m[39m
+     [32m✓[39m denies an outside sender messaging a recipient inside a closed team[32m 0[2mms[22m[39m
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Launched program "claude" in session my-agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Registered new agent: myagent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent myagent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Launched program "claude" in session myagent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Registered new agent: agent (new-id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mskips registration when agent exists in registry
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2mhibernates an active agent
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mskips registration when agent exists in registry
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Registered new agent: my-test_agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent my-test_agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Launched program "claude" in session my-test_agent
+
+ [32m✓[39m tests/services/sessions-service.test.ts [2m([22m[2m60 tests[22m[2m)[22m[33m 2458[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a local session successfully [33m 314[2mms[22m[39m
+     [33m[2m✓[22m[39m normalizes name to lowercase [33m 303[2mms[22m[39m
+     [33m[2m✓[22m[39m uses provided working directory [33m 301[2mms[22m[39m
+     [33m[2m✓[22m[39m registers a new agent when not found in registry [33m 302[2mms[22m[39m
+     [33m[2m✓[22m[39m skips registration when agent exists in registry [33m 305[2mms[22m[39m
+     [33m[2m✓[22m[39m persists session metadata [33m 301[2mms[22m[39m
+     [33m[2m✓[22m[39m initializes AMP for the session [33m 302[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts valid session names with hyphens and underscores [33m 301[2mms[22m[39m
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2munpersists session after hibernate
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2mattempts graceful shutdown before kill
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2minitializes all agents
+[22m[39m[Startup] Initializing all agents...
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2minitializes all agents
+[22m[39m[Startup] Complete: 2 agents initialized
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreports partial failures
+[22m[39m[Startup] Initializing all agents...
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreports partial failures
+[22m[39m[Startup] Complete: 1 agents initialized
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreturns 500 on unexpected error
+[22m[39m[Startup] Initializing all agents...
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreturns 500 on unexpected error
+[22m[39m[Startup] Error: Error: init failed
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:990:60
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+    at trace [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+[90mstderr[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mgetStartupInfo[2m > [22m[2mreturns 500 on error
+[22m[39m[Startup] Error: Error: fail
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:1013:72
+    at Mock [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at Module.getStartupInfo [90m(/Users/emanuelesabetta/ai-maestro/[39mservices/agents-core-service.ts:1517:20[90m)[39m
+    at [90m/Users/emanuelesabetta/ai-maestro/[39mtests/services/agents-core-service.test.ts:1015:20
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///Users/emanuelesabetta/ai-maestro/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+
+ [32m✓[39m tests/services/agents-core-service.test.ts [2m([22m[2m75 tests[22m[2m)[22m[33m 4565[2mms[22m[39m
+     [33m[2m✓[22m[39m hibernates an active agent [33m 1503[2mms[22m[39m
+     [33m[2m✓[22m[39m unpersists session after hibernate [33m 1505[2mms[22m[39m
+     [33m[2m✓[22m[39m attempts graceful shutdown before kill [33m 1503[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 80 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mreturns 404 when team does not exist
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m131:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mreturns 400 when title is missing
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m144:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mcreates a document with 201 status
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m159:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mpersists created document
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m177:5[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mstores HTML content verbatim without sanitization (frontend concern)
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m193:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPOST /api/teams/[id]/documents[2m > [22mdefaults content to empty string when not provided
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/[id]/documents/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m214:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mreturns 404 when document does not exist
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m274:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mreturns 404 with "Team not found" when team does not exist
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m287:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mupdates document title
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m303:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mupdates document content
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m319:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mupdates pinned status
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m335:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mPUT /api/teams/[id]/documents/[docId][2m > [22mupdates document tags
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/documents/[docId]/route.ts:[2m35:23[22m[39m
+    [90m 33| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 34| [39m  }
+    [90m 35| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 36| [39m}
+    [90m 37| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m350:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mDELETE /api/teams/[id]/documents/[docId][2m > [22mreturns 404 when document does not exist
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/documents/[docId]/route.ts:[2m49:23[22m[39m
+    [90m 47| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 48| [39m  }
+    [90m 49| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 50| [39m}
+    [90m 51| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m370:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mDELETE /api/teams/[id]/documents/[docId][2m > [22mreturns 404 with "Team not found" when team does not exist
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/documents/[docId]/route.ts:[2m49:23[22m[39m
+    [90m 47| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 48| [39m  }
+    [90m 49| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 50| [39m}
+    [90m 51| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m379:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/document-api.test.ts[2m > [22mDELETE /api/teams/[id]/documents/[docId][2m > [22mdeletes document and returns success
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/documents/[docId]/route.ts:[2m49:23[22m[39m
+    [90m 47| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 48| [39m  }
+    [90m 49| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 50| [39m}
+    [90m 51| [39m
+[90m [2m❯[22m tests/document-api.test.ts:[2m391:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/message-filter.test.ts[2m > [22mcheckMessageAllowed[2m > [22mdenies COS messaging an agent outside all their teams
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/message-filter.test.ts:[2m193:28[22m[39m
+    [90m191| [39m      recipientAgentId[33m:[39m [33mOUTSIDER[39m[33m,[39m
+    [90m192| [39m    })
+    [90m193| [39m    [34mexpect[39m(result[33m.[39mallowed)[33m.[39m[34mtoBe[39m([35mfalse[39m)
+    [90m   | [39m                           [31m^[39m
+    [90m194| [39m    [34mexpect[39m(result[33m.[39mreason)[33m.[39m[34mtoContain[39m([32m'Chief-of-Staff'[39m)
+    [90m195| [39m    [34mexpect[39m(result[33m.[39mreason)[33m.[39m[34mtoContain[39m([32m'own team members'[39m)
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mcreates team with name and agents
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m129:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mcreates team with empty agentIds
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m143:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mcreates team without agentIds field (defaults to empty)
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m156:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mreturns 400 when name is missing
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m169:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mreturns 400 when agentIds is not an array
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m180:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPOST /api/teams[2m > [22mpasses managerId from governance to createTeam
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.POST app/api/teams/route.ts:[2m28:23[22m[39m
+    [90m 26| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 27| [39m  }
+    [90m 28| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata[33m,[39m { status[33m:[39m result[33m.[39mstatus })
+    [90m   | [39m                      [31m^[39m
+    [90m 29| [39m}
+    [90m 30| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m197:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mreturns 404 for non-existent team
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m256:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mupdates team name
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m269:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mupdates instructions via PUT
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m284:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mupdates lastActivityAt via PUT
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m300:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mpersists instructions to storage
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m315:5[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mPUT /api/teams/[id][2m > [22mignores chiefOfStaffId and type in body
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.PUT app/api/teams/[id]/route.ts:[2m39:23[22m[39m
+    [90m 37| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 38| [39m  }
+    [90m 39| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 40| [39m}
+    [90m 41| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m333:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mDELETE /api/teams/[id][2m > [22mreturns 404 for non-existent team
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/route.ts:[2m54:23[22m[39m
+    [90m 52| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 53| [39m  }
+    [90m 54| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 55| [39m}
+    [90m 56| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m360:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mDELETE /api/teams/[id][2m > [22mdeletes team and returns success
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/route.ts:[2m54:23[22m[39m
+    [90m 52| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 53| [39m  }
+    [90m 54| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 55| [39m}
+    [90m 56| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m369:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mDELETE /api/teams/[id][2m > [22mreturns 403 when non-authorized agent deletes closed team
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/route.ts:[2m54:23[22m[39m
+    [90m 52| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 53| [39m  }
+    [90m 54| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 55| [39m}
+    [90m 56| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m386:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mDELETE /api/teams/[id][2m > [22mallows COS to delete closed team
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/route.ts:[2m54:23[22m[39m
+    [90m 52| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 53| [39m  }
+    [90m 54| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 55| [39m}
+    [90m 56| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m402:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/team-api.test.ts[2m > [22mDELETE /api/teams/[id][2m > [22mallows MANAGER to delete closed team
+[31m[1mTypeError[22m: Value is not JSON serializable[39m
+[90m [2m❯[22m NextResponse.json node_modules/next/dist/server/web/spec-extension/response.js:[2m91:35[22m[39m
+[36m [2m❯[22m Module.DELETE app/api/teams/[id]/route.ts:[2m54:23[22m[39m
+    [90m 52| [39m    return NextResponse.json({ error: result.error }, { status: result…
+    [90m 53| [39m  }
+    [90m 54| [39m  [35mreturn[39m [33mNextResponse[39m[33m.[39m[34mjson[39m(result[33m.[39mdata)
+    [90m   | [39m                      [31m^[39m
+    [90m 55| [39m}
+    [90m 56| [39m
+[90m [2m❯[22m tests/team-api.test.ts:[2m418:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/validate-team-mutation.test.ts[2m > [22mvalidateTeamMutation[2m > [22mtype validation[2m > [22mrejects a closed team without a Chief-of-Staff (COS-closed invariant R1.3/R1.4)
+[31m[1mAssertionError[22m: expected { valid: true, sanitized: { …(2) } } to deeply equal { valid: false, …(2) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "code": 400,[39m
+[32m-   "error": "A closed team must have a Chief-of-Staff assigned",[39m
+[32m-   "valid": false,[39m
+[31m+   "sanitized": {[39m
+[31m+     "name": "SecureTeam",[39m
+[31m+     "type": "open",[39m
+[31m+   },[39m
+[31m+   "valid": true,[39m
+[2m  }[22m
+
+[36m [2m❯[22m tests/validate-team-mutation.test.ts:[2m193:22[22m[39m
+    [90m191| [39m        [35mnull[39m[33m,[39m
+    [90m192| [39m      )
+    [90m193| [39m      [34mexpect[39m(result)[33m.[39m[34mtoEqual[39m({
+    [90m   | [39m                     [31m^[39m
+    [90m194| [39m        valid[33m:[39m [35mfalse[39m[33m,[39m
+    [90m195| [39m        error[33m:[39m [32m'A closed team must have a Chief-of-Staff assigned'[39m[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/validate-team-mutation.test.ts[2m > [22mvalidateTeamMutation[2m > [22mmulti-closed-team constraint[2m > [22mallows an agent assigned as COS in the current mutation to be in multiple closed teams (R4.4 effectiveCOS)
+[31m[1mAssertionError[22m: expected { valid: false, …(2) } to deeply equal { valid: true, …(1) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "sanitized": {[39m
+[32m-     "name": "New Closed Team",[39m
+[32m-   },[39m
+[32m-   "valid": true,[39m
+[31m+   "code": 409,[39m
+[31m+   "error": "Agent agent-promoted-cos is already in closed team \"Existing Closed\" — normal agents can only be in one closed team",[39m
+[31m+   "valid": false,[39m
+[2m  }[22m
+
+[36m [2m❯[22m tests/validate-team-mutation.test.ts:[2m355:22[22m[39m
+    [90m353| [39m        [35mnull[39m[33m,[39m
+    [90m354| [39m      )
+    [90m355| [39m      [34mexpect[39m(result)[33m.[39m[34mtoEqual[39m({
+    [90m   | [39m                     [31m^[39m
+    [90m356| [39m        valid[33m:[39m [35mtrue[39m[33m,[39m
+    [90m357| [39m        sanitized[33m:[39m { name[33m:[39m [32m'New Closed Team'[39m }[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/validate-team-mutation.test.ts[2m > [22mvalidateTeamMutation[2m > [22mmulti-closed-team constraint[2m > [22mallows an agent who is COS in another team to be added to a new closed team (R4.4 isCOSAnywhere)
+[31m[1mAssertionError[22m: expected { valid: false, …(2) } to deeply equal { valid: true, …(1) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "sanitized": {[39m
+[32m-     "name": "New Closed Team",[39m
+[32m-   },[39m
+[32m-   "valid": true,[39m
+[31m+   "code": 409,[39m
+[31m+   "error": "Agent agent-cos-elsewhere is already in closed team \"Other Closed\" — normal agents can only be in one closed team",[39m
+[31m+   "valid": false,[39m
+[2m  }[22m
+
+[36m [2m❯[22m tests/validate-team-mutation.test.ts:[2m384:22[22m[39m
+    [90m382| [39m        [35mnull[39m[33m,[39m
+    [90m383| [39m      )
+    [90m384| [39m      [34mexpect[39m(result)[33m.[39m[34mtoEqual[39m({
+    [90m   | [39m                     [31m^[39m
+    [90m385| [39m        valid[33m:[39m [35mtrue[39m[33m,[39m
+    [90m386| [39m        sanitized[33m:[39m { name[33m:[39m [32m'New Closed Team'[39m }[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mcreates a team successfully
+[31m[1mAssertionError[22m: expected undefined to be 201 // Object.is equality[39m
+
+[32m- Expected:[39m 
+201
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m122:27[22m[39m
+    [90m120| [39m    [35mconst[39m result [33m=[39m [34mcreateNewTeam[39m({ name[33m:[39m [32m'New Team'[39m[33m,[39m agentIds[33m:[39m [] })
+    [90m121| [39m
+    [90m122| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m201[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m123| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mteam[33m.[39mname)[33m.[39m[34mtoBe[39m([32m'New Team'[39m)
+    [90m124| [39m    expect(mockTeams.createTeam).toHaveBeenCalledWith({ name: 'New Tea…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mcreates a team with description and agentIds
+[31m[1mAssertionError[22m: expected undefined to be 201 // Object.is equality[39m
+
+[32m- Expected:[39m 
+201
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m133:27[22m[39m
+    [90m131| [39m    const result = createNewTeam({ name: 'Full Team', description: 'A …
+    [90m132| [39m
+    [90m133| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m201[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m134| [39m    expect(mockTeams.createTeam).toHaveBeenCalledWith({ name: 'Full Te…
+    [90m135| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mreturns 400 when name is missing
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m140:27[22m[39m
+    [90m138| [39m    [35mconst[39m result [33m=[39m [34mcreateNewTeam[39m({ name[33m:[39m [32m''[39m[33m,[39m agentIds[33m:[39m [] })
+    [90m139| [39m
+    [90m140| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m141| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/name/i[39m)
+    [90m142| [39m    [34mexpect[39m(mockTeams[33m.[39mcreateTeam)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mreturns 400 when name is not a string
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m148:27[22m[39m
+    [90m146| [39m    [35mconst[39m result [33m=[39m [34mcreateNewTeam[39m({ name[33m:[39m [35mnull[39m [35mas[39m any[33m,[39m agentIds[33m:[39m [] })
+    [90m147| [39m
+    [90m148| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m149| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/name/i[39m)
+    [90m150| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mreturns 400 when agentIds is not an array
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m155:27[22m[39m
+    [90m153| [39m    const result = createNewTeam({ name: 'Team', agentIds: 'not-array'…
+    [90m154| [39m
+    [90m155| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m156| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/agentIds/i[39m)
+    [90m157| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mreturns 500 when createTeam throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m164:27[22m[39m
+    [90m162| [39m    [35mconst[39m result [33m=[39m [34mcreateNewTeam[39m({ name[33m:[39m [32m'Fail'[39m[33m,[39m agentIds[33m:[39m [] })
+    [90m163| [39m
+    [90m164| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m165| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoBe[39m([32m'disk full'[39m)
+    [90m166| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[42/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateNewTeam[2m > [22mdefaults agentIds to empty array when not provided
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called with arguments: [ { name: 'No Agents', …(2) } ][90m
+
+Number of calls: [1m0[22m
+[31m[39m
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m174:34[22m[39m
+    [90m172| [39m    [34mcreateNewTeam[39m({ name[33m:[39m [32m'No Agents'[39m })
+    [90m173| [39m
+    [90m174| [39m    expect(mockTeams.createTeam).toHaveBeenCalledWith({ name: 'No Agen…
+    [90m   | [39m                                 [31m^[39m
+    [90m175| [39m  })
+    [90m176| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[43/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mgetTeamById[2m > [22mreturns team when found
+[31m[1mAssertionError[22m: expected 400 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 400[39m
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m189:27[22m[39m
+    [90m187| [39m    [35mconst[39m result [33m=[39m [34mgetTeamById[39m([32m'team-123'[39m)
+    [90m188| [39m
+    [90m189| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m190| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mteam[33m.[39mname)[33m.[39m[34mtoBe[39m([32m'Found'[39m)
+    [90m191| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[44/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mgetTeamById[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected 400 to be 404 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 404[39m
+[31m+ 400[39m
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m198:27[22m[39m
+    [90m196| [39m    [35mconst[39m result [33m=[39m [34mgetTeamById[39m([32m'nonexistent'[39m)
+    [90m197| [39m
+    [90m198| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m199| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/not found/i[39m)
+    [90m200| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[45/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamById[2m > [22mupdates team successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m214:27[22m[39m
+    [90m212| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamById[39m([32m'team-1'[39m[33m,[39m { name[33m:[39m [32m'Updated'[39m })
+    [90m213| [39m
+    [90m214| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m215| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mteam[33m.[39mname)[33m.[39m[34mtoBe[39m([32m'Updated'[39m)
+    [90m216| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[46/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamById[2m > [22mpasses all update fields
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called with arguments: [ Array(2) ][90m
+
+Number of calls: [1m0[22m
+[31m[39m
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m230:34[22m[39m
+    [90m228| [39m    })
+    [90m229| [39m
+    [90m230| [39m    [34mexpect[39m(mockTeams[33m.[39mupdateTeam)[33m.[39m[34mtoHaveBeenCalledWith[39m([32m'team-1'[39m[33m,[39m {
+    [90m   | [39m                                 [31m^[39m
+    [90m231| [39m      name[33m:[39m [32m'New Name'[39m[33m,[39m
+    [90m232| [39m      description[33m:[39m [32m'Desc'[39m[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[47/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamById[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m245:27[22m[39m
+    [90m243| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamById[39m([32m'nope'[39m[33m,[39m { name[33m:[39m [32m'X'[39m })
+    [90m244| [39m
+    [90m245| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m246| [39m  })
+    [90m247| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[48/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamById[2m > [22mreturns 500 when updateTeam throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m253:27[22m[39m
+    [90m251| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamById[39m([32m'team-1'[39m[33m,[39m { name[33m:[39m [32m'X'[39m })
+    [90m252| [39m
+    [90m253| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m254| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoBe[39m([32m'write error'[39m)
+    [90m255| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[49/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamById[2m > [22mdeletes team successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m268:27[22m[39m
+    [90m266| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamById[39m([32m'team-1'[39m)
+    [90m267| [39m
+    [90m268| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m269| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39msuccess)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m270| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[50/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamById[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m277:27[22m[39m
+    [90m275| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamById[39m([32m'nope'[39m)
+    [90m276| [39m
+    [90m277| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m278| [39m  })
+    [90m279| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[51/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mcreates task successfully
+[31m[1mAssertionError[22m: expected undefined to be 201 // Object.is equality[39m
+
+[32m- Expected:[39m 
+201
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m336:27[22m[39m
+    [90m334| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamTask[39m([32m'team-1'[39m[33m,[39m { subject[33m:[39m [32m'Build API'[39m })
+    [90m335| [39m
+    [90m336| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m201[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m337| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mtask[33m.[39msubject)[33m.[39m[34mtoBe[39m([32m'Build API'[39m)
+    [90m338| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[52/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m378:27[22m[39m
+    [90m376| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamTask[39m([32m'nope'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m377| [39m
+    [90m378| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m379| [39m  })
+    [90m380| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[53/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mreturns 400 when subject is missing
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m386:27[22m[39m
+    [90m384| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamTask[39m([32m'team-1'[39m[33m,[39m { subject[33m:[39m [32m''[39m })
+    [90m385| [39m
+    [90m386| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m387| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/subject/i[39m)
+    [90m388| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[54/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mreturns 400 when subject is whitespace only
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m395:27[22m[39m
+    [90m393| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamTask[39m([32m'team-1'[39m[33m,[39m { subject[33m:[39m [32m'   '[39m })
+    [90m394| [39m
+    [90m395| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m396| [39m  })
+    [90m397| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[55/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mreturns 400 when blockedBy is not an array of strings
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m403:27[22m[39m
+    [90m401| [39m    const result = createTeamTask('team-1', { subject: 'X', blockedBy:…
+    [90m402| [39m
+    [90m403| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m404| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/blockedBy/i[39m)
+    [90m405| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[56/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamTask[2m > [22mreturns 500 when createTask throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m413:27[22m[39m
+    [90m411| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamTask[39m([32m'team-1'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m412| [39m
+    [90m413| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m414| [39m  })
+    [90m415| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[57/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mupdates task successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m429:27[22m[39m
+    [90m427| [39m    const result = updateTeamTask('team-1', 't1', { status: 'completed…
+    [90m428| [39m
+    [90m429| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m430| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mtask[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m'completed'[39m)
+    [90m431| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39munblocked)[33m.[39m[34mtoEqual[39m([])
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[58/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns unblocked tasks
+[31m[1mAssertionError[22m: Target cannot be null or undefined.[39m
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m442:36[22m[39m
+    [90m440| [39m    const result = updateTeamTask('team-1', 't1', { status: 'completed…
+    [90m441| [39m
+    [90m442| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39munblocked)[33m.[39m[34mtoHaveLength[39m([34m1[39m)
+    [90m   | [39m                                   [31m^[39m
+    [90m443| [39m  })
+    [90m444| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[59/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m450:27[22m[39m
+    [90m448| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamTask[39m([32m'nope'[39m[33m,[39m [32m't1'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m449| [39m
+    [90m450| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m451| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/team/i[39m)
+    [90m452| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[60/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 404 when task not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m460:27[22m[39m
+    [90m458| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamTask[39m([32m'team-1'[39m[33m,[39m [32m'nope'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m459| [39m
+    [90m460| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m461| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/task/i[39m)
+    [90m462| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[61/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 400 for self-dependency
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m470:27[22m[39m
+    [90m468| [39m    const result = updateTeamTask('team-1', 't1', { blockedBy: ['t1'] …
+    [90m469| [39m
+    [90m470| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m471| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/itself/i[39m)
+    [90m472| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[62/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 400 for circular dependency
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m481:27[22m[39m
+    [90m479| [39m    const result = updateTeamTask('team-1', 't1', { blockedBy: ['t2'] …
+    [90m480| [39m
+    [90m481| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m482| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/circular/i[39m)
+    [90m483| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[63/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 400 for invalid status
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m491:27[22m[39m
+    [90m489| [39m    const result = updateTeamTask('team-1', 't1', { status: 'invalid' …
+    [90m490| [39m
+    [90m491| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m492| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/status/i[39m)
+    [90m493| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[64/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22maccepts valid status values
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m503:29[22m[39m
+    [90m501| [39m      mockTasks.updateTask.mockReturnValue({ task: makeTask({ status }…
+    [90m502| [39m      [35mconst[39m result [33m=[39m [34mupdateTeamTask[39m([32m'team-1'[39m[33m,[39m [32m't1'[39m[33m,[39m { status })
+    [90m503| [39m      [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                            [31m^[39m
+    [90m504| [39m    }
+    [90m505| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[65/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 400 for non-string blockedBy entries
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m513:27[22m[39m
+    [90m511| [39m    const result = updateTeamTask('team-1', 't1', { blockedBy: [42 as …
+    [90m512| [39m
+    [90m513| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m514| [39m  })
+    [90m515| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[66/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 500 when updateTask throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m523:27[22m[39m
+    [90m521| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamTask[39m([32m'team-1'[39m[33m,[39m [32m't1'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m522| [39m
+    [90m523| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m524| [39m  })
+    [90m525| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[67/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamTask[2m > [22mreturns 404 when updateTask returns null task
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m533:27[22m[39m
+    [90m531| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamTask[39m([32m'team-1'[39m[33m,[39m [32m't1'[39m[33m,[39m { subject[33m:[39m [32m'X'[39m })
+    [90m532| [39m
+    [90m533| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m534| [39m  })
+    [90m535| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[68/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamTask[2m > [22mdeletes task successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m548:27[22m[39m
+    [90m546| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamTask[39m([32m'team-1'[39m[33m,[39m [32m't1'[39m)
+    [90m547| [39m
+    [90m548| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m549| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39msuccess)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m550| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[69/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamTask[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m557:27[22m[39m
+    [90m555| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamTask[39m([32m'nope'[39m[33m,[39m [32m't1'[39m)
+    [90m556| [39m
+    [90m557| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m558| [39m  })
+    [90m559| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[70/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamTask[2m > [22mreturns 404 when task not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m566:27[22m[39m
+    [90m564| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamTask[39m([32m'team-1'[39m[33m,[39m [32m'nope'[39m)
+    [90m565| [39m
+    [90m566| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m567| [39m  })
+    [90m568| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[71/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamDocument[2m > [22mcreates document successfully
+[31m[1mAssertionError[22m: expected undefined to be 201 // Object.is equality[39m
+
+[32m- Expected:[39m 
+201
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m617:27[22m[39m
+    [90m615| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamDocument[39m([32m'team-1'[39m[33m,[39m { title[33m:[39m [32m'New Doc'[39m })
+    [90m616| [39m
+    [90m617| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m201[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m618| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mdocument[33m.[39mtitle)[33m.[39m[34mtoBe[39m([32m'New Doc'[39m)
+    [90m619| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[72/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamDocument[2m > [22mreturns 404 when team not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m652:27[22m[39m
+    [90m650| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamDocument[39m([32m'nope'[39m[33m,[39m { title[33m:[39m [32m'X'[39m })
+    [90m651| [39m
+    [90m652| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m653| [39m  })
+    [90m654| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[73/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamDocument[2m > [22mreturns 400 when title is missing
+[31m[1mAssertionError[22m: expected undefined to be 400 // Object.is equality[39m
+
+[32m- Expected:[39m 
+400
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m660:27[22m[39m
+    [90m658| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamDocument[39m([32m'team-1'[39m[33m,[39m { title[33m:[39m [32m''[39m })
+    [90m659| [39m
+    [90m660| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m400[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m661| [39m    [34mexpect[39m(result[33m.[39merror)[33m.[39m[34mtoMatch[39m([36m/title/i[39m)
+    [90m662| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[74/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mcreateTeamDocument[2m > [22mreturns 500 when createDocument throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m670:27[22m[39m
+    [90m668| [39m    [35mconst[39m result [33m=[39m [34mcreateTeamDocument[39m([32m'team-1'[39m[33m,[39m { title[33m:[39m [32m'X'[39m })
+    [90m669| [39m
+    [90m670| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m671| [39m  })
+    [90m672| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[75/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamDocument[2m > [22mupdates document successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m721:27[22m[39m
+    [90m719| [39m    const result = updateTeamDocument('team-1', 'doc-1', { title: 'Upd…
+    [90m720| [39m
+    [90m721| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m722| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39mdocument[33m.[39mtitle)[33m.[39m[34mtoBe[39m([32m'Updated'[39m)
+    [90m723| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[76/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamDocument[2m > [22mreturns 404 when document not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m746:27[22m[39m
+    [90m744| [39m    [35mconst[39m result [33m=[39m [34mupdateTeamDocument[39m([32m'team-1'[39m[33m,[39m [32m'nope'[39m[33m,[39m { title[33m:[39m [32m'X'[39m })
+    [90m745| [39m
+    [90m746| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m747| [39m  })
+    [90m748| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[77/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mupdateTeamDocument[2m > [22mreturns 500 when updateDocument throws
+[31m[1mAssertionError[22m: expected undefined to be 500 // Object.is equality[39m
+
+[32m- Expected:[39m 
+500
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m754:27[22m[39m
+    [90m752| [39m    const result = updateTeamDocument('team-1', 'doc-1', { title: 'X' …
+    [90m753| [39m
+    [90m754| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m500[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m755| [39m  })
+    [90m756| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[78/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamDocument[2m > [22mdeletes document successfully
+[31m[1mAssertionError[22m: expected undefined to be 200 // Object.is equality[39m
+
+[32m- Expected:[39m 
+200
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m768:27[22m[39m
+    [90m766| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamDocument[39m([32m'team-1'[39m[33m,[39m [32m'doc-1'[39m)
+    [90m767| [39m
+    [90m768| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m769| [39m    [34mexpect[39m(result[33m.[39mdata[33m?.[39msuccess)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m770| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[79/80]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/services/teams-service.test.ts[2m > [22mdeleteTeamDocument[2m > [22mreturns 404 when document not found
+[31m[1mAssertionError[22m: expected undefined to be 404 // Object.is equality[39m
+
+[32m- Expected:[39m 
+404
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m tests/services/teams-service.test.ts:[2m777:27[22m[39m
+    [90m775| [39m    [35mconst[39m result [33m=[39m [34mdeleteTeamDocument[39m([32m'team-1'[39m[33m,[39m [32m'nope'[39m)
+    [90m776| [39m
+    [90m777| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m404[39m)
+    [90m   | [39m                          [31m^[39m
+    [90m778| [39m  })
+    [90m779| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[80/80]⎯[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Unhandled Errors [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+[31m[1m
+Vitest caught 8 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.[22m[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.createNewTeam services/teams-service.ts:[2m159:26[22m[39m
+    [90m157| [39m  } [35mcatch[39m (error) {
+    [90m158| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m159| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m160| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m161| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m120:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.createNewTeam services/teams-service.ts:[2m159:26[22m[39m
+    [90m157| [39m  } [35mcatch[39m (error) {
+    [90m158| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m159| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m160| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m161| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m131:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.createNewTeam services/teams-service.ts:[2m159:26[22m[39m
+    [90m157| [39m  } [35mcatch[39m (error) {
+    [90m158| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m159| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m160| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m161| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m162:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.createNewTeam services/teams-service.ts:[2m159:26[22m[39m
+    [90m157| [39m  } [35mcatch[39m (error) {
+    [90m158| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m159| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m160| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m161| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m172:5[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.updateTeamById services/teams-service.ts:[2m221:26[22m[39m
+    [90m219| [39m  } [35mcatch[39m (error) {
+    [90m220| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m221| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m222| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m223| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m212:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.updateTeamById services/teams-service.ts:[2m221:26[22m[39m
+    [90m219| [39m  } [35mcatch[39m (error) {
+    [90m220| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m221| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m222| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m223| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m221:5[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.updateTeamById services/teams-service.ts:[2m221:26[22m[39m
+    [90m219| [39m  } [35mcatch[39m (error) {
+    [90m220| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m221| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m222| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m223| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m243:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+
+[31m⎯⎯⎯⎯[39m[1m[41m Unhandled Rejection [49m[22m[31m⎯⎯⎯⎯⎯[39m
+[31m[1mError[22m: [vitest] No "TeamValidationException" export is defined on the "@/lib/team-registry" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+[39m
+vi.mock(import("@/lib/team-registry"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+[90m [2m❯[22m VitestMocker.createError node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m311:17[22m[39m
+[90m [2m❯[22m Object.get node_modules/vitest/dist/chunks/startModuleRunner.DEj0jb3e.js:[2m384:16[22m[39m
+[36m [2m❯[22m Module.updateTeamById services/teams-service.ts:[2m221:26[22m[39m
+    [90m219| [39m  } [35mcatch[39m (error) {
+    [90m220| [39m    // TeamValidationException carries a specific HTTP status code fro…
+    [90m221| [39m    [35mif[39m (error [35minstanceof[39m [33mTeamValidationException[39m) {
+    [90m   | [39m                         [31m^[39m
+    [90m222| [39m      [35mreturn[39m { error[33m:[39m error[33m.[39mmessage[33m,[39m status[33m:[39m error[33m.[39mcode }
+    [90m223| [39m    }
+[90m [2m❯[22m tests/services/teams-service.test.ts:[2m251:20[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m145:11[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m915:26[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1243:20[22m[39m
+[90m [2m❯[22m runWithTimeout node_modules/@vitest/runner/dist/index.js:[2m1209:10[22m[39m
+[90m [2m❯[22m node_modules/@vitest/runner/dist/index.js:[2m1653:37[22m[39m
+
+[31mThis error originated in "[1mtests/services/teams-service.test.ts[22m" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.[39m
+[31m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39m
+
+
+[2m Test Files [22m [1m[31m5 failed[39m[22m[2m | [22m[1m[32m13 passed[39m[22m[90m (18)[39m
+[2m      Tests [22m [1m[31m80 failed[39m[22m[2m | [22m[1m[32m492 passed[39m[22m[90m (572)[39m
+[2m     Errors [22m [1m[31m8 errors[39m[22m
+[2m   Start at [22m 05:31:53
+[2m   Duration [22m 5.18s[2m (transform 1.87s, setup 0ms, import 2.85s, tests 7.25s, environment 1ms)[22m
+
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

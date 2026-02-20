@@ -288,7 +288,7 @@ export async function createTransferReq(params: {
   const pending = getPendingTransfersForAgent(agentId)
   const duplicate = pending.find(r => r.fromTeamId === fromTeamId && r.toTeamId === toTeamId)
   if (duplicate) {
-    return { data: { existingRequest: duplicate } as any, error: 'A transfer request for this agent between these teams already exists', status: 409 }
+    return { error: 'A transfer request for this agent between these teams already exists', status: 409 }
   }
 
   try {
@@ -397,8 +397,10 @@ export async function resolveTransferReq(
           }
         }
 
-        const saved = saveTeams(teams)
-        if (!saved) {
+        try {
+          saveTeams(teams)
+        } catch (saveError) {
+          // Compensating action: revert transfer from 'approved' back to 'pending'
           await revertTransferToPending(transferId)
           return { error: 'Failed to save team changes after transfer approval \u2014 transfer reverted to pending', status: 500 }
         }
@@ -435,7 +437,10 @@ export async function resolveTransferReq(
       })
     }
 
-    return { data: { success: true, request: resolved! }, status: 200 }
+    if (!resolved) {
+      return { error: 'Internal error: transfer resolution failed', status: 500 }
+    }
+    return { data: { success: true, request: resolved }, status: 200 }
   } catch (error) {
     if (error instanceof TeamValidationException) {
       return { error: error.message, status: error.code }

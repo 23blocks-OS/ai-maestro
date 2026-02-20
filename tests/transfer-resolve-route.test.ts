@@ -223,7 +223,7 @@ describe('SR-001: multi-closed-team constraint check ordering', () => {
       resolvedAt: '2025-06-01T13:00:00.000Z',
       resolvedBy: 'cos-source',
     })
-    mockSaveTeams.mockReturnValue(true)
+    mockSaveTeams.mockImplementation(() => { /* success: void return */ })
 
     const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
     const res = await POST(req, makeParams('tr-1'))
@@ -275,7 +275,7 @@ describe('SR-007: saveTeams failure triggers compensating revert', () => {
       resolvedBy: 'cos-source',
     })
     // saveTeams fails (disk full, permissions, etc.)
-    mockSaveTeams.mockReturnValue(false)
+    mockSaveTeams.mockImplementation(() => { throw new Error("ENOSPC: disk full") })
     mockRevertTransferToPending.mockResolvedValue(true)
 
     const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
@@ -300,7 +300,7 @@ describe('SR-007: saveTeams failure triggers compensating revert', () => {
       resolvedAt: '2025-06-01T13:00:00.000Z',
       resolvedBy: 'cos-source',
     })
-    mockSaveTeams.mockReturnValue(true)
+    mockSaveTeams.mockImplementation(() => { /* success: void return */ })
 
     const req = makeRequest({ action: 'approve', resolvedBy: 'cos-source' })
     const res = await POST(req, makeParams('tr-1'))

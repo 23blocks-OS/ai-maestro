@@ -51,8 +51,10 @@ async function sendTmuxNotification(sessionName: string, message: string): Promi
   // Uses literal flag to prevent tmux from misinterpreting key names in notification text
   // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
   // will be typed as input to that program. Notifications are designed for idle shell prompts.
-  const escapedMessage = message.replace(/'/g, "'\\''")
-  await runtime.sendKeys(target, `echo '${escapedMessage}'`, { literal: true, enter: true })
+  // Defense-in-depth: strip control characters to prevent terminal injection
+  const safeMessage = message.replace(/[\x00-\x1F\x7F]/g, '')
+  // Single-quote escaping is handled by sendKeys() when literal:true -- do NOT escape here
+  await runtime.sendKeys(target, `echo '${safeMessage}'`, { literal: true, enter: true })
 }
 
 /**

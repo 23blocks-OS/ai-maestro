@@ -894,10 +894,22 @@ export async function routeMessage(
           }
         }
         console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+        envelope.signature = body.signature
+      } else {
+        // MF-03: No public key available to verify — do not propagate unverified signature
+        console.warn(`[AMP Route] Signature provided but no public key to verify for ${envelope.from}, discarding signature`)
+        envelope.signature = ''
       }
-      envelope.signature = body.signature
     } else {
-      console.log(`[AMP Route] No signature provided by ${envelope.from}`)
+      // MF-01: Reject unsigned messages from non-local (mesh-forwarded/federated) senders
+      if (isMeshForwarded) {
+        console.log(`[AMP Route] No signature provided by mesh-forwarded sender ${envelope.from}, rejecting`)
+        return {
+          data: { error: 'forbidden', message: 'Unsigned messages from external/federated sources are rejected' } as AMPError,
+          status: 403
+        }
+      }
+      console.log(`[AMP Route] No signature provided by local sender ${envelope.from}`)
     }
 
     // ── Provider Scope Check ───────────────────────────────────────────
@@ -1654,6 +1666,15 @@ export async function deliverFederated(
           data: { error: 'forbidden', message: 'Federated message signature verification failed' } as AMPError,
           status: 403
         }
+      }
+    }
+
+    // MF-02: Reject unsigned federated messages — signature verification is mandatory for federation
+    if (!signatureVerified) {
+      console.warn(`[Federation] Rejecting unsigned/unverified federated message ${envelope.id} from ${envelope.from}`)
+      return {
+        data: { error: 'forbidden', message: 'Federated messages must include a valid signature and sender_public_key' } as AMPError,
+        status: 403
       }
     }
 

@@ -275,9 +275,20 @@ import {
 // ---------------------------------------------------------------------------
 
 async function readJsonBody(req: IncomingMessage): Promise<any> {
+  // SF-03: enforce 1MB size limit to prevent memory exhaustion
+  const MAX_BODY_SIZE = 1_048_576
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let totalSize = 0
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length
+      if (totalSize > MAX_BODY_SIZE) {
+        req.destroy()
+        reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
@@ -316,8 +327,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+  // SF-04: prioritize error — if error is set, always send error response
+  if (result.error) {
+    sendJson(res, result.status || 500, { error: result.error, ...(result.data || {}) }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
   }
@@ -1129,7 +1141,12 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    const resolvedBy = auth.agentId || body.resolvedBy  // prefer authenticated identity
+    // MF-07: require authenticated identity — never fall back to body.resolvedBy
+    if (!auth.agentId) {
+      sendJson(res, 401, { error: 'Authenticated agent identity required to resolve transfers' })
+      return
+    }
+    const resolvedBy = auth.agentId
     sendServiceResult(res, await resolveTransferReq(params.id, { ...body, resolvedBy }))
   }},
   { method: 'GET', pattern: /^\/api\/governance\/transfers$/, paramNames: [], handler: async (req, res, _params, query) => {
@@ -1141,7 +1158,20 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/governance\/transfers$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await createTransferReq(body))
+    // MF-08: authenticate agent — use auth.agentId as requestedBy, not body
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    if (!auth.agentId) {
+      sendJson(res, 401, { error: 'Authenticated agent identity required to create transfers' })
+      return
+    }
+    sendServiceResult(res, await createTransferReq({ ...body, requestedBy: auth.agentId }))
   }},
 
   // =========================================================================
@@ -1422,10 +1452,13 @@ export function createHeadlessRouter() {
 
       try {
         await matched.handler(req, res, matched.params, query)
-      } catch (error) {
+      } catch (error: any) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // SF-03: propagate 413 from readJsonBody size limit
+          const statusCode = error?.statusCode || 500
+          const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
+          sendJson(res, statusCode, { error: message })
         }
       }
 

@@ -1,0 +1,262 @@
+yarn run v1.22.22
+$ vitest run
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/emanuelesabetta/ai-maestro[39m
+
+ [32m✓[39m tests/content-security.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/document-registry.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/transfer-registry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/team-registry.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/task-registry.test.ts [2m([22m[2m47 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/governance.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistSessions[2m > [22m[2mreturns sessions and caches subsequent calls
+[22m[39m[Sessions] Fetching from 1 host(s)...
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistSessions[2m > [22m[2mreturns sessions and caches subsequent calls
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns local sessions
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns empty when no self host configured
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mreturns empty when no sessions found
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mreturns empty list when no agents and no sessions
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as active when recently active
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as disconnected when no activity recorded
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mmarks session as idle when activity is old
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mlistLocalSessions[2m > [22m[2mlinks agentId from registry
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mreturns agents from registry with session status
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mcreates orphan agents for sessions without registry entries
+[22m[39m[Agents] Found 1 local tmux session(s)
+[Agents] Auto-registered 1 orphan session(s) as agents
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mmarks agents offline when no matching tmux session
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mmarks agents active when matching tmux session exists
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+ [32m✓[39m tests/services/teams-service.test.ts [2m([22m[2m73 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2msorts online agents before offline
+[22m[39m[Agents] Found 1 local tmux session(s)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mlistAgents[2m > [22m[2mincludes host info in response
+[22m[39m[Agents] Found 0 local tmux session(s)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Registered new agent: my-agent (new-agent-id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+ [32m✓[39m tests/transfer-resolve-route.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes agent by default (marks deletedAt, keeps in registry)
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes agent when hard=true (removes from registry)
+[22m[39m[Agent Registry] Killed tmux session: hard-delete-me
+[Agent Registry] Backed up agent hard-delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000001-2026-02-20T15-03-03-778Z
+[Agent Registry] Removed hard-delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2msoft-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Soft-deleted agent delete-me (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mdeleteAgent[2m > [22m[2mhard-deletes the correct agent when multiple exist
+[22m[39m[Agent Registry] Killed tmux session: delete-me
+[Agent Registry] Backed up agent delete-me to /Users/emanuelesabetta/.aimaestro/backups/agents/00000000-0000-0000-0000-000000000002-2026-02-20T15-03-03-778Z
+[Agent Registry] Removed delete-me from AMP index
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns null for soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: soft-del-lookup
+[Agent Registry] Soft-deleted agent soft-del-lookup (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgent() returns soft-deleted agent with includeDeleted=true
+[22m[39m[Agent Registry] Killed tmux session: soft-del-include
+[Agent Registry] Soft-deleted agent soft-del-include (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mgetAgentByName() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: soft-del-byname
+[Agent Registry] Soft-deleted agent soft-del-byname (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: list-delete
+[Agent Registry] Soft-deleted agent list-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2msearchAgents() excludes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: searchable-soft-del
+[Agent Registry] Soft-deleted agent searchable-soft-del (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mcreateAgent() succeeds with same name as soft-deleted agent
+[22m[39m[Agent Registry] Killed tmux session: name-reuse-test
+[Agent Registry] Soft-deleted agent name-reuse-test (id: 00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2msoft-delete filtering[2m > [22m[2mlistAgents(true) includes soft-deleted agents
+[22m[39m[Agent Registry] Killed tmux session: listall-delete
+[Agent Registry] Soft-deleted agent listall-delete (id: 00000000-0000-0000-0000-000000000002)
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mwakes a hibernated agent
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mwakes a hibernated agent
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mpersists session metadata on wake
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2mpersists session metadata on wake
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2msets up AMP for the session
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2msets up AMP for the session
+[22m[39m[Wake] Agent my-agent (agent-1) session 0 woken up successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2muses session index for multi-brain sessions
+[22m[39m[Agents] Set AMP_DIR=/tmp/amp/test for agent my-agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mwakeAgent[2m > [22m[2muses session index for multi-brain sessions
+[22m[39m[Wake] Agent my-agent (agent-1) session 2 woken up successfully
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mrenames an agent successfully
+[22m[39m[Agent Registry] Renaming agent from "old-name" to "new-name"
+[Agent Registry] Updated AMP index: old-name -> new-name (00000000-0000-0000-0000-000000000001)
+
+[90mstdout[2m | tests/agent-registry.test.ts[2m > [22m[2mrenameAgent[2m > [22m[2mnormalizes new name to lowercase
+[22m[39m[Agent Registry] Renaming agent from "rename-case" to "upper-name"
+[Agent Registry] Updated AMP index: rename-case -> upper-name (00000000-0000-0000-0000-000000000001)
+
+ [32m✓[39m tests/agent-registry.test.ts [2m([22m[2m91 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m tests/team-api.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m tests/document-api.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/validate-team-mutation.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/amp-auth.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/message-filter.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/amp-address.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/agent-utils.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/agent-auth.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mcreates a local session successfully
+[22m[39m[Sessions] Launched program "claude" in session my-agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Registered new agent: myagent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent myagent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mnormalizes name to lowercase
+[22m[39m[Sessions] Launched program "claude" in session myagent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2muses provided working directory
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Registered new agent: agent (new-id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mregisters a new agent when not found in registry
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mskips registration when agent exists in registry
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2mhibernates an active agent
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mskips registration when agent exists in registry
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2mpersists session metadata
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Registered new agent: agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2minitializes AMP for the session
+[22m[39m[Sessions] Launched program "claude" in session agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Registered new agent: my-test_agent (id)
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Set AMP_DIR=/tmp/amp/test for agent my-test_agent
+
+[90mstdout[2m | tests/services/sessions-service.test.ts[2m > [22m[2mcreateSession[2m > [22m[2maccepts valid session names with hyphens and underscores
+[22m[39m[Sessions] Launched program "claude" in session my-test_agent
+
+ [32m✓[39m tests/services/sessions-service.test.ts [2m([22m[2m60 tests[22m[2m)[22m[33m 2438[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a local session successfully [33m 307[2mms[22m[39m
+     [33m[2m✓[22m[39m normalizes name to lowercase [33m 305[2mms[22m[39m
+     [33m[2m✓[22m[39m uses provided working directory [33m 304[2mms[22m[39m
+     [33m[2m✓[22m[39m registers a new agent when not found in registry [33m 303[2mms[22m[39m
+     [33m[2m✓[22m[39m skips registration when agent exists in registry [33m 301[2mms[22m[39m
+     [33m[2m✓[22m[39m persists session metadata [33m 301[2mms[22m[39m
+     [33m[2m✓[22m[39m initializes AMP for the session [33m 303[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts valid session names with hyphens and underscores [33m 302[2mms[22m[39m
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2munpersists session after hibernate
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2mhibernateAgent[2m > [22m[2mattempts graceful shutdown before kill
+[22m[39m[Hibernate] Agent my-agent (agent-1) session 0 hibernated successfully
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2minitializes all agents
+[22m[39m[Startup] Initializing all agents...
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2minitializes all agents
+[22m[39m[Startup] Complete: 2 agents initialized
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreports partial failures
+[22m[39m[Startup] Initializing all agents...
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreports partial failures
+[22m[39m[Startup] Complete: 1 agents initialized
+
+[90mstdout[2m | tests/services/agents-core-service.test.ts[2m > [22m[2minitializeStartup[2m > [22m[2mreturns 500 on unexpected error
+[22m[39m[Startup] Initializing all agents...
+
+ [32m✓[39m tests/services/agents-core-service.test.ts [2m([22m[2m75 tests[22m[2m)[22m[33m 4536[2mms[22m[39m
+     [33m[2m✓[22m[39m hibernates an active agent [33m 1503[2mms[22m[39m
+     [33m[2m✓[22m[39m unpersists session after hibernate [33m 1504[2mms[22m[39m
+     [33m[2m✓[22m[39m attempts graceful shutdown before kill [33m 1504[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m19 passed[39m[22m[90m (19)[39m
+[2m      Tests [22m [1m[32m585 passed[39m[22m[90m (585)[39m
+[2m   Start at [22m 16:03:03
+[2m   Duration [22m 4.96s[2m (transform 1.63s, setup 0ms, import 2.27s, tests 7.11s, environment 1ms)[22m
+
+Done in 5.30s.

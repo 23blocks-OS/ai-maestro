@@ -167,8 +167,9 @@ export function validateTeamMutation(
   // Only skip the check for the COS being assigned to THIS specific team in this mutation
   if (effectiveType === 'closed') {
     for (const agentId of finalAgentIds) {
-      // Skip agents already in the existing team (not newly added)
-      if (existingTeam?.agentIds.includes(agentId)) continue
+      // Skip agents already in the existing team — but only when the team is ALREADY closed.
+      // When type is changing from open to closed, existing members must be re-checked (SF-06).
+      if (existingTeam?.type === 'closed' && existingTeam.agentIds.includes(agentId)) continue
 
       // MANAGER is exempt — can be in unlimited closed teams (R4.3, v2 Rule 20)
       if (agentId === managerId) continue
@@ -238,19 +239,13 @@ export function loadTeams(): Team[] {
   }
 }
 
-export function saveTeams(teams: Team[]): boolean {
-  try {
-    ensureTeamsDir()
-    const file: TeamsFile = { version: 1, teams }
-    // Atomic write: write to temp file then rename to avoid corruption on crash
-    const tmpFile = TEAMS_FILE + '.tmp'
-    fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
-    fs.renameSync(tmpFile, TEAMS_FILE)
-    return true
-  } catch (error) {
-    console.error('Failed to save teams:', error)
-    return false
-  }
+export function saveTeams(teams: Team[]): void {
+  ensureTeamsDir()
+  const file: TeamsFile = { version: 1, teams }
+  // Atomic write: write to temp file then rename to avoid corruption on crash
+  const tmpFile = TEAMS_FILE + '.tmp'
+  fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
+  fs.renameSync(tmpFile, TEAMS_FILE)
 }
 
 export function getTeam(id: string): Team | null {
@@ -345,15 +340,15 @@ export async function updateTeam(
       updatedAt: new Date().toISOString(),
     }
 
-    saveTeams(teams)
-
-    // G4 (v2 Rule 22): When a normal agent is added to a closed team, revoke their open team memberships
+    // G4 (v2 Rule 22): When the team is closed, revoke open team memberships for non-exempt agents.
+    // MF-05: Perform G4 revocation BEFORE the single save to avoid on-disk inconsistency.
+    // MF-06: Always check when team is closed (not just when agentIds was explicitly provided),
+    //        so that a type change to 'closed' also triggers revocation for existing members.
     const updatedTeam = teams[index]
-    if (updatedTeam.type === 'closed' && updates.agentIds) {
+    if (updatedTeam.type === 'closed') {
       const newlyAdded = updatedTeam.agentIds.filter(aid => !previousAgentIds.includes(aid))
       if (newlyAdded.length > 0) {
         const currentManagerId = managerId ?? null
-        let openTeamsChanged = false
         for (const agentId of newlyAdded) {
           if (agentId === currentManagerId) continue
           // COS keeps open team memberships (v2 Rule 21)
@@ -363,13 +358,14 @@ export async function updateTeam(
             const idx = otherTeam.agentIds.indexOf(agentId)
             if (idx !== -1) {
               otherTeam.agentIds.splice(idx, 1)
-              openTeamsChanged = true
             }
           }
         }
-        if (openTeamsChanged) saveTeams(teams)
       }
     }
+
+    // Single save: includes team updates + any G4 open-team revocations (MF-05)
+    saveTeams(teams)
 
     return updatedTeam
   })

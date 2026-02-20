@@ -31,7 +31,12 @@ export async function GET(request: NextRequest) {
  * the system owner / web UI, and body.from is used as-is.
  */
 export async function POST(request: NextRequest) {
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   // Authenticate sender identity when auth headers are present
   const auth = authenticateAgent(

@@ -9,6 +9,7 @@ import { loadTransfers, createTransferRequest, getPendingTransfersForAgent } fro
 import { loadTeams } from '@/lib/team-registry'
 import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
 import { isValidUuid } from '@/lib/validation'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 // Phase 1: localhost-only, no auth required. TODO: add ACL for Phase 2 remote access
 export async function GET(request: NextRequest) {
@@ -42,28 +43,44 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the requester identity from headers (prevents impersonation via body)
+    const auth = authenticateAgent(
+      request.headers.get('Authorization'),
+      request.headers.get('X-Agent-Id')
+    )
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+    }
+
     // Fix: catch malformed JSON and return 400 instead of letting it bubble as 500
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const { agentId, fromTeamId, toTeamId, requestedBy, note } = body
+    const { agentId, fromTeamId, toTeamId, note } = body
 
-    if (!agentId || !fromTeamId || !toTeamId || !requestedBy) {
-      return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy are required' }, { status: 400 })
+    // requestedBy comes from authenticated identity, not body (prevents impersonation)
+    const requestedBy = auth.agentId
+    if (!requestedBy) {
+      return NextResponse.json({ error: 'Agent authentication required to request transfers' }, { status: 401 })
+    }
+
+    if (!agentId || !fromTeamId || !toTeamId) {
+      return NextResponse.json({ error: 'agentId, fromTeamId, and toTeamId are required' }, { status: 400 })
     }
 
     // Validate string types for all ID fields to reject numbers, booleans, objects etc. (CC-003)
-    if (typeof agentId !== 'string' || typeof fromTeamId !== 'string' || typeof toTeamId !== 'string' || typeof requestedBy !== 'string') {
-      return NextResponse.json({ error: 'agentId, fromTeamId, toTeamId, and requestedBy must be strings' }, { status: 400 })
+    if (typeof agentId !== 'string' || typeof fromTeamId !== 'string' || typeof toTeamId !== 'string') {
+      return NextResponse.json({ error: 'agentId, fromTeamId, and toTeamId must be strings' }, { status: 400 })
     }
 
     // Validate UUID format for all ID fields to prevent path traversal and invalid lookups (CC-001)
+    // requestedBy is already validated by authenticateAgent
     if (!isValidUuid(agentId) || !isValidUuid(fromTeamId) || !isValidUuid(toTeamId) || !isValidUuid(requestedBy)) {
       return NextResponse.json({ error: 'Invalid UUID format' }, { status: 400 })
     }
 
-    // requestedBy is now UUID-validated above; also check authority (manager/COS)
+    // requestedBy is now from auth headers and UUID-validated; check authority (manager/COS)
     if (!isManager(requestedBy) && !isChiefOfStaffAnywhere(requestedBy)) {
       return NextResponse.json({ error: 'Only MANAGER or Chief-of-Staff can request transfers' }, { status: 403 })
     }

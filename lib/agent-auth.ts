@@ -29,7 +29,9 @@ export interface AgentAuthResult {
  */
 export function authenticateAgent(authHeader: string | null, agentIdHeader: string | null): AgentAuthResult {
   // Case 1: No auth attempt at all → system owner / web UI
-  if (!authHeader && !agentIdHeader) {
+  // Use strict null checks: request.headers.get() returns null when absent, "" when present but empty.
+  // Falsy check would treat empty string "" as no auth, granting system owner access incorrectly.
+  if (authHeader === null && agentIdHeader === null) {
     return {}
   }
 
@@ -63,6 +65,6 @@ export function authenticateAgent(authHeader: string | null, agentIdHeader: stri
     return { agentId: result.agentId }
   }
 
-  // Should not reach here, but return empty (system owner) for safety
-  return {}
+  // Unreachable: all cases handled above. Throw to catch logic bugs instead of silently granting access.
+  throw new Error('Unreachable: authenticateAgent logic error')
 }

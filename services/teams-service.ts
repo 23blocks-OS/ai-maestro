@@ -613,6 +613,9 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
     return { error: 'teamName is required', status: 400 }
   }
 
+  // Strip control characters to prevent command injection via tmux send-keys
+  const safeTeamName = teamName.replace(/[\x00-\x1F\x7F]/g, '')
+
   try {
     const results = await Promise.all(
       agentIds.map(async (agentId: string) => {
@@ -628,7 +631,7 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
             agentName,
             agentHost: agent.hostId,
             fromName: 'AI Maestro',
-            subject: `Team "${teamName}" is starting`,
+            subject: `Team "${safeTeamName.replace(/[\x00-\x1F\x7F]/g, '')}" is starting`,
             messageId: `meeting-${Date.now()}`,
             messageType: 'notification',
           })

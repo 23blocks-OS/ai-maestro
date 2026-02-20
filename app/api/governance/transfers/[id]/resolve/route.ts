@@ -152,10 +152,11 @@ export async function POST(
           }
         }
 
-        // Single atomic save for both team mutations — check return value
-        // to detect write failures (disk full, permission error, etc.)
-        const saved = saveTeams(teams)
-        if (!saved) {
+        // Single atomic save for both team mutations — saveTeams throws on write failure
+        // (disk full, permission error, etc.) so we catch and revert (SR-007)
+        try {
+          saveTeams(teams)
+        } catch (saveError) {
           // Compensating action (SR-007): revert transfer from 'approved' back to 'pending'
           // to maintain consistency when team save fails
           await revertTransferToPending(id)

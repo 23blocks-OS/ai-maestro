@@ -11,7 +11,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { createHash, randomBytes } from 'crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import type { AMPApiKeyRecord, AMPKeyRotationResponse, AMPErrorCode } from './types/amp'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -84,11 +84,15 @@ export function hashApiKey(apiKey: string): string {
 }
 
 /**
- * Compare a plain API key with a stored hash
+ * Compare a plain API key with a stored hash using constant-time comparison
+ * to prevent timing attacks on hash values.
  */
 export function verifyApiKeyHash(apiKey: string, storedHash: string): boolean {
   const computedHash = hashApiKey(apiKey)
-  return computedHash === storedHash
+  const a = Buffer.from(computedHash, 'utf8')
+  const b = Buffer.from(storedHash, 'utf8')
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
 }
 
 // ============================================================================
@@ -166,11 +170,15 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   const keys = loadApiKeys()
   const keyHash = hashApiKey(apiKey)
 
-  const record = keys.find(k =>
-    k.key_hash === keyHash &&
-    k.status === 'active' &&
-    (!k.expires_at || new Date(k.expires_at) > new Date())
-  )
+  const record = keys.find(k => {
+    // Use constant-time comparison for hash to prevent timing attacks
+    const a = Buffer.from(k.key_hash, 'utf8')
+    const b = Buffer.from(keyHash, 'utf8')
+    const hashMatch = a.length === b.length && timingSafeEqual(a, b)
+    return hashMatch &&
+      k.status === 'active' &&
+      (!k.expires_at || new Date(k.expires_at) > new Date())
+  })
 
   if (record) {
     // Debounce last_used_at disk writes (S8 fix)
@@ -222,7 +230,12 @@ export function rotateApiKey(oldApiKey: string): AMPKeyRotationResponse | null {
   const keys = loadApiKeys()
   const oldKeyHash = hashApiKey(oldApiKey)
 
-  const oldRecord = keys.find(k => k.key_hash === oldKeyHash && k.status === 'active')
+  const oldRecord = keys.find(k => {
+    // Use constant-time comparison for hash to prevent timing attacks
+    const a = Buffer.from(k.key_hash, 'utf8')
+    const b = Buffer.from(oldKeyHash, 'utf8')
+    return a.length === b.length && timingSafeEqual(a, b) && k.status === 'active'
+  })
   if (!oldRecord) {
     return null
   }
@@ -267,7 +280,12 @@ export function revokeApiKey(apiKey: string): boolean {
   const keys = loadApiKeys()
   const keyHash = hashApiKey(apiKey)
 
-  const record = keys.find(k => k.key_hash === keyHash)
+  const record = keys.find(k => {
+    // Use constant-time comparison for hash to prevent timing attacks
+    const a = Buffer.from(k.key_hash, 'utf8')
+    const b = Buffer.from(keyHash, 'utf8')
+    return a.length === b.length && timingSafeEqual(a, b)
+  })
   if (!record) {
     return false
   }

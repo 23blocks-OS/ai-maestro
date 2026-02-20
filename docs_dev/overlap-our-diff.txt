@@ -1,0 +1,1083 @@
+============================================================
+FILE: app/api/agents/[id]/transfer/route.ts
+============================================================
+diff --git a/app/api/agents/[id]/transfer/route.ts b/app/api/agents/[id]/transfer/route.ts
+index 7b6ef57..3f5a7c2 100644
+--- a/app/api/agents/[id]/transfer/route.ts
++++ b/app/api/agents/[id]/transfer/route.ts
+@@ -1,6 +1,7 @@
+-import { NextResponse } from 'next/server'
++import { NextRequest, NextResponse } from 'next/server'
+ import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
+-import { getSelfHost } from '@/lib/hosts-config'
++import { getSelfHost, getHosts } from '@/lib/hosts-config'
++import { isValidUuid } from '@/lib/validation'
+ import fs from 'fs'
+ import path from 'path'
+ import os from 'os'
+@@ -9,8 +10,9 @@ const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
+ const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
+ const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
+ 
+-interface TransferRequest {
+-  targetHostId: string
++// Named HostTransferRequest to avoid collision with governance TransferRequest in transfer-registry.ts
++interface HostTransferRequest {
++  targetHostId?: string // CC-009: Optional — reserved for Phase 2 hostname validation against hosts.json
+   targetHostUrl: string
+   mode: 'move' | 'clone'
+   newAlias?: string
+@@ -28,28 +30,46 @@ interface TransferRequest {
+  * - newAlias: Optional new alias for the agent on target
+  */
+ export async function POST(
+-  request: Request,
+-  { params }: { params: { id: string } }
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
+ ) {
+   try {
+-    // Find agent by ID or alias
+-    let agent = getAgent(params.id)
++    const { id } = await params
++
++    // CC-003 fix: Resolve agent by UUID or alias in a single pass, no duplicate lookups
++    let agent = isValidUuid(id) ? getAgent(id) : null
+     if (!agent) {
+-      agent = getAgentByAlias(params.id)
++      agent = getAgentByAlias(id)
+     }
+-
+     if (!agent) {
+       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+     }
+ 
+-    const body: TransferRequest = await request.json()
++    // Parse request body with error handling for malformed JSON
++    let body: HostTransferRequest
++    try {
++      body = await request.json()
++    } catch {
++      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
++    }
++
+     const { targetHostUrl, mode, newAlias, cloneRepositories } = body
+ 
++    // CC-014 fix: Runtime validation for mode — TypeScript types are not enforced at runtime
++    if (mode !== 'move' && mode !== 'clone') {
++      return NextResponse.json({ error: 'mode must be "move" or "clone"' }, { status: 400 })
++    }
++
++    // Validate targetHostUrl is a string type
++    if (typeof targetHostUrl !== 'string') {
++      return NextResponse.json({ error: 'targetHostUrl must be a string' }, { status: 400 })
++    }
++
+     if (!targetHostUrl) {
+       return NextResponse.json({ error: 'Target host URL required' }, { status: 400 })
+     }
+ 
+-    // Validate target URL
++    // Normalize the target URL
+     let normalizedUrl = targetHostUrl.trim()
+     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+       normalizedUrl = `http://${normalizedUrl}`
+@@ -57,6 +77,40 @@ export async function POST(
+     // Remove trailing slash
+     normalizedUrl = normalizedUrl.replace(/\/+$/, '')
+ 
++    // SSRF protection: validate the normalized URL is a proper HTTP/HTTPS URL
++    let parsedUrl: URL
++    try {
++      parsedUrl = new URL(normalizedUrl)
++    } catch {
++      return NextResponse.json({ error: 'Invalid target URL' }, { status: 400 })
++    }
++    // Only allow http/https protocols to prevent SSRF via file://, ftp://, etc.
++    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
++      return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are supported' }, { status: 400 })
++    }
++
++    // CC-008 fix: Validate hostname against registered hosts in hosts.json to prevent SSRF.
++    // Block requests to hostnames that are not registered in the mesh network.
++    const registeredHosts = getHosts()
++    const targetHostname = parsedUrl.hostname.toLowerCase()
++    const isRegisteredHost = registeredHosts.some(h => {
++      try {
++        const hostUrl = new URL(h.url)
++        return hostUrl.hostname.toLowerCase() === targetHostname
++      } catch {
++        return false
++      }
++    })
++    if (!isRegisteredHost) {
++      return NextResponse.json(
++        { error: 'Target host is not registered in hosts.json. Register the host before transferring agents.' },
++        { status: 400 }
++      )
++    }
++
++    // CC-016 fix: Redact agent ID from log to prevent info leakage in multi-user scenarios
++    console.log(`[agent-transfer] Transfer initiated to ${parsedUrl.hostname}`)
++
+     // Step 1: Export the agent
+     // Call our own export API - use self host URL, never localhost
+     const selfHost = getSelfHost()
+
+============================================================
+FILE: app/api/teams/[id]/documents/[docId]/route.ts
+============================================================
+diff --git a/app/api/teams/[id]/documents/[docId]/route.ts b/app/api/teams/[id]/documents/[docId]/route.ts
+index 7c4ca5b..ccf3daf 100644
+--- a/app/api/teams/[id]/documents/[docId]/route.ts
++++ b/app/api/teams/[id]/documents/[docId]/route.ts
+@@ -1,6 +1,8 @@
+ import { NextRequest, NextResponse } from 'next/server'
+ import { getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
+ import { getTeam } from '@/lib/team-registry'
++import { isValidUuid } from '@/lib/validation'
++import type { TeamDocument } from '@/types/document'
+ 
+ // GET /api/teams/[id]/documents/[docId] - Get a single document
+ export async function GET(
+@@ -8,6 +10,10 @@ export async function GET(
+   { params }: { params: Promise<{ id: string; docId: string }> }
+ ) {
+   const { id, docId } = await params
++  // CC-002: Validate UUID format for both path parameters
++  if (!isValidUuid(id) || !isValidUuid(docId)) {
++    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
++  }
+   const team = getTeam(id)
+   if (!team) {
+     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+@@ -26,14 +32,24 @@ export async function PUT(
+ ) {
+   try {
+     const { id, docId } = await params
++    // CC-002: Validate UUID format for both path parameters
++    if (!isValidUuid(id) || !isValidUuid(docId)) {
++      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
++    }
++    // CC-005: Verify team exists before attempting update
++    const team = getTeam(id)
++    if (!team) {
++      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++    }
+     const body = await request.json()
+-    const updates: Record<string, unknown> = {}
++    // CC-004: Properly typed updates object instead of `as any`
++    const updates: Partial<Pick<TeamDocument, 'title' | 'content' | 'pinned' | 'tags'>> = {}
+     if (body.title !== undefined) updates.title = body.title
+     if (body.content !== undefined) updates.content = body.content
+     if (body.pinned !== undefined) updates.pinned = body.pinned
+     if (body.tags !== undefined) updates.tags = body.tags
+ 
+-    const document = updateDocument(id, docId, updates as any)
++    const document = await updateDocument(id, docId, updates)
+     if (!document) {
+       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+     }
+@@ -54,7 +70,16 @@ export async function DELETE(
+   { params }: { params: Promise<{ id: string; docId: string }> }
+ ) {
+   const { id, docId } = await params
+-  const deleted = deleteDocument(id, docId)
++  // CC-002: Validate UUID format for both path parameters
++  if (!isValidUuid(id) || !isValidUuid(docId)) {
++    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
++  }
++  // CC-006: Verify team exists before attempting deletion
++  const team = getTeam(id)
++  if (!team) {
++    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++  }
++  const deleted = await deleteDocument(id, docId)
+   if (!deleted) {
+     return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+   }
+
+============================================================
+FILE: app/api/teams/[id]/documents/route.ts
+============================================================
+diff --git a/app/api/teams/[id]/documents/route.ts b/app/api/teams/[id]/documents/route.ts
+index d0c1577..7d27df6 100644
+--- a/app/api/teams/[id]/documents/route.ts
++++ b/app/api/teams/[id]/documents/route.ts
+@@ -1,6 +1,9 @@
+ import { NextRequest, NextResponse } from 'next/server'
+ import { loadDocuments, createDocument } from '@/lib/document-registry'
+ import { getTeam } from '@/lib/team-registry'
++import { isValidUuid } from '@/lib/validation'
++
++// Phase 1: No checkTeamAccess — document routes rely on team existence check only. Phase 2: add ACL.
+ 
+ // GET /api/teams/[id]/documents - List all documents for a team
+ export async function GET(
+@@ -8,6 +11,9 @@ export async function GET(
+   { params }: { params: Promise<{ id: string }> }
+ ) {
+   const { id } = await params
++  if (!isValidUuid(id)) {
++    return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
++  }
+   const team = getTeam(id)
+   if (!team) {
+     return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+@@ -23,6 +29,9 @@ export async function POST(
+ ) {
+   try {
+     const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 })
++    }
+     const team = getTeam(id)
+     if (!team) {
+       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+@@ -35,7 +44,15 @@ export async function POST(
+       return NextResponse.json({ error: 'title is required' }, { status: 400 })
+     }
+ 
+-    const document = createDocument({
++    // Validate optional field types to prevent invalid data in storage
++    if (pinned !== undefined && typeof pinned !== 'boolean') {
++      return NextResponse.json({ error: 'pinned must be a boolean' }, { status: 400 })
++    }
++    if (tags !== undefined && (!Array.isArray(tags) || !tags.every((t: unknown) => typeof t === 'string'))) {
++      return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 })
++    }
++
++    const document = await createDocument({
+       teamId: id,
+       title,
+       content: content || '',
+
+============================================================
+FILE: app/api/teams/[id]/route.ts
+============================================================
+diff --git a/app/api/teams/[id]/route.ts b/app/api/teams/[id]/route.ts
+index f495ffa..90f8977 100644
+--- a/app/api/teams/[id]/route.ts
++++ b/app/api/teams/[id]/route.ts
+@@ -1,17 +1,33 @@
+ import { NextRequest, NextResponse } from 'next/server'
+-import { getTeam, updateTeam, deleteTeam } from '@/lib/team-registry'
++import { getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
++import { getManagerId, isManager } from '@/lib/governance'
++import { checkTeamAccess } from '@/lib/team-acl'
++import { isValidUuid } from '@/lib/validation'
+ 
+ // GET /api/teams/[id] - Get a single team
+ export async function GET(
+-  _request: NextRequest,
++  request: NextRequest,
+   { params }: { params: Promise<{ id: string }> }
+ ) {
+-  const { id } = await params
+-  const team = getTeam(id)
+-  if (!team) {
+-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++  try {
++    const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    const team = getTeam(id)
++    if (!team) {
++      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++    }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
++    return NextResponse.json({ team })
++  } catch (error) {
++    console.error('[teams] GET error:', error)
++    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+   }
+-  return NextResponse.json({ team })
+ }
+ 
+ // PUT /api/teams/[id] - Update a team
+@@ -21,16 +37,31 @@ export async function PUT(
+ ) {
+   try {
+     const { id } = await params
+-    const body = await request.json()
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
++    let body
++    try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
++    // Strip chiefOfStaffId and type from generic PUT — these must use dedicated password-protected endpoints (R3.12, R8.2)
+     const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt } = body
+ 
+-    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt })
++    const managerId = getManagerId()
++    const team = await updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt }, managerId)
+     if (!team) {
+       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+     }
+ 
+     return NextResponse.json({ team })
+   } catch (error) {
++    // TeamValidationException carries the correct HTTP status code from business rule validation
++    if (error instanceof TeamValidationException) {
++      return NextResponse.json({ error: error.message }, { status: error.code })
++    }
+     console.error('Failed to update team:', error)
+     return NextResponse.json(
+       { error: error instanceof Error ? error.message : 'Failed to update team' },
+@@ -40,14 +71,40 @@ export async function PUT(
+ }
+ 
+ // DELETE /api/teams/[id] - Delete a team
++// Phase 1: localhost-only, no X-Agent-Id auth required. Phase 2: require authenticated agent identity for delete operations.
+ export async function DELETE(
+-  _request: NextRequest,
++  request: NextRequest,
+   { params }: { params: Promise<{ id: string }> }
+ ) {
+-  const { id } = await params
+-  const deleted = deleteTeam(id)
+-  if (!deleted) {
+-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++  try {
++    const { id } = await params
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
++    // SR-002 fix: Closed team deletion requires elevated authority (MANAGER or COS)
++    // checkTeamAccess allows any member for resource access, but deletion is destructive
++    const team = getTeam(id)
++    if (team && team.type === 'closed') {
++      // Guard: no agentId means unauthenticated — deny; otherwise must be MANAGER or COS
++      if (!agentId || (!isManager(agentId) && team.chiefOfStaffId !== agentId)) {
++        return NextResponse.json(
++          { error: 'Closed team deletion requires MANAGER or Chief-of-Staff authority' },
++          { status: 403 }
++        )
++      }
++    }
++    const deleted = await deleteTeam(id)
++    if (!deleted) {
++      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++    }
++    return NextResponse.json({ success: true })
++  } catch (error) {
++    console.error('[teams] DELETE error:', error)
++    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+   }
+-  return NextResponse.json({ success: true })
+ }
+
+============================================================
+FILE: app/api/teams/[id]/tasks/[taskId]/route.ts
+============================================================
+diff --git a/app/api/teams/[id]/tasks/[taskId]/route.ts b/app/api/teams/[id]/tasks/[taskId]/route.ts
+index 323ce06..df995ce 100644
+--- a/app/api/teams/[id]/tasks/[taskId]/route.ts
++++ b/app/api/teams/[id]/tasks/[taskId]/route.ts
+@@ -1,6 +1,8 @@
+ import { NextRequest, NextResponse } from 'next/server'
+ import { getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
+ import { getTeam } from '@/lib/team-registry'
++import { checkTeamAccess } from '@/lib/team-acl'
++import { isValidUuid } from '@/lib/validation'
+ 
+ // PUT /api/teams/[id]/tasks/[taskId] - Update a task
+ export async function PUT(
+@@ -9,19 +11,51 @@ export async function PUT(
+ ) {
+   try {
+     const { id, taskId } = await params
++    // Validate UUID format on both path parameters
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    if (!isValidUuid(taskId)) {
++      return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
++    }
+     const team = getTeam(id)
+     if (!team) {
+       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+     }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
+ 
+     const existing = getTask(id, taskId)
+     if (!existing) {
+       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+     }
+ 
+-    const body = await request.json()
++    let body: Record<string, unknown>
++    try {
++      body = await request.json()
++    } catch {
++      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
++    }
+     const { subject, description, status, assigneeAgentId, blockedBy, priority } = body
+ 
++    // Validate priority is a non-negative number if provided
++    if (priority !== undefined && (typeof priority !== 'number' || priority < 0)) {
++      return NextResponse.json({ error: 'priority must be a non-negative number' }, { status: 400 })
++    }
++
++    // Validate description is a string if provided
++    if (description !== undefined && typeof description !== 'string') {
++      return NextResponse.json({ error: 'description must be a string' }, { status: 400 })
++    }
++
++    // Validate assigneeAgentId is a string if provided
++    if (assigneeAgentId !== undefined && typeof assigneeAgentId !== 'string') {
++      return NextResponse.json({ error: 'assigneeAgentId must be a string' }, { status: 400 })
++    }
++
+     // Validate blockedBy to prevent circular dependencies
+     if (Array.isArray(blockedBy)) {
+       for (const depId of blockedBy) {
+@@ -38,18 +72,19 @@ export async function PUT(
+     }
+ 
+     // Validate status enum
+-    if (status !== undefined && !['backlog', 'pending', 'in_progress', 'review', 'completed'].includes(status)) {
++    if (status !== undefined && (typeof status !== 'string' || !['backlog', 'pending', 'in_progress', 'review', 'completed'].includes(status))) {
+       return NextResponse.json({ error: 'Invalid status. Must be backlog, pending, in_progress, review, or completed' }, { status: 400 })
+     }
+ 
+-    const result = updateTask(id, taskId, {
+-      subject,
+-      description,
+-      status,
+-      assigneeAgentId,
+-      blockedBy,
+-      priority,
+-    })
++    // Build typed updates object — all fields were validated above so casts are safe
++    const updates: Partial<Pick<import('@/types/task').Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority'>> = {}
++    if (typeof subject === 'string') updates.subject = subject
++    if (typeof description === 'string') updates.description = description
++    if (typeof status === 'string') updates.status = status as import('@/types/task').Task['status']
++    if (typeof assigneeAgentId === 'string') updates.assigneeAgentId = assigneeAgentId
++    if (Array.isArray(blockedBy)) updates.blockedBy = blockedBy as string[]
++    if (typeof priority === 'number') updates.priority = priority
++    const result = await updateTask(id, taskId, updates)
+ 
+     if (!result.task) {
+       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+@@ -70,19 +105,36 @@ export async function PUT(
+ 
+ // DELETE /api/teams/[id]/tasks/[taskId] - Delete a task
+ export async function DELETE(
+-  _request: NextRequest,
++  request: NextRequest,
+   { params }: { params: Promise<{ id: string; taskId: string }> }
+ ) {
+-  const { id, taskId } = await params
+-  const team = getTeam(id)
+-  if (!team) {
+-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+-  }
++  try {
++    const { id, taskId } = await params
++    // Validate UUID format on both path parameters
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    if (!isValidUuid(taskId)) {
++      return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
++    }
++    const team = getTeam(id)
++    if (!team) {
++      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++    }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
+ 
+-  const deleted = deleteTask(id, taskId)
+-  if (!deleted) {
+-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+-  }
++    const deleted = await deleteTask(id, taskId)
++    if (!deleted) {
++      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
++    }
+ 
+-  return NextResponse.json({ success: true })
++    return NextResponse.json({ success: true })
++  } catch (error) {
++    console.error('Error deleting task:', error)
++    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
++  }
+ }
+
+============================================================
+FILE: app/api/teams/[id]/tasks/route.ts
+============================================================
+diff --git a/app/api/teams/[id]/tasks/route.ts b/app/api/teams/[id]/tasks/route.ts
+index 0382208..6144a77 100644
+--- a/app/api/teams/[id]/tasks/route.ts
++++ b/app/api/teams/[id]/tasks/route.ts
+@@ -1,21 +1,37 @@
+ import { NextRequest, NextResponse } from 'next/server'
+ import { loadTasks, resolveTaskDeps, createTask } from '@/lib/task-registry'
+ import { getTeam } from '@/lib/team-registry'
++import { checkTeamAccess } from '@/lib/team-acl'
++import { isValidUuid } from '@/lib/validation'
+ 
+ // GET /api/teams/[id]/tasks - List tasks with resolved dependencies
+ export async function GET(
+-  _request: NextRequest,
++  request: NextRequest,
+   { params }: { params: Promise<{ id: string }> }
+ ) {
+-  const { id } = await params
+-  const team = getTeam(id)
+-  if (!team) {
+-    return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+-  }
++  try {
++    const { id } = await params
++    // Validate UUID format to prevent path traversal and invalid lookups
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
++    const team = getTeam(id)
++    if (!team) {
++      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
++    }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
+ 
+-  const tasks = loadTasks(id)
+-  const resolved = resolveTaskDeps(tasks)
+-  return NextResponse.json({ tasks: resolved })
++    const tasks = loadTasks(id)
++    const resolved = resolveTaskDeps(tasks)
++    return NextResponse.json({ tasks: resolved })
++  } catch (error) {
++    console.error('Error loading tasks:', error)
++    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
++  }
+ }
+ 
+ // POST /api/teams/[id]/tasks - Create a new task
+@@ -25,18 +41,47 @@ export async function POST(
+ ) {
+   try {
+     const { id } = await params
++    // Validate UUID format to prevent path traversal and invalid lookups
++    if (!isValidUuid(id)) {
++      return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
++    }
+     const team = getTeam(id)
+     if (!team) {
+       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+     }
++    const agentId = request.headers.get('X-Agent-Id') || undefined
++    const access = checkTeamAccess({ teamId: id, requestingAgentId: agentId })
++    if (!access.allowed) {
++      return NextResponse.json({ error: access.reason }, { status: 403 })
++    }
+ 
+-    const body = await request.json()
++    let body: Record<string, unknown>
++    try {
++      body = await request.json()
++    } catch {
++      return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
++    }
+     const { subject, description, assigneeAgentId, blockedBy, priority } = body
+ 
+     if (!subject || typeof subject !== 'string' || !subject.trim()) {
+       return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
+     }
+ 
++    // Validate priority is a non-negative number if provided
++    if (priority !== undefined && (typeof priority !== 'number' || priority < 0)) {
++      return NextResponse.json({ error: 'priority must be a non-negative number' }, { status: 400 })
++    }
++
++    // Validate description is a string if provided
++    if (description !== undefined && typeof description !== 'string') {
++      return NextResponse.json({ error: 'description must be a string' }, { status: 400 })
++    }
++
++    // Validate assigneeAgentId is a string if provided
++    if (assigneeAgentId !== undefined && typeof assigneeAgentId !== 'string') {
++      return NextResponse.json({ error: 'assigneeAgentId must be a string' }, { status: 400 })
++    }
++
+     // Validate blockedBy is an array of strings if provided
+     if (blockedBy !== undefined) {
+       if (!Array.isArray(blockedBy) || !blockedBy.every((id: unknown) => typeof id === 'string')) {
+@@ -44,7 +89,7 @@ export async function POST(
+       }
+     }
+ 
+-    const task = createTask({
++    const task = await createTask({
+       teamId: id,
+       subject: subject.trim(),
+       description,
+
+============================================================
+FILE: app/api/teams/route.ts
+============================================================
+diff --git a/app/api/teams/route.ts b/app/api/teams/route.ts
+index 18bee59..a623f6b 100644
+--- a/app/api/teams/route.ts
++++ b/app/api/teams/route.ts
+@@ -1,7 +1,10 @@
+ import { NextRequest, NextResponse } from 'next/server'
+-import { loadTeams, createTeam } from '@/lib/team-registry'
++import { loadTeams, createTeam, TeamValidationException } from '@/lib/team-registry'
++import { getManagerId } from '@/lib/governance'
++import { loadAgents } from '@/lib/agent-registry'
+ 
+ // GET /api/teams - List all teams
++// Phase 1: No ACL on team list — localhost only. TODO Phase 2: Add auth/ACL for remote access.
+ export async function GET() {
+   const teams = loadTeams()
+   return NextResponse.json({ teams })
+@@ -9,21 +12,40 @@ export async function GET() {
+ 
+ // POST /api/teams - Create a new team
+ export async function POST(request: NextRequest) {
++  let body
++  try { body = await request.json() } catch {
++    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
++  }
++
+   try {
+-    const body = await request.json()
+-    const { name, description, agentIds } = body
++    const { name, description, agentIds, type, chiefOfStaffId } = body
+ 
+     if (!name || typeof name !== 'string') {
+       return NextResponse.json({ error: 'Team name is required' }, { status: 400 })
+     }
+ 
+-    if (agentIds && !Array.isArray(agentIds)) {
+-      return NextResponse.json({ error: 'agentIds must be an array' }, { status: 400 })
++    // CC-007: Validate type field is a known team type if provided
++    if (type !== undefined && type !== 'open' && type !== 'closed') {
++      return NextResponse.json({ error: 'type must be "open" or "closed"' }, { status: 400 })
+     }
+ 
+-    const team = createTeam({ name, description, agentIds: agentIds || [] })
++    // CC-011: Validate agentIds is an array of strings
++    if (agentIds && (!Array.isArray(agentIds) || !agentIds.every((id: unknown) => typeof id === 'string'))) {
++      return NextResponse.json({ error: 'agentIds must be an array of strings' }, { status: 400 })
++    }
++
++    // Pass managerId for multi-closed-team constraint checks (R4.1)
++    const managerId = getManagerId()
++    // Load agent names to prevent team/agent name collisions (R2.1)
++    const allAgents = loadAgents()
++    const agentNames = allAgents.map(a => a.name).filter(Boolean) as string[]
++    const team = await createTeam({ name, description, agentIds: agentIds || [], type, chiefOfStaffId }, managerId, agentNames)
+     return NextResponse.json({ team }, { status: 201 })
+   } catch (error) {
++    // TeamValidationException carries the correct HTTP status code from business rule validation
++    if (error instanceof TeamValidationException) {
++      return NextResponse.json({ error: error.message }, { status: error.code })
++    }
+     console.error('Failed to create team:', error)
+     return NextResponse.json(
+       { error: error instanceof Error ? error.message : 'Failed to create team' },
+
+============================================================
+FILE: app/api/v1/route/route.ts
+============================================================
+diff --git a/app/api/v1/route/route.ts b/app/api/v1/route/route.ts
+index 8374ddc..f3e664d 100644
+--- a/app/api/v1/route/route.ts
++++ b/app/api/v1/route/route.ts
+@@ -37,6 +37,7 @@ import { getAgent, getAgentByName, checkMeshAgentExists } from '@/lib/agent-regi
+ import { resolveAgentIdentifier } from '@/lib/messageQueue'
+ import { getSelfHostId, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
+ import { getAMPProviderDomain } from '@/lib/types/amp'
++import { checkMessageAllowed } from '@/lib/message-filter'
+ import type {
+   AMPRouteRequest,
+   AMPRouteResponse,
+@@ -90,7 +91,7 @@ function checkRateLimit(agentId: string): RateLimitResult {
+ 
+   entry.count++
+   // Periodic cleanup: remove expired entries every 100 checks
+-  if (entry.count % 100 === 0) {
++  if (entry.count % 100 === 0 || rateLimitMap.size > 500) {
+     for (const [key, val] of rateLimitMap) {
+       if (now > val.resetAt) rateLimitMap.delete(key)
+     }
+@@ -309,6 +310,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
+     // ── Body Validation ────────────────────────────────────────────────
+     const body = await request.json() as AMPRouteRequest
+ 
++    // Post-parse size check: Content-Length can be spoofed or absent
++    const bodyStr = JSON.stringify(body)
++    if (bodyStr.length > MAX_PAYLOAD_SIZE) {
++      return NextResponse.json({ error: 'payload_too_large', message: 'Request body exceeds size limit' }, { status: 413 })
++    }
++
+     if (!body.to || typeof body.to !== 'string') {
+       return NextResponse.json({
+         error: 'missing_field', message: 'to address is required', field: 'to'
+@@ -563,6 +570,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
+       } as AMPRouteResponse, { status: 200 })
+     }
+ 
++    // ── Governance: Message Filter ────────────────────────────────────
++    const filterResult = checkMessageAllowed({
++      senderAgentId: senderAgent?.id || null,
++      recipientAgentId: localAgent.id,
++    })
++    if (!filterResult.allowed) {
++      return NextResponse.json({
++        id: messageId, status: 'failed' as const,
++        // Use standard AMP error code (forbidden) for governance-blocked messages
++        error: 'forbidden',
++        message: filterResult.reason || 'Message blocked by team governance policy'
++      }, { status: 403, headers: rateLimitHeaders })
++    }
++
+     const recipientAgentName = localAgent.name || localAgent.alias || recipientName
+ 
+     try {
+
+============================================================
+FILE: docs/ai-index.html
+============================================================
+diff --git a/docs/ai-index.html b/docs/ai-index.html
+index e9e9ad0..8ded7a8 100644
+--- a/docs/ai-index.html
++++ b/docs/ai-index.html
+@@ -32,7 +32,7 @@
+         "priceCurrency": "USD"
+       },
+       "description": "Browser-based dashboard for orchestrating multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified interface. Features agent-to-agent communication, Slack integration, email identity, persistent memory, and code graph visualization.",
+-      "softwareVersion": "0.23.9",
++      "softwareVersion": "0.23.17",
+       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
+       "url": "https://ai-maestro.23blocks.com",
+       "downloadUrl": "https://github.com/23blocks-OS/ai-maestro",
+@@ -88,7 +88,7 @@
+             <h2>What is AI Maestro?</h2>
+             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
+ 
+-            <p><strong>Version:</strong> 0.19.26 (January 2026)</p>
++            <p><strong>Version:</strong> 0.23.17 (February 2026)</p>
+             <p><strong>License:</strong> MIT (Free and Open Source)</p>
+             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
+             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
+@@ -225,7 +225,7 @@
+             <h2>Installation Options</h2>
+ 
+             <h3>Option 1: Full Installation (Recommended)</h3>
+-            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and all 5 Claude Code skills.</p>
++            <p>Installs the AI Maestro service, web dashboard, CLI scripts, and all 7 Claude Code skills.</p>
+             <pre>
+ # One command installs everything
+ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
+@@ -236,7 +236,7 @@ cd ai-maestro && yarn install && yarn dev
+             </pre>
+ 
+             <h3>Option 2: Claude Code Plugin Only</h3>
+-            <p>Installs 5 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 4 skills require the AI Maestro service running on localhost:23000.</p>
++            <p>Installs 7 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 6 skills require the AI Maestro service running on localhost:23000.</p>
+             <pre>
+ /plugin marketplace add 23blocks-OS/ai-maestro
+ /plugin install ai-maestro@ai-maestro-marketplace
+@@ -249,6 +249,8 @@ cd ai-maestro && yarn install && yarn dev
+                 <li><strong>docs-search</strong> - Requires AI Maestro service</li>
+                 <li><strong>graph-query</strong> - Requires AI Maestro service</li>
+                 <li><strong>agent-messaging</strong> - Requires AI Maestro service</li>
++                <li><strong>ai-maestro-agents-management</strong> - Requires AI Maestro service</li>
++                <li><strong>team-governance</strong> - Requires AI Maestro service</li>
+             </ul>
+ 
+             <p><strong>Requirements:</strong></p>
+@@ -387,7 +389,7 @@ cd ai-maestro && yarn install && yarn dev
+         <section>
+             <h2>Quick Facts for LLMs</h2>
+             <ul>
+-                <li><strong>Current Version:</strong> 0.19.26 (January 2026)</li>
++                <li><strong>Current Version:</strong> 0.23.17 (February 2026)</li>
+                 <li><strong>License:</strong> MIT (completely free)</li>
+                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
+                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
+
+============================================================
+FILE: docs/BACKLOG.md
+============================================================
+diff --git a/docs/BACKLOG.md b/docs/BACKLOG.md
+index 76f8a09..34b987f 100644
+--- a/docs/BACKLOG.md
++++ b/docs/BACKLOG.md
+@@ -1,9 +1,11 @@
+ # AI Maestro - Product Backlog
+ 
++> **Note:** Section headers below reference legacy planning milestones (v0.5.0-v0.8.0). The project is currently at v0.23.11.
++
+ **Purpose:** This document tracks planned features, improvements, and ideas for AI Maestro. Items are prioritized into three categories: Now (next release), Next (upcoming releases), and Later (future considerations).
+ 
+ **Last Updated:** 2026-01-03
+-**Current Version:** v0.23.9
++**Current Version:** v0.23.17
+ 
+ ---
+ 
+
+============================================================
+FILE: docs/index.html
+============================================================
+diff --git a/docs/index.html b/docs/index.html
+index 03ff940..ac2d334 100644
+--- a/docs/index.html
++++ b/docs/index.html
+@@ -77,7 +77,7 @@
+         "priceCurrency": "USD"
+       },
+       "description": "The future of work platform. Orchestrate multiple AI coding agents (Claude Code, Aider, Cursor, GitHub Copilot) from one unified dashboard. One human, multiple AI agents, working together.",
+-      "softwareVersion": "0.23.9",
++      "softwareVersion": "0.23.17",
+       "releaseNotes": "https://github.com/23blocks-OS/ai-maestro/releases",
+       "url": "https://ai-maestro.23blocks.com",
+       "screenshot": "https://ai-maestro.23blocks.com/images/aiteam-web.png",
+@@ -446,7 +446,7 @@
+                 <div class="flex flex-wrap gap-8 text-sm font-mono text-slate-500" id="stats" style="opacity: 0;">
+                     <div class="flex items-center gap-2">
+                         <span class="text-cyan-400">▸</span>
+-                        <span>v0.23.9</span>
++                        <span>v0.23.17</span>
+                     </div>
+                     <div class="flex items-center gap-2">
+                         <span class="text-cyan-400">▸</span>
+
+============================================================
+FILE: package.json
+============================================================
+diff --git a/package.json b/package.json
+index e4b5f56..c6efaaf 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "ai-maestro",
+-  "version": "0.23.9",
++  "version": "0.23.17",
+   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
+   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
+   "license": "MIT",
+@@ -41,6 +41,7 @@
+     "@xterm/addon-webgl": "^0.19.0",
+     "@xterm/xterm": "^6.0.0",
+     "archiver": "^7.0.1",
++    "bcryptjs": "^3.0.3",
+     "cozo-node": "^0.7.6",
+     "cytoscape": "^3.33.1",
+     "cytoscape-dagre": "^2.5.0",
+@@ -64,6 +65,7 @@
+   },
+   "devDependencies": {
+     "@types/archiver": "^7.0.0",
++    "@types/bcryptjs": "^3.0.0",
+     "@types/node": "^20.14.0",
+     "@types/pg": "^8.15.6",
+     "@types/react": "^18.3.0",
+
+============================================================
+FILE: plugin
+============================================================
+diff --git a/plugin b/plugin
+index 0759e09..1d831f1 160000
+--- a/plugin
++++ b/plugin
+@@ -1 +1 @@
+-Subproject commit 0759e09acb1aca5fb82e961c230e682b930e3f19
++Subproject commit 1d831f1fc17ecf65e381830ddffcd687cf8e0487
+
+============================================================
+FILE: README.md
+============================================================
+diff --git a/README.md b/README.md
+index 5cd0114..eae1d3e 100644
+--- a/README.md
++++ b/README.md
+@@ -8,7 +8,7 @@
+ 
+ **Orchestrate your AI coding agents from one dashboard — with persistent memory, agent-to-agent messaging, and multi-machine support.**
+ 
+-[![Version](https://img.shields.io/badge/version-0.23.9-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
++[![Version](https://img.shields.io/badge/version-0.23.17-blue)](https://github.com/23blocks-OS/ai-maestro/releases)
+ [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL2)-lightgrey)](https://github.com/23blocks-OS/ai-maestro)
+ [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+ [![GitHub Stars](https://img.shields.io/github/stars/23blocks-OS/ai-maestro?style=social)](https://github.com/23blocks-OS/ai-maestro)
+@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts
+ This installs everything you need:
+ - AI Maestro dashboard and service
+ - Agent messaging system (AMP)
+-- Claude Code plugin with 5 skills and 32 CLI scripts
++- Claude Code plugin with 7 skills and 32 CLI scripts
+ 
+ **Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux
+ 
+
+============================================================
+FILE: scripts/remote-install.sh
+============================================================
+diff --git a/scripts/remote-install.sh b/scripts/remote-install.sh
+index 58915b9..c3b125a 100755
+--- a/scripts/remote-install.sh
++++ b/scripts/remote-install.sh
+@@ -29,7 +29,7 @@ DIM='\033[2m'
+ NC='\033[0m'
+ 
+ # Version & config
+-VERSION="0.23.9"
++VERSION="0.23.17"
+ REPO_URL="https://github.com/23blocks-OS/ai-maestro.git"
+ DEFAULT_INSTALL_DIR="$HOME/ai-maestro"
+ PORT="${AIMAESTRO_PORT:-23000}"  # configurable via --port or AIMAESTRO_PORT env var
+@@ -1058,7 +1058,7 @@ act3_clone_and_build() {
+                         cp .env.example .env
+                         # Pre-set AI Maestro connection and default agent
+                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
+-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
++                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
+                         else
+                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
+                         fi
+@@ -1102,7 +1102,7 @@ act4_start_and_register() {
+ 
+     # Check if AI Maestro is already running
+     # Verify it's actually AI Maestro by checking for known API response
+-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
++    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
+         if [ "$IS_UPDATE" = true ]; then
+             # Restart service after update so it picks up new code
+             maestro_info "Restarting service with updated code..."
+@@ -1123,7 +1123,7 @@ act4_start_and_register() {
+             # Wait for service to come back up
+             local attempts=0
+             while [ $attempts -lt 15 ]; do
+-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
++                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
+                     break
+                 fi
+                 sleep 1
+@@ -1158,7 +1158,7 @@ act4_start_and_register() {
+         local attempts=0
+         local max_attempts=30
+         while [ $attempts -lt $max_attempts ]; do
+-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
++            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
+                 break
+             fi
+             sleep 1
+@@ -1195,7 +1195,7 @@ act4_start_and_register() {
+     fi
+ 
+     # Register agent with AI Maestro (initializes AMP messaging)
+-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
++    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
+         -H "Content-Type: application/json" \
+         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
+         >/dev/null 2>&1 || true
+@@ -1222,15 +1222,19 @@ act4_start_and_register() {
+                     *)        gw_display="$gw_item" ;;
+                 esac
+                 if [ -n "$gw_list" ]; then
+-                    gw_list="${gw_list}\n- ${gw_display}"
++                    gw_list="${gw_list}"$'\n'"- ${gw_display}"
+                 else
+                     gw_list="- ${gw_display}"
+                 fi
+             done
+-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
++            # Use awk for substitution since sed cannot handle real newlines in replacement on macOS
++            GW_LIST="$gw_list" awk '{
++                gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, ENVIRON["GW_LIST"])
++                print
++            }' "$MAILMAN_DIR/CLAUDE.md" > "$MAILMAN_DIR/CLAUDE.md.tmp" && mv "$MAILMAN_DIR/CLAUDE.md.tmp" "$MAILMAN_DIR/CLAUDE.md"
+         fi
+         # Register mailman with AI Maestro
+-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
++        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
+             -H "Content-Type: application/json" \
+             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
+             >/dev/null 2>&1 || true
+
+============================================================
+FILE: version.json
+============================================================
+diff --git a/version.json b/version.json
+index bae4171..105b696 100644
+--- a/version.json
++++ b/version.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "0.23.9",
+-  "releaseDate": "2026-02-15",
++  "version": "0.23.17",
++  "releaseDate": "2026-02-19",
+   "changelog": "https://github.com/23blocks-OS/ai-maestro/releases",
+   "minSupportedVersion": "0.10.0"
+ }
+
+============================================================
+FILE: yarn.lock
+============================================================
+diff --git a/yarn.lock b/yarn.lock
+index abbcfb3..c13a5dc 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -1030,6 +1030,13 @@
+   dependencies:
+     "@types/readdir-glob" "*"
+ 
++"@types/bcryptjs@^3.0.0":
++  version "3.0.0"
++  resolved "https://registry.yarnpkg.com/@types/bcryptjs/-/bcryptjs-3.0.0.tgz#d7be11653aa82cf17ffee4f3925f1f80cfc1add2"
++  integrity sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==
++  dependencies:
++    bcryptjs "*"
++
+ "@types/chai@^5.2.2":
+   version "5.2.3"
+   resolved "https://registry.yarnpkg.com/@types/chai/-/chai-5.2.3.tgz#8e9cd9e1c3581fa6b341a5aed5588eb285be0b4a"
+@@ -1758,6 +1765,11 @@ bcrypt-pbkdf@^1.0.0:
+   dependencies:
+     tweetnacl "^0.14.3"
+ 
++bcryptjs@*, bcryptjs@^3.0.3:
++  version "3.0.3"
++  resolved "https://registry.yarnpkg.com/bcryptjs/-/bcryptjs-3.0.3.tgz#4b93d6a398c48bfc9f32ee65d301174a8a8ea56f"
++  integrity sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==
++
+ bignumber.js@^2.1.0:
+   version "2.4.0"
+   resolved "https://registry.npmjs.org/bignumber.js/-/bignumber.js-2.4.0.tgz"
+

@@ -121,25 +121,23 @@ describe('loadTeams', () => {
 // ============================================================================
 
 describe('saveTeams', () => {
-  it('returns true and writes teams in versioned format', () => {
+  it('writes teams in versioned format without throwing', () => {
     const teams = [makeTeam({ id: 'team-s1', name: 'Saved' })]
-    const result = saveTeams(teams)
+    saveTeams(teams)
 
-    expect(result).toBe(true)
     expect(fsStore[TEAMS_FILE]).toBeDefined()
 
     const written = JSON.parse(fsStore[TEAMS_FILE])
     expect(written).toEqual({ version: 1, teams })
   })
 
-  it('returns false when writeFileSync throws', async () => {
+  it('throws when writeFileSync fails (MF-04: surfaces write errors instead of silent data loss)', async () => {
     const fs = await import('fs')
     vi.mocked(fs.default.writeFileSync).mockImplementationOnce(() => {
       throw new Error('EACCES: permission denied')
     })
 
-    const result = saveTeams([makeTeam({ id: 'team-x', name: 'Fail' })])
-    expect(result).toBe(false)
+    expect(() => saveTeams([makeTeam({ id: 'team-x', name: 'Fail' })])).toThrow('EACCES: permission denied')
   })
 })
 

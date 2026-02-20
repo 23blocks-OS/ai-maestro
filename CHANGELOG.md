@@ -3,6 +3,27 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.0] - 2026-02-21
+
+### Added
+- **Multi-host governance (4-layer architecture)**
+  - **Layer 1 — Governance State Replication**: Peer governance cache (`lib/governance-peers.ts`) and broadcast sync (`lib/governance-sync.ts`) replicate MANAGER/COS/team state across mesh hosts
+  - **Layer 2 — Cross-Host Identity Attestation**: Ed25519 host keypairs (`lib/host-keys.ts`) and signed role attestations (`lib/role-attestation.ts`) verify MANAGER/COS identity on mesh-forwarded messages
+  - **Layer 3 — Cross-Host Governance Requests**: Request lifecycle (`types/governance-request.ts`, `lib/governance-request-registry.ts`, `services/cross-host-governance-service.ts`) with dual-manager approval state machine for add-to-team, remove-from-team, assign-cos, remove-cos, transfer-agent operations
+  - **Layer 4 — Manager Trust Registry**: Trust relationships between MANAGERs (`lib/manager-trust.ts`) enable auto-approval of governance requests from trusted peers
+- **Agent configuration governance (Layer 6)**: MANAGER/COS role enforcement on agent CRUD operations — createNewAgent, updateAgentById, deleteAgentById in `agents-core-service.ts`
+- `AgentConfiguration` interface in `types/agent.ts` for governed agent config fields (skills, mcpServers, hooks, model, programArgs)
+- `agentHostMap` field on Team type for multi-host team membership tracking
+- Message filter accepts attested mesh roles: verified MANAGER attestation allows cross-host messages to closed-team recipients
+- API routes: governance requests (submit/list/approve/reject), governance sync, manager trust (add/list/remove)
+- 166 new tests across 8 test files (governance-peers, governance-sync, host-keys, role-attestation, governance-request-registry, cross-host-governance, manager-trust, agent-config-governance)
+
+### Changed
+- Standardized governance roles: `'normal'` → `'member'` across codebase (aligns with upstream `AgentRole`)
+- `GovernanceRole` is now an alias for `AgentRole` from `types/agent.ts`
+- Message filter expanded with `senderRole` and `senderHostId` fields for attestation-aware filtering
+- AMP service (`forwardToHost`, `routeMessage`) adds/verifies role attestation headers on mesh-forwarded messages
+
 ## [0.24.10] - 2026-02-20
 
 ### Changed

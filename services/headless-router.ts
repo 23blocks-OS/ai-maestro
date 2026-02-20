@@ -230,6 +230,9 @@ import {
   resolveTransferReq,
 } from '@/services/governance-service'
 
+import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
+import { getHosts, getSelfHostId } from '@/lib/hosts-config'
+
 import {
   listAllWebhooks,
   createNewWebhook,
@@ -1172,6 +1175,34 @@ const routes: Route[] = [
       return
     }
     sendServiceResult(res, await createTransferReq({ ...body, requestedBy: auth.agentId }))
+  }},
+
+  // ── Governance Sync (Layer 1: cross-host state replication) ──────────────
+  { method: 'POST', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req) as import('@/types/governance').GovernanceSyncMessage
+    // Validate required fields
+    if (!body || !body.fromHostId || !body.type) {
+      sendJson(res, 400, { error: 'Missing required fields: fromHostId, type' })
+      return
+    }
+    // Verify sender is a known peer host
+    const hosts = getHosts()
+    const knownHost = hosts.find(h => h.id === body.fromHostId)
+    if (!knownHost) {
+      sendJson(res, 403, { error: `Unknown host: ${body.fromHostId}` })
+      return
+    }
+    handleGovernanceSyncMessage(body.fromHostId, body)
+    sendJson(res, 200, { ok: true })
+  }},
+  { method: 'GET', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (_req, res) => {
+    // Return this host's full governance snapshot for peer sync requests
+    const snapshot = buildLocalGovernanceSnapshot()
+    sendJson(res, 200, {
+      ...snapshot,
+      lastSyncAt: new Date().toISOString(),
+      ttl: 300,
+    })
   }},
 
   // =========================================================================

@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Team, TeamsFile } from '@/types/team'
 import type { TeamType } from '@/types/governance'
 import { withLock } from '@/lib/file-lock'
+import { broadcastGovernanceSync } from '@/lib/governance-sync'
 
 // --- Team Name Validation Constants ---
 // Mirrors agent name rigor from app/api/v1/register/route.ts but allows spaces/display chars
@@ -258,7 +259,7 @@ export async function createTeam(
   managerId?: string | null,
   reservedNames?: string[]
 ): Promise<Team> {
-  return withLock('teams', () => {
+  const team = await withLock('teams', () => {
     const teams = loadTeams()
 
     // Validate all business rules before creation (R1-R4, name sanitization, agent name collision)
@@ -268,7 +269,7 @@ export async function createTeam(
     }
 
     const now = new Date().toISOString()
-    const team: Team = {
+    const newTeam: Team = {
       id: uuidv4(),
       // CC-011: Type assertion needed because sanitized is Record<string, unknown> from validateTeamMutation
       name: (result.sanitized.name as string) ?? data.name,
@@ -282,18 +283,18 @@ export async function createTeam(
       updatedAt: now,
     }
 
-    teams.push(team)
+    teams.push(newTeam)
 
     // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke their open team memberships
-    if (team.type === 'closed') {
-      for (const agentId of team.agentIds) {
+    if (newTeam.type === 'closed') {
+      for (const agentId of newTeam.agentIds) {
         // MANAGER is exempt from membership restrictions (v2 Rule 20)
         if (agentId === managerId) continue
         // COS keeps open team memberships (v2 Rule 21)
-        if (agentId === team.chiefOfStaffId) continue
+        if (agentId === newTeam.chiefOfStaffId) continue
         // Remove agent from all open teams
         for (const otherTeam of teams) {
-          if (otherTeam.id === team.id || otherTeam.type !== 'open') continue
+          if (otherTeam.id === newTeam.id || otherTeam.type !== 'open') continue
           const idx = otherTeam.agentIds.indexOf(agentId)
           if (idx !== -1) {
             otherTeam.agentIds.splice(idx, 1)
@@ -305,8 +306,11 @@ export async function createTeam(
     // Single save: includes new team + any G4 open-team revocations
     saveTeams(teams)
 
-    return team
+    return newTeam
   })
+  // Fire-and-forget: broadcast team creation to mesh peers after lock is released
+  broadcastGovernanceSync('team-updated', { teamId: team.id }).catch(() => {})
+  return team
 }
 
 export async function updateTeam(
@@ -315,7 +319,7 @@ export async function updateTeam(
   managerId?: string | null,
   reservedNames?: string[]
 ): Promise<Team | null> {
-  return withLock('teams', () => {
+  const updatedTeam = await withLock('teams', () => {
     const teams = loadTeams()
     const index = teams.findIndex(t => t.id === id)
     if (index === -1) return null
@@ -344,17 +348,17 @@ export async function updateTeam(
     // MF-05: Perform G4 revocation BEFORE the single save to avoid on-disk inconsistency.
     // MF-06: Always check when team is closed (not just when agentIds was explicitly provided),
     //        so that a type change to 'closed' also triggers revocation for existing members.
-    const updatedTeam = teams[index]
-    if (updatedTeam.type === 'closed') {
-      const newlyAdded = updatedTeam.agentIds.filter(aid => !previousAgentIds.includes(aid))
+    const result2 = teams[index]
+    if (result2.type === 'closed') {
+      const newlyAdded = result2.agentIds.filter(aid => !previousAgentIds.includes(aid))
       if (newlyAdded.length > 0) {
         const currentManagerId = managerId ?? null
         for (const agentId of newlyAdded) {
           if (agentId === currentManagerId) continue
           // COS keeps open team memberships (v2 Rule 21)
-          if (agentId === updatedTeam.chiefOfStaffId) continue
+          if (agentId === result2.chiefOfStaffId) continue
           for (const otherTeam of teams) {
-            if (otherTeam.id === updatedTeam.id || otherTeam.type !== 'open') continue
+            if (otherTeam.id === result2.id || otherTeam.type !== 'open') continue
             const idx = otherTeam.agentIds.indexOf(agentId)
             if (idx !== -1) {
               otherTeam.agentIds.splice(idx, 1)
@@ -367,12 +371,17 @@ export async function updateTeam(
     // Single save: includes team updates + any G4 open-team revocations (MF-05)
     saveTeams(teams)
 
-    return updatedTeam
+    return result2
   })
+  // Fire-and-forget: broadcast team update to mesh peers after lock is released
+  if (updatedTeam) {
+    broadcastGovernanceSync('team-updated', { teamId: updatedTeam.id }).catch(() => {})
+  }
+  return updatedTeam
 }
 
 export async function deleteTeam(id: string): Promise<boolean> {
-  return withLock('teams', () => {
+  const deleted = await withLock('teams', () => {
     const teams = loadTeams()
     const filtered = teams.filter(t => t.id !== id)
     if (filtered.length === teams.length) return false
@@ -388,4 +397,9 @@ export async function deleteTeam(id: string): Promise<boolean> {
     }
     return true
   })
+  // Fire-and-forget: broadcast team deletion to mesh peers after lock is released
+  if (deleted) {
+    broadcastGovernanceSync('team-deleted', { teamId: id }).catch(() => {})
+  }
+  return deleted
 }

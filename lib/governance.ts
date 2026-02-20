@@ -13,6 +13,7 @@ import { loadTeams, getTeam } from './team-registry'
 import { withLock } from '@/lib/file-lock'
 import type { GovernanceConfig } from '@/types/governance'
 import { DEFAULT_GOVERNANCE_CONFIG } from '@/types/governance'
+import { broadcastGovernanceSync } from '@/lib/governance-sync'
 import type { Team } from '@/types/team'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
@@ -99,22 +100,26 @@ export function getManagerId(): string | null {
   return config.managerId
 }
 
-/** Set the manager agent ID and persist */
+/** Set the manager agent ID and persist, then broadcast to mesh peers */
 export async function setManager(agentId: string): Promise<void> {
-  return withLock('governance', () => {
+  await withLock('governance', () => {
     const config = loadGovernance()
     config.managerId = agentId
     saveGovernance(config)
   })
+  // Fire-and-forget: broadcast manager change to mesh peers after lock is released
+  broadcastGovernanceSync('manager-changed', { agentId }).catch(() => {})
 }
 
-/** Remove the manager (set to null) and persist */
+/** Remove the manager (set to null) and persist, then broadcast to mesh peers */
 export async function removeManager(): Promise<void> {
-  return withLock('governance', () => {
+  await withLock('governance', () => {
     const config = loadGovernance()
     config.managerId = null
     saveGovernance(config)
   })
+  // Fire-and-forget: broadcast manager removal to mesh peers after lock is released
+  broadcastGovernanceSync('manager-changed', { agentId: null }).catch(() => {})
 }
 
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.

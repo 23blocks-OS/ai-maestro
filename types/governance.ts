@@ -58,3 +58,35 @@ export interface TransfersFile {
   version: 1
   requests: TransferRequest[]
 }
+
+// ─── Multi-Host Governance (Layer 1: State Replication) ────────────────────
+
+/** Types of governance state changes that get broadcast to mesh peers */
+export type GovernanceSyncType = 'manager-changed' | 'team-updated' | 'team-deleted' | 'transfer-update'
+
+/** Message payload sent between hosts for governance state synchronization */
+export interface GovernanceSyncMessage {
+  type: GovernanceSyncType
+  fromHostId: string
+  timestamp: string          // ISO — used for conflict ordering
+  payload: Record<string, unknown>  // type-specific data
+}
+
+/** Summary of a team as seen from a peer host (subset of Team) */
+export interface PeerTeamSummary {
+  id: string
+  name: string
+  type: 'open' | 'closed'
+  chiefOfStaffId: string | null
+  agentIds: string[]
+}
+
+/** Cached governance state from a single peer host */
+export interface GovernancePeerState {
+  hostId: string
+  managerId: string | null
+  managerName: string | null
+  teams: PeerTeamSummary[]
+  lastSyncAt: string         // ISO — when this peer last sent us an update
+  ttl: number                // Seconds before this data is considered stale (default 300)
+}

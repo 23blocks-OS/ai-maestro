@@ -182,8 +182,9 @@ export interface Agent {
   tags?: string[]               // Optional tags (e.g., ["backend", "api", "typescript"])
   capabilities?: string[]       // Technical capabilities (e.g., ["typescript", "postgres"])
 
-  // Ownership & Team
+  // Ownership, Role & Team
   owner?: string                // Owner name or email
+  role?: AgentRole              // Messaging role: 'manager' | 'chief-of-staff' | 'member' (default: 'member')
   team?: string                 // Team name (e.g., "Backend Team", "23blocks")
 
   // Documentation
@@ -400,6 +401,14 @@ export interface AgentMetrics {
 export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
 
 /**
+ * Agent role for messaging policy and team hierarchy
+ * - manager: Unrestricted messaging, one per host. Interface with the user.
+ * - chief-of-staff: Gateway for a closed team. Routes messages in/out.
+ * - member: Default. In closed teams, can only message teammates + COS + manager.
+ */
+export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
+
+/**
  * Simplified agent for listings
  */
 export interface AgentSummary {
@@ -407,6 +416,7 @@ export interface AgentSummary {
   name: string                  // Agent identity (was alias)
   label?: string                // Optional display override (was displayName)
   avatar?: string               // Avatar URL or emoji
+  role?: AgentRole              // Messaging role
   hostId: string                // Host where agent lives
   hostUrl?: string              // Host URL for API calls
   status: AgentStatus
@@ -439,6 +449,7 @@ export interface CreateAgentRequest {
   deploymentType?: DeploymentType // Where to deploy (local or cloud)
   hostId?: string               // Target host for agent creation (defaults to 'local')
   owner?: string
+  role?: AgentRole              // Messaging role (default: 'member')
   team?: string
   documentation?: AgentDocumentation
   metadata?: Record<string, any>
@@ -459,6 +470,7 @@ export interface UpdateAgentRequest {
   programArgs?: string          // CLI arguments passed to the program on launch
   tags?: string[]
   owner?: string
+  role?: AgentRole              // Update messaging role
   team?: string
   workingDirectory?: string     // Update default working directory
   documentation?: Partial<AgentDocumentation>

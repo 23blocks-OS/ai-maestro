@@ -3,7 +3,19 @@
  *
  * Teams represent groups of agents that can be assembled into
  * a "war room" for multi-agent coordination sessions.
+ *
+ * Team types:
+ * - open (default): No messaging restrictions. Backward compatible.
+ * - closed: Isolated messaging. External messages routed through the
+ *   chief-of-staff. Agents can only message teammates + COS + manager.
  */
+
+/**
+ * Team communication type
+ * - open: No restrictions, any agent can message team members (default, backward compat)
+ * - closed: Isolated — messages from outside the team are routed through the chief-of-staff
+ */
+export type TeamType = 'open' | 'closed'
 
 export interface Team {
   id: string              // UUID
@@ -11,6 +23,8 @@ export interface Team {
   description?: string
   agentIds: string[]      // Agent UUIDs (order = display order)
   instructions?: string   // Team-level markdown (like a per-team CLAUDE.md)
+  type?: TeamType         // 'open' (default) or 'closed' (isolated messaging)
+  chiefOfStaffId?: string // Agent ID of the chief-of-staff (required for closed teams)
   createdAt: string       // ISO
   updatedAt: string       // ISO
   lastMeetingAt?: string  // ISO - last time a meeting was started with this team

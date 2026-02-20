@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeamById, updateTeamById, deleteTeamById } from '@/services/teams-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 // GET /api/teams/[id] - Get a single team
 export async function GET(
@@ -7,7 +8,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
   const result = getTeamById(id, requestingAgentId)
 
   if (result.error) {
@@ -22,7 +30,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
 
   let body
   try {
@@ -31,7 +46,9 @@ export async function PUT(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = updateTeamById(id, { ...body, requestingAgentId })
+  // CC-005: Strip type and chiefOfStaffId from body — only dedicated governance endpoints can change these
+  const { type: _type, chiefOfStaffId: _cos, ...safeBody } = body
+  const result = await updateTeamById(id, { ...safeBody, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -45,8 +62,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
-  const result = deleteTeamById(id, requestingAgentId)
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
+  const result = await deleteTeamById(id, requestingAgentId)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

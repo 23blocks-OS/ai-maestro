@@ -163,6 +163,18 @@ update_file "$PROJECT_ROOT/docs/ai-index.html" \
     "\"softwareVersion\": \"$NEW_VERSION\"" \
     "docs/ai-index.html (schema)"
 
+# 7b. docs/ai-index.html (prose "Version:" line)
+update_file "$PROJECT_ROOT/docs/ai-index.html" \
+    "<p><strong>Version:</strong> $CURRENT_VERSION" \
+    "<p><strong>Version:</strong> $NEW_VERSION" \
+    "docs/ai-index.html (prose version)"
+
+# 7c. docs/ai-index.html (Quick Facts "Current Version:" line)
+update_file "$PROJECT_ROOT/docs/ai-index.html" \
+    "<li><strong>Current Version:</strong> $CURRENT_VERSION" \
+    "<li><strong>Current Version:</strong> $NEW_VERSION" \
+    "docs/ai-index.html (quick facts)"
+
 # 8. docs/ai-index.html (Version: display text)
 if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \

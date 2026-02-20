@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMessages, sendMessage, updateMessage, removeMessage } from '@/services/messages-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 /**
  * GET /api/messages?agent=<agentId|alias|sessionName>&status=<status>&from=<from>&box=<inbox|sent>
@@ -22,9 +23,31 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/messages - Send a new message
+ *
+ * Authentication: If an agent provides Authorization + X-Agent-Id headers,
+ * the sender identity is verified via API key and body.from is overridden
+ * with the authenticated agent ID (prevents sender spoofing).
+ * If no auth headers are present, the request is treated as coming from
+ * the system owner / web UI, and body.from is used as-is.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json()
+
+  // Authenticate sender identity when auth headers are present
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  // If authenticated agent, override body.from with verified identity
+  // and mark the message as from a verified sender
+  if (auth.agentId) {
+    body.from = auth.agentId
+    body.fromVerified = true
+  }
+
   const result = await sendMessage(body)
   return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
 }

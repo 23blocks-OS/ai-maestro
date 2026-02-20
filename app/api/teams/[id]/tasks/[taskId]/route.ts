@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateTeamTask, deleteTeamTask } from '@/services/teams-service'
+import { updateTeamTask, deleteTeamTask, UpdateTaskParams } from '@/services/teams-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
@@ -7,7 +8,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
 
   let body: Record<string, unknown>
   try {
@@ -16,7 +24,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
   }
 
-  const result = updateTeamTask(id, taskId, { ...body, requestingAgentId })
+  const result = await updateTeamTask(id, taskId, { ...body, requestingAgentId } as UpdateTaskParams)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -30,9 +38,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
 
-  const result = deleteTeamTask(id, taskId, requestingAgentId)
+  const result = await deleteTeamTask(id, taskId, requestingAgentId)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

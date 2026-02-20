@@ -121,7 +121,7 @@ export function validateTeamMutation(
 
   // Resolve effective state after this mutation is applied
   const existingTeam = teamId ? teams.find(t => t.id === teamId) : null
-  const effectiveType = (data.type ?? existingTeam?.type ?? 'open') as string
+  let effectiveType = (data.type ?? existingTeam?.type ?? 'open') as string
   const effectiveCOS = data.chiefOfStaffId !== undefined ? data.chiefOfStaffId : (existingTeam?.chiefOfStaffId ?? null)
   const effectiveAgentIds = data.agentIds ?? existingTeam?.agentIds ?? []
 
@@ -129,6 +129,7 @@ export function validateTeamMutation(
   // G5 (v2 Rule 14): If a closed team loses its COS, auto-downgrade to open
   if (effectiveType === 'closed' && !effectiveCOS) {
     sanitized.type = 'open'
+    effectiveType = 'open'  // Update local variable to match G5 auto-downgrade
   }
   // --- COS on open team is invalid (R1.8) ---
   if (effectiveType === 'open' && effectiveCOS) {
@@ -241,7 +242,10 @@ export function saveTeams(teams: Team[]): boolean {
   try {
     ensureTeamsDir()
     const file: TeamsFile = { version: 1, teams }
-    fs.writeFileSync(TEAMS_FILE, JSON.stringify(file, null, 2), 'utf-8')
+    // Atomic write: write to temp file then rename to avoid corruption on crash
+    const tmpFile = TEAMS_FILE + '.tmp'
+    fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
+    fs.renameSync(tmpFile, TEAMS_FILE)
     return true
   } catch (error) {
     console.error('Failed to save teams:', error)
@@ -275,33 +279,36 @@ export async function createTeam(
       name: (result.sanitized.name as string) ?? data.name,
       description: data.description,
       agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
-      type: data.type ?? 'open',
-      chiefOfStaffId: data.chiefOfStaffId,
+      type: (result.sanitized.type as TeamType) ?? data.type ?? 'open',
+      chiefOfStaffId: result.sanitized.chiefOfStaffId !== undefined
+        ? (result.sanitized.chiefOfStaffId as string | undefined)
+        : data.chiefOfStaffId,
       createdAt: now,
       updatedAt: now,
     }
 
     teams.push(team)
-    saveTeams(teams)
 
     // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke their open team memberships
     if (team.type === 'closed') {
-      let openTeamsChanged = false
       for (const agentId of team.agentIds) {
         // MANAGER is exempt from membership restrictions (v2 Rule 20)
         if (agentId === managerId) continue
+        // COS keeps open team memberships (v2 Rule 21)
+        if (agentId === team.chiefOfStaffId) continue
         // Remove agent from all open teams
         for (const otherTeam of teams) {
           if (otherTeam.id === team.id || otherTeam.type !== 'open') continue
           const idx = otherTeam.agentIds.indexOf(agentId)
           if (idx !== -1) {
             otherTeam.agentIds.splice(idx, 1)
-            openTeamsChanged = true
           }
         }
       }
-      if (openTeamsChanged) saveTeams(teams)
     }
+
+    // Single save: includes new team + any G4 open-team revocations
+    saveTeams(teams)
 
     return team
   })
@@ -349,6 +356,8 @@ export async function updateTeam(
         let openTeamsChanged = false
         for (const agentId of newlyAdded) {
           if (agentId === currentManagerId) continue
+          // COS keeps open team memberships (v2 Rule 21)
+          if (agentId === updatedTeam.chiefOfStaffId) continue
           for (const otherTeam of teams) {
             if (otherTeam.id === updatedTeam.id || otherTeam.type !== 'open') continue
             const idx = otherTeam.agentIds.indexOf(agentId)

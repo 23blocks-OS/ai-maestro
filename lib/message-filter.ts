@@ -118,7 +118,7 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     }
     return {
       allowed: false,
-      reason: 'Chief-of-Staff can only message MANAGER, other Chiefs-of-Staff, and own team members',
+      reason: 'Chief-of-Staff can only message MANAGER, other Chiefs-of-Staff, own team members, and agents not in any closed team',
     }
   }
 
@@ -142,9 +142,17 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     }
   }
 
+  // Step 5b: Open-world agents can reach MANAGER and COS (v2 Rules 62-63)
+  // After Steps 2–5, !senderInClosed && recipientInClosed is always true here.
+  if (agentIsManager(recipientAgentId)) {
+    return { allowed: true }
+  }
+  if (agentIsCOS(recipientAgentId)) {
+    return { allowed: true }
+  }
+
   // Step 6: Sender is NOT in any closed team but recipient IS in a closed team (R6.5)
-  // After Steps 2–5, reaching here means !senderInClosed && recipientInClosed is always true,
-  // so no conditional needed — this is the only remaining case.
+  // Remaining case: open-world sender → normal closed-team member (not MANAGER/COS).
   return {
     allowed: false,
     reason: 'Cannot message agents in closed teams from outside',

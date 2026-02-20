@@ -53,6 +53,14 @@ vi.mock('@/lib/notification-service', () => ({
   notifyAgent: vi.fn(() => Promise.resolve()),
 }))
 
+// Mock agent-auth module - in tests, trust X-Agent-Id directly (no real API keys in test environment)
+vi.mock('@/lib/agent-auth', () => ({
+  authenticateAgent: vi.fn((authHeader: string | null, agentIdHeader: string | null) => {
+    if (agentIdHeader) return { agentId: agentIdHeader }
+    return {}
+  })
+}))
+
 const mockAcquireLock = vi.fn()
 
 vi.mock('@/lib/file-lock', () => ({
@@ -70,11 +78,18 @@ import { NextRequest } from 'next/server'
 // Test helpers
 // ============================================================================
 
-function makeRequest(body: Record<string, unknown>): NextRequest {
+function makeRequest(body: Record<string, unknown>, headers: Record<string, string> = {}): NextRequest {
+  // The route derives resolvedBy from the authenticated agent identity (X-Agent-Id header),
+  // not from the request body. If the test provides resolvedBy in the body, automatically
+  // set X-Agent-Id header so the mock agent-auth returns the correct agentId.
+  const resolvedHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers }
+  if (body.resolvedBy && typeof body.resolvedBy === 'string' && !resolvedHeaders['X-Agent-Id']) {
+    resolvedHeaders['X-Agent-Id'] = body.resolvedBy
+  }
   return new NextRequest('http://localhost:23000/api/governance/transfers/tr-1/resolve', {
     method: 'POST',
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json' },
+    headers: resolvedHeaders,
   })
 }
 
@@ -309,17 +324,17 @@ describe('CC-007: request body validation', () => {
     const data = await res.json()
 
     expect(res.status).toBe(400)
-    expect(data.error).toContain('action and resolvedBy are required')
+    expect(data.error).toContain('action is required')
   })
 
-  it('returns 400 when resolvedBy is missing', async () => {
-    /** Verifies that the route rejects requests where the resolvedBy field is absent */
+  it('returns 401 when agent identity is not provided', async () => {
+    /** Verifies that the route requires agent authentication to resolve transfers (resolvedBy is derived from auth, not body) */
     const req = makeRequest({ action: 'approve' })
     const res = await POST(req, makeParams('tr-1'))
     const data = await res.json()
 
-    expect(res.status).toBe(400)
-    expect(data.error).toContain('action and resolvedBy are required')
+    expect(res.status).toBe(401)
+    expect(data.error).toContain('Agent authentication required')
   })
 
   it('returns 400 when action is invalid', async () => {

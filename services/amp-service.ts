@@ -887,10 +887,13 @@ export async function routeMessage(
 
         const isValid = verifySignature(signatureData, body.signature, senderKeyPair.publicHex)
         if (!isValid) {
-          console.warn(`[AMP Route] Invalid signature from ${envelope.from}`)
-        } else {
-          console.log(`[AMP Route] Verified signature from ${envelope.from}`)
+          // Reject messages with cryptographically invalid signatures (key present but sig doesn't match)
+          return {
+            data: { error: 'forbidden', message: 'Message signature verification failed' } as AMPError,
+            status: 403
+          }
         }
+        console.log(`[AMP Route] Verified signature from ${envelope.from}`)
       }
       envelope.signature = body.signature
     } else {
@@ -1638,8 +1641,19 @@ export async function deliverFederated(
         ].join('|')
 
         signatureVerified = verifySignature(signatureData, envelope.signature, sender_public_key)
+        // Reject messages with cryptographically invalid signatures (key present but sig doesn't match)
+        if (!signatureVerified) {
+          return {
+            data: { error: 'forbidden', message: 'Federated message signature verification failed' } as AMPError,
+            status: 403
+          }
+        }
       } catch {
-        console.warn(`[Federation] Signature verification failed for ${envelope.id}`)
+        console.warn(`[Federation] Signature verification error for ${envelope.id}`)
+        return {
+          data: { error: 'forbidden', message: 'Federated message signature verification failed' } as AMPError,
+          status: 403
+        }
       }
     }
 

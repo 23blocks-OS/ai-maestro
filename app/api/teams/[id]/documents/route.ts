@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listTeamDocuments, createTeamDocument } from '@/services/teams-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 // GET /api/teams/[id]/documents - List all documents for a team
 export async function GET(
@@ -7,7 +8,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
   const result = listTeamDocuments(id, requestingAgentId)
 
   if (result.error) {
@@ -22,7 +30,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
 
   let body
   try {
@@ -31,7 +46,7 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = createTeamDocument(id, { ...body, requestingAgentId })
+  const result = await createTeamDocument(id, { ...body, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

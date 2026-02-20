@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listAllTeams, createNewTeam } from '@/services/teams-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 // GET /api/teams - List all teams
 // Phase 1: No ACL on team list -- localhost only. TODO Phase 2: Add auth/ACL for remote access.
@@ -10,8 +11,15 @@ export async function GET() {
 
 // POST /api/teams - Create a new team
 export async function POST(request: NextRequest) {
-  // Extract requesting agent identity from header for governance checks
-  const requestingAgentId = request.headers.get('X-Agent-Id') || undefined
+  // Authenticate requesting agent identity for governance checks
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+  const requestingAgentId = auth.agentId
 
   let body
   try {

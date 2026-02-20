@@ -17,6 +17,16 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
+    renameSync: vi.fn((oldPath: string, newPath: string) => {
+      // Atomic write: move temp file to final path
+      if (oldPath in fsStore) {
+        fsStore[newPath] = fsStore[oldPath]
+        delete fsStore[oldPath]
+      }
+    }),
+    unlinkSync: vi.fn((filePath: string) => {
+      delete fsStore[filePath]
+    }),
   },
 }))
 
@@ -204,7 +214,8 @@ describe('POST /api/teams/[id]/documents', () => {
     expect(docs[0].title).toBe('Persisted')
   })
 
-  it('stores HTML content verbatim without sanitization (frontend concern)', async () => {
+  // SECURITY: Stored XSS risk — frontend MUST sanitize before rendering. Track in security issue.
+  it('stores HTML content verbatim without sanitization (known security surface)', async () => {
     const team = await createTeam({ name: 'XSS Team', agentIds: [] })
     const xssTitle = '<script>alert(1)</script>'
 
@@ -217,7 +228,7 @@ describe('POST /api/teams/[id]/documents', () => {
 
     expect(res.status).toBe(201)
     const data = await res.json()
-    // API stores values verbatim; sanitization is a frontend/rendering concern
+    // API stores values verbatim — this is a known stored-XSS security surface; frontend MUST sanitize before rendering
     expect(data.document.title).toBe(xssTitle)
     expect(data.document.content).toBe('<img onerror="alert(2)" src=x>')
 

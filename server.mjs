@@ -73,7 +73,7 @@ process.on('SIGPIPE', () => {
 // =============================================================================
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = process.env.HOSTNAME || '0.0.0.0' // 0.0.0.0 allows network access
+const hostname = process.env.HOSTNAME || '127.0.0.1' // Localhost-only by default; set HOSTNAME=0.0.0.0 to allow network access
 const port = parseInt(process.env.PORT || '23000', 10)
 
 // Server mode: 'full' (default) = Next.js + UI, 'headless' = API-only (no Next.js)

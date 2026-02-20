@@ -10,6 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http'
 import { parse } from 'url'
+import { authenticateAgent } from '../lib/agent-auth'
 
 // ---------------------------------------------------------------------------
 // Service imports (all 24 service files)
@@ -1120,7 +1121,16 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/governance\/transfers\/([^/]+)\/resolve$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await resolveTransferReq(params.id, body))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const resolvedBy = auth.agentId || body.resolvedBy  // prefer authenticated identity
+    sendServiceResult(res, await resolveTransferReq(params.id, { ...body, resolvedBy }))
   }},
   { method: 'GET', pattern: /^\/api\/governance\/transfers$/, paramNames: [], handler: async (req, res, _params, query) => {
     sendServiceResult(res, listTransferRequests({
@@ -1147,61 +1157,168 @@ const routes: Route[] = [
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, updateTeamTask(params.id, params.taskId, { ...body, requestingAgentId }))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await updateTeamTask(params.id, params.taskId, { ...body, requestingAgentId }))
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, deleteTeamTask(params.id, params.taskId, requestingAgentId))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await deleteTeamTask(params.id, params.taskId, requestingAgentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
     sendServiceResult(res, listTeamTasks(params.id, requestingAgentId))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, createTeamTask(params.id, { ...body, requestingAgentId }))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await createTeamTask(params.id, { ...body, requestingAgentId }))
   }},
-  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getTeamDocument(params.id, params.docId))
+  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, getTeamDocument(params.id, params.docId, requestingAgentId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateTeamDocument(params.id, params.docId, body))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await updateTeamDocument(params.id, params.docId, { ...body, requestingAgentId }))
   }},
-  { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteTeamDocument(params.id, params.docId))
+  { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await deleteTeamDocument(params.id, params.docId, requestingAgentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
     sendServiceResult(res, listTeamDocuments(params.id, requestingAgentId))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/documents$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, createTeamDocument(params.id, { ...body, requestingAgentId }))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await createTeamDocument(params.id, { ...body, requestingAgentId }))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
     sendServiceResult(res, getTeamById(params.id, requestingAgentId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, updateTeamById(params.id, { ...body, requestingAgentId }))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await updateTeamById(params.id, { ...body, requestingAgentId }))
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, deleteTeamById(params.id, requestingAgentId))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await deleteTeamById(params.id, requestingAgentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, listAllTeams())
   }},
   { method: 'POST', pattern: /^\/api\/teams$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const requestingAgentId = getHeader(req, 'X-Agent-Id') || undefined
-    sendServiceResult(res, createNewTeam({ ...body, requestingAgentId }))
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    const requestingAgentId = auth.agentId
+    sendServiceResult(res, await createNewTeam({ ...body, requestingAgentId }))
   }},
 
   // =========================================================================

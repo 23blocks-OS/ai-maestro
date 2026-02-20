@@ -180,11 +180,10 @@ export function getTeamById(id: string, requestingAgentId?: string): ServiceResu
   }
 
   // Governance ACL: closed teams restrict access to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId: id, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId: id, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   return { data: { team }, status: 200 }
@@ -196,16 +195,22 @@ export function getTeamById(id: string, requestingAgentId?: string): ServiceResu
  * to updateTeam for business rule enforcement (R1-R4).
  */
 export async function updateTeamById(id: string, params: UpdateTeamParams): Promise<ServiceResult<{ team: any }>> {
+  // Validate UUID format for consistency with getTeamById (CC-008)
+  if (!isValidUuid(id)) {
+    return { error: 'Invalid team ID', status: 400 }
+  }
+
   try {
-    // Destructure requestingAgentId out so it does not leak into the lib update call
-    const { requestingAgentId, ...updateFields } = params
+    // Destructure requestingAgentId, type, and chiefOfStaffId out so they do not leak
+    // into the lib update call. Governance type/COS changes must go through dedicated
+    // endpoints, not the general update path (CC-007 defense-in-depth).
+    const { requestingAgentId, type: _type, chiefOfStaffId: _cos, ...updateFields } = params
 
     // Governance ACL: closed teams restrict mutations to manager, COS, and members
-    if (requestingAgentId) {
-      const access = checkTeamAccess({ teamId: id, requestingAgentId })
-      if (!access.allowed) {
-        return { error: access.reason || 'Access denied', status: 403 }
-      }
+    // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+    const access = checkTeamAccess({ teamId: id, requestingAgentId })
+    if (!access.allowed) {
+      return { error: access.reason || 'Access denied', status: 403 }
     }
 
     // Pass governance context (managerId + agent names for collision checks) to updateTeam
@@ -231,9 +236,21 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
  * Governance: closed team deletion requires MANAGER or COS authority.
  */
 export async function deleteTeamById(id: string, requestingAgentId?: string): Promise<ServiceResult<{ success: boolean }>> {
+  // Validate UUID format for consistency with getTeamById (CC-008)
+  if (!isValidUuid(id)) {
+    return { error: 'Invalid team ID', status: 400 }
+  }
+
   const team = getTeam(id)
   if (!team) {
     return { error: 'Team not found', status: 404 }
+  }
+
+  // Governance ACL: closed teams restrict mutations to manager, COS, and members
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId: id, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   // Governance: closed team deletion requires MANAGER or Chief-of-Staff authority
@@ -269,11 +286,10 @@ export function listTeamTasks(teamId: string, requestingAgentId?: string): Servi
   }
 
   // Governance ACL: closed teams restrict access to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const tasks = loadTasks(teamId)
@@ -292,12 +308,11 @@ export async function createTeamTask(teamId: string, params: CreateTaskParams): 
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
   const { requestingAgentId, ...taskFields } = params
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const { subject, description, assigneeAgentId, blockedBy, priority } = taskFields
@@ -344,12 +359,11 @@ export async function updateTeamTask(
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
   const { requestingAgentId, ...taskFields } = params
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const existing = getTask(teamId, taskId)
@@ -411,11 +425,10 @@ export async function deleteTeamTask(teamId: string, taskId: string, requestingA
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const deleted = await deleteTask(teamId, taskId)
@@ -441,11 +454,10 @@ export function listTeamDocuments(teamId: string, requestingAgentId?: string): S
   }
 
   // Governance ACL: closed teams restrict access to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const documents = loadDocuments(teamId)
@@ -463,12 +475,11 @@ export async function createTeamDocument(teamId: string, params: CreateDocumentP
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
   const { requestingAgentId, ...docFields } = params
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const { title, content, pinned, tags } = docFields
@@ -503,11 +514,10 @@ export function getTeamDocument(teamId: string, docId: string, requestingAgentId
   }
 
   // Governance ACL: closed teams restrict access to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const document = getDocument(teamId, docId)
@@ -534,12 +544,11 @@ export async function updateTeamDocument(
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
   const { requestingAgentId, ...docFields } = params
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   try {
@@ -572,11 +581,10 @@ export async function deleteTeamDocument(teamId: string, docId: string, requesti
   }
 
   // Governance ACL: closed teams restrict mutations to manager, COS, and members
-  if (requestingAgentId) {
-    const access = checkTeamAccess({ teamId, requestingAgentId })
-    if (!access.allowed) {
-      return { error: access.reason || 'Access denied', status: 403 }
-    }
+  // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
   }
 
   const deleted = await deleteDocument(teamId, docId)

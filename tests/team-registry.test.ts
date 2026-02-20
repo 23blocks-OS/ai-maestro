@@ -19,6 +19,16 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
+    renameSync: vi.fn((oldPath: string, newPath: string) => {
+      // Atomic write: move temp file to final path
+      if (oldPath in fsStore) {
+        fsStore[newPath] = fsStore[oldPath]
+        delete fsStore[oldPath]
+      }
+    }),
+    unlinkSync: vi.fn((filePath: string) => {
+      delete fsStore[filePath]
+    }),
   },
 }))
 

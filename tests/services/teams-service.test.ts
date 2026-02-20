@@ -101,6 +101,7 @@ import {
   deleteTeamDocument,
   notifyTeamAgents,
 } from '@/services/teams-service'
+import { getManagerId } from '@/lib/governance'
 
 // ============================================================================
 // Setup
@@ -319,6 +320,36 @@ describe('deleteTeamById', () => {
     const result = await deleteTeamById('nope')
 
     expect(result.status).toBe(404)
+  })
+
+  it('returns 400 when deleting closed team without requestingAgentId', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
+
+    const result = await deleteTeamById('team-1')
+
+    expect(result.status).toBe(400)
+    expect(result.error).toMatch(/agent identity/i)
+  })
+
+  it('returns 403 when unauthorized agent tries to delete closed team', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
+    vi.mocked(getManagerId).mockReturnValue('manager-1')
+
+    const result = await deleteTeamById('team-1', 'random-agent')
+
+    expect(result.status).toBe(403)
+    expect(result.error).toMatch(/MANAGER.*Chief-of-Staff/i)
+  })
+
+  it('allows COS to delete their own closed team', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam({ id: 'team-1', type: 'closed', chiefOfStaffId: 'cos-1' }))
+    vi.mocked(getManagerId).mockReturnValue('manager-1')
+    mockTeams.deleteTeam.mockResolvedValue(true)
+
+    const result = await deleteTeamById('team-1', 'cos-1')
+
+    expect(result.status).toBe(200)
+    expect(result.data?.success).toBe(true)
   })
 })
 
@@ -758,6 +789,7 @@ describe('getTeamDocument', () => {
 describe('updateTeamDocument', () => {
   it('updates document successfully', async () => {
     const doc = makeDocument({ title: 'Updated' })
+    mockTeams.getTeam.mockReturnValue(makeTeam())
     mockDocs.updateDocument.mockResolvedValue(doc)
 
     const result = await updateTeamDocument('team-1', 'doc-1', { title: 'Updated' })
@@ -767,6 +799,7 @@ describe('updateTeamDocument', () => {
   })
 
   it('passes only provided fields', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam())
     mockDocs.updateDocument.mockResolvedValue(makeDocument())
 
     await updateTeamDocument('team-1', 'doc-1', { title: 'New Title' })
@@ -775,6 +808,7 @@ describe('updateTeamDocument', () => {
   })
 
   it('passes pinned and tags when provided', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam())
     mockDocs.updateDocument.mockResolvedValue(makeDocument())
 
     await updateTeamDocument('team-1', 'doc-1', { pinned: true, tags: ['api'] })
@@ -783,6 +817,8 @@ describe('updateTeamDocument', () => {
   })
 
   it('returns 404 when document not found', async () => {
+    // Team must exist so the service reaches the document lookup
+    mockTeams.getTeam.mockReturnValue(makeTeam())
     mockDocs.updateDocument.mockResolvedValue(null)
 
     const result = await updateTeamDocument('team-1', 'nope', { title: 'X' })
@@ -791,6 +827,7 @@ describe('updateTeamDocument', () => {
   })
 
   it('returns 500 when updateDocument throws', async () => {
+    mockTeams.getTeam.mockReturnValue(makeTeam())
     mockDocs.updateDocument.mockRejectedValue(new Error('write error'))
 
     const result = await updateTeamDocument('team-1', 'doc-1', { title: 'X' })

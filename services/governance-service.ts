@@ -19,6 +19,7 @@ import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
 import { checkMessageAllowed } from '@/lib/message-filter'
 import { loadTransfers, createTransferRequest, getTransferRequest, resolveTransferRequest, revertTransferToPending, getPendingTransfersForAgent } from '@/lib/transfer-registry'
+import type { TransferRequest } from '@/types/governance'
 import { loadTeams, saveTeams, TeamValidationException } from '@/lib/team-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { acquireLock } from '@/lib/file-lock'
@@ -47,7 +48,7 @@ export function getGovernanceConfig(): ServiceResult<{
     data: {
       hasPassword: !!config.passwordHash,
       hasManager: !!config.managerId,
-      managerId: config.managerId ?? null,
+      managerId: config.managerId,
       managerName,
     },
     status: 200,
@@ -205,7 +206,7 @@ export function listTransferRequests(query: {
   teamId?: string | null
   agentId?: string | null
   status?: string | null
-}): ServiceResult<{ requests: any[] }> {
+}): ServiceResult<{ requests: TransferRequest[] }> {
   const { teamId, agentId, status } = query
 
   if (status && !['pending', 'approved', 'rejected'].includes(status)) {
@@ -236,9 +237,7 @@ export async function createTransferReq(params: {
   toTeamId?: string
   requestedBy?: string
   note?: string
-  rejectReason?: string
-  resolution?: string
-}): Promise<ServiceResult<{ success: boolean; request: any }>> {
+}): Promise<ServiceResult<{ success: boolean; request: TransferRequest }>> {
   const { agentId, fromTeamId, toTeamId, requestedBy, note } = params
 
   if (!agentId || !fromTeamId || !toTeamId || !requestedBy) {
@@ -261,17 +260,6 @@ export async function createTransferReq(params: {
   if (note !== undefined && note !== null) {
     if (typeof note !== 'string') return { error: 'note must be a string', status: 400 }
     if (note.length > 1000) return { error: 'note must not exceed 1000 characters', status: 400 }
-  }
-
-  if (params.rejectReason !== undefined && params.rejectReason !== null) {
-    if (typeof params.rejectReason !== 'string' || params.rejectReason.length > 500) {
-      return { error: 'rejectReason must be a string of at most 500 characters', status: 400 }
-    }
-  }
-  if (params.resolution !== undefined && params.resolution !== null) {
-    if (typeof params.resolution !== 'string' || params.resolution.length > 500) {
-      return { error: 'resolution must be a string of at most 500 characters', status: 400 }
-    }
   }
 
   if (fromTeamId === toTeamId) {
@@ -300,11 +288,20 @@ export async function createTransferReq(params: {
   const pending = getPendingTransfersForAgent(agentId)
   const duplicate = pending.find(r => r.fromTeamId === fromTeamId && r.toTeamId === toTeamId)
   if (duplicate) {
-    return { error: 'A transfer request for this agent between these teams already exists', status: 409 }
+    return { data: { existingRequest: duplicate } as any, error: 'A transfer request for this agent between these teams already exists', status: 409 }
   }
 
-  const transferRequest = await createTransferRequest({ agentId, fromTeamId, toTeamId, requestedBy, note })
-  return { data: { success: true, request: transferRequest }, status: 201 }
+  try {
+    const transferRequest = await createTransferRequest({ agentId, fromTeamId, toTeamId, requestedBy, note })
+    return { data: { success: true, request: transferRequest }, status: 201 }
+  } catch (error) {
+    // Duplicate check inside the lock throws Error for TOCTOU race conditions
+    if (error instanceof Error && error.message.includes('pending transfer request already exists')) {
+      return { error: error.message, status: 409 }
+    }
+    console.error('[governance] Error creating transfer request:', error)
+    return { error: 'Internal server error', status: 500 }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +310,7 @@ export async function createTransferReq(params: {
 export async function resolveTransferReq(
   transferId: string,
   params: { action?: string; resolvedBy?: string; rejectReason?: string }
-): Promise<ServiceResult<{ success: boolean; request: any }>> {
+): Promise<ServiceResult<{ success: boolean; request: TransferRequest }>> {
   if (!isValidUuid(transferId)) {
     return { error: 'Invalid transfer ID format', status: 400 }
   }
@@ -332,84 +329,97 @@ export async function resolveTransferReq(
     return { error: 'action must be "approve" or "reject"', status: 400 }
   }
 
-  const transferReq = getTransferRequest(transferId)
-  if (!transferReq) return { error: 'Transfer request not found', status: 404 }
-  if (transferReq.status !== 'pending') return { error: 'Transfer request is already resolved', status: 409 }
-
-  const releaseLock = await acquireLock('teams')
   try {
-    const teams = loadTeams()
-    const fromTeam = teams.find(t => t.id === transferReq.fromTeamId)
-    if (!fromTeam) return { error: 'Source team not found', status: 404 }
+    const transferReq = getTransferRequest(transferId)
+    if (!transferReq) return { error: 'Transfer request not found', status: 404 }
+    if (transferReq.status !== 'pending') return { error: 'Transfer request is already resolved', status: 409 }
 
-    // Only the source team COS or global MANAGER can resolve
-    const isSourceCOS = fromTeam.chiefOfStaffId === resolvedBy
-    const isGlobalManager = isManager(resolvedBy)
+    // Declare variables needed after lock release for notification
+    let fromTeamName: string | undefined
+    let toTeamName: string | undefined
+    let resolved: TransferRequest | null = null
 
-    if (!isSourceCOS && !isGlobalManager) {
-      return { error: 'Only the source team COS or MANAGER can resolve this transfer', status: 403 }
-    }
+    const releaseLock = await acquireLock('teams')
+    try {
+      const teams = loadTeams()
+      const fromTeam = teams.find(t => t.id === transferReq.fromTeamId)
+      if (!fromTeam) return { error: 'Source team not found', status: 404 }
 
-    const toTeam = teams.find(t => t.id === transferReq.toTeamId)
+      // Only the source team COS or global MANAGER can resolve
+      const isSourceCOS = fromTeam.chiefOfStaffId === resolvedBy
+      const isGlobalManager = isManager(resolvedBy)
 
-    if (action === 'approve') {
-      if (!toTeam) return { error: 'Destination team no longer exists \u2014 transfer cannot be completed', status: 404 }
+      if (!isSourceCOS && !isGlobalManager) {
+        return { error: 'Only the source team COS or MANAGER can resolve this transfer', status: 403 }
+      }
 
-      // Check closed-team constraint: normal agents can only be in one closed team
-      const managerId = getManagerId()
-      if (toTeam.type === 'closed') {
-        const agentId = transferReq.agentId
-        const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
-        if (!isPrivileged) {
-          const otherClosedTeam = teams.find(t =>
-            t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
-          )
-          if (otherClosedTeam) {
-            return { error: 'Agent is already in another closed team \u2014 normal agents can only be in one closed team', status: 409 }
+      const toTeam = teams.find(t => t.id === transferReq.toTeamId)
+
+      if (action === 'approve') {
+        if (!toTeam) return { error: 'Destination team no longer exists \u2014 transfer cannot be completed', status: 404 }
+
+        // Check closed-team constraint: normal agents can only be in one closed team
+        const managerId = getManagerId()
+        if (toTeam.type === 'closed') {
+          const agentId = transferReq.agentId
+          const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
+          if (!isPrivileged) {
+            const otherClosedTeam = teams.find(t =>
+              t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
+            )
+            if (otherClosedTeam) {
+              return { error: 'Agent is already in another closed team \u2014 normal agents can only be in one closed team', status: 409 }
+            }
           }
         }
       }
-    }
 
-    const resolved = await resolveTransferRequest(transferId, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
-    if (!resolved) return { error: 'Transfer already resolved', status: 409 }
+      resolved = await resolveTransferRequest(transferId, action === 'approve' ? 'approved' : 'rejected', resolvedBy, rejectReason)
+      if (!resolved) return { error: 'Transfer already resolved', status: 409 }
 
-    // If approved, move the agent between teams
-    if (action === 'approve') {
-      const fromIdx = teams.findIndex(t => t.id === fromTeam.id)
-      if (fromIdx !== -1) {
-        teams[fromIdx] = {
-          ...teams[fromIdx],
-          agentIds: teams[fromIdx].agentIds.filter(aid => aid !== transferReq.agentId),
-          updatedAt: new Date().toISOString(),
+      // If approved, move the agent between teams
+      if (action === 'approve') {
+        const fromIdx = teams.findIndex(t => t.id === fromTeam.id)
+        if (fromIdx !== -1) {
+          teams[fromIdx] = {
+            ...teams[fromIdx],
+            agentIds: teams[fromIdx].agentIds.filter(aid => aid !== transferReq.agentId),
+            updatedAt: new Date().toISOString(),
+          }
+        }
+
+        const toIdx = teams.findIndex(t => t.id === toTeam!.id)
+        if (toIdx !== -1 && !teams[toIdx].agentIds.includes(transferReq.agentId)) {
+          teams[toIdx] = {
+            ...teams[toIdx],
+            agentIds: [...teams[toIdx].agentIds, transferReq.agentId],
+            updatedAt: new Date().toISOString(),
+          }
+        }
+
+        const saved = saveTeams(teams)
+        if (!saved) {
+          await revertTransferToPending(transferId)
+          return { error: 'Failed to save team changes after transfer approval \u2014 transfer reverted to pending', status: 500 }
         }
       }
 
-      const toIdx = teams.findIndex(t => t.id === toTeam!.id)
-      if (toIdx !== -1 && !teams[toIdx].agentIds.includes(transferReq.agentId)) {
-        teams[toIdx] = {
-          ...teams[toIdx],
-          agentIds: [...teams[toIdx].agentIds, transferReq.agentId],
-          updatedAt: new Date().toISOString(),
-        }
-      }
-
-      const saved = saveTeams(teams)
-      if (!saved) {
-        await revertTransferToPending(transferId)
-        return { error: 'Failed to save team changes after transfer approval \u2014 transfer reverted to pending', status: 500 }
-      }
+      // Store team names for notification after lock release
+      fromTeamName = fromTeam.name
+      toTeamName = toTeam?.name
+    } finally {
+      releaseLock()
     }
 
     // Notify agent about transfer resolution (fire-and-forget, outside lock)
     const affectedAgent = getAgent(transferReq.agentId)
-    if (affectedAgent && fromTeam) {
+    if (affectedAgent && fromTeamName) {
       const resolverAgent = getAgent(resolvedBy)
       const resolverName = resolverAgent?.name || resolvedBy
       const statusText = action === 'approve' ? 'APPROVED' : 'REJECTED'
       const teamInfo = action === 'approve'
-        ? `${fromTeam.name} \u2192 ${toTeam?.name || 'unknown'}`
-        : `from ${fromTeam.name}`
+        ? `${fromTeamName} \u2192 ${toTeamName || 'unknown'}`
+        : `from ${fromTeamName}`
       const subject = `Transfer ${statusText}: ${teamInfo}`
 
       notifyAgent({
@@ -425,8 +435,12 @@ export async function resolveTransferReq(
       })
     }
 
-    return { data: { success: true, request: resolved }, status: 200 }
-  } finally {
-    releaseLock()
+    return { data: { success: true, request: resolved! }, status: 200 }
+  } catch (error) {
+    if (error instanceof TeamValidationException) {
+      return { error: error.message, status: error.code }
+    }
+    console.error('[governance] Error resolving transfer:', error)
+    return { error: 'Internal server error', status: 500 }
   }
 }

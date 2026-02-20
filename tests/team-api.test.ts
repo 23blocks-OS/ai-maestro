@@ -21,6 +21,16 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
+    renameSync: vi.fn((oldPath: string, newPath: string) => {
+      // Atomic write pattern: move temp file to target path
+      if (oldPath in fsStore) {
+        fsStore[newPath] = fsStore[oldPath]
+        delete fsStore[oldPath]
+      }
+    }),
+    unlinkSync: vi.fn((filePath: string) => {
+      delete fsStore[filePath]
+    }),
   },
 }))
 
@@ -54,6 +64,14 @@ vi.mock('@/lib/agent-registry', () => ({
   loadAgents: vi.fn(() => []),
 }))
 
+// Mock agent-auth module - in tests, trust X-Agent-Id directly (no real API keys in test environment)
+vi.mock('@/lib/agent-auth', () => ({
+  authenticateAgent: vi.fn((authHeader: string | null, agentIdHeader: string | null) => {
+    if (agentIdHeader) return { agentId: agentIdHeader }
+    return {}
+  })
+}))
+
 // Mock validation module - isValidUuid accepts synthetic test UUIDs (uuid-1, uuid-2, etc.)
 vi.mock('@/lib/validation', () => ({
   isValidUuid: vi.fn(() => true),
@@ -67,6 +85,7 @@ import { createTeam, loadTeams, updateTeam, getTeam } from '@/lib/team-registry'
 import { GET as getTeamRoute, PUT as updateTeamRoute, DELETE as deleteTeamRoute } from '@/app/api/teams/[id]/route'
 import { GET as listTeamsRoute, POST as createTeamRoute } from '@/app/api/teams/route'
 import { getManagerId, isManager } from '@/lib/governance'
+import { checkTeamAccess } from '@/lib/team-acl'
 import { isValidUuid } from '@/lib/validation'
 import { NextRequest } from 'next/server'
 
@@ -348,6 +367,24 @@ describe('PUT /api/teams/[id]', () => {
 
     spy.mockRestore()
   })
+
+  // CC-003: ACL denial path - checkTeamAccess returns { allowed: false } for PUT
+  it('returns 403 when ACL denies access', async () => {
+    const team = await createTeam({ name: 'ACL Denied Team', agentIds: [] })
+    // Toggle checkTeamAccess to deny access for this test
+    vi.mocked(checkTeamAccess).mockReturnValueOnce({ allowed: false, reason: 'Not a member' })
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Agent-Id': 'outsider-agent' },
+      body: JSON.stringify({ name: 'Should Not Update' }),
+    })
+    const res = await updateTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(403)
+    const data = await res.json()
+    expect(data.error).toContain('Not a member')
+  })
 })
 
 // ============================================================================
@@ -424,5 +461,22 @@ describe('DELETE /api/teams/[id]', () => {
 
     // Restore default
     vi.mocked(getManagerId).mockReturnValue(null)
+  })
+
+  // CC-003: ACL denial path - checkTeamAccess returns { allowed: false } for DELETE
+  it('returns 403 when ACL denies access', async () => {
+    const team = await createTeam({ name: 'ACL Denied Delete', agentIds: [] })
+    // Toggle checkTeamAccess to deny access for this test
+    vi.mocked(checkTeamAccess).mockReturnValueOnce({ allowed: false, reason: 'Not a member' })
+
+    const req = makeRequest(`/api/teams/${team.id}`, {
+      method: 'DELETE',
+      headers: { 'X-Agent-Id': 'outsider-agent' },
+    })
+    const res = await deleteTeamRoute(req, makeParams(team.id) as any)
+
+    expect(res.status).toBe(403)
+    const data = await res.json()
+    expect(data.error).toContain('Not a member')
   })
 })

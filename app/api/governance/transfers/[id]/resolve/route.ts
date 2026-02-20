@@ -11,6 +11,7 @@ import { getAgent } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { acquireLock } from '@/lib/file-lock'
 import { isValidUuid } from '@/lib/validation'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 export async function POST(
   request: NextRequest,
@@ -22,6 +23,15 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid transfer ID format' }, { status: 400 })
     }
 
+    // Authenticate the resolver identity from headers (prevents impersonation via body)
+    const auth = authenticateAgent(
+      request.headers.get('Authorization'),
+      request.headers.get('X-Agent-Id')
+    )
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+    }
+
     let body: Record<string, unknown>
     try {
       body = await request.json()
@@ -29,12 +39,16 @@ export async function POST(
       return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
     }
     const { action } = body
-    // Narrow unknown -> string for type-safety (body is Record<string, unknown>)
-    const resolvedBy = typeof body.resolvedBy === 'string' ? body.resolvedBy : ''
     const rejectReason = typeof body.rejectReason === 'string' ? body.rejectReason : undefined
 
-    if (!action || !resolvedBy) {
-      return NextResponse.json({ error: 'action and resolvedBy are required' }, { status: 400 })
+    // resolvedBy comes from authenticated identity, not body (prevents impersonation)
+    const resolvedBy = auth.agentId
+    if (!resolvedBy) {
+      return NextResponse.json({ error: 'Agent authentication required to resolve transfers' }, { status: 401 })
+    }
+
+    if (!action) {
+      return NextResponse.json({ error: 'action is required' }, { status: 400 })
     }
     // Defense-in-depth: validate resolvedBy as UUID before authority check (CC-002)
     if (!isValidUuid(resolvedBy)) {

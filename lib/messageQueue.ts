@@ -213,13 +213,19 @@ function convertAMPToMessage(ampMsg: any): Message | null {
   const id = normalizeMessageId(envelope.id)
   const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
 
+  // Resolve display labels from agent registry (best-effort, non-blocking)
+  const fromAgent = getAgentByName(fromName) || getAgentByNameAnyHost(fromName)
+  const toAgent = getAgentByName(toName) || getAgentByNameAnyHost(toName)
+
   return {
     id,
     from: fromName,
     fromAlias: fromName,
+    fromLabel: fromAgent?.label || undefined,
     fromHost,
     to: toName,
     toAlias: toName,
+    toLabel: toAgent?.label || undefined,
     toHost,
     timestamp: envelope.timestamp || new Date().toISOString(),
     subject: envelope.subject,
@@ -231,6 +237,12 @@ function convertAMPToMessage(ampMsg: any): Message | null {
       context: payload.context || undefined,
     },
     inReplyTo: envelope.in_reply_to || undefined,
+    // Preserve AMP cryptographic fields from envelope for signature verification
+    amp: (envelope.signature || ampMsg.signature || envelope.sender_public_key || ampMsg.sender_public_key) ? {
+      signature: envelope.signature || ampMsg.signature || undefined,
+      senderPublicKey: envelope.sender_public_key || ampMsg.sender_public_key || undefined,
+      envelopeId: envelope.id || undefined,
+    } : undefined,
   }
 }
 

@@ -39,14 +39,14 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // Derive governance role from current state
   const agentRole: GovernanceRole = useMemo(() => {
-    if (!agentId) return 'normal'
+    if (!agentId) return 'member'
     if (managerId === agentId) return 'manager'
     // team.type is now required per types/team.ts
     const isCOS = allTeams.some(
       (t) => t.type === 'closed' && t.chiefOfStaffId === agentId
     )
     if (isCOS) return 'chief-of-staff'
-    return 'normal'
+    return 'member'
   }, [agentId, managerId, allTeams])
 
   // Derive cosTeams: closed teams where this agent is chief-of-staff

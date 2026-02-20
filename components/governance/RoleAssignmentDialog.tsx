@@ -29,8 +29,8 @@ const ROLE_OPTIONS: {
   selectedText: string
 }[] = [
   {
-    role: 'normal',
-    label: 'Normal Agent',
+    role: 'member',
+    label: 'Member Agent',
     icon: User,
     description: 'Standard agent, no governance privileges',
     selectedBorder: 'border-gray-500',
@@ -160,8 +160,8 @@ export default function RoleAssignmentDialog({
 
     try {
       // Transition logic based on currentRole -> selectedRole
-      if (selectedRole === 'normal') {
-        // Demote to normal: remove current governance role
+      if (selectedRole === 'member') {
+        // Demote to member: remove current governance role
         if (currentRole === 'manager') {
           const result = await governance.assignManager(null, password)
           if (!result.success) throw new Error(result.error || 'Failed to remove manager role')

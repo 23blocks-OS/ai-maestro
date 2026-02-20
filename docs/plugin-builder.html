@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W72WHGDW');</script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plugin Builder: Build Custom Skill Sets for Your AI Agents | AI Maestro</title>
+    <meta name="description" content="Build the exact set of skills your AI agent needs. Pick skills from GitHub, mix your own, assemble a tailored Claude Code plugin. Like uploading Kung Fu into Neo — but for your AI agents.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ai-maestro.23blocks.com/plugin-builder.html">
+    <meta property="og:title" content="Plugin Builder - Build Custom Skill Sets for Your AI Agents">
+    <meta property="og:description" content="Pick skills from GitHub, mix your own, assemble a tailored Claude Code plugin. Your agent. Your skills. Your call.">
+    <meta property="og:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AI Maestro Plugin Builder - Custom Skills for AI Agents">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="AI Maestro">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Plugin Builder - Build Custom Skill Sets for Your AI Agents">
+    <meta name="twitter:description" content="Pick skills from GitHub, mix your own, assemble a tailored Claude Code plugin. Like uploading Kung Fu into Neo.">
+    <meta name="twitter:image" content="https://ai-maestro.23blocks.com/og-image.png">
+    <meta name="twitter:creator" content="@jkpelaez">
+
+    <!-- Additional SEO -->
+    <meta name="author" content="Juan Peláez">
+    <meta name="keywords" content="Claude Code plugin builder, AI agent skills, custom Claude Code plugins, composable plugins, Claude Code extensions, AI agent customization, plugin marketplace, agent skill builder, Claude Code skills system, build AI agent plugins, developer tools AI, ai maestro, 23blocks">
+    <link rel="canonical" href="https://ai-maestro.23blocks.com/plugin-builder.html">
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#00d4ff">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="msapplication-config" content="browserconfig.xml">
+
+    <!-- Apple Mobile Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Maestro">
+
+    <!-- Application Info -->
+    <meta name="application-name" content="AI Maestro">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "AI Maestro Plugin Builder",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows (WSL2)",
+      "description": "Composable plugin builder for Claude Code agents. Pick skills from any GitHub repo, mix your own, and assemble a custom plugin tailored to each agent.",
+      "featureList": [
+        "Composable skill system from multiple sources",
+        "Pull skills from any public or private GitHub repo",
+        "Create custom skills with simple markdown files",
+        "Automatic CI/CD builds on push",
+        "Plugin marketplace integration",
+        "Fork-and-customize workflow"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Juan Peláez",
+        "url": "https://x.com/jkpelaez"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "23blocks"
+      },
+      "license": "https://opensource.org/licenses/MIT",
+      "softwareVersion": "1.0.1",
+      "url": "https://ai-maestro.23blocks.com/plugin-builder.html",
+      "downloadUrl": "https://github.com/23blocks-OS/ai-maestro-plugins"
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Build a Custom AI Agent Plugin",
+      "description": "Build a custom set of skills for your Claude Code agent using the AI Maestro Plugin Builder",
+      "totalTime": "PT5M",
+      "tool": [{
+        "@type": "HowToTool",
+        "name": "Git"
+      },{
+        "@type": "HowToTool",
+        "name": "Claude Code CLI"
+      }],
+      "step": [{
+        "@type": "HowToStep",
+        "position": 1,
+        "name": "Fork the Plugin Builder repo",
+        "text": "Fork github.com/23blocks-OS/ai-maestro-plugins and clone it to your machine"
+      },{
+        "@type": "HowToStep",
+        "position": 2,
+        "name": "Pick your skills",
+        "text": "Edit plugin.manifest.json to add, remove, or customize which skills go into your plugin"
+      },{
+        "@type": "HowToStep",
+        "position": 3,
+        "name": "Build the plugin",
+        "text": "Run ./build-plugin.sh --clean or just push to GitHub and let CI build it automatically"
+      },{
+        "@type": "HowToStep",
+        "position": 4,
+        "name": "Install into your agent",
+        "text": "Install locally with claude plugin install ./plugins/ai-maestro, or install from your GitHub fork via /plugin marketplace add YOUR-USERNAME/ai-maestro-plugins. Your fork appears as a separate marketplace entry — no conflicts with the official plugin."
+      }]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [{
+        "@type": "Question",
+        "name": "What is the AI Maestro Plugin Builder?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The AI Maestro Plugin Builder is a composable build system that lets you assemble custom Claude Code plugins from multiple sources. You pick the skills you want from GitHub repos, your own code, or the community — and the builder creates a single plugin tailored to your agent's needs."
+        }
+      },{
+        "@type": "Question",
+        "name": "How do I create a custom plugin for my AI agent?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Fork the plugin builder repo, edit plugin.manifest.json to pick the skills and scripts you want, then build with ./build-plugin.sh --clean. Install with claude plugin install ./plugins/ai-maestro. You can also push to GitHub and CI builds automatically."
+        }
+      },{
+        "@type": "Question",
+        "name": "Can I add skills from any GitHub repo?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Add any public or private GitHub repo as a source in plugin.manifest.json. The builder clones the repo, copies the skills you specify, and includes them in your custom plugin. You can mix skills from multiple repos."
+        }
+      },{
+        "@type": "Question",
+        "name": "What skills come with AI Maestro by default?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The default plugin includes 6 skills: Agent Messaging (inter-agent communication), Agent Management (create, rename, hibernate agents), Memory Search (conversation history), Code Graph (code relationships), Docs Search (documentation), and Planning (task tracking). You can add or remove any of them."
+        }
+      },{
+        "@type": "Question",
+        "name": "Will my custom plugin conflict with the official AI Maestro plugin?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. When you fork the plugin builder and install from your own GitHub repo, it appears as a separate marketplace entry. Your custom plugin and the official plugin are independent — no conflicts. You can even have both installed side by side if their skills don't overlap."
+        }
+      }]
+    }
+    </script>
+
+    <!-- Typography: Syne (display) + DM Sans (body) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Syne', 'system-ui', 'sans-serif'],
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c31',
+                            800: '#1e293b',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#00d4ff',
+                        },
+                        amber: {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            z-index: 9999;
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff 0%, #22d3ee 50%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hamburger menu */
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        .mobile-menu {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .mobile-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block !important;
+            pointer-events: auto;
+        }
+
+        /* Step cards */
+        .step-card {
+            transition: all 0.3s ease;
+        }
+        .step-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 212, 255, 0.1);
+        }
+
+        /* Skill pill hover */
+        .skill-pill {
+            transition: all 0.2s ease;
+        }
+        .skill-pill:hover {
+            transform: scale(1.05);
+        }
+
+        /* Typing cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1em;
+            background-color: #00d4ff;
+            margin-left: 4px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        /* Flow arrow animation */
+        .flow-arrow {
+            animation: flow-pulse 2s ease-in-out infinite;
+        }
+        @keyframes flow-pulse {
+            0%, 100% { opacity: 0.4; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(4px); }
+        }
+
+        /* Strikethrough animation */
+        .scratch-out {
+            position: relative;
+            display: inline;
+        }
+        .scratch-out::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 0;
+            height: 3px;
+            background: #ef4444;
+            transition: width 0.4s ease-in-out;
+        }
+        .scratch-out.active::after {
+            width: 100%;
+        }
+        .scratch-out.active {
+            color: #64748b;
+        }
+
+        /* Replacement word fade-in */
+        .replacement-word {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .replacement-word.active {
+            opacity: 1;
+        }
+    </style>
+
+</head>
+<body class="font-sans antialiased">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W72WHGDW"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- Copy for AI Button -->
+    <button
+        onclick="copyForAI()"
+        class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-cyan-400 font-mono text-sm rounded hover:bg-slate-700 hover:border-cyan-500/50 transition-all duration-200"
+        title="Copy this page for AI assistants">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        COPY FOR AI
+    </button>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-slate-800 z-[100]">
+        <div class="max-w-7xl mx-auto px-4 md:px-8">
+            <div class="flex justify-between items-center py-4">
+                <a href="index.html" class="flex items-center gap-3 text-white no-underline hover:opacity-80 transition-opacity duration-200">
+                    <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8 md:w-10 md:h-10">
+                    <span class="font-display font-bold text-lg md:text-xl tracking-tight">AI MAESTRO</span>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <div class="hidden md:flex gap-8 items-center">
+                    <a href="index.html#personas" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">WHO IT'S FOR</a>
+                    <a href="index.html#features" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">FEATURES</a>
+                    <a href="index.html#quick-start" class="text-slate-400 no-underline font-medium hover:text-cyan-400 transition-colors duration-200 text-sm tracking-wide">GET STARTED</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="text-slate-400 no-underline hover:text-cyan-400 transition-colors duration-200" title="View on GitHub">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    </a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-cyan-500 text-slate-900 font-bold text-sm tracking-wide hover:bg-cyan-400 transition-all duration-200" target="_blank">
+                        START FREE
+                    </a>
+                </div>
+
+                <!-- Mobile Navigation -->
+                <div class="flex md:hidden items-center gap-3">
+                    <a href="https://github.com/23blocks-OS/ai-maestro#readme" class="px-3 py-2 rounded bg-cyan-500 text-slate-900 font-bold text-xs tracking-wide" target="_blank">START</a>
+                    <button class="hamburger bg-transparent border-0 cursor-pointer p-2 flex flex-col gap-1.5 z-[1001]" id="hamburger" aria-label="Toggle menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu -->
+            <div class="mobile-menu hidden absolute top-full left-0 right-0 bg-slate-900 border-b border-slate-800 py-4" id="mobile-menu">
+                <a href="index.html#personas" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Who It's For</a>
+                <a href="index.html#features" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Features</a>
+                <a href="index.html#quick-start" class="block px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">Get Started</a>
+                <a href="https://github.com/23blocks-OS/ai-maestro" target="_blank" class="flex items-center gap-3 px-8 py-3 text-slate-300 no-underline font-medium hover:text-cyan-400 hover:bg-slate-800/50">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileMenu.classList.toggle('active');
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target)) {
+                hamburger.classList.remove('active');
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <header class="py-12 md:py-24 text-center px-4 md:px-0 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
+        <div class="max-w-[1200px] mx-auto">
+            <p class="text-[2rem] md:text-[3rem] font-semibold text-slate-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-mono mb-6">
+                <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+                Plugin Builder
+            </div>
+            <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6 max-w-[900px] mx-auto">Build the Exact Skills Your <span class="gradient-text">AI Agent</span> Needs</h1>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Remember when Neo got Kung Fu uploaded into his brain? That's what this does for your AI agents. You pick the skills. You build the plugin. Your agent wakes up knowing everything you gave it.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[500px] md:max-w-none mx-auto">
+                <a href="https://github.com/23blocks-OS/ai-maestro-plugins" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)] text-lg">Fork the Plugin Builder</a>
+                <a href="#how-it-works" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 border-2 border-cyan-500 hover:bg-cyan-500 hover:text-slate-900 text-lg">See How It Works</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- The Idea Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-950">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">Every Agent Is Different</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">A backend agent needs deploy scripts. A frontend agent needs design tools. A research agent needs web search. One-size-fits-all doesn't work. The Plugin Builder lets you assemble exactly the right capabilities for each agent you run.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/30 to-cyan-600/10 border border-cyan-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">🏗️</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold mb-3 text-white">Backend Agent</h3>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="skill-pill px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">Deploy Scripts</span>
+                        <span class="skill-pill px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">Database Tools</span>
+                        <span class="skill-pill px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">API Testing</span>
+                        <span class="skill-pill px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm">Code Graph</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/10 border border-amber-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">🎨</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold mb-3 text-white">Frontend Agent</h3>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="skill-pill px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm">Design System</span>
+                        <span class="skill-pill px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm">Accessibility</span>
+                        <span class="skill-pill px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-sm">Component Lib</span>
+                        <span class="skill-pill px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">Memory</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 p-8 rounded-2xl border border-slate-700 text-center">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/10 border border-emerald-500/50 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">🔬</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold mb-3 text-white">Research Agent</h3>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="skill-pill px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-sm">Web Search</span>
+                        <span class="skill-pill px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-sm">Doc Analysis</span>
+                        <span class="skill-pill px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-sm">Summarization</span>
+                        <span class="skill-pill px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm">Planning</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <p class="text-2xl md:text-3xl font-display font-bold text-white mb-2">Same builder. Different agents. Different superpowers.</p>
+                <p class="text-slate-400 text-lg">You choose what goes in. Your agent gets exactly what it needs.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- What's a Skill Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-900">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">What's a Skill?</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">A skill is a capability you load into your agent. It's a markdown file that tells Claude Code what it can do and how to do it. No SDK. No framework. Just instructions.</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">📬</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Agent Messaging</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Send and receive messages between agents. Coordinate work across your entire team of AI agents.</p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">🤖</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Agent Management</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Create, rename, hibernate, and wake up other agents. Your agents can manage other agents.</p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">🧠</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Memory Search</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Search through past conversations and remember context. Your agent never forgets what you discussed.</p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">🔗</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Code Graph</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Understand how your codebase is connected. Query relationships between functions, classes, and files.</p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">📚</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Docs Search</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Search auto-generated documentation. Your agent checks function signatures and API specs before coding.</p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-xl">📋</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white">Planning</h3>
+                    </div>
+                    <p class="text-slate-400 text-sm">Break down complex tasks and track progress with persistent files. Never lose track of multi-step work.</p>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <p class="text-xl text-slate-300 font-medium">These are the default skills. But you're not stuck with this list.</p>
+                <p class="text-slate-400 mt-2">Add skills from anyone on GitHub. Remove what you don't need. Create your own.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-16 md:py-24 px-4 md:px-8 bg-slate-950">
+        <div class="max-w-[900px] mx-auto">
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">How It Works</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[600px] mx-auto mb-16">Four steps. Five minutes. Your agent gets superpowers.</p>
+
+            <div class="space-y-6">
+                <!-- Step 1 -->
+                <div class="step-card bg-slate-900 p-8 rounded-2xl border border-slate-700">
+                    <div class="flex items-start gap-6">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-cyan-400 font-mono font-bold text-lg">01</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white mb-2">Fork the repo</h3>
+                            <p class="text-slate-400 mb-4">The Plugin Builder lives on GitHub. Fork it, and you have your own copy to customize.</p>
+                            <div class="bg-slate-950 rounded-lg p-4 font-mono text-sm text-cyan-400 border border-slate-800">
+                                git clone https://github.com/YOUR-USERNAME/ai-maestro-plugins.git
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-center"><span class="flow-arrow text-cyan-500 text-2xl">↓</span></div>
+
+                <!-- Step 2 -->
+                <div class="step-card bg-slate-900 p-8 rounded-2xl border border-slate-700">
+                    <div class="flex items-start gap-6">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-cyan-400 font-mono font-bold text-lg">02</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white mb-2">Pick your skills</h3>
+                            <p class="text-slate-400 mb-4">Edit one file: <code class="bg-slate-800 px-2 py-1 rounded text-cyan-400 text-sm">plugin.manifest.json</code>. Add skills from GitHub, remove what you don't need, mix in your own. This file is your recipe.</p>
+                            <div class="bg-slate-950 rounded-lg p-4 font-mono text-sm text-slate-300 border border-slate-800 overflow-x-auto">
+<pre class="whitespace-pre">{
+  "sources": [
+    { "name": "core", "type": "local", "path": "./src" },
+    { "name": "code-review", "type": "git",
+      "repo": "github.com/alice/claude-skills.git" }
+  ]
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-center"><span class="flow-arrow text-cyan-500 text-2xl">↓</span></div>
+
+                <!-- Step 3 -->
+                <div class="step-card bg-slate-900 p-8 rounded-2xl border border-slate-700">
+                    <div class="flex items-start gap-6">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-cyan-600/5 border border-cyan-500/30 flex items-center justify-center">
+                            <span class="text-cyan-400 font-mono font-bold text-lg">03</span>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-xl font-bold text-white mb-2">Build</h3>
+                            <p class="text-slate-400 mb-4">Run the build command, or just push to GitHub. CI builds automatically and commits the result back to your repo.</p>
+                            <div class="bg-slate-950 rounded-lg p-4 font-mono text-sm text-cyan-400 border border-slate-800">
+                                ./build-plugin.sh --clean
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-center"><span class="flow-arrow text-cyan-500 text-2xl">↓</span></div>
+
+                <!-- Step 4 -->
+                <div class="step-card bg-slate-900 p-8 rounded-2xl border border-amber-500/30">
+                    <div class="flex items-start gap-6">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/30 flex items-center justify-center">
+                            <span class="text-amber-400 font-mono font-bold text-lg">04</span>
+                        </div>
+                        <div class="w-full">
+                            <h3 class="font-display text-xl font-bold text-white mb-2">Your agent knows Kung Fu</h3>
+                            <p class="text-slate-400 mb-4">Install the plugin into your agent. Two ways to do it:</p>
+
+                            <!-- Local install -->
+                            <div class="mb-4">
+                                <p class="text-sm text-slate-300 font-medium mb-2">Local install (quick testing from your clone):</p>
+                                <div class="bg-slate-950 rounded-lg p-4 font-mono text-sm text-cyan-400 border border-slate-800">
+                                    claude plugin install ./plugins/ai-maestro
+                                </div>
+                            </div>
+
+                            <!-- Remote install -->
+                            <div class="mb-4">
+                                <p class="text-sm text-slate-300 font-medium mb-2">Remote install (permanent, from your fork on GitHub):</p>
+                                <div class="bg-slate-950 rounded-lg p-4 font-mono text-sm border border-slate-800 overflow-x-auto">
+<pre class="whitespace-pre text-slate-500"><span class="text-cyan-400">/plugin marketplace add YOUR-USERNAME/ai-maestro-plugins</span>
+<span class="text-cyan-400">/plugin install ai-maestro@your-marketplace</span></pre>
+                                </div>
+                            </div>
+
+                            <!-- Marketplace note -->
+                            <div class="bg-slate-950 rounded-lg p-4 border border-amber-500/20 mt-4">
+                                <p class="text-sm text-slate-300"><span class="text-amber-400 font-bold">Your fork, your marketplace.</span> Because you're installing from your own GitHub repo, your custom plugin shows up as a separate entry in the marketplace — no conflicts with the official AI Maestro plugin. You can even have both installed side by side if your skills don't overlap.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Create Your Own Skills Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-900">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">Create Your Own Skills</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">A skill is just a markdown file with instructions for your agent. No SDK. No framework. Just words that tell your agent what it's capable of.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div>
+                    <div class="bg-slate-950 rounded-2xl p-6 border border-slate-700 font-mono text-sm overflow-x-auto">
+<pre class="text-slate-300 whitespace-pre"><span class="text-slate-500"># src/skills/my-skill/SKILL.md</span>
+<span class="text-cyan-400">---</span>
+<span class="text-amber-400">name:</span> deploy-to-production
+<span class="text-amber-400">description:</span> Deploy code safely
+<span class="text-amber-400">allowed-tools:</span> Bash, Read, Write
+<span class="text-cyan-400">---</span>
+
+<span class="text-white"># Deploy to Production</span>
+
+When asked to deploy, run the
+deployment checklist:
+
+1. Run all tests
+2. Check for breaking changes
+3. Build the production bundle
+4. Deploy via our CI pipeline
+5. Verify health checks pass</pre>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-display text-2xl font-bold text-white mb-4">That's it. That's a skill.</h3>
+                    <p class="text-slate-400 mb-6">Write what you want your agent to know. Put it in a folder. Push. CI builds your plugin with the new skill included.</p>
+                    <ul class="space-y-4">
+                        <li class="flex items-start gap-3">
+                            <span class="text-cyan-400 text-lg mt-0.5">&#10003;</span>
+                            <span class="text-slate-300">Skills from your repo, your team's repo, or any GitHub repo</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-cyan-400 text-lg mt-0.5">&#10003;</span>
+                            <span class="text-slate-300">Mix and match from multiple sources into one plugin</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-cyan-400 text-lg mt-0.5">&#10003;</span>
+                            <span class="text-slate-300">Remove skills you don't need — your plugin, your rules</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-cyan-400 text-lg mt-0.5">&#10003;</span>
+                            <span class="text-slate-300">CI builds on every push — no manual steps</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Part of AI Maestro Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-slate-950">
+        <div class="max-w-[1200px] mx-auto">
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">Part of the <span class="gradient-text">AI Maestro</span> Ecosystem</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">The Plugin Builder is one piece of the puzzle. AI Maestro is a full platform for orchestrating AI agents — the dashboard where you manage them, the messaging system where they communicate, and the skill system that gives them capabilities.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="index.html" class="group bg-slate-900 p-8 rounded-2xl border border-slate-700 hover:border-cyan-500/50 transition-all duration-300 no-underline">
+                    <div class="w-12 h-12 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">🎛️</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">AI Maestro Dashboard</h3>
+                    <p class="text-slate-400 text-sm">The command center. Manage all your agents from one place. Terminal streaming, team meetings, kanban boards.</p>
+                    <span class="text-cyan-400 text-sm font-medium mt-4 inline-block">Learn more &#8594;</span>
+                </a>
+                <a href="skills.html" class="group bg-slate-900 p-8 rounded-2xl border border-slate-700 hover:border-amber-500/50 transition-all duration-300 no-underline">
+                    <div class="w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">⚡</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold text-white mb-2 group-hover:text-amber-400 transition-colors">Skills System</h3>
+                    <p class="text-slate-400 text-sm">Deep dive into how skills work. Memory search, code graph, docs search — the proactive intelligence layer.</p>
+                    <span class="text-amber-400 text-sm font-medium mt-4 inline-block">Explore skills &#8594;</span>
+                </a>
+                <a href="messaging.html" class="group bg-slate-900 p-8 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-all duration-300 no-underline">
+                    <div class="w-12 h-12 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <span class="text-2xl">📬</span>
+                    </div>
+                    <h3 class="font-display text-xl font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors">Agent Messaging</h3>
+                    <p class="text-slate-400 text-sm">Agents talk to each other. Secure, signed messages. Works locally, federates globally. Slack and email integration.</p>
+                    <span class="text-emerald-400 text-sm font-medium mt-4 inline-block">See messaging &#8594;</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-16 md:py-24 px-4 md:px-8 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
+        <div class="max-w-[700px] mx-auto text-center">
+            <h2 class="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-4">Ready to Build Your Plugin?</h2>
+            <p class="text-lg text-slate-400 mb-8">Fork the repo. Pick your skills. Five minutes from now, your agent has superpowers.</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center md:items-center max-w-[500px] md:max-w-none mx-auto">
+                <a href="https://github.com/23blocks-OS/ai-maestro-plugins" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)] text-lg">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                    Fork on GitHub
+                </a>
+                <a href="https://github.com/23blocks-OS/ai-maestro-plugins/blob/main/DEVELOPERS.md" target="_blank" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 border-2 border-cyan-500 hover:bg-cyan-500 hover:text-slate-900 text-lg">Developer Docs</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 pb-8 bg-slate-950 border-t border-slate-800 px-4 md:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="logo-constellation.svg" alt="AI Maestro" class="w-8 h-8">
+                        <span class="font-display font-bold text-lg text-white">AI MAESTRO</span>
+                    </div>
+                    <p class="text-slate-400 text-sm">The future of work is here. Orchestrate multiple AI coding agents from one dashboard.</p>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">LINKS</h4>
+                    <a href="https://github.com/23blocks-OS/ai-maestro" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">GitHub</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro-plugins" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Plugin Builder</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/issues" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">Issues</a>
+                    <a href="https://github.com/23blocks-OS/ai-maestro/blob/main/LICENSE" class="block text-slate-400 no-underline mb-2 hover:text-cyan-400 transition-colors text-sm">License (MIT)</a>
+                </div>
+                <div>
+                    <h4 class="font-mono text-xs text-slate-500 tracking-widest mb-4">BUILT BY</h4>
+                    <p class="text-slate-400 text-sm mb-2">
+                        <a href="https://x.com/jkpelaez" target="_blank" class="text-white hover:text-cyan-400 transition-colors">Juan Pel&aacute;ez</a> @ <a href="https://23blocks.com" target="_blank" class="text-white hover:text-cyan-400 transition-colors">23blocks</a>
+                    </p>
+                    <p class="text-slate-500 text-xs">Made with <span class="text-red-500">&#9829;</span> in Boulder, Colorado</p>
+                    <p class="text-slate-500 text-xs mt-1">Coded with Claude</p>
+                </div>
+            </div>
+            <div class="pt-8 border-t border-slate-800 text-center">
+                <p class="text-slate-500 text-sm">&copy; 2025 Juan Pel&aacute;ez / 23blocks. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Copy for AI Script -->
+    <script src="copy-for-ai.js"></script>
+
+    <!-- Typing Animation -->
+    <script>
+        const announcement = document.getElementById('announcement');
+        const cursor = announcement.querySelector('.typing-cursor');
+
+        // Phase 1: Type "I know Kung Fu."
+        const phase1 = '"I know ';
+        const kungFu = 'Kung Fu';
+        const phase1End = '."';
+        let charIndex = 0;
+        const fullText = phase1 + kungFu + phase1End;
+
+        // Create spans for targeted parts
+        let kungFuSpan = null;
+
+        function typeCharacter() {
+            if (charIndex < fullText.length) {
+                const char = fullText[charIndex];
+
+                // At start of "Kung Fu", create the span
+                if (charIndex === phase1.length) {
+                    kungFuSpan = document.createElement('span');
+                    kungFuSpan.className = 'scratch-out';
+                    announcement.insertBefore(kungFuSpan, cursor);
+                }
+
+                // Characters go into kungFuSpan if we're in that range
+                if (charIndex >= phase1.length && charIndex < phase1.length + kungFu.length) {
+                    kungFuSpan.appendChild(document.createTextNode(char));
+                } else {
+                    announcement.insertBefore(document.createTextNode(char), cursor);
+                }
+
+                charIndex++;
+                setTimeout(typeCharacter, 80);
+            } else {
+                // Phase 2: Wait, then scratch "Kung Fu" and show "DevOps"
+                setTimeout(scratchAndReplace, 1500);
+            }
+        }
+
+        function scratchAndReplace() {
+            // Scratch out "Kung Fu"
+            kungFuSpan.classList.add('active');
+
+            // After scratch animation, show "DevOps"
+            setTimeout(() => {
+                const devOps = document.createElement('span');
+                devOps.className = 'replacement-word gradient-text';
+                devOps.textContent = ' DevOps';
+                // Insert after the kungFuSpan (before the period)
+                kungFuSpan.after(devOps);
+
+                setTimeout(() => {
+                    devOps.classList.add('active');
+                }, 50);
+            }, 500);
+        }
+
+        setTimeout(typeCharacter, 1500);
+    </script>
+</body>
+</html>

@@ -4,11 +4,18 @@
  * Teams represent groups of agents that can be assembled into
  * a "war room" for multi-agent coordination sessions.
  *
- * Teams can be 'open' (default, current behavior) or 'closed'
- * (messaging isolation + ACL on resources).
+ * Team types:
+ * - open (default): No messaging restrictions. Backward compatible.
+ * - closed: Isolated messaging. External messages routed through the
+ *   chief-of-staff. Agents can only message teammates + COS + manager.
  */
 
-import type { TeamType } from './governance'
+/**
+ * Team communication type
+ * - open: No restrictions, any agent can message team members (default, backward compat)
+ * - closed: Isolated — messages from outside the team are routed through the chief-of-staff
+ */
+export type TeamType = 'open' | 'closed'
 
 export interface Team {
   id: string              // UUID

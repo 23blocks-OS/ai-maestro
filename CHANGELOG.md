@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.10] - 2026-02-20
+
+### Changed
+- Plugin submodule updated: `aimaestro-agent.sh` CLI split into 6 focused modules (agent-core, agent-commands, agent-session, agent-skill, agent-plugin + thin dispatcher)
+
 ## [0.24.9] - 2026-02-19
 
 ### Added

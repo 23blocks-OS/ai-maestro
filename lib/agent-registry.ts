@@ -415,6 +415,7 @@ export function createAgent(request: CreateAgentRequest): Agent {
     tags: normalizeTags(request.tags),
     capabilities: [],
     owner: request.owner,
+    role: request.role || 'member',
     team: request.team,
     documentation: request.documentation,
     metadata: request.metadata,

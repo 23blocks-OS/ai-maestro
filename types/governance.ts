@@ -5,11 +5,17 @@
  * and role-based access control for team messaging isolation.
  */
 
-/** Role assigned to an agent in governance: manager (singleton), chief-of-staff (per-team), normal */
-export type GovernanceRole = 'manager' | 'chief-of-staff' | 'normal'
+import type { AgentRole } from './agent'
 
-/** Team access type: open preserves current behavior, closed adds messaging isolation and ACL */
-export type TeamType = 'open' | 'closed'
+// Re-export TeamType from its canonical location in types/team.ts
+export type { TeamType } from './team'
+
+/**
+ * GovernanceRole is an alias for AgentRole — both define the same role taxonomy.
+ * Canonical definition lives in types/agent.ts (AgentRole).
+ * 'member' replaced 'normal' in v0.26.0 to align with upstream.
+ */
+export type GovernanceRole = AgentRole
 
 /** Governance configuration stored at ~/.aimaestro/governance.json */
 export interface GovernanceConfig {

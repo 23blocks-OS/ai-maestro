@@ -45,8 +45,8 @@ export default function RoleBadge({ role, onClick, size = 'md' }: RoleBadgeProps
       return renderBadge(classes, <><Shield className={iconSize} />CHIEF-OF-STAFF</>)
     }
 
-    case 'normal': {
-      // Normal agents only show "Assign Role" button when clickable
+    case 'member': {
+      // Member agents only show "Assign Role" button when clickable
       if (!onClick) return null
       return (
         <button

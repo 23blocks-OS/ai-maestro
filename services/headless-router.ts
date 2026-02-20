@@ -234,6 +234,14 @@ import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib
 import { getHosts, getSelfHostId } from '@/lib/hosts-config'
 
 import {
+  submitCrossHostRequest,
+  receiveCrossHostRequest,
+  approveCrossHostRequest,
+  rejectCrossHostRequest,
+  listCrossHostRequests,
+} from '@/services/cross-host-governance-service'
+
+import {
   listAllWebhooks,
   createNewWebhook,
   getWebhookById,
@@ -1209,6 +1217,42 @@ const routes: Route[] = [
       lastSyncAt: new Date().toISOString(),
       ttl: 300,
     })
+  }},
+
+  // ── Governance Requests (Layer 3: cross-host governance operations) ────────
+  { method: 'POST', pattern: /^\/api\/v1\/governance\/requests$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    // Determine if this is a local submission (with password) or a remote receive (with fromHostId)
+    if (body?.fromHostId) {
+      // Remote host is sending us a governance request
+      sendServiceResult(res, await receiveCrossHostRequest(body.fromHostId, body.request))
+    } else {
+      // Local agent submitting a cross-host request
+      sendServiceResult(res, await submitCrossHostRequest(body))
+    }
+  }},
+  { method: 'GET', pattern: /^\/api\/v1\/governance\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    sendServiceResult(res, listCrossHostRequests({
+      status: (query.status as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+      hostId: query.hostId || undefined,
+      agentId: query.agentId || undefined,
+    }))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/governance\/requests\/([^/]+)\/approve$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    if (!body?.approverAgentId || !body?.password) {
+      sendJson(res, 400, { error: 'Missing required fields: approverAgentId, password' })
+      return
+    }
+    sendServiceResult(res, await approveCrossHostRequest(params.id, body.approverAgentId, body.password))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/governance\/requests\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    if (!body?.rejectorAgentId || !body?.password) {
+      sendJson(res, 400, { error: 'Missing required fields: rejectorAgentId, password' })
+      return
+    }
+    sendServiceResult(res, await rejectCrossHostRequest(params.id, body.rejectorAgentId, body.password, body.reason))
   }},
 
   // =========================================================================

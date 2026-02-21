@@ -16,7 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `agentHostMap` field on Team type for multi-host team membership tracking
 - Message filter accepts attested mesh roles: verified MANAGER attestation allows cross-host messages to closed-team recipients
 - API routes: governance requests (submit/list/approve/reject), governance sync, manager trust (add/list/remove)
-- 156 new tests across 8 test files (governance-peers, governance-sync, host-keys, role-attestation, governance-request-registry, cross-host-governance, manager-trust, agent-config-governance)
+- 167 new tests across 9 test files (governance-peers, governance-sync, host-keys, role-attestation, governance-request-registry, cross-host-governance, manager-trust, agent-config-governance, governance-endpoint-auth)
 
 ### Changed
 - Standardized governance roles: `'normal'` → `'member'` across codebase (aligns with upstream `AgentRole`)

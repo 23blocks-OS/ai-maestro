@@ -163,7 +163,8 @@ export function getReachableAgents(agentId: string | null): ServiceResult<{ reac
     return { error: 'agentId query parameter is required', status: 400 }
   }
 
-  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+  // CC-P1-001: Use isValidUuid for consistency with all other endpoints in this service
+  if (!isValidUuid(agentId)) {
     return { error: 'Invalid agentId format', status: 400 }
   }
 
@@ -192,7 +193,7 @@ export function getReachableAgents(agentId: string | null): ServiceResult<{ reac
 
   reachableCache.set(agentId, { ids: reachableAgentIds, expiresAt: Date.now() + CACHE_TTL_MS })
 
-  // Evict stale entries
+  // Evict stale entries (ES6 spec guarantees safe Map deletion during for...of iteration)
   const now = Date.now()
   for (const [key, entry] of reachableCache) {
     if (now >= entry.expiresAt) reachableCache.delete(key)

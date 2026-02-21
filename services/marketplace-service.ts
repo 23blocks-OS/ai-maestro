@@ -21,11 +21,8 @@ import type { SkillSearchParams } from '@/types/marketplace'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ===========================================================================
 // PUBLIC API -- called by API routes

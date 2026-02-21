@@ -15,5 +15,8 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search')
 
   const result = listAMPAgents(authHeader, search)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

@@ -13,11 +13,8 @@ import type { Agent, Repository } from '@/types/agent'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

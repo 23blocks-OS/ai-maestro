@@ -17,7 +17,6 @@ export async function POST(
   let program: string | undefined
   try {
     const body = await request.json()
-    console.log(`[Wake] Received body:`, JSON.stringify(body))
     if (body.startProgram === false) {
       startProgram = false
     }
@@ -26,10 +25,9 @@ export async function POST(
     }
     if (typeof body.program === 'string') {
       program = body.program.toLowerCase()
-      console.log(`[Wake] Program override set to: ${program}`)
     }
-  } catch (e) {
-    console.log(`[Wake] No body or invalid JSON, using defaults. Error:`, e)
+  } catch {
+    // No body or invalid JSON — use defaults (CC-P1-611: removed debug logging)
   }
 
   const result = await wakeAgent(id, { startProgram, sessionIndex, program })

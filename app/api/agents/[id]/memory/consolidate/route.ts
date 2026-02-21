@@ -42,7 +42,7 @@ export async function POST(
     dryRun: searchParams.get('dryRun') === 'true',
     provider: searchParams.get('provider') || undefined,
     maxConversations: searchParams.get('maxConversations')
-      ? parseInt(searchParams.get('maxConversations')!)
+      ? parseInt(searchParams.get('maxConversations')!, 10) || undefined
       : undefined,
   })
 
@@ -68,7 +68,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await manageConsolidation(agentId, {
     action: body.action,

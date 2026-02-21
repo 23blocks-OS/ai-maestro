@@ -48,10 +48,14 @@ export async function GET(request: NextRequest) {
     // Store in cache with TTL
     cache.set(agentId, { ids: reachableAgentIds, expiresAt: Date.now() + CACHE_TTL_MS })
 
-    // Evict stale/expired entries on every cache write to prevent unbounded growth
+    // Evict stale/expired entries on every cache write to prevent unbounded growth.
+    // CC-P1-110: Also enforce a max-size bound in case many distinct agentIds are queried within the TTL window.
     const now = Date.now()
     for (const [key, entry] of cache) {
       if (now >= entry.expiresAt) cache.delete(key)
+    }
+    if (cache.size > 1000) {
+      cache.clear()
     }
 
     return NextResponse.json({ reachableAgentIds })

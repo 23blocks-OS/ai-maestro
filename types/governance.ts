@@ -95,7 +95,7 @@ export interface GovernancePeerState {
 
 /** Signed role attestation for cross-host mesh messages */
 export interface HostAttestation {
-  role: 'manager' | 'chief-of-staff' | 'member'
+  role: AgentRole
   agentId: string
   hostId: string
   timestamp: string  // ISO

@@ -19,6 +19,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   const limit = limitParam ? parseInt(limitParam, 10) : undefined
 
   const result = listPendingMessages(authHeader, limit)
+  if (result.error) {
+    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+  }
   return NextResponse.json(result.data!, {
     status: result.status,
     headers: result.headers
@@ -31,6 +34,9 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
   const messageId = searchParams.get('id')
 
   const result = acknowledgePendingMessage(authHeader, messageId)
+  if (result.error) {
+    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+  }
   return NextResponse.json(result.data!, { status: result.status })
 }
 
@@ -48,5 +54,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
   }
 
   const result = batchAcknowledgeMessages(authHeader, body.ids)
+  if (result.error) {
+    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+  }
   return NextResponse.json(result.data!, { status: result.status })
 }

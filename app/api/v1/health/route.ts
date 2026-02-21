@@ -11,8 +11,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getHealthStatus } from '@/services/amp-service'
 import type { AMPHealthResponse } from '@/lib/types/amp'
 
-export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealthResponse>> {
+export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealthResponse | { error: string }>> {
   const result = getHealthStatus()
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
   return NextResponse.json(result.data!, {
     status: result.status,
     headers: result.headers

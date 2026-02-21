@@ -11,13 +11,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const { id } = await params
-  const body = await request.json()
+  try {
+    const { id } = await params
 
-  if (!body?.rejectorAgentId || !body?.password) {
-    return NextResponse.json({ error: 'Missing required fields: rejectorAgentId, password' }, { status: 400 })
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    if (!body?.rejectorAgentId || !body?.password) {
+      return NextResponse.json({ error: 'Missing required fields: rejectorAgentId, password' }, { status: 400 })
+    }
+
+    const result = await rejectCrossHostRequest(id, body.rejectorAgentId, body.password, body.reason)
+    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  } catch (err) {
+    return NextResponse.json({ error: `Internal server error: ${(err as Error).message}` }, { status: 500 })
   }
-
-  const result = await rejectCrossHostRequest(id, body.rejectorAgentId, body.password, body.reason)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
 }

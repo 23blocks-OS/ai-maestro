@@ -470,13 +470,14 @@ export async function getConsolidationStatus(agentId: string): Promise<ServiceRe
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
+    // Use escapeForCozo to prevent CozoScript injection via agentId (CC-P1-509)
     const runsResult = await agentDb.run(`
       ?[run_id, started_at, completed_at, status, conversations_processed,
         memories_created, memories_reinforced, memories_linked, llm_provider, error] :=
         *consolidation_runs{run_id, agent_id, started_at, completed_at, status,
           conversations_processed, memories_created, memories_reinforced, memories_linked,
           llm_provider, error},
-        agent_id = '${agentId}'
+        agent_id = ${escapeForCozo(agentId)}
 
       :order -started_at
       :limit 20
@@ -485,7 +486,7 @@ export async function getConsolidationStatus(agentId: string): Promise<ServiceRe
     const memoryStats = await agentDb.run(`
       ?[category, count(memory_id)] :=
         *memories{memory_id, agent_id, category},
-        agent_id = '${agentId}'
+        agent_id = ${escapeForCozo(agentId)}
     `)
 
     const byCategory: Record<string, number> = {}
@@ -775,18 +776,19 @@ export async function deleteLongTermMemory(agentId: string, memoryId: string): P
       return { error: 'Memory does not belong to this agent', status: 403 }
     }
 
-    await agentDb.run(`?[memory_id] <- [['${memoryId}']] :delete memories`)
-    await agentDb.run(`?[memory_id] <- [['${memoryId}']] :delete memory_vec`)
+    // Use escapeForCozo to prevent CozoScript injection via memoryId (CC-P1-508)
+    await agentDb.run(`?[memory_id] <- [[${escapeForCozo(memoryId)}]] :delete memories`)
+    await agentDb.run(`?[memory_id] <- [[${escapeForCozo(memoryId)}]] :delete memory_vec`)
     await agentDb.run(`
       ?[from_memory_id, to_memory_id] :=
         *memory_links{from_memory_id, to_memory_id},
-        from_memory_id = '${memoryId}'
+        from_memory_id = ${escapeForCozo(memoryId)}
       :delete memory_links
     `)
     await agentDb.run(`
       ?[from_memory_id, to_memory_id] :=
         *memory_links{from_memory_id, to_memory_id},
-        to_memory_id = '${memoryId}'
+        to_memory_id = ${escapeForCozo(memoryId)}
       :delete memory_links
     `)
 
@@ -1047,11 +1049,12 @@ export async function initializeTracking(
         model: 'sonnet'
       })
 
+      // Use os.homedir() instead of hardcoded path (CC-P1-519)
       await createTrackingSession(agentDb, {
         session_id: `${agentId}-session-1`,
         agent_id: agentId,
         session_name: agentId,
-        project_path: `/Users/juanpelaez/projects/example-project`,
+        project_path: path.join(os.homedir(), 'projects', 'example-project'),
         log_file: `~/.aimaestro/agents/${agentId}/logs/session-1.log`
       })
 
@@ -1059,7 +1062,7 @@ export async function initializeTracking(
       await upsertProject(agentDb, {
         project_id: projectId,
         agent_id: agentId,
-        project_path: '/Users/juanpelaez/projects/example-project',
+        project_path: path.join(os.homedir(), 'projects', 'example-project'),
         project_name: 'example-project'
       })
 

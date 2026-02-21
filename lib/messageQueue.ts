@@ -211,7 +211,10 @@ function convertAMPToMessage(ampMsg: any): Message | null {
   const fromHost = extractHostFromAddress(envelope.from)
   const toHost = extractHostFromAddress(envelope.to)
   const id = normalizeMessageId(envelope.id)
-  const status = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
+  // CC-P1-416: Validate status before casting to prevent invalid states from malformed files
+  const rawStatus = ampMsg.metadata?.status || ampMsg.local?.status || 'unread'
+  const validStatuses: Message['status'][] = ['unread', 'read', 'archived']
+  const status: Message['status'] = validStatuses.includes(rawStatus as Message['status']) ? (rawStatus as Message['status']) : 'unread'
 
   // Resolve display labels from agent registry (best-effort, non-blocking)
   const fromAgent = getAgentByName(fromName) || getAgentByNameAnyHost(fromName)
@@ -230,7 +233,7 @@ function convertAMPToMessage(ampMsg: any): Message | null {
     timestamp: envelope.timestamp || new Date().toISOString(),
     subject: envelope.subject,
     priority: envelope.priority || 'normal',
-    status: status as Message['status'],
+    status,
     content: {
       type: payload.type || 'notification',
       message: payload.message || '',
@@ -703,9 +706,11 @@ export async function markMessageAsRead(agentIdentifier: string, messageId: stri
 
     // Handle AMP envelope format vs old flat format
     if (raw.envelope && raw.payload) {
-      // AMP format - update status in metadata and local sections
-      if (raw.metadata) raw.metadata.status = 'read'
-      if (raw.local) raw.local.status = 'read'
+      // CC-P1-402: Initialize metadata/local if missing so status is always set
+      if (!raw.metadata) raw.metadata = {}
+      if (!raw.local) raw.local = {}
+      raw.metadata.status = 'read'
+      raw.local.status = 'read'
     } else {
       // Old flat format
       raw.status = 'read'
@@ -748,9 +753,11 @@ export async function archiveMessage(agentIdentifier: string, messageId: string)
     const raw = JSON.parse(content)
 
     if (raw.envelope && raw.payload) {
-      // AMP format - update status in place (no separate archive dir in AMP)
-      if (raw.metadata) raw.metadata.status = 'archived'
-      if (raw.local) raw.local.status = 'archived'
+      // CC-P1-406: Initialize metadata/local if missing so status is always set
+      if (!raw.metadata) raw.metadata = {}
+      if (!raw.local) raw.local = {}
+      raw.metadata.status = 'archived'
+      raw.local.status = 'archived'
       await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
     } else {
       // Old flat format - update status in place
@@ -766,9 +773,10 @@ export async function archiveMessage(agentIdentifier: string, messageId: string)
 /**
  * Delete a message permanently.
  * Finds message in UUID-keyed directory and deletes the file.
+ * CC-P1-414: Intentionally searches inbox only -- sent messages are retained for audit trail.
  */
 export async function deleteMessage(agentIdentifier: string, messageId: string): Promise<boolean> {
-  // Find where the message actually exists
+  // Inbox-only: sent messages cannot be deleted (retained for audit trail)
   const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!messagePath) return false
 

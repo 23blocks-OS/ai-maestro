@@ -28,12 +28,12 @@ export async function GET(
   const result = await searchConversations(agentId, {
     query: searchParams.get('q') || '',
     mode: searchParams.get('mode') || undefined,
-    limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined,
-    minScore: searchParams.get('minScore') ? parseFloat(searchParams.get('minScore')!) : undefined,
+    limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) || undefined : undefined,
+    minScore: searchParams.get('minScore') ? parseFloat(searchParams.get('minScore')!) || undefined : undefined,
     roleFilter: searchParams.get('role') as 'user' | 'assistant' | 'system' | null,
     conversationFile: searchParams.get('conversation_file') || undefined,
-    startTs: searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!) : undefined,
-    endTs: searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!) : undefined,
+    startTs: searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!, 10) || undefined : undefined,
+    endTs: searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!, 10) || undefined : undefined,
     useRrf: searchParams.get('useRrf') !== 'false',
     bm25Weight: searchParams.get('bm25Weight') ? parseFloat(searchParams.get('bm25Weight')!) : undefined,
     semanticWeight: searchParams.get('semanticWeight') ? parseFloat(searchParams.get('semanticWeight')!) : undefined,
@@ -58,7 +58,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await ingestConversations(agentId, {
     conversationFiles: body.conversationFiles,

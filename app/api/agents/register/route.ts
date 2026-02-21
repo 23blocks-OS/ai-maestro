@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic'
  * Register an agent from session name or cloud config.
  */
 export async function POST(request: Request) {
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const result = registerAgent(body)
 
   if (result.error) {

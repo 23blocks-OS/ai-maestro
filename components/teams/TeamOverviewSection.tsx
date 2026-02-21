@@ -72,6 +72,11 @@ export default function TeamOverviewSection({ team, agents, agentsLoading, agent
   const handleRemoveAgent = async (targetAgentId: string) => {
     try {
       setError(null)
+      // CC-P1-710: Prevent removing the Chief-of-Staff via the direct update path
+      if (team.chiefOfStaffId === targetAgentId) {
+        setError('Cannot remove the Chief-of-Staff from team members. Unassign them first.')
+        return
+      }
       const newIds = team.agentIds.filter(id => id !== targetAgentId)
       await onUpdateTeam({ agentIds: newIds })
     } catch (err) {

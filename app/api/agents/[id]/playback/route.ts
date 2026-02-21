@@ -12,13 +12,14 @@ import { getPlaybackState, controlPlayback } from '@/services/agents-playback-se
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
 
-    const result = getPlaybackState(params.id, sessionId)
+    const result = getPlaybackState(id, sessionId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
@@ -34,11 +35,15 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const body = await request.json()
-    const result = controlPlayback(params.id, body)
+    const { id } = await params
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const result = controlPlayback(id, body)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }

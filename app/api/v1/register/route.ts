@@ -16,5 +16,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
   const authHeader = request.headers.get('Authorization')
 
   const result = await registerAgent(body, authHeader)
+  if (result.error) {
+    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+  }
   return NextResponse.json(result.data!, { status: result.status })
 }

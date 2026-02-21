@@ -26,11 +26,8 @@ import type { CreateWebhookRequest, WebhookEventType } from '@/types/agent'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ---------------------------------------------------------------------------
 // Constants

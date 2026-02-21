@@ -1360,8 +1360,12 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
 
       if (program === 'none' || program === 'terminal') {
         // Export env vars for terminal-only mode
+        // CC-P1-514: Escape single quotes in values to prevent shell injection
+        const safeAmpDir = ampDir?.replace(/'/g, "'\\''") || ''
+        const safeAgentName = agentName.replace(/'/g, "'\\''")
+        const safeAgentId = agentId.replace(/'/g, "'\\''")
         try {
-          await runtime.sendKeys(sessionName, `"export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; unset CLAUDECODE"`, { enter: true })
+          await runtime.sendKeys(sessionName, `"export AMP_DIR='${safeAmpDir}' AIM_AGENT_NAME='${safeAgentName}' AIM_AGENT_ID='${safeAgentId}'; unset CLAUDECODE"`, { enter: true })
         } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
@@ -1380,9 +1384,13 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         await new Promise(resolve => setTimeout(resolve, 300))
 
         // Single send-keys: export env vars, unset CLAUDECODE, then launch program
+        // CC-P1-514: Escape single quotes in values to prevent shell injection
         try {
+          const safeAmpDir2 = ampDir?.replace(/'/g, "'\\''") || ''
+          const safeAgentName2 = agentName.replace(/'/g, "'\\''")
+          const safeAgentId2 = agentId.replace(/'/g, "'\\''")
           const envExport = ampDir
-            ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${agentId}'; `
+            ? `export AMP_DIR='${safeAmpDir2}' AIM_AGENT_NAME='${safeAgentName2}' AIM_AGENT_ID='${safeAgentId2}'; `
             : ''
           await runtime.sendKeys(sessionName, `"${envExport}unset CLAUDECODE; ${fullCommand}"`, { enter: true })
         } catch (error) {
@@ -1571,6 +1579,55 @@ export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>>
   try {
     if (!url || typeof url !== 'string') {
       return { error: 'URL is required', status: 400 }
+    }
+
+    // CC-P1-601: Validate URL scheme — only allow http/https to prevent file://, gopher://, etc.
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(url)
+    } catch {
+      return { error: 'Invalid URL format', status: 400 }
+    }
+
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return { error: 'Only http and https URLs are allowed', status: 400 }
+    }
+
+    // CC-P1-601: Reject private/internal IP ranges (RFC 1918, loopback, link-local, metadata)
+    const hostname = parsedUrl.hostname
+    const privatePatterns = [
+      /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
+      /^169\.254\./, /^0\./, /^::1$/, /^fc00:/i, /^fe80:/i, /^fd/i,
+      /^localhost$/i,
+    ]
+    const isPrivateIP = privatePatterns.some(pattern => pattern.test(hostname))
+
+    // CC-P1-601: Only allow requests to known peer hosts from hosts.json
+    const knownHosts = getHosts()
+    const isKnownHost = knownHosts.some(host => {
+      try {
+        const hostUrl = new URL(host.url)
+        if (hostUrl.hostname === hostname) return true
+      } catch { /* skip malformed host URLs */ }
+      // Also check aliases for IP/hostname matches
+      return host.aliases?.some(alias => {
+        // Alias could be an IP, hostname, or full URL
+        if (alias === hostname) return true
+        try {
+          const aliasUrl = new URL(alias)
+          return aliasUrl.hostname === hostname
+        } catch {
+          return alias === hostname
+        }
+      })
+    })
+
+    if (isPrivateIP && !isKnownHost) {
+      return { error: 'URL target is not a known peer host', status: 403 }
+    }
+
+    if (!isKnownHost) {
+      return { error: 'URL target is not a known peer host — only hosts from hosts.json are allowed', status: 403 }
     }
 
     const controller = new AbortController()

@@ -1,8 +1,8 @@
 # Operations Guide: AI Maestro
 
-**Version:** 1.0.0
-**Last Updated:** 2025-10-09
-**Phase:** 1 - Local Agents with Full UI Management
+**Version:** 0.26.0
+**Last Updated:** 2026-02-21
+**Phase:** Multi-host agents with AMP messaging, team governance, and kanban
 
 ---
 
@@ -67,7 +67,7 @@ cursor              # Cursor AI
 
 ```bash
 # In a new terminal window, navigate to the dashboard
-cd /Users/juanpelaez/23blocks/webApps/agents-web
+cd ~/ai-maestro  # Replace with your actual AI Maestro installation path
 
 # Start the dashboard
 yarn dev
@@ -227,7 +227,7 @@ tmux rename-session -t "old-name" "new-name"
 
 ---
 
-## 4. Working with Multiple Agents
+## 5. Working with Multiple Agents
 
 ### Create Multiple Agents
 
@@ -260,7 +260,7 @@ tmux send-keys -t db-migration 'copilot' C-m
 
 ---
 
-## 5. Agent Lifecycle
+## 6. Agent Lifecycle
 
 ### Agent States
 
@@ -302,7 +302,7 @@ tmux kill-session -t app-b
 
 ---
 
-## 6. Automation Scripts
+## 7. Automation Scripts
 
 ### Helper: Start Agent with AI Tool
 
@@ -438,7 +438,7 @@ chmod +x ~/bin/cleanup-ai-agents
 
 ---
 
-## 7. Agent Notes Feature
+## 8. Agent Notes Feature
 
 Each agent has a built-in notes area for capturing important information while working with your AI agent.
 
@@ -461,13 +461,13 @@ Each agent has a built-in notes area for capturing important information while w
 
 ---
 
-## 8. Dashboard Operations
+## 9. Dashboard Operations
 
 ### Starting the Dashboard
 
 ```bash
 # Navigate to dashboard directory
-cd /Users/juanpelaez/23blocks/webApps/agents-web
+cd ~/ai-maestro  # Replace with your actual AI Maestro installation path
 
 # Development mode (with hot reload)
 yarn dev
@@ -544,7 +544,7 @@ kill -9 <PID>
 
 ---
 
-## 8. SSH Configuration for Git Operations
+## 10. SSH Configuration for Git Operations
 
 ### The Problem
 
@@ -702,7 +702,7 @@ git remote set-url origin git@github.com:user/repo.git
 
 ---
 
-## 9. Troubleshooting
+## 11. Troubleshooting
 
 ### Services Not Running After Restart (MOST COMMON)
 
@@ -801,7 +801,7 @@ launchctl list | grep pm2
 
 Now after every restart, both tmux and your dashboard will start automatically!
 
-**⚠️ Important:** After setting up auto-start, also configure SSH for git operations. See [Section 8: SSH Configuration](#8-ssh-configuration-for-git-operations) for detailed setup to avoid "Permission denied (publickey)" errors.
+**⚠️ Important:** After setting up auto-start, also configure SSH for git operations. See [Section 10: SSH Configuration](#10-ssh-configuration-for-git-operations) for detailed setup to avoid "Permission denied (publickey)" errors.
 
 ---
 
@@ -809,7 +809,7 @@ Now after every restart, both tmux and your dashboard will start automatically!
 
 **Problem:** Getting `git@gitlab.com: Permission denied (publickey)` errors in tmux sessions.
 
-**Solution:** This is an SSH configuration issue. Follow the comprehensive guide in [Section 8: SSH Configuration for Git Operations](#8-ssh-configuration-for-git-operations).
+**Solution:** This is an SSH configuration issue. Follow the comprehensive guide in [Section 10: SSH Configuration for Git Operations](#10-ssh-configuration-for-git-operations).
 
 Quick fix for existing agents:
 ```bash
@@ -890,7 +890,7 @@ rm -rf node_modules yarn.lock
 yarn install
 
 # 3. Check Node.js version
-node --version  # Should be v18.17+ or v20.x
+node --version  # Should be v20.x or later
 
 # 4. Try a different port
 PORT=3001 yarn dev
@@ -910,7 +910,7 @@ tmux rename-session -t old-name new-clean-name
 
 ---
 
-## 9. Best Practices
+## 12. Best Practices
 
 ### Agent Organization
 
@@ -965,13 +965,13 @@ cleanup-ai-agents                       # Kill all agents (optional)
 
 ---
 
-## 10. Advanced Tips
+## 13. Advanced Tips
 
 ### Auto-start Services on Boot
 
 **⚠️ Important:** After a system restart, both tmux and the dashboard need to be running for AI Maestro to work.
 
-For comprehensive setup instructions, see the **"Services Not Running After Restart"** section in [Troubleshooting (Section 8)](#8-troubleshooting).
+For comprehensive setup instructions, see the **"Services Not Running After Restart"** section in [Troubleshooting (Section 11)](#11-troubleshooting).
 
 Quick summary:
 - **tmux auto-start**: Create a LaunchAgent to start tmux server on login
@@ -1001,7 +1001,7 @@ echo "✅ Agents restored"
 
 ---
 
-## 11. Quick Reference Card
+## 14. Quick Reference Card
 
 ### Essential Commands
 
@@ -1031,7 +1031,7 @@ cleanup-ai-agents             # Kill all agents
 
 ---
 
-## 12. Next Steps
+## 15. Next Steps
 
 After mastering basic operations:
 

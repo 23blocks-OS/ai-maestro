@@ -14,8 +14,8 @@ export async function GET(
 
   const result = await listMessages(id, {
     box: searchParams.get('box') || undefined,
-    status: searchParams.get('status') as any,
-    priority: searchParams.get('priority') as any,
+    status: searchParams.get('status') as 'read' | 'unread' | null,
+    priority: searchParams.get('priority') as 'urgent' | 'high' | 'normal' | 'low' | null,
     from: searchParams.get('from') || undefined,
     to: searchParams.get('to') || undefined,
   })
@@ -35,7 +35,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await sendMessage(id, body)
 

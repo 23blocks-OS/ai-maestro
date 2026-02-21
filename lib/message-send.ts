@@ -23,6 +23,7 @@ import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
 import { resolveAgentIdentifier, getMessage } from '@/lib/messageQueue'
 import { getAgent } from '@/lib/agent-registry'
 import { verifySignature } from '@/lib/amp-keys'
+import { signHostAttestation } from '@/lib/host-keys'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
 import type { Message } from '@/lib/messageQueue'
@@ -72,6 +73,22 @@ function getHostName(): string {
     return selfHost.name || getSelfHostId() || 'unknown-host'
   } catch {
     return getSelfHostId() || 'unknown-host'
+  }
+}
+
+/**
+ * CC-P1-403: Sign mesh-forwarded envelope payload with the host's Ed25519 key.
+ * Remote hosts reject unsigned mesh-forwarded messages (MF-01 in amp-service.ts).
+ * Since web UI messages have no agent private key, we sign with the host key instead.
+ * Returns base64 signature or 'unsigned' if signing fails (e.g. no host key pair).
+ */
+function signMeshPayload(envelopeId: string, from: string, to: string, subject: string): string {
+  try {
+    const data = `amp-mesh|${envelopeId}|${from}|${to}|${subject}`
+    return signHostAttestation(data)
+  } catch (error) {
+    console.warn('[MessageSend] Failed to sign mesh payload with host key:', error)
+    return 'unsigned'
   }
 }
 
@@ -280,6 +297,8 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
     const selfHostId = getSelfHostId() || getHostName()
     console.log(`[MessageSend] Forwarding to remote agent ${toResolved.alias}@${targetHostId} via ${remoteHostUrl}/api/v1/route`)
     const { envelope: remoteEnvelope } = buildAMPEnvelope(message)
+    // CC-P1-403: Sign the mesh-forwarded envelope with the host key so remote won't reject (MF-01)
+    const meshSignature = signMeshPayload(remoteEnvelope.id, remoteEnvelope.from, toResolved.alias || toIdentifier, subject)
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10_000)
@@ -298,6 +317,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
           payload: { type: content.type, message: content.message, context: content.context },
           priority: options.priority || 'normal',
           in_reply_to: options.inReplyTo,
+          signature: meshSignature,
         }),
       })
       clearTimeout(timeoutId)
@@ -365,7 +385,8 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
 // ============================================================================
 
 export interface ForwardFromUIOptions {
-  originalMessageId: string
+  // CC-P1-411: Optional when providedOriginalMessage is supplied
+  originalMessageId?: string
   fromAgent: string
   toAgent: string
   forwardNote?: string
@@ -417,6 +438,9 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
   if (providedOriginalMessage) {
     originalMessage = providedOriginalMessage
   } else {
+    if (!originalMessageId) {
+      throw new Error('originalMessageId is required when providedOriginalMessage is not supplied')
+    }
     originalMessage = await getMessage(fromResolved.agentId, originalMessageId)
     if (!originalMessage) {
       throw new Error(`Message ${originalMessageId} not found`)
@@ -490,6 +514,8 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
     const selfHostId = getSelfHostId() || getHostName()
     console.log(`[MessageSend] Forwarding to remote agent ${toResolved.alias}@${targetHostId} via ${remoteHostUrl}/api/v1/route`)
     const { envelope: fwdEnvelope } = buildAMPEnvelope(forwardedMessage)
+    // CC-P1-403: Sign the mesh-forwarded envelope with the host key so remote won't reject (MF-01)
+    const fwdSignature = signMeshPayload(fwdEnvelope.id, fwdEnvelope.from, toResolved.alias || toIdentifier, forwardedMessage.subject)
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10_000)
@@ -507,6 +533,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
           subject: forwardedMessage.subject,
           payload: { type: 'notification', message: forwardedMessage.content.message },
           priority: forwardedMessage.priority || 'normal',
+          signature: fwdSignature,
         }),
       })
       clearTimeout(timeoutId)

@@ -92,6 +92,8 @@ export default function GovernancePasswordDialog({
     } else {
       // Confirm mode: pass the password back to the caller for server-side validation
       // Wrapped in try/catch with submitting state to match setup mode's error handling pattern (CC-002)
+      // CC-P1-705: Guard against empty password even if button state is bypassed programmatically
+      if (password.length === 0) { setError('Password is required'); return }
       setSubmitting(true)
       try {
         await onPasswordConfirmed?.(password)

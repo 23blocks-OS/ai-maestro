@@ -52,8 +52,10 @@ async function sendTmuxNotification(sessionName: string, message: string): Promi
   // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
   // will be typed as input to that program. Notifications are designed for idle shell prompts.
   // Defense-in-depth: strip control characters to prevent terminal injection
-  const safeMessage = message.replace(/[\x00-\x1F\x7F]/g, '')
-  // Single-quote escaping is handled by sendKeys() when literal:true -- do NOT escape here
+  const sanitized = message.replace(/[\x00-\x1F\x7F]/g, '')
+  // CC-P1-801: Escape single quotes to prevent shell injection when interpolated into echo '...'
+  // Replace ' with '\'' which ends the single-quoted string, adds an escaped literal quote, and reopens
+  const safeMessage = sanitized.replace(/'/g, "'\\''")
   await runtime.sendKeys(target, `echo '${safeMessage}'`, { literal: true, enter: true })
 }
 

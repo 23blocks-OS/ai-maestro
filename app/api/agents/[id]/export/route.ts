@@ -12,10 +12,11 @@ import { exportAgentZip, createTranscriptExportJob } from '@/services/agents-tra
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await exportAgentZip(params.id)
+    const { id } = await params
+    const result = await exportAgentZip(id)
 
     if (result.error || !result.data) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -27,7 +28,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${filename.replace(/["\r\n\\]/g, '_')}"`,
         'Content-Length': buffer.length.toString(),
         'X-Agent-Id': agentId,
         'X-Agent-Name': agentName,
@@ -45,11 +46,15 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const body = await request.json()
-    const result = createTranscriptExportJob(params.id, body)
+    const { id } = await params
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const result = createTranscriptExportJob(id, body)
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

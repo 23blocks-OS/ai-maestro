@@ -12,14 +12,22 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const hostData = await request.json()
+  try {
+    const { id } = await params
 
-  const result = await updateExistingHost(id, hostData)
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    let hostData
+    try { hostData = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    const result = await updateExistingHost(id, hostData)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (err) {
+    return NextResponse.json({ error: `Internal server error: ${(err as Error).message}` }, { status: 500 })
   }
-  return NextResponse.json(result.data, { status: result.status })
 }
 
 /**
@@ -31,11 +39,15 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
+  try {
+    const { id } = await params
 
-  const result = await deleteExistingHost(id)
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    const result = await deleteExistingHost(id)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (err) {
+    return NextResponse.json({ error: `Internal server error: ${(err as Error).message}` }, { status: 500 })
   }
-  return NextResponse.json(result.data, { status: result.status })
 }

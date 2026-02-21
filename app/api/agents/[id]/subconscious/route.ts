@@ -36,7 +36,10 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    const body = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
 
     const result = await triggerSubconsciousAction(agentId, body.action)
     if (result.error) {

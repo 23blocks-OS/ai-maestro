@@ -32,6 +32,10 @@ const MOCK_HOST_ID = 'host-abc-12345'
 const MOCK_PUBLIC_KEY_HEX = 'aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd11223344'
 const MOCK_SIGNATURE_BASE64 = 'c2lnbmVkLWRhdGEtYnktZWQyNTUxOS1rZXk='
 
+// Track the data-to-signature bindings created by signHostAttestation
+// (CC-P1-1003: mock must verify the data parameter, not just signature + key)
+const signatureBindings = new Map<string, string>()
+
 vi.mock('@/lib/hosts-config', () => ({
   getSelfHostId: vi.fn(() => MOCK_HOST_ID),
 }))
@@ -41,19 +45,37 @@ vi.mock('@/lib/host-keys', () => ({
     publicKeyHex: MOCK_PUBLIC_KEY_HEX,
     privateKeyHex: 'private-hex-unused-in-tests',
   })),
-  signHostAttestation: vi.fn(() => MOCK_SIGNATURE_BASE64),
+  signHostAttestation: vi.fn((data: string) => {
+    // Bind the data string to the signature so verify can validate the pairing
+    signatureBindings.set(MOCK_SIGNATURE_BASE64, data)
+    return MOCK_SIGNATURE_BASE64
+  }),
   verifyHostAttestation: vi.fn((data: string, signature: string, pubKeyHex: string) => {
-    // Simulate real verification: only pass when signature and key match expected values
-    return signature === MOCK_SIGNATURE_BASE64 && pubKeyHex === MOCK_PUBLIC_KEY_HEX
+    // CC-P1-1003: Verify ALL three parameters — data, signature, AND key.
+    // Real Ed25519 verification fails if ANY of the three mismatch.
+    // The data check ensures tampered role/agentId fields are caught:
+    // if someone changes role or agentId after signing, the rebuilt data string
+    // won't match the original data that was bound to this signature.
+    const boundData = signatureBindings.get(signature)
+    if (boundData !== undefined) {
+      // Signature was created by our mock — verify data matches what was signed
+      return data === boundData && pubKeyHex === MOCK_PUBLIC_KEY_HEX
+    }
+    // Unknown signature (tampered or fabricated) — always reject
+    return false
   }),
   getHostPublicKeyHex: vi.fn(() => MOCK_PUBLIC_KEY_HEX),
 }))
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Build a valid attestation object for testing (bypassing createRoleAttestation) */
+/** Build a valid attestation object for testing (bypassing createRoleAttestation).
+ *  Registers the data-signature binding under MOCK_SIGNATURE_BASE64 using the
+ *  final merged field values, so the verifyHostAttestation mock can validate
+ *  data integrity. Tampered signatures fail because they aren't in the binding map;
+ *  tampered fields fail because the rebuilt data string won't match the bound data. */
 function buildValidAttestation(overrides?: Partial<HostAttestation>): HostAttestation {
-  return {
+  const att: HostAttestation = {
     role: 'manager',
     agentId: 'agent-backend-001',
     hostId: MOCK_HOST_ID,
@@ -61,6 +83,13 @@ function buildValidAttestation(overrides?: Partial<HostAttestation>): HostAttest
     signature: MOCK_SIGNATURE_BASE64,
     ...overrides,
   }
+  // Register the canonical data for the LEGITIMATE signature only.
+  // Tests that pass a tampered signature via overrides get a binding under the
+  // tampered key — but verifyHostAttestation will still find the data matches,
+  // which is wrong. So only bind under MOCK_SIGNATURE_BASE64.
+  const dataStr = `${att.role}|${att.agentId}|${att.hostId}|${att.timestamp}`
+  signatureBindings.set(MOCK_SIGNATURE_BASE64, dataStr)
+  return att
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -74,6 +103,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  signatureBindings.clear()
 })
 
 // ============================================================================
@@ -176,6 +206,36 @@ describe('verifyRoleAttestation', () => {
 
     const result = verifyRoleAttestation(attestation, wrongKey)
 
+    expect(result).toBe(false)
+  })
+
+  it('returns false when role is tampered but signature and key are unchanged', () => {
+    /** CC-P1-1003: Tampered data fields must fail even when signature/key match original */
+    // Create a legitimate attestation (this sets lastSignedData via signHostAttestation mock)
+    const attestation = createRoleAttestation('agent-backend-001', 'manager')
+
+    // Verify the untampered attestation passes first
+    expect(verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX)).toBe(true)
+
+    // Tamper with role — signature and key remain the same
+    const tampered = { ...attestation, role: 'member' as const }
+
+    // Must fail: the rebuilt data string no longer matches what was signed
+    const result = verifyRoleAttestation(tampered, MOCK_PUBLIC_KEY_HEX)
+    expect(result).toBe(false)
+  })
+
+  it('returns false when agentId is tampered but signature and key are unchanged', () => {
+    /** CC-P1-1003: Tampered agentId must fail verification even with valid signature */
+    const attestation = createRoleAttestation('agent-legitimate', 'chief-of-staff')
+
+    // Verify untampered passes
+    expect(verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX)).toBe(true)
+
+    // Tamper with agentId — attacker tries to claim a different identity
+    const tampered = { ...attestation, agentId: 'agent-impersonator' }
+
+    const result = verifyRoleAttestation(tampered, MOCK_PUBLIC_KEY_HEX)
     expect(result).toBe(false)
   })
 

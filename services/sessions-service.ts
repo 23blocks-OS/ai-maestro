@@ -640,10 +640,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       await runtime.setEnvironment(actualSessionName, 'AIM_AGENT_ID', registeredAgentId)
     }
     await runtime.unsetEnvironment(actualSessionName, 'CLAUDECODE')
-    const exportCmd = registeredAgentId
-      ? `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}' AIM_AGENT_ID='${registeredAgentId}'; unset CLAUDECODE`
-      : `export AMP_DIR='${ampDir}' AIM_AGENT_NAME='${agentName}'; unset CLAUDECODE`
-    await runtime.sendKeys(actualSessionName, `"${exportCmd}"`, { enter: true })
+    // CC-P1-802: Removed redundant sendKeys export command — tmux set-environment (above)
+    // already sets AMP_DIR, AIM_AGENT_NAME, and AIM_AGENT_ID in the session environment.
+    // The previous sendKeys approach interpolated unsanitized values into a shell command string,
+    // creating a shell injection vector. tmux set-environment is safe because it does not
+    // invoke a shell.
     console.log(`[Sessions] Set AMP_DIR=${ampDir} for agent ${agentName}`)
   } catch (ampError) {
     console.warn(`[Sessions] Could not set up AMP for ${agentName}:`, ampError)
@@ -670,7 +671,10 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     await new Promise(resolve => setTimeout(resolve, 300))
 
     try {
-      await runtime.sendKeys(actualSessionName, `"${startCommand}"`, { enter: true })
+      // CC-P1-805: Send command without wrapping double quotes — tmux send-keys does not
+      // need shell quoting, and wrapping the entire string (including arguments) in quotes
+      // causes the shell to look for a single executable named "claude --arg" with spaces.
+      await runtime.sendKeys(actualSessionName, startCommand, { enter: true })
       console.log(`[Sessions] Launched program "${startCommand}" in session ${actualSessionName}`)
     } catch (progError) {
       console.warn(`[Sessions] Could not launch program in ${actualSessionName}:`, progError)

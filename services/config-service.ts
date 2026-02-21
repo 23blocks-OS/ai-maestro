@@ -31,6 +31,7 @@ import {
   setOrganization,
   isValidOrganizationName,
 } from '@/lib/hosts-config'
+import { escapeForCozo } from '@/lib/cozo-utils'
 import type {
   MemoryRunResult,
   MessageCheckResult,
@@ -609,6 +610,17 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
     }
   }
 
+  // Validate path is within expected ~/.claude/projects/ directory to prevent path traversal (CC-P1-804)
+  const allowedBase = path.join(os.homedir(), '.claude', 'projects')
+  const resolvedPath = path.resolve(conversationFile)
+  if (!resolvedPath.startsWith(allowedBase + path.sep) && resolvedPath !== allowedBase) {
+    console.error('[Parse Conversation] Path traversal rejected:', conversationFile)
+    return {
+      error: 'conversationFile must be within ~/.claude/projects/ directory',
+      status: 403,
+    }
+  }
+
   if (!fs.existsSync(conversationFile)) {
     console.error('[Parse Conversation] File not found:', conversationFile)
     return {
@@ -769,10 +781,11 @@ export async function getConversationMessages(
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
+    // Use escapeForCozo to prevent CozoScript injection via conversationFile (CC-P1-803)
     const result = await agentDb.run(`
       ?[msg_id, conversation_file, role, ts, text] :=
         *messages{msg_id, conversation_file, role, ts, text},
-        conversation_file = '${conversationFile.replace(/'/g, "''")}'
+        conversation_file = ${escapeForCozo(conversationFile)}
 
       :order ts
     `)

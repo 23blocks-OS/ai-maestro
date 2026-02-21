@@ -10,11 +10,8 @@ import type { Agent } from '@/types/agent'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 interface PlaybackState {
   agentId: string
@@ -100,7 +97,7 @@ export function controlPlayback(
     return { error: `Action '${action}' requires a numeric value parameter`, status: 400 }
   }
 
-  if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId))) {
+  if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId, 10))) {
     return { error: 'Session not found for this agent', status: 404 }
   }
 

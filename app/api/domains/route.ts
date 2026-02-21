@@ -19,7 +19,10 @@ export async function GET() {
  * Create a new email domain
  */
 export async function POST(request: Request) {
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const result = createNewDomain(body)
 
   if (result.error) {

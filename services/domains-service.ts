@@ -14,17 +14,15 @@
  */
 
 import { listDomains, createDomain, getDomain, updateDomain, deleteDomain } from '@/lib/domain-service'
+import { isValidUuid } from '@/lib/validation'
 import type { CreateDomainRequest } from '@/types/agent'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 export interface UpdateDomainParams {
   description?: string
@@ -80,6 +78,10 @@ export function createNewDomain(body: CreateDomainRequest): ServiceResult<{ doma
  * Get a single domain by ID.
  */
 export function getDomainById(id: string): ServiceResult<{ domain: any }> {
+  // CC-P1-203: Validate UUID format for consistency with teams-service pattern
+  if (!isValidUuid(id)) {
+    return { error: 'Invalid domain ID format', status: 400 }
+  }
   try {
     const domain = getDomain(id)
 
@@ -98,6 +100,10 @@ export function getDomainById(id: string): ServiceResult<{ domain: any }> {
  * Update a domain (description or isDefault).
  */
 export function updateDomainById(id: string, params: UpdateDomainParams): ServiceResult<{ domain: any }> {
+  // CC-P1-203: Validate UUID format for consistency with teams-service pattern
+  if (!isValidUuid(id)) {
+    return { error: 'Invalid domain ID format', status: 400 }
+  }
   try {
     const domain = updateDomain(id, {
       description: params.description,
@@ -119,6 +125,10 @@ export function updateDomainById(id: string, params: UpdateDomainParams): Servic
  * Delete a domain by ID.
  */
 export function deleteDomainById(id: string): ServiceResult<{ success: boolean }> {
+  // CC-P1-203: Validate UUID format for consistency with teams-service pattern
+  if (!isValidUuid(id)) {
+    return { error: 'Invalid domain ID format', status: 400 }
+  }
   try {
     const success = deleteDomain(id)
 

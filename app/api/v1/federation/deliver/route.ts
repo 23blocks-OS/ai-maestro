@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
 
   const result = await deliverFederated(providerName, body)
-  return NextResponse.json(result.data!, {
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, {
     status: result.status,
     headers: result.headers
   })

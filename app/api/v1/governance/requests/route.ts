@@ -15,7 +15,10 @@ import { verifyHostAttestation } from '@/lib/host-keys'
 import { getHosts } from '@/lib/hosts-config'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   // Determine if this is a remote receive (fromHostId present) or local submission
   if (body?.fromHostId) {

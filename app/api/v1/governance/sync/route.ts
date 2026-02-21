@@ -15,7 +15,10 @@ import type { GovernanceSyncMessage } from '@/types/governance'
 
 /** POST: Receive governance sync from a peer host */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = await request.json() as GovernanceSyncMessage
+  let body: GovernanceSyncMessage
+  try { body = await request.json() as GovernanceSyncMessage } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   // Validate required fields
   if (!body || !body.fromHostId || !body.type) {

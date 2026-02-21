@@ -146,6 +146,32 @@ export interface AgentSession {
 }
 
 // ============================================================================
+// Agent Metadata
+// ============================================================================
+
+/** AMP registration metadata stored under agent.metadata.amp */
+export interface AgentAmpMetadata {
+  address?: string
+  tenant?: string
+  fingerprint?: string
+  registeredAt?: string
+  registeredVia?: string
+  apiKeyHash?: string
+  delivery?: Record<string, unknown>
+  [key: string]: unknown  // Forward-compatible with future AMP fields
+}
+
+/**
+ * Typed agent metadata with known sub-objects.
+ * Uses index signature for user-defined keys while preserving
+ * type safety on the known `amp` sub-object.
+ */
+export interface AgentMetadata {
+  amp?: AgentAmpMetadata
+  [key: string]: unknown  // User-defined key-value pairs
+}
+
+// ============================================================================
 // Agent Interface
 // ============================================================================
 
@@ -194,7 +220,7 @@ export interface Agent {
   metrics?: AgentMetrics
 
   // Custom flexible metadata
-  metadata?: Record<string, any>  // User-defined key-value pairs
+  metadata?: AgentMetadata  // Typed metadata with known sub-objects (amp, etc.)
 
   // Deployment configuration
   deployment: AgentDeployment
@@ -461,7 +487,7 @@ export interface CreateAgentRequest {
   role?: AgentRole              // Messaging role (default: 'member')
   team?: string
   documentation?: AgentDocumentation
-  metadata?: Record<string, any>
+  metadata?: AgentMetadata
   // DEPRECATED: for backward compatibility
   alias?: string
   displayName?: string
@@ -483,7 +509,7 @@ export interface UpdateAgentRequest {
   team?: string
   workingDirectory?: string     // Update default working directory
   documentation?: Partial<AgentDocumentation>
-  metadata?: Record<string, any>
+  metadata?: AgentMetadata
   preferences?: Partial<AgentPreferences>
   // DEPRECATED: for backward compatibility
   alias?: string

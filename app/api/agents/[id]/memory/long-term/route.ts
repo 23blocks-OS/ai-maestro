@@ -31,13 +31,13 @@ export async function GET(
   const result = await queryLongTermMemories(agentId, {
     query: searchParams.get('query'),
     category: searchParams.get('category') as MemoryCategory | null,
-    limit: parseInt(searchParams.get('limit') || '20'),
+    limit: parseInt(searchParams.get('limit') || '20', 10) || 20,
     includeRelated: searchParams.get('includeRelated') === 'true',
-    minConfidence: parseFloat(searchParams.get('minConfidence') || '0'),
+    minConfidence: (() => { const mc = parseFloat(searchParams.get('minConfidence') || '0'); return isNaN(mc) ? 0 : Math.max(0, Math.min(1, mc)) })(),
     tier: searchParams.get('tier') as 'warm' | 'long' | null,
     view: searchParams.get('view'),
     memoryId: searchParams.get('id'),
-    maxTokens: parseInt(searchParams.get('maxTokens') || '2000'),
+    maxTokens: parseInt(searchParams.get('maxTokens') || '2000', 10) || 2000,
   })
 
   if (result.error) {
@@ -83,7 +83,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await updateLongTermMemory(agentId, {
     id: body.id,

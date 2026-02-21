@@ -69,16 +69,17 @@ function releaseIndexSlot(agentId: string) {
 // ============================================================================
 // FILE SIZE CACHE: Track file sizes to avoid reading unchanged files
 // ============================================================================
-const fileSizeCache = new Map<string, number>()
+// CC-P1-816: Track both size and mtime to detect edits that do not change file size
+const fileSizeCache = new Map<string, { size: number; mtimeMs: number }>()
 
 function hasFileChanged(filePath: string): boolean {
   try {
-    const currentSize = fs.statSync(filePath).size
-    const cachedSize = fileSizeCache.get(filePath)
-    if (cachedSize !== undefined && cachedSize === currentSize) {
-      return false
+    const stat = fs.statSync(filePath)
+    const cached = fileSizeCache.get(filePath)
+    if (cached !== undefined && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+      return false // File unchanged — skip without reading
     }
-    fileSizeCache.set(filePath, currentSize)
+    fileSizeCache.set(filePath, { size: stat.size, mtimeMs: stat.mtimeMs })
     return true
   } catch {
     return false
@@ -87,7 +88,8 @@ function hasFileChanged(filePath: string): boolean {
 
 function updateFileSizeCache(filePath: string) {
   try {
-    fileSizeCache.set(filePath, fs.statSync(filePath).size)
+    const stat = fs.statSync(filePath)
+    fileSizeCache.set(filePath, { size: stat.size, mtimeMs: stat.mtimeMs })
   } catch {
     // ignore
   }

@@ -25,6 +25,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     senderAgentId: request.headers.get('X-AMP-Sender-Agent-Id'),
     senderRoleAttestation: request.headers.get('X-AMP-Sender-Role-Attestation'),
   })
+  if (result.error) {
+    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+  }
   return NextResponse.json(result.data!, {
     status: result.status,
     headers: result.headers

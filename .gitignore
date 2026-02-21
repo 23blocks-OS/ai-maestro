@@ -18,7 +18,6 @@ dist
 /build
 
 # Misc
-.DS_Store
 *.pem
 
 # Debug

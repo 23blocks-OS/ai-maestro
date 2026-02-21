@@ -6,6 +6,7 @@
  */
 
 import { exec } from 'child_process'
+import path from 'path'
 import { promisify } from 'util'
 import { createAgent, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { getHosts, isSelf } from '@/lib/hosts-config'
@@ -86,7 +87,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
       "docker ps --format '{{.Ports}}' 2>/dev/null || echo ''"
     )
     const usedPorts = new Set<number>()
-    const portRegex = /(\d+)->23000/g
+    // CC-P1-523: Anchor regex to match port after colon to avoid matching IP octets
+    const portRegex = /(?:^|:)(\d+)->23000/g
     let match
     while ((match = portRegex.exec(portsOutput)) !== null) {
       usedPorts.add(parseInt(match[1], 10))
@@ -113,6 +115,10 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     aiTool += ' --dangerously-skip-permissions'
   }
   if (body.model) {
+    // CC-P1-504: Validate model name to prevent shell injection via docker env interpolation
+    if (!/^[a-zA-Z0-9._:/-]+$/.test(body.model)) {
+      return { error: 'Invalid model name: must match /^[a-zA-Z0-9._:/-]+$/', status: 400 }
+    }
     aiTool += ` --model ${body.model}`
   }
   if (body.prompt) {
@@ -122,6 +128,18 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
 
   const containerName = `aim-${name}`
   const workDir = body.workingDirectory || '/tmp'
+
+  // CC-P1-505: Validate volume mount path to prevent mounting sensitive host directories
+  const resolvedWorkDir = path.resolve(workDir)
+  if (!path.isAbsolute(workDir) || resolvedWorkDir.includes('..')) {
+    return { error: 'workingDirectory must be an absolute path without ".."', status: 400 }
+  }
+  // Block sensitive host paths from being mounted into containers
+  const BLOCKED_MOUNT_PREFIXES = ['/etc', '/root', '/var', '/proc', '/sys', '/dev', '/boot', '/sbin', '/bin', '/usr']
+  if (BLOCKED_MOUNT_PREFIXES.some(prefix => resolvedWorkDir === prefix || resolvedWorkDir.startsWith(prefix + '/'))) {
+    return { error: `workingDirectory must not be under a system directory (${BLOCKED_MOUNT_PREFIXES.join(', ')})`, status: 400 }
+  }
+
   const cpus = body.cpus || 2
   const memory = body.memory || '4g'
 

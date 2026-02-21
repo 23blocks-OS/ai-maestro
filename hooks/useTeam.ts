@@ -47,7 +47,8 @@ export function useTeam(teamId: string | null): UseTeamResult {
     // CC-007: Optimistic update — pick only valid team-update keys before spreading.
     // Structural typing could allow extra keys at runtime; explicit key filtering prevents
     // unexpected properties from polluting the team object. Server is the authority.
-    const validKeys = ['name', 'description', 'type', 'agentIds', 'chiefOfStaffId', 'managerId'] as const
+    // CC-P1-709: Include 'instructions' so optimistic update applies it immediately in the UI
+    const validKeys = ['name', 'description', 'type', 'agentIds', 'chiefOfStaffId', 'managerId', 'instructions'] as const
     const safeUpdates = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (validKeys as readonly string[]).includes(k))
     )

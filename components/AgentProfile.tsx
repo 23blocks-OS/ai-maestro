@@ -214,6 +214,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
       if (response.ok) {
         setHasChanges(false)
         setTimeout(() => setSaving(false), 500)
+      } else {
+        // CC-P1-702: Handle non-OK responses so the save button does not remain stuck in spinner state
+        const errData = await response.json().catch(() => ({ error: 'Save failed' }))
+        console.error('Failed to save agent:', errData.error || response.statusText)
+        setSaving(false)
       }
     } catch (error) {
       console.error('Failed to save agent:', error)
@@ -221,7 +226,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
     }
   }
 
-  const updateField = (field: string, value: any) => {
+  // CC-P1-701: Restrict value type to the actual union of types used by callers
+  const updateField = (field: string, value: string | string[] | undefined) => {
     if (!agent) return
     setAgent({ ...agent, [field]: value })
     setHasChanges(true)

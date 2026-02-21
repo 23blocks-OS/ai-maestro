@@ -24,7 +24,11 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   const syncEnabled = request.nextUrl.searchParams.get('sync') !== 'false'
-  const host = await request.json()
+
+  let host
+  try { host = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await addNewHost({ host, syncEnabled })
   if (result.error) {

@@ -35,7 +35,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await updateMessage(id, messageId, body)
 
@@ -72,7 +75,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
-  const body = await request.json()
+  let body
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await forwardMessage(id, messageId, body)
 

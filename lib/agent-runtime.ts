@@ -8,10 +8,11 @@
  * Phase 4 of the service-layer refactoring.
  */
 
-import { exec, execSync as nodeExecSync, execFileSync as nodeExecFileSync } from 'child_process'
+import { execFile, execFileSync as nodeExecFileSync } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+// Shell-free command execution — prevents shell injection by passing args as array
+const execFileAsync = promisify(execFile)
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -64,7 +65,15 @@ export class TmuxRuntime implements AgentRuntime {
 
   async listSessions(): Promise<DiscoveredSession[]> {
     try {
-      const { stdout } = await execAsync('tmux list-sessions 2>/dev/null || echo ""')
+      // Use execFileAsync (no shell) for tmux list-sessions
+      let stdout: string
+      try {
+        const result = await execFileAsync('tmux', ['list-sessions'])
+        stdout = result.stdout
+      } catch {
+        // tmux not running or no sessions — return empty list
+        return []
+      }
       if (!stdout.trim()) return []
 
       const lines = stdout.trim().split('\n')
@@ -87,8 +96,9 @@ export class TmuxRuntime implements AgentRuntime {
 
         let workingDirectory = ''
         try {
-          const { stdout: cwdOutput } = await execAsync(
-            `tmux display-message -t "${name}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+          // Use execFileAsync (no shell) to prevent shell injection via session name
+          const { stdout: cwdOutput } = await execFileAsync(
+            'tmux', ['display-message', '-t', name, '-p', '#{pane_current_path}']
           )
           workingDirectory = cwdOutput.trim()
         } catch {
@@ -113,7 +123,8 @@ export class TmuxRuntime implements AgentRuntime {
 
   async sessionExists(name: string): Promise<boolean> {
     try {
-      await execAsync(`tmux has-session -t "${name}" 2>/dev/null`)
+      // Use execFileAsync (no shell) to prevent shell injection via session name
+      await execFileAsync('tmux', ['has-session', '-t', name])
       return true
     } catch {
       return false
@@ -122,8 +133,9 @@ export class TmuxRuntime implements AgentRuntime {
 
   async getWorkingDirectory(name: string): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `tmux display-message -t "${name}" -p "#{pane_current_path}" 2>/dev/null || echo ""`
+      // Use execFileAsync (no shell) to prevent shell injection via session name
+      const { stdout } = await execFileAsync(
+        'tmux', ['display-message', '-t', name, '-p', '#{pane_current_path}']
       )
       return stdout.trim()
     } catch {
@@ -133,8 +145,9 @@ export class TmuxRuntime implements AgentRuntime {
 
   async isInCopyMode(name: string): Promise<boolean> {
     try {
-      const { stdout } = await execAsync(
-        `tmux display-message -t "${name}" -p "#{pane_in_mode}"`
+      // Use execFileAsync (no shell) to prevent shell injection via session name
+      const { stdout } = await execFileAsync(
+        'tmux', ['display-message', '-t', name, '-p', '#{pane_in_mode}']
       )
       return stdout.trim() === '1'
     } catch {
@@ -146,7 +159,8 @@ export class TmuxRuntime implements AgentRuntime {
     try {
       const inCopyMode = await this.isInCopyMode(name)
       if (inCopyMode) {
-        await execAsync(`tmux send-keys -t "${name}" q`)
+        // Use execFileAsync (no shell) to prevent shell injection via session name
+        await execFileAsync('tmux', ['send-keys', '-t', name, 'q'])
         await new Promise(resolve => setTimeout(resolve, 50))
       }
     } catch {
@@ -157,15 +171,18 @@ export class TmuxRuntime implements AgentRuntime {
   // -- Lifecycle -----------------------------------------------------------
 
   async createSession(name: string, cwd: string): Promise<void> {
-    await execAsync(`tmux new-session -d -s "${name}" -c "${cwd}"`)
+    // Use execFileAsync (no shell) to prevent shell injection via name/cwd
+    await execFileAsync('tmux', ['new-session', '-d', '-s', name, '-c', cwd])
   }
 
   async killSession(name: string): Promise<void> {
-    await execAsync(`tmux kill-session -t "${name}"`)
+    // Use execFileAsync (no shell) to prevent shell injection via session name
+    await execFileAsync('tmux', ['kill-session', '-t', name])
   }
 
   async renameSession(oldName: string, newName: string): Promise<void> {
-    await execAsync(`tmux rename-session -t "${oldName}" "${newName}"`)
+    // Use execFileAsync (no shell) to prevent shell injection via session names
+    await execFileAsync('tmux', ['rename-session', '-t', oldName, newName])
   }
 
   // -- I/O -----------------------------------------------------------------
@@ -178,44 +195,62 @@ export class TmuxRuntime implements AgentRuntime {
     const { literal = false, enter = false } = opts
 
     if (literal) {
-      const escaped = keys.replace(/'/g, "'\\''")
+      // Literal mode: use -l flag so tmux treats keys as literal text
       if (enter) {
-        await execAsync(
-          `tmux send-keys -t "${name}" -l '${escaped}' \\; send-keys -t "${name}" Enter`
-        )
+        // Two separate execFileAsync calls — execFile has no shell so \\; chaining is unavailable
+        await execFileAsync('tmux', ['send-keys', '-t', name, '-l', keys])
+        await execFileAsync('tmux', ['send-keys', '-t', name, 'Enter'])
       } else {
-        await execAsync(`tmux send-keys -t "${name}" -l '${escaped}'`)
+        await execFileAsync('tmux', ['send-keys', '-t', name, '-l', keys])
       }
     } else {
-      // Non-literal: keys is a raw key sequence (e.g. "C-c", "exit Enter", quoted command)
+      // Non-literal: keys is a raw tmux key name (e.g. "C-c", "Enter", "Escape")
+      // Use execFileAsync (array args, no shell) to prevent shell injection (CC-P1-501)
+      const args = ['send-keys', '-t', name, keys]
       if (enter) {
-        await execAsync(`tmux send-keys -t "${name}" ${keys} Enter`)
-      } else {
-        await execAsync(`tmux send-keys -t "${name}" ${keys}`)
+        args.push('Enter')
       }
+      await execFileAsync('tmux', args)
     }
   }
 
   async capturePane(name: string, lines: number = 2000): Promise<string> {
     try {
-      const { stdout } = await execAsync(
-        `tmux capture-pane -t "${name}" -p -S -${lines} 2>/dev/null || tmux capture-pane -t "${name}" -p`,
-        { encoding: 'utf8', timeout: 3000, shell: '/bin/bash' }
+      // Use execFileAsync (no shell) to prevent shell injection via session name
+      // Try full history capture first, fall back to visible pane on error
+      const { stdout } = await execFileAsync(
+        'tmux', ['capture-pane', '-t', name, '-p', '-S', `-${lines}`],
+        { encoding: 'utf8', timeout: 3000 }
       )
       return stdout
     } catch {
-      return ''
+      try {
+        // Fallback: capture only visible pane content
+        const { stdout } = await execFileAsync(
+          'tmux', ['capture-pane', '-t', name, '-p'],
+          { encoding: 'utf8', timeout: 3000 }
+        )
+        return stdout
+      } catch {
+        return ''
+      }
     }
   }
 
   // -- Environment ---------------------------------------------------------
 
   async setEnvironment(name: string, key: string, value: string): Promise<void> {
-    await execAsync(`tmux set-environment -t "${name}" ${key} "${value}"`)
+    // Use execFileAsync (array args, no shell) to prevent shell injection (CC-P1-502)
+    await execFileAsync('tmux', ['set-environment', '-t', name, key, value])
   }
 
   async unsetEnvironment(name: string, key: string): Promise<void> {
-    await execAsync(`tmux set-environment -t "${name}" -r ${key} 2>/dev/null || true`)
+    // Use execFileAsync (array args, no shell) to prevent shell injection
+    try {
+      await execFileAsync('tmux', ['set-environment', '-t', name, '-r', key])
+    } catch {
+      // Variable may not exist — equivalent to the old 2>/dev/null || true
+    }
   }
 
   // -- PTY -----------------------------------------------------------------
@@ -260,12 +295,14 @@ export function sessionExistsSync(name: string, socketPath?: string): boolean {
 
 export function killSessionSync(name: string): void {
   try {
-    nodeExecSync(`tmux kill-session -t "${name}" 2>/dev/null || true`, { encoding: 'utf-8' })
+    // Use nodeExecFileSync (no shell) to prevent shell injection via session name
+    nodeExecFileSync('tmux', ['kill-session', '-t', name], { timeout: 2000, stdio: 'ignore' })
   } catch {
     // Session may not exist
   }
 }
 
 export function renameSessionSync(oldName: string, newName: string): void {
-  nodeExecSync(`tmux rename-session -t "${oldName}" "${newName}"`)
+  // Use nodeExecFileSync (array args, no shell) to prevent shell injection (CC-P1-503)
+  nodeExecFileSync('tmux', ['rename-session', '-t', oldName, newName])
 }

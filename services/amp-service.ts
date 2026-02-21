@@ -63,12 +63,8 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-  headers?: Record<string, string>
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)

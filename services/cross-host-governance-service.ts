@@ -136,6 +136,21 @@ export async function receiveCrossHostRequest(
     return { error: 'Invalid governance request: missing id, type, or payload.agentId', status: 400 }
   }
 
+  // CC-P1-002: Validate that request.type is a recognized GovernanceRequestType
+  const VALID_REQUEST_TYPES: GovernanceRequestType[] = [
+    'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
+    'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
+  ]
+  if (!VALID_REQUEST_TYPES.includes(request.type)) {
+    return { error: `Invalid governance request type: '${request.type}'`, status: 400 }
+  }
+
+  // CC-P1-002: Validate requestedByRole is a valid AgentRole
+  const VALID_ROLES: AgentRole[] = ['manager', 'chief-of-staff', 'member']
+  if (!request.requestedByRole || !VALID_ROLES.includes(request.requestedByRole)) {
+    return { error: `Invalid requestedByRole: '${request.requestedByRole}'`, status: 400 }
+  }
+
   // CC-008: Validate that the request's sourceHostId matches the actual sender
   if (request.sourceHostId !== fromHostId) {
     return { error: 'Source host ID in request does not match sender', status: 400 }
@@ -154,10 +169,13 @@ export async function receiveCrossHostRequest(
       return
     }
 
-    // Store the request as-is from the remote host (preserving its ID and timestamps)
+    // CC-P1-002: Force status to 'pending' and clear approvals regardless of what remote sent.
+    // A malicious peer could send status:'executed' with pre-filled approvals to bypass the
+    // dual-approval workflow. We always start received requests as 'pending' with empty approvals.
     file.requests.push({
       ...request,
-      // Ensure updatedAt reflects when we received it
+      status: 'pending' as GovernanceRequestStatus,
+      approvals: {},
       updatedAt: new Date().toISOString(),
     })
     saveGovernanceRequests(file)

@@ -18,7 +18,7 @@ Step-by-step guide to configure AI Maestro's peer mesh network for managing agen
 
 **Required:**
 - ✅ macOS 12.0+ (Monterey or later)
-- ✅ Node.js 18.17+ or 20.x
+- ✅ Node.js 20+
 - ✅ tmux 3.0+
 - ✅ Git
 

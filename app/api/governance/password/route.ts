@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // CC-P1-104: Missing field is a validation error, not a brute-force attempt -- do not count as failure
+      // CC-P1-109: Distinguish missing field (400) from wrong password (401)
       if (!currentPassword || typeof currentPassword !== 'string') {
-        recordFailure('governance-password-change')
-        return NextResponse.json({ error: 'Invalid current password' }, { status: 400 })
+        return NextResponse.json({ error: 'currentPassword is required when changing an existing password' }, { status: 400 })
       }
       if (!(await verifyPassword(currentPassword))) {
         recordFailure('governance-password-change')

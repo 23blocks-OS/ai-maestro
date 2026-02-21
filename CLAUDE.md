@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Current Phase:** Phase 1 - Local-only, auto-discovery, no authentication
 **Tech Stack:** Next.js 14 (App Router), React 18, xterm.js, WebSocket, node-pty, Tailwind CSS, lucide-react
-**Platform:** macOS 12.0+, Node.js 18.17+/20.x, tmux 3.0+
+**Platform:** macOS 12.0+, Node.js 20+, tmux 3.0+
 **Branding:** Space Grotesk font, titled "AI Maestro"
 **Port:** Application runs on port 23000 (http://localhost:23000)
 

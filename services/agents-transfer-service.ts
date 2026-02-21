@@ -15,7 +15,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
 
@@ -192,7 +192,9 @@ function cloneRepository(
     ensureDir(path.dirname(targetPath))
 
     const branch = repo.defaultBranch || 'main'
-    execSync(`git clone --branch ${branch} "${repo.remoteUrl}" "${targetPath}"`, {
+    // CC-P1-506: Use execFileSync to prevent shell injection via branch name
+    // execFileSync passes args directly to the process without shell interpolation
+    execFileSync('git', ['clone', '--branch', branch, repo.remoteUrl, targetPath], {
       encoding: 'utf-8',
       timeout: 300000,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -235,6 +237,13 @@ async function extractZip(zipBuffer: Buffer, destDir: string): Promise<void> {
 
       zipfile.on('entry', (entry) => {
         const fullPath = path.join(destDir, entry.fileName)
+
+        // CC-P1-507: Zip Slip protection — ensure extracted path stays within destDir
+        const resolvedDest = path.resolve(destDir)
+        const resolvedFull = path.resolve(fullPath)
+        if (!resolvedFull.startsWith(resolvedDest + path.sep) && resolvedFull !== resolvedDest) {
+          return reject(new Error(`Zip Slip detected: entry "${entry.fileName}" resolves outside destination directory`))
+        }
 
         if (/\/$/.test(entry.fileName)) {
           ensureDir(fullPath)

@@ -4,8 +4,12 @@ import { authenticateAgent } from '@/lib/agent-auth'
 
 // GET /api/teams - List all teams
 // Phase 1: No ACL on team list -- localhost only. TODO Phase 2: Add auth/ACL for remote access.
+// CC-P1-309: Add standard result.error check for consistency with other routes
 export async function GET() {
   const result = listAllTeams()
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
   return NextResponse.json(result.data, { status: result.status })
 }
 

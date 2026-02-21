@@ -12,6 +12,9 @@
     "url": "https://github.com/23blocks-OS/ai-maestro/issues"
   },
   "homepage": "https://github.com/23blocks-OS/ai-maestro#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "keywords": [
     "claude-code",
     "ai",

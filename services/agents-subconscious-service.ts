@@ -6,14 +6,8 @@
  */
 
 import { agentRegistry } from '@/lib/agent'
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -23,6 +17,9 @@ export interface ServiceResult<T> {
  */
 export async function getSubconsciousStatus(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = await agentRegistry.getAgent(agentId)
+  if (!agent) {
+    return { error: 'Agent not found', status: 404 }
+  }
 
   const subconscious = agent.getSubconscious()
   const status = subconscious?.getStatus() || null

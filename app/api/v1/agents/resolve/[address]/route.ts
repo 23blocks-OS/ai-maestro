@@ -17,5 +17,8 @@ export async function GET(
   const { address } = await params
 
   const result = resolveAgentAddress(authHeader, address)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

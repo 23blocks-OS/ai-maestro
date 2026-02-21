@@ -25,5 +25,8 @@ export async function POST(
   }
 
   const result = await sendReadReceipt(authHeader, messageId, originalSender)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

@@ -38,11 +38,8 @@ import type { TeamType } from '@/types/governance'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 export interface CreateTeamParams {
   name: string
@@ -631,7 +628,7 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
             agentName,
             agentHost: agent.hostId,
             fromName: 'AI Maestro',
-            subject: `Team "${safeTeamName.replace(/[\x00-\x1F\x7F]/g, '')}" is starting`,
+            subject: `Team "${safeTeamName}" is starting`,
             messageId: `meeting-${Date.now()}`,
             messageType: 'notification',
           })

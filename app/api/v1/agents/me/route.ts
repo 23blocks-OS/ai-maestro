@@ -15,7 +15,10 @@ import type { AMPError } from '@/lib/types/amp'
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   const result = getAgentSelf(authHeader)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -32,11 +35,17 @@ export async function PATCH(request: NextRequest) {
   }
 
   const result = await updateAgentSelf(authHeader, body)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 export async function DELETE(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   const result = await deleteAgentSelf(authHeader)
-  return NextResponse.json(result.data!, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

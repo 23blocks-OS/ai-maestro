@@ -37,7 +37,10 @@ export async function PATCH(
 ) {
   try {
     const { id: agentId } = await params
-    const metadata = await request.json()
+    let metadata
+    try { metadata = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
 
     const agent = updateAgent(agentId, { metadata })
 

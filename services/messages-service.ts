@@ -50,11 +50,8 @@ import type { SidebarMode } from '@/types/team'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ---------------------------------------------------------------------------
 // Messages: GET /api/messages
@@ -338,8 +335,10 @@ export async function forwardMessage(params: ForwardMessageParams): Promise<Serv
   }
 
   try {
+    // CC-P1-411: Pass undefined instead of empty string when messageId is missing,
+    // to avoid silent lookup failures if the calling pattern changes
     const result = await forwardFromUI({
-      originalMessageId: messageId || '',
+      originalMessageId: messageId || undefined,
       fromAgent: fromSession,
       toAgent: toSession,
       forwardNote: forwardNote || undefined,

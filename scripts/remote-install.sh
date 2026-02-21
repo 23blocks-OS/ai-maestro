@@ -1288,11 +1288,13 @@ act5_grand_finale() {
         echo "   Dashboard: http://localhost:${PORT}"
         echo ""
 
-        INITIAL_PROMPT="Hi! I just installed AI Maestro. Can you verify everything is working and help me get started?"
+        INITIAL_PROMPT='Hi! I just installed AI Maestro. Can you verify everything is working and help me get started?'
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            # Use single quotes around INITIAL_PROMPT inside the command to prevent
+            # word splitting or shell interpretation of special characters.
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL '$INITIAL_PROMPT'"
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1303,7 +1305,7 @@ act5_grand_finale() {
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL '$INITIAL_PROMPT'"
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"

@@ -37,7 +37,10 @@ export async function GET(request: Request) {
  * Create a new agent
  */
 export async function POST(request: Request) {
-  const body: CreateAgentRequest = await request.json()
+  let body: CreateAgentRequest
+  try { body = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const result = createNewAgent(body)
 
   if (result.error) {

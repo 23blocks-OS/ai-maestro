@@ -44,11 +44,8 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ---------------------------------------------------------------------------
 // Internal helpers

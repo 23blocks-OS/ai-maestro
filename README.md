@@ -47,7 +47,7 @@ This installs everything you need:
 - Agent messaging system (AMP)
 - Claude Code plugin with 7 skills and 32 CLI scripts
 
-**Time:** 5-10 minutes · **Requires:** Node.js 18+, tmux
+**Time:** 5-10 minutes · **Requires:** Node.js 20+, tmux
 
 <details>
 <summary>Windows (WSL2) / Linux notes</summary>

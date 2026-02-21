@@ -5,7 +5,7 @@ Get AI Maestro running in 5 minutes.
 ## Prerequisites
 
 - macOS 12.0+ (Monterey or later) OR Windows 10+ (WSL2) OR Linux
-- Node.js 18.17+ or 20.x
+- Node.js 20+
 - tmux 3.0+
 
 ```bash

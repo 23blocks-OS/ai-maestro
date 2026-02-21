@@ -62,9 +62,9 @@ export default function RoleBadge({ role, onClick, size = 'md' }: RoleBadgeProps
     }
 
     default: {
-      // Exhaustive role handling — unknown roles show as 'Member' by default
-      // Fallback for any future role values not yet handled explicitly
-      const displayLabel = (role as string).toUpperCase()
+      // Fallback for any future role values not yet handled explicitly.
+      // CC-P1-708: Use String() instead of `as string` to convert the exhausted `never` type safely.
+      const displayLabel = String(role).toUpperCase()
       const classes = `inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
             bg-gray-500/20 text-gray-300 border-gray-500/30
             ${onClick ? 'hover:bg-gray-500/30 cursor-pointer' : 'cursor-default'}`

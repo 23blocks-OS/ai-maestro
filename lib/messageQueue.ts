@@ -40,7 +40,7 @@ export interface Message {
   content: {
     type: 'request' | 'response' | 'notification' | 'alert' | 'task' | 'status' | 'handoff' | 'ack' | 'update' | 'system' // Aligned with AMPPayload.type in lib/types/amp.ts
     message: string
-    context?: Record<string, any>
+    context?: Record<string, unknown>
     attachments?: Array<{
       name: string
       path: string

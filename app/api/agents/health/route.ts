@@ -16,7 +16,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const { url } = body
-  const result = await proxyHealthCheck(url as string)
+  // CC-P2-010: Validate url is present and is a string before proxying
+  if (!url || typeof url !== 'string') {
+    return NextResponse.json({ error: 'url is required and must be a string' }, { status: 400 })
+  }
+  const result = await proxyHealthCheck(url)
 
   if (result.error) {
     return NextResponse.json(

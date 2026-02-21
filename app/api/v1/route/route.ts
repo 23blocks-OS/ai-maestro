@@ -18,7 +18,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
   const signatureHeader = request.headers.get('X-AMP-Signature')
   const contentLength = request.headers.get('Content-Length')
 
-  const body = await request.json() as AMPRouteRequest
+  let body: AMPRouteRequest
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid_request', message: 'Invalid JSON body' } as AMPError, { status: 400 })
+  }
 
   const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength, {
     senderRole: request.headers.get('X-AMP-Sender-Role'),
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
   if (result.error) {
     return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
   }
-  return NextResponse.json(result.data!, {
+  return NextResponse.json(result.data, {
     status: result.status,
     headers: result.headers
   })

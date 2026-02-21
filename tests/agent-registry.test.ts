@@ -141,7 +141,7 @@ describe('loadAgents', () => {
 
   it('returns an empty array when registry file contains invalid JSON', () => {
     // Manually seed a file with bad JSON
-    const registryPath = Object.keys(fileStore).length === 0
+    const _registryPath = Object.keys(fileStore).length === 0
       ? (() => {
           // Create agents dir and write bad data
           const p = require('path')

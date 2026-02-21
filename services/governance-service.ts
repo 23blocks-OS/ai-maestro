@@ -26,14 +26,8 @@ import { loadTeams, saveTeams, TeamValidationException } from '@/lib/team-regist
 import { notifyAgent } from '@/lib/notification-service'
 import { acquireLock } from '@/lib/file-lock'
 import { isValidUuid } from '@/lib/validation'
-
-// Re-use the ServiceResult type pattern
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-  headers?: Record<string, string>
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ---------------------------------------------------------------------------
 // GET /api/governance

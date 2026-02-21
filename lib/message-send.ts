@@ -88,7 +88,7 @@ function signMeshPayload(envelopeId: string, from: string, to: string, subject: 
     return signHostAttestation(data)
   } catch (error) {
     console.warn('[MessageSend] Failed to sign mesh payload with host key:', error)
-    return 'unsigned'
+    return ''
   }
 }
 

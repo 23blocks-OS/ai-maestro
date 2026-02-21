@@ -40,7 +40,11 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    const body = await request.json()
+    // CC-P2-005: Guard against malformed JSON body
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
 
     const result = await sendChatMessage(agentId, body.message)
     if (result.error) {

@@ -15,9 +15,11 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import { execSync, execFileSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -25,14 +27,6 @@ const VERSION_FILE = path.join(process.cwd(), 'version.json')
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
 
 export interface TransferRequest {
   targetHostId: string
@@ -104,7 +98,8 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
 
     let remoteUrl = ''
     try {
-      remoteUrl = execSync('git config --get remote.origin.url', {
+      // CC-P2-003: Use execFileSync (array args) instead of execSync (shell) to prevent injection
+      remoteUrl = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
         cwd: dirPath,
         encoding: 'utf-8',
         timeout: 5000
@@ -119,23 +114,32 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
 
     let defaultBranch = 'main'
     try {
-      const remoteBranch = execSync('git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ""', {
+      // CC-P2-003: Use execFileSync with try/catch instead of shell fallback (2>/dev/null || echo "")
+      const remoteBranch = execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
         cwd: dirPath,
         encoding: 'utf-8',
-        timeout: 5000,
-        shell: '/bin/bash'
+        timeout: 5000
       }).trim()
       if (remoteBranch) {
         defaultBranch = remoteBranch.replace('refs/remotes/origin/', '')
       } else {
-        defaultBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+        defaultBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
           cwd: dirPath,
           encoding: 'utf-8',
           timeout: 5000
         }).trim()
       }
     } catch {
-      // Use default
+      // symbolic-ref failed (no remote HEAD set) -- fall back to current branch
+      try {
+        defaultBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+          cwd: dirPath,
+          encoding: 'utf-8',
+          timeout: 5000
+        }).trim()
+      } catch {
+        // Use default 'main'
+      }
     }
 
     const name = path.basename(dirPath) || path.basename(remoteUrl.replace(/\.git$/, ''))
@@ -162,7 +166,8 @@ function cloneRepository(
       const gitDir = path.join(targetPath, '.git')
       if (fs.existsSync(gitDir)) {
         try {
-          const existingRemote = execSync('git config --get remote.origin.url', {
+          // CC-P2-003: Use execFileSync instead of execSync to prevent shell injection
+          const existingRemote = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
             cwd: targetPath,
             encoding: 'utf-8',
             timeout: 5000

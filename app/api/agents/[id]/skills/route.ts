@@ -39,7 +39,11 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    // CC-P2-006: Guard against malformed JSON body
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const result = await updateSkills(id, body)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -60,7 +64,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
+    // CC-P2-006: Guard against malformed JSON body
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const result = addSkill(id, body)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

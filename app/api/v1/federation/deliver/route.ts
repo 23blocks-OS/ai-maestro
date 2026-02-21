@@ -12,7 +12,12 @@ import { deliverFederated } from '@/services/amp-service'
 export async function POST(request: NextRequest) {
   const providerName = request.headers.get('X-AMP-Provider')
 
-  const body = await request.json()
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid_request', message: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const result = await deliverFederated(providerName, body)
   if (result.error) {

@@ -70,11 +70,8 @@ import type { Host } from '@/types/host'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 
 interface DiscoveredSession {
   name: string
@@ -1365,7 +1362,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
         const safeAgentName = agentName.replace(/'/g, "'\\''")
         const safeAgentId = agentId.replace(/'/g, "'\\''")
         try {
-          await runtime.sendKeys(sessionName, `"export AMP_DIR='${safeAmpDir}' AIM_AGENT_NAME='${safeAgentName}' AIM_AGENT_ID='${safeAgentId}'; unset CLAUDECODE"`, { enter: true })
+          await runtime.sendKeys(sessionName, `export AMP_DIR='${safeAmpDir}' AIM_AGENT_NAME='${safeAgentName}' AIM_AGENT_ID='${safeAgentId}'; unset CLAUDECODE`, { enter: true })
         } catch { /* non-fatal */ }
         console.log(`[Wake] Terminal only mode - no AI program started`)
       } else {
@@ -1392,7 +1389,7 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
           const envExport = ampDir
             ? `export AMP_DIR='${safeAmpDir2}' AIM_AGENT_NAME='${safeAgentName2}' AIM_AGENT_ID='${safeAgentId2}'; `
             : ''
-          await runtime.sendKeys(sessionName, `"${envExport}unset CLAUDECODE; ${fullCommand}"`, { enter: true })
+          await runtime.sendKeys(sessionName, `${envExport}unset CLAUDECODE; ${fullCommand}`, { enter: true })
         } catch (error) {
           console.error(`[Wake] Failed to start program:`, error)
         }

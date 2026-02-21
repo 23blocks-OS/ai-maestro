@@ -13,7 +13,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    // CC-P2-008: Guard against malformed JSON body
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const result = await createDockerAgent(body)
 
     if (result.error) {

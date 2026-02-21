@@ -5,21 +5,19 @@
  * Routes are thin wrappers that call these functions.
  */
 
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import path from 'path'
 import { promisify } from 'util'
 import { createAgent, loadAgents, saveAgents } from '@/lib/agent-registry'
 import { getHosts, isSelf } from '@/lib/hosts-config'
+import { ServiceResult } from '@/types/service'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+// CC-P2-005: Use canonical ServiceResult from types/service.ts (deduplication)
+export type { ServiceResult }
 
 export interface DockerCreateRequest {
   name: string
@@ -50,6 +48,11 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
 
   const name = body.name.trim().toLowerCase()
 
+  // CC-P2-005: Validate container name characters to prevent shell injection
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    return { error: 'Container name must contain only alphanumeric characters, hyphens, and underscores', status: 400 }
+  }
+
   // If targeting a remote host, forward the request
   if (body.hostId) {
     const hosts = getHosts()
@@ -74,8 +77,9 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   // Verify Docker is available
+  // CV-P2-001: Use execFileAsync to prevent shell injection
   try {
-    await execAsync("docker version --format '{{.Server.Version}}'", { timeout: 5000 })
+    await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}'], { timeout: 5000 })
   } catch {
     return { error: 'Docker is not available on this host', status: 400 }
   }
@@ -83,8 +87,9 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   // Find an available port in 23001-23100 range
   let port: number | null = null
   try {
-    const { stdout: portsOutput } = await execAsync(
-      "docker ps --format '{{.Ports}}' 2>/dev/null || echo ''"
+    // CV-P2-001: Use execFileAsync to prevent shell injection
+    const { stdout: portsOutput } = await execFileAsync(
+      'docker', ['ps', '--format', '{{.Ports}}']
     )
     const usedPorts = new Set<number>()
     // CC-P1-523: Anchor regex to match port after colon to avoid matching IP octets
@@ -140,33 +145,44 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     return { error: `workingDirectory must not be under a system directory (${BLOCKED_MOUNT_PREFIXES.join(', ')})`, status: 400 }
   }
 
-  const cpus = body.cpus || 2
-  const memory = body.memory || '4g'
-
-  // Build docker run command
-  const envFlags = [
-    `-e TMUX_SESSION_NAME="${name}"`,
-    `-e AI_TOOL="${aiTool}"`,
-  ]
-  if (body.githubToken) {
-    envFlags.push(`-e GITHUB_TOKEN="${body.githubToken}"`)
+  // CC-P2-006: Validate cpus to prevent injection via numeric fields
+  const cpus = Number(body.cpus) || 2
+  if (cpus < 1 || cpus > 16 || !Number.isInteger(cpus)) {
+    return { error: 'cpus must be an integer between 1 and 16', status: 400 }
   }
 
-  const dockerCmd = [
-    'docker run -d',
-    `--name "${containerName}"`,
-    ...envFlags,
-    `-v "${workDir}:/workspace"`,
-    `-p ${port}:23000`,
+  // CC-P2-006: Validate memory format to prevent injection via --memory flag
+  if (body.memory && !/^\d+[bkmg]$/i.test(body.memory)) {
+    return { error: 'Memory must be a valid Docker memory value (e.g., 512m, 4g)', status: 400 }
+  }
+  const memory = body.memory || '4g'
+
+  // CV-P2-001/CC-P2-001/CC-P2-002: Build docker run command as array args
+  // to prevent shell injection -- each flag is a separate array element,
+  // eliminating shell interpretation entirely
+  const dockerArgs: string[] = [
+    'run', '-d',
+    '--name', containerName,
+    '-e', `TMUX_SESSION_NAME=${name}`,
+    '-e', `AI_TOOL=${aiTool}`,
+  ]
+  if (body.githubToken) {
+    dockerArgs.push('-e', `GITHUB_TOKEN=${body.githubToken}`)
+  }
+  dockerArgs.push(
+    '-v', `${workDir}:/workspace`,
+    '-p', `${port}:23000`,
     `--cpus=${cpus}`,
     `--memory=${memory}`,
-    body.autoRemove ? '--rm' : '',
-    'ai-maestro-agent:latest',
-  ].filter(Boolean).join(' ')
+  )
+  if (body.autoRemove) {
+    dockerArgs.push('--rm')
+  }
+  dockerArgs.push('ai-maestro-agent:latest')
 
   let containerId: string
   try {
-    const { stdout } = await execAsync(dockerCmd, { timeout: 30000 })
+    const { stdout } = await execFileAsync('docker', dockerArgs, { timeout: 30000 })
     containerId = stdout.trim().slice(0, 12)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

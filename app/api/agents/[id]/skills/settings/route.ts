@@ -36,7 +36,11 @@ export async function PUT(
 ) {
   try {
     const { id: agentId } = await params
-    const body = await request.json()
+    // CC-P2-007: Guard against malformed JSON body
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
     const result = await saveSkillSettings(agentId, body.settings)
     if (result.error) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status })

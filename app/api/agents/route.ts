@@ -16,9 +16,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
 
-  // If search query provided, return simple search results
+  // CC-P2-009: Check for search errors before returning results
   if (query) {
     const result = searchAgentsByQuery(query)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
     return NextResponse.json(result.data, { status: result.status })
   }
 

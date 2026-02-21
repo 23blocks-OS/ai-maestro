@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<AMPInfoRe
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json(result.data!, {
+  return NextResponse.json(result.data, {
     status: result.status,
     headers: result.headers
   })

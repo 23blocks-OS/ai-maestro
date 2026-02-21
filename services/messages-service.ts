@@ -184,7 +184,7 @@ export interface SendMessageParams {
   content: {
     type: 'request' | 'response' | 'notification' | 'update'
     message: string
-    context?: Record<string, any>
+    context?: Record<string, unknown>
     attachments?: Array<{ name: string; path: string; type: string }>
   }
   priority?: 'low' | 'normal' | 'high' | 'urgent'

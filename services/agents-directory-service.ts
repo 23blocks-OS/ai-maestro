@@ -14,7 +14,7 @@
  *   POST   /api/agents/normalize-hosts              -> normalizeHosts
  */
 
-import type { ServiceResult } from '@/services/agents-core-service'
+import type { ServiceResult } from '@/types/service'
 import {
   rebuildLocalDirectory,
   getLocalEntriesForSync,

@@ -194,10 +194,9 @@ export function getTrustedManagers(): ManagerTrust[] {
  *
  * Logic:
  * 1. Find the trust record for request.sourceHostId
- * 2. Extract the agentId from request.requestedBy (format: "agentId@hostId")
- * 3. Verify the trust record's managerId matches the extracted agentId
- * 4. Verify autoApprove is true on the trust record
- * 5. Return true only if all conditions are met
+ * 2. Verify the trust record's managerId matches request.requestedBy (a plain UUID)
+ * 3. Verify autoApprove is true on the trust record
+ * 4. Return true only if all conditions are met
  */
 export function shouldAutoApprove(request: GovernanceRequest): boolean {
   const file = loadManagerTrust()
@@ -211,13 +210,6 @@ export function shouldAutoApprove(request: GovernanceRequest): boolean {
   // Auto-approve must be enabled on this trust relationship
   if (!trust.autoApprove) return false
 
-  // Extract agentId from the "agentId@hostId" format used in requestedBy
-  const atIndex = request.requestedBy.lastIndexOf('@')
-  const requestingAgentId =
-    atIndex >= 0
-      ? request.requestedBy.substring(0, atIndex)
-      : request.requestedBy
-
   // The requesting agent must be the trusted manager for that host
-  return trust.managerId === requestingAgentId
+  return trust.managerId === request.requestedBy
 }

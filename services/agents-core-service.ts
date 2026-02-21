@@ -603,7 +603,7 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 // ---------------------------------------------------------------------------
 
 export function createNewAgent(body: CreateAgentRequest, requestingAgentId?: string | null): ServiceResult<{ agent: Agent }> {
-  // Layer 6: When a requesting agent is identified, enforce governance roles
+  // Layer 5: When a requesting agent is identified, enforce governance roles
   if (requestingAgentId) {
     const isReqManager = isManager(requestingAgentId)
     const isReqCOS = isChiefOfStaffAnywhere(requestingAgentId)
@@ -654,7 +654,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, requesting
       return { error: 'Cannot update a deleted agent', status: 410 }
     }
 
-    // Layer 6: When a requesting agent is identified, enforce governance roles
+    // Layer 5: When a requesting agent is identified, enforce governance roles
     if (requestingAgentId) {
       const isReqManager = isManager(requestingAgentId)
       const isReqCOS = isChiefOfStaffAnywhere(requestingAgentId)
@@ -701,7 +701,7 @@ export function deleteAgentById(id: string, hard: boolean, requestingAgentId?: s
       return { error: 'Agent already deleted', status: 410 }
     }
 
-    // Layer 6: When a requesting agent is identified, only MANAGER can delete
+    // Layer 5: When a requesting agent is identified, only MANAGER can delete
     if (requestingAgentId) {
       const isReqManager = isManager(requestingAgentId)
       if (!isReqManager) {

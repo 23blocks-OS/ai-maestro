@@ -58,7 +58,7 @@ export interface GovernanceRequest {
   type: GovernanceRequestType
   sourceHostId: string                // Host that initiated the request
   targetHostId: string                // Host that must execute the operation
-  requestedBy: string                 // agentId of who initiated (format: agentId@hostId)
+  requestedBy: string                 // agentId (UUID) of who initiated the request
   requestedByRole: AgentRole
   payload: GovernanceRequestPayload
   approvals: GovernanceApprovals

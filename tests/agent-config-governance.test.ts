@@ -1,5 +1,5 @@
 /**
- * Unit tests for Layer 6: Agent Configuration Governance
+ * Unit tests for Layer 5: Agent Configuration Governance
  *
  * Tests the governance enforcement added to three functions in
  * services/agents-core-service.ts:
@@ -53,7 +53,7 @@ vi.mock('uuid', () => ({
   v4: vi.fn(() => `test-uuid-${++uuidCounter}`),
 }))
 
-// --- Governance: isManager and isChiefOfStaffAnywhere are the core of Layer 6 ---
+// --- Governance: isManager and isChiefOfStaffAnywhere are the core of Layer 5 ---
 const mockIsManager = vi.fn<(agentId: string) => boolean>(() => false)
 const mockIsChiefOfStaffAnywhere = vi.fn<(agentId: string) => boolean>(() => false)
 vi.mock('@/lib/governance', () => ({

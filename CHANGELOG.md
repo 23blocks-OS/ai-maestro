@@ -11,7 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - **Layer 2 — Cross-Host Identity Attestation**: Ed25519 host keypairs (`lib/host-keys.ts`) and signed role attestations (`lib/role-attestation.ts`) verify MANAGER/COS identity on mesh-forwarded messages
   - **Layer 3 — Cross-Host Governance Requests**: Request lifecycle (`types/governance-request.ts`, `lib/governance-request-registry.ts`, `services/cross-host-governance-service.ts`) with dual-manager approval state machine for add-to-team, remove-from-team, assign-cos, remove-cos, transfer-agent operations
   - **Layer 4 — Manager Trust Registry**: Trust relationships between MANAGERs (`lib/manager-trust.ts`) enable auto-approval of governance requests from trusted peers
-- **Agent configuration governance (Layer 6)**: MANAGER/COS role enforcement on agent CRUD operations — createNewAgent, updateAgentById, deleteAgentById in `agents-core-service.ts`
+- **Agent configuration governance (Layer 5)**: MANAGER/COS role enforcement on agent CRUD operations — createNewAgent, updateAgentById, deleteAgentById in `agents-core-service.ts`
 - `AgentConfiguration` interface in `types/agent.ts` for governed agent config fields (skills, mcpServers, hooks, model, programArgs)
 - `agentHostMap` field on Team type for multi-host team membership tracking
 - Message filter accepts attested mesh roles: verified MANAGER attestation allows cross-host messages to closed-team recipients

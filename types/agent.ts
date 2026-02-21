@@ -408,7 +408,7 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  */
 export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
 
-/** Agent configuration fields governed by MANAGER/COS roles (Layer 6) */
+/** Agent configuration fields governed by MANAGER/COS roles (Layer 5) */
 export interface AgentConfiguration {
   skills?: string[]                    // Skill names to enable
   mcpServers?: Record<string, unknown> // MCP server configs

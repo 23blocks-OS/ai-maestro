@@ -12,6 +12,7 @@
  */
 
 import { getHosts, getSelfHostId, isSelf } from '@/lib/hosts-config'
+import { signHostAttestation, getHostPublicKeyHex } from '@/lib/host-keys'
 import { getManagerId } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
 import { loadTeams } from '@/lib/team-registry'
@@ -117,9 +118,18 @@ export async function broadcastGovernanceSync(
 
         try {
           const url = `${host.url}/api/v1/governance/sync`
+          // Sign the outbound request with this host's Ed25519 key (SR-001)
+          const timestamp = new Date().toISOString()
+          const signedData = `gov-sync|${selfHostId}|${timestamp}`
+          const signature = signHostAttestation(signedData)
           const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Host-Id': selfHostId,
+              'X-Host-Timestamp': timestamp,
+              'X-Host-Signature': signature,
+            },
             body,
             signal: controller.signal,
           })

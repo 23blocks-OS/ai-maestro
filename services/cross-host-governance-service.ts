@@ -24,6 +24,7 @@ import {
   rejectGovernanceRequest,
 } from '@/lib/governance-request-registry'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
+import { signHostAttestation } from '@/lib/host-keys'
 import { withLock } from '@/lib/file-lock'
 import { loadTeams, saveTeams } from '@/lib/team-registry'
 import { shouldAutoApprove } from '@/lib/manager-trust'
@@ -74,6 +75,12 @@ export async function submitCrossHostRequest(params: {
   }
   if (isSelf(params.targetHostId)) {
     return { error: 'Target host cannot be self -- use local governance APIs for same-host operations', status: 400 }
+  }
+
+  // SR-007: Only allow implemented cross-host request types
+  const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent']
+  if (!IMPLEMENTED_TYPES.includes(params.type)) {
+    return { error: `Request type '${params.type}' is not yet implemented`, status: 400 }
   }
 
   // Create local record with sourceHostId = this host
@@ -402,9 +409,18 @@ async function sendRequestToRemoteHost(hostUrl: string, request: GovernanceReque
 
   try {
     const url = `${hostUrl}/api/v1/governance/requests`
+    // Sign the outbound request with this host's Ed25519 key (SR-001)
+    const timestamp = new Date().toISOString()
+    const signedData = `gov-request|${request.sourceHostId}|${timestamp}`
+    const signature = signHostAttestation(signedData)
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Host-Id': request.sourceHostId,
+        'X-Host-Timestamp': timestamp,
+        'X-Host-Signature': signature,
+      },
       body: JSON.stringify({
         fromHostId: request.sourceHostId,
         request,
@@ -435,9 +451,19 @@ async function notifyRemoteHostOfRejection(
 
   try {
     const url = `${hostUrl}/api/v1/governance/requests/${requestId}/reject`
+    // Sign the outbound rejection notification with this host's Ed25519 key (SR-001)
+    const selfHost = getSelfHostId()
+    const timestamp = new Date().toISOString()
+    const signedData = `gov-request|${selfHost}|${timestamp}`
+    const signature = signHostAttestation(signedData)
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Host-Id': selfHost,
+        'X-Host-Timestamp': timestamp,
+        'X-Host-Signature': signature,
+      },
       body: JSON.stringify({
         rejectorAgentId,
         reason,

@@ -235,6 +235,7 @@ import {
 
 import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
 import { getHosts, getSelfHostId } from '@/lib/hosts-config'
+import { verifyHostAttestation } from '@/lib/host-keys'
 
 import {
   submitCrossHostRequest,
@@ -601,7 +602,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    // Layer 6: optional governance enforcement when agent identity is provided
+    // Layer 5: optional governance enforcement when agent identity is provided
     const auth = authenticateAgent(
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
@@ -962,7 +963,7 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    // Layer 6: optional governance enforcement when agent identity is provided
+    // Layer 5: optional governance enforcement when agent identity is provided
     const auth = authenticateAgent(
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
@@ -970,7 +971,7 @@ const routes: Route[] = [
     sendServiceResult(res, updateAgentById(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    // Layer 6: optional governance enforcement when agent identity is provided
+    // Layer 5: optional governance enforcement when agent identity is provided
     const auth = authenticateAgent(
       getHeader(_req, 'Authorization'),
       getHeader(_req, 'X-Agent-Id')
@@ -1225,11 +1226,66 @@ const routes: Route[] = [
       sendJson(res, 403, { error: `Unknown host: ${body.fromHostId}` })
       return
     }
+    // Verify host signature (SR-001)
+    const hostSignature = getHeader(req, 'X-Host-Signature')
+    const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
+    const hostId = getHeader(req, 'X-Host-Id')
+    if (!hostSignature || !hostTimestamp || !hostId) {
+      sendJson(res, 401, { error: 'Missing host authentication headers' })
+      return
+    }
+    if (hostId !== body.fromHostId) {
+      sendJson(res, 400, { error: 'Host ID header does not match body fromHostId' })
+      return
+    }
+    if (!knownHost.publicKeyHex) {
+      sendJson(res, 403, { error: 'Host has no registered public key' })
+      return
+    }
+    const signedData = `gov-sync|${hostId}|${hostTimestamp}`
+    if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+      sendJson(res, 403, { error: 'Invalid host signature' })
+      return
+    }
+    // Check timestamp freshness (5 min window, allow 60s clock skew)
+    const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+    if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+      sendJson(res, 403, { error: 'Signature expired' })
+      return
+    }
     handleGovernanceSyncMessage(body.fromHostId, body)
     sendJson(res, 200, { ok: true })
   }},
-  { method: 'GET', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (_req, res) => {
-    // Return this host's full governance snapshot for peer sync requests
+  { method: 'GET', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (req, res) => {
+    // SR-002: Require host authentication for governance snapshot reads
+    const hostId = getHeader(req, 'X-Host-Id')
+    const hostSignature = getHeader(req, 'X-Host-Signature')
+    const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
+    if (!hostId || !hostSignature || !hostTimestamp) {
+      sendJson(res, 401, { error: 'Missing host authentication headers' })
+      return
+    }
+    const hosts = getHosts()
+    const knownHost = hosts.find(h => h.id === hostId)
+    if (!knownHost) {
+      sendJson(res, 403, { error: 'Unknown host' })
+      return
+    }
+    if (!knownHost.publicKeyHex) {
+      sendJson(res, 403, { error: 'Host has no registered public key' })
+      return
+    }
+    const signedData = `gov-sync-read|${hostId}|${hostTimestamp}`
+    if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+      sendJson(res, 403, { error: 'Invalid host signature' })
+      return
+    }
+    // Check timestamp freshness (5 min window, allow 60s clock skew)
+    const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+    if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+      sendJson(res, 403, { error: 'Signature expired' })
+      return
+    }
     const snapshot = buildLocalGovernanceSnapshot()
     sendJson(res, 200, {
       ...snapshot,
@@ -1243,6 +1299,38 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     // Determine if this is a local submission (with password) or a remote receive (with fromHostId)
     if (body?.fromHostId) {
+      // SR-001: Verify host signature for remote governance requests
+      const hostSignature = getHeader(req, 'X-Host-Signature')
+      const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
+      const hostId = getHeader(req, 'X-Host-Id')
+      if (!hostSignature || !hostTimestamp || !hostId) {
+        sendJson(res, 401, { error: 'Missing host authentication headers' })
+        return
+      }
+      if (hostId !== body.fromHostId) {
+        sendJson(res, 400, { error: 'Host ID header does not match body fromHostId' })
+        return
+      }
+      const hosts = getHosts()
+      const knownHost = hosts.find(h => h.id === hostId)
+      if (!knownHost) {
+        sendJson(res, 403, { error: 'Unknown host' })
+        return
+      }
+      if (!knownHost.publicKeyHex) {
+        sendJson(res, 403, { error: 'Host has no registered public key' })
+        return
+      }
+      const signedData = `gov-request|${hostId}|${hostTimestamp}`
+      if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+        sendJson(res, 403, { error: 'Invalid host signature' })
+        return
+      }
+      const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+      if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+        sendJson(res, 403, { error: 'Signature expired' })
+        return
+      }
       // Remote host is sending us a governance request
       sendServiceResult(res, await receiveCrossHostRequest(body.fromHostId, body.request))
     } else {

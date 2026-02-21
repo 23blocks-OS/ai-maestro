@@ -125,7 +125,7 @@ function makeGovernanceRequest(overrides: Partial<GovernanceRequest> = {}): Gove
     type: 'add-to-team',
     sourceHostId: 'host-remote',
     targetHostId: 'host-local',
-    requestedBy: 'manager-uuid@host-remote',
+    requestedBy: 'manager-uuid',
     requestedByRole: 'manager',
     payload: { agentId: 'agent-1' },
     approvals: {},
@@ -373,7 +373,7 @@ describe('shouldAutoApprove', () => {
     ]))
     const request = makeGovernanceRequest({
       sourceHostId: 'host-remote',
-      requestedBy: 'manager-uuid@host-remote',
+      requestedBy: 'manager-uuid',
     })
 
     const result = shouldAutoApprove(request)
@@ -388,7 +388,7 @@ describe('shouldAutoApprove', () => {
     ]))
     const request = makeGovernanceRequest({
       sourceHostId: 'host-remote',
-      requestedBy: 'manager-uuid@host-remote',
+      requestedBy: 'manager-uuid',
     })
 
     const result = shouldAutoApprove(request)
@@ -403,7 +403,7 @@ describe('shouldAutoApprove', () => {
     ]))
     const request = makeGovernanceRequest({
       sourceHostId: 'host-unknown',
-      requestedBy: 'manager-uuid@host-unknown',
+      requestedBy: 'manager-uuid',
     })
 
     const result = shouldAutoApprove(request)

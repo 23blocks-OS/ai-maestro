@@ -91,13 +91,17 @@ export function serializeAttestation(attestation: HostAttestation): string {
  * Deserialize a base64 JSON string back to a HostAttestation.
  * Returns null if the string is invalid.
  */
+// CC-P4-007: Allowlist of valid AgentRole values for attestation deserialization
+const VALID_AGENT_ROLES: readonly string[] = ['manager', 'chief-of-staff', 'member'] as const
+
 export function deserializeAttestation(base64Json: string): HostAttestation | null {
   try {
     const json = Buffer.from(base64Json, 'base64').toString()
     const parsed = JSON.parse(json)
-    // Validate required fields exist
+    // Validate required fields exist and role is a valid AgentRole value
     if (
       typeof parsed.role === 'string' &&
+      VALID_AGENT_ROLES.includes(parsed.role) &&
       typeof parsed.agentId === 'string' &&
       typeof parsed.hostId === 'string' &&
       typeof parsed.timestamp === 'string' &&

@@ -6,6 +6,7 @@
  */
 
 import type { AgentRole } from './agent'
+import type { TeamType } from './team'
 
 // Re-export TeamType from its canonical location in types/team.ts
 export type { TeamType } from './team'
@@ -76,7 +77,7 @@ export interface GovernanceSyncMessage {
 export interface PeerTeamSummary {
   id: string
   name: string
-  type: 'open' | 'closed'
+  type: TeamType
   chiefOfStaffId: string | null
   agentIds: string[]
 }

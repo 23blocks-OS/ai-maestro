@@ -12,29 +12,37 @@ import { routeMessage } from '@/services/amp-service'
 import type { AMPRouteRequest, AMPRouteResponse, AMPError } from '@/lib/types/amp'
 
 export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteResponse | AMPError>> {
-  const authHeader = request.headers.get('Authorization')
-  const forwardedFrom = request.headers.get('X-Forwarded-From')
-  const envelopeIdHeader = request.headers.get('X-AMP-Envelope-Id')
-  const signatureHeader = request.headers.get('X-AMP-Signature')
-  const contentLength = request.headers.get('Content-Length')
-
-  let body: AMPRouteRequest
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'invalid_request', message: 'Invalid JSON body' } as AMPError, { status: 400 })
-  }
+    const authHeader = request.headers.get('Authorization')
+    const forwardedFrom = request.headers.get('X-Forwarded-From')
+    const envelopeIdHeader = request.headers.get('X-AMP-Envelope-Id')
+    const signatureHeader = request.headers.get('X-AMP-Signature')
+    const contentLength = request.headers.get('Content-Length')
 
-  const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength, {
-    senderRole: request.headers.get('X-AMP-Sender-Role'),
-    senderAgentId: request.headers.get('X-AMP-Sender-Agent-Id'),
-    senderRoleAttestation: request.headers.get('X-AMP-Sender-Role-Attestation'),
-  })
-  if (result.error) {
-    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+    let body: AMPRouteRequest
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'invalid_request', message: 'Invalid JSON body' } as AMPError, { status: 400 })
+    }
+
+    const result = await routeMessage(body, authHeader, forwardedFrom, envelopeIdHeader, signatureHeader, contentLength, {
+      senderRole: request.headers.get('X-AMP-Sender-Role'),
+      senderAgentId: request.headers.get('X-AMP-Sender-Agent-Id'),
+      senderRoleAttestation: request.headers.get('X-AMP-Sender-Role-Attestation'),
+    })
+    if (result.error) {
+      return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+    }
+    return NextResponse.json(result.data, {
+      status: result.status,
+      headers: result.headers
+    })
+  } catch (error) {
+    // CC-P4-002: Top-level catch for unhandled service throws (consistent with agents/route.ts pattern)
+    return NextResponse.json(
+      { error: 'internal_error', message: error instanceof Error ? error.message : 'Internal server error' } as AMPError,
+      { status: 500 }
+    )
   }
-  return NextResponse.json(result.data, {
-    status: result.status,
-    headers: result.headers
-  })
 }

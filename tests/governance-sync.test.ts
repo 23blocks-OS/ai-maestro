@@ -45,6 +45,14 @@ vi.mock('@/lib/governance-peers', () => ({
   savePeerGovernance: (...args: unknown[]) => mockSavePeerGovernance(...args),
 }))
 
+// CC-P4-003: governance-sync imports host-keys for Ed25519 signing (SR-001).
+// Without this mock, real host-keys would try to read ~/.aimaestro/host-keys/ during tests.
+vi.mock('@/lib/host-keys', () => ({
+  signHostAttestation: vi.fn(() => 'mock-sig'),
+  getHostPublicKeyHex: vi.fn(() => 'mock-pubkey'),
+  verifyHostAttestation: vi.fn(() => true),
+}))
+
 // ============================================================================
 // Import module under test (after mocks are defined)
 // ============================================================================

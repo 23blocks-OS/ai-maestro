@@ -57,10 +57,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
 }
 
+/** Valid GovernanceRequestStatus values for query param validation (CC-P4-006) */
+const VALID_GOVERNANCE_REQUEST_STATUSES = new Set([
+  'pending', 'remote-approved', 'local-approved', 'dual-approved', 'executed', 'rejected',
+])
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const { searchParams } = new URL(request.url)
+  const searchParams = request.nextUrl.searchParams
+  // CC-P4-006: Validate status param against known values before passing through
+  const statusParam = searchParams.get('status')
+  if (statusParam && !VALID_GOVERNANCE_REQUEST_STATUSES.has(statusParam)) {
+    return NextResponse.json(
+      { error: `Invalid status value '${statusParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_STATUSES].join(', ')}` },
+      { status: 400 }
+    )
+  }
   const result = listCrossHostRequests({
-    status: (searchParams.get('status') as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+    status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
     hostId: searchParams.get('hostId') || undefined,
     agentId: searchParams.get('agentId') || undefined,
   })

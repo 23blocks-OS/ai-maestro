@@ -38,19 +38,34 @@ function ensureDir(): void {
   }
 }
 
+// CC-P4-006: In-memory cache for API keys to avoid reading the file on every auth request.
+// Invalidated on write (saveApiKeys) and expires after TTL.
+const API_KEYS_CACHE_TTL_MS = 30_000 // 30 seconds
+let _apiKeysCache: AMPApiKeyRecord[] | null = null
+let _apiKeysCacheTimestamp = 0
+
 /**
- * Load all API key records
+ * Load all API key records (uses in-memory cache with TTL)
  */
 function loadApiKeys(): AMPApiKeyRecord[] {
+  const now = Date.now()
+  if (_apiKeysCache !== null && (now - _apiKeysCacheTimestamp) < API_KEYS_CACHE_TTL_MS) {
+    return _apiKeysCache
+  }
+
   ensureDir()
 
   if (!fs.existsSync(API_KEYS_FILE)) {
+    _apiKeysCache = []
+    _apiKeysCacheTimestamp = now
     return []
   }
 
   try {
     const data = fs.readFileSync(API_KEYS_FILE, 'utf-8')
-    return JSON.parse(data) as AMPApiKeyRecord[]
+    _apiKeysCache = JSON.parse(data) as AMPApiKeyRecord[]
+    _apiKeysCacheTimestamp = now
+    return _apiKeysCache
   } catch (error) {
     console.error('[AMP Auth] Failed to load API keys:', error)
     return []
@@ -65,6 +80,9 @@ function saveApiKeys(keys: AMPApiKeyRecord[]): void {
 
   try {
     fs.writeFileSync(API_KEYS_FILE, JSON.stringify(keys, null, 2), { mode: 0o600 })
+    // CC-P4-006: Invalidate in-memory cache on write so next read picks up fresh data
+    _apiKeysCache = keys
+    _apiKeysCacheTimestamp = Date.now()
   } catch (error) {
     console.error('[AMP Auth] Failed to save API keys:', error)
     throw new Error('Failed to save API key')

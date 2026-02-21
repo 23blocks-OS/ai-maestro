@@ -97,6 +97,9 @@ function buildValidAttestation(overrides?: Partial<HostAttestation>): HostAttest
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'))
+  // CC-P4-010: Clear signatureBindings in beforeEach for complete test isolation.
+  // vi.clearAllMocks() in afterEach does NOT clear standalone Maps.
+  signatureBindings.clear()
 })
 
 afterEach(() => {

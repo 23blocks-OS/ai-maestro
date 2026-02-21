@@ -61,7 +61,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
   }
 
-  handleGovernanceSyncMessage(body.fromHostId, body)
+  // CC-P4-005: Use return value to detect silently dropped messages
+  const accepted = handleGovernanceSyncMessage(body.fromHostId, body)
+  if (!accepted) {
+    return NextResponse.json({ error: 'Message dropped: sender mismatch' }, { status: 400 })
+  }
   return NextResponse.json({ ok: true })
 }
 

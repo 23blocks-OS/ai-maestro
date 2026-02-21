@@ -58,6 +58,16 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     const hosts = getHosts()
     const targetHost = hosts.find(h => h.id === body.hostId)
     if (targetHost && !isSelf(targetHost.id)) {
+      // CC-P4-003: Validate target host URL scheme to prevent SSRF via file://, gopher://, etc.
+      let parsedHostUrl: URL
+      try {
+        parsedHostUrl = new URL(targetHost.url)
+      } catch {
+        return { error: 'Invalid host URL format in hosts config', status: 400 }
+      }
+      if (parsedHostUrl.protocol !== 'http:' && parsedHostUrl.protocol !== 'https:') {
+        return { error: 'Only http and https host URLs are allowed', status: 400 }
+      }
       try {
         const resp = await fetch(`${targetHost.url}/api/agents/docker/create`, {
           method: 'POST',
@@ -149,8 +159,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   // CC-P2-006: Validate cpus to prevent injection via numeric fields
-  // Note: body.cpus=0 defaults to 2 (via || 2 coercion); this is intentional.
-  const cpus = Number(body.cpus) || 2
+  // CC-P4-009: Use null check instead of || to avoid cpus=0 silently defaulting to 2
+  const cpus = body.cpus != null ? Number(body.cpus) : 2
   if (cpus < 1 || cpus > 16 || !Number.isInteger(cpus)) {
     return { error: 'cpus must be an integer between 1 and 16', status: 400 }
   }

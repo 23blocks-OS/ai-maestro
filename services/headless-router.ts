@@ -242,6 +242,7 @@ import {
   receiveCrossHostRequest,
   approveCrossHostRequest,
   rejectCrossHostRequest,
+  receiveRemoteRejection,
   listCrossHostRequests,
 } from '@/services/cross-host-governance-service'
 
@@ -1355,6 +1356,31 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/v1\/governance\/requests\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
+    // SR-P4-001: Accept host-signature auth as alternative for remote rejection notifications
+    const hostSignature = getHeader(req, 'X-Host-Signature')
+    const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
+    const hostId = getHeader(req, 'X-Host-Id')
+    if (hostSignature && hostTimestamp && hostId) {
+      // Remote host rejection notification — verify host signature instead of password
+      const hosts = getHosts()
+      const knownHost = hosts.find(h => h.id === hostId)
+      if (!knownHost) { sendJson(res, 403, { error: 'Unknown host' }); return }
+      if (!knownHost.publicKeyHex) { sendJson(res, 403, { error: 'Host has no registered public key' }); return }
+      const signedData = `gov-request|${hostId}|${hostTimestamp}`
+      if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+        sendJson(res, 403, { error: 'Invalid host signature' }); return
+      }
+      const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+      if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+        sendJson(res, 403, { error: 'Signature expired' }); return
+      }
+      if (!body?.rejectorAgentId) {
+        sendJson(res, 400, { error: 'Missing required field: rejectorAgentId' }); return
+      }
+      sendServiceResult(res, await receiveRemoteRejection(params.id, hostId, body.rejectorAgentId, body.reason))
+      return
+    }
+    // Local rejection — requires password
     if (!body?.rejectorAgentId || !body?.password) {
       sendJson(res, 400, { error: 'Missing required fields: rejectorAgentId, password' })
       return

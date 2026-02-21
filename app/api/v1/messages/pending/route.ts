@@ -14,7 +14,8 @@ import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
 
 export async function GET(request: NextRequest): Promise<NextResponse<AMPPendingMessagesResponse | AMPError>> {
   const authHeader = request.headers.get('Authorization')
-  const { searchParams } = new URL(request.url)
+  // CC-P4-009: Use request.nextUrl.searchParams instead of new URL(request.url) for consistency
+  const searchParams = request.nextUrl.searchParams
   const limitParam = searchParams.get('limit')
   // CC-P3-005: NaN guard — discard non-numeric limit values
   const parsed = limitParam ? parseInt(limitParam, 10) : NaN
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
 
 export async function DELETE(request: NextRequest): Promise<NextResponse<{ acknowledged: boolean } | AMPError>> {
   const authHeader = request.headers.get('Authorization')
-  const { searchParams } = new URL(request.url)
+  const searchParams = request.nextUrl.searchParams
   const messageId = searchParams.get('id')
 
   const result = acknowledgePendingMessage(authHeader, messageId)

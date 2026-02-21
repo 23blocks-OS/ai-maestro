@@ -438,15 +438,26 @@ async function findMessageInAMPDir(
 const AGENT_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 const agentAddressCache = new Map<string, { resolved: ResolvedAgent; resolvedAt: number }>()
 
+// CC-P4-005: Store interval handle so it can be cleaned up in tests or on shutdown
 // Proactive cache sweep every 5 minutes to prevent unbounded memory growth
-setInterval(() => {
+const _agentCacheSweepInterval = setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of agentAddressCache) {
     if (now - entry.resolvedAt > AGENT_CACHE_TTL_MS) {
       agentAddressCache.delete(key)
     }
   }
-}, 5 * 60 * 1000).unref()
+}, 5 * 60 * 1000)
+_agentCacheSweepInterval.unref()
+
+/**
+ * CC-P4-005: Clean up the agent address cache sweep interval.
+ * Call this on shutdown or in tests to prevent timer leaks.
+ */
+export function cleanupAgentCacheSweep(): void {
+  clearInterval(_agentCacheSweepInterval)
+  agentAddressCache.clear()
+}
 
 /**
  * Resolve an agent identifier (alias, ID, session name, or name@host) to full agent info

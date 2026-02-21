@@ -6,7 +6,7 @@
  * be approved by the source team's COS before the move takes effect.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from 'fs'
 import os from 'os'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -34,7 +34,20 @@ export function loadTransfers(): TransferRequest[] {
     // Validate requests is actually an array (matches team-registry pattern)
     return Array.isArray(data.requests) ? data.requests : []
   } catch (error) {
-    console.error('[transfer-registry] Error loading transfers:', error)
+    // Distinguish read errors from parse errors — parse errors indicate disk corruption
+    if (error instanceof SyntaxError) {
+      console.error('[transfer-registry] CORRUPTION: governance-transfers.json contains invalid JSON — returning defaults. Manual inspection required:', TRANSFERS_FILE)
+      // Backup corrupted file before returning defaults to prevent silent data loss
+      try {
+        const backupPath = TRANSFERS_FILE + '.corrupted.' + Date.now()
+        copyFileSync(TRANSFERS_FILE, backupPath)
+        console.error(`[transfer-registry] Corrupted file backed up to ${backupPath}`)
+      } catch { /* backup is best-effort */ }
+      // Heal the corrupted file by writing empty defaults, matching governance.ts pattern
+      saveTransfers([])
+    } else {
+      console.error('[transfer-registry] Error loading transfers:', error)
+    }
     return []
   }
 }

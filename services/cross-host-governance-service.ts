@@ -345,8 +345,25 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           }
           if (!team.agentIds.includes(request.payload.agentId)) {
             team.agentIds.push(request.payload.agentId)
-            saveTeams(teams)
           }
+          // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke open team memberships
+          // Mirrors team-registry.ts createTeam G4 logic (lines 289-303)
+          if (team.type === 'closed') {
+            const agentId = request.payload.agentId
+            const managerId = getManagerId()
+            // MANAGER is exempt from membership restrictions (v2 Rule 20)
+            // COS keeps open team memberships (v2 Rule 21)
+            if (agentId !== managerId && agentId !== team.chiefOfStaffId) {
+              for (const otherTeam of teams) {
+                if (otherTeam.id === team.id || otherTeam.type !== 'open') continue
+                const idx = otherTeam.agentIds.indexOf(agentId)
+                if (idx !== -1) {
+                  otherTeam.agentIds.splice(idx, 1)
+                }
+              }
+            }
+          }
+          saveTeams(teams)
           break
         }
 
@@ -369,6 +386,17 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           const team = teams.find(t => t.id === request.payload.teamId)
           if (!team) {
             console.error(`${LOG_PREFIX} Cannot execute assign-cos: team '${request.payload.teamId}' not found`)
+            return
+          }
+          // R1.8: COS can only be assigned to closed teams
+          if (team.type !== 'closed') {
+            console.error(`${LOG_PREFIX} Cannot assign COS: team '${team.id}' is not a closed team (type=${team.type})`)
+            return
+          }
+          // G3 (v2 Rule 7): An agent can only be COS of one team at a time
+          const alreadyCos = teams.find(t => t.id !== team.id && t.chiefOfStaffId === request.payload.agentId)
+          if (alreadyCos) {
+            console.error(`${LOG_PREFIX} Cannot assign COS: agent '${request.payload.agentId}' is already COS of team '${alreadyCos.id}'`)
             return
           }
           team.chiefOfStaffId = request.payload.agentId
@@ -523,4 +551,40 @@ async function notifyRemoteHostOfRejection(
   } finally {
     clearTimeout(timeout)
   }
+}
+
+// ---------------------------------------------------------------------------
+// 7. receiveRemoteRejection -- handle rejection notifications from peer hosts
+//    (SR-P4-001: separate path that uses host-signature auth instead of password)
+// ---------------------------------------------------------------------------
+
+/**
+ * Process a rejection notification from a remote host.
+ * Called after route-level host-signature verification succeeds.
+ * Does NOT require governance password (the sending host already verified authority).
+ */
+export async function receiveRemoteRejection(
+  requestId: string,
+  fromHostId: string,
+  rejectorAgentId: string,
+  reason?: string,
+): Promise<ServiceResult<GovernanceRequest>> {
+  // Load the request to validate it exists and came from the notifying host
+  const request = getGovernanceRequest(requestId)
+  if (!request) {
+    return { error: `Governance request '${requestId}' not found`, status: 404 }
+  }
+
+  // Verify the rejection notification comes from a host involved in this request
+  if (request.sourceHostId !== fromHostId && request.targetHostId !== fromHostId) {
+    return { error: 'Rejecting host is neither source nor target of this request', status: 403 }
+  }
+
+  // Record the rejection
+  const updated = await rejectGovernanceRequest(requestId, rejectorAgentId, reason)
+  if (!updated) {
+    return { error: `Failed to reject request '${requestId}'`, status: 500 }
+  }
+
+  return { data: updated, status: 200 }
 }

@@ -171,13 +171,13 @@ export async function broadcastGovernanceSync(
 export function handleGovernanceSyncMessage(
   fromHostId: string,
   message: GovernanceSyncMessage
-): void {
+): boolean {
   // Validate that the declared sender matches the message envelope
   if (fromHostId !== message.fromHostId) {
     console.error(
       `[governance-sync] Sender mismatch: request says "${fromHostId}" but message says "${message.fromHostId}" — ignoring`
     )
-    return
+    return false
   }
 
   // Extract the full snapshot from the payload
@@ -204,6 +204,8 @@ export function handleGovernanceSyncMessage(
   console.log(
     `[governance-sync] Updated peer state for ${fromHostId}: type=${message.type}, manager=${managerId ?? 'none'}, teams=${peerState.teams.length}`
   )
+
+  return true
 }
 
 /**

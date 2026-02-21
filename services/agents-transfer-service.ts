@@ -1013,6 +1013,29 @@ export async function transferAgent(
   }
   normalizedUrl = normalizedUrl.replace(/\/+$/, '')
 
+  // CC-P4-004: Validate normalizedUrl scheme and verify it matches a known host to prevent SSRF
+  let parsedTargetUrl: URL
+  try {
+    parsedTargetUrl = new URL(normalizedUrl)
+  } catch {
+    return { error: 'Invalid target host URL format', status: 400 }
+  }
+  if (parsedTargetUrl.protocol !== 'http:' && parsedTargetUrl.protocol !== 'https:') {
+    return { error: 'Only http and https target URLs are allowed', status: 400 }
+  }
+  // Verify the target hostname matches a known host from hosts.json
+  const { getHosts } = await import('@/lib/hosts-config')
+  const knownHosts = getHosts()
+  const isKnownTarget = knownHosts.some(host => {
+    try {
+      const hostUrl = new URL(host.url)
+      return hostUrl.hostname === parsedTargetUrl.hostname && hostUrl.port === parsedTargetUrl.port
+    } catch { return false }
+  })
+  if (!isKnownTarget) {
+    return { error: 'Target URL does not match any known host in hosts.json', status: 403 }
+  }
+
   // Step 1: Export the agent
   const selfHost = getSelfHost()
   const exportResponse = await fetch(`${selfHost.url}/api/agents/${agent.id}/export`)

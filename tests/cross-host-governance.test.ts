@@ -22,10 +22,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockVerifyPassword = vi.fn()
 const mockIsManager = vi.fn()
 const mockIsChiefOfStaffAnywhere = vi.fn()
+const mockGetManagerId = vi.fn()
 vi.mock('@/lib/governance', () => ({
   verifyPassword: (...args: unknown[]) => mockVerifyPassword(...args),
   isManager: (...args: unknown[]) => mockIsManager(...args),
   isChiefOfStaffAnywhere: (...args: unknown[]) => mockIsChiefOfStaffAnywhere(...args),
+  getManagerId: (...args: unknown[]) => mockGetManagerId(...args),
 }))
 
 const mockGetAgent = vi.fn()
@@ -144,6 +146,7 @@ beforeEach(() => {
   mockVerifyPassword.mockResolvedValue(false)
   mockIsManager.mockReturnValue(false)
   mockIsChiefOfStaffAnywhere.mockReturnValue(false)
+  mockGetManagerId.mockReturnValue('manager-agent')
   mockGetAgent.mockReturnValue(null)
   mockCreateGovernanceRequest.mockResolvedValue(makeGovernanceRequest())
   mockGetGovernanceRequest.mockReturnValue(null)
@@ -287,10 +290,8 @@ describe('submitCrossHostRequest', () => {
 
     await submitCrossHostRequest(baseParams)
 
-    // Allow the fire-and-forget promise to settle
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
     const [url, opts] = fetchSpy.mock.calls[0]
     expect(url).toBe('http://10.0.0.5:23000/api/v1/governance/requests')
     expect(opts.method).toBe('POST')
@@ -314,12 +315,10 @@ describe('submitCrossHostRequest', () => {
     expect(result.status).toBe(201)
     expect(result.data).toEqual(expectedRequest)
 
-    // Wait for the fire-and-forget catch handler
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('Failed to send request')
-    )
+    ))
     consoleSpy.mockRestore()
   })
 })
@@ -552,10 +551,8 @@ describe('rejectCrossHostRequest', () => {
 
     await rejectCrossHostRequest('req-001', 'manager-agent', 'correct', 'Denied')
 
-    // Wait for fire-and-forget notification
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
     const [url, opts] = fetchSpy.mock.calls[0]
     expect(url).toBe('http://10.0.0.5:23000/api/v1/governance/requests/req-001/reject')
     expect(opts.method).toBe('POST')

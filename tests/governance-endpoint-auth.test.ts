@@ -72,9 +72,18 @@ vi.mock('@/lib/file-lock', () => ({
   withLock: vi.fn(),
 }))
 
-// Intentional: Uses real broadcastGovernanceSync to test Ed25519 header signing end-to-end.
+// CC-P4-005: Intentional end-to-end mock strategy for broadcastGovernanceSync.
+// Uses real broadcastGovernanceSync to test Ed25519 header signing end-to-end.
 // This mock keeps real exports while mocking sub-dependencies (governance-sync internals).
-// If broadcastGovernanceSync internals change, update the sub-dependency mocks accordingly.
+//
+// Sub-dependencies of governance-sync that MUST be mocked for this to work:
+//   - @/lib/host-keys        (signHostAttestation, getHostPublicKeyHex) — Ed25519 signing
+//   - @/lib/hosts-config     (getHosts, getSelfHostId, isSelf) — peer host discovery
+//   - @/lib/governance       (getManagerId) — manager resolution for snapshot
+//   - @/lib/governance-peers (savePeerGovernance) — peer state persistence
+//   - @/lib/team-registry    (loadTeams) — team snapshot data
+//   - @/lib/agent-registry   (getAgent) — manager name resolution
+// If broadcastGovernanceSync adds new imports, add the corresponding mocks above.
 vi.mock('@/lib/governance-sync', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>
   return {
@@ -199,10 +208,8 @@ describe('SR-001: cross-host governance service signs outbound requests', () => 
       password: 'test-pw',
     })
 
-    // Wait for fire-and-forget fetch
-    await new Promise(r => setTimeout(r, 50))
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
     const fetchCall = mockFetch.mock.calls[0]
     const headers = fetchCall[1].headers
 
@@ -236,10 +243,8 @@ describe('SR-001: cross-host governance service signs outbound requests', () => 
       password: 'test-pw',
     })
 
-    // Wait for fire-and-forget fetch
-    await new Promise(r => setTimeout(r, 50))
-
-    expect(mockSignHostAttestation).toHaveBeenCalled()
+    // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    await vi.waitFor(() => expect(mockSignHostAttestation).toHaveBeenCalled())
     const signedData = mockSignHostAttestation.mock.calls[0][0] as string
     expect(signedData).toMatch(/^gov-request\|/)
   })

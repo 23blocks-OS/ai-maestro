@@ -31,6 +31,14 @@ import type { Message } from '@/lib/messageQueue'
 // Re-export Message type for consumers
 export type { Message } from '@/lib/messageQueue'
 
+/**
+ * CC-P4-008: Well-known sentinel value for senderPublicKeyHex when the sender is a
+ * verified local agent (already authenticated via the internal registry) and no
+ * actual Ed25519 public key is available. Used by deliver() to preserve the trust
+ * level without requiring a real cryptographic key for local-to-local messages.
+ */
+export const VERIFIED_LOCAL_SENDER = 'verified-local-sender' as const
+
 interface ResolvedAgent {
   agentId: string
   alias: string
@@ -349,7 +357,7 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
       const { envelope, payload } = buildAMPEnvelope(message)
       const recipientName = toResolved.alias || toResolved.agentId
       // Pass senderPublicKeyHex when sender is verified so deliver() preserves trust level
-      const senderPubKey = isFromVerified ? (options.amp?.senderPublicKey || 'verified') : undefined
+      const senderPubKey = isFromVerified ? (options.amp?.senderPublicKey || VERIFIED_LOCAL_SENDER) : undefined
       const result = await deliver({
         envelope,
         payload,
@@ -568,7 +576,7 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
         envelope,
         payload,
         recipientAgentName: recipientName,
-        senderPublicKeyHex: 'verified',  // Forwards are always from a local verified agent
+        senderPublicKeyHex: VERIFIED_LOCAL_SENDER,  // CC-P4-008: Forwards are always from a local verified agent
         senderName: fromResolved.alias || fromResolved.agentId,
         senderHost: fromHostId,
         recipientAgentId: toResolved.agentId,

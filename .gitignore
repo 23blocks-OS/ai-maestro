@@ -149,3 +149,6 @@ docs/BACKLOG-AGENTS-MARKETPLACE.md
 
 # Agent-specific avatar files (only library files should be committed)
 public/avatars/*_enhanced.png
+
+# Claude Code local data (chat history, cache, plugins, settings)
+.claude/

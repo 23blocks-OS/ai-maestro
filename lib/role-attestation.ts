@@ -6,7 +6,7 @@
  * can trust it. The attestation proves that agentId has the given role on the
  * originating host, signed by that host's Ed25519 private key.
  *
- * Data format signed: "role|agentId|hostId|timestamp"
+ * Data format signed: "role|agentId|hostId|timestamp[|recipientHostId]"
  */
 
 import { signHostAttestation, verifyHostAttestation } from '@/lib/host-keys'
@@ -19,10 +19,13 @@ const ATTESTATION_MAX_AGE_MS = 5 * 60 * 1000
 
 /**
  * Build the canonical data string that gets signed/verified.
- * Format: "role|agentId|hostId|timestamp"
+ * Format: "role|agentId|hostId|timestamp" or "role|agentId|hostId|timestamp|recipientHostId"
+ * The recipientHostId suffix binds the attestation to a specific target host,
+ * preventing cross-target replay attacks.
  */
-function buildAttestationData(attestation: Pick<HostAttestation, 'role' | 'agentId' | 'hostId' | 'timestamp'>): string {
-  return `${attestation.role}|${attestation.agentId}|${attestation.hostId}|${attestation.timestamp}`
+function buildAttestationData(attestation: Pick<HostAttestation, 'role' | 'agentId' | 'hostId' | 'timestamp' | 'recipientHostId'>): string {
+  const base = `${attestation.role}|${attestation.agentId}|${attestation.hostId}|${attestation.timestamp}`
+  return attestation.recipientHostId ? `${base}|${attestation.recipientHostId}` : base
 }
 
 /**
@@ -30,22 +33,29 @@ function buildAttestationData(attestation: Pick<HostAttestation, 'role' | 'agent
  * The attestation proves that agentId has the given role on this host,
  * signed by the host's Ed25519 private key.
  *
- * Data format signed: "role|agentId|hostId|timestamp"
+ * Data format signed: "role|agentId|hostId|timestamp[|recipientHostId]"
+ * When recipientHostId is provided, the attestation is bound to that specific
+ * target host, preventing cross-target replay attacks.
  */
-export function createRoleAttestation(agentId: string, role: AgentRole): HostAttestation {
+export function createRoleAttestation(agentId: string, role: AgentRole, recipientHostId?: string): HostAttestation {
   const hostId = getSelfHostId()
   const timestamp = new Date().toISOString()
 
-  const data = buildAttestationData({ role, agentId, hostId, timestamp })
+  const data = buildAttestationData({ role, agentId, hostId, timestamp, recipientHostId })
   const signature = signHostAttestation(data)
 
-  return {
+  const attestation: HostAttestation = {
     role,
     agentId,
     hostId,
     timestamp,
     signature,
   }
+  // Only include recipientHostId when provided, keeping backward compatibility
+  if (recipientHostId) {
+    attestation.recipientHostId = recipientHostId
+  }
+  return attestation
 }
 
 /**

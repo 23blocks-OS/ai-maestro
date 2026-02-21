@@ -131,8 +131,8 @@ export async function setGovernancePassword(params: {
     }
 
     if (!currentPassword || typeof currentPassword !== 'string') {
-      recordFailure('governance-password-change')
-      return { error: 'Invalid current password', status: 400 }
+      // Missing password is a client error (400), not an auth failure — don't count toward rate limit
+      return { error: 'currentPassword is required when changing an existing password', status: 400 }
     }
     if (!(await verifyPassword(currentPassword))) {
       recordFailure('governance-password-change')

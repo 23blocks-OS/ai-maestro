@@ -19,11 +19,12 @@ export type GovernanceRequestType =
   | 'delete-agent'
   | 'configure-agent'
 
-/** Status progression: pending -> remote-approved/local-approved -> executed/rejected */
+/** Status progression: pending -> remote-approved/local-approved/dual-approved -> executed/rejected */
 export type GovernanceRequestStatus =
   | 'pending'
   | 'remote-approved'
   | 'local-approved'
+  | 'dual-approved'
   | 'executed'
   | 'rejected'
 

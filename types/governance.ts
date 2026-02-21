@@ -100,4 +100,5 @@ export interface HostAttestation {
   hostId: string
   timestamp: string  // ISO
   signature: string  // base64
+  recipientHostId?: string  // Binds attestation to intended recipient, prevents cross-target replay
 }

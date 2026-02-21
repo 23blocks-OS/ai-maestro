@@ -79,10 +79,10 @@ function loadKeyPairFromDisk(): { publicKeyHex: string; privateKeyHex: string } 
   const privateKeyHex = fs.readFileSync(PRIVATE_KEY_PATH, 'utf-8').trim()
   const publicKeyHex = fs.readFileSync(PUBLIC_KEY_PATH, 'utf-8').trim()
 
-  // Sanity check: Ed25519 DER-encoded keys have known lengths
+  // Sanity check: Ed25519 DER-encoded keys have exact lengths
   // PKCS8 private DER = 48 bytes = 96 hex chars
   // SPKI public DER = 44 bytes = 88 hex chars
-  if (privateKeyHex.length < 90 || publicKeyHex.length < 80) {
+  if (privateKeyHex.length !== 96 || publicKeyHex.length !== 88) {
     console.error('[host-keys] Key files exist but appear corrupt (unexpected length), regenerating')
     return null
   }

@@ -180,9 +180,11 @@ export async function approveGovernanceRequest(
     } else if (hasAnyTargetApproval && !hasAnySourceApproval) {
       // Only target side approved
       request.status = 'local-approved'
+    } else if (hasAnySourceApproval && hasAnyTargetApproval) {
+      // Both sides have at least COS approval but not both managers yet
+      request.status = 'dual-approved'
     }
-    // If both sides have some approval but not both managers, keep current status
-    // (could be remote-approved or local-approved from prior step)
+    // If none of the above matched, keep current status
 
     saveGovernanceRequests(file)
     return request
@@ -231,5 +233,29 @@ export async function executeGovernanceRequest(
 
     saveGovernanceRequests(file)
     return request
+  })
+}
+
+/**
+ * Remove governance requests in terminal states (executed, rejected) that are older
+ * than the specified age. Prevents unbounded growth of governance-requests.json.
+ */
+export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number> {
+  return withLock('governance-requests', () => {
+    const file = loadGovernanceRequests()
+    const cutoff = Date.now() - maxAgeDays * 86_400_000
+    const before = file.requests.length
+
+    const filtered = file.requests.filter((r) => {
+      if (r.status !== 'executed' && r.status !== 'rejected') return true
+      const updatedAt = new Date(r.updatedAt).getTime()
+      return updatedAt > cutoff
+    })
+
+    if (filtered.length < before) {
+      saveGovernanceRequests({ ...file, requests: filtered })
+    }
+
+    return before - filtered.length
   })
 }

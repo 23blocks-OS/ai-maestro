@@ -218,9 +218,21 @@ export async function requestPeerSync(hostUrl: string): Promise<GovernancePeerSt
 
   try {
     const url = `${hostUrl}/api/v1/governance/sync`
+
+    // SR-P2-002: Include Ed25519 signature headers for the now-protected GET endpoint
+    const selfHostId = getSelfHostId()
+    const timestamp = new Date().toISOString()
+    const signedData = `gov-sync-read|${selfHostId}|${timestamp}`
+    const signature = signHostAttestation(signedData)
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        'X-Host-Id': selfHostId,
+        'X-Host-Timestamp': timestamp,
+        'X-Host-Signature': signature,
+      },
       signal: controller.signal,
     })
 

@@ -138,6 +138,7 @@ export async function createGovernanceRequest(params: {
  *
  * Approval logic:
  * - If sourceManager AND targetManager both approved -> status = 'executed' (auto-execute)
+ * - If both sides have COS approval but not both managers -> status = 'dual-approved'
  * - If only source side approved (sourceCOS or sourceManager) -> status = 'remote-approved'
  * - If only target side approved (targetCOS or targetManager) -> status = 'local-approved'
  */

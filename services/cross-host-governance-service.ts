@@ -50,7 +50,7 @@ export async function submitCrossHostRequest(params: {
   note?: string
 }): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-governance-auth')
+  const rateCheck = checkRateLimit('cross-host-gov-submit')
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -58,10 +58,10 @@ export async function submitCrossHostRequest(params: {
 
   // Verify governance password
   if (!(await verifyPassword(params.password))) {
-    recordFailure('cross-host-governance-auth')
+    recordFailure('cross-host-gov-submit')
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-governance-auth')
+  resetRateLimit('cross-host-gov-submit')
 
   // Validate that the requesting agent exists locally
   const agent = getAgent(params.requestedBy)
@@ -195,7 +195,7 @@ export async function approveCrossHostRequest(
   password: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-governance-auth')
+  const rateCheck = checkRateLimit('cross-host-gov-approve')
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -203,10 +203,10 @@ export async function approveCrossHostRequest(
 
   // Verify governance password
   if (!(await verifyPassword(password))) {
-    recordFailure('cross-host-governance-auth')
+    recordFailure('cross-host-gov-approve')
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-governance-auth')
+  resetRateLimit('cross-host-gov-approve')
 
   // Load the request
   const request = getGovernanceRequest(requestId)
@@ -261,7 +261,7 @@ export async function rejectCrossHostRequest(
   reason?: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-governance-auth')
+  const rateCheck = checkRateLimit('cross-host-gov-reject')
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -269,10 +269,10 @@ export async function rejectCrossHostRequest(
 
   // Verify governance password
   if (!(await verifyPassword(password))) {
-    recordFailure('cross-host-governance-auth')
+    recordFailure('cross-host-gov-reject')
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-governance-auth')
+  resetRateLimit('cross-host-gov-reject')
 
   // Validate rejector is MANAGER or COS
   if (!isManager(rejectorAgentId) && !isChiefOfStaffAnywhere(rejectorAgentId)) {

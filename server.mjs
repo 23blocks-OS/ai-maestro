@@ -1181,6 +1181,27 @@ async function startServer(handleRequest) {
     // To manually trigger indexing, call /api/agents/{id}/index-delta
     console.log('[AgentStartup] Startup indexing disabled - agents will initialize on-demand')
 
+    // Purge expired governance requests on startup, then every 24 hours
+    try {
+      const { purgeOldRequests } = await import('./lib/governance-request-registry.ts')
+      const purged = await purgeOldRequests()
+      if (purged > 0) {
+        console.log(`[Governance] Purged ${purged} expired request(s) on startup`)
+      }
+      setInterval(async () => {
+        try {
+          const count = await purgeOldRequests()
+          if (count > 0) {
+            console.log(`[Governance] Purged ${count} expired request(s)`)
+          }
+        } catch (err) {
+          console.error('[Governance] Periodic purge failed:', err.message)
+        }
+      }, 24 * 60 * 60 * 1000) // 24 hours
+    } catch (error) {
+      console.error('[Governance] Failed to initialize request purge:', error.message)
+    }
+
     // Start periodic orphaned PTY cleanup to prevent leaks
     startOrphanedPtyCleanup()
   })

@@ -13,7 +13,7 @@
 import type { ServiceResult } from '@/services/governance-service'
 import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload } from '@/types/governance-request'
 import type { AgentRole } from '@/types/agent'
-import { verifyPassword, isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { verifyPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
 import { getHosts, getSelfHostId, isSelf, getHostById } from '@/lib/hosts-config'
 import {
@@ -22,6 +22,8 @@ import {
   listGovernanceRequests,
   approveGovernanceRequest,
   rejectGovernanceRequest,
+  loadGovernanceRequests,
+  saveGovernanceRequests,
 } from '@/lib/governance-request-registry'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
 import { signHostAttestation } from '@/lib/host-keys'
@@ -142,9 +144,6 @@ export async function receiveCrossHostRequest(
   // Store locally using the same ID from the remote request
   // Re-create via createGovernanceRequest to get proper file-locking and persistence
   // Note: createGovernanceRequest generates a new UUID; we store the remote request directly instead
-  const { loadGovernanceRequests, saveGovernanceRequests } = await import('@/lib/governance-request-registry')
-  const { withLock } = await import('@/lib/file-lock')
-
   await withLock('governance-requests', () => {
     const file = loadGovernanceRequests()
 
@@ -170,7 +169,7 @@ export async function receiveCrossHostRequest(
   if (shouldAutoApprove(request)) {
     console.log(`${LOG_PREFIX} Auto-approving request ${request.id} from trusted manager on host ${fromHostId}`)
     // Auto-approve as targetManager (we are the target host)
-    const localManagerId = (await import('@/lib/governance')).getManagerId()
+    const localManagerId = getManagerId()
     if (localManagerId) {
       const approvedRequest = await approveGovernanceRequest(request.id, localManagerId, 'targetManager')
       if (approvedRequest?.status === 'executed') {

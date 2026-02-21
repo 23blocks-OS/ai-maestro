@@ -16,7 +16,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   const authHeader = request.headers.get('Authorization')
   const { searchParams } = new URL(request.url)
   const limitParam = searchParams.get('limit')
-  const limit = limitParam ? parseInt(limitParam, 10) : undefined
+  // CC-P3-005: NaN guard — discard non-numeric limit values
+  const parsed = limitParam ? parseInt(limitParam, 10) : NaN
+  const limit = Number.isNaN(parsed) ? undefined : parsed
 
   const result = listPendingMessages(authHeader, limit)
   if (result.error) {

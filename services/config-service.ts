@@ -511,6 +511,7 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
     let ptyProcesses: { command: string; count: number }[] = []
 
     try {
+      // Safe: fixed command strings with no user input; shell piping required for data processing
       const limitOutput = execSync('sysctl -n kern.tty.ptmx_max 2>/dev/null || echo 511', { encoding: 'utf8' })
       ptyLimit = parseInt(limitOutput.trim()) || 511
 

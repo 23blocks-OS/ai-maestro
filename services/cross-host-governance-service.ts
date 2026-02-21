@@ -10,7 +10,8 @@
  * All public functions return ServiceResult<T> for uniform error handling by API routes.
  */
 
-import type { ServiceResult } from '@/types/service'
+import { ServiceResult } from '@/types/service'
+export type { ServiceResult }
 import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload } from '@/types/governance-request'
 import type { AgentRole } from '@/types/agent'
 import { verifyPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'

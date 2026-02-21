@@ -174,7 +174,7 @@ function isSessionIdle(sessionName: string): boolean {
   return (Date.now() - activity) > IDLE_THRESHOLD_MS
 }
 
-/** Sanitize shell arguments: only allow safe CLI flag characters */
+/** Strips unsafe characters from CLI arguments. Allows: a-z A-Z 0-9 space - _ . = / : , ~ @ */
 function sanitizeArgs(args: string): string {
   return args.replace(/[^a-zA-Z0-9\s\-_.=/:,~@]/g, '').trim()
 }

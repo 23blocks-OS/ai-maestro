@@ -18,7 +18,8 @@ export async function GET(
     const { id: agentId } = await params
     const searchParams = request.nextUrl.searchParams
     const since = searchParams.get('since')
-    const limit = parseInt(searchParams.get('limit') || '100', 10)
+    // CC-P3-004: NaN guard — fall back to 100 if parseInt yields NaN
+    const limit = parseInt(searchParams.get('limit') || '100', 10) || 100
 
     const result = await getConversationMessages(agentId, { since, limit })
     if (result.error) {

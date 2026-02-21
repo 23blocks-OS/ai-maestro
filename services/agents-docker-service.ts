@@ -93,6 +93,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     )
     const usedPorts = new Set<number>()
     // CC-P1-523: Anchor regex to match port after colon to avoid matching IP octets
+    // Matches Docker port formats: 0.0.0.0:23001->23000/tcp, :::23001->23000/tcp, 23001->23000/tcp
     const portRegex = /(?:^|:)(\d+)->23000/g
     let match
     while ((match = portRegex.exec(portsOutput)) !== null) {
@@ -127,6 +128,8 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     aiTool += ` --model ${body.model}`
   }
   if (body.prompt) {
+    // Shell-style escaping for prompt: the container's entrypoint evaluates AI_TOOL through a shell,
+    // so single-quote escaping is needed despite execFileAsync not using a shell on the host side.
     const escapedPrompt = body.prompt.replace(/'/g, "'\\''")
     aiTool += ` -p '${escapedPrompt}'`
   }
@@ -146,6 +149,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   }
 
   // CC-P2-006: Validate cpus to prevent injection via numeric fields
+  // Note: body.cpus=0 defaults to 2 (via || 2 coercion); this is intentional.
   const cpus = Number(body.cpus) || 2
   if (cpus < 1 || cpus > 16 || !Number.isInteger(cpus)) {
     return { error: 'cpus must be an integer between 1 and 16', status: 400 }

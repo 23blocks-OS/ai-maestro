@@ -80,7 +80,7 @@ function getHostName(): string {
  * CC-P1-403: Sign mesh-forwarded envelope payload with the host's Ed25519 key.
  * Remote hosts reject unsigned mesh-forwarded messages (MF-01 in amp-service.ts).
  * Since web UI messages have no agent private key, we sign with the host key instead.
- * Returns base64 signature or 'unsigned' if signing fails (e.g. no host key pair).
+ * Returns base64 signature or empty string if signing fails (e.g. no host key pair).
  */
 function signMeshPayload(envelopeId: string, from: string, to: string, subject: string): string {
   try {

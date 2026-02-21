@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -56,6 +56,14 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             <Users className="w-3.5 h-3.5" />
             Meeting
+          </a>
+          <a
+            href="/plugin-builder"
+            className="text-sm px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Plugin Builder"
+          >
+            <Puzzle className="w-3.5 h-3.5" />
+            Plugins
           </a>
           <a
             href={zoomUrl}

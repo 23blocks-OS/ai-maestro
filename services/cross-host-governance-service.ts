@@ -22,9 +22,9 @@ import {
   listGovernanceRequests,
   approveGovernanceRequest,
   rejectGovernanceRequest,
-  executeGovernanceRequest,
 } from '@/lib/governance-request-registry'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
+import { withLock } from '@/lib/file-lock'
 import { loadTeams, saveTeams } from '@/lib/team-registry'
 import { shouldAutoApprove } from '@/lib/manager-trust'
 
@@ -117,6 +117,11 @@ export async function receiveCrossHostRequest(
     return { error: 'Invalid governance request: missing id, type, or payload.agentId', status: 400 }
   }
 
+  // CC-008: Validate that the request's sourceHostId matches the actual sender
+  if (request.sourceHostId !== fromHostId) {
+    return { error: 'Source host ID in request does not match sender', status: 400 }
+  }
+
   // Store locally using the same ID from the remote request
   // Re-create via createGovernanceRequest to get proper file-locking and persistence
   // Note: createGovernanceRequest generates a new UUID; we store the remote request directly instead
@@ -188,14 +193,19 @@ export async function approveCrossHostRequest(
   const isOnSourceHost = request.sourceHostId === selfHostId
   const isOnTargetHost = request.targetHostId === selfHostId
 
+  // CC-010: Reject if this host is neither source nor target of the request
+  if (!isOnSourceHost && !isOnTargetHost) {
+    return { error: 'This host is neither source nor target of this request', status: 400 }
+  }
+
   let approverType: 'sourceCOS' | 'sourceManager' | 'targetCOS' | 'targetManager'
 
   if (isManager(approverAgentId)) {
-    // Approver is the MANAGER
-    approverType = isOnSourceHost ? 'sourceManager' : isOnTargetHost ? 'targetManager' : 'sourceManager'
+    // Approver is the MANAGER — host role is guaranteed by the guard above
+    approverType = isOnSourceHost ? 'sourceManager' : 'targetManager'
   } else if (isChiefOfStaffAnywhere(approverAgentId)) {
-    // Approver is a COS
-    approverType = isOnSourceHost ? 'sourceCOS' : isOnTargetHost ? 'targetCOS' : 'sourceCOS'
+    // Approver is a COS — host role is guaranteed by the guard above
+    approverType = isOnSourceHost ? 'sourceCOS' : 'targetCOS'
   } else {
     return { error: 'Only MANAGER or Chief of Staff can approve governance requests', status: 403 }
   }
@@ -269,89 +279,91 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
   console.log(`${LOG_PREFIX} Executing request ${request.id} (type=${request.type})`)
 
   try {
-    switch (request.type) {
-      case 'add-to-team': {
-        // Add the agent to the target team
-        const teams = loadTeams()
-        const team = teams.find(t => t.id === request.payload.teamId)
-        if (!team) {
-          console.error(`${LOG_PREFIX} Cannot execute add-to-team: team '${request.payload.teamId}' not found`)
-          return
+    // CC-002: Acquire the teams lock for the entire mutation to prevent concurrent corruption
+    await withLock('teams', async () => {
+      switch (request.type) {
+        case 'add-to-team': {
+          // Add the agent to the target team
+          const teams = loadTeams()
+          const team = teams.find(t => t.id === request.payload.teamId)
+          if (!team) {
+            console.error(`${LOG_PREFIX} Cannot execute add-to-team: team '${request.payload.teamId}' not found`)
+            return
+          }
+          if (!team.agentIds.includes(request.payload.agentId)) {
+            team.agentIds.push(request.payload.agentId)
+            saveTeams(teams)
+          }
+          break
         }
-        if (!team.agentIds.includes(request.payload.agentId)) {
-          team.agentIds.push(request.payload.agentId)
+
+        case 'remove-from-team': {
+          // Remove the agent from the target team
+          const teams = loadTeams()
+          const team = teams.find(t => t.id === request.payload.teamId)
+          if (!team) {
+            console.error(`${LOG_PREFIX} Cannot execute remove-from-team: team '${request.payload.teamId}' not found`)
+            return
+          }
+          team.agentIds = team.agentIds.filter(id => id !== request.payload.agentId)
           saveTeams(teams)
+          break
         }
-        break
-      }
 
-      case 'remove-from-team': {
-        // Remove the agent from the target team
-        const teams = loadTeams()
-        const team = teams.find(t => t.id === request.payload.teamId)
-        if (!team) {
-          console.error(`${LOG_PREFIX} Cannot execute remove-from-team: team '${request.payload.teamId}' not found`)
+        case 'assign-cos': {
+          // Set the chiefOfStaffId on the target team
+          const teams = loadTeams()
+          const team = teams.find(t => t.id === request.payload.teamId)
+          if (!team) {
+            console.error(`${LOG_PREFIX} Cannot execute assign-cos: team '${request.payload.teamId}' not found`)
+            return
+          }
+          team.chiefOfStaffId = request.payload.agentId
+          // Ensure the COS is also in agentIds (R4.6: COS must be a member)
+          if (!team.agentIds.includes(request.payload.agentId)) {
+            team.agentIds.push(request.payload.agentId)
+          }
+          saveTeams(teams)
+          break
+        }
+
+        case 'remove-cos': {
+          // Clear the chiefOfStaffId on the target team
+          const teams = loadTeams()
+          const team = teams.find(t => t.id === request.payload.teamId)
+          if (!team) {
+            console.error(`${LOG_PREFIX} Cannot execute remove-cos: team '${request.payload.teamId}' not found`)
+            return
+          }
+          team.chiefOfStaffId = null
+          saveTeams(teams)
+          break
+        }
+
+        case 'transfer-agent': {
+          // Move agent between teams: remove from source, add to destination
+          const teams = loadTeams()
+          const fromTeam = request.payload.fromTeamId ? teams.find(t => t.id === request.payload.fromTeamId) : null
+          const toTeam = request.payload.toTeamId ? teams.find(t => t.id === request.payload.toTeamId) : null
+
+          if (fromTeam) {
+            fromTeam.agentIds = fromTeam.agentIds.filter(id => id !== request.payload.agentId)
+          }
+          if (toTeam && !toTeam.agentIds.includes(request.payload.agentId)) {
+            toTeam.agentIds.push(request.payload.agentId)
+          }
+          saveTeams(teams)
+          break
+        }
+
+        default:
+          // Other types (create-agent, delete-agent, configure-agent) are not yet implemented
+          console.warn(`${LOG_PREFIX} Request type '${request.type}' execution is not yet implemented`)
           return
-        }
-        team.agentIds = team.agentIds.filter(id => id !== request.payload.agentId)
-        saveTeams(teams)
-        break
       }
+    })
 
-      case 'assign-cos': {
-        // Set the chiefOfStaffId on the target team
-        const teams = loadTeams()
-        const team = teams.find(t => t.id === request.payload.teamId)
-        if (!team) {
-          console.error(`${LOG_PREFIX} Cannot execute assign-cos: team '${request.payload.teamId}' not found`)
-          return
-        }
-        team.chiefOfStaffId = request.payload.agentId
-        // Ensure the COS is also in agentIds (R4.6: COS must be a member)
-        if (!team.agentIds.includes(request.payload.agentId)) {
-          team.agentIds.push(request.payload.agentId)
-        }
-        saveTeams(teams)
-        break
-      }
-
-      case 'remove-cos': {
-        // Clear the chiefOfStaffId on the target team
-        const teams = loadTeams()
-        const team = teams.find(t => t.id === request.payload.teamId)
-        if (!team) {
-          console.error(`${LOG_PREFIX} Cannot execute remove-cos: team '${request.payload.teamId}' not found`)
-          return
-        }
-        team.chiefOfStaffId = null
-        saveTeams(teams)
-        break
-      }
-
-      case 'transfer-agent': {
-        // Move agent between teams: remove from source, add to destination
-        const teams = loadTeams()
-        const fromTeam = request.payload.fromTeamId ? teams.find(t => t.id === request.payload.fromTeamId) : null
-        const toTeam = request.payload.toTeamId ? teams.find(t => t.id === request.payload.toTeamId) : null
-
-        if (fromTeam) {
-          fromTeam.agentIds = fromTeam.agentIds.filter(id => id !== request.payload.agentId)
-        }
-        if (toTeam && !toTeam.agentIds.includes(request.payload.agentId)) {
-          toTeam.agentIds.push(request.payload.agentId)
-        }
-        saveTeams(teams)
-        break
-      }
-
-      default:
-        // Other types (create-agent, delete-agent, configure-agent) are not yet implemented
-        console.warn(`${LOG_PREFIX} Request type '${request.type}' execution is not yet implemented`)
-        return
-    }
-
-    // Mark the request as executed in the registry
-    await executeGovernanceRequest(request.id)
+    // CC-003: Removed redundant executeGovernanceRequest call — caller already set status to 'executed'
 
     // Broadcast the governance state change to all peers
     broadcastGovernanceSync('team-updated', { requestId: request.id, type: request.type }).catch(() => {})

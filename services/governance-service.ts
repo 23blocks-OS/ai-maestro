@@ -513,10 +513,18 @@ export async function removeTrust(
     return { error: 'Governance password not set', status: 400 }
   }
 
+  // Rate-limit password attempts to prevent brute-force (CC-004 fix)
+  const rateCheck = checkRateLimit('governance-trust-auth')
+  if (!rateCheck.allowed) {
+    return { error: `Too many failed attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
+  }
+
   const valid = await verifyPassword(password)
   if (!valid) {
+    recordFailure('governance-trust-auth')
     return { error: 'Invalid governance password', status: 401 }
   }
+  resetRateLimit('governance-trust-auth')
 
   const removed = await removeTrustedManager(hostId)
   if (!removed) {

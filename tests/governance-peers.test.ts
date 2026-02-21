@@ -38,6 +38,13 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn((filePath: string, data: string) => {
     fsStore[filePath] = data
   }),
+  renameSync: vi.fn((oldPath: string, newPath: string) => {
+    // Atomic write support: move tmp file to final destination in the in-memory store
+    if (oldPath in fsStore) {
+      fsStore[newPath] = fsStore[oldPath]
+      delete fsStore[oldPath]
+    }
+  }),
   readdirSync: vi.fn((dirPath: string) => {
     // Return filenames whose full path starts with dirPath
     const prefix = dirPath.endsWith('/') ? dirPath : dirPath + '/'
@@ -58,6 +65,12 @@ vi.mock('fs', () => ({
     }),
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
+    }),
+    renameSync: vi.fn((oldPath: string, newPath: string) => {
+      if (oldPath in fsStore) {
+        fsStore[newPath] = fsStore[oldPath]
+        delete fsStore[oldPath]
+      }
     }),
     readdirSync: vi.fn((dirPath: string) => {
       const prefix = dirPath.endsWith('/') ? dirPath : dirPath + '/'

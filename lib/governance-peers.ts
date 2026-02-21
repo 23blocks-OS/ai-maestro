@@ -6,13 +6,14 @@
  * No HTTP calls -- this module is purely file-based cache management.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync, renameSync } from 'fs'
+import os from 'os'
 import path from 'path'
 import type { GovernancePeerState, PeerTeamSummary } from '@/types/governance'
 import { isManager, getManagerId } from '@/lib/governance'
 import { loadTeams } from '@/lib/team-registry'
 
-const PEERS_DIR = path.join(process.env.HOME || '~', '.aimaestro', 'governance-peers')
+const PEERS_DIR = path.join(os.homedir(), '.aimaestro', 'governance-peers')
 
 // Peer state older than DEFAULT_TTL seconds is considered stale and filtered out
 const DEFAULT_TTL = 300 // 5 minutes
@@ -24,11 +25,19 @@ function ensurePeersDir(): void {
   }
 }
 
+/** Reject hostIds that contain path separators or '..' to prevent path traversal attacks */
+function validateHostId(hostId: string): void {
+  if (!hostId || /[\/\\]|\.\./.test(hostId)) {
+    throw new Error(`Invalid hostId: contains path traversal characters: ${hostId}`)
+  }
+}
+
 /**
  * Load peer governance state for a specific host.
  * Returns null if the file is missing or contains invalid JSON.
  */
 export function loadPeerGovernance(hostId: string): GovernancePeerState | null {
+  validateHostId(hostId)
   ensurePeersDir()
   const filePath = path.join(PEERS_DIR, `${hostId}.json`)
   if (!existsSync(filePath)) {
@@ -49,9 +58,13 @@ export function loadPeerGovernance(hostId: string): GovernancePeerState | null {
  * Overwrites any existing state for that hostId.
  */
 export function savePeerGovernance(hostId: string, state: GovernancePeerState): void {
+  validateHostId(hostId)
   ensurePeersDir()
   const filePath = path.join(PEERS_DIR, `${hostId}.json`)
-  writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8')
+  // Atomic write: write to temp file then rename to avoid corruption on crash (CC-005 fix)
+  const tmpFile = `${filePath}.tmp`
+  writeFileSync(tmpFile, JSON.stringify(state, null, 2), 'utf-8')
+  renameSync(tmpFile, filePath)
 }
 
 /**
@@ -59,6 +72,7 @@ export function savePeerGovernance(hostId: string, state: GovernancePeerState): 
  * No-op if the file does not exist.
  */
 export function deletePeerGovernance(hostId: string): void {
+  validateHostId(hostId)
   const filePath = path.join(PEERS_DIR, `${hostId}.json`)
   if (existsSync(filePath)) {
     unlinkSync(filePath)

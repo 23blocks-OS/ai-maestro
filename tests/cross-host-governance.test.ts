@@ -370,7 +370,7 @@ describe('receiveCrossHostRequest', () => {
 
   it('returns requestId on success', async () => {
     /** Verifies the response contains the request ID from the incoming request */
-    const request = makeGovernanceRequest({ id: 'req-unique-42' })
+    const request = makeGovernanceRequest({ id: 'req-unique-42', sourceHostId: 'host-remote' })
     mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [] })
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -383,11 +383,11 @@ describe('receiveCrossHostRequest', () => {
 
   it('handles duplicate request ID gracefully by skipping storage', async () => {
     /** Verifies that an already-stored request ID does not cause duplicate entries */
-    const existingRequest = makeGovernanceRequest({ id: 'req-duplicate' })
+    const existingRequest = makeGovernanceRequest({ id: 'req-duplicate', sourceHostId: 'host-remote' })
     mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [existingRequest] })
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    const result = await receiveCrossHostRequest('host-remote', makeGovernanceRequest({ id: 'req-duplicate' }))
+    const result = await receiveCrossHostRequest('host-remote', makeGovernanceRequest({ id: 'req-duplicate', sourceHostId: 'host-remote' }))
 
     expect(result.status).toBe(200)
     // saveGovernanceRequests should NOT have been called because the duplicate was skipped

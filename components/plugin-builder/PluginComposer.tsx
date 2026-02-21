@@ -192,8 +192,9 @@ function SkillGroup({
               </div>
               <button
                 onClick={() => onRemove(key)}
-                className="p-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                className="p-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all flex-shrink-0"
                 title="Remove skill"
+                aria-label={`Remove ${displayName}`}
               >
                 <X className="w-3.5 h-3.5" />
               </button>

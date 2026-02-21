@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
@@ -16,9 +16,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
     if (!url.trim()) return
+
+    // Abort any in-flight scan
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
 
     setScanning(true)
     setError(null)
@@ -29,21 +35,25 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim(), ref }),
+        signal,
       })
 
       if (!res.ok) {
         const data = await res.json()
-        setError(data.error || 'Failed to scan repository')
+        if (!signal.aborted) setError(data.error || 'Failed to scan repository')
         return
       }
 
       const data: RepoScanResult = await res.json()
-      setScanResult(data)
-      onSkillsFound(data.skills, url.trim(), ref)
-    } catch {
+      if (!signal.aborted) {
+        setScanResult(data)
+        onSkillsFound(data.skills, url.trim(), ref)
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       setError('Failed to connect to server')
     } finally {
-      setScanning(false)
+      if (!signal.aborted) setScanning(false)
     }
   }
 

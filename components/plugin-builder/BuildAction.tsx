@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Hammer, Loader2, Check, X, Copy, GitBranch, ChevronDown, ChevronUp } from 'lucide-react'
 import type { PluginBuildConfig, PluginBuildResult } from '@/types/plugin-builder'
 
@@ -8,6 +8,12 @@ interface BuildActionProps {
   config: PluginBuildConfig
   disabled: boolean
   disabledReason?: string
+}
+
+/** Strip ANSI escape codes from build output */
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 }
 
 export default function BuildAction({ config, disabled, disabledReason }: BuildActionProps) {
@@ -19,8 +25,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [showPush, setShowPush] = useState(false)
   const [forkUrl, setForkUrl] = useState('')
   const [pushing, setPushing] = useState(false)
-  const [pushMessage, setPushMessage] = useState<string | null>(null)
+  const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollFailures = useRef(0)
 
   // Clean up polling on unmount
   useEffect(() => {
@@ -29,11 +36,25 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     }
   }, [])
 
+  const clearPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    pollFailures.current = 0
+  }, [])
+
   const handleBuild = async () => {
+    // Clear any existing poll interval first (prevents leak on rapid re-clicks)
+    clearPoll()
+
     setBuilding(true)
     setResult(null)
     setError(null)
     setShowLogs(false)
+    // Reset push-related state on new build
+    setShowPush(false)
+    setPushResult(null)
 
     try {
       const res = await fetch('/api/plugin-builder/build', {
@@ -58,18 +79,30 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
             if (statusRes.ok) {
+              pollFailures.current = 0
               const statusData: PluginBuildResult = await statusRes.json()
               setResult(statusData)
 
               if (statusData.status !== 'building') {
-                if (pollRef.current) clearInterval(pollRef.current)
-                pollRef.current = null
+                clearPoll()
                 setBuilding(false)
                 setShowLogs(true)
               }
+            } else {
+              pollFailures.current++
+              if (pollFailures.current >= 5) {
+                clearPoll()
+                setError('Lost connection to build server')
+                setBuilding(false)
+              }
             }
           } catch {
-            // Keep polling
+            pollFailures.current++
+            if (pollFailures.current >= 5) {
+              clearPoll()
+              setError('Lost connection to build server')
+              setBuilding(false)
+            }
           }
         }, 1000)
       } else {
@@ -85,8 +118,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const handlePush = async () => {
     if (!forkUrl.trim() || !result?.manifest) return
 
+    // Client-side URL validation
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
+      setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
+      return
+    }
+
     setPushing(true)
-    setPushMessage(null)
+    setPushResult(null)
 
     try {
       const res = await fetch('/api/plugin-builder/push', {
@@ -99,13 +138,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       })
 
       const data = await res.json()
-      if (res.ok) {
-        setPushMessage(data.message || 'Pushed successfully')
-      } else {
-        setPushMessage(`Error: ${data.error || 'Push failed'}`)
-      }
+      setPushResult({
+        ok: res.ok,
+        message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),
+      })
     } catch {
-      setPushMessage('Error: Failed to connect to server')
+      setPushResult({ ok: false, message: 'Failed to connect to server' })
     } finally {
       setPushing(false)
     }
@@ -113,9 +151,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const copyInstallCommand = () => {
     if (!result?.outputPath) return
-    navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {
+      // Clipboard API not available (insecure context or unfocused)
+    })
   }
 
   const isComplete = result?.status === 'complete'
@@ -129,7 +170,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           onClick={handleBuild}
           disabled={disabled || building}
           className="flex items-center gap-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-medium rounded-lg transition-colors"
-          title={disabledReason || ''}
+          aria-label={disabledReason || 'Start plugin build'}
         >
           {building ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -189,8 +230,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         <div className="px-4 pb-4 border-t border-gray-800 pt-3">
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Your fork URL</label>
+              <label htmlFor="fork-url" className="block text-xs text-gray-400 mb-1">Your fork URL</label>
               <input
+                id="fork-url"
                 type="text"
                 value={forkUrl}
                 onChange={(e) => setForkUrl(e.target.value)}
@@ -207,9 +249,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               Push
             </button>
           </div>
-          {pushMessage && (
-            <p className={`text-sm mt-2 ${pushMessage.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
-              {pushMessage}
+          {pushResult && (
+            <p className={`text-sm mt-2 ${pushResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+              {pushResult.message}
             </p>
           )}
         </div>
@@ -225,7 +267,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             <button
               onClick={copyInstallCommand}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-              title="Copy install command"
+              aria-label="Copy install command"
             >
               {copied ? (
                 <Check className="w-4 h-4 text-emerald-400" />
@@ -237,7 +279,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         </div>
       )}
 
-      {/* Build logs */}
+      {/* Build logs (ANSI codes stripped) */}
       {result && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
@@ -250,7 +292,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {showLogs && (
             <div className="bg-gray-950 rounded-lg p-3 max-h-48 overflow-y-auto border border-gray-800">
               <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
-                {result.logs.join('\n')}
+                {stripAnsi(result.logs.join('\n'))}
               </pre>
             </div>
           )}

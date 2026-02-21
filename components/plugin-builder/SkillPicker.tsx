@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2 } from 'lucide-react'
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
@@ -36,22 +36,26 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     return keys
   }, [selectedSkills])
 
-  // Load marketplace skills
+  // Load marketplace skills with abort support
+  const abortRef = useRef<AbortController | null>(null)
   useEffect(() => {
+    abortRef.current = new AbortController()
+    const signal = abortRef.current.signal
     async function load() {
       try {
-        const res = await fetch('/api/marketplace/skills?includeContent=false')
+        const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
         if (res.ok) {
           const data = await res.json()
-          setMarketplaceSkills(data.skills || [])
+          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
         }
       } catch {
-        // Marketplace may not be available
+        // Marketplace may not be available or request aborted
       } finally {
-        setLoadingMarketplace(false)
+        if (!signal.aborted) setLoadingMarketplace(false)
       }
     }
     load()
+    return () => { abortRef.current?.abort() }
   }, [])
 
   // Filter skills by search query
@@ -126,6 +130,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               return (
                 <div
                   key={skill.name}
+                  role="button"
+                  tabIndex={0}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-cyan-500/10 border-cyan-500/30'
@@ -138,6 +144,15 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       onAddSkill({ type: 'core', name: skill.name })
                     }
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (isSelected) onRemoveSkill(key)
+                      else onAddSkill({ type: 'core', name: skill.name })
+                    }
+                  }}
+                  aria-pressed={isSelected}
+                  aria-label={`${skill.name}: ${skill.description}`}
                 >
                   <div className={`p-1.5 rounded-md ${
                     isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -177,6 +192,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                 return (
                   <div
                     key={skill.id}
+                    role="button"
+                    tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-cyan-500/10 border-cyan-500/30'
@@ -194,6 +211,15 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                         })
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        if (isSelected) onRemoveSkill(key)
+                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                      }
+                    }}
+                    aria-pressed={isSelected}
+                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'

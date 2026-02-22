@@ -51,11 +51,12 @@ export const VOICE_SUMMARY_MAX_TOKENS = 150
 
 // --- Event Type Classification ---
 
-export type TerminalEventType = 'error' | 'completion' | 'transition' | 'status' | 'noise'
+export type TerminalEventType = 'error' | 'completion' | 'transition' | 'message' | 'status' | 'noise'
 
 // Cooldown per event type (ms)
 export const EVENT_COOLDOWNS: Record<TerminalEventType, number> = {
   error: 0,          // Errors speak immediately
+  message: 0,        // Messages speak immediately
   completion: 10000, // Completions: 10s cooldown
   transition: 15000, // Phase transitions: 15s
   status: 30000,     // Status updates: 30s
@@ -108,6 +109,13 @@ const TRANSITION_PATTERNS = [
   /\bfound\s+\d+\s+(option|issue|problem|file|match)/i,
 ]
 
+const MESSAGE_PATTERNS = [
+  /\[MESSAGE\]\s+From:/,
+  /\[URGENT\].*From:/,
+  /\[HIGH\].*From:/,
+  /You have \d+ new message/,
+]
+
 /**
  * Classify terminal output into an event type using pattern matching.
  * This runs BEFORE the LLM call to enable adaptive cooldown and noise skipping.
@@ -121,6 +129,11 @@ export function classifyTerminalEvent(text: string): TerminalEventType {
   // Check completion patterns
   for (const pattern of COMPLETION_PATTERNS) {
     if (pattern.test(text)) return 'completion'
+  }
+
+  // Check message patterns (AMP notifications)
+  for (const pattern of MESSAGE_PATTERNS) {
+    if (pattern.test(text)) return 'message'
   }
 
   // Check transition patterns
@@ -179,6 +192,10 @@ const FALLBACK_TEMPLATES: TemplateMatcher[] = [
   {
     patterns: [/\bcommit(ted|ting)?\b/i, /\bpush(ed|ing)?\b/i],
     template: 'Changes committed.',
+  },
+  {
+    patterns: [/\[MESSAGE\]/],
+    template: 'You received a new message.',
   },
 ]
 

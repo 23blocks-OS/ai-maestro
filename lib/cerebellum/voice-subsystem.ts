@@ -16,6 +16,7 @@ import {
   classifyTerminalEvent, EVENT_COOLDOWNS, templateSummarize,
   type TerminalEventType,
 } from './voice-prompts'
+import { writeBrainSignal } from './brain-inbox'
 
 // ANSI stripping regex (same as lib/tts.ts but server-side)
 const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g
@@ -432,6 +433,17 @@ export class VoiceSubsystem implements Subsystem {
       agentId: this.context.agentId,
       payload: { text },
     })
+
+    // Write high-priority events to brain inbox so the cortex can act on them
+    if (eventType === 'error' || eventType === 'message' || eventType === 'completion') {
+      writeBrainSignal(this.context.agentId, {
+        from: 'cerebellum',
+        type: eventType === 'error' ? 'warning' : 'notification',
+        priority: eventType === 'error' ? 'high' : eventType === 'message' ? 'high' : 'medium',
+        message: text,
+        timestamp: this.lastSpokeAt,
+      })
+    }
 
     console.log(`[Cerebellum:Voice] Speech [${eventType}]: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`)
   }

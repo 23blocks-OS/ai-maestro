@@ -431,6 +431,11 @@ class AgentSubconscious {
 
       if (result.success && messagesProcessed > 0) {
         console.log(`[Agent ${this.agentId.substring(0, 8)}] ✓ Indexed ${messagesProcessed} new message(s) (cumulative: ${this.cumulativeMessagesIndexed})`)
+
+        // Surface relevant memories to brain inbox (max 1 per maintenance cycle)
+        this.surfaceRelevantMemory().catch(err => {
+          console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory surfacing failed:`, err)
+        })
       }
       if (!result.success && result.error) {
         console.error(`[Agent ${this.agentId.substring(0, 8)}] Index failed: ${result.error}`)
@@ -441,6 +446,53 @@ class AgentSubconscious {
     }
 
     this.writeStatusFile()
+  }
+
+  /**
+   * Surface relevant memories to the brain inbox after new content is indexed.
+   * Uses the agent's current task description as a search query against its own memory.
+   * Rate-limited to 1 memory surface per maintainMemory() call (called inline).
+   */
+  private async surfaceRelevantMemory(): Promise<void> {
+    try {
+      // Get agent's current context (task description or working directory as topic)
+      const registryAgent = getAgentFromRegistry(this.agentId)
+      const query = registryAgent?.taskDescription
+        || registryAgent?.workingDirectory?.split('/').pop()
+        || null
+      if (!query) return
+
+      const { searchConversations } = await import('../services/agents-memory-service')
+      const result = await searchConversations(this.agentId, {
+        query,
+        mode: 'semantic',
+        limit: 3,
+        minScore: 0.7,
+      })
+
+      if (!result.data?.results?.length) return
+
+      const topResult = result.data.results[0]
+      if (!topResult.score || topResult.score < 0.7) return
+
+      // Extract a concise snippet from the top result
+      const snippet = (topResult.text || topResult.content || '').substring(0, 200).trim()
+      if (snippet.length < 20) return
+
+      const { writeBrainSignal } = await import('./cerebellum/brain-inbox')
+      writeBrainSignal(this.agentId, {
+        from: 'subconscious',
+        type: 'memory',
+        priority: topResult.score > 0.85 ? 'high' : 'medium',
+        message: `Related memory (score ${topResult.score.toFixed(2)}): ${snippet}`,
+        timestamp: Date.now(),
+      })
+
+      console.log(`[Agent ${this.agentId.substring(0, 8)}] 🧠 Surfaced memory (score ${topResult.score.toFixed(2)})`)
+    } catch (err) {
+      // Non-critical — silently fail
+      console.error(`[Agent ${this.agentId.substring(0, 8)}] Memory surfacing error:`, err instanceof Error ? err.message : err)
+    }
   }
 
   /**

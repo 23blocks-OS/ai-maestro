@@ -17,6 +17,7 @@ import {
 import { getSkillById } from '@/lib/marketplace-skills'
 import { agentRegistry } from '@/lib/agent'
 import { isManager, isChiefOfStaff, getClosedTeamsForAgent } from '@/lib/governance'
+import { isValidUuid } from '@/lib/validation'
 import type { ConfigOperationType, ConfigScope } from '@/types/governance-request'
 import fs from 'fs/promises'
 import path from 'path'
@@ -248,9 +249,8 @@ export async function removeSkill(
  * Get skill settings for an agent.
  */
 export async function getSkillSettings(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
-  // SF-030: Validate agentId is a UUID to prevent path traversal
-  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!agentId || !UUID_PATTERN.test(agentId)) {
+  // SF-030 + NT-009: Use shared isValidUuid from @/lib/validation instead of inline regex
+  if (!agentId || !isValidUuid(agentId)) {
     return { error: 'Invalid agent ID format', status: 400 }
   }
 
@@ -284,9 +284,8 @@ export async function saveSkillSettings(
     return { error: 'Settings are required', status: 400 }
   }
 
-  // SF-030: Validate agentId is a UUID to prevent path traversal
-  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!agentId || !UUID_PATTERN.test(agentId)) {
+  // SF-030 + NT-009: Use shared isValidUuid from @/lib/validation instead of inline regex
+  if (!agentId || !isValidUuid(agentId)) {
     return { error: 'Invalid agent ID format', status: 400 }
   }
 

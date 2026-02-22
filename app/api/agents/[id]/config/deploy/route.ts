@@ -27,7 +27,7 @@ export async function POST(
       request.headers.get('X-Agent-Id')
     )
     if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: 403 })
+      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
     }
 
     let body

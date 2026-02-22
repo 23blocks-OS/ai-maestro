@@ -1,16 +1,18 @@
 /**
  * Unit tests for lib/governance-request-registry.ts
  *
- * Coverage: 25 tests across 8 exported functions
+ * Coverage: 30 tests across 10 exported functions
  * - loadGovernanceRequests: missing file defaults, existing file read, corrupted JSON backup
  * - saveGovernanceRequests: atomic write via temp-file-then-rename
  * - getGovernanceRequest: by ID found and not found
- * - listGovernanceRequests: no filter, by status, by hostId, by agentId
+ * - listGovernanceRequests: no filter, by status, by hostId, by agentId, by type (NT-005)
  * - createGovernanceRequest: UUID generation, persistence, note field
  * - approveGovernanceRequest: sourceCOS, targetManager, remote-approved, local-approved,
  *     both-managers auto-execute, unknown ID, rejected guard, executed guard
  * - rejectGovernanceRequest: sets rejected + reason, executed guard
  * - executeGovernanceRequest: sets executed, rejected guard
+ * - purgeOldRequests: purges terminal-state + expires stale pending (NT-006)
+ * - expirePendingRequests: TTL-based auto-rejection of stale pending requests (NT-006)
  *
  * Mocking strategy:
  * - fs (external I/O) -- mocked with in-memory fsStore
@@ -108,6 +110,8 @@ import {
   approveGovernanceRequest,
   rejectGovernanceRequest,
   executeGovernanceRequest,
+  purgeOldRequests,
+  expirePendingRequests,
 } from '@/lib/governance-request-registry'
 
 import type {
@@ -334,6 +338,29 @@ describe('listGovernanceRequests', () => {
     const result = listGovernanceRequests({ agentId: 'agent-x' })
     expect(result).toHaveLength(2)
     expect(result.map(r => r.id)).toEqual(['req-pending', 'req-rejected'])
+  })
+
+  it('filters by type', () => {
+    /** NT-005: Verifies that filtering by request type returns only matching requests */
+    // All three requests in the beforeEach fixture use default type 'add-to-team'.
+    // Override one to a different type to test filtering.
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-add', type: 'add-to-team', status: 'pending' }),
+      makeRequest({ id: 'req-config', type: 'configure-agent', status: 'pending' }),
+      makeRequest({ id: 'req-transfer', type: 'transfer-agent', status: 'pending' }),
+    ]))
+
+    const configOnly = listGovernanceRequests({ type: 'configure-agent' })
+    expect(configOnly).toHaveLength(1)
+    expect(configOnly[0].id).toBe('req-config')
+
+    const addOnly = listGovernanceRequests({ type: 'add-to-team' })
+    expect(addOnly).toHaveLength(1)
+    expect(addOnly[0].id).toBe('req-add')
+
+    // Non-existent type returns empty
+    const noMatch = listGovernanceRequests({ type: 'assign-cos' })
+    expect(noMatch).toHaveLength(0)
   })
 })
 
@@ -589,5 +616,111 @@ describe('executeGovernanceRequest', () => {
     expect(result).not.toBeNull()
     expect(result!.status).toBe('rejected')
     expect(result!.rejectReason).toBe('Denied by policy')
+  })
+})
+
+// ============================================================================
+// purgeOldRequests (NT-006)
+// ============================================================================
+
+describe('purgeOldRequests', () => {
+  it('purges old executed/rejected requests and returns PurgeResult', async () => {
+    /** NT-006: Verifies that terminal-state requests older than maxAgeDays are removed */
+    const oldDate = new Date(Date.now() - 60 * 86_400_000).toISOString() // 60 days ago
+    const recentDate = new Date(Date.now() - 5 * 86_400_000).toISOString() // 5 days ago
+
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-old-executed', status: 'executed', updatedAt: oldDate }),
+      makeRequest({ id: 'req-old-rejected', status: 'rejected', updatedAt: oldDate }),
+      makeRequest({ id: 'req-recent-executed', status: 'executed', updatedAt: recentDate }),
+      makeRequest({ id: 'req-pending-active', status: 'pending', createdAt: recentDate, updatedAt: recentDate }),
+    ]))
+
+    const result = await purgeOldRequests(30)
+
+    expect(result.purged).toBe(2) // old executed + old rejected
+    expect(result.expired).toBe(0) // pending is recent, not expired
+
+    // Verify persisted state: only recent executed and pending remain
+    const loaded = loadGovernanceRequests()
+    expect(loaded.requests).toHaveLength(2)
+    expect(loaded.requests.map(r => r.id)).toEqual(['req-recent-executed', 'req-pending-active'])
+  })
+
+  it('also expires stale pending requests via 7-day TTL', async () => {
+    /** NT-006: Verifies that purge also auto-rejects pending requests older than 7 days */
+    const stalePendingDate = new Date(Date.now() - 10 * 86_400_000).toISOString() // 10 days ago
+    const freshPendingDate = new Date(Date.now() - 2 * 86_400_000).toISOString() // 2 days ago
+
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-stale-pending', status: 'pending', createdAt: stalePendingDate, updatedAt: stalePendingDate }),
+      makeRequest({ id: 'req-fresh-pending', status: 'pending', createdAt: freshPendingDate, updatedAt: freshPendingDate }),
+    ]))
+
+    const result = await purgeOldRequests(30)
+
+    expect(result.purged).toBe(0) // no terminal-state old requests
+    expect(result.expired).toBe(1) // stale pending was expired
+
+    // Verify the stale pending was auto-rejected
+    const loaded = loadGovernanceRequests()
+    const stale = loaded.requests.find(r => r.id === 'req-stale-pending')
+    expect(stale!.status).toBe('rejected')
+    expect(stale!.rejectReason).toContain('expired')
+
+    // Fresh pending is untouched
+    const fresh = loaded.requests.find(r => r.id === 'req-fresh-pending')
+    expect(fresh!.status).toBe('pending')
+  })
+})
+
+// ============================================================================
+// expirePendingRequests (NT-006)
+// ============================================================================
+
+describe('expirePendingRequests', () => {
+  it('expires pending requests older than TTL days', async () => {
+    /** NT-006: Verifies that pending requests older than the specified TTL are auto-rejected */
+    const oldDate = new Date(Date.now() - 15 * 86_400_000).toISOString() // 15 days ago
+    const recentDate = new Date(Date.now() - 2 * 86_400_000).toISOString() // 2 days ago
+
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-old-pending', status: 'pending', createdAt: oldDate }),
+      makeRequest({ id: 'req-recent-pending', status: 'pending', createdAt: recentDate }),
+      makeRequest({ id: 'req-executed', status: 'executed', createdAt: oldDate }),
+    ]))
+
+    const expired = await expirePendingRequests(7)
+
+    expect(expired).toBe(1) // only the old pending request
+
+    // Verify the old pending was rejected with TTL reason
+    const loaded = loadGovernanceRequests()
+    const oldReq = loaded.requests.find(r => r.id === 'req-old-pending')
+    expect(oldReq!.status).toBe('rejected')
+    expect(oldReq!.rejectReason).toContain('TTL')
+
+    // Recent pending untouched
+    const recentReq = loaded.requests.find(r => r.id === 'req-recent-pending')
+    expect(recentReq!.status).toBe('pending')
+
+    // Executed request untouched (not a pending request)
+    const execReq = loaded.requests.find(r => r.id === 'req-executed')
+    expect(execReq!.status).toBe('executed')
+  })
+
+  it('returns 0 when no pending requests exceed TTL', async () => {
+    /** NT-006: Verifies that no expiration occurs when all pending requests are within TTL */
+    const recentDate = new Date(Date.now() - 1 * 86_400_000).toISOString() // 1 day ago
+
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-fresh', status: 'pending', createdAt: recentDate }),
+    ]))
+
+    const expired = await expirePendingRequests(7)
+
+    expect(expired).toBe(0)
+    const loaded = loadGovernanceRequests()
+    expect(loaded.requests[0].status).toBe('pending')
   })
 })

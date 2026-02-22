@@ -96,8 +96,8 @@ function releaseLock(name: string): void {
  * Run a function under a named lock.
  * Convenience wrapper: acquires, runs fn, releases (even on error).
  *
- * Note: No deadlock detection or lock timeout.
- * Lock ordering convention: 'teams' before 'transfers' before 'governance'
+ * Lock acquisition times out after 30s by default (see DEFAULT_LOCK_TIMEOUT_MS).
+ * Lock ordering convention: 'teams' before 'transfers' before 'governance' before 'governance-requests'
  */
 export async function withLock<T>(name: string, fn: () => T | Promise<T>): Promise<T> {
   const release = await acquireLock(name)

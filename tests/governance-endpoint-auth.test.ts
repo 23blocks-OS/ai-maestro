@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * Unit tests for Ed25519 signature verification on governance endpoints (SR-001, SR-002, SR-007)
@@ -139,6 +139,12 @@ beforeEach(() => {
   mockGetManagerId.mockReturnValue(null)
   mockLoadTeams.mockReturnValue([])
   mockSignHostAttestation.mockReturnValue('mock-signature-base64')
+})
+
+// NT-010: Restore stubbed globals (especially fetch) after each test to prevent
+// leaking the mock into other test files that run in the same vitest worker.
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 // ============================================================================

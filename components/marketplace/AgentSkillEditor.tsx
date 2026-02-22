@@ -69,10 +69,8 @@ export default function AgentSkillEditor({
   // Governance: pending config requests for this agent
   const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
-  // canApprove checks if the current agent profile belongs to a manager/COS.
-  // In Phase 1 (localhost, single user), the "viewer" IS the system owner who has
-  // full access. In Phase 2 with auth, this should check the viewer's identity instead.
-  const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
+  // Phase 1: localhost single-user, viewer is always the system owner
+  const canApprove = true
 
   // Track which config requests are currently being resolved (for loading/disabled state)
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())

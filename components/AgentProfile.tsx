@@ -57,7 +57,8 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   // provider to avoid duplicate API calls. Acceptable for Phase 1 with localhost-only architecture.
 
   // Pre-compute filtered pending config requests for this agent (avoids duplicate inline filtering)
-  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload?.agentId === agent?.id)
+  // payload is non-optional in GovernanceRequest; use agentId prop (not agent?.id) so filtering works before agent state loads
+  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload.agentId === agentId)
   const pendingConfigCount = agentPendingConfigRequests.length
 
   // Repository state
@@ -219,7 +220,7 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
 
       if (response.ok) {
         setHasChanges(false)
-        setTimeout(() => setSaving(false), 500)
+        setSaving(false)
       } else {
         // CC-P1-702: Handle non-OK responses so the save button does not remain stuck in spinner state
         const errData = await response.json().catch(() => ({ error: 'Save failed' }))

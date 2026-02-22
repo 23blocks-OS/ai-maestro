@@ -311,9 +311,13 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let totalSize = 0
+    // NT-007: Guard against multiple reject() calls (e.g. size limit hit then error event)
+    let rejected = false
     req.on('data', (chunk: Buffer) => {
+      if (rejected) return
       totalSize += chunk.length
       if (totalSize > MAX_BODY_SIZE) {
+        rejected = true
         req.destroy()
         reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
         return
@@ -321,6 +325,7 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       chunks.push(chunk)
     })
     req.on('end', () => {
+      if (rejected) return
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
       try {
@@ -329,14 +334,30 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
         reject(new Error('Invalid JSON body'))
       }
     })
-    req.on('error', reject)
+    req.on('error', (err) => {
+      if (rejected) return
+      rejected = true
+      reject(err)
+    })
   })
 }
+
+// SF-004: 50 MB size limit for raw body reads (e.g. binary uploads)
+const MAX_RAW_BODY_SIZE = 50 * 1024 * 1024
 
 async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let totalSize = 0
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length
+      if (totalSize > MAX_RAW_BODY_SIZE) {
+        req.destroy()
+        reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
@@ -359,8 +380,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 
 function sendServiceResult(res: ServerResponse, result: any) {
   // SF-04: prioritize error — if error is set, always send error response
+  // NT-008: Do not spread result.data into error responses to avoid leaking internal state
   if (result.error) {
-    sendJson(res, result.status || 500, { error: result.error, ...(result.data || {}) }, result.headers)
+    sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
   }
@@ -1584,8 +1606,9 @@ const routes: Route[] = [
       return
     }
 
-    // Rate limit password verification to prevent brute-force attacks
-    const rateCheck = checkRateLimit('governance-cos-auth')
+    // SF-003: Rate limit per-team to prevent brute-force attacks on one team from blocking others
+    const rateLimitKey = `governance-cos-auth:${teamId}`
+    const rateCheck = checkRateLimit(rateLimitKey)
     if (!rateCheck.allowed) {
       sendJson(res, 429, { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` })
       return
@@ -1593,11 +1616,11 @@ const routes: Route[] = [
 
     // Password auth -- only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordFailure('governance-cos-auth')
+      recordFailure(rateLimitKey)
       sendJson(res, 401, { error: 'Invalid governance password' })
       return
     }
-    resetRateLimit('governance-cos-auth')
+    resetRateLimit(rateLimitKey)
 
     const team = getTeam(teamId)
     if (!team) {

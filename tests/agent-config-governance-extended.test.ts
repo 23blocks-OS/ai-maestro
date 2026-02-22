@@ -223,8 +223,11 @@ vi.mock('@/lib/agent-runtime', () => ({
   getRuntime: vi.fn(() => null),
 }))
 
+// NT-011: Incrementing counter avoids collisions when multiple UUIDs are generated
+// in a single test (e.g., creating multiple agents or requests in sequence).
+let uuidExtCounter = 0
 vi.mock('uuid', () => ({
-  v4: vi.fn(() => 'test-uuid-ext-001'),
+  v4: vi.fn(() => `test-uuid-ext-${String(++uuidExtCounter).padStart(3, '0')}`),
 }))
 
 vi.mock('fs', () => ({
@@ -356,6 +359,7 @@ const originalFetch = globalThis.fetch
 
 beforeEach(() => {
   vi.clearAllMocks()
+  uuidExtCounter = 0 // NT-011: Reset UUID counter so each test starts from ext-001
 
   // Default: all role checks return false (regular member)
   mockIsManager.mockReturnValue(false)

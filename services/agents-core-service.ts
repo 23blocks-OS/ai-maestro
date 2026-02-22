@@ -808,8 +808,8 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
       agentConfig = body
     }
 
-    // MF-002: Validate agentId format to prevent path traversal (UUID for cloud, sanitized name for session)
-    if (body.id && !isValidUuid(agentId)) {
+    // MF-002 + SF-005: Validate agentId format — reject empty strings and non-UUID values
+    if (body.id !== undefined && (!body.id || !isValidUuid(agentId))) {
       return { error: 'Invalid agent ID format', status: 400 }
     }
 

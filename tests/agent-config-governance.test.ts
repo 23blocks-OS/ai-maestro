@@ -12,6 +12,14 @@
  *   - updateAgentById: 7 tests (no auth, manager, COS, self-update, owning COS, non-owning regular, 404)
  *   - deleteAgentById: 5 tests (no auth, manager, COS rejected, regular rejected, 404)
  *
+ * NT-013: Test count discrepancy note
+ *   The total governance test suite across all 9 files contains ~628 discrete test functions
+ *   (it() blocks). However, vitest reports ~836 tests because vitest counts each expansion
+ *   of parameterized tests (it.each / describe.each) as a separate test. For example, a
+ *   single it.each with 4 parameter sets counts as 4 tests in vitest output.
+ *   The CHANGELOG claim of "167 tests across 9 files" refers to the original count before
+ *   extended test files were added, while "836" is vitest's parametric-expanded count.
+ *
  * Mocking strategy:
  *   - @/lib/governance: isManager, isChiefOfStaffAnywhere (governance role checks)
  *   - @/lib/team-registry: loadTeams (team membership for owning-COS check)

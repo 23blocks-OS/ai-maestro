@@ -83,6 +83,10 @@ export async function POST(
     if (typeof cosAgentId !== 'string' || !cosAgentId.trim()) {
       return NextResponse.json({ error: 'agentId must be a non-empty string or null' }, { status: 400 })
     }
+    // NT-002: Validate cosAgentId format before registry lookup
+    if (!isValidUuid(cosAgentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
 
     const agent = getAgent(cosAgentId)
     if (!agent) {

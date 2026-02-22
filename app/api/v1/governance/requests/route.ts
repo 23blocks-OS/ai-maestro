@@ -24,38 +24,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Determine if this is a remote receive (fromHostId present) or local submission
   if (body?.fromHostId) {
-    // Verify Ed25519 signature for remote governance requests (SR-P2-001)
-    const hostId = request.headers.get('X-Host-Id')
-    const hostSignature = request.headers.get('X-Host-Signature')
-    const hostTimestamp = request.headers.get('X-Host-Timestamp')
-    if (!hostId || !hostSignature || !hostTimestamp) {
-      return NextResponse.json({ error: 'Missing host authentication headers' }, { status: 401 })
-    }
-    if (hostId !== body.fromHostId) {
-      return NextResponse.json({ error: 'Host ID header does not match body fromHostId' }, { status: 400 })
-    }
-    const hosts = getHosts()
-    const knownHost = hosts.find((h) => h.id === hostId)
-    if (!knownHost) {
-      return NextResponse.json({ error: 'Unknown host' }, { status: 403 })
-    }
-    if (!knownHost.publicKeyHex) {
-      return NextResponse.json({ error: 'Host has no registered public key' }, { status: 403 })
-    }
-    const signedData = `gov-request|${hostId}|${hostTimestamp}`
-    if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
-      return NextResponse.json({ error: 'Invalid host signature' }, { status: 403 })
-    }
-    const tsAge = Date.now() - new Date(hostTimestamp).getTime()
-    if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
-      return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
-    }
+    try {
+      // Verify Ed25519 signature for remote governance requests (SR-P2-001)
+      const hostId = request.headers.get('X-Host-Id')
+      const hostSignature = request.headers.get('X-Host-Signature')
+      const hostTimestamp = request.headers.get('X-Host-Timestamp')
+      if (!hostId || !hostSignature || !hostTimestamp) {
+        return NextResponse.json({ error: 'Missing host authentication headers' }, { status: 401 })
+      }
+      if (hostId !== body.fromHostId) {
+        return NextResponse.json({ error: 'Host ID header does not match body fromHostId' }, { status: 400 })
+      }
+      const hosts = getHosts()
+      const knownHost = hosts.find((h) => h.id === hostId)
+      if (!knownHost) {
+        return NextResponse.json({ error: 'Unknown host' }, { status: 403 })
+      }
+      if (!knownHost.publicKeyHex) {
+        return NextResponse.json({ error: 'Host has no registered public key' }, { status: 403 })
+      }
+      const signedData = `gov-request|${hostId}|${hostTimestamp}`
+      if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+        return NextResponse.json({ error: 'Invalid host signature' }, { status: 403 })
+      }
+      const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+      if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+        return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
+      }
 
-    const result = await receiveCrossHostRequest(body.fromHostId, body.request)
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      const result = await receiveCrossHostRequest(body.fromHostId, body.request)
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+      return NextResponse.json(result.data, { status: result.status })
+    } catch (err) {
+      console.error('[Governance Requests] POST remote-receive error:', err)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-    return NextResponse.json(result.data, { status: result.status })
   }
 
   try {
@@ -75,6 +80,12 @@ const VALID_GOVERNANCE_REQUEST_STATUSES = new Set([
   'pending', 'remote-approved', 'local-approved', 'dual-approved', 'executed', 'rejected',
 ])
 
+/** Valid GovernanceRequestType values for query param validation (NT-001) */
+const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
+  'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
+  'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
+])
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const searchParams = request.nextUrl.searchParams
   // CC-P4-006: Validate status param against known values before passing through
@@ -85,11 +96,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 }
     )
   }
+  // NT-001: Validate type param against known GovernanceRequestType values
+  const typeParam = searchParams.get('type')
+  if (typeParam && !VALID_GOVERNANCE_REQUEST_TYPES.has(typeParam)) {
+    return NextResponse.json(
+      { error: `Invalid type value '${typeParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_TYPES].join(', ')}` },
+      { status: 400 }
+    )
+  }
   try {
     // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
     const result = listCrossHostRequests({
       status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
-      type: searchParams.get('type') || undefined,
+      type: typeParam || undefined,
       hostId: searchParams.get('hostId') || undefined,
       agentId: searchParams.get('agentId') || undefined,
     })

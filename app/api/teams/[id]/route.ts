@@ -54,6 +54,8 @@ export async function PUT(
   }
 
   // CC-005: Strip type and chiefOfStaffId from body — only dedicated governance endpoints can change these
+  // SF-015: Intentional defense-in-depth — updateTeamById() in teams-service.ts also strips these fields.
+  // Both layers strip independently so neither can be bypassed if the other is refactored.
   const { type: _type, chiefOfStaffId: _cos, ...safeBody } = body
   const result = await updateTeamById(id, { ...safeBody, requestingAgentId })
 

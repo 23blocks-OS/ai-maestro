@@ -15,6 +15,8 @@ export async function GET() {
     const teams = loadTeams()
     // loadAgents() called per request; acceptable for Phase 1 traffic levels
     const agents = loadAgents()
+    // NT-007: Response shape: { teamNames: string[], agentNames: string[] }
+    // Used by Create Team dialog for client-side name collision checking
     return NextResponse.json({
       teamNames: teams.map(t => t.name),
       agentNames: agents.map(a => a.name).filter(Boolean),

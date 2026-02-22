@@ -87,6 +87,10 @@ fi
 # Files to update
 FILES_UPDATED=0
 
+# Escape dots in version strings so they match literally in regex patterns.
+# Without this, "0.21.25" would match "0X21Y25" since dot is a regex wildcard.
+CURRENT_VERSION_RE=$(echo "$CURRENT_VERSION" | sed 's/\./\\./g')
+
 # Portable in-place sed — works on both macOS (BSD) and Linux (GNU).
 # The old `sed -i '' ...` syntax is BSD-specific and breaks on Linux.
 # Using `sed -i.bak` creates a temporary backup file (works everywhere),
@@ -97,8 +101,8 @@ _sed_inplace() {
     sed -i.bak "$@" "$file" && rm -f "${file}.bak"
 }
 
-# Note: Version dots in patterns are unescaped regex wildcards, but false matches
-# are prevented by the specific surrounding context (e.g., "version": "X.Y.Z").
+# update_file uses escaped dots in the sed pattern (via CURRENT_VERSION_RE)
+# but literal dots in grep (grep -F for fixed-string match).
 update_file() {
     local file="$1"
     local pattern="$2"
@@ -106,8 +110,10 @@ update_file() {
     local description="$4"
 
     if [ -f "$file" ]; then
-        if grep -q "$pattern" "$file" 2>/dev/null; then
-            _sed_inplace "$file" "s|$pattern|$replacement|g"
+        if grep -qF "$pattern" "$file" 2>/dev/null; then
+            # Build a regex-safe version of the pattern by escaping dots in the version
+            local regex_pattern="${pattern//$CURRENT_VERSION/$CURRENT_VERSION_RE}"
+            _sed_inplace "$file" "s|$regex_pattern|$replacement|g"
             echo -e "  ${GREEN}✓${NC} $description"
             FILES_UPDATED=$((FILES_UPDATED + 1))
         fi
@@ -122,7 +128,7 @@ echo "Updating files..."
 echo ""
 
 # 1. version.json
-_sed_inplace "$VERSION_FILE" "s|\"version\": \"$CURRENT_VERSION\"|\"version\": \"$NEW_VERSION\"|g"
+_sed_inplace "$VERSION_FILE" "s|\"version\": \"$CURRENT_VERSION_RE\"|\"version\": \"$NEW_VERSION\"|g"
 _sed_inplace "$VERSION_FILE" "s|\"releaseDate\": \"[^\"]*\"|\"releaseDate\": \"$(date +%Y-%m-%d)\"|g"
 echo -e "  ${GREEN}✓${NC} version.json"
 FILES_UPDATED=$((FILES_UPDATED + 1))
@@ -178,7 +184,7 @@ update_file "$PROJECT_ROOT/docs/ai-index.html" \
 # 8. docs/ai-index.html (Version: display text)
 if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
-        "s|<strong>Version:</strong> $CURRENT_VERSION ([A-Za-z]* [0-9]*)|<strong>Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+        "s|<strong>Version:</strong> $CURRENT_VERSION_RE ([A-Za-z]* [0-9]*)|<strong>Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
     echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Version display)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi
@@ -186,14 +192,14 @@ fi
 # 9. docs/ai-index.html (Current Version: display text)
 if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
-        "s|<strong>Current Version:</strong> $CURRENT_VERSION ([A-Za-z]* [0-9]*)|<strong>Current Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+        "s|<strong>Current Version:</strong> $CURRENT_VERSION_RE ([A-Za-z]* [0-9]*)|<strong>Current Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
     echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Current Version display)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi
 
 # 10. docs/BACKLOG.md (current version header)
 if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then
-    _sed_inplace "$PROJECT_ROOT/docs/BACKLOG.md" "s|\*\*Current Version:\*\* v$CURRENT_VERSION|\*\*Current Version:\*\* v$NEW_VERSION|g"
+    _sed_inplace "$PROJECT_ROOT/docs/BACKLOG.md" "s|\*\*Current Version:\*\* v$CURRENT_VERSION_RE|\*\*Current Version:\*\* v$NEW_VERSION|g"
     echo -e "  ${GREEN}✓${NC} docs/BACKLOG.md (header)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi

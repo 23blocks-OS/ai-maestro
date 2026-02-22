@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = await notifyTeamAgents(body)
+  // SF-012: Pass authenticated agent ID to service for audit trail
+  const result = await notifyTeamAgents({ ...body, requestingAgentId: auth.agentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # AI Maestro - Startup script with SSH configuration
 # This script ensures SSH agent works in tmux sessions before starting the server
@@ -26,4 +27,4 @@ fi
 
 # Step 3: Start the actual server
 echo "[AI Maestro] Starting server..."
-exec ./node_modules/.bin/tsx server.mjs
+exec tsx server.mjs

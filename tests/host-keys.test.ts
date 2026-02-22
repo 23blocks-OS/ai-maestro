@@ -70,6 +70,13 @@ beforeEach(async () => {
 /**
  * Helper: dynamically import the module fresh (after resetModules).
  * This ensures each test starts with cachedKeyPair = null.
+ *
+ * SF-036 WARNING: After vi.resetModules(), you MUST use dynamic import()
+ * to get a fresh module instance. Static imports at the top of the file
+ * will reference the ORIGINAL (pre-reset) module with stale cached state.
+ * Every test in this file MUST call importHostKeys() to get fresh exports.
+ * Adding a new test that uses a static import will silently get the cached
+ * keypair from a previous test, causing intermittent failures.
  */
 async function importHostKeys() {
   const mod = await import('@/lib/host-keys')

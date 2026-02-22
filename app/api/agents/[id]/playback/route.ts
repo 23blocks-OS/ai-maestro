@@ -9,6 +9,7 @@
 
 import { NextResponse } from 'next/server'
 import { getPlaybackState, controlPlayback } from '@/services/agents-playback-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
   request: Request,
@@ -16,6 +17,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
 
@@ -39,6 +44,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })

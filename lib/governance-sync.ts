@@ -266,8 +266,19 @@ export async function requestPeerSync(hostUrl: string): Promise<GovernancePeerSt
       return null
     }
 
-    const data = await response.json() as GovernancePeerState
-    return data
+    const data = await response.json()
+    // NT-022: Basic field validation before trusting the remote response
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      typeof data.hostId !== 'string' ||
+      !Array.isArray(data.teams) ||
+      typeof data.lastSyncAt !== 'string'
+    ) {
+      console.error(`[governance-sync] Invalid response structure from ${hostUrl}: missing required fields`)
+      return null
+    }
+    return data as GovernancePeerState
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error(`[governance-sync] Failed to request sync from ${hostUrl}: ${msg}`)

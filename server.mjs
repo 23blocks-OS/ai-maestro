@@ -1,5 +1,4 @@
 import { createServer } from 'http'
-import { parse } from 'url'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
 import pty from 'node-pty'
@@ -374,7 +373,16 @@ if (!fs.existsSync(logsDir)) {
 async function startServer(handleRequest) {
   const server = createServer(async (req, res) => {
     try {
-      const parsedUrl = parse(req.url, true)
+      // Use the WHATWG URL API instead of the deprecated url.parse().
+      // Construct a Next.js-compatible { pathname, query } object so that both
+      // the internal endpoint check and app.getRequestHandler() work correctly.
+      const _url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
+      const parsedUrl = {
+        pathname: _url.pathname,
+        query: Object.fromEntries(_url.searchParams),
+        search: _url.search,
+        href: _url.href
+      }
 
       // Internal endpoint for PTY debug info - served directly from server.mjs
       // This allows access to the in-memory sessions map
@@ -756,7 +764,11 @@ async function startServer(handleRequest) {
   })
 
   server.on('upgrade', (request, socket, head) => {
-    const { pathname, query } = parse(request.url, true)
+    // Use WHATWG URL API instead of deprecated url.parse().
+    // Convert searchParams to a plain object so downstream handlers can use query.name, query.host, etc.
+    const _upgradeUrl = new URL(request.url, `http://${request.headers.host || 'localhost'}`)
+    const pathname = _upgradeUrl.pathname
+    const query = Object.fromEntries(_upgradeUrl.searchParams)
 
     if (pathname === '/term') {
       wss.handleUpgrade(request, socket, head, (ws) => {
@@ -784,6 +796,13 @@ async function startServer(handleRequest) {
 
     if (!sessionName || typeof sessionName !== 'string') {
       ws.close(1008, 'Session name required')
+      return
+    }
+
+    // Validate session name to prevent command injection in tmux attach.
+    // Only allow alphanumeric, underscore, hyphen, at-sign, and dot.
+    if (!/^[a-zA-Z0-9_@.-]+$/.test(sessionName)) {
+      ws.close(1008, 'Invalid session name')
       return
     }
 
@@ -888,9 +907,22 @@ async function startServer(handleRequest) {
         }
       }
 
-      // If another client created session state during retry, skip creation
+      // SESSION STATE BRANCHING:
+      //
+      // At this point we have two possible paths:
+      //
+      // Path A (existing session): Another WebSocket client already created the
+      //   session state (pty + log stream + client set) while we were retrying
+      //   the PTY spawn. In this case, `sessionState` is truthy from the lookup
+      //   above, so we skip creation and fall through to add this client to the
+      //   existing session's client set.
+      //
+      // Path B (new session): No session state exists yet, so we create it here:
+      //   allocate a new client set, wire up PTY data/exit handlers, start a log
+      //   stream (if logging is enabled), and register everything in the
+      //   terminalSessions map. Subsequent clients will take Path A.
       if (sessionState) {
-        // Fall through to add client to existing session
+        // Path A: fall through to add client to existing session
       } else if (!ptyProcess) {
         // Should not happen, but guard against it
         ws.close(1011, 'PTY spawn failed unexpectedly')

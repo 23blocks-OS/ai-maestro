@@ -17,6 +17,24 @@ import { isValidUuid } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
+// NT-015: Moved const declarations above POST to follow convention of declaring constants before usage
+/** Valid GovernanceRequestStatus values for query param validation (CC-P4-006) */
+const VALID_GOVERNANCE_REQUEST_STATUSES = new Set([
+  'pending', 'remote-approved', 'local-approved', 'dual-approved', 'executed', 'rejected',
+])
+
+/** Valid GovernanceRequestType values for query param validation (NT-001) */
+const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
+  'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
+  'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
+])
+
+/** Valid AgentRole values for requestedByRole validation (SF-001) */
+const VALID_REQUESTED_BY_ROLES = new Set(['manager', 'chief-of-staff', 'member'])
+
+/** Hostname format: alphanumeric start/end, allows dots/hyphens/underscores, 1-253 chars (NT-001, SF-002) */
+const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?$/
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body
   try { body = await request.json() } catch {
@@ -53,6 +71,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: 'Signature expired' }, { status: 403 })
       }
 
+      // SF-028: Validate body.request is a non-null object before passing to service
+      if (!body.request || typeof body.request !== 'object' || Array.isArray(body.request)) {
+        return NextResponse.json({ error: 'Missing or invalid request: must be an object' }, { status: 400 })
+      }
       const result = await receiveCrossHostRequest(body.fromHostId, body.request)
       if (result.error) {
         return NextResponse.json({ error: result.error }, { status: result.status })
@@ -105,23 +127,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
-/** Valid GovernanceRequestStatus values for query param validation (CC-P4-006) */
-const VALID_GOVERNANCE_REQUEST_STATUSES = new Set([
-  'pending', 'remote-approved', 'local-approved', 'dual-approved', 'executed', 'rejected',
-])
-
-/** Valid GovernanceRequestType values for query param validation (NT-001) */
-const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
-  'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
-  'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
-])
-
-/** Valid AgentRole values for requestedByRole validation (SF-001) */
-const VALID_REQUESTED_BY_ROLES = new Set(['manager', 'chief-of-staff', 'member'])
-
-/** Hostname format: alphanumeric start/end, allows dots/hyphens/underscores, 1-253 chars (NT-001, SF-002) */
-const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?$/
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const searchParams = request.nextUrl.searchParams

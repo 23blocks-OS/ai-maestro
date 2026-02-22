@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listAMPAddresses, addAMPAddressToAgent } from '@/services/agents-messaging-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/[id]/amp/addresses
@@ -11,6 +12,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
 
     const result = listAMPAddresses(id)
 
@@ -34,6 +39,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })

@@ -5,6 +5,7 @@ import { sendCommand, checkIdleStatus } from '@/services/sessions-service'
  * @deprecated Use /api/agents/[id]/session with PATCH method instead.
  * This endpoint uses tmux session names directly, while the agent endpoint
  * uses agent IDs and looks up the session from the agent's tools configuration.
+ * Removal target: v0.28.0
  */
 function logDeprecation() {
   console.warn('[DEPRECATED] /api/sessions/[id]/command - Use /api/agents/[id]/session (PATCH) instead')

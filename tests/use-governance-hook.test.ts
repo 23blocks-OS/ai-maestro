@@ -21,10 +21,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // ============================================================================
 // Standalone function replicas (mirror the hook's useCallback logic exactly)
 //
-// TODO: These replicas test the API call logic but do not test the refresh()
-// side-effect that the real hook triggers after successful operations.
-// Testing refresh() requires @testing-library/react or a minimal hook wrapper
-// to render the hook in a React context.
+// MF-027 KNOWN LIMITATION: These tests exercise standalone replicas of the
+// hook's submitConfigRequest and resolveConfigRequest callbacks, NOT the actual
+// useGovernance hook. This means:
+//   1. The refresh() side-effect after successful operations is NOT tested.
+//   2. React state updates (loading, error) are NOT tested.
+//   3. Memoization via useCallback is NOT tested.
+// Testing the real hook requires @testing-library/react or a minimal hook
+// wrapper to render it in a React context, which is not available in this
+// project's vitest node environment. The replicas verify the API call contract
+// (correct endpoints, request bodies, error handling) which is the most
+// critical aspect for integration correctness.
 // ============================================================================
 
 /**

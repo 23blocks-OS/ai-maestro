@@ -16,6 +16,15 @@ export async function POST(request: NextRequest) {
     }
     const { sessionName, status, hookStatus, notificationType } = body
 
+    // SF-003: Validate status is one of the known activity statuses
+    const VALID_STATUSES = ['active', 'idle', 'busy', 'offline', 'error', 'waiting', 'stopped']
+    if (status && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status '${status}'. Must be one of: ${VALID_STATUSES.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
     const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType)
 
     if (result.error) {

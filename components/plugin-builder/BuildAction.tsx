@@ -28,11 +28,15 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
+  // SF-022: AbortController for in-flight polling fetch requests
+  const pollAbortRef = useRef<AbortController | null>(null)
 
   // Clean up polling on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      // SF-022: Abort any in-flight poll fetch on unmount
+      pollAbortRef.current?.abort()
     }
   }, [])
 
@@ -41,6 +45,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       clearInterval(pollRef.current)
       pollRef.current = null
     }
+    // SF-022: Abort any in-flight poll fetch when clearing
+    pollAbortRef.current?.abort()
+    pollAbortRef.current = null
     pollFailures.current = 0
   }, [])
 
@@ -77,7 +84,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       if (data.status === 'building') {
         pollRef.current = setInterval(async () => {
           try {
-            const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
+            // SF-022: Create per-tick AbortController so cleanup can cancel in-flight requests
+            pollAbortRef.current = new AbortController()
+            const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`, { signal: pollAbortRef.current.signal })
             if (statusRes.ok) {
               pollFailures.current = 0
               const statusData: PluginBuildResult = await statusRes.json()

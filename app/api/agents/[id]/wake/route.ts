@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { wakeAgent } from '@/services/agents-core-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * POST /api/agents/[id]/wake
@@ -10,6 +11,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
 
   // Parse optional body
   let startProgram = true
@@ -24,7 +29,8 @@ export async function POST(
       sessionIndex = body.sessionIndex
     }
     if (typeof body.program === 'string') {
-      program = body.program.toLowerCase()
+      // SF-010: Do not lowercase program name -- case-sensitive filesystems need exact case
+      program = body.program
     }
   } catch {
     // No body or invalid JSON — use defaults (CC-P1-611: removed debug logging)

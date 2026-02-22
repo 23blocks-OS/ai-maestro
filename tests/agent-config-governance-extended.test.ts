@@ -56,6 +56,18 @@ vi.mock('@/lib/governance', () => ({
 }))
 
 // --- Agent registry mocks ---
+// SF-037: Two separate mock systems exist for agent-registry in this file:
+//   1. mockGetAgent (below) -- used by agents-skills-service.ts and agents-config-deploy-service.ts
+//      via `import { getAgent } from '@/lib/agent-registry'`. These are the registry-level lookups
+//      that return plain agent objects.
+//   2. mockAgentRegistryGetAgent (further below) -- used by agents-skills-service.ts for
+//      saveSkillSettings via `import { agentRegistry } from '@/lib/agent'`. This returns a runtime
+//      Agent class instance with getSubconscious().
+// When configuring test mocks, ensure you set the CORRECT mock for the code path under test:
+//   - Skills RBAC tests (updateSkills, addSkill, removeSkill) use mockGetAgent
+//   - saveSkillSettings uses BOTH mockGetAgent (for governance check) AND mockAgentRegistryGetAgent (for file write)
+//   - deployConfigToAgent uses mockGetAgent
+//   - cross-host governance tests override mockGetAgent in their own beforeEach
 const mockGetAgent = vi.fn()
 const mockGetAgentSkills = vi.fn()
 const mockAddMarketplaceSkills = vi.fn()
@@ -91,6 +103,12 @@ vi.mock('@/lib/marketplace-skills', () => ({
 }))
 
 // --- Agent class mock (agentRegistry.getAgent for saveSkillSettings) ---
+// SF-037: This is the SECOND agent lookup mock. It serves a different code path than
+// mockGetAgent above. saveSkillSettings calls `agentRegistry.getAgent()` from '@/lib/agent'
+// to get a runtime Agent instance (with getSubconscious()), whereas the RBAC governance check
+// calls `getAgent()` from '@/lib/agent-registry' to get a plain agent object.
+// If a test configures mockGetAgent but not mockAgentRegistryGetAgent (or vice versa),
+// the unconfigured path will return undefined, causing silent test failures.
 const mockAgentRegistryGetAgent = vi.fn()
 vi.mock('@/lib/agent', () => ({
   agentRegistry: {

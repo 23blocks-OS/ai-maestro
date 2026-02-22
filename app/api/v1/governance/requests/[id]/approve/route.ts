@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { approveCrossHostRequest } from '@/services/cross-host-governance-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +14,11 @@ export async function POST(
 ): Promise<NextResponse> {
   try {
     const { id } = await params
+
+    // MF-013: Validate request ID is a valid UUID before passing to service
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid request ID format' }, { status: 400 })
+    }
 
     let body
     try { body = await request.json() } catch {
@@ -23,9 +29,16 @@ export async function POST(
       return NextResponse.json({ error: 'Missing required fields: approverAgentId, password' }, { status: 400 })
     }
 
+    // SF-024: Validate approverAgentId is a string and valid UUID
+    if (typeof body.approverAgentId !== 'string' || !isValidUuid(body.approverAgentId)) {
+      return NextResponse.json({ error: 'Invalid approverAgentId format' }, { status: 400 })
+    }
+
     const result = await approveCrossHostRequest(id, body.approverAgentId, body.password)
     return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
   } catch (err) {
-    return NextResponse.json({ error: `Internal server error: ${(err as Error).message}` }, { status: 500 })
+    // MF-011: Log full error internally, return generic message to prevent information disclosure
+    console.error('[Governance Approve] POST error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

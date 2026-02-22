@@ -10,6 +10,7 @@ import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { withLock } from '@/lib/file-lock'
+import { isValidUuid } from '@/lib/validation'
 import type { TeamDocument, TeamDocumentsFile } from '@/types/document'
 
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
@@ -21,9 +22,8 @@ function ensureTeamsDir() {
 }
 
 function docsFilePath(teamId: string): string {
-  // Validate teamId is a strict UUID to prevent path traversal (CC-001)
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId))
-    throw new Error('Invalid team ID')
+  // NT-020: Use shared isValidUuid instead of duplicating UUID regex
+  if (!isValidUuid(teamId)) throw new Error('Invalid team ID')
   // path.basename() as defense-in-depth against directory traversal
   return path.join(TEAMS_DIR, path.basename(`docs-${teamId}.json`))
 }
@@ -49,7 +49,11 @@ export function saveDocuments(teamId: string, documents: TeamDocument[]): boolea
   try {
     ensureTeamsDir()
     const file: TeamDocumentsFile = { version: 1, documents }
-    fs.writeFileSync(docsFilePath(teamId), JSON.stringify(file, null, 2), 'utf-8')
+    const filePath = docsFilePath(teamId)
+    // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
+    const tmpPath = `${filePath}.tmp.${process.pid}`
+    fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
+    fs.renameSync(tmpPath, filePath)
     return true
   } catch (error) {
     console.error(`Failed to save documents for team ${teamId}:`, error)

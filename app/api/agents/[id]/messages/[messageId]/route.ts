@@ -5,6 +5,7 @@ import {
   deleteMessageById,
   forwardMessage,
 } from '@/services/agents-messaging-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/[id]/messages/[messageId]
@@ -15,6 +16,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const { searchParams } = new URL(request.url)
   const box = (searchParams.get('box') || 'inbox') as 'inbox' | 'sent'
 
@@ -35,6 +40,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -57,6 +66,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
 
   const result = await deleteMessageById(id, messageId)
 
@@ -75,6 +88,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { id, messageId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })

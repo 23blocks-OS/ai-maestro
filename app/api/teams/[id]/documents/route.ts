@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listTeamDocuments, createTeamDocument } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
+import { isValidUuid } from '@/lib/validation'
 
 // GET /api/teams/[id]/documents - List all documents for a team
 export async function GET(
@@ -8,6 +9,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // MF-005: Validate UUID format for team ID to prevent path traversal
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')
@@ -30,6 +35,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // MF-005: Validate UUID format for team ID to prevent path traversal
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')

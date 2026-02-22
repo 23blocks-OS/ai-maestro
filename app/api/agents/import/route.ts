@@ -30,6 +30,9 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer)
 
     const result = await importAgent(buffer, options)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status || 500 })
+    }
     return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     console.error('Failed to import agent:', error)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runDeltaIndex } from '@/services/agents-memory-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * POST /api/agents/:id/index-delta
@@ -14,6 +15,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const searchParams = request.nextUrl.searchParams
 
   const result = await runDeltaIndex(agentId, {

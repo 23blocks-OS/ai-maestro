@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMemory, initializeMemory } from '@/services/agents-memory-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/:id/memory
@@ -10,6 +11,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const result = await getMemory(agentId)
 
   if (result.error) {
@@ -27,6 +32,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const body = await request.json().catch(() => ({}))
 
   const result = await initializeMemory(agentId, {

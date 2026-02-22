@@ -789,9 +789,10 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                     ) : (
                       <>
                         {/* Repository list */}
+                        {/* SF-019: Use stable key from repo identity instead of array index */}
                         {repositories.map((repo, idx) => (
                           <div
-                            key={idx}
+                            key={repo.remoteUrl || repo.localPath || idx}
                             className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-all"
                           >
                             <div className="flex items-start gap-3">

@@ -19,6 +19,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // SF-006: Validate body.ref is undefined or a string before passing to service
+    if (body.ref !== undefined && typeof body.ref !== 'string') {
+      return NextResponse.json(
+        { error: 'ref must be a string if provided' },
+        { status: 400 }
+      )
+    }
+
     const result = await scanRepo(body.url, body.ref || 'main')
 
     if (result.error) {

@@ -11,6 +11,7 @@ import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
 import { loadAgents } from '@/lib/agent-registry'
 import { withLock } from '@/lib/file-lock'
+import { isValidUuid } from '@/lib/validation'
 import type { Task, TaskWithDeps, TasksFile } from '@/types/task'
 
 const TEAMS_DIR = path.join(os.homedir(), '.aimaestro', 'teams')
@@ -22,9 +23,8 @@ function ensureTeamsDir() {
 }
 
 function tasksFilePath(teamId: string): string {
-  // Validate teamId is a proper UUID to prevent path traversal attacks
-  // Strict UUID v4 pattern (8-4-4-4-12 hex groups) to prevent path traversal
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId)) throw new Error('Invalid team ID')
+  // NT-020: Use shared isValidUuid instead of duplicating UUID regex
+  if (!isValidUuid(teamId)) throw new Error('Invalid team ID')
   // Defense-in-depth: use basename to strip any directory components
   return path.join(TEAMS_DIR, path.basename(`tasks-${teamId}.json`))
 }
@@ -50,7 +50,11 @@ export function saveTasks(teamId: string, tasks: Task[]): boolean {
   try {
     ensureTeamsDir()
     const file: TasksFile = { version: 1, tasks }
-    fs.writeFileSync(tasksFilePath(teamId), JSON.stringify(file, null, 2), 'utf-8')
+    const filePath = tasksFilePath(teamId)
+    // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
+    const tmpPath = `${filePath}.tmp.${process.pid}`
+    fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
+    fs.renameSync(tmpPath, filePath)
     return true
   } catch (error) {
     console.error(`Failed to save tasks for team ${teamId}:`, error)

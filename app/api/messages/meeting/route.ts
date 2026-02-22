@@ -6,10 +6,20 @@ import { getMeetingMessages } from '@/services/messages-service'
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
+
+  // SF-002: Validate that at least meetingId is provided
+  const meetingId = searchParams.get('meetingId')
+  if (!meetingId) {
+    return NextResponse.json({ error: 'meetingId query parameter is required' }, { status: 400 })
+  }
+
   const result = await getMeetingMessages({
-    meetingId: searchParams.get('meetingId'),
+    meetingId,
     participants: searchParams.get('participants'),
     since: searchParams.get('since'),
   })
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

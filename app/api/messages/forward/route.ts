@@ -10,5 +10,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const result = await forwardMessage(body)
-  return NextResponse.json(result.data ?? { error: result.error || 'Internal server error' }, { status: result.status })
+  // NT-002: Use standard if (result.error) pattern instead of ?? which hides errors
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

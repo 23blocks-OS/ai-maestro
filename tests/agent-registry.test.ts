@@ -35,35 +35,57 @@ let fileMtimes: Record<string, number> = {}
 let dirStore: Set<string> = new Set()
 let mtimeCounter = 0
 
+// SF-032: Named export aliases alongside default export ensure the mock works
+// regardless of whether the source uses `import fs from 'fs'` (default) or
+// `import { readFileSync } from 'fs'` (named).
+// MF-027: Added renameSync so atomic write operations are properly tested.
 vi.mock('fs', () => {
+  const existsSync = (p: string) => {
+    return dirStore.has(p) || fileStore[p] !== undefined
+  }
+  const mkdirSync = (p: string, _opts?: any) => {
+    dirStore.add(p)
+  }
+  const readFileSync = (p: string, _encoding?: string) => {
+    if (fileStore[p] === undefined) {
+      throw new Error(`ENOENT: no such file or directory, open '${p}'`)
+    }
+    return fileStore[p]
+  }
+  const writeFileSync = (p: string, data: string, _encoding?: string) => {
+    fileStore[p] = data
+    fileMtimes[p] = ++mtimeCounter
+  }
+  const statSync = (p: string) => {
+    if (fileStore[p] === undefined) {
+      throw new Error(`ENOENT: no such file or directory, stat '${p}'`)
+    }
+    return { mtimeMs: fileMtimes[p] || 0 }
+  }
+  const rmSync = (_p: string, _opts?: any) => {
+    // no-op for delete operations in tests
+  }
+  // MF-027: renameSync enables testing of atomic write pattern (write .tmp then rename)
+  const renameSync = (oldPath: string, newPath: string) => {
+    if (fileStore[oldPath] === undefined) {
+      throw new Error(`ENOENT: no such file or directory, rename '${oldPath}'`)
+    }
+    fileStore[newPath] = fileStore[oldPath]
+    delete fileStore[oldPath]
+    fileMtimes[newPath] = fileMtimes[oldPath] || ++mtimeCounter
+    delete fileMtimes[oldPath]
+  }
+  const copyFileSync = (src: string, dest: string) => {
+    if (fileStore[src] === undefined) {
+      throw new Error(`ENOENT: no such file or directory, copyfile '${src}'`)
+    }
+    fileStore[dest] = fileStore[src]
+  }
+
   return {
-    default: {
-      existsSync: (p: string) => {
-        return dirStore.has(p) || fileStore[p] !== undefined
-      },
-      mkdirSync: (p: string, _opts?: any) => {
-        dirStore.add(p)
-      },
-      readFileSync: (p: string, _encoding?: string) => {
-        if (fileStore[p] === undefined) {
-          throw new Error(`ENOENT: no such file or directory, open '${p}'`)
-        }
-        return fileStore[p]
-      },
-      writeFileSync: (p: string, data: string, _encoding?: string) => {
-        fileStore[p] = data
-        fileMtimes[p] = ++mtimeCounter
-      },
-      statSync: (p: string) => {
-        if (fileStore[p] === undefined) {
-          throw new Error(`ENOENT: no such file or directory, stat '${p}'`)
-        }
-        return { mtimeMs: fileMtimes[p] || 0 }
-      },
-      rmSync: (_p: string, _opts?: any) => {
-        // no-op for delete operations in tests
-      },
-    },
+    default: { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, rmSync, renameSync, copyFileSync },
+    // SF-032: Named exports mirror default for compatibility with named imports
+    existsSync, mkdirSync, readFileSync, writeFileSync, statSync, rmSync, renameSync, copyFileSync,
   }
 })
 

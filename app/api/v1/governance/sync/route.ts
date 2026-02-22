@@ -33,7 +33,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const knownHost = hosts.find(h => h.id === body.fromHostId)
   if (!knownHost) {
     return NextResponse.json(
-      { error: `Unknown host: ${body.fromHostId}` },
+      // SF-026: Do not include fromHostId in error response to avoid information disclosure
+      { error: 'Unknown host' },
       { status: 403 }
     )
   }

@@ -72,7 +72,8 @@ export function saveGovernanceRequests(file: GovernanceRequestsFile): void {
   // Fail-fast: let errors propagate to callers (all wrapped in withLock try/catch)
   ensureAimaestroDir()
   // Atomic write: write to temp file then rename to avoid corruption on crash
-  const tmpFile = REQUESTS_FILE + '.tmp'
+  // SF-040: Include process.pid for multi-process safety
+  const tmpFile = REQUESTS_FILE + `.tmp.${process.pid}`
   fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
   fs.renameSync(tmpFile, REQUESTS_FILE)
 }

@@ -28,7 +28,7 @@ import {
 import type { MarketplaceSkill, AgentSkillsConfig } from '@/types/marketplace'
 import { useGovernance } from '@/hooks/useGovernance'
 import SkillBrowser from './SkillBrowser'
-import SkillDetailModal from './SkillDetailModal'
+// SF-020: SkillDetailModal import removed — selectedSkill was never set to non-null (dead code)
 
 interface AgentSkillEditorProps {
   agentId: string
@@ -68,9 +68,7 @@ export default function AgentSkillEditor({
 
   // UI State
   const [showBrowser, setShowBrowser] = useState(false)
-  // TODO(NT-021): selectedSkill is never set to non-null; SkillDetailModal below is dead code.
-  // Remove both once the skill-detail UX is redesigned or confirmed unnecessary.
-  const [selectedSkill, setSelectedSkill] = useState<MarketplaceSkill | null>(null)
+  // SF-020: Removed dead selectedSkill state and SkillDetailModal (selectedSkill was never set to non-null)
   const [expandedSections, setExpandedSections] = useState({
     marketplace: true,
     aiMaestro: true,
@@ -616,15 +614,6 @@ export default function AgentSkillEditor({
         document.body
       )}
 
-      {/* Skill Detail Modal */}
-      <SkillDetailModal
-        skill={selectedSkill}
-        isOpen={!!selectedSkill}
-        onClose={() => setSelectedSkill(null)}
-        onInstall={handleAddSkill}
-        isInstalled={selectedSkill ? (skills?.marketplace.some(s => s.id === selectedSkill.id) ?? false) : false}
-        hostUrl={hostUrl}
-      />
     </div>
   )
 }

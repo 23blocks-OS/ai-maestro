@@ -62,7 +62,8 @@ export function savePeerGovernance(hostId: string, state: GovernancePeerState): 
   ensurePeersDir()
   const filePath = path.join(PEERS_DIR, `${hostId}.json`)
   // Atomic write: write to temp file then rename to avoid corruption on crash (CC-005 fix)
-  const tmpFile = `${filePath}.tmp`
+  // SF-040: Include process.pid for multi-process safety
+  const tmpFile = `${filePath}.tmp.${process.pid}`
   writeFileSync(tmpFile, JSON.stringify(state, null, 2), 'utf-8')
   renameSync(tmpFile, filePath)
 }

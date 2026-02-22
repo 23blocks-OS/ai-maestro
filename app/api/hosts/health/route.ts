@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRemoteHealth } from '@/services/hosts-service'
+import { getHosts } from '@/lib/hosts-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,28 +12,40 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const hostUrl = request.nextUrl.searchParams.get('url') || ''
 
-  // SF-056: SSRF protection — reject non-HTTP schemes and private/reserved IP destinations.
-  // Phase 1 is localhost-only so risk is low, but defense-in-depth is applied here.
+  // MF-001: SSRF protection — allowlist approach. Only allow URLs whose hostname
+  // matches a known host in hosts.json. The old blocklist was bypassable via
+  // octal/hex/decimal/IPv6-mapped IP representations.
   if (hostUrl) {
     try {
       const parsed = new URL(hostUrl)
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return NextResponse.json({ error: 'Only http/https URLs are allowed' }, { status: 400 })
       }
-      // Block private/reserved IP ranges to prevent SSRF against internal services
-      const hostname = parsed.hostname
-      const isPrivate =
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname === '::1' ||
-        hostname === '0.0.0.0' ||
-        /^10\./.test(hostname) ||
-        /^172\.(1[6-9]|2[0-9]|3[01])\./.test(hostname) ||
-        /^192\.168\./.test(hostname) ||
-        /^169\.254\./.test(hostname) ||
-        hostname.endsWith('.local')
-      if (isPrivate) {
-        return NextResponse.json({ error: 'URLs targeting private/reserved addresses are not allowed' }, { status: 400 })
+      // Allowlist: only permit health checks to hosts registered in hosts.json
+      const knownHosts = getHosts()
+      const requestHostname = parsed.hostname.toLowerCase()
+      const isKnownHost = knownHosts.some(host => {
+        // Check the host's configured URL
+        try {
+          const hostParsed = new URL(host.url)
+          if (hostParsed.hostname.toLowerCase() === requestHostname) return true
+        } catch { /* skip malformed host URLs */ }
+        // Check all known aliases (IPs, hostnames, URLs)
+        if (host.aliases) {
+          for (const alias of host.aliases) {
+            // Alias can be an IP, hostname, or full URL
+            try {
+              const aliasParsed = new URL(alias.includes('://') ? alias : `http://${alias}`)
+              if (aliasParsed.hostname.toLowerCase() === requestHostname) return true
+            } catch { /* skip malformed aliases */ }
+            // Direct string match for bare hostnames/IPs
+            if (alias.toLowerCase() === requestHostname) return true
+          }
+        }
+        return false
+      })
+      if (!isKnownHost) {
+        return NextResponse.json({ error: 'Host not in allowlist — only registered hosts can be health-checked' }, { status: 403 })
       }
     } catch {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })

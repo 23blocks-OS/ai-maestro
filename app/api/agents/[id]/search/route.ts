@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchConversations, ingestConversations } from '@/services/agents-memory-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/:id/search
@@ -23,6 +24,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const searchParams = request.nextUrl.searchParams
 
   const result = await searchConversations(agentId, {
@@ -58,6 +63,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })

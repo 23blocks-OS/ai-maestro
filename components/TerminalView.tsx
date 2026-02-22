@@ -53,9 +53,14 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     if (typeof window === 'undefined') return false
     const mobile = window.innerWidth < 768
     const collapsedKey = `agent-notes-collapsed-${session.agentId || session.id}`
-    const savedCollapsed = localStorage.getItem(collapsedKey)
-    if (savedCollapsed !== null) {
-      return savedCollapsed === 'true'
+    // SF-018: Wrap localStorage access in try/catch — private browsing or full storage throws
+    try {
+      const savedCollapsed = localStorage.getItem(collapsedKey)
+      if (savedCollapsed !== null) {
+        return savedCollapsed === 'true'
+      }
+    } catch {
+      // localStorage unavailable (private browsing, storage full, etc.)
     }
     return mobile // Default to collapsed on mobile, expanded on desktop
   })
@@ -206,6 +211,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // Notify parent of connection status change
       onConnectionStatusChange?.(false)
     },
+    // NT-010: TerminalView message type routing (receives non-protocol messages from useWebSocket):
+    //   - 'history-complete' → triggers terminal refit + scroll to bottom after history load
+    //   - non-JSON (raw text) → written directly to xterm.js terminal as ANSI output
+    // Protocol-level messages ('error', 'status') are handled upstream by useWebSocket.
     onMessage: (data) => {
       // Check if this is a control message (JSON)
       try {
@@ -473,9 +482,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       e.stopPropagation()
     }
 
+    // NT-013: Removed empty if block — just reset the touch tracking flag
     const handleTouchEnd = () => {
-      if (isTouchingTerminal) {
-      }
       isTouchingTerminal = false
     }
 

@@ -9,5 +9,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   const result = await getDockerInfo()
+  // SF-005: Add standard error guard for consistency with other routes
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
   return NextResponse.json(result.data, { status: result.status })
 }

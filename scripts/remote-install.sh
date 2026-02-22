@@ -316,13 +316,12 @@ detect_os() {
     fi
 }
 
-# sed that works on both macOS and Linux
+# Portable in-place sed — works on both macOS (BSD) and Linux (GNU).
+# The -i.bak flag creates a temporary backup (works everywhere),
+# then we remove the .bak file immediately after.
 portable_sed() {
-    if [ "$OS" = "macos" ]; then
-        sed -i '' "$@"
-    else
-        sed -i "$@"
-    fi
+    local file="${@: -1}"
+    sed -i.bak "$@" && rm -f "${file}.bak"
 }
 
 # Install a system package on any Linux distro

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { queryCodeGraph, indexCodeGraph, deleteCodeGraph } from '@/services/agents-graph-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/:id/graph/code
@@ -10,6 +11,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const searchParams = request.nextUrl.searchParams
 
   const result = await queryCodeGraph(agentId, {
@@ -37,6 +42,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
 
   // Parse body - handle empty body gracefully, reject malformed non-empty JSON
   let body: any = {}
@@ -67,6 +76,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const projectPath = request.nextUrl.searchParams.get('project') || ''
 
   const result = await deleteCodeGraph(agentId, projectPath)

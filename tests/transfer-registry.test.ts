@@ -50,6 +50,8 @@ import {
   getPendingTransfersForTeam,
   getPendingTransfersForAgent,
   resolveTransferRequest,
+  revertTransferToPending,
+  cleanupOldTransfers,
 } from '@/lib/transfer-registry'
 import type { TransferRequest, TransfersFile } from '@/types/governance'
 
@@ -339,5 +341,138 @@ describe('resolveTransferRequest', () => {
     const persisted = getTransferRequest('uuid-1')
     expect(persisted!.status).toBe('approved')
     expect(persisted!.resolvedBy).toBe('cos-src')
+  })
+})
+
+// ============================================================================
+// revertTransferToPending (SF-031)
+// ============================================================================
+
+describe('revertTransferToPending', () => {
+  it('reverts an approved transfer back to pending status', async () => {
+    /** Verifies that revertTransferToPending clears resolution fields and sets status back to pending */
+    await createTransferRequest({
+      agentId: 'agent-revert',
+      fromTeamId: 'team-src',
+      toTeamId: 'team-dst',
+      requestedBy: 'cos-1',
+    })
+
+    // First approve the transfer
+    await resolveTransferRequest('uuid-1', 'approved', 'cos-src')
+    const approved = getTransferRequest('uuid-1')
+    expect(approved!.status).toBe('approved')
+    expect(approved!.resolvedAt).toBeDefined()
+    expect(approved!.resolvedBy).toBe('cos-src')
+
+    // Revert to pending (compensating action)
+    const reverted = await revertTransferToPending('uuid-1')
+    expect(reverted).toBe(true)
+
+    // Verify the transfer is back to pending with resolution fields cleared
+    const persisted = getTransferRequest('uuid-1')
+    expect(persisted!.status).toBe('pending')
+    expect(persisted!.resolvedAt).toBeUndefined()
+    expect(persisted!.resolvedBy).toBeUndefined()
+    expect(persisted!.rejectReason).toBeUndefined()
+  })
+
+  it('returns true without disk write when transfer is already pending', async () => {
+    /** Verifies that reverting an already-pending transfer is a no-op that returns true */
+    await createTransferRequest({
+      agentId: 'agent-already-pending',
+      fromTeamId: 'team-src',
+      toTeamId: 'team-dst',
+      requestedBy: 'cos-1',
+    })
+
+    const result = await revertTransferToPending('uuid-1')
+    expect(result).toBe(true)
+
+    const persisted = getTransferRequest('uuid-1')
+    expect(persisted!.status).toBe('pending')
+  })
+
+  it('returns false for non-existent transfer ID', async () => {
+    /** Verifies that reverting a non-existent transfer returns false */
+    const result = await revertTransferToPending('nonexistent-id')
+    expect(result).toBe(false)
+  })
+})
+
+// ============================================================================
+// cleanupOldTransfers (SF-031)
+// ============================================================================
+
+describe('cleanupOldTransfers', () => {
+  it('removes resolved transfers older than 30 days', async () => {
+    /** Verifies that resolved transfers older than 30 days are removed, pending transfers are kept */
+    const oldDate = '2025-04-01T10:00:00.000Z' // Well over 30 days before 2025-06-01
+    const recentDate = '2025-05-25T10:00:00.000Z' // Within 30 days of 2025-06-01
+
+    seedTransfers([
+      {
+        id: 'tr-old',
+        agentId: 'agent-a',
+        fromTeamId: 'team-src',
+        toTeamId: 'team-dst',
+        requestedBy: 'cos-1',
+        status: 'approved',
+        createdAt: oldDate,
+        resolvedAt: oldDate,
+        resolvedBy: 'cos-1',
+      },
+      {
+        id: 'tr-recent',
+        agentId: 'agent-b',
+        fromTeamId: 'team-src',
+        toTeamId: 'team-dst',
+        requestedBy: 'cos-2',
+        status: 'rejected',
+        createdAt: recentDate,
+        resolvedAt: recentDate,
+        resolvedBy: 'cos-2',
+        rejectReason: 'Not needed',
+      },
+      {
+        id: 'tr-pending',
+        agentId: 'agent-c',
+        fromTeamId: 'team-src',
+        toTeamId: 'team-dst',
+        requestedBy: 'cos-3',
+        status: 'pending',
+        createdAt: oldDate, // Old but pending -- should NOT be removed
+      },
+    ])
+
+    const removed = await cleanupOldTransfers()
+
+    expect(removed).toBe(1) // Only tr-old should be removed
+    const remaining = loadTransfers()
+    expect(remaining).toHaveLength(2)
+    expect(remaining.find(r => r.id === 'tr-old')).toBeUndefined()
+    expect(remaining.find(r => r.id === 'tr-recent')).toBeDefined()
+    expect(remaining.find(r => r.id === 'tr-pending')).toBeDefined()
+  })
+
+  it('returns 0 when no transfers are old enough to clean up', async () => {
+    /** Verifies that cleanupOldTransfers returns 0 when all transfers are recent */
+    seedTransfers([
+      {
+        id: 'tr-recent-only',
+        agentId: 'agent-a',
+        fromTeamId: 'team-src',
+        toTeamId: 'team-dst',
+        requestedBy: 'cos-1',
+        status: 'approved',
+        createdAt: '2025-05-28T10:00:00.000Z',
+        resolvedAt: '2025-05-28T10:00:00.000Z',
+        resolvedBy: 'cos-1',
+      },
+    ])
+
+    const removed = await cleanupOldTransfers()
+    expect(removed).toBe(0)
+    expect(loadTransfers()).toHaveLength(1)
   })
 })

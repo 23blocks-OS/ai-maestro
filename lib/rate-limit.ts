@@ -32,8 +32,14 @@ export function checkRateLimit(
   return { allowed: true, retryAfterMs: 0 }
 }
 
-/** Record a failed attempt */
-export function recordFailure(key: string, windowMs: number = DEFAULT_WINDOW_MS): void {
+/**
+ * Record an attempt against the rate limiter.
+ * Called on every attempt (not just failures) when used with checkAndRecordAttempt.
+ * Callers using the separate check/record pattern may call this only on failure.
+ * Renamed from recordFailure to recordAttempt (MF-023) to clarify that
+ * checkAndRecordAttempt records ALL attempts, and callers reset on success.
+ */
+export function recordAttempt(key: string, windowMs: number = DEFAULT_WINDOW_MS): void {
   let entry = limits.get(key)
   const now = Date.now()
   // Reset expired windows so stale counts are not reused
@@ -43,9 +49,13 @@ export function recordFailure(key: string, windowMs: number = DEFAULT_WINDOW_MS)
 }
 
 /**
- * NT-006: Atomic check-and-record for rate limiting.
+ * NT-006 / MF-023: Atomic check-and-record for rate limiting.
  * Checks limit AND records the attempt in one synchronous call,
  * eliminating the window between separate check/record calls.
+ *
+ * Records on EVERY allowed attempt (not just failures). Callers MUST call
+ * resetRateLimit(key) on success to avoid exhausting the allowance.
+ * This is the standard "count attempts, reset on success" pattern for auth.
  */
 export function checkAndRecordAttempt(
   key: string,
@@ -54,10 +64,14 @@ export function checkAndRecordAttempt(
 ): { allowed: boolean; retryAfterMs: number } {
   const result = checkRateLimit(key, maxAttempts, windowMs)
   if (result.allowed) {
-    recordFailure(key, windowMs)
+    // Record every allowed attempt; callers reset on success via resetRateLimit()
+    recordAttempt(key, windowMs)
   }
   return result
 }
+
+/** @deprecated Use recordAttempt instead. Alias kept for backward compatibility. */
+export const recordFailure = recordAttempt
 
 /** Reset rate limit on successful attempt */
 export function resetRateLimit(key: string): void {

@@ -176,7 +176,8 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     }
   }
 
-  const updateField = (field: string, value: any) => {
+  // MF-009: Narrowed value type from `any` to the union of actual field value types
+  const updateField = (field: string, value: string | string[] | undefined) => {
     setAgent({ ...agent, [field]: value })
     setHasChanges(true)
   }

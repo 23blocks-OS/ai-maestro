@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hibernateAgent } from '@/services/agents-core-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * POST /api/agents/[id]/hibernate
@@ -10,6 +11,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
 
   // Parse optional body for sessionIndex
   let sessionIndex = 0

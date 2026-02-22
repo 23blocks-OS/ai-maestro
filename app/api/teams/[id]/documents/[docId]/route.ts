@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTeamDocument, updateTeamDocument, deleteTeamDocument } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
+import { isValidUuid } from '@/lib/validation'
 
 // GET /api/teams/[id]/documents/[docId] - Get a single document
 export async function GET(
@@ -8,6 +9,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const { id, docId } = await params
+  // MF-005: Validate UUID format for both path parameters to prevent path traversal
+  if (!isValidUuid(id) || !isValidUuid(docId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')
@@ -30,6 +35,10 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const { id, docId } = await params
+  // MF-005: Validate UUID format for both path parameters to prevent path traversal
+  if (!isValidUuid(id) || !isValidUuid(docId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')
@@ -58,6 +67,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const { id, docId } = await params
+  // MF-005: Validate UUID format for both path parameters to prevent path traversal
+  if (!isValidUuid(id) || !isValidUuid(docId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')

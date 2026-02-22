@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAgent, updateAgent } from '@/lib/agent-registry'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/[id]/metadata
@@ -14,6 +15,10 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const agent = getAgent(agentId)
 
     if (!agent) {
@@ -37,6 +42,10 @@ export async function PATCH(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     let metadata
     try { metadata = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -50,9 +59,12 @@ export async function PATCH(
 
     return NextResponse.json({ metadata: agent.metadata })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update metadata'
+    // SF-007: Differentiate validation errors (400) from internal errors (500)
     console.error('Failed to update agent metadata:', error)
-    return NextResponse.json({ error: message }, { status: 400 })
+    if (error instanceof TypeError || (error instanceof Error && error.message.includes('Invalid'))) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -66,6 +78,10 @@ export async function DELETE(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const agent = await updateAgent(agentId, { metadata: {} })
 
     if (!agent) {

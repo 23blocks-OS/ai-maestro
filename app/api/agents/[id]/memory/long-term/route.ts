@@ -5,6 +5,7 @@ import {
   updateLongTermMemory,
 } from '@/services/agents-memory-service'
 import type { MemoryCategory } from '@/lib/cozo-schema-memory'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * GET /api/agents/:id/memory/long-term
@@ -26,6 +27,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const searchParams = request.nextUrl.searchParams
 
   const result = await queryLongTermMemories(agentId, {
@@ -58,6 +63,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const memoryId = request.nextUrl.searchParams.get('id') || ''
 
   const result = await deleteLongTermMemory(agentId, memoryId)
@@ -83,6 +92,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })

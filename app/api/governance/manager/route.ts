@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
     // Verify agent exists
     const agent = getAgent(agentId)
     if (!agent) {
-      return NextResponse.json({ error: `Agent '${agentId}' not found` }, { status: 404 })
+      // NT-014: Do not quote agentId in error message (already validated as non-empty string above)
+      return NextResponse.json({ error: `Agent ${agentId} not found` }, { status: 404 })
     }
 
     await setManager(agentId)

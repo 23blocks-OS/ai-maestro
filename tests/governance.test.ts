@@ -60,6 +60,13 @@ vi.mock('@/lib/team-registry', () => ({
   getTeam: vi.fn(() => null),
 }))
 
+// MF-027: Mock governance-sync to prevent real dependency chain (broadcastGovernanceSync)
+// from firing when governance config is saved during tests. The mock must return a Promise
+// because the caller uses fire-and-forget pattern: broadcastGovernanceSync(...).catch(...)
+vi.mock('@/lib/governance-sync', () => ({
+  broadcastGovernanceSync: vi.fn(() => Promise.resolve()),
+}))
+
 // ============================================================================
 // Import module under test (after mocks)
 // ============================================================================

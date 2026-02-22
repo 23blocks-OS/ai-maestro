@@ -14,7 +14,17 @@ import type { Host } from '@/types/host'
 
 let counter = 0
 
-/** Reset the internal counter (call in beforeEach) */
+/**
+ * Reset the internal counter back to 0.
+ *
+ * Call this in `beforeEach` when your test relies on deterministic fixture IDs
+ * (e.g., asserting `agent.id === 'agent-1'`). If your tests only check structural
+ * properties and don't depend on specific ID values, you can safely omit the reset.
+ *
+ * The counter is module-level state shared across all tests in the same vitest worker.
+ * Without a reset, IDs increment continuously (agent-1, agent-2, ... agent-N) across
+ * tests, which is fine for uniqueness but breaks assertions on exact ID strings.
+ */
 export function resetFixtureCounter() {
   counter = 0
 }

@@ -203,7 +203,10 @@ export function saveAgents(agents: Agent[]): boolean {
     ensureAgentsDir()
 
     const data = JSON.stringify(agents, null, 2)
-    fs.writeFileSync(REGISTRY_FILE, data, 'utf-8')
+    // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
+    const tmpPath = `${REGISTRY_FILE}.tmp.${process.pid}`
+    fs.writeFileSync(tmpPath, data, 'utf-8')
+    fs.renameSync(tmpPath, REGISTRY_FILE)
 
     // SF-006: Eagerly populate cache with the agents just saved to prevent
     // concurrent loadAgents() from using stale mtime within the same tick

@@ -55,7 +55,8 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
 }
 
 function releaseIndexSlot(agentId: string) {
-  activeIndexCount--
+  // NT-021: Guard against double-release driving count negative
+  activeIndexCount = Math.max(0, activeIndexCount - 1)
   console.log(`[Delta Index Throttle] Released slot for ${agentId.substring(0, 8)} (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active, ${indexQueue.length} queued)`)
 
   if (indexQueue.length > 0) {

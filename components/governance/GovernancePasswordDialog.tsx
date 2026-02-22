@@ -79,8 +79,9 @@ export default function GovernancePasswordDialog({
           body: JSON.stringify({ password }),
         })
         if (!res.ok) {
-          const body = await res.text()
-          throw new Error(body || `Failed to set password (${res.status})`)
+          // NT-011: Parse JSON safely and extract .error field for structured error messages
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error || `Failed to set password (${res.status})`)
         }
         onPasswordConfirmed(password)
         // Reset state after successful submission

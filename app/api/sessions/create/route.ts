@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import path from 'path'
 import { createSession } from '@/services/sessions-service'
 
 export async function POST(request: Request) {
@@ -6,6 +7,11 @@ export async function POST(request: Request) {
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    // SF-004: Validate workingDirectory is an absolute path to prevent path traversal
+    if (body.workingDirectory && !path.isAbsolute(body.workingDirectory)) {
+      return NextResponse.json({ error: 'workingDirectory must be an absolute path' }, { status: 400 })
     }
 
     const result = await createSession({

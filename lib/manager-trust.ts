@@ -94,7 +94,8 @@ export function saveManagerTrust(file: ManagerTrustFile): void {
   // Fail-fast: let errors propagate to callers (all wrapped in withLock try/catch)
   ensureAimaestroDir()
   // Atomic write: write to temp file then rename to avoid corruption on crash
-  const tmpFile = TRUST_FILE + '.tmp'
+  // SF-040: Include process.pid for multi-process safety
+  const tmpFile = TRUST_FILE + `.tmp.${process.pid}`
   fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
   fs.renameSync(tmpFile, TRUST_FILE)
 }

@@ -5,6 +5,7 @@ import {
   sendAgentSessionCommand,
   unlinkOrDeleteAgentSession,
 } from '@/services/agents-core-service'
+import { isValidUuid } from '@/lib/validation'
 
 /**
  * POST /api/agents/[id]/session
@@ -15,6 +16,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -36,6 +41,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
@@ -74,6 +83,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const result = await getAgentSessionStatus(id)
 
   if (result.error) {
@@ -94,6 +107,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // SF-009: Validate UUID format for agent ID (defense-in-depth)
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+  }
   const searchParams = request.nextUrl.searchParams
 
   const result = await unlinkOrDeleteAgentSession(id, {

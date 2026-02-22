@@ -20,6 +20,13 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
+    // MF-024: Support atomic write pattern (write to .tmp then rename)
+    renameSync: vi.fn((src: string, dest: string) => {
+      if (src in fsStore) {
+        fsStore[dest] = fsStore[src]
+        delete fsStore[src]
+      }
+    }),
   },
 }))
 

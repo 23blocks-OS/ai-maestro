@@ -169,6 +169,9 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
 
   // Send message
   const sendMessage = async () => {
+    // SF-017: Prevent double-submit while a send is already in flight
+    if (loading) return
+
     if (!composeTo || !composeSubject || !composeMessage) {
       showToast('Please fill in all fields', 'error')
       return

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listAllTeams, createNewTeam } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
 
+// NT-009: Force dynamic -- reads runtime filesystem state (team registry)
+export const dynamic = 'force-dynamic'
+
 // GET /api/teams - List all teams
 // Phase 1: No ACL on team list -- localhost only. TODO Phase 2: Add auth/ACL for remote access.
 // CC-P1-309: Add standard result.error check for consistency with other routes

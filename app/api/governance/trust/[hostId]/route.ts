@@ -17,6 +17,10 @@ export async function DELETE(
 ) {
   try {
     const { hostId } = await params
+    // SF-027: Validate hostId as a safe hostname format before passing to service
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,253}[a-zA-Z0-9]$/.test(hostId) && !/^[a-zA-Z0-9]$/.test(hostId)) {
+      return NextResponse.json({ error: 'Invalid hostId format' }, { status: 400 })
+    }
     let body: { password?: string } = {}
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })

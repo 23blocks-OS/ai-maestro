@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { transferAgent } from '@/services/agents-transfer-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function POST(
   request: NextRequest,
@@ -15,6 +16,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     let body
     try {
       body = await request.json()

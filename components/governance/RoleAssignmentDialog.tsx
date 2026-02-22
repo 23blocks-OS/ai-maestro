@@ -108,7 +108,9 @@ export default function RoleAssignmentDialog({
   const [agentNameMap, setAgentNameMap] = useState<Map<string, string>>(new Map())
   useEffect(() => {
     if (!isOpen) return
-    fetch('/api/sessions')
+    // SF-021: Abort fetch on cleanup (dialog close or unmount) to prevent stale state updates
+    const controller = new AbortController()
+    fetch('/api/sessions', { signal: controller.signal })
       .then(r => r.ok ? r.json() : { sessions: [] })
       .then(data => {
         const map = new Map<string, string>()
@@ -120,6 +122,7 @@ export default function RoleAssignmentDialog({
         setAgentNameMap(map)
       })
       .catch(() => {})
+    return () => controller.abort()
   }, [isOpen])
 
   const resolveAgentName = useCallback((id: string) => agentNameMap.get(id) || id.slice(0, 8), [agentNameMap])

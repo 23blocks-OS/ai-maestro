@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Team } from '@/types/team'
 import type { TransferRequest, GovernanceRole } from '@/types/governance'
 import type { GovernanceRequest } from '@/types/governance-request'
@@ -41,6 +41,12 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const [allTeams, setAllTeams] = useState<Team[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
   const [pendingConfigRequests, setPendingConfigRequests] = useState<GovernanceRequest[]>([])
+
+  // SF-016: Guard against concurrent read-modify-write in addAgentToTeam / removeAgentFromTeam
+  const isMutatingRef = useRef(false)
+
+  // SF-023: Track mount state so stale refresh callbacks don't update unmounted component
+  const isMountedRef = useRef(true)
 
   // Derive governance role from current state
   const agentRole: GovernanceRole = useMemo(() => {
@@ -106,6 +112,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         if (signal?.aborted) return  // Stale response guard
         // CC-003: Guard against undefined data (AbortError catch returns undefined)
         if (!govData || !teamsData || !transfersData || !configReqData) return
+        // SF-023: Don't update state after unmount
+        if (!isMountedRef.current) return
         // React 18+ batches these 6 setters into a single re-render automatically
         setHasPassword(govData.hasPassword ?? false)
         setHasManager(govData.hasManager ?? false)
@@ -116,6 +124,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setPendingConfigRequests(configReqData.requests ?? [])
       })
       .catch(() => {
+        if (!isMountedRef.current) return // SF-023: Don't update state after unmount
         // On fetch failure, reset to safe defaults
         setHasPassword(false)
         setHasManager(false)
@@ -128,6 +137,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
       .finally(() => {
         // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)
         if (signal?.aborted) return
+        if (!isMountedRef.current) return // SF-023: Don't update state after unmount
         setLoading(false)
       })
   // CC-009: Empty deps is intentional — refresh only uses fetch (global) + setState (stable),
@@ -137,9 +147,13 @@ export function useGovernance(agentId: string | null): GovernanceState {
 
   // Fetch on mount and when agentId changes; abort stale requests on re-render
   useEffect(() => {
+    isMountedRef.current = true // SF-023: Re-arm on agentId change
     const controller = new AbortController()
     refresh(controller.signal)
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      isMountedRef.current = false // SF-023: Prevent state updates after unmount
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (empty deps), only agentId triggers re-fetch
   }, [agentId])
 
@@ -209,6 +223,9 @@ export function useGovernance(agentId: string | null): GovernanceState {
   // under withLock, eliminating the race condition entirely.
   const addAgentToTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
+      // SF-016: Prevent concurrent read-modify-write mutations
+      if (isMutatingRef.current) return { success: false, error: 'Another team mutation is in progress' }
+      isMutatingRef.current = true
       try {
         // Fetch current team to get existing agentIds
         const teamRes = await fetch(`/api/teams/${teamId}`)
@@ -237,6 +254,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
+      } finally {
+        isMutatingRef.current = false // SF-016: Release mutation lock
       }
     },
     [refresh]
@@ -251,6 +270,9 @@ export function useGovernance(agentId: string | null): GovernanceState {
   // under withLock, eliminating the race condition entirely.
   const removeAgentFromTeam = useCallback(
     async (teamId: string, targetAgentId: string): Promise<{ success: boolean; error?: string }> => {
+      // SF-016: Prevent concurrent read-modify-write mutations
+      if (isMutatingRef.current) return { success: false, error: 'Another team mutation is in progress' }
+      isMutatingRef.current = true
       try {
         // Fetch current team to get existing agentIds
         const teamRes = await fetch(`/api/teams/${teamId}`)
@@ -278,6 +300,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to remove agent from team' }
+      } finally {
+        isMutatingRef.current = false // SF-016: Release mutation lock
       }
     },
     [refresh]

@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { listRepos, updateRepos, removeRepo } from '@/services/agents-repos-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
   _request: Request,
@@ -17,6 +18,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const result = listRepos(id)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -37,6 +42,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     let body
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -61,6 +70,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const { searchParams } = new URL(request.url)
     const remoteUrl = searchParams.get('url')
 

@@ -18,7 +18,11 @@ export async function GET(request: NextRequest) {
     from: searchParams.get('from'),
     to: searchParams.get('to'),
   })
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  // NT-002: Use standard if (result.error) pattern instead of ?? which hides errors when data is {}
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 /**
@@ -54,30 +58,59 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await sendMessage(body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 /**
  * PATCH /api/messages?agent=<id>&id=<messageId>&action=<action>
+ * MF-002: Added authenticateAgent check to prevent unauthorized message modification
  */
 export async function PATCH(request: NextRequest) {
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const result = await updateMessage(
     searchParams.get('agent'),
     searchParams.get('id'),
     searchParams.get('action'),
   )
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  // NT-002: Use standard if (result.error) pattern
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 /**
  * DELETE /api/messages?agent=<id>&id=<messageId>
+ * MF-002: Added authenticateAgent check to prevent unauthorized message deletion
  */
 export async function DELETE(request: NextRequest) {
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const result = await removeMessage(
     searchParams.get('agent'),
     searchParams.get('id'),
   )
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  // NT-002: Use standard if (result.error) pattern
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

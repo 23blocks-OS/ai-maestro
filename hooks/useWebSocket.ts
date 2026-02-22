@@ -106,6 +106,12 @@ export function useWebSocket({
         onOpenRef.current?.()
       }
 
+      // NT-010: WebSocket message type routing:
+      // This layer (useWebSocket) handles protocol-level messages:
+      //   - 'error'  → sets connectionError + errorHint state
+      //   - 'status' → sets connectionMessage (e.g., remote retry progress)
+      //   - non-JSON  → forwarded to onMessage callback (terminal data for TerminalView)
+      // TerminalView's onMessage callback handles the raw terminal data (ANSI output).
       ws.onmessage = (event) => {
         // Try to parse as JSON for error/status messages
         try {
@@ -180,6 +186,9 @@ export function useWebSocket({
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
     }
+
+    // MF-008: Reset reconnect counter so next connect() starts fresh
+    reconnectAttemptsRef.current = 0
 
     if (wsRef.current) {
       wsRef.current.close()

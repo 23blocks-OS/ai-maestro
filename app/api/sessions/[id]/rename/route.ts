@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
  * @deprecated Use PATCH /api/agents/[id] to update agent alias instead.
  * This endpoint uses tmux session names directly, while the agent endpoint
  * uses agent IDs for proper multi-host support.
+ * Removal target: v0.28.0
  */
 function logDeprecation() {
   console.warn('[DEPRECATED] PATCH /api/sessions/[id]/rename - Use PATCH /api/agents/[id] to update alias instead')
@@ -22,7 +23,9 @@ export async function PATCH(
     try { jsonBody = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const [{ newName }, { id: oldName }] = [jsonBody, await params]
+    // NT-003: Use standard two-line pattern instead of tuple destructuring
+    const { id: oldName } = await params
+    const { newName } = jsonBody
 
     const result = await renameSession(oldName, newName)
 

@@ -54,12 +54,23 @@ export async function POST(
     return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
   }
 
+  // SF-011: Validate priority is a finite number to prevent NaN from propagating
+  if (body.priority !== undefined) {
+    const priority = Number(body.priority)
+    if (!Number.isFinite(priority)) {
+      return NextResponse.json({ error: 'priority must be a finite number' }, { status: 400 })
+    }
+  }
+  // MF-006: Runtime validation for blockedBy -- must be an array of strings if provided
+  if (body.blockedBy !== undefined && !Array.isArray(body.blockedBy)) {
+    return NextResponse.json({ error: 'blockedBy must be an array of strings' }, { status: 400 })
+  }
   // Whitelist only known CreateTaskParams fields to avoid passing arbitrary data
   const safeParams: CreateTaskParams = {
     subject: String(body.subject ?? ''),
     ...(body.description !== undefined && { description: String(body.description) }),
     ...(body.assigneeAgentId !== undefined && { assigneeAgentId: String(body.assigneeAgentId) }),
-    ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy as string[] }),
+    ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
     ...(body.priority !== undefined && { priority: Number(body.priority) }),
     requestingAgentId,
   }

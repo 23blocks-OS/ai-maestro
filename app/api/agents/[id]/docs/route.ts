@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { queryDocs, indexDocs, clearDocs } from '@/services/agents-docs-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +18,10 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const searchParams = request.nextUrl.searchParams
 
     const result = await queryDocs(agentId, {
@@ -48,6 +53,10 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
 
     let body: any = {}
     try {
@@ -80,6 +89,10 @@ export async function DELETE(
 ) {
   try {
     const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const searchParams = request.nextUrl.searchParams
     const projectPath = searchParams.get('project') || undefined
 

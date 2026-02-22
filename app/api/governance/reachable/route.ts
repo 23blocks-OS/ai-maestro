@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkMessageAllowed } from '@/lib/message-filter'
 import { loadAgents } from '@/lib/agent-registry'
+import { isValidUuid } from '@/lib/validation'
 
 // In-memory cache: avoids re-reading governance + teams files for every agent
 // on each request. TTL of 5 seconds balances freshness with performance.
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'agentId query parameter is required' }, { status: 400 })
     }
 
-    if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+    // MF-010: Use strict UUID validation instead of relaxed regex to prevent cache pollution
+    if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
     }
 

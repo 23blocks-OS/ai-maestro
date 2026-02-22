@@ -216,6 +216,10 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   })
 
   if (record) {
+    // SF-039: Intentionally mutates cached array in-place for last_used_at tracking.
+    // This is safe because loadApiKeys() returns the authoritative array, and the
+    // debounce below limits disk writes. The mutation avoids cloning the entire
+    // array on every validation call (hot path).
     // Debounce last_used_at disk writes (S8 fix)
     const now = Date.now()
     const lastWrite = _lastUsedWriteTimestamps.get(keyHash) || 0
@@ -367,8 +371,10 @@ export async function revokeAllKeysForAgent(agentId: string): Promise<number> {
 /**
  * Clean up expired keys
  * Should be run periodically
+ * SF-038: Wrapped in withLock to serialize read-modify-write on the API keys file
  */
-export function cleanupExpiredKeys(): number {
+export async function cleanupExpiredKeys(): Promise<number> {
+  return withLock('amp-api-keys', () => {
   const keys = loadApiKeys()
   const now = new Date()
   let removedCount = 0
@@ -393,6 +399,7 @@ export function cleanupExpiredKeys(): number {
   }
 
   return removedCount
+  }) // end withLock('amp-api-keys')
 }
 
 /**

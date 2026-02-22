@@ -3,6 +3,24 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.12] - 2026-02-22
+
+### Added
+- **Brain inbox** — JSONL-based signal queue (`brain-inbox.ts`) allowing cerebellum and subconscious to surface signals to the cortex via the idle_prompt hook
+- **OpenAI TTS in companion UI** — Provider toggle button and API key input for the OpenAI TTS tier ($15/M chars vs ElevenLabs $206/M)
+- **Message event type in cerebellum** — `message` classification with 0ms cooldown for AMP notification detection in terminal output
+- Brain inbox API endpoint (`/api/agents/[id]/brain-inbox`) + headless route
+- Subconscious memory surfacing — after indexing, searches for relevant memories and writes to brain inbox
+- **Plugin Builder page** — Visual skill composition interface for building Claude Code plugins
+
+### Changed
+- Hook refactored to single agent lookup (`findAgentByCwd`) shared across all check functions, eliminating 3 redundant `/api/agents` calls per idle_prompt
+- Hook sends combined notification (messages + brain signals) as a single prompt to avoid race conditions
+- Plugin submodule updated for Anthropic skill compliance
+
+### Fixed
+- Plugin builder security hardening, accessibility, and reliability improvements
+
 ## [0.24.10] - 2026-02-20
 
 ### Changed

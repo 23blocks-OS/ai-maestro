@@ -1235,6 +1235,16 @@ function FloatingVoiceSettings({
             Browser
           </button>
           <button
+            onClick={() => onConfigChange({ provider: 'openai', voiceId: null })}
+            className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              config.provider === 'openai'
+                ? 'bg-blue-500/30 text-blue-300'
+                : 'bg-white/5 text-white/40 hover:text-white/60'
+            }`}
+          >
+            OpenAI
+          </button>
+          <button
             onClick={() => onConfigChange({ provider: 'elevenlabs', voiceId: null })}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               config.provider === 'elevenlabs'
@@ -1246,6 +1256,20 @@ function FloatingVoiceSettings({
           </button>
         </div>
       </div>
+
+      {/* OpenAI API key */}
+      {config.provider === 'openai' && (
+        <div>
+          <label className="text-[10px] text-white/40 uppercase tracking-wider mb-1 block">API Key</label>
+          <input
+            type="password"
+            value={config.openaiApiKey || ''}
+            onChange={(e) => onConfigChange({ openaiApiKey: e.target.value })}
+            placeholder="sk-..."
+            className="w-full bg-white/10 text-white/80 text-sm rounded-lg px-3 py-2 border border-white/10 focus:border-blue-500/50 focus:outline-none placeholder-white/20"
+          />
+        </div>
+      )}
 
       {/* ElevenLabs API key */}
       {config.provider === 'elevenlabs' && (

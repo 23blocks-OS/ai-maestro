@@ -781,6 +781,14 @@ const routes: Route[] = [
     sendServiceResult(res, await triggerSubconsciousAction(params.id, body))
   }},
 
+  // Brain Inbox
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/brain-inbox$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const { readAndClearBrainInbox } = await import('@/lib/cerebellum/brain-inbox')
+    const signals = readAndClearBrainInbox(params.id)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ signals }))
+  }},
+
   // Repos
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listRepos(params.id))

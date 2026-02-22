@@ -21,7 +21,11 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const { sessionId, all } = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { sessionId, all } = body
 
     const result = await restoreSessions({ sessionId, all })
 

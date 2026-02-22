@@ -6,7 +6,7 @@
  */
 
 import { getAgent, getAgentByAlias, loadAgents, saveAgents } from '@/lib/agent-registry'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import type { Agent, Repository } from '@/types/agent'
@@ -24,13 +24,18 @@ function resolveAgent(idOrName: string): Agent | null {
 
 function getGitRepoInfo(dirPath: string): Repository | null {
   try {
-    const gitDir = path.join(dirPath, '.git')
+    // MF-011: Validate dirPath to prevent path traversal / shell metacharacters
+    if (!dirPath || /[;&|`$(){}]/.test(dirPath)) return null
+    const resolvedPath = path.resolve(dirPath)
+
+    const gitDir = path.join(resolvedPath, '.git')
     if (!fs.existsSync(gitDir)) return null
 
     let remoteUrl = ''
     try {
-      remoteUrl = execSync('git config --get remote.origin.url', {
-        cwd: dirPath, encoding: 'utf-8', timeout: 5000
+      // MF-011: Use execFileSync with array args to prevent shell injection
+      remoteUrl = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
+        cwd: resolvedPath, encoding: 'utf-8', timeout: 5000
       }).trim()
     } catch { /* No remote configured */ }
 
@@ -38,15 +43,17 @@ function getGitRepoInfo(dirPath: string): Repository | null {
 
     let currentBranch = ''
     try {
-      currentBranch = execSync('git rev-parse --abbrev-ref HEAD', {
-        cwd: dirPath, encoding: 'utf-8', timeout: 5000
+      // MF-011: Use execFileSync with array args to prevent shell injection
+      currentBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: resolvedPath, encoding: 'utf-8', timeout: 5000
       }).trim()
     } catch { currentBranch = 'unknown' }
 
     let defaultBranch = currentBranch
     try {
-      const remoteBranch = execSync('git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo ""', {
-        cwd: dirPath, encoding: 'utf-8', timeout: 5000, shell: '/bin/bash'
+      // MF-011: Use execFileSync -- shell redirection not needed, handle error in catch
+      const remoteBranch = execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
+        cwd: resolvedPath, encoding: 'utf-8', timeout: 5000
       }).trim()
       if (remoteBranch) {
         defaultBranch = remoteBranch.replace('refs/remotes/origin/', '')
@@ -55,8 +62,9 @@ function getGitRepoInfo(dirPath: string): Repository | null {
 
     let lastCommit = ''
     try {
-      lastCommit = execSync('git rev-parse HEAD', {
-        cwd: dirPath, encoding: 'utf-8', timeout: 5000
+      // MF-011: Use execFileSync with array args to prevent shell injection
+      lastCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: resolvedPath, encoding: 'utf-8', timeout: 5000
       }).trim().substring(0, 8)
     } catch { /* No commits */ }
 

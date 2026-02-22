@@ -6,7 +6,7 @@
  * be approved by the source team's COS before the move takes effect.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, renameSync } from 'fs'
 import os from 'os'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -56,7 +56,10 @@ export function loadTransfers(): TransferRequest[] {
 function saveTransfers(requests: TransferRequest[]): void {
   ensureDir()
   const data: TransfersFile = { version: 1, requests }
-  writeFileSync(TRANSFERS_FILE, JSON.stringify(data, null, 2), 'utf-8')
+  // SF-002 (P5): Atomic write -- write to temp file then rename to prevent corruption on crash
+  const tmpFile = `${TRANSFERS_FILE}.tmp`
+  writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8')
+  renameSync(tmpFile, TRANSFERS_FILE)
 }
 
 /** Create a new pending transfer request */

@@ -10,7 +10,11 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const { sessionName, status, hookStatus, notificationType } = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { sessionName, status, hookStatus, notificationType } = body
 
     const result = broadcastActivityUpdate(sessionName, status, hookStatus, notificationType)
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { WebglAddon } from '@xterm/addon-webgl'
@@ -30,6 +30,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   const optionsRef = useRef(options)
   // Ref for sending data to PTY via WebSocket - set by TerminalView which has WebSocket access
   const sendDataRef = useRef<((data: string) => void) | null>(null)
+  // SF-010: State mirror of terminalRef so consumers get re-rendered when terminal is created/disposed
+  const [terminalInstance, setTerminalInstance] = useState<Terminal | null>(null)
 
   // Keep options ref up to date
   useEffect(() => {
@@ -42,6 +44,7 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       terminalRef.current.dispose()
       terminalRef.current = null
       fitAddonRef.current = null
+      setTerminalInstance(null)
     }
 
     // Clear the container completely
@@ -103,7 +106,10 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       windowOptions: {
         setWinLines: true,
       },
-      // Disable screen reader mode - accessibility tree handled via CSS pointer-events
+      // NT-008: Screen reader mode disabled intentionally. When enabled, xterm.js duplicates all
+      // terminal content into a live-region DOM element, which causes severe performance degradation
+      // with high-output sessions (Claude Code output). Accessibility for terminal content is
+      // handled via the Copy button and aria-labels on controls instead.
       screenReaderMode: false,
       disableStdin: false,
       customGlyphs: true,
@@ -172,6 +178,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Store references
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+    // SF-010: Update state so consumers re-render when terminal becomes available
+    setTerminalInstance(terminal)
 
     // Register with global terminal registry
     if (optionsRef.current.onRegister) {
@@ -303,6 +311,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       fitAddonRef.current = null
       // Clear send function reference to prevent stale callbacks
       sendDataRef.current = null
+      // SF-010: Clear state so consumers re-render on disposal
+      setTerminalInstance(null)
     }
   }, [])
 
@@ -311,6 +321,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       terminalRef.current.dispose()
       terminalRef.current = null
       fitAddonRef.current = null
+      // SF-010: Clear state so consumers re-render on disposal
+      setTerminalInstance(null)
     }
   }, [])
 
@@ -338,7 +350,9 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   }, [])
 
   return {
-    terminal: terminalRef.current,
+    // SF-010: Return state-backed terminal instance so consumers re-render when it changes.
+    // The ref is still used internally for synchronous access in callbacks.
+    terminal: terminalInstance,
     initializeTerminal,
     disposeTerminal,
     fitTerminal,

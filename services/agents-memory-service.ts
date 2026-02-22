@@ -1111,15 +1111,22 @@ export function getMetrics(agentId: string): ServiceResult<any> {
   }
 }
 
-export function updateMetrics(
+// SF-027: Whitelist of allowed metric field names to prevent arbitrary key injection
+const ALLOWED_METRIC_FIELDS = [
+  'totalMessages', 'totalConversations', 'totalTokens',
+  'lastActiveAt', 'sessionsCreated', 'commandsExecuted',
+] as const
+
+export async function updateMetrics(
   agentId: string,
   body: { action?: string; metric?: string; amount?: number; [key: string]: any }
-): ServiceResult<any> {
+): Promise<ServiceResult<any>> {
   try {
-    const { action, metric, amount, ...metrics } = body
+    const { action, metric, amount } = body
 
     if (action === 'increment' && metric) {
-      const success = incrementAgentMetric(agentId, metric as any, amount || 1)
+      // SF-032: Use nullish coalescing to preserve intentional amount=0
+      const success = await incrementAgentMetric(agentId, metric as any, amount ?? 1)
       if (!success) {
         return { error: 'Agent not found', status: 404 }
       }
@@ -1127,7 +1134,15 @@ export function updateMetrics(
       return { data: { metrics: agent?.metrics }, status: 200 }
     }
 
-    const agent = updateAgentMetrics(agentId, metrics as UpdateAgentMetricsRequest)
+    // SF-027: Only allow whitelisted metric fields instead of arbitrary rest spread
+    const filteredMetrics: Record<string, any> = {}
+    for (const field of ALLOWED_METRIC_FIELDS) {
+      if (field in body) {
+        filteredMetrics[field] = body[field]
+      }
+    }
+
+    const agent = await updateAgentMetrics(agentId, filteredMetrics as UpdateAgentMetricsRequest)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }
     }

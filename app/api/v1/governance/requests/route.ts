@@ -14,6 +14,8 @@ import {
 import { verifyHostAttestation } from '@/lib/host-keys'
 import { getHosts } from '@/lib/hosts-config'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body
   try { body = await request.json() } catch {
@@ -33,9 +35,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Host ID header does not match body fromHostId' }, { status: 400 })
     }
     const hosts = getHosts()
-    const knownHost = hosts.find((h: any) => h.id === hostId)
+    const knownHost = hosts.find((h) => h.id === hostId)
     if (!knownHost) {
-      return NextResponse.json({ error: `Unknown host: ${hostId}` }, { status: 403 })
+      return NextResponse.json({ error: 'Unknown host' }, { status: 403 })
     }
     if (!knownHost.publicKeyHex) {
       return NextResponse.json({ error: 'Host has no registered public key' }, { status: 403 })
@@ -50,11 +52,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const result = await receiveCrossHostRequest(body.fromHostId, body.request)
-    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
   }
 
-  const result = await submitCrossHostRequest(body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  try {
+    const result = await submitCrossHostRequest(body)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (err) {
+    console.error('[Governance Requests] POST error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
 
 /** Valid GovernanceRequestStatus values for query param validation (CC-P4-006) */
@@ -72,10 +85,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 }
     )
   }
-  const result = listCrossHostRequests({
-    status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
-    hostId: searchParams.get('hostId') || undefined,
-    agentId: searchParams.get('agentId') || undefined,
-  })
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  try {
+    const result = listCrossHostRequests({
+      status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+      hostId: searchParams.get('hostId') || undefined,
+      agentId: searchParams.get('agentId') || undefined,
+    })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (err) {
+    console.error('[Governance Requests] GET error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

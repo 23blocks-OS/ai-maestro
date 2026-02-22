@@ -206,7 +206,7 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   // Register in agent registry
   let agentId: string | undefined
   try {
-    const agent = createAgent({
+    const agent = await createAgent({
       name,
       label: body.label,
       avatar: body.avatar,

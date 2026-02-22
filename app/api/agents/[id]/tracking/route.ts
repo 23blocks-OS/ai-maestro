@@ -6,7 +6,7 @@ import { getTracking, initializeTracking } from '@/services/agents-memory-servic
  * Get agent's complete tracking data (sessions, projects, conversations)
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params

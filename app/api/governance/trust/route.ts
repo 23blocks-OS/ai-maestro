@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listTrustedManagers, addTrust } from '@/services/governance-service'
 
+export const dynamic = 'force-dynamic'
+
 /** GET: List all trusted managers */
 export async function GET() {
   try {

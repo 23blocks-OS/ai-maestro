@@ -142,9 +142,9 @@ export function diagnoseHosts(): ServiceResult<any> {
 // POST /api/agents/normalize-hosts
 // ---------------------------------------------------------------------------
 
-export function normalizeHosts(): ServiceResult<any> {
+export async function normalizeHosts(): Promise<ServiceResult<any>> {
   try {
-    const result = normalizeAllAgentHostIds()
+    const result = await normalizeAllAgentHostIds()
     return {
       data: {
         success: true,

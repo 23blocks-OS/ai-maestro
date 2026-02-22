@@ -3,13 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * Unit tests for Ed25519 signature verification on governance endpoints (SR-001, SR-002, SR-007)
  *
- * Coverage: 12 tests across 3 security fixes
+ * Coverage: 13 tests across 3 security fixes
  * - SR-001 (signature on outbound): broadcastGovernanceSync signs requests, sendRequestToRemoteHost signs, notifyRemoteHostOfRejection signs
- * - SR-007 (type whitelist): submitCrossHostRequest rejects unimplemented types
+ * - SR-007 (type whitelist): submitCrossHostRequest rejects unimplemented types (manager + COS roles)
  * - Signature header format: correct header names and values
  *
  * External dependencies mocked: host-keys, hosts-config, governance, agent-registry, team-registry,
- *                                governance-peers, governance-request-registry, file-lock, manager-trust, fetch
+ *                                governance-peers, governance-request-registry, file-lock, manager-trust,
+ *                                rate-limit, fetch
  */
 
 // ============================================================================
@@ -96,13 +97,20 @@ vi.mock('@/lib/manager-trust', () => ({
   shouldAutoApprove: vi.fn().mockReturnValue(false),
 }))
 
+// SF-017: Mock rate-limit to prevent cross-host-governance-service from loading real rate-limit module
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
+  recordFailure: vi.fn(),
+  resetRateLimit: vi.fn(),
+}))
+
 // ============================================================================
 // Import modules under test (after mocks)
 // ============================================================================
 
+// NT-013: Removed unused buildLocalGovernanceSnapshot import (tested in governance-sync.test.ts)
 import {
   broadcastGovernanceSync,
-  buildLocalGovernanceSnapshot,
 } from '@/lib/governance-sync'
 
 import {
@@ -339,6 +347,27 @@ describe('SR-007: submitCrossHostRequest type whitelist', () => {
       type: 'transfer-agent',
     })
     expect(result.status).toBe(201)
+  })
+
+  // NT-016: Verify type whitelist also works with chief-of-staff role
+  it('rejects create-agent type when requestedByRole is chief-of-staff', async () => {
+    /** Verifies that type whitelist applies regardless of the requester role */
+    // Import the mocked module to override isChiefOfStaffAnywhere for this test
+    const governance = await import('@/lib/governance')
+    vi.mocked(governance.isChiefOfStaffAnywhere).mockImplementation((id: string) => id === 'cos-agent')
+    mockGetAgent.mockImplementation((id: string) => {
+      if (id === 'cos-agent') return { id: 'cos-agent', name: 'COS' }
+      return null
+    })
+
+    const result = await submitCrossHostRequest({
+      ...baseParams,
+      type: 'create-agent',
+      requestedBy: 'cos-agent',
+      requestedByRole: 'chief-of-staff' as const,
+    })
+    expect(result.status).toBe(400)
+    expect(result.error).toContain('not yet implemented')
   })
 })
 

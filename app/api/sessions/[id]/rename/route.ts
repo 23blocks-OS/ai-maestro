@@ -18,10 +18,11 @@ export async function PATCH(
 ) {
   logDeprecation()
   try {
-    const [{ newName }, { id: oldName }] = await Promise.all([
-      request.json(),
-      params
-    ])
+    let jsonBody
+    try { jsonBody = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const [{ newName }, { id: oldName }] = [jsonBody, await params]
 
     const result = await renameSession(oldName, newName)
 

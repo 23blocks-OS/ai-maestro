@@ -6,12 +6,14 @@ import { getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
 import { getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgentByPartialName, getAgent } from './agent-registry'
 import { parseSessionName, computeSessionName } from '@/types/agent'
 import type { Agent } from '@/types/agent'
+// SF-052: File locking for read-modify-write message operations
+import { withLock } from '@/lib/file-lock'
 
 /**
- * Get this host's name for messages
+ * NT-030: Canonical getSelfHostName -- message-send.ts imports from here
  * Uses the hostname (e.g., 'macbook-pro', 'mac-mini') for cross-host compatibility
  */
-function getSelfHostName(): string {
+export function getSelfHostName(): string {
   try {
     const selfHost = getSelfHost()
     return selfHost.name || getSelfHostId() || 'unknown-host'
@@ -87,7 +89,8 @@ export interface MessageSummary {
   viaSlack?: boolean  // True if message originated from Slack bridge
 }
 
-interface ResolvedAgent {
+// NT-029: Canonical definition of ResolvedAgent -- message-send.ts re-exports from here
+export interface ResolvedAgent {
   agentId: string
   alias: string
   displayName?: string
@@ -136,8 +139,16 @@ function triggerOldDuplicateCleanup(): void {
             try { files = await fs.readdir(senderPath) } catch { continue }
             for (const file of files) {
               if (file.startsWith('msg-') && file.endsWith('.json')) {
+                // SF-051: Only delete old flat-format duplicates, not current AMP envelope messages.
+                // Old format has {id, from, to, status, ...} directly; new format has {envelope, payload}.
+                const filePath = path.join(senderPath, file)
                 try {
-                  await fs.unlink(path.join(senderPath, file))
+                  const content = await fs.readFile(filePath, 'utf-8')
+                  const parsed = JSON.parse(content)
+                  // Skip current AMP envelope-format messages (they have envelope+payload)
+                  if (parsed.envelope && parsed.payload) continue
+                  // Only delete old flat-format files that have the duplicate markers
+                  await fs.unlink(filePath)
                   totalDeleted++
                 } catch { /* best effort */ }
               }
@@ -188,8 +199,33 @@ function normalizeMessageId(id: string): string {
   return id.replace(/_/g, '-')
 }
 
+/** SF-050: Minimal structural type for AMP envelope messages parsed from JSON files */
+interface AMPEnvelopeMsg {
+  envelope: {
+    id: string
+    from: string
+    to: string
+    subject: string
+    timestamp?: string
+    priority?: string
+    in_reply_to?: string
+    signature?: string
+    sender_public_key?: string
+  }
+  payload: {
+    type?: string
+    message?: string
+    context?: unknown
+  }
+  metadata?: { status?: string }
+  local?: { status?: string }
+  fromVerified?: boolean
+  signature?: string
+  sender_public_key?: string
+}
+
 /** Convert an AMP envelope-format message to internal Message format */
-function convertAMPToMessage(ampMsg: any): Message | null {
+function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
   const envelope = ampMsg.envelope
   const payload = ampMsg.payload
   if (!envelope || !payload) return null
@@ -226,6 +262,8 @@ function convertAMPToMessage(ampMsg: any): Message | null {
     fromAlias: fromName,
     fromLabel: fromAgent?.label || undefined,
     fromHost,
+    // MF-025: Propagate fromVerified from AMP envelope so UI can display verification status
+    fromVerified: ampMsg.fromVerified ?? false,
     to: toName,
     toAlias: toName,
     toLabel: toAgent?.label || undefined,
@@ -314,6 +352,8 @@ async function collectMessagesFromAMPDir(
             fromAlias: msg.fromAlias,
             fromLabel: msg.fromLabel,
             fromHost: msg.fromHost,
+            // MF-025: Propagate fromVerified into summary for AMP envelope messages
+            fromVerified: msg.fromVerified,
             to: msg.to,
             toAlias: msg.toAlias,
             toLabel: msg.toLabel,
@@ -452,7 +492,9 @@ _agentCacheSweepInterval.unref()
 
 /**
  * CC-P4-005: Clean up the agent address cache sweep interval.
- * Call this on shutdown or in tests to prevent timer leaks.
+ * Call this in tests to prevent timer leaks (vitest/jest open handle warnings).
+ * SF-053: In production, .unref() above ensures the timer won't block process exit,
+ * so explicit cleanup is only needed in test environments.
  */
 export function cleanupAgentCacheSweep(): void {
   clearInterval(_agentCacheSweepInterval)
@@ -484,8 +526,11 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   let agent: Agent | null = null
 
   // 0. Check for name@host format first (explicit host targeting)
+  // MF-024: Use indexOf to split on first '@' only, so hostIds containing '@' are preserved
   if (identifier.includes('@')) {
-    const [name, hostId] = identifier.split('@')
+    const atIndex = identifier.indexOf('@')
+    const name = identifier.substring(0, atIndex)
+    const hostId = identifier.substring(atIndex + 1)
     // Try name first, then alias (alias searches both name and alias fields)
     agent = getAgentByName(name, hostId) || getAgentByAlias(name, hostId) || null
   }
@@ -711,27 +756,30 @@ export async function markMessageAsRead(agentIdentifier: string, messageId: stri
   const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!messagePath) return false
 
-  try {
-    const content = await fs.readFile(messagePath, 'utf-8')
-    const raw = JSON.parse(content)
+  // SF-052: Serialize read-modify-write per message file to prevent TOCTOU races
+  return withLock(`msg-${messageId}`, async () => {
+    try {
+      const content = await fs.readFile(messagePath, 'utf-8')
+      const raw = JSON.parse(content)
 
-    // Handle AMP envelope format vs old flat format
-    if (raw.envelope && raw.payload) {
-      // CC-P1-402: Initialize metadata/local if missing so status is always set
-      if (!raw.metadata) raw.metadata = {}
-      if (!raw.local) raw.local = {}
-      raw.metadata.status = 'read'
-      raw.local.status = 'read'
-    } else {
-      // Old flat format
-      raw.status = 'read'
+      // Handle AMP envelope format vs old flat format
+      if (raw.envelope && raw.payload) {
+        // CC-P1-402: Initialize metadata/local if missing so status is always set
+        if (!raw.metadata) raw.metadata = {}
+        if (!raw.local) raw.local = {}
+        raw.metadata.status = 'read'
+        raw.local.status = 'read'
+      } else {
+        // Old flat format
+        raw.status = 'read'
+      }
+
+      await fs.writeFile(messagePath, JSON.stringify(raw, null, 2))
+      return true
+    } catch (error) {
+      return false
     }
-
-    await fs.writeFile(messagePath, JSON.stringify(raw, null, 2))
-    return true
-  } catch (error) {
-    return false
-  }
+  }) // end withLock
 }
 
 /**
@@ -759,26 +807,29 @@ export async function archiveMessage(agentIdentifier: string, messageId: string)
   const inboxPath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!inboxPath) return false
 
-  try {
-    const content = await fs.readFile(inboxPath, 'utf-8')
-    const raw = JSON.parse(content)
+  // SF-052: Serialize read-modify-write per message file to prevent TOCTOU races
+  return withLock(`msg-${messageId}`, async () => {
+    try {
+      const content = await fs.readFile(inboxPath, 'utf-8')
+      const raw = JSON.parse(content)
 
-    if (raw.envelope && raw.payload) {
-      // CC-P1-406: Initialize metadata/local if missing so status is always set
-      if (!raw.metadata) raw.metadata = {}
-      if (!raw.local) raw.local = {}
-      raw.metadata.status = 'archived'
-      raw.local.status = 'archived'
-      await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
-    } else {
-      // Old flat format - update status in place
-      raw.status = 'archived'
-      await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
+      if (raw.envelope && raw.payload) {
+        // CC-P1-406: Initialize metadata/local if missing so status is always set
+        if (!raw.metadata) raw.metadata = {}
+        if (!raw.local) raw.local = {}
+        raw.metadata.status = 'archived'
+        raw.local.status = 'archived'
+        await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
+      } else {
+        // Old flat format - update status in place
+        raw.status = 'archived'
+        await fs.writeFile(inboxPath, JSON.stringify(raw, null, 2))
+      }
+      return true
+    } catch (error) {
+      return false
     }
-    return true
-  } catch (error) {
-    return false
-  }
+  }) // end withLock
 }
 
 /**

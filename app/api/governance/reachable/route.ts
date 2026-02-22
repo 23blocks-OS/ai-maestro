@@ -6,6 +6,8 @@ import { loadAgents } from '@/lib/agent-registry'
 // on each request. TTL of 5 seconds balances freshness with performance.
 // Note: Cache does not auto-invalidate when governance/team config changes.
 // TTL-based expiry handles staleness. Phase 2: add event-driven invalidation.
+export const dynamic = 'force-dynamic'
+
 const cache = new Map<string, { ids: string[]; expiresAt: number }>()
 const CACHE_TTL_MS = 5_000
 

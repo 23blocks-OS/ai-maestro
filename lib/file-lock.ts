@@ -26,25 +26,49 @@ const locks = new Map<string, Array<() => void>>()
 // Set of currently held lock names
 const held = new Set<string>()
 
+// NT-007: Default lock acquisition timeout to prevent infinite waits if a lock holder crashes
+const DEFAULT_LOCK_TIMEOUT_MS = 30_000 // 30 seconds
+
 /**
  * Acquire a named lock. Returns a release function.
  * If the lock is already held, the caller awaits until it is released.
+ * NT-007: Times out after timeoutMs to prevent deadlocks from crashed holders.
  */
-export function acquireLock(name: string): Promise<() => void> {
+export function acquireLock(name: string, timeoutMs: number = DEFAULT_LOCK_TIMEOUT_MS): Promise<() => void> {
   if (!held.has(name)) {
-    // Lock is free — acquire immediately
+    // Lock is free -- acquire immediately
     held.add(name)
     return Promise.resolve(() => releaseLock(name))
   }
 
-  // Lock is held — enqueue and wait
-  return new Promise<() => void>((resolve) => {
+  // Lock is held -- enqueue and wait with timeout
+  return new Promise<() => void>((resolve, reject) => {
     if (!locks.has(name)) {
       locks.set(name, [])
     }
-    locks.get(name)!.push(() => {
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      // Remove this waiter from the queue
+      const queue = locks.get(name)
+      if (queue) {
+        const idx = queue.indexOf(waiter)
+        if (idx !== -1) queue.splice(idx, 1)
+        if (queue.length === 0) locks.delete(name)
+      }
+      reject(new Error(`Lock '${name}' acquisition timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    const waiter = () => {
+      if (timedOut) {
+        // Timeout already fired -- release the lock we just received
+        releaseLock(name)
+        return
+      }
+      clearTimeout(timer)
       resolve(() => releaseLock(name))
-    })
+    }
+    locks.get(name)!.push(waiter)
   })
 }
 

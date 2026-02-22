@@ -9,14 +9,19 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
+  try {
+    const { id } = await params
 
-  const result = listAMPAddresses(id)
+    const result = listAMPAddresses(id)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[AMP Addresses API] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -27,16 +32,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try {
+    const { id } = await params
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const result = addAMPAddressToAgent(id, body)
+    const result = await addAMPAddressToAgent(id, body)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (error) {
+    console.error('[AMP Addresses API] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data, { status: result.status })
 }

@@ -9,9 +9,6 @@ const limits = new Map<string, { count: number; resetAt: number }>()
 const DEFAULT_MAX_ATTEMPTS = 5
 const DEFAULT_WINDOW_MS = 60_000 // 1 minute
 
-// Note: check and record are not atomic — acceptable for Phase 1 single-process localhost.
-// Phase 2: use atomic increment.
-
 /** Check if the rate limit allows another attempt */
 export function checkRateLimit(
   key: string,
@@ -21,7 +18,7 @@ export function checkRateLimit(
   const now = Date.now()
   const entry = limits.get(key)
 
-  // Window expired — reset
+  // Window expired -- reset
   if (entry && now >= entry.resetAt) {
     limits.delete(key)
     return { allowed: true, retryAfterMs: 0 }
@@ -43,6 +40,23 @@ export function recordFailure(key: string, windowMs: number = DEFAULT_WINDOW_MS)
   if (entry && now >= entry.resetAt) { entry = undefined; limits.delete(key) }
   const fresh = entry || { count: 0, resetAt: now + windowMs }
   limits.set(key, { count: fresh.count + 1, resetAt: fresh.resetAt })
+}
+
+/**
+ * NT-006: Atomic check-and-record for rate limiting.
+ * Checks limit AND records the attempt in one synchronous call,
+ * eliminating the window between separate check/record calls.
+ */
+export function checkAndRecordAttempt(
+  key: string,
+  maxAttempts: number = DEFAULT_MAX_ATTEMPTS,
+  windowMs: number = DEFAULT_WINDOW_MS
+): { allowed: boolean; retryAfterMs: number } {
+  const result = checkRateLimit(key, maxAttempts, windowMs)
+  if (result.allowed) {
+    recordFailure(key, windowMs)
+  }
+  return result
 }
 
 /** Reset rate limit on successful attempt */

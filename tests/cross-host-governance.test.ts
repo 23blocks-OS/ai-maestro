@@ -3,16 +3,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 /**
  * Unit tests for services/cross-host-governance-service.ts
  *
- * Coverage: 30 tests across 6 exported/internal functions
+ * Coverage: 41 tests across 6 exported/internal functions
  * - submitCrossHostRequest: 8 tests (password, agent, role, self-target, unknown host, success, fetch, fetch failure)
  * - receiveCrossHostRequest: 5 tests (unknown host, missing fields, success, returns id, duplicate)
+ *     + 2 auto-approve tests (SF-018), 3 sanitization tests (SF-020)
  * - approveCrossHostRequest: 7 tests (password, unknown req, sourceManager, targetManager, sourceCOS, not-manager, execution)
+ *     + 1 source/target guard test (SF-021)
  * - rejectCrossHostRequest: 5 tests (password, not authorized, sets rejected, unknown req, notifies source)
  * - listCrossHostRequests: 3 tests (no filter, filter status, filter hostId)
- * - performRequestExecution (via approve): 2 tests (add-to-team, remove-from-team)
+ * - performRequestExecution (via approve): 5 tests (add-to-team, remove-from-team, assign-cos, remove-cos, transfer-agent)
  *
  * External dependencies mocked: governance, agent-registry, hosts-config, governance-request-registry,
- *                                governance-sync, team-registry, file-lock, global fetch
+ *                                governance-sync, team-registry, file-lock, host-keys, manager-trust,
+ *                                rate-limit, global fetch
  */
 
 // ============================================================================
@@ -51,7 +54,7 @@ const mockGetGovernanceRequest = vi.fn()
 const mockListGovernanceRequests = vi.fn()
 const mockApproveGovernanceRequest = vi.fn()
 const mockRejectGovernanceRequest = vi.fn()
-const mockExecuteGovernanceRequest = vi.fn()
+// NT-015: Removed unused mockExecuteGovernanceRequest — executeGovernanceRequest is not imported by the service
 const mockLoadGovernanceRequests = vi.fn()
 const mockSaveGovernanceRequests = vi.fn()
 const mockWithLock = vi.fn()
@@ -62,7 +65,6 @@ vi.mock('@/lib/governance-request-registry', () => ({
   listGovernanceRequests: (...args: unknown[]) => mockListGovernanceRequests(...args),
   approveGovernanceRequest: (...args: unknown[]) => mockApproveGovernanceRequest(...args),
   rejectGovernanceRequest: (...args: unknown[]) => mockRejectGovernanceRequest(...args),
-  executeGovernanceRequest: (...args: unknown[]) => mockExecuteGovernanceRequest(...args),
   loadGovernanceRequests: (...args: unknown[]) => mockLoadGovernanceRequests(...args),
   saveGovernanceRequests: (...args: unknown[]) => mockSaveGovernanceRequests(...args),
 }))
@@ -81,6 +83,26 @@ const mockSaveTeams = vi.fn()
 vi.mock('@/lib/team-registry', () => ({
   loadTeams: (...args: unknown[]) => mockLoadTeams(...args),
   saveTeams: (...args: unknown[]) => mockSaveTeams(...args),
+}))
+
+// MF-006: Mock host-keys to prevent real Ed25519 key file access during tests
+vi.mock('@/lib/host-keys', () => ({
+  signHostAttestation: vi.fn(() => 'mock-sig'),
+  getHostPublicKeyHex: vi.fn(() => 'mock-pubkey'),
+  verifyHostAttestation: vi.fn(() => true),
+}))
+
+// MF-007: Mock manager-trust to prevent import failures and control auto-approve behavior
+const mockShouldAutoApprove = vi.fn()
+vi.mock('@/lib/manager-trust', () => ({
+  shouldAutoApprove: (...args: unknown[]) => mockShouldAutoApprove(...args),
+}))
+
+// MF-008: Mock rate-limit to prevent cross-test rate-limit state leaking between tests
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
+  recordFailure: vi.fn(),
+  resetRateLimit: vi.fn(),
 }))
 
 // ============================================================================
@@ -153,7 +175,6 @@ beforeEach(() => {
   mockListGovernanceRequests.mockReturnValue([])
   mockApproveGovernanceRequest.mockResolvedValue(null)
   mockRejectGovernanceRequest.mockResolvedValue(null)
-  mockExecuteGovernanceRequest.mockResolvedValue(null)
   mockBroadcastGovernanceSync.mockResolvedValue(undefined)
   mockLoadTeams.mockReturnValue([])
   mockSaveTeams.mockReturnValue(undefined)
@@ -176,6 +197,9 @@ beforeEach(() => {
 
   // Default: verifyPassword returns true for 'correct'
   mockVerifyPassword.mockImplementation(async (pw: string) => pw === 'correct')
+
+  // MF-007: shouldAutoApprove defaults to false (no auto-approve in tests)
+  mockShouldAutoApprove.mockReturnValue(false)
 
   // Default fetch mock: ok response
   globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 })
@@ -674,5 +698,234 @@ describe('performRequestExecution (via approve flow)', () => {
     expect(betaTeam.agentIds).not.toContain('agent-a2')
     expect(betaTeam.agentIds).toEqual(['agent-b1', 'agent-b3'])
     consoleSpy.mockRestore()
+  })
+
+  // SF-019: Coverage for assign-cos execution path
+  it('assign-cos: sets chiefOfStaffId on closed team and adds agent to members', async () => {
+    /** Verifies that executing an assign-cos request sets chiefOfStaffId and adds agent to agentIds */
+    const executedRequest = makeGovernanceRequest({
+      type: 'assign-cos',
+      status: 'executed',
+      payload: { agentId: 'new-cos-agent', teamId: 'team-gamma' },
+    })
+    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
+    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
+    const teams = [
+      {
+        id: 'team-gamma',
+        name: 'Gamma Team',
+        type: 'closed',
+        agentIds: ['agent-g1', 'agent-g2'],
+        chiefOfStaffId: null,
+        createdAt: '2025-06-01T10:00:00Z',
+        updatedAt: '2025-06-01T10:00:00Z',
+      }
+    ]
+    mockLoadTeams.mockReturnValue(teams)
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await approveCrossHostRequest('req-001', 'manager-agent', 'correct')
+
+    expect(mockSaveTeams).toHaveBeenCalledTimes(1)
+    const savedTeams = mockSaveTeams.mock.calls[0][0]
+    const gammaTeam = savedTeams.find((t: any) => t.id === 'team-gamma')
+    expect(gammaTeam.chiefOfStaffId).toBe('new-cos-agent')
+    // R4.6: COS must be added to agentIds if not already present
+    expect(gammaTeam.agentIds).toContain('new-cos-agent')
+    consoleSpy.mockRestore()
+  })
+
+  // SF-019: Coverage for remove-cos execution path
+  it('remove-cos: clears chiefOfStaffId on team', async () => {
+    /** Verifies that executing a remove-cos request sets chiefOfStaffId to null */
+    const executedRequest = makeGovernanceRequest({
+      type: 'remove-cos',
+      status: 'executed',
+      payload: { agentId: 'old-cos-agent', teamId: 'team-delta' },
+    })
+    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
+    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
+    const teams = [
+      {
+        id: 'team-delta',
+        name: 'Delta Team',
+        type: 'closed',
+        agentIds: ['old-cos-agent', 'agent-d1'],
+        chiefOfStaffId: 'old-cos-agent',
+        createdAt: '2025-06-01T10:00:00Z',
+        updatedAt: '2025-06-01T10:00:00Z',
+      }
+    ]
+    mockLoadTeams.mockReturnValue(teams)
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await approveCrossHostRequest('req-001', 'manager-agent', 'correct')
+
+    expect(mockSaveTeams).toHaveBeenCalledTimes(1)
+    const savedTeams = mockSaveTeams.mock.calls[0][0]
+    const deltaTeam = savedTeams.find((t: any) => t.id === 'team-delta')
+    expect(deltaTeam.chiefOfStaffId).toBeNull()
+    consoleSpy.mockRestore()
+  })
+
+  // SF-019: Coverage for transfer-agent execution path
+  it('transfer-agent: removes from source team and adds to destination team', async () => {
+    /** Verifies that executing a transfer-agent request moves agent between teams */
+    const executedRequest = makeGovernanceRequest({
+      type: 'transfer-agent',
+      status: 'executed',
+      payload: { agentId: 'transfer-agent', teamId: 'team-dest', fromTeamId: 'team-src', toTeamId: 'team-dest' },
+    })
+    mockGetGovernanceRequest.mockReturnValue(makeGovernanceRequest())
+    mockApproveGovernanceRequest.mockResolvedValue(executedRequest)
+    const teams = [
+      {
+        id: 'team-src',
+        name: 'Source Team',
+        type: 'open',
+        agentIds: ['transfer-agent', 'agent-s1'],
+        chiefOfStaffId: null,
+        createdAt: '2025-06-01T10:00:00Z',
+        updatedAt: '2025-06-01T10:00:00Z',
+      },
+      {
+        id: 'team-dest',
+        name: 'Dest Team',
+        type: 'open',
+        agentIds: ['agent-d1'],
+        chiefOfStaffId: null,
+        createdAt: '2025-06-01T10:00:00Z',
+        updatedAt: '2025-06-01T10:00:00Z',
+      }
+    ]
+    mockLoadTeams.mockReturnValue(teams)
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await approveCrossHostRequest('req-001', 'manager-agent', 'correct')
+
+    expect(mockSaveTeams).toHaveBeenCalledTimes(1)
+    const savedTeams = mockSaveTeams.mock.calls[0][0]
+    const srcTeam = savedTeams.find((t: any) => t.id === 'team-src')
+    const destTeam = savedTeams.find((t: any) => t.id === 'team-dest')
+    expect(srcTeam.agentIds).not.toContain('transfer-agent')
+    expect(destTeam.agentIds).toContain('transfer-agent')
+    consoleSpy.mockRestore()
+  })
+})
+
+// ============================================================================
+// SF-018: receiveCrossHostRequest auto-approve path
+// ============================================================================
+
+describe('receiveCrossHostRequest auto-approve', () => {
+  it('auto-approves request when shouldAutoApprove returns true', async () => {
+    /** Verifies that trusted managers trigger automatic targetManager approval */
+    const request = makeGovernanceRequest({ sourceHostId: 'host-remote', targetHostId: 'host-local' })
+    mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [] })
+    mockShouldAutoApprove.mockReturnValue(true)
+    mockGetManagerId.mockReturnValue('manager-agent')
+    const approvedRequest = { ...request, status: 'executed' as const }
+    mockApproveGovernanceRequest.mockResolvedValue(approvedRequest)
+    mockLoadTeams.mockReturnValue([
+      { id: 'team-backend-001', name: 'Backend', type: 'closed', agentIds: [], chiefOfStaffId: null, createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z' }
+    ])
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const result = await receiveCrossHostRequest('host-remote', request)
+
+    expect(result.status).toBe(200)
+    expect(mockShouldAutoApprove).toHaveBeenCalledWith(request)
+    // Should have auto-approved as targetManager
+    expect(mockApproveGovernanceRequest).toHaveBeenCalledWith(request.id, 'manager-agent', 'targetManager')
+    consoleSpy.mockRestore()
+  })
+
+  it('does not auto-approve when shouldAutoApprove returns false', async () => {
+    /** Verifies that untrusted managers do not trigger auto-approval */
+    const request = makeGovernanceRequest({ sourceHostId: 'host-remote', targetHostId: 'host-local' })
+    mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [] })
+    mockShouldAutoApprove.mockReturnValue(false)
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const result = await receiveCrossHostRequest('host-remote', request)
+
+    expect(result.status).toBe(200)
+    expect(mockShouldAutoApprove).toHaveBeenCalledWith(request)
+    expect(mockApproveGovernanceRequest).not.toHaveBeenCalled()
+    consoleSpy.mockRestore()
+  })
+})
+
+// ============================================================================
+// SF-020: receiveCrossHostRequest sanitization tests
+// ============================================================================
+
+describe('receiveCrossHostRequest sanitization', () => {
+  it('forces status to pending and clears approvals regardless of incoming values', async () => {
+    /** Verifies CC-P1-002: malicious pre-filled status/approvals are sanitized */
+    const maliciousRequest = makeGovernanceRequest({
+      sourceHostId: 'host-remote',
+      targetHostId: 'host-local',
+      status: 'executed' as any,
+      approvals: { sourceManager: 'manager-agent', targetManager: 'manager-agent' } as any,
+    })
+    mockLoadGovernanceRequests.mockReturnValue({ version: 1, requests: [] })
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const result = await receiveCrossHostRequest('host-remote', maliciousRequest)
+
+    expect(result.status).toBe(200)
+    // Verify saved request has sanitized status and approvals
+    expect(mockSaveGovernanceRequests).toHaveBeenCalledTimes(1)
+    const savedFile = mockSaveGovernanceRequests.mock.calls[0][0]
+    expect(savedFile.requests[0].status).toBe('pending')
+    expect(savedFile.requests[0].approvals).toEqual({})
+    consoleSpy.mockRestore()
+  })
+
+  it('rejects request with invalid type', async () => {
+    /** Verifies CC-P1-002: unrecognized request types are rejected */
+    const badRequest = makeGovernanceRequest({
+      sourceHostId: 'host-remote',
+      type: 'evil-type' as any,
+    })
+
+    const result = await receiveCrossHostRequest('host-remote', badRequest)
+
+    expect(result.status).toBe(400)
+    expect(result.error).toContain('Invalid governance request type')
+  })
+
+  it('rejects request when sourceHostId does not match fromHostId', async () => {
+    /** Verifies CC-008: spoofed sourceHostId is caught */
+    const spoofedRequest = makeGovernanceRequest({
+      sourceHostId: 'host-local',
+      targetHostId: 'host-remote',
+    })
+
+    const result = await receiveCrossHostRequest('host-remote', spoofedRequest)
+
+    expect(result.status).toBe(400)
+    expect(result.error).toContain('Source host ID in request does not match sender')
+  })
+})
+
+// ============================================================================
+// SF-021: approveCrossHostRequest source/target guard
+// ============================================================================
+
+describe('approveCrossHostRequest source/target validation', () => {
+  it('rejects with 400 when this host is neither source nor target of the request', async () => {
+    /** Verifies CC-010: approval fails if request belongs to two other hosts */
+    const request = makeGovernanceRequest({
+      sourceHostId: 'host-remote',
+      targetHostId: 'host-other',
+    })
+    mockGetGovernanceRequest.mockReturnValue(request)
+
+    const result = await approveCrossHostRequest('req-001', 'manager-agent', 'correct')
+
+    expect(result.status).toBe(400)
+    expect(result.error).toContain('neither source nor target')
   })
 })

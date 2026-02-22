@@ -20,16 +20,16 @@ import { writeToAMPSent } from '@/lib/amp-inbox-writer'
 import { applyContentSecurity } from '@/lib/content-security'
 import { checkMessageAllowed } from '@/lib/message-filter'
 import { queueMessage as queueToAMPRelay } from '@/lib/amp-relay'
-import { resolveAgentIdentifier, getMessage } from '@/lib/messageQueue'
+import { resolveAgentIdentifier, getMessage, getSelfHostName } from '@/lib/messageQueue'
 import { getAgent } from '@/lib/agent-registry'
 import { verifySignature } from '@/lib/amp-keys'
 import { signHostAttestation } from '@/lib/host-keys'
 import { getHostById, getSelfHost, getSelfHostId, isSelf } from '@/lib/hosts-config-server.mjs'
 import type { AMPEnvelope, AMPPayload } from '@/lib/types/amp'
-import type { Message } from '@/lib/messageQueue'
+import type { Message, ResolvedAgent } from '@/lib/messageQueue'
 
-// Re-export Message type for consumers
-export type { Message } from '@/lib/messageQueue'
+// Re-export Message and ResolvedAgent types for consumers (NT-029: single source of truth)
+export type { Message, ResolvedAgent } from '@/lib/messageQueue'
 
 /**
  * CC-P4-008: Well-known sentinel value for senderPublicKeyHex when the sender is a
@@ -38,15 +38,6 @@ export type { Message } from '@/lib/messageQueue'
  * level without requiring a real cryptographic key for local-to-local messages.
  */
 export const VERIFIED_LOCAL_SENDER = 'verified-local-sender' as const
-
-interface ResolvedAgent {
-  agentId: string
-  alias: string
-  displayName?: string
-  sessionName?: string
-  hostId?: string
-  hostUrl?: string
-}
 
 /**
  * Parse a qualified name in `name@hostId` format (NOT full AMP addresses like `name@org.aimaestro.local`).
@@ -72,17 +63,9 @@ function generateMessageId(): string {
   return `msg-${timestamp}-${random}`
 }
 
-/**
- * Get this host's name for messages
- */
-function getHostName(): string {
-  try {
-    const selfHost = getSelfHost()
-    return selfHost.name || getSelfHostId() || 'unknown-host'
-  } catch {
-    return getSelfHostId() || 'unknown-host'
-  }
-}
+// NT-030: getHostName is now imported as getSelfHostName from messageQueue.ts
+// Alias for backward compatibility within this file
+const getHostName = getSelfHostName
 
 /**
  * CC-P1-403: Sign mesh-forwarded envelope payload with the host's Ed25519 key.
@@ -172,8 +155,9 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
 
   // For unresolved recipients, create minimal resolved info
   // NEVER use raw identifier as agentId - it could be a name
+  // SF-055: Use empty string for agentId -- all downstream code checks truthiness before using it
   const toResolved: ResolvedAgent = toAgent || {
-    agentId: '',  // Empty string - forces UUID-based functions to resolve or fail
+    agentId: '',
     alias: options.toAlias || toIdentifier,
     hostId: targetHostId || undefined,
     hostUrl: undefined

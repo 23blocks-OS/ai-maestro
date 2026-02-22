@@ -689,7 +689,7 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
   const isCloudAgent = agent?.deployment?.type === 'cloud'
 
   if (isCloudAgent) {
-    deleteAgentBySession(sessionName, true)
+    await deleteAgentBySession(sessionName, true)
     return { data: { success: true, name: sessionName, type: 'cloud' }, status: 200 }
   }
 
@@ -701,7 +701,7 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
 
   await runtime.killSession(sessionName)
   unpersistSession(sessionName)
-  deleteAgentBySession(sessionName, true)
+  await deleteAgentBySession(sessionName, true)
 
   return { data: { success: true, name: sessionName }, status: 200 }
 }
@@ -733,7 +733,7 @@ export async function renameSession(oldName: string, newName: string): Promise<S
     agentConfig.alias = newName
     fs.writeFileSync(newAgentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
     fs.unlinkSync(oldAgentFilePath)
-    renameAgentSession(oldName, newName)
+    await renameAgentSession(oldName, newName)
     return { data: { success: true, oldName, newName, type: 'cloud' }, status: 200 }
   }
 
@@ -750,7 +750,7 @@ export async function renameSession(oldName: string, newName: string): Promise<S
   }
 
   await runtime.renameSession(oldName, newName)
-  renameAgentSession(oldName, newName)
+  await renameAgentSession(oldName, newName)
 
   return { data: { success: true, oldName, newName }, status: 200 }
 }

@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   if (result.error) {
     return NextResponse.json(
-      { error: result.error, details: result.error },
+      { error: result.error },
       { status: result.status }
     )
   }

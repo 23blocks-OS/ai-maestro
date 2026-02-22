@@ -47,6 +47,8 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [detectingRepos, setDetectingRepos] = useState(false)
+  // NT-012: Guard to prevent re-fetching repos on every section expand toggle
+  const [reposLoaded, setReposLoaded] = useState(false)
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -68,11 +70,13 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   // Sync with parent agent prop
   useEffect(() => {
     setAgent(initialAgent)
+    // NT-012: Reset repos loaded state when agent changes so repos are re-fetched for new agent
+    setReposLoaded(false)
   }, [initialAgent])
 
-  // Fetch repositories only when the repos section is expanded
+  // Fetch repositories only when the repos section is first expanded (NT-012: skip if already loaded)
   useEffect(() => {
-    if (!expandedSections.repositories) return
+    if (!expandedSections.repositories || reposLoaded) return
 
     const fetchRepos = async () => {
       setLoadingRepos(true)
@@ -81,6 +85,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         if (response.ok) {
           const data = await response.json()
           setRepositories(data.repositories || [])
+          setReposLoaded(true)
         }
       } catch (error) {
         console.error('Failed to fetch repos:', error)
@@ -90,7 +95,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     }
 
     fetchRepos()
-  }, [agent.id, baseUrl, expandedSections.repositories])
+  }, [agent.id, baseUrl, expandedSections.repositories, reposLoaded])
 
   // Fetch used avatars
   useEffect(() => {

@@ -7,6 +7,7 @@
 
 import { agentRegistry } from '@/lib/agent'
 import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
+import { escapeForCozo } from '@/lib/cozo-utils'
 import { getSelfHost } from '@/lib/hosts-config'
 import {
   indexDocumentation,
@@ -113,7 +114,7 @@ export async function queryDocs(
         query = `
           ?[doc_id, file_path, title, doc_type, updated_at] :=
             *documents{doc_id, file_path, title, doc_type, project_path, updated_at},
-            project_path = '${project.replace(/'/g, "''")}'
+            project_path = ${escapeForCozo(project)}
         `
       }
 
@@ -241,7 +242,17 @@ export async function clearDocs(
 
 // ── Internal ────────────────────────────────────────────────────────────────
 
+// SF-031: Track in-progress delta indexing to prevent re-entrant calls
+const _deltaIndexingInProgress = new Set<string>()
+
 async function triggerBackgroundDocsDeltaIndexing(agentId: string, projectPath?: string): Promise<void> {
+  // SF-031: Guard against re-entrant/concurrent delta indexing for the same agent
+  const key = `${agentId}:${projectPath || ''}`
+  if (_deltaIndexingInProgress.has(key)) {
+    return
+  }
+  _deltaIndexingInProgress.add(key)
+
   console.log(`[Docs Service] Triggering background docs delta indexing for agent ${agentId}`)
 
   try {
@@ -272,5 +283,8 @@ async function triggerBackgroundDocsDeltaIndexing(agentId: string, projectPath?:
     }
   } catch (error) {
     console.error('[Docs Service] Failed to trigger docs delta indexing:', error)
+  } finally {
+    // SF-031: Release the guard so future indexing can proceed
+    _deltaIndexingInProgress.delete(key)
   }
 }

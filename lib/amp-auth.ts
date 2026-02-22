@@ -13,6 +13,8 @@ import path from 'path'
 import os from 'os'
 import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import type { AMPApiKeyRecord, AMPKeyRotationResponse, AMPErrorCode } from './types/amp'
+// SF-004: File locking for read-modify-write operations
+import { withLock } from '@/lib/file-lock'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const API_KEYS_FILE = path.join(AIMAESTRO_DIR, 'amp-api-keys.json')
@@ -74,13 +76,16 @@ function loadApiKeys(): AMPApiKeyRecord[] {
 
 /**
  * Save API key records
+ * NT-031: Uses atomic write (temp + rename) to prevent file corruption on crash
  */
 function saveApiKeys(keys: AMPApiKeyRecord[]): void {
   ensureDir()
 
   try {
-    fs.writeFileSync(API_KEYS_FILE, JSON.stringify(keys, null, 2), { mode: 0o600 })
-    // CC-P4-006: Invalidate in-memory cache on write so next read picks up fresh data
+    const tmpFile = API_KEYS_FILE + `.tmp.${process.pid}`
+    fs.writeFileSync(tmpFile, JSON.stringify(keys, null, 2), { mode: 0o600 })
+    fs.renameSync(tmpFile, API_KEYS_FILE)
+    // CC-P4-006: Eagerly populate cache so next read picks up fresh data
     _apiKeysCache = keys
     _apiKeysCacheTimestamp = Date.now()
   } catch (error) {
@@ -95,7 +100,10 @@ function saveApiKeys(keys: AMPApiKeyRecord[]): void {
 
 /**
  * Hash an API key for secure storage
- * Uses SHA-256 with a prefix to identify the hash type
+ * Uses SHA-256 with a prefix to identify the hash type.
+ * SF-054: Salting is intentionally omitted because API keys are high-entropy
+ * (32 random bytes = 256 bits), making rainbow table attacks infeasible.
+ * Salting would require per-key salt storage and prevent O(1) hash lookup.
  */
 export function hashApiKey(apiKey: string): string {
   return 'sha256:' + createHash('sha256').update(apiKey).digest('hex')
@@ -145,11 +153,13 @@ export function isValidApiKeyFormat(apiKey: string): boolean {
  * Create a new API key for an agent
  * Returns the plain API key (shown ONLY ONCE to the user)
  */
-export function createApiKey(
+export async function createApiKey(
   agentId: string,
   tenantId: string,
   address: string
-): string {
+): Promise<string> {
+  // SF-004: Serialize read-modify-write on the API keys file
+  return withLock('amp-api-keys', () => {
   const apiKey = generateApiKey()
   const keyHash = hashApiKey(apiKey)
 
@@ -170,6 +180,7 @@ export function createApiKey(
   console.log(`[AMP Auth] Created API key for agent ${agentId.substring(0, 8)}... (${address})`)
 
   return apiKey
+  }) // end withLock('amp-api-keys')
 }
 
 /**
@@ -185,6 +196,9 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
     return null
   }
 
+  // SF-004: validateApiKey remains sync because lastUsed writes are debounced (60s),
+  // making concurrent write conflicts extremely unlikely. The mutating functions
+  // (createApiKey, rotateApiKey, revokeApiKey) use withLock for safety.
   const keys = loadApiKeys()
   const keyHash = hashApiKey(apiKey)
 
@@ -244,7 +258,9 @@ export function extractApiKeyFromHeader(authHeader: string | null): string | nul
  * Rotate an API key
  * Creates a new key and sets expiration on the old one
  */
-export function rotateApiKey(oldApiKey: string): AMPKeyRotationResponse | null {
+export async function rotateApiKey(oldApiKey: string): Promise<AMPKeyRotationResponse | null> {
+  // SF-004: Serialize read-modify-write on the API keys file
+  return withLock('amp-api-keys', () => {
   const keys = loadApiKeys()
   const oldKeyHash = hashApiKey(oldApiKey)
 
@@ -289,12 +305,15 @@ export function rotateApiKey(oldApiKey: string): AMPKeyRotationResponse | null {
     expires_at: null,
     previous_key_valid_until: graceExpiry.toISOString()
   }
+  }) // end withLock('amp-api-keys')
 }
 
 /**
  * Revoke an API key
  */
-export function revokeApiKey(apiKey: string): boolean {
+export async function revokeApiKey(apiKey: string): Promise<boolean> {
+  // SF-004: Serialize read-modify-write on the API keys file
+  return withLock('amp-api-keys', () => {
   const keys = loadApiKeys()
   const keyHash = hashApiKey(apiKey)
 
@@ -314,12 +333,15 @@ export function revokeApiKey(apiKey: string): boolean {
   console.log(`[AMP Auth] Revoked API key for agent ${record.agent_id.substring(0, 8)}...`)
 
   return true
+  }) // end withLock('amp-api-keys')
 }
 
 /**
  * Revoke all API keys for an agent
  */
-export function revokeAllKeysForAgent(agentId: string): number {
+export async function revokeAllKeysForAgent(agentId: string): Promise<number> {
+  // SF-004: Serialize read-modify-write on the API keys file
+  return withLock('amp-api-keys', () => {
   const keys = loadApiKeys()
   let revokedCount = 0
 
@@ -336,6 +358,7 @@ export function revokeAllKeysForAgent(agentId: string): number {
   }
 
   return revokedCount
+  }) // end withLock('amp-api-keys')
 }
 
 /**

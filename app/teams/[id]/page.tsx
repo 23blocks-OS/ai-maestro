@@ -20,7 +20,8 @@ import type { TeamDashboardTab } from '@/components/teams/TeamDashboardSidebar'
 export default function TeamDashboardPage() {
   const params = useParams()
   const router = useRouter()
-  const teamId = params.id as string
+  // MF-004: Runtime guard — params.id can be string | string[] | undefined in Next.js App Router
+  const teamId = typeof params.id === 'string' ? params.id : ''
   const [activeTab, setActiveTab] = useState<TeamDashboardTab>('overview')
 
   const { team, loading, updateTeam } = useTeam(teamId)

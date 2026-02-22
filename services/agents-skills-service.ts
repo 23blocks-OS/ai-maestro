@@ -73,7 +73,7 @@ export async function updateSkills(
       })
     }
 
-    const result = addMarketplaceSkills(agentId, skillsToAdd)
+    const result = await addMarketplaceSkills(agentId, skillsToAdd)
     if (!result) {
       return { error: 'Failed to add skills', status: 500 }
     }
@@ -81,7 +81,7 @@ export async function updateSkills(
 
   // Handle skill removals
   if (body.remove && Array.isArray(body.remove) && body.remove.length > 0) {
-    const result = removeMarketplaceSkills(agentId, body.remove)
+    const result = await removeMarketplaceSkills(agentId, body.remove)
     if (!result) {
       return { error: 'Failed to remove skills', status: 500 }
     }
@@ -89,7 +89,7 @@ export async function updateSkills(
 
   // Handle AI Maestro config update
   if (body.aiMaestro) {
-    const result = updateAiMaestroSkills(agentId, body.aiMaestro)
+    const result = await updateAiMaestroSkills(agentId, body.aiMaestro)
     if (!result) {
       return { error: 'Failed to update AI Maestro skills', status: 500 }
     }
@@ -105,10 +105,10 @@ export async function updateSkills(
 /**
  * Add a custom skill to an agent.
  */
-export function addSkill(
+export async function addSkill(
   agentId: string,
   body: { name: string; content: string; description?: string }
-): ServiceResult<Record<string, unknown>> {
+): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
@@ -126,7 +126,7 @@ export function addSkill(
     return { error: 'Invalid skill name. Use only alphanumeric characters, hyphens, and underscores.', status: 400 }
   }
 
-  const result = addCustomSkill(agentId, {
+  const result = await addCustomSkill(agentId, {
     name: body.name,
     content: body.content,
     description: body.description,
@@ -146,11 +146,11 @@ export function addSkill(
 /**
  * Remove a skill from an agent.
  */
-export function removeSkill(
+export async function removeSkill(
   agentId: string,
   skillId: string,
   type: string = 'auto'
-): ServiceResult<Record<string, unknown>> {
+): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
@@ -160,9 +160,9 @@ export function removeSkill(
 
   let result = null
   if (isMarketplaceSkill) {
-    result = removeMarketplaceSkills(agentId, [skillId])
+    result = await removeMarketplaceSkills(agentId, [skillId])
   } else {
-    result = removeCustomSkill(agentId, skillId)
+    result = await removeCustomSkill(agentId, skillId)
   }
 
   if (!result) {
@@ -180,6 +180,12 @@ export function removeSkill(
  * Get skill settings for an agent.
  */
 export async function getSkillSettings(agentId: string): Promise<ServiceResult<Record<string, unknown>>> {
+  // SF-030: Validate agentId is a UUID to prevent path traversal
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!agentId || !UUID_PATTERN.test(agentId)) {
+    return { error: 'Invalid agent ID format', status: 400 }
+  }
+
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
@@ -206,6 +212,12 @@ export async function saveSkillSettings(
 ): Promise<ServiceResult<Record<string, unknown>>> {
   if (!settings) {
     return { error: 'Settings are required', status: 400 }
+  }
+
+  // SF-030: Validate agentId is a UUID to prevent path traversal
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!agentId || !UUID_PATTERN.test(agentId)) {
+    return { error: 'Invalid agent ID format', status: 400 }
   }
 
   const agent = await agentRegistry.getAgent(agentId)

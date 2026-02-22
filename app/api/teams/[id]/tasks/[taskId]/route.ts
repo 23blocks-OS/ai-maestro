@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateTeamTask, deleteTeamTask, UpdateTaskParams } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
+import { isValidUuid } from '@/lib/validation'
 
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
@@ -8,6 +9,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
+  if (!isValidUuid(id) || !isValidUuid(taskId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')
@@ -24,7 +28,17 @@ export async function PUT(
     return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
   }
 
-  const result = await updateTeamTask(id, taskId, { ...body, requestingAgentId } as UpdateTaskParams)
+  // Whitelist only known UpdateTaskParams fields to avoid passing arbitrary data
+  const safeParams: UpdateTaskParams = {
+    ...(body.subject !== undefined && { subject: String(body.subject) }),
+    ...(body.description !== undefined && { description: String(body.description) }),
+    ...(body.status !== undefined && { status: body.status as UpdateTaskParams['status'] }),
+    ...(body.priority !== undefined && { priority: Number(body.priority) }),
+    ...(body.assigneeAgentId !== undefined && { assigneeAgentId: String(body.assigneeAgentId) }),
+    ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy as string[] }),
+    requestingAgentId,
+  }
+  const result = await updateTeamTask(id, taskId, safeParams)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -38,6 +52,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
+  if (!isValidUuid(id) || !isValidUuid(taskId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
     request.headers.get('X-Agent-Id')

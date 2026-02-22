@@ -11,7 +11,7 @@ import { revokeKey } from '@/services/amp-service'
 
 export async function DELETE(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
-  const result = revokeKey(authHeader)
+  const result = await revokeKey(authHeader)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

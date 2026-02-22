@@ -21,7 +21,10 @@ export async function POST(
   logDeprecation()
   try {
     const { id: sessionName } = await params
-    const body = await request.json()
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
 
     const result = await sendCommand(sessionName, body.command, {
       requireIdle: body.requireIdle,

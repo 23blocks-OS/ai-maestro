@@ -12,6 +12,9 @@
 
 import type WebSocket from 'ws'
 
+// NT-020: Named constant for WebSocket readyState (type-only import prevents WebSocket.OPEN)
+const WS_OPEN = 1
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -94,7 +97,8 @@ export function broadcastStatusUpdate(
   } satisfies StatusUpdate)
 
   statusSubscribers.forEach(ws => {
-    if (ws.readyState === 1) { // WebSocket.OPEN
+    // NT-020: Use named constant instead of magic number for WebSocket.OPEN
+    if (ws.readyState === WS_OPEN) {
       ws.send(message)
     }
   })

@@ -19,6 +19,15 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn((filePath: string, data: string) => {
     fsStore[filePath] = data
   }),
+  renameSync: vi.fn((src: string, dest: string) => {
+    if (!(src in fsStore)) throw new Error(`ENOENT: no such file or directory, rename '${src}'`)
+    fsStore[dest] = fsStore[src]
+    delete fsStore[src]
+  }),
+  copyFileSync: vi.fn((src: string, dest: string) => {
+    if (!(src in fsStore)) throw new Error(`ENOENT: no such file or directory, copyfile '${src}'`)
+    fsStore[dest] = fsStore[src]
+  }),
 }))
 
 let uuidCounter = 0

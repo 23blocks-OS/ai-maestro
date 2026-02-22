@@ -19,7 +19,7 @@ export async function GET(
     to: searchParams.get('to'),
     project: searchParams.get('project'),
     nodeId: searchParams.get('nodeId'),
-    depth: parseInt(searchParams.get('depth') || '1', 10),
+    depth: parseInt(searchParams.get('depth') || '1', 10) || 1,
   })
 
   if (result.error) {
@@ -38,7 +38,7 @@ export async function POST(
 ) {
   const { id: agentId } = await params
 
-  // Parse body - handle empty body gracefully
+  // Parse body - handle empty body gracefully, reject malformed non-empty JSON
   let body: any = {}
   try {
     const text = await request.text()
@@ -46,7 +46,8 @@ export async function POST(
       body = JSON.parse(text)
     }
   } catch {
-    // Empty or invalid body - use defaults
+    // Non-empty body that is not valid JSON should return 400
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
   const result = await indexCodeGraph(agentId, body)

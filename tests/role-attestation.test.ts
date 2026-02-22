@@ -2,7 +2,7 @@
  * Unit tests for lib/role-attestation.ts
  *
  * Tests the four exported functions:
- * - createRoleAttestation(agentId, role) — builds signed HostAttestation
+ * - createRoleAttestation(agentId, role, recipientHostId?) — builds signed HostAttestation
  * - verifyRoleAttestation(attestation, expectedHostPublicKeyHex) — checks sig + freshness
  * - serializeAttestation(attestation) — to base64 JSON
  * - deserializeAttestation(base64Json) — from base64 JSON, null on invalid
@@ -87,7 +87,9 @@ function buildValidAttestation(overrides?: Partial<HostAttestation>): HostAttest
   // Tests that pass a tampered signature via overrides get a binding under the
   // tampered key — but verifyHostAttestation will still find the data matches,
   // which is wrong. So only bind under MOCK_SIGNATURE_BASE64.
-  const dataStr = `${att.role}|${att.agentId}|${att.hostId}|${att.timestamp}`
+  // NT-014: Include recipientHostId in data string when present (matches buildAttestationData)
+  const base = `${att.role}|${att.agentId}|${att.hostId}|${att.timestamp}`
+  const dataStr = att.recipientHostId ? `${base}|${att.recipientHostId}` : base
   signatureBindings.set(MOCK_SIGNATURE_BASE64, dataStr)
   return att
 }
@@ -144,6 +146,27 @@ describe('createRoleAttestation', () => {
     const expectedData = `member|agent-ci-runner|${MOCK_HOST_ID}|2025-06-15T12:00:00.000Z`
     expect(mockedSign).toHaveBeenCalledWith(expectedData)
     expect(attestation.signature).toBe(MOCK_SIGNATURE_BASE64)
+  })
+
+  // SF-022: Coverage for recipientHostId parameter
+  it('includes recipientHostId in signed data when provided', () => {
+    /** Verify recipientHostId is appended to the signed data string for anti-replay binding */
+    const mockedSign = vi.mocked(signHostAttestation)
+    const targetHostId = 'host-remote-target-999'
+
+    const attestation = createRoleAttestation('agent-sender', 'manager', targetHostId)
+
+    const expectedData = `manager|agent-sender|${MOCK_HOST_ID}|2025-06-15T12:00:00.000Z|${targetHostId}`
+    expect(mockedSign).toHaveBeenCalledWith(expectedData)
+    expect(attestation.recipientHostId).toBe(targetHostId)
+    expect(attestation.signature).toBe(MOCK_SIGNATURE_BASE64)
+  })
+
+  it('omits recipientHostId from attestation when not provided', () => {
+    /** Verify backward compatibility: no recipientHostId field when parameter is omitted */
+    const attestation = createRoleAttestation('agent-basic', 'member')
+
+    expect(attestation.recipientHostId).toBeUndefined()
   })
 })
 
@@ -253,6 +276,28 @@ describe('verifyRoleAttestation', () => {
     verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX)
 
     const expectedData = `chief-of-staff|agent-gateway|${MOCK_HOST_ID}|${attestation.timestamp}`
+    expect(mockedVerify).toHaveBeenCalledWith(
+      expectedData,
+      MOCK_SIGNATURE_BASE64,
+      MOCK_PUBLIC_KEY_HEX,
+    )
+  })
+
+  // SF-022: Verify that recipientHostId is included in the data string during verification
+  it('includes recipientHostId in rebuilt data string when present on attestation', () => {
+    /** Verify recipientHostId is appended to canonical data during verification to prevent cross-target replay */
+    const mockedVerify = vi.mocked(verifyHostAttestation)
+    const recipientHost = 'host-target-abc'
+    const attestation = buildValidAttestation({
+      role: 'manager',
+      agentId: 'agent-sender-x',
+      recipientHostId: recipientHost,
+    })
+
+    const result = verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX)
+
+    expect(result).toBe(true)
+    const expectedData = `manager|agent-sender-x|${MOCK_HOST_ID}|${attestation.timestamp}|${recipientHost}`
     expect(mockedVerify).toHaveBeenCalledWith(
       expectedData,
       MOCK_SIGNATURE_BASE64,

@@ -20,7 +20,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const options: AgentImportOptions = optionsStr ? JSON.parse(optionsStr) : {}
+    let options: AgentImportOptions = {}
+    if (optionsStr) {
+      try { options = JSON.parse(optionsStr) } catch {
+        return NextResponse.json({ error: 'Invalid JSON in options field' }, { status: 400 })
+      }
+    }
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 

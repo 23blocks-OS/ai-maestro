@@ -120,7 +120,7 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
 
     // Clean up stale agent if session is gone
     if (agent && !sessionExists) {
-      try { deleteAgent(agent.id) } catch { /* ignore */ }
+      try { await deleteAgent(agent.id) } catch { /* ignore */ }
       agent = null
     }
 
@@ -132,7 +132,7 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
     // Register agent in registry
     if (!agent) {
       const { tags } = parseNameForDisplay(ASSISTANT_NAME)
-      agent = createAgent({
+      agent = await createAgent({
         name: ASSISTANT_NAME,
         label: ASSISTANT_LABEL,
         program: 'claude-code',
@@ -201,7 +201,7 @@ export async function deleteAssistantAgent(): Promise<ServiceResult<{ success: b
     // Remove from agent registry
     const agent = getAgentByName(ASSISTANT_NAME)
     if (agent) {
-      try { deleteAgent(agent.id) } catch { /* ignore */ }
+      try { await deleteAgent(agent.id) } catch { /* ignore */ }
     }
 
     return { data: { success: true }, status: 200 }

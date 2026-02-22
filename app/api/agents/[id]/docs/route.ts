@@ -25,7 +25,7 @@ export async function GET(
       keyword: searchParams.get('keyword'),
       type: searchParams.get('type'),
       docId: searchParams.get('docId'),
-      limit: parseInt(searchParams.get('limit') || '10', 10),
+      limit: parseInt(searchParams.get('limit') || '10', 10) || 10,
       project: searchParams.get('project'),
     })
 
@@ -56,7 +56,8 @@ export async function POST(
         body = JSON.parse(text)
       }
     } catch {
-      // Empty or invalid body - use defaults
+      // Non-empty body that is not valid JSON should return 400
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
     const result = await indexDocs(agentId, body)

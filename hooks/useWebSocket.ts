@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { WebSocketMessage, WebSocketStatus } from '@/types/websocket'
 
-const WS_RECONNECT_DELAY = 3000
-const WS_MAX_RECONNECT_ATTEMPTS = 5
+// SF-011: Exponential backoff delays as documented in CLAUDE.md architecture section
+const WS_RECONNECT_BACKOFF = [100, 500, 1000, 2000, 5000]
+const WS_MAX_RECONNECT_ATTEMPTS = WS_RECONNECT_BACKOFF.length
 
 interface UseWebSocketOptions {
   sessionId: string
@@ -150,13 +151,15 @@ export function useWebSocket({
           return
         }
 
-        // Attempt reconnection for transient failures
+        // Attempt reconnection for transient failures with exponential backoff
         if (reconnectAttemptsRef.current < WS_MAX_RECONNECT_ATTEMPTS) {
+          // SF-011: Use exponential backoff delay from the documented backoff array
+          const delay = WS_RECONNECT_BACKOFF[reconnectAttemptsRef.current] ?? WS_RECONNECT_BACKOFF[WS_RECONNECT_BACKOFF.length - 1]
           reconnectAttemptsRef.current++
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
-          }, WS_RECONNECT_DELAY)
+          }, delay)
         } else {
           setConnectionError(
             new Error('Failed to connect after maximum reconnection attempts')
@@ -167,7 +170,8 @@ export function useWebSocket({
       wsRef.current = ws
     } catch (error) {
       console.error('Failed to create WebSocket:', error)
-      setConnectionError(error as Error)
+      // SF-009: Safe error coercion — WebSocket constructor can throw non-Error types
+      setConnectionError(error instanceof Error ? error : new Error(String(error)))
       setStatus('error')
     }
   }, [getWebSocketUrl])

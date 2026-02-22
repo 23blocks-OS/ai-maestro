@@ -146,6 +146,8 @@ export function isChiefOfStaff(agentId: string, teamId: string): boolean {
 /** Check if agentId is chief-of-staff in any closed team */
 export function isChiefOfStaffAnywhere(agentId: string): boolean {
   const teams = loadTeams()
+  // NT-001 (P5): team.chiefOfStaffId can be null/undefined for open teams; the strict
+  // equality check (===) safely returns false when comparing a string against null/undefined
   return teams.some(
     (team) => team.type === 'closed' && team.chiefOfStaffId === agentId
   )

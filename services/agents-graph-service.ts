@@ -19,6 +19,7 @@
 
 import { agentRegistry } from '@/lib/agent'
 import { getAgent as getAgentFromRegistry } from '@/lib/agent-registry'
+import { escapeForCozo } from '@/lib/cozo-utils'
 import {
   indexDatabaseSchema,
   clearDatabaseSchema,
@@ -62,12 +63,8 @@ function formatBytes(bytes: number): string {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
-/**
- * Escape single quotes in strings for CozoDB queries
- */
-function escapeString(str: string): string {
-  return str.replace(/'/g, "''")
-}
+// MF-009: Local escapeString removed -- use escapeForCozo from @/lib/cozo-utils
+// escapeForCozo uses backslash escaping (correct for CozoDB) and wraps in quotes
 
 // ===========================================================================
 // PUBLIC API — Database (GET/POST /api/agents/:id/database)
@@ -312,9 +309,10 @@ export async function indexDbSchema(
       status: 200
     }
   } catch (error) {
+    // SF-029: Log full error server-side but return generic message to prevent leaking connection details
     console.error('[Graph Service] indexDbSchema Error:', error)
     return {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: 'Failed to index database schema',
       status: 500
     }
   }
@@ -382,7 +380,7 @@ export async function queryGraph(
         const callersResult = await agentDb.run(`
           ?[caller_name, caller_file] :=
             *functions{fn_id: callee, name: callee_name},
-            callee_name = '${escapeString(name)}',
+            callee_name = ${escapeForCozo(name)},
             *calls{caller_fn: caller, callee_fn: callee},
             *functions{fn_id: caller, name: caller_name, file_id: caller_file_id},
             *files{file_id: caller_file_id, path: caller_file}
@@ -404,7 +402,7 @@ export async function queryGraph(
         const calleesResult = await agentDb.run(`
           ?[callee_name, callee_file] :=
             *functions{fn_id: caller, name: caller_name},
-            caller_name = '${escapeString(name)}',
+            caller_name = ${escapeForCozo(name)},
             *calls{caller_fn: caller, callee_fn: callee},
             *functions{fn_id: callee, name: callee_name, file_id: callee_file_id},
             *files{file_id: callee_file_id, path: callee_file}
@@ -439,7 +437,7 @@ export async function queryGraph(
           const extendsResult = await agentDb.run(`
             ?[parent_name] :=
               *components{component_id: child, name: child_name},
-              child_name = '${escapeString(name)}',
+              child_name = ${escapeForCozo(name)},
               *extends{child_class: child, parent_class: parent},
               *components{component_id: parent, name: parent_name}
           `)
@@ -450,7 +448,7 @@ export async function queryGraph(
           const extendedByResult = await agentDb.run(`
             ?[child_name] :=
               *components{component_id: parent, name: parent_name},
-              parent_name = '${escapeString(name)}',
+              parent_name = ${escapeForCozo(name)},
               *extends{child_class: child, parent_class: parent},
               *components{component_id: child, name: child_name}
           `)
@@ -461,7 +459,7 @@ export async function queryGraph(
           const includesResult = await agentDb.run(`
             ?[module_name] :=
               *components{component_id: class_id, name: class_name},
-              class_name = '${escapeString(name)}',
+              class_name = ${escapeForCozo(name)},
               *includes{class_id, module_name}
           `)
           related.includes = includesResult.rows.map((r: any[]) => r[0])
@@ -471,7 +469,7 @@ export async function queryGraph(
           const includedByResult = await agentDb.run(`
             ?[class_name] :=
               *components{component_id: module_id, name: module_name},
-              module_name = '${escapeString(name)}',
+              module_name = ${escapeForCozo(name)},
               *includes{class_id, module_name: module_id_str},
               module_id_str = module_id,
               *components{component_id: class_id, name: class_name}
@@ -483,7 +481,7 @@ export async function queryGraph(
           const associationsResult = await agentDb.run(`
             ?[to_class_name, assoc_type] :=
               *components{component_id: from_id, name: from_name},
-              from_name = '${escapeString(name)}',
+              from_name = ${escapeForCozo(name)},
               *associations{from_class: from_id, to_class, assoc_type},
               *components{component_id: to_class, name: to_class_name}
           `)
@@ -497,7 +495,7 @@ export async function queryGraph(
           const associatedByResult = await agentDb.run(`
             ?[from_class_name, assoc_type] :=
               *components{component_id: to_id, name: to_name},
-              to_name = '${escapeString(name)}',
+              to_name = ${escapeForCozo(name)},
               *associations{from_class, to_class: to_id, assoc_type},
               *components{component_id: from_class, name: from_class_name}
           `)
@@ -511,7 +509,7 @@ export async function queryGraph(
           const serializesResult = await agentDb.run(`
             ?[model_name] :=
               *components{component_id: serializer_id, name: serializer_name},
-              serializer_name = '${escapeString(name)}',
+              serializer_name = ${escapeForCozo(name)},
               *serializes{serializer_id, model_id},
               *components{component_id: model_id, name: model_name}
           `)
@@ -524,7 +522,7 @@ export async function queryGraph(
           const serializedByResult = await agentDb.run(`
             ?[serializer_name] :=
               *components{component_id: model_id, name: model_name},
-              model_name = '${escapeString(name)}',
+              model_name = ${escapeForCozo(name)},
               *serializes{serializer_id, model_id},
               *components{component_id: serializer_id, name: serializer_name}
           `)
@@ -544,7 +542,7 @@ export async function queryGraph(
           const componentsResult = await agentDb.run(`
             ?[name, file_path] :=
               *components{component_id, name, file_id, class_type},
-              class_type = '${escapeString(type)}',
+              class_type = ${escapeForCozo(type)},
               *files{file_id, path: file_path}
           `)
 
@@ -573,7 +571,7 @@ export async function queryGraph(
           const outgoingResult = await agentDb.run(`
             ?[to_class_name, assoc_type] :=
               *components{component_id: from_id, name: from_name},
-              from_name = '${escapeString(name)}',
+              from_name = ${escapeForCozo(name)},
               *associations{from_class: from_id, to_class, assoc_type},
               *components{component_id: to_class, name: to_class_name}
           `)
@@ -581,7 +579,7 @@ export async function queryGraph(
           const incomingResult = await agentDb.run(`
             ?[from_class_name, assoc_type] :=
               *components{component_id: to_id, name: to_name},
-              to_name = '${escapeString(name)}',
+              to_name = ${escapeForCozo(name)},
               *associations{from_class, to_class: to_id, assoc_type},
               *components{component_id: from_class, name: from_class_name}
           `)
@@ -611,7 +609,7 @@ export async function queryGraph(
           const serializersResult = await agentDb.run(`
             ?[serializer_name, file_path] :=
               *components{component_id: model_id, name: model_name},
-              model_name = '${escapeString(name)}',
+              model_name = ${escapeForCozo(name)},
               *serializes{serializer_id, model_id},
               *components{component_id: serializer_id, name: serializer_name, file_id},
               *files{file_id, path: file_path}
@@ -642,7 +640,7 @@ export async function queryGraph(
           const pathResult = await agentDb.run(`
             path[start, end, depth, via] :=
               *functions{fn_id: start, name: start_name},
-              start_name = '${escapeString(from)}',
+              start_name = ${escapeForCozo(from)},
               *calls{caller_fn: start, callee_fn: end},
               depth = 1,
               via = [start_name]
@@ -658,7 +656,7 @@ export async function queryGraph(
             ?[depth, via] :=
               path[start, end, depth, via],
               *functions{fn_id: end, name: end_name},
-              end_name = '${escapeString(to)}'
+              end_name = ${escapeForCozo(to)}
 
             :order depth
             :limit 5
@@ -694,7 +692,7 @@ export async function queryGraph(
           const componentResult = await agentDb.run(`
             ?[component_id, name, file_path, class_type] :=
               *components{component_id, name, file_id, class_type},
-              name = '${escapeString(name)}',
+              name = ${escapeForCozo(name)},
               *files{file_id, path: file_path}
           `)
 
@@ -717,7 +715,7 @@ export async function queryGraph(
               const extendsResult = await agentDb.run(`
                 ?[parent_name] :=
                   *components{component_id: child, name: child_name},
-                  child_name = '${escapeString(name)}',
+                  child_name = ${escapeForCozo(name)},
                   *extends{child_class: child, parent_class: parent},
                   *components{component_id: parent, name: parent_name}
               `)
@@ -728,7 +726,7 @@ export async function queryGraph(
               const extendedByResult = await agentDb.run(`
                 ?[child_name] :=
                   *components{component_id: parent, name: parent_name},
-                  parent_name = '${escapeString(name)}',
+                  parent_name = ${escapeForCozo(name)},
                   *extends{child_class: child, parent_class: parent},
                   *components{component_id: child, name: child_name}
               `)
@@ -739,7 +737,7 @@ export async function queryGraph(
               const includesResult = await agentDb.run(`
                 ?[module_name] :=
                   *components{component_id: class_id, name: class_name},
-                  class_name = '${escapeString(name)}',
+                  class_name = ${escapeForCozo(name)},
                   *includes{class_id, module_name}
               `)
               related.includes = includesResult.rows.map((row: any[]) => row[0])
@@ -749,7 +747,7 @@ export async function queryGraph(
               const associationsResult = await agentDb.run(`
                 ?[to_class_name, assoc_type] :=
                   *components{component_id: from_id, name: from_name},
-                  from_name = '${escapeString(name)}',
+                  from_name = ${escapeForCozo(name)},
                   *associations{from_class: from_id, to_class, assoc_type},
                   *components{component_id: to_class, name: to_class_name}
               `)
@@ -763,7 +761,7 @@ export async function queryGraph(
               const serializedByResult = await agentDb.run(`
                 ?[serializer_name] :=
                   *components{component_id: model_id, name: model_name},
-                  model_name = '${escapeString(name)}',
+                  model_name = ${escapeForCozo(name)},
                   *serializes{serializer_id, model_id},
                   *components{component_id: serializer_id, name: serializer_name}
               `)
@@ -780,7 +778,7 @@ export async function queryGraph(
             const functionResult = await agentDb.run(`
               ?[fn_id, name, file_path, is_export] :=
                 *functions{fn_id, name, file_id, is_export},
-                name = '${escapeString(name)}',
+                name = ${escapeForCozo(name)},
                 *files{file_id, path: file_path}
             `)
 
@@ -794,7 +792,7 @@ export async function queryGraph(
               const callersResult = await agentDb.run(`
                 ?[caller_name] :=
                   *functions{fn_id: callee, name: callee_name},
-                  callee_name = '${escapeString(name)}',
+                  callee_name = ${escapeForCozo(name)},
                   *calls{caller_fn: caller, callee_fn: callee},
                   *functions{fn_id: caller, name: caller_name}
               `)
@@ -802,7 +800,7 @@ export async function queryGraph(
               const calleesResult = await agentDb.run(`
                 ?[callee_name] :=
                   *functions{fn_id: caller, name: caller_name},
-                  caller_name = '${escapeString(name)}',
+                  caller_name = ${escapeForCozo(name)},
                   *calls{caller_fn: caller, callee_fn: callee},
                   *functions{fn_id: callee, name: callee_name}
               `)
@@ -947,7 +945,7 @@ export async function queryCodeGraph(
       case 'files': {
         let query = `?[file_id, path, module, project_path] := *files{file_id, path, module, project_path}`
         if (projectFilter) {
-          query += `, project_path = '${projectFilter.replace(/'/g, "''")}'`
+          query += `, project_path = ${escapeForCozo(projectFilter)}`
         }
         const filesData = await agentDb.run(query)
         result = filesData.rows.map((row: any[]) => ({

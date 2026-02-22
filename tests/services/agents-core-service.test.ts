@@ -283,11 +283,11 @@ describe('searchAgentsByQuery', () => {
 // ============================================================================
 
 describe('createNewAgent', () => {
-  it('creates agent successfully', () => {
+  it('creates agent successfully', async () => {
     const agent = makeAgent({ name: 'new-agent' })
     mockAgentRegistry.createAgent.mockReturnValue(agent)
 
-    const result = createNewAgent({
+    const result = await createNewAgent({
       name: 'new-agent',
       program: 'claude-code',
       taskDescription: 'Test agent',
@@ -297,10 +297,10 @@ describe('createNewAgent', () => {
     expect(result.data?.agent.name).toBe('new-agent')
   })
 
-  it('returns 400 when createAgent throws (e.g., duplicate name)', () => {
+  it('returns 400 when createAgent throws (e.g., duplicate name)', async () => {
     mockAgentRegistry.createAgent.mockImplementation(() => { throw new Error('Agent name already exists') })
 
-    const result = createNewAgent({
+    const result = await createNewAgent({
       name: 'duplicate',
       program: 'claude-code',
       taskDescription: 'Test',
@@ -348,42 +348,42 @@ describe('getAgentById', () => {
 // ============================================================================
 
 describe('updateAgentById', () => {
-  it('updates agent successfully', () => {
+  it('updates agent successfully', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     const updated = { ...agent, taskDescription: 'Updated task' }
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.updateAgent.mockReturnValue(updated)
 
-    const result = updateAgentById('agent-1', { taskDescription: 'Updated task' })
+    const result = await updateAgentById('agent-1', { taskDescription: 'Updated task' })
 
     expect(result.status).toBe(200)
     expect(result.data?.agent.taskDescription).toBe('Updated task')
   })
 
-  it('returns 404 when agent not found', () => {
+  it('returns 404 when agent not found', async () => {
     mockAgentRegistry.getAgent.mockReturnValue(null)
 
-    const result = updateAgentById('nonexistent', { taskDescription: 'X' })
+    const result = await updateAgentById('nonexistent', { taskDescription: 'X' })
 
     expect(result.status).toBe(404)
   })
 
-  it('returns 410 when agent is soft-deleted', () => {
+  it('returns 410 when agent is soft-deleted', async () => {
     const deleted = makeAgent({ id: 'agent-1', deletedAt: '2025-01-01T00:00:00Z' })
     mockAgentRegistry.getAgent.mockReturnValue(deleted)
 
-    const result = updateAgentById('agent-1', { taskDescription: 'X' })
+    const result = await updateAgentById('agent-1', { taskDescription: 'X' })
 
     expect(result.status).toBe(410)
     expect(result.error).toMatch(/deleted/i)
   })
 
-  it('returns 400 when updateAgent throws (e.g., duplicate name)', () => {
+  it('returns 400 when updateAgent throws (e.g., duplicate name)', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.updateAgent.mockImplementation(() => { throw new Error('Name taken') })
 
-    const result = updateAgentById('agent-1', { name: 'taken' })
+    const result = await updateAgentById('agent-1', { name: 'taken' })
 
     expect(result.status).toBe(400)
     expect(result.error).toBe('Name taken')
@@ -395,53 +395,53 @@ describe('updateAgentById', () => {
 // ============================================================================
 
 describe('deleteAgentById', () => {
-  it('soft deletes agent', () => {
+  it('soft deletes agent', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', false)
+    const result = await deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
     expect(result.data?.hard).toBe(false)
   })
 
-  it('hard deletes agent', () => {
+  it('hard deletes agent', async () => {
     const agent = makeAgent({ id: 'agent-1' })
     mockAgentRegistry.getAgent.mockReturnValue(agent)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', true)
+    const result = await deleteAgentById('agent-1', true)
 
     expect(result.status).toBe(200)
     expect(result.data?.hard).toBe(true)
   })
 
-  it('returns 404 when agent not found', () => {
+  it('returns 404 when agent not found', async () => {
     mockAgentRegistry.getAgent.mockReturnValue(null)
 
-    const result = deleteAgentById('nonexistent', false)
+    const result = await deleteAgentById('nonexistent', false)
 
     expect(result.status).toBe(404)
   })
 
-  it('returns 410 when already soft-deleted and not hard deleting', () => {
+  it('returns 410 when already soft-deleted and not hard deleting', async () => {
     const deleted = makeAgent({ id: 'agent-1', deletedAt: '2025-01-01T00:00:00Z' })
     mockAgentRegistry.getAgent.mockReturnValue(deleted)
 
-    const result = deleteAgentById('agent-1', false)
+    const result = await deleteAgentById('agent-1', false)
 
     expect(result.status).toBe(410)
     expect(result.error).toMatch(/already deleted/i)
   })
 
-  it('allows hard delete of already soft-deleted agent', () => {
+  it('allows hard delete of already soft-deleted agent', async () => {
     const deleted = makeAgent({ id: 'agent-1', deletedAt: '2025-01-01T00:00:00Z' })
     mockAgentRegistry.getAgent.mockReturnValue(deleted)
     mockAgentRegistry.deleteAgent.mockReturnValue(true)
 
-    const result = deleteAgentById('agent-1', true)
+    const result = await deleteAgentById('agent-1', true)
 
     expect(result.status).toBe(200)
   })
@@ -452,34 +452,34 @@ describe('deleteAgentById', () => {
 // ============================================================================
 
 describe('registerAgent', () => {
-  it('registers agent from session name', () => {
+  it('registers agent from session name', async () => {
     mockAgentRegistry.getAgentBySession.mockReturnValue(null)
     mockAgentRegistry.createAgent.mockReturnValue(makeAgent({ id: 'new-id', name: 'my-agent' }))
     mockFs.default.existsSync.mockReturnValue(false)
 
-    const result = registerAgent({ sessionName: 'my-agent', workingDirectory: '/home' })
+    const result = await registerAgent({ sessionName: 'my-agent', workingDirectory: '/home' })
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
     expect(result.data?.agentId).toBe('my-agent')
   })
 
-  it('links existing agent when found by session', () => {
+  it('links existing agent when found by session', async () => {
     const existing = makeAgent({ id: 'existing-id', name: 'my-agent' })
     mockAgentRegistry.getAgentBySession.mockReturnValue(existing)
     mockFs.default.existsSync.mockReturnValue(false)
 
-    const result = registerAgent({ sessionName: 'my-agent' })
+    const result = await registerAgent({ sessionName: 'my-agent' })
 
     expect(result.status).toBe(200)
     expect(mockAgentRegistry.linkSession).toHaveBeenCalledWith('existing-id', 'my-agent', expect.any(String))
     expect(result.data?.registryAgent?.id).toBe('existing-id')
   })
 
-  it('registers cloud agent with websocket URL', () => {
+  it('registers cloud agent with websocket URL', async () => {
     mockFs.default.existsSync.mockReturnValue(false)
 
-    const result = registerAgent({
+    const result = await registerAgent({
       id: 'cloud-agent',
       deployment: { cloud: { websocketUrl: 'wss://agent.cloud.com/term' } },
     })
@@ -488,27 +488,27 @@ describe('registerAgent', () => {
     expect(result.data?.agentId).toBe('cloud-agent')
   })
 
-  it('returns 400 when session name is missing (worktree format)', () => {
-    const result = registerAgent({ sessionName: '' })
+  it('returns 400 when session name is missing (worktree format)', async () => {
+    const result = await registerAgent({ sessionName: '' })
 
     // The code checks `!body.sessionName` which is falsy for empty string
     // It falls through to the cloud path and fails there
     expect(result.status).toBe(400)
   })
 
-  it('returns 400 when cloud agent missing required fields', () => {
-    const result = registerAgent({ id: 'cloud', deployment: {} as any })
+  it('returns 400 when cloud agent missing required fields', async () => {
+    const result = await registerAgent({ id: 'cloud', deployment: {} as any })
 
     expect(result.status).toBe(400)
     expect(result.error).toMatch(/missing/i)
   })
 
-  it('saves agent config to file', () => {
+  it('saves agent config to file', async () => {
     mockAgentRegistry.getAgentBySession.mockReturnValue(null)
     mockAgentRegistry.createAgent.mockReturnValue(makeAgent())
     mockFs.default.existsSync.mockReturnValue(false)
 
-    registerAgent({ sessionName: 'agent' })
+    await registerAgent({ sessionName: 'agent' })
 
     expect(mockFs.default.writeFileSync).toHaveBeenCalled()
   })
@@ -825,25 +825,25 @@ describe('sendAgentSessionCommand', () => {
 // ============================================================================
 
 describe('linkAgentSession', () => {
-  it('links session to agent', () => {
+  it('links session to agent', async () => {
     mockAgentRegistry.linkSession.mockReturnValue(true)
 
-    const result = linkAgentSession('agent-1', { sessionName: 'my-session' })
+    const result = await linkAgentSession('agent-1', { sessionName: 'my-session' })
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
   })
 
-  it('returns 400 when sessionName is missing', () => {
-    const result = linkAgentSession('agent-1', { sessionName: '' })
+  it('returns 400 when sessionName is missing', async () => {
+    const result = await linkAgentSession('agent-1', { sessionName: '' })
 
     expect(result.status).toBe(400)
   })
 
-  it('returns 404 when agent not found', () => {
+  it('returns 404 when agent not found', async () => {
     mockAgentRegistry.linkSession.mockReturnValue(false)
 
-    const result = linkAgentSession('nonexistent', { sessionName: 'my-session' })
+    const result = await linkAgentSession('nonexistent', { sessionName: 'my-session' })
 
     expect(result.status).toBe(404)
   })

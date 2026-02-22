@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await exchangePeers(body)
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
     return NextResponse.json(result.data, { status: result.status })
   } catch (err) {
     return NextResponse.json({ error: `Internal server error: ${(err as Error).message}` }, { status: 500 })

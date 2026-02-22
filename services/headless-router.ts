@@ -804,10 +804,10 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, addSkill(params.id, body))
+    sendServiceResult(res, await addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    sendServiceResult(res, await removeSkill(params.id, query.skill || ''))
   }},
 
   // Subconscious
@@ -876,17 +876,17 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, await updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, await removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listAMPAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, addAMPAddressToAgent(params.id, body))
+    sendServiceResult(res, await addAMPAddressToAgent(params.id, body))
   }},
 
   // Email addresses
@@ -895,17 +895,17 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, await updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, await removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listEmailAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, addEmailAddressToAgent(params.id, body))
+    sendServiceResult(res, await addEmailAddressToAgent(params.id, body))
   }},
 
   // Agent messages
@@ -1090,10 +1090,10 @@ const routes: Route[] = [
     sendServiceResult(res, batchAcknowledgeMessages(authHeader, body.ids))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/auth\/revoke-key$/, paramNames: [], handler: async (req, res) => {
-    sendServiceResult(res, revokeKey(getHeader(req, 'Authorization')))
+    sendServiceResult(res, await revokeKey(getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/auth\/rotate-key$/, paramNames: [], handler: async (req, res) => {
-    sendServiceResult(res, rotateKey(getHeader(req, 'Authorization')))
+    sendServiceResult(res, await rotateKey(getHeader(req, 'Authorization')))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/auth\/rotate-keys$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, await rotateKeypair(getHeader(req, 'Authorization')))

@@ -14,8 +14,8 @@ export async function GET(
 
   const result = await listMessages(id, {
     box: searchParams.get('box') || undefined,
-    status: searchParams.get('status') as 'read' | 'unread' | null,
-    priority: searchParams.get('priority') as 'urgent' | 'high' | 'normal' | 'low' | null,
+    status: searchParams.get('status') || undefined,
+    priority: searchParams.get('priority') || undefined,
     from: searchParams.get('from') || undefined,
     to: searchParams.get('to') || undefined,
   })

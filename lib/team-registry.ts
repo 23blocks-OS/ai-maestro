@@ -326,6 +326,7 @@ export async function updateTeam(
 
     // Capture pre-update state for G4 open-team revocation logic
     const previousAgentIds = [...teams[index].agentIds]
+    const previousType = teams[index].type
 
     // Validate all business rules before applying the update (R1-R4, name sanitization, agent name collision)
     // Extract only governance-relevant fields for validation (avoids unsafe Record cast)
@@ -348,12 +349,18 @@ export async function updateTeam(
     // MF-05: Perform G4 revocation BEFORE the single save to avoid on-disk inconsistency.
     // MF-06: Always check when team is closed (not just when agentIds was explicitly provided),
     //        so that a type change to 'closed' also triggers revocation for existing members.
+    // MF-001 (P5): When type changes from non-closed to closed, iterate ALL agentIds (not just
+    //              newly added ones), because existing members also need open-team revocation.
     const result2 = teams[index]
     if (result2.type === 'closed') {
-      const newlyAdded = result2.agentIds.filter(aid => !previousAgentIds.includes(aid))
-      if (newlyAdded.length > 0) {
+      const typeChangedToClosed = previousType !== 'closed'
+      // If type just changed to closed, revoke for ALL members; otherwise only newly added
+      const agentsToRevoke = typeChangedToClosed
+        ? result2.agentIds
+        : result2.agentIds.filter(aid => !previousAgentIds.includes(aid))
+      if (agentsToRevoke.length > 0) {
         const currentManagerId = managerId ?? null
-        for (const agentId of newlyAdded) {
+        for (const agentId of agentsToRevoke) {
           if (agentId === currentManagerId) continue
           // COS keeps open team memberships (v2 Rule 21)
           if (agentId === result2.chiefOfStaffId) continue

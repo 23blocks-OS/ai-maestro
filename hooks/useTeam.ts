@@ -16,28 +16,38 @@ export function useTeam(teamId: string | null): UseTeamResult {
   const [loading, setLoading] = useState(!!teamId)  // Start true only when teamId is provided, preventing "Team not found" flash
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTeam = useCallback(async () => {
+  // MF-005: Accept optional AbortSignal to cancel stale fetches on unmount/teamId change
+  const fetchTeam = useCallback(async (signal?: AbortSignal) => {
     if (!teamId) return
     setError(null) // CC-008: Clear stale error at start so UI doesn't show old error during fetch
     try {
-      const res = await fetch(`/api/teams/${teamId}`)
+      const res = await fetch(`/api/teams/${teamId}`, { signal })
       if (!res.ok) throw new Error('Failed to fetch team')
       const data = await res.json()
+      // MF-005: Guard against setting state after abort
+      if (signal?.aborted) return
       setTeam(data.team || null)
     } catch (err) {
+      // MF-005: Silently ignore AbortError — expected when component unmounts or teamId changes
+      if (err instanceof DOMException && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Failed to fetch team')
     }
   }, [teamId])
 
-  // Initial fetch
+  // Initial fetch with AbortController for cleanup on unmount/teamId change
   useEffect(() => {
     if (!teamId) {
       setTeam(null)
       setLoading(false)
       return
     }
+    // MF-005: AbortController cancels in-flight fetch when teamId changes or component unmounts
+    const controller = new AbortController()
     setLoading(true)
-    fetchTeam().finally(() => setLoading(false))
+    fetchTeam(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [teamId, fetchTeam])
 
   // CC-010: updateTeam throws on error to allow callers to handle in try/catch.

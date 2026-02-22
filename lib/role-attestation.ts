@@ -68,10 +68,17 @@ export function createRoleAttestation(agentId: string, role: AgentRole, recipien
 export function verifyRoleAttestation(
   attestation: HostAttestation,
   expectedHostPublicKeyHex: string,
+  expectedRecipientHostId?: string,
 ): boolean {
   // Check timestamp freshness -- reject expired attestations
   const attestationAge = Date.now() - new Date(attestation.timestamp).getTime()
   if (attestationAge > ATTESTATION_MAX_AGE_MS || attestationAge < 0) {
+    return false
+  }
+
+  // SF-001 (P5): When expectedRecipientHostId is provided, verify the attestation was
+  // intended for this host -- prevents cross-target replay attacks
+  if (expectedRecipientHostId && attestation.recipientHostId !== expectedRecipientHostId) {
     return false
   }
 

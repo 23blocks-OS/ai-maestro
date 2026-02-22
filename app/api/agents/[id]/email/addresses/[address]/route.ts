@@ -37,7 +37,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = updateEmailAddressOnAgent(id, address, body)
+  const result = await updateEmailAddressOnAgent(id, address, body)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -55,7 +55,7 @@ export async function DELETE(
 ) {
   const { id, address } = await params
 
-  const result = removeEmailAddressFromAgent(id, address)
+  const result = await removeEmailAddressFromAgent(id, address)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

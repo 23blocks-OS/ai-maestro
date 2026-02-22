@@ -26,7 +26,11 @@ export interface Team {
   type: TeamType           // 'open' (default) or 'closed' — governs messaging isolation and ACL
                            // Always present at runtime — loadTeams() migration guarantees this field is populated
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
-  /** @planned Layer 3 — not yet populated or consumed anywhere; will be used for cross-host team routing */
+  /**
+   * @planned Layer 3 — type stub only, not yet populated or consumed anywhere.
+   * Will map agentId -> hostId for multi-host team membership tracking.
+   * SF-056 (P5): Confirmed as planned feature, not dead code.
+   */
   agentHostMap?: Record<string, string>
   createdAt: string       // ISO
   updatedAt: string       // ISO

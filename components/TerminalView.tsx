@@ -627,11 +627,14 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              {/* Connection indicator - just the green/red dot */}
+              {/* Connection indicator - green/red dot with aria-label for accessibility */}
+              {/* SF-014: Add aria-label and role="status" so color-blind users can identify connection state */}
               <div
                 className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   isConnected ? 'bg-green-500' : 'bg-red-500'
                 }`}
+                role="status"
+                aria-label={isConnected ? 'Connected' : 'Disconnected'}
               />
               {/* Host name and session name */}
               <h3 className="font-medium text-gray-400 text-xs md:text-sm truncate">
@@ -652,6 +655,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                     onClick={() => setNotesCollapsed(!notesCollapsed)}
                     className="md:hidden px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                     title={notesCollapsed ? "Show footer" : "Hide footer"}
+                    aria-label={notesCollapsed ? "Show footer" : "Hide footer"}
                   >
                     📝
                   </button>
@@ -689,6 +693,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                     ? 'Logging enabled - Click to disable'
                     : 'Logging disabled - Click to enable'
                 }
+                aria-label={loggingEnabled ? 'Logging enabled' : 'Logging disabled'}
               >
                 {loggingEnabled ? '📝' : '🚫'} <span className="hidden md:inline">{loggingEnabled ? 'Logging' : 'No Log'}</span>
               </button>
@@ -697,6 +702,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 onClick={copySelection}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                 title="Copy selected text to clipboard"
+                aria-label="Copy selected text to clipboard"
               >
                 📋 <span className="hidden md:inline">Copy</span>
               </button>
@@ -704,6 +710,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 onClick={pasteFromClipboard}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                 title="Paste from clipboard (mobile-friendly)"
+                aria-label="Paste from clipboard"
               >
                 📥 <span className="hidden md:inline">Paste</span>
               </button>
@@ -711,6 +718,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 onClick={() => terminal.clear()}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors text-xs"
                 title="Clear terminal scrollback buffer (removes duplicate lines from Claude Code status updates)"
+                aria-label="Clear terminal scrollback buffer"
               >
                 🧹 <span className="hidden md:inline">Clear</span>
               </button>

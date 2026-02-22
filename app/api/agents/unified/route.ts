@@ -16,8 +16,11 @@ export async function GET(request: Request) {
   const result = await getUnifiedAgents({
     query: searchParams.get('q'),
     includeOffline: searchParams.get('includeOffline') !== 'false',
-    timeout: parseInt(searchParams.get('timeout') || '3000', 10),
+    timeout: parseInt(searchParams.get('timeout') || '3000', 10) || 3000,
   })
 
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
   return NextResponse.json(result.data)
 }

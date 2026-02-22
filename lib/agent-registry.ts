@@ -8,6 +8,7 @@ import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
 import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
+import { withLock } from '@/lib/file-lock'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -98,7 +99,15 @@ function generateUniquePersonaName(agentId: string, usedLabels: Set<string>): st
     attempts++
   }
 
-  return names[index]
+  // NT-005: If all names are exhausted, append a numeric suffix to ensure uniqueness
+  let result = names[index]
+  if (usedLabels.has(result)) {
+    let suffix = 2
+    while (usedLabels.has(`${result}-${suffix}`)) suffix++
+    result = `${result}-${suffix}`
+  }
+
+  return result
 }
 
 /**
@@ -196,9 +205,11 @@ export function saveAgents(agents: Agent[]): boolean {
     const data = JSON.stringify(agents, null, 2)
     fs.writeFileSync(REGISTRY_FILE, data, 'utf-8')
 
-    // Invalidate cache so next loadAgents() re-reads from disk
-    _cachedAgents = null
-    _cachedMtimeMs = 0
+    // SF-006: Eagerly populate cache with the agents just saved to prevent
+    // concurrent loadAgents() from using stale mtime within the same tick
+    const stat = fs.statSync(REGISTRY_FILE)
+    _cachedAgents = agents
+    _cachedMtimeMs = stat.mtimeMs
 
     return true
   } catch (error) {
@@ -333,8 +344,10 @@ export function getAgentBySession(sessionName: string, hostId?: string): Agent |
 
 /**
  * Create a new agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function createAgent(request: CreateAgentRequest): Agent {
+export async function createAgent(request: CreateAgentRequest): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
 
   // Support both new 'name' and deprecated 'alias'
@@ -455,12 +468,15 @@ export function createAgent(request: CreateAgentRequest): Agent {
   invalidateAgentCache()
 
   return agent
+  }) // end withLock('agents')
 }
 
 /**
  * Update an agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | null {
+export async function updateAgent(id: string, updates: UpdateAgentRequest): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === id)
 
@@ -534,12 +550,15 @@ export function updateAgent(id: string, updates: UpdateAgentRequest): Agent | nu
   saveAgents(agents)
   invalidateAgentCache()
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
  * Update agent metrics
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function updateAgentMetrics(id: string, metrics: UpdateAgentMetricsRequest): Agent | null {
+export async function updateAgentMetrics(id: string, metrics: UpdateAgentMetricsRequest): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === id)
 
@@ -557,16 +576,18 @@ export function updateAgentMetrics(id: string, metrics: UpdateAgentMetricsReques
 
   saveAgents(agents)
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
  * Increment agent metric by a specific amount
  */
-export function incrementAgentMetric(
+export async function incrementAgentMetric(
   id: string,
   metric: keyof Omit<UpdateAgentMetricsRequest, 'customMetrics'>,
   amount: number = 1
-): boolean {
+): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === id)
 
@@ -585,6 +606,7 @@ export function incrementAgentMetric(
   agents[index].lastActive = new Date().toISOString()
 
   return saveAgents(agents)
+  }) // end withLock('agents')
 }
 
 /**
@@ -683,7 +705,8 @@ function backupAgentData(agent: Agent): string | null {
  *               in the registry but preserve all data on disk for potential restore.
  *               If true, hard-delete: create a backup first, then permanently remove all data.
  */
-export function deleteAgent(id: string, hard: boolean = false): boolean {
+export async function deleteAgent(id: string, hard: boolean = false): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const agentToDelete = agents.find(a => a.id === id)
 
@@ -764,6 +787,7 @@ export function deleteAgent(id: string, hard: boolean = false): boolean {
   }
 
   return true
+  }) // end withLock('agents')
 }
 
 /**
@@ -804,7 +828,8 @@ export function listAgents(includeDeleted: boolean = false): AgentSummary[] {
 /**
  * Update agent status
  */
-export function updateAgentStatus(id: string, status: Agent['status']): boolean {
+export async function updateAgentStatus(id: string, status: Agent['status']): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === id)
 
@@ -823,13 +848,16 @@ export function updateAgentStatus(id: string, status: Agent['status']): boolean 
   const saved = saveAgents(agents)
   if (saved) invalidateAgentCache()
   return saved
+  }) // end withLock('agents')
 }
 
 /**
  * Link a session to an agent
  * Uses parseSessionName to determine session index from tmux session name
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function linkSession(agentId: string, sessionName: string, workingDirectory: string): boolean {
+export async function linkSession(agentId: string, sessionName: string, workingDirectory: string): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -872,13 +900,16 @@ export function linkSession(agentId: string, sessionName: string, workingDirecto
   const saved = saveAgents(agents)
   if (saved) invalidateAgentCache()
   return saved
+  }) // end withLock('agents')
 }
 
 /**
  * Update just the working directory for an agent's session
  * Used when the live tmux pwd differs from the stored workingDirectory
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function updateAgentWorkingDirectory(agentId: string, workingDirectory: string, sessionIndex: number = 0): boolean {
+export async function updateAgentWorkingDirectory(agentId: string, workingDirectory: string, sessionIndex: number = 0): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -914,14 +945,17 @@ export function updateAgentWorkingDirectory(agentId: string, workingDirectory: s
   }
 
   return saveAgents(agents)
+  }) // end withLock('agents')
 }
 
 /**
  * Unlink session from agent (mark as offline)
  * If sessionIndex provided, only marks that session offline
  * If no sessionIndex, marks all sessions offline
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function unlinkSession(agentId: string, sessionIndex?: number): boolean {
+export async function unlinkSession(agentId: string, sessionIndex?: number): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -955,6 +989,7 @@ export function unlinkSession(agentId: string, sessionIndex?: number): boolean {
   const saved = saveAgents(agents)
   if (saved) invalidateAgentCache()
   return saved
+  }) // end withLock('agents')
 }
 
 /**
@@ -994,9 +1029,11 @@ export function searchAgents(query: string): Agent[] {
  * @param defaultHostId - Optional default host if not specified in nameOrId
  */
 export function resolveAlias(nameOrId: string, defaultHostId?: string): string | null {
-  // Check for name@host format
+  // SF-007: Use indexOf to split on first '@' only, so hostIds containing '@' are preserved
   if (nameOrId.includes('@')) {
-    const [name, hostId] = nameOrId.split('@')
+    const atIndex = nameOrId.indexOf('@')
+    const name = nameOrId.substring(0, atIndex)
+    const hostId = nameOrId.substring(atIndex + 1)
     const agent = getAgentByName(name, hostId)
     return agent?.id || null
   }
@@ -1017,7 +1054,8 @@ export function resolveAlias(nameOrId: string, defaultHostId?: string): string |
  * Rename agent
  * Updates the agent name (which affects all derived session names)
  */
-export function renameAgent(agentId: string, newName: string): boolean {
+export async function renameAgent(agentId: string, newName: string): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1081,13 +1119,14 @@ export function renameAgent(agentId: string, newName: string): boolean {
   }
 
   return saved
+  }) // end withLock('agents')
 }
 
 /**
  * @deprecated Use renameAgent instead
  * Kept for backward compatibility
  */
-export function renameAgentSession(oldSessionName: string, newSessionName: string): boolean {
+export async function renameAgentSession(oldSessionName: string, newSessionName: string): Promise<boolean> {
   // Parse old session name to find agent
   const { agentName: oldAgentName } = parseSessionName(oldSessionName)
   const { agentName: newAgentName } = parseSessionName(newSessionName)
@@ -1110,7 +1149,7 @@ export function renameAgentSession(oldSessionName: string, newSessionName: strin
  * Parses session name to find agent, then deletes it
  * @param hard - If true, permanently delete (with backup). Default false (soft-delete).
  */
-export function deleteAgentBySession(sessionName: string, hard: boolean = false): boolean {
+export async function deleteAgentBySession(sessionName: string, hard: boolean = false): Promise<boolean> {
   const agent = getAgentBySession(sessionName)
   if (!agent) {
     return false
@@ -1123,7 +1162,8 @@ export function deleteAgentBySession(sessionName: string, hard: boolean = false)
  * Add a session to an existing agent (for multi-session support)
  * Returns the new session index
  */
-export function addSessionToAgent(agentId: string, workingDirectory?: string, role?: string): number | null {
+export async function addSessionToAgent(agentId: string, workingDirectory?: string, role?: string): Promise<number | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1156,12 +1196,15 @@ export function addSessionToAgent(agentId: string, workingDirectory?: string, ro
   saveAgents(agents)
 
   return nextIndex
+  }) // end withLock('agents')
 }
 
 /**
  * Remove a session from an agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function removeSessionFromAgent(agentId: string, sessionIndex: number): boolean {
+export async function removeSessionFromAgent(agentId: string, sessionIndex: number): Promise<boolean> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1195,6 +1238,7 @@ export function removeSessionFromAgent(agentId: string, sessionIndex: number): b
   agents[index].lastActive = new Date().toISOString()
 
   return saveAgents(agents)
+  }) // end withLock('agents')
 }
 
 // ============================================================================
@@ -1303,10 +1347,11 @@ export function isEmailAddressAvailableLocally(email: string, excludeAgentId?: s
  * Add an email address to an agent
  * Returns the updated agent or throws an error if address is already claimed
  */
-export function addEmailAddress(
+export async function addEmailAddress(
   agentId: string,
   emailAddress: EmailAddress
-): Agent {
+): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1386,12 +1431,15 @@ export function addEmailAddress(
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
  * Remove an email address from an agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function removeEmailAddress(agentId: string, email: string): Agent {
+export async function removeEmailAddress(agentId: string, email: string): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1428,6 +1476,7 @@ export function removeEmailAddress(agentId: string, email: string): Agent {
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
@@ -1458,11 +1507,12 @@ export function getAgentEmailAddresses(agentId: string): EmailAddress[] {
 /**
  * Update an existing email address on an agent
  */
-export function updateEmailAddress(
+export async function updateEmailAddress(
   agentId: string,
   email: string,
   updates: Partial<Omit<EmailAddress, 'address'>>
-): Agent {
+): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1502,6 +1552,7 @@ export function updateEmailAddress(
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 // ============================================================================
@@ -1624,10 +1675,11 @@ export function getAgentAMPAddresses(agentId: string): AMPAddress[] {
  * Add an AMP address to an agent
  * Returns the updated agent or throws an error if address is already claimed
  */
-export function addAMPAddress(
+export async function addAMPAddress(
   agentId: string,
   ampAddress: AMPAddress
-): Agent {
+): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1708,12 +1760,15 @@ export function addAMPAddress(
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
  * Remove an AMP address from an agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function removeAMPAddress(agentId: string, address: string): Agent {
+export async function removeAMPAddress(agentId: string, address: string): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1750,16 +1805,19 @@ export function removeAMPAddress(agentId: string, address: string): Agent {
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
  * Update an existing AMP address on an agent
+ * MF-003: Wrapped with file lock to prevent read-modify-write races
  */
-export function updateAMPAddress(
+export async function updateAMPAddress(
   agentId: string,
   address: string,
   updates: Partial<Omit<AMPAddress, 'address'>>
-): Agent {
+): Promise<Agent> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1799,6 +1857,7 @@ export function updateAMPAddress(
   invalidateAgentCache()
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 // ============================================================================
@@ -1842,7 +1901,7 @@ export function getAgentSkills(agentId: string): AgentSkillsConfig | null {
  * @param skillsToAdd - Array of skill objects to add
  * @returns Updated agent or null if agent not found
  */
-export function addMarketplaceSkills(
+export async function addMarketplaceSkills(
   agentId: string,
   skillsToAdd: Array<{
     id: string
@@ -1851,7 +1910,8 @@ export function addMarketplaceSkills(
     name: string
     version?: string
   }>
-): Agent | null {
+): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1899,6 +1959,7 @@ export function addMarketplaceSkills(
   saveAgents(agents)
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
@@ -1907,7 +1968,8 @@ export function addMarketplaceSkills(
  * @param skillIds - Array of skill IDs to remove
  * @returns Updated agent or null if agent not found
  */
-export function removeMarketplaceSkills(agentId: string, skillIds: string[]): Agent | null {
+export async function removeMarketplaceSkills(agentId: string, skillIds: string[]): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -1927,6 +1989,7 @@ export function removeMarketplaceSkills(agentId: string, skillIds: string[]): Ag
   saveAgents(agents)
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
@@ -1936,14 +1999,15 @@ export function removeMarketplaceSkills(agentId: string, skillIds: string[]): Ag
  * @param skill - Custom skill to add
  * @returns Updated agent or null if agent not found
  */
-export function addCustomSkill(
+export async function addCustomSkill(
   agentId: string,
   skill: {
     name: string
     content: string
     description?: string
   }
-): Agent | null {
+): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -2003,6 +2067,7 @@ export function addCustomSkill(
   saveAgents(agents)
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
@@ -2012,7 +2077,8 @@ export function addCustomSkill(
  * @param skillName - Name of the custom skill to remove
  * @returns Updated agent or null if agent not found
  */
-export function removeCustomSkill(agentId: string, skillName: string): Agent | null {
+export async function removeCustomSkill(agentId: string, skillName: string): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -2053,6 +2119,7 @@ export function removeCustomSkill(agentId: string, skillName: string): Agent | n
   saveAgents(agents)
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**
@@ -2061,13 +2128,14 @@ export function removeCustomSkill(agentId: string, skillName: string): Agent | n
  * @param config - New AI Maestro config
  * @returns Updated agent or null if agent not found
  */
-export function updateAiMaestroSkills(
+export async function updateAiMaestroSkills(
   agentId: string,
   config: {
     enabled?: boolean
     skills?: string[]
   }
-): Agent | null {
+): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -2099,6 +2167,7 @@ export function updateAiMaestroSkills(
   saveAgents(agents)
 
   return agents[index]
+  }) // end withLock('agents')
 }
 
 // ============================================================================
@@ -2148,11 +2217,12 @@ export function needsHostIdNormalization(hostId: string | undefined): boolean {
  *
  * @returns { updated: number, skipped: number, agents: { id: string, name: string, oldHostId: string, newHostId: string }[] }
  */
-export function normalizeAllAgentHostIds(): {
+export async function normalizeAllAgentHostIds(): Promise<{
   updated: number
   skipped: number
   agents: { id: string, name: string, oldHostId: string, newHostId: string }[]
-} {
+}> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const result = {
     updated: 0,
@@ -2191,6 +2261,7 @@ export function normalizeAllAgentHostIds(): {
   }
 
   return result
+  }) // end withLock('agents')
 }
 
 /**
@@ -2370,7 +2441,7 @@ export async function checkMeshAgentExists(
  * @param agentId - Agent ID
  * @param ampData - AMP registration data
  */
-export function markAgentAsAMPRegistered(
+export async function markAgentAsAMPRegistered(
   agentId: string,
   ampData: {
     address: string
@@ -2379,7 +2450,8 @@ export function markAgentAsAMPRegistered(
     registeredAt: string
     apiKeyHash?: string
   }
-): Agent | null {
+): Promise<Agent | null> {
+  return withLock('agents', () => {
   const agents = loadAgents()
   const index = agents.findIndex(a => a.id === agentId)
 
@@ -2439,6 +2511,7 @@ export function markAgentAsAMPRegistered(
 
   saveAgents(agents)
   return agents[index]
+  }) // end withLock('agents')
 }
 
 /**

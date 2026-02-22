@@ -17,7 +17,9 @@ export type GovernanceRequestType =
   | 'transfer-agent'
   | 'create-agent'
   | 'delete-agent'
-  | 'configure-agent'
+  | 'configure-agent'  // SF-057 (P5): Scaffolded type only -- receiveCrossHostRequest accepts it but
+                        // submitCrossHostRequest rejects it and performRequestExecution has no handler.
+                        // TODO: Implement end-to-end or remove if not needed.
 
 /** Status progression: pending -> remote-approved/local-approved/dual-approved -> executed/rejected */
 export type GovernanceRequestStatus =

@@ -487,4 +487,30 @@ describe('requestPeerSync', () => {
     )
     consoleSpy.mockRestore()
   })
+
+  // SF-024: Verify Ed25519 signature headers are sent with GET requests
+  it('includes X-Host-Id, X-Host-Timestamp, and X-Host-Signature headers (SR-P2-002)', async () => {
+    /** Verifies requestPeerSync signs GET requests with Ed25519 for the protected endpoint */
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        hostId: 'host-remote-1',
+        managerId: null,
+        managerName: null,
+        teams: [],
+        lastSyncAt: '2025-06-20T12:00:00.000Z',
+        ttl: 300,
+      }),
+    })
+    globalThis.fetch = fetchSpy
+
+    await requestPeerSync('http://remote1:23000')
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [, opts] = fetchSpy.mock.calls[0]
+    // Verify signature headers are present
+    expect(opts.headers['X-Host-Id']).toBe('host-local')
+    expect(opts.headers['X-Host-Timestamp']).toBeDefined()
+    expect(opts.headers['X-Host-Signature']).toBe('mock-sig')
+  })
 })

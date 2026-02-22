@@ -19,7 +19,7 @@ export async function POST(
   const result = await runDeltaIndex(agentId, {
     dryRun: searchParams.get('dryRun') === 'true',
     batchSize: searchParams.get('batchSize')
-      ? parseInt(searchParams.get('batchSize')!)
+      ? (parseInt(searchParams.get('batchSize')!, 10) || 10)
       : undefined,
   })
 

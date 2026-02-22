@@ -6,7 +6,7 @@ import { getDatabaseInfo, initializeDatabase } from '@/services/agents-graph-ser
  * Get agent database information and metadata
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params

@@ -180,9 +180,30 @@ export function handleGovernanceSyncMessage(
     return false
   }
 
+  // SF-003 (P5): Validate payload fields exist before type assertion -- a malicious
+  // or buggy peer could send a payload missing required fields
+  const payload = message.payload
+  if (!payload || typeof payload !== 'object') {
+    console.error(`[governance-sync] Invalid payload from ${fromHostId}: payload is not an object`)
+    return false
+  }
+  const rawPayload = payload as Record<string, unknown>
+  if (rawPayload.managerId !== undefined && rawPayload.managerId !== null && typeof rawPayload.managerId !== 'string') {
+    console.error(`[governance-sync] Invalid payload from ${fromHostId}: managerId must be string or null`)
+    return false
+  }
+  if (rawPayload.managerName !== undefined && rawPayload.managerName !== null && typeof rawPayload.managerName !== 'string') {
+    console.error(`[governance-sync] Invalid payload from ${fromHostId}: managerName must be string or null`)
+    return false
+  }
+  if (rawPayload.teams !== undefined && !Array.isArray(rawPayload.teams)) {
+    console.error(`[governance-sync] Invalid payload from ${fromHostId}: teams must be an array`)
+    return false
+  }
+
   // Extract the full snapshot from the payload
   // All sync types include the complete state, so we just overwrite
-  const { managerId, managerName, teams } = message.payload as {
+  const { managerId, managerName, teams } = rawPayload as {
     managerId: string | null
     managerName: string | null
     teams: PeerTeamSummary[]

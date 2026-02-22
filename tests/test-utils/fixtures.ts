@@ -146,10 +146,4 @@ export function makeHost(overrides: Partial<Host> = {}): Host {
   }
 }
 
-// ---------------------------------------------------------------------------
-// ServiceResult helper
-// ---------------------------------------------------------------------------
-
-export function makeServiceResult<T>(data?: T, error?: string, status = 200) {
-  return { data, error, status }
-}
+// NT-018: Removed unused makeServiceResult helper (was never imported by any test file)

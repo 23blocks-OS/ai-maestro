@@ -599,8 +599,10 @@ export function searchAgentsByQuery(query: string): ServiceResult<{ agents: Agen
 // POST /api/agents -- create new agent
 // ---------------------------------------------------------------------------
 
-export function createNewAgent(body: CreateAgentRequest, requestingAgentId?: string | null): ServiceResult<{ agent: Agent }> {
-  // Layer 5: When a requesting agent is identified, enforce governance roles
+export async function createNewAgent(body: CreateAgentRequest, requestingAgentId?: string | null): Promise<ServiceResult<{ agent: Agent }>> {
+  // Layer 5: When a requesting agent is identified, enforce governance roles.
+  // SF-058 (P5): This enforcement is opt-in -- when no X-Agent-Id / Authorization header
+  // is provided, requestingAgentId is null and governance checks are skipped (Phase 1 behavior).
   if (requestingAgentId) {
     const isReqManager = isManager(requestingAgentId)
     const isReqCOS = isChiefOfStaffAnywhere(requestingAgentId)
@@ -610,7 +612,7 @@ export function createNewAgent(body: CreateAgentRequest, requestingAgentId?: str
   }
 
   try {
-    const agent = createAgent(body)
+    const agent = await createAgent(body)
     return { data: { agent }, status: 201 }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create agent'
@@ -640,7 +642,7 @@ export function getAgentById(id: string): ServiceResult<{ agent: Agent }> {
 // PATCH /api/agents/[id] -- update agent
 // ---------------------------------------------------------------------------
 
-export function updateAgentById(id: string, body: UpdateAgentRequest, requestingAgentId?: string | null): ServiceResult<{ agent: Agent }> {
+export async function updateAgentById(id: string, body: UpdateAgentRequest, requestingAgentId?: string | null): Promise<ServiceResult<{ agent: Agent }>> {
   try {
     // Check if agent exists and is not soft-deleted
     const existing = getAgent(id, true) // include deleted to distinguish 404 vs 410
@@ -670,7 +672,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, requesting
       }
     }
 
-    const agent = updateAgent(id, body)
+    const agent = await updateAgent(id, body)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }
     }
@@ -687,7 +689,7 @@ export function updateAgentById(id: string, body: UpdateAgentRequest, requesting
 // DELETE /api/agents/[id] -- delete agent (soft or hard)
 // ---------------------------------------------------------------------------
 
-export function deleteAgentById(id: string, hard: boolean, requestingAgentId?: string | null): ServiceResult<{ success: boolean; hard: boolean }> {
+export async function deleteAgentById(id: string, hard: boolean, requestingAgentId?: string | null): Promise<ServiceResult<{ success: boolean; hard: boolean }>> {
   try {
     const agent = getAgent(id, true) // include deleted to distinguish 404 vs 410
     if (!agent) {
@@ -706,7 +708,7 @@ export function deleteAgentById(id: string, hard: boolean, requestingAgentId?: s
       }
     }
 
-    const success = deleteAgent(id, hard)
+    const success = await deleteAgent(id, hard)
     if (!success) {
       return { error: 'Agent not found', status: 404 }
     }
@@ -722,13 +724,13 @@ export function deleteAgentById(id: string, hard: boolean, requestingAgentId?: s
 // POST /api/agents/register -- register agent from session or cloud
 // ---------------------------------------------------------------------------
 
-export function registerAgent(body: RegisterAgentParams): ServiceResult<{
+export async function registerAgent(body: RegisterAgentParams): Promise<ServiceResult<{
   success: boolean
   message: string
   agentId: string
   agent: any
   registryAgent: { id: string; name: string } | null
-}> {
+}>> {
   try {
     let agentId: string
     let agentConfig: any
@@ -754,7 +756,7 @@ export function registerAgent(body: RegisterAgentParams): ServiceResult<{
       // Check if agent already exists in registry by session name
       const existingAgent = getAgentBySession(sessionName)
       if (existingAgent) {
-        linkSession(existingAgent.id, sessionName, workingDirectory || process.cwd())
+        await linkSession(existingAgent.id, sessionName, workingDirectory || process.cwd())
         registryAgent = existingAgent
       } else {
         const parts = sessionName.split('-')
@@ -762,7 +764,7 @@ export function registerAgent(body: RegisterAgentParams): ServiceResult<{
         const tags = parts.slice(0, -1).map((t: string) => t.toLowerCase())
 
         try {
-          registryAgent = createAgent({
+          registryAgent = await createAgent({
             name: sessionName,
             label: shortName !== sessionName ? shortName : undefined,
             program: 'claude-code',
@@ -1091,7 +1093,7 @@ export async function getAgentSessionStatus(agentId: string): Promise<ServiceRes
 // POST /api/agents/[id]/session -- link session to agent
 // ---------------------------------------------------------------------------
 
-export function linkAgentSession(agentId: string, params: LinkSessionParams): ServiceResult<{ success: boolean }> {
+export async function linkAgentSession(agentId: string, params: LinkSessionParams): Promise<ServiceResult<{ success: boolean }>> {
   try {
     const { sessionName, workingDirectory } = params
 
@@ -1099,7 +1101,7 @@ export function linkAgentSession(agentId: string, params: LinkSessionParams): Se
       return { error: 'sessionName is required', status: 400 }
     }
 
-    const success = linkSession(agentId, sessionName, workingDirectory || process.cwd())
+    const success = await linkSession(agentId, sessionName, workingDirectory || process.cwd())
     if (!success) {
       return { error: 'Agent not found', status: 404 }
     }
@@ -1230,7 +1232,7 @@ export async function unlinkOrDeleteAgentSession(
       }
 
       // Hard delete with backup
-      const success = deleteAgent(agentId, true)
+      const success = await deleteAgent(agentId, true)
       if (!success) {
         return { error: 'Failed to delete agent', status: 500 }
       }
@@ -1255,7 +1257,7 @@ export async function unlinkOrDeleteAgentSession(
       }
     }
 
-    const success = unlinkSession(agentId)
+    const success = await unlinkSession(agentId)
     if (!success) {
       return { error: 'Agent not found', status: 404 }
     }

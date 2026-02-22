@@ -69,7 +69,11 @@ export async function triggerSubconsciousAction(
   agentId: string,
   action: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  // SF-028: Check agent exists before accessing subconscious
   const agent = await agentRegistry.getAgent(agentId)
+  if (!agent) {
+    return { error: 'Agent not found', status: 404 }
+  }
   const subconscious = agent.getSubconscious()
 
   if (!subconscious) {

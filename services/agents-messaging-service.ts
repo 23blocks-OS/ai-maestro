@@ -193,14 +193,29 @@ export async function listMessages(
   agentId: string,
   params: {
     box?: string
-    status?: any
-    priority?: any
+    status?: string
+    priority?: string
     from?: string
     to?: string
   }
 ): Promise<ServiceResult<any>> {
   try {
+    // SF-026: Validate agent exists as basic identity check (full auth deferred to Phase 2)
+    const agent = getAgent(agentId)
+    if (!agent) {
+      return { error: 'Agent not found', status: 404 }
+    }
+
+    // SF-033: Validate status and priority parameters
+    const validStatuses = ['unread', 'read', 'archived']
+    const validPriorities = ['low', 'normal', 'high', 'urgent']
     const { box = 'inbox', status, priority, from, to } = params
+    if (status && !validStatuses.includes(status)) {
+      return { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`, status: 400 }
+    }
+    if (priority && !validPriorities.includes(priority)) {
+      return { error: `Invalid priority. Must be one of: ${validPriorities.join(', ')}`, status: 400 }
+    }
 
     if (box === 'sent') {
       const messages = await listAgentSentMessages(agentId, { priority, to })
@@ -370,10 +385,10 @@ export function listAMPAddresses(agentId: string): ServiceResult<any> {
   }
 }
 
-export function addAMPAddressToAgent(
+export async function addAMPAddressToAgent(
   agentId: string,
   body: AddAMPAddressRequest
-): ServiceResult<any> {
+): Promise<ServiceResult<any>> {
   try {
     if (!body.address) {
       return { error: 'AMP address is required', status: 400 }
@@ -385,7 +400,7 @@ export function addAMPAddressToAgent(
       return { error: 'Type must be "local" or "cloud"', status: 400 }
     }
 
-    const agent = addAMPAddress(agentId, {
+    const agent = await addAMPAddress(agentId, {
       address: body.address,
       provider: body.provider,
       type: body.type,
@@ -445,11 +460,11 @@ export function getAMPAddress(agentId: string, address: string): ServiceResult<a
   }
 }
 
-export function updateAMPAddressOnAgent(
+export async function updateAMPAddressOnAgent(
   agentId: string,
   address: string,
   body: { displayName?: string; primary?: boolean; metadata?: Record<string, string> }
-): ServiceResult<any> {
+): Promise<ServiceResult<any>> {
   try {
     const decodedAddress = decodeURIComponent(address)
 
@@ -458,7 +473,7 @@ export function updateAMPAddressOnAgent(
     if ('primary' in body) updates.primary = body.primary
     if ('metadata' in body) updates.metadata = body.metadata
 
-    const agent = updateAMPAddress(agentId, decodedAddress, updates)
+    const agent = await updateAMPAddress(agentId, decodedAddress, updates)
     const addresses = getAgentAMPAddresses(agentId)
 
     return {
@@ -475,11 +490,11 @@ export function updateAMPAddressOnAgent(
   }
 }
 
-export function removeAMPAddressFromAgent(agentId: string, address: string): ServiceResult<any> {
+export async function removeAMPAddressFromAgent(agentId: string, address: string): Promise<ServiceResult<any>> {
   try {
     const decodedAddress = decodeURIComponent(address)
 
-    const agent = removeAMPAddress(agentId, decodedAddress)
+    const agent = await removeAMPAddress(agentId, decodedAddress)
     const addresses = getAgentAMPAddresses(agentId)
 
     return {
@@ -519,16 +534,16 @@ export function listEmailAddresses(agentId: string): ServiceResult<any> {
   }
 }
 
-export function addEmailAddressToAgent(
+export async function addEmailAddressToAgent(
   agentId: string,
   body: AddEmailAddressRequest
-): ServiceResult<any> {
+): Promise<ServiceResult<any>> {
   try {
     if (!body.address) {
       return { error: 'Email address is required', status: 400 }
     }
 
-    const agent = addEmailAddress(agentId, {
+    const agent = await addEmailAddress(agentId, {
       address: body.address,
       displayName: body.displayName,
       primary: body.primary,
@@ -601,11 +616,11 @@ export function getEmailAddressDetail(agentId: string, address: string): Service
   }
 }
 
-export function updateEmailAddressOnAgent(
+export async function updateEmailAddressOnAgent(
   agentId: string,
   address: string,
   body: { displayName?: string; primary?: boolean; metadata?: Record<string, string> }
-): ServiceResult<any> {
+): Promise<ServiceResult<any>> {
   try {
     const email = decodeURIComponent(address)
 
@@ -614,7 +629,7 @@ export function updateEmailAddressOnAgent(
     if ('primary' in body) updates.primary = body.primary
     if ('metadata' in body) updates.metadata = body.metadata
 
-    const agent = updateEmailAddress(agentId, email, updates)
+    const agent = await updateEmailAddress(agentId, email, updates)
     const addresses = getAgentEmailAddresses(agentId)
 
     return {
@@ -631,12 +646,12 @@ export function updateEmailAddressOnAgent(
   }
 }
 
-export function removeEmailAddressFromAgent(agentId: string, address: string): ServiceResult<any> {
+export async function removeEmailAddressFromAgent(agentId: string, address: string): Promise<ServiceResult<any>> {
   try {
     const email = decodeURIComponent(address)
     const normalizedEmail = email.toLowerCase().trim()
 
-    const agent = removeEmailAddress(agentId, email)
+    const agent = await removeEmailAddress(agentId, email)
     const addresses = getAgentEmailAddresses(agentId)
 
     // Emit webhook event (fire and forget)

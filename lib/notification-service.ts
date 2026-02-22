@@ -70,9 +70,9 @@ function formatNotification(options: NotificationOptions): string {
     ? `${fromName}@${fromHost}`
     : fromName
 
-  // Add priority indicator for urgent/high
-  const priorityPrefix = priority === 'urgent' ? '🔴 [URGENT] '
-    : priority === 'high' ? '🟠 [HIGH] '
+  // NT-028: Use plain text priority indicators for terminal compatibility
+  const priorityPrefix = priority === 'urgent' ? '[URGENT] '
+    : priority === 'high' ? '[HIGH] '
     : ''
 
   // Format using template

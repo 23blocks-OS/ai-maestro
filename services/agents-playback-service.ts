@@ -44,9 +44,7 @@ export function getPlaybackState(
     return { error: 'Agent not found', status: 404 }
   }
 
-  console.log(
-    `[Playback] Get state: Agent=${agentIdOrName}, Session=${sessionId || 'all'}`
-  )
+  // NT-021: Removed production console.log (placeholder implementation)
 
   // TODO: Load playback state from CozoDB (Phase 5)
   const playbackState: PlaybackState = {
@@ -101,9 +99,7 @@ export function controlPlayback(
     return { error: 'Session not found for this agent', status: 404 }
   }
 
-  console.log(
-    `[Playback] Control: Agent=${agentIdOrName}, Action=${action}, Session=${sessionId || 'all'}`
-  )
+  // NT-021: Removed production console.log (placeholder implementation)
 
   // TODO: Implement actual playback control (Phase 5)
   const playbackState: PlaybackState = {

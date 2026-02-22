@@ -66,7 +66,7 @@ const OPEN_B     = 'e0000000-0000-0000-0000-000000000002'
 const OUTSIDE_SENDER = 'f0000000-0000-0000-0000-000000000001'
 
 // ============================================================================
-// Tests — 15 scenarios covering all branches of checkMessageAllowed
+// Tests — 17 scenarios covering all branches of checkMessageAllowed
 // ============================================================================
 
 describe('checkMessageAllowed', () => {
@@ -338,6 +338,38 @@ describe('checkMessageAllowed', () => {
     })
     expect(result.allowed).toBe(false)
     expect(result.reason).toContain('Cannot message agents in closed teams from outside')
+  })
+
+  // SF-023: Step 5b — open-world sender can reach MANAGER who is in a closed team
+  it('allows open-world sender to message MANAGER even when MANAGER is in a closed team', () => {
+    /** Step 5b: open-world agents can always reach the MANAGER (v2 Rules 62-63) */
+    const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MANAGER, MEMBER_A1], COS_ALPHA)
+
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: MANAGER, passwordHash: null, passwordSetAt: null })
+
+    const result = checkMessageAllowed({
+      senderAgentId: OUTSIDE_SENDER,
+      recipientAgentId: MANAGER,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  // SF-023: Step 5b — open-world sender can reach COS who is in a closed team
+  it('allows open-world sender to message COS even when COS is in a closed team', () => {
+    /** Step 5b: open-world agents can always reach a Chief-of-Staff (v2 Rules 62-63) */
+    const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MEMBER_A1], COS_ALPHA)
+
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: null, passwordHash: null, passwordSetAt: null })
+
+    const result = checkMessageAllowed({
+      senderAgentId: OUTSIDE_SENDER,
+      recipientAgentId: COS_ALPHA,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
   })
 })
 

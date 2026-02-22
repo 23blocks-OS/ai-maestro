@@ -642,7 +642,7 @@ export async function registerAgent(
       }
     } else {
       try {
-        agent = createAgent({
+        agent = await createAgent({
           name: normalizedName,
           label: body.alias,
           program: 'Claude Code',
@@ -687,7 +687,7 @@ export async function registerAgent(
     const providerDomain = getAMPProviderDomain(tenant)
 
     // Generate API key
-    const apiKey = createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`)
+    const apiKey = await createApiKey(agent.id, tenant, `${normalizedName}@${providerDomain}`)
 
     // Mark agent as AMP-registered
     const registeredAt = new Date().toISOString()
@@ -695,7 +695,7 @@ export async function registerAgent(
       ? `${normalizedName}@${body.scope.repo}.${body.scope.platform}.${providerDomain}`
       : `${normalizedName}@${providerDomain}`
 
-    markAgentAsAMPRegistered(agent.id, {
+    await markAgentAsAMPRegistered(agent.id, {
       address: fullAddress,
       tenant,
       fingerprint,
@@ -1441,7 +1441,7 @@ export async function updateAgentSelf(
   }
 
   if (Object.keys(updates).length > 0) {
-    updateAgent(auth.agentId!, updates as any)
+    await updateAgent(auth.agentId!, updates as any)
   }
 
   return {
@@ -1465,10 +1465,10 @@ export async function deleteAgentSelf(authHeader: string | null): Promise<Servic
   }
 
   // Revoke all API keys for this agent
-  revokeAllKeysForAgent(auth.agentId!)
+  await revokeAllKeysForAgent(auth.agentId!)
 
   // Hard delete with backup
-  const deleted = deleteAgent(auth.agentId!, true)
+  const deleted = await deleteAgent(auth.agentId!, true)
   if (!deleted) {
     return {
       data: { error: 'not_found', message: 'Agent not found' } as AMPError,
@@ -1559,7 +1559,7 @@ export function resolveAgentAddress(
 // DELETE /api/v1/auth/revoke-key
 // ---------------------------------------------------------------------------
 
-export function revokeKey(authHeader: string | null): ServiceResult<any> {
+export async function revokeKey(authHeader: string | null): Promise<ServiceResult<any>> {
   const apiKey = extractApiKeyFromHeader(authHeader)
 
   if (!apiKey) {
@@ -1569,7 +1569,7 @@ export function revokeKey(authHeader: string | null): ServiceResult<any> {
     }
   }
 
-  const revoked = revokeApiKey(apiKey)
+  const revoked = await revokeApiKey(apiKey)
 
   if (!revoked) {
     return {
@@ -1588,7 +1588,7 @@ export function revokeKey(authHeader: string | null): ServiceResult<any> {
 // POST /api/v1/auth/rotate-key
 // ---------------------------------------------------------------------------
 
-export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotationResponse | AMPError> {
+export async function rotateKey(authHeader: string | null): Promise<ServiceResult<AMPKeyRotationResponse | AMPError>> {
   const apiKey = extractApiKeyFromHeader(authHeader)
 
   if (!apiKey) {
@@ -1598,7 +1598,7 @@ export function rotateKey(authHeader: string | null): ServiceResult<AMPKeyRotati
     }
   }
 
-  const result = rotateApiKey(apiKey)
+  const result = await rotateApiKey(apiKey)
 
   if (!result) {
     return {
@@ -1642,7 +1642,7 @@ export async function rotateKeypair(authHeader: string | null): Promise<ServiceR
   // Update agent metadata with new fingerprint
   const existingAmpMeta = (agent.metadata?.amp || {}) as Record<string, unknown>
   existingAmpMeta.fingerprint = newKeyPair.fingerprint
-  updateAgent(auth.agentId!, {
+  await updateAgent(auth.agentId!, {
     metadata: {
       ...agent.metadata,
       amp: existingAmpMeta,

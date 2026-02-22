@@ -15,6 +15,10 @@ export type { TeamType } from './team'
  * GovernanceRole is an alias for AgentRole — both define the same role taxonomy.
  * Canonical definition lives in types/agent.ts (AgentRole).
  * 'member' replaced 'normal' in v0.26.0 to align with upstream.
+ *
+ * NT-002 (P5): This alias is intentional -- it provides a governance-domain semantic
+ * name that callers in the governance layer use, avoiding a direct dependency on the
+ * agent type system. Kept for domain-driven design clarity.
  */
 export type GovernanceRole = AgentRole
 

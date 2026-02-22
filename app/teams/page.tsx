@@ -239,8 +239,9 @@ export default function TeamsPage() {
       {/* Create Team Dialog */}
       {creating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
-            <h4 className="text-sm font-medium text-white mb-4">Create Team</h4>
+          {/* SF-012: Add dialog role and aria attributes for screen readers */}
+          <div role="dialog" aria-modal="true" aria-labelledby="create-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
+            <h4 id="create-team-title" className="text-sm font-medium text-white mb-4">Create Team</h4>
             {submitting ? (
               <div className="flex items-center gap-3 py-4">
                 <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -249,11 +250,13 @@ export default function TeamsPage() {
             ) : (
               <>
                 <p className="text-xs text-gray-500 mb-2">4-64 characters. Letters, numbers, spaces, hyphens, dots allowed. Must be unique.</p>
+                {/* SF-013: Explicit aria-label for screen readers since placeholder is not a label */}
                 <input
                   type="text"
                   value={newTeamName}
                   onChange={e => { setNewTeamName(e.target.value); setCreateError(null); validateTeamName(e.target.value) }}
                   placeholder="Team name..."
+                  aria-label="Team name"
                   className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none mb-1 ${
                     nameValidation.error ? 'border-red-500 focus:border-red-500' : createError ? 'border-red-500 focus:border-red-500' : 'border-gray-700 focus:border-emerald-500'
                   }`}
@@ -295,8 +298,9 @@ export default function TeamsPage() {
       {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
-            <h4 className="text-sm font-medium text-white mb-2">Delete Team</h4>
+          {/* SF-012: Add dialog role and aria attributes for screen readers */}
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-team-title" className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4">
+            <h4 id="delete-team-title" className="text-sm font-medium text-white mb-2">Delete Team</h4>
             <p className="text-xs text-gray-400 mb-4">Are you sure you want to delete team &apos;{teams.find(t => t.id === deleteConfirm)?.name || 'this team'}&apos;? This will remove the team but not its agents.</p>
             <div className="flex justify-end gap-2">
               <button

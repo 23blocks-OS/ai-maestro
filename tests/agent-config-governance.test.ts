@@ -224,9 +224,9 @@ beforeEach(() => {
 // ============================================================================
 
 describe('createNewAgent governance', () => {
-  it('allows creation when requestingAgentId is null (backward compatibility)', () => {
+  it('allows creation when requestingAgentId is null (backward compatibility)', async () => {
     /** Verifies that omitting requestingAgentId skips all governance checks */
-    const result = createNewAgent(makeCreateRequest())
+    const result = await createNewAgent(makeCreateRequest())
 
     expect(result.status).toBe(201)
     expect(result.data?.agent).toBeDefined()
@@ -236,23 +236,23 @@ describe('createNewAgent governance', () => {
     expect(mockIsChiefOfStaffAnywhere).not.toHaveBeenCalled()
   })
 
-  it('allows creation when requestingAgentId is MANAGER', () => {
+  it('allows creation when requestingAgentId is MANAGER', async () => {
     /** Verifies that a MANAGER role agent is permitted to create new agents */
     mockIsManager.mockReturnValue(true)
 
-    const result = createNewAgent(makeCreateRequest(), MANAGER_ID)
+    const result = await createNewAgent(makeCreateRequest(), MANAGER_ID)
 
     expect(result.status).toBe(201)
     expect(result.data?.agent).toBeDefined()
     expect(mockIsManager).toHaveBeenCalledWith(MANAGER_ID)
   })
 
-  it('allows creation when requestingAgentId is Chief-of-Staff', () => {
+  it('allows creation when requestingAgentId is Chief-of-Staff', async () => {
     /** Verifies that a COS role agent is permitted to create new agents */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(true)
 
-    const result = createNewAgent(makeCreateRequest(), COS_ID)
+    const result = await createNewAgent(makeCreateRequest(), COS_ID)
 
     expect(result.status).toBe(201)
     expect(result.data?.agent).toBeDefined()
@@ -260,12 +260,12 @@ describe('createNewAgent governance', () => {
     expect(mockIsChiefOfStaffAnywhere).toHaveBeenCalledWith(COS_ID)
   })
 
-  it('rejects creation when requestingAgentId is a regular member', () => {
+  it('rejects creation when requestingAgentId is a regular member', async () => {
     /** Verifies that a non-MANAGER, non-COS agent is denied agent creation with 403 */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(false)
 
-    const result = createNewAgent(makeCreateRequest(), MEMBER_ID)
+    const result = await createNewAgent(makeCreateRequest(), MEMBER_ID)
 
     expect(result.status).toBe(403)
     expect(result.error).toContain('Only MANAGER or Chief-of-Staff can create agents')
@@ -280,9 +280,9 @@ describe('createNewAgent governance', () => {
 // ============================================================================
 
 describe('updateAgentById governance', () => {
-  it('allows update when requestingAgentId is null (backward compatibility)', () => {
+  it('allows update when requestingAgentId is null (backward compatibility)', async () => {
     /** Verifies that omitting requestingAgentId skips all governance checks */
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest())
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest())
 
     expect(result.status).toBe(200)
     expect(result.data?.agent).toBeDefined()
@@ -290,37 +290,37 @@ describe('updateAgentById governance', () => {
     expect(mockIsChiefOfStaffAnywhere).not.toHaveBeenCalled()
   })
 
-  it('allows update when requestingAgentId is MANAGER', () => {
+  it('allows update when requestingAgentId is MANAGER', async () => {
     /** Verifies that a MANAGER role agent is permitted to update any agent */
     mockIsManager.mockReturnValue(true)
 
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), MANAGER_ID)
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), MANAGER_ID)
 
     expect(result.status).toBe(200)
     expect(result.data?.agent).toBeDefined()
     expect(mockIsManager).toHaveBeenCalledWith(MANAGER_ID)
   })
 
-  it('allows update when requestingAgentId is Chief-of-Staff', () => {
+  it('allows update when requestingAgentId is Chief-of-Staff', async () => {
     /** Verifies that a COS role agent is permitted to update agents */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(true)
 
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), COS_ID)
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), COS_ID)
 
     expect(result.status).toBe(200)
     expect(result.data?.agent).toBeDefined()
     expect(mockIsChiefOfStaffAnywhere).toHaveBeenCalledWith(COS_ID)
   })
 
-  it('allows self-update when requestingAgentId equals target agent id', () => {
+  it('allows self-update when requestingAgentId equals target agent id', async () => {
     /** Verifies that an agent can always update itself regardless of role */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(false)
     // getAgent must return the target with matching id
     mockGetAgent.mockReturnValue(makeAgent({ id: TARGET_AGENT_ID }))
 
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), TARGET_AGENT_ID)
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), TARGET_AGENT_ID)
 
     expect(result.status).toBe(200)
     expect(result.data?.agent).toBeDefined()
@@ -328,7 +328,7 @@ describe('updateAgentById governance', () => {
     expect(mockLoadTeams).not.toHaveBeenCalled()
   })
 
-  it('allows update when requestingAgentId is COS of a closed team the target belongs to', () => {
+  it('allows update when requestingAgentId is COS of a closed team the target belongs to', async () => {
     /** Verifies that the COS of a closed team containing the target agent can update it */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(false)
@@ -340,14 +340,14 @@ describe('updateAgentById governance', () => {
       }),
     ])
 
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), OWNING_COS_ID)
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), OWNING_COS_ID)
 
     expect(result.status).toBe(200)
     expect(result.data?.agent).toBeDefined()
     expect(mockLoadTeams).toHaveBeenCalled()
   })
 
-  it('rejects update when requestingAgentId is a regular member (not self, not owning COS)', () => {
+  it('rejects update when requestingAgentId is a regular member (not self, not owning COS)', async () => {
     /** Verifies that a non-privileged agent that is not updating itself is denied with 403 */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(false)
@@ -359,7 +359,7 @@ describe('updateAgentById governance', () => {
       }),
     ])
 
-    const result = updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), MEMBER_ID)
+    const result = await updateAgentById(TARGET_AGENT_ID, makeUpdateRequest(), MEMBER_ID)
 
     expect(result.status).toBe(403)
     expect(result.error).toContain('Only MANAGER, owning Chief-of-Staff, or the agent itself can update')
@@ -368,11 +368,11 @@ describe('updateAgentById governance', () => {
     expect(mockUpdateAgent).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when target agent does not exist', () => {
+  it('returns 404 when target agent does not exist', async () => {
     /** Verifies that attempting to update a non-existent agent returns 404 before governance check */
     mockGetAgent.mockReturnValue(null)
 
-    const result = updateAgentById('nonexistent-agent', makeUpdateRequest(), MANAGER_ID)
+    const result = await updateAgentById('nonexistent-agent', makeUpdateRequest(), MANAGER_ID)
 
     expect(result.status).toBe(404)
     expect(result.error).toContain('Agent not found')
@@ -386,32 +386,32 @@ describe('updateAgentById governance', () => {
 // ============================================================================
 
 describe('deleteAgentById governance', () => {
-  it('allows deletion when requestingAgentId is null (backward compatibility)', () => {
+  it('allows deletion when requestingAgentId is null (backward compatibility)', async () => {
     /** Verifies that omitting requestingAgentId skips all governance checks */
-    const result = deleteAgentById(TARGET_AGENT_ID, false)
+    const result = await deleteAgentById(TARGET_AGENT_ID, false)
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
     expect(mockIsManager).not.toHaveBeenCalled()
   })
 
-  it('allows deletion when requestingAgentId is MANAGER', () => {
+  it('allows deletion when requestingAgentId is MANAGER', async () => {
     /** Verifies that only MANAGER role is permitted to delete agents */
     mockIsManager.mockReturnValue(true)
 
-    const result = deleteAgentById(TARGET_AGENT_ID, false, MANAGER_ID)
+    const result = await deleteAgentById(TARGET_AGENT_ID, false, MANAGER_ID)
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
     expect(mockIsManager).toHaveBeenCalledWith(MANAGER_ID)
   })
 
-  it('rejects deletion when requestingAgentId is Chief-of-Staff', () => {
-    /** Verifies that COS cannot delete agents — only MANAGER has delete authority */
+  it('rejects deletion when requestingAgentId is Chief-of-Staff', async () => {
+    /** Verifies that COS cannot delete agents -- only MANAGER has delete authority */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(true)
 
-    const result = deleteAgentById(TARGET_AGENT_ID, false, COS_ID)
+    const result = await deleteAgentById(TARGET_AGENT_ID, false, COS_ID)
 
     expect(result.status).toBe(403)
     expect(result.error).toContain('Only MANAGER can delete agents')
@@ -420,12 +420,12 @@ describe('deleteAgentById governance', () => {
     expect(mockDeleteAgent).not.toHaveBeenCalled()
   })
 
-  it('rejects deletion when requestingAgentId is a regular member', () => {
+  it('rejects deletion when requestingAgentId is a regular member', async () => {
     /** Verifies that a regular member agent is denied agent deletion with 403 */
     mockIsManager.mockReturnValue(false)
     mockIsChiefOfStaffAnywhere.mockReturnValue(false)
 
-    const result = deleteAgentById(TARGET_AGENT_ID, false, MEMBER_ID)
+    const result = await deleteAgentById(TARGET_AGENT_ID, false, MEMBER_ID)
 
     expect(result.status).toBe(403)
     expect(result.error).toContain('Only MANAGER can delete agents')
@@ -433,11 +433,11 @@ describe('deleteAgentById governance', () => {
     expect(mockDeleteAgent).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when target agent does not exist', () => {
+  it('returns 404 when target agent does not exist', async () => {
     /** Verifies that deleting a non-existent agent returns 404 before governance check */
     mockGetAgent.mockReturnValue(null)
 
-    const result = deleteAgentById('nonexistent-agent', false, MANAGER_ID)
+    const result = await deleteAgentById('nonexistent-agent', false, MANAGER_ID)
 
     expect(result.status).toBe(404)
     expect(result.error).toContain('Agent not found')

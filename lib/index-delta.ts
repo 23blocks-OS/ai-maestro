@@ -274,9 +274,7 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
   modelNames: string
   messageCount: number
 } {
-  const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-  const allLines = fileContent.split('\n').filter(line => line.trim())
-
+  // SF-008: Avoid reading entire file into memory; read only head (50 lines) and tail (20 lines)
   let sessionId: string | null = null
   let cwd: string | null = null
   let firstUserMessage: string | null = null
@@ -286,8 +284,28 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
   let lastMessageAt: number | null = null
   const modelSet = new Set<string>()
 
-  const metadataLines = allLines.slice(0, 50)
-  for (const line of metadataLines) {
+  // --- Read first 50 lines from the head of the file ---
+  const HEAD_LINES = 50
+  const headLines: string[] = []
+  const headBuf = Buffer.alloc(64 * 1024)
+  const fd = fs.openSync(jsonlPath, 'r')
+  let leftover = ''
+  try {
+    let bytesRead: number
+    while (headLines.length < HEAD_LINES && (bytesRead = fs.readSync(fd, headBuf, 0, headBuf.length, null)) > 0) {
+      const chunk = leftover + headBuf.toString('utf-8', 0, bytesRead)
+      const parts = chunk.split('\n')
+      leftover = parts.pop() || ''
+      for (const part of parts) {
+        if (part.trim()) headLines.push(part)
+        if (headLines.length >= HEAD_LINES) break
+      }
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+
+  for (const line of headLines) {
     try {
       const message = JSON.parse(line)
       if (message.sessionId && !sessionId) sessionId = message.sessionId
@@ -313,17 +331,34 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
     }
   }
 
-  for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
-    try {
-      const message = JSON.parse(allLines[i])
-      if (message.timestamp) {
-        lastMessageAt = new Date(message.timestamp).getTime()
-        break
+  // --- Read last ~20 lines from the tail of the file for lastMessageAt ---
+  const TAIL_BYTES = 64 * 1024 // 64KB from end should cover 20+ lines
+  const stat = fs.statSync(jsonlPath)
+  const tailOffset = Math.max(0, stat.size - TAIL_BYTES)
+  const tailBuf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size))
+  const fd2 = fs.openSync(jsonlPath, 'r')
+  try {
+    fs.readSync(fd2, tailBuf, 0, tailBuf.length, tailOffset)
+    const tailContent = tailBuf.toString('utf-8')
+    const tailLines = tailContent.split('\n').filter(l => l.trim())
+    // Scan from the end to find the most recent timestamp
+    for (let i = tailLines.length - 1; i >= Math.max(0, tailLines.length - 20); i--) {
+      try {
+        const message = JSON.parse(tailLines[i])
+        if (message.timestamp) {
+          lastMessageAt = new Date(message.timestamp).getTime()
+          break
+        }
+      } catch {
+        // Skip
       }
-    } catch {
-      // Skip
     }
+  } finally {
+    fs.closeSync(fd2)
   }
+
+  // Use streaming line counter instead of loading the whole file
+  const messageCount = countFileLines(jsonlPath)
 
   return {
     sessionId,
@@ -334,7 +369,7 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
     firstMessageAt,
     lastMessageAt,
     modelNames: Array.from(modelSet).join(', '),
-    messageCount: allLines.length
+    messageCount
   }
 }
 
@@ -400,6 +435,7 @@ export async function runIndexDelta(
 
   const releaseSlot = await acquireIndexSlot(agentId)
 
+  // MF-002: Use try/finally to guarantee exactly-once slot release on all paths
   try {
     console.log(`[Delta Index] Processing agent ${agentId.substring(0, 8)} (dryRun: ${dryRun})`)
 
@@ -418,7 +454,7 @@ export async function runIndexDelta(
         liveTmuxWd = await getLiveTmuxWorkingDirectory(sessionName)
         if (liveTmuxWd && storedWd && liveTmuxWd !== storedWd) {
           console.log(`[Delta Index] Syncing workingDirectory: ${storedWd} -> ${liveTmuxWd}`)
-          updateAgentWorkingDirectory(agentId, liveTmuxWd)
+          await updateAgentWorkingDirectory(agentId, liveTmuxWd)
           registryAgent = getRegistryAgent(agentId) || getAgentBySession(agentId)
         }
       }
@@ -431,7 +467,6 @@ export async function runIndexDelta(
     } catch (error: any) {
       if (error.code === 'query::relation_not_found' || error.message?.includes('relation_not_found')) {
         console.log(`[Delta Index] Schema not initialized for agent ${agentId.substring(0, 8)} - skipping`)
-        releaseSlot()
         return {
           success: true,
           agent_id: agentId,
@@ -461,7 +496,6 @@ export async function runIndexDelta(
       if (autoDiscoveredCount > 0) {
         projectsResult = await getProjects(agentDb)
       } else {
-        releaseSlot()
         return {
           success: true,
           agent_id: agentId,
@@ -582,7 +616,6 @@ export async function runIndexDelta(
         delta_to_index: conv.currentLineCount - conv.last_indexed_message_count,
       }))
 
-      releaseSlot()
       return {
         success: true,
         dry_run: true,
@@ -641,7 +674,6 @@ export async function runIndexDelta(
 
     console.log(`\n[Delta Index] Complete: ${totalProcessed} messages in ${totalDuration}ms`)
 
-    releaseSlot()
     return {
       success: true,
       agent_id: agentId,
@@ -652,7 +684,6 @@ export async function runIndexDelta(
       results,
     }
   } catch (error) {
-    releaseSlot()
     console.error('[Delta Index] Error:', error)
     return {
       success: false,
@@ -661,5 +692,8 @@ export async function runIndexDelta(
       total_messages_processed: 0,
       error: error instanceof Error ? error.message : 'Unknown error',
     }
+  } finally {
+    // MF-002: Guarantee exactly-once slot release regardless of return path or exception
+    releaseSlot()
   }
 }

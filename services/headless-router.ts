@@ -942,7 +942,7 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
-    const result = updateAgentById(params.id, { metadata })
+    const result = await updateAgentById(params.id, { metadata })
     if (result.error) {
       sendJson(res, result.status, { error: result.error })
     } else {
@@ -950,7 +950,7 @@ const routes: Route[] = [
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = updateAgentById(params.id, { metadata: {} })
+    const result = await updateAgentById(params.id, { metadata: {} })
     if (result.error) {
       sendJson(res, result.status, { error: result.error })
     } else {

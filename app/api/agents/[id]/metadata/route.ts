@@ -42,7 +42,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const agent = updateAgent(agentId, { metadata })
+    const agent = await updateAgent(agentId, { metadata })
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -66,7 +66,7 @@ export async function DELETE(
 ) {
   try {
     const { id: agentId } = await params
-    const agent = updateAgent(agentId, { metadata: {} })
+    const agent = await updateAgent(agentId, { metadata: {} })
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

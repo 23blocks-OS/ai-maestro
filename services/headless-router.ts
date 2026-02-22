@@ -247,6 +247,13 @@ import {
 } from '@/services/help-service'
 
 import {
+  buildPlugin,
+  getBuildStatus,
+  scanRepo,
+  pushToGitHub,
+} from '@/services/plugin-builder-service'
+
+import {
   getSystemConfig,
   getOrganization,
   setOrganizationName,
@@ -1213,6 +1220,25 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/help\/agent$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await deleteAssistantAgent())
+  }},
+
+  // =========================================================================
+  // Plugin Builder
+  // =========================================================================
+  { method: 'POST', pattern: /^\/api\/plugin-builder\/build$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await buildPlugin(body))
+  }},
+  { method: 'GET', pattern: /^\/api\/plugin-builder\/builds\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await getBuildStatus(params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/plugin-builder\/scan-repo$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await scanRepo(body.url, body.ref))
+  }},
+  { method: 'POST', pattern: /^\/api\/plugin-builder\/push$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await pushToGitHub(body))
   }},
 ]
 

@@ -480,12 +480,12 @@ describe('registerAgent', () => {
     mockFs.default.existsSync.mockReturnValue(false)
 
     const result = await registerAgent({
-      id: 'cloud-agent',
+      id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       deployment: { cloud: { websocketUrl: 'wss://agent.cloud.com/term' } },
     })
 
     expect(result.status).toBe(200)
-    expect(result.data?.agentId).toBe('cloud-agent')
+    expect(result.data?.agentId).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
   })
 
   it('returns 400 when session name is missing (worktree format)', async () => {

@@ -27,8 +27,9 @@ export async function POST(
       return NextResponse.json({ error: 'Governance password not set' }, { status: 400 })
     }
 
-    // Rate limit password verification to prevent brute-force attacks
-    const rateCheck = checkRateLimit('governance-cos-auth')
+    // Separate check/record pattern (not checkAndRecordAttempt) so only failed attempts are penalized
+    const rateLimitKey = `governance-cos-auth:${id}`
+    const rateCheck = checkRateLimit(rateLimitKey)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
@@ -38,11 +39,11 @@ export async function POST(
 
     // Password auth is stronger than ACL — only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordFailure('governance-cos-auth')
+      recordFailure(rateLimitKey)
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
     // Password verified successfully — reset rate limit counter
-    resetRateLimit('governance-cos-auth')
+    resetRateLimit(rateLimitKey)
 
     const team = getTeam(id)
     if (!team) {

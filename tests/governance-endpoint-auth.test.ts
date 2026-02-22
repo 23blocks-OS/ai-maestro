@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * Unit tests for Ed25519 signature verification on governance endpoints (SR-001, SR-002, SR-007)
  *
- * Coverage: 13 tests across 3 security fixes
+ * Coverage: 12 tests across 3 security fixes
  * - SR-001 (signature on outbound): broadcastGovernanceSync signs requests, sendRequestToRemoteHost signs, notifyRemoteHostOfRejection signs
  * - SR-007 (type whitelist): submitCrossHostRequest rejects unimplemented types (manager + COS roles)
  * - Signature header format: correct header names and values
@@ -217,6 +217,7 @@ describe('SR-001: cross-host governance service signs outbound requests', () => 
     })
 
     // CC-P4-004: Use deterministic vi.waitFor instead of fragile setTimeout for fire-and-forget fetch
+    // vi.waitFor handles the fire-and-forget fetch timing. If flaky in CI, add { timeout: 5000 }.
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
     const fetchCall = mockFetch.mock.calls[0]
     const headers = fetchCall[1].headers

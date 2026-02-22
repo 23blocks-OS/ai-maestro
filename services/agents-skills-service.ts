@@ -92,13 +92,19 @@ export async function updateSkills(
   body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } },
   requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  // NT-008: getAgent (sync, file-based registry) used here for RBAC/governance checks
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
   }
 
-  // Layer 5: governance RBAC enforcement
-  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
+  // SF-004: Layer 5 governance RBAC -- choose operation type based on which fields are present
+  const govOperation: ConfigOperationType = body.remove && !body.add
+    ? 'remove-skill'
+    : body.add && body.remove
+      ? 'bulk-config'
+      : 'add-skill'
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, govOperation)
   if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   // Handle skill additions
@@ -248,6 +254,7 @@ export async function getSkillSettings(agentId: string): Promise<ServiceResult<R
     return { error: 'Invalid agent ID format', status: 400 }
   }
 
+  // NT-008: agentRegistry.getAgent (async, in-memory) used here for runtime operations (subconscious access)
   const agent = await agentRegistry.getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
@@ -288,8 +295,8 @@ export async function saveSkillSettings(
     return { error: 'Agent not found', status: 404 }
   }
 
-  // Layer 5: governance RBAC enforcement
-  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'update-hooks')
+  // SF-005: Layer 5 governance RBAC -- use bulk-config (general-purpose) instead of update-hooks
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'bulk-config')
   if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || ''
@@ -298,12 +305,7 @@ export async function saveSkillSettings(
   await fs.mkdir(path.dirname(settingsPath), { recursive: true })
   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 
-  if ((settings as any).memory) {
-    const subconscious = agent.getSubconscious()
-    if (subconscious) {
-      console.log(`[Skills Service] Updated memory settings for agent ${agentId.substring(0, 8)}`)
-    }
-  }
+  // NT-007: Removed dead code block that checked settings.memory but did nothing useful
 
   return { data: { success: true, message: 'Settings saved' }, status: 200 }
 }

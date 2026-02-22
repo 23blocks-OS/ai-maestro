@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { deployConfigToAgent } from '@/services/agents-config-deploy-service'
+import { isValidUuid } from '@/lib/validation'
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const auth = authenticateAgent(
       request.headers.get('Authorization'),
       request.headers.get('X-Agent-Id')
@@ -31,7 +35,9 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const result = await deployConfigToAgent(id, body.configuration || body, auth.agentId)
+    // Accept configuration either as nested field or as direct body (for cross-host governance service compatibility)
+    const config = body.configuration !== undefined ? body.configuration : body
+    const result = await deployConfigToAgent(id, config, auth.agentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }

@@ -238,6 +238,12 @@ import {
 import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
 import { getHosts, getSelfHostId } from '@/lib/hosts-config'
 import { verifyHostAttestation } from '@/lib/host-keys'
+// SF-025: Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
+import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
+import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
+import { getAgent } from '@/lib/agent-registry'
+import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+import { isValidUuid } from '@/lib/validation'
 
 import {
   submitCrossHostRequest,
@@ -829,10 +835,16 @@ const routes: Route[] = [
     // Accept host-signature auth (cross-host) or governance password auth (local admin)
     const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
     if (auth.error) {
-      sendJson(res, 403, { error: auth.error })
+      sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration || body, auth.agentId))
+    // MF-003: Require authenticated identity — authenticateAgent returns {} when both headers absent
+    if (!auth.agentId) {
+      sendJson(res, 401, { error: 'Authenticated agent identity required for config deployment' })
+      return
+    }
+    // SF-012: Strict undefined check — falsy body.configuration (e.g. empty string) should not fall through to body
+    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration !== undefined ? body.configuration : body, auth.agentId))
   }},
 
   // Subconscious
@@ -1365,8 +1377,10 @@ const routes: Route[] = [
     }
   }},
   { method: 'GET', pattern: /^\/api\/v1\/governance\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
     sendServiceResult(res, listCrossHostRequests({
       status: (query.status as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+      type: query.type || undefined,
       hostId: query.hostId || undefined,
       agentId: query.agentId || undefined,
     }))
@@ -1548,6 +1562,104 @@ const routes: Route[] = [
     }
     const requestingAgentId = auth.agentId
     sendServiceResult(res, await createTeamDocument(params.id, { ...body, requestingAgentId }))
+  }},
+  // SF-025: Chief-of-Staff assignment/removal -- mirrors app/api/teams/[id]/chief-of-staff/route.ts
+  { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/chief-of-staff$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const teamId = params.id
+    if (!isValidUuid(teamId)) {
+      sendJson(res, 400, { error: 'Invalid team ID format' })
+      return
+    }
+    const body = await readJsonBody(req)
+    const { agentId: cosAgentId, password } = body || {}
+
+    if (!password || typeof password !== 'string') {
+      sendJson(res, 400, { error: 'Governance password is required' })
+      return
+    }
+
+    const config = loadGovernance()
+    if (!config.passwordHash) {
+      sendJson(res, 400, { error: 'Governance password not set' })
+      return
+    }
+
+    // Rate limit password verification to prevent brute-force attacks
+    const rateCheck = checkRateLimit('governance-cos-auth')
+    if (!rateCheck.allowed) {
+      sendJson(res, 429, { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` })
+      return
+    }
+
+    // Password auth -- only managers know the governance password
+    if (!(await verifyPassword(password))) {
+      recordFailure('governance-cos-auth')
+      sendJson(res, 401, { error: 'Invalid governance password' })
+      return
+    }
+    resetRateLimit('governance-cos-auth')
+
+    const team = getTeam(teamId)
+    if (!team) {
+      sendJson(res, 404, { error: 'Team not found' })
+      return
+    }
+
+    const managerId = getManagerId()
+
+    try {
+      if (cosAgentId === null) {
+        // Capture old COS id before updateTeam clears it
+        const oldCosId = team.chiefOfStaffId
+        // Remove COS -- auto-downgrade team to open (R1.5)
+        const updated = await updateTeam(teamId, { chiefOfStaffId: null, type: 'open' }, managerId)
+
+        // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
+        if (oldCosId) {
+          try {
+            const { loadGovernanceRequests: loadGovReqs, rejectGovernanceRequest: rejectGovReq } = await import('@/lib/governance-request-registry')
+            const file = loadGovReqs()
+            const pendingFromCOS = file.requests.filter((r: { type: string; status: string; requestedBy: string }) =>
+              r.type === 'configure-agent' && r.status === 'pending' && r.requestedBy === oldCosId
+            )
+            for (const govReq of pendingFromCOS) {
+              await rejectGovReq(govReq.id, managerId || 'system', `COS role revoked for team '${team.name}'`)
+            }
+            if (pendingFromCOS.length > 0) {
+              console.log(`[governance] Auto-rejected ${pendingFromCOS.length} pending config request(s) from removed COS ${oldCosId}`)
+            }
+          } catch (err) {
+            console.warn('[governance] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
+          }
+        }
+
+        sendJson(res, 200, { success: true, team: updated })
+        return
+      }
+
+      if (typeof cosAgentId !== 'string' || !cosAgentId.trim()) {
+        sendJson(res, 400, { error: 'agentId must be a non-empty string or null' })
+        return
+      }
+
+      const agent = getAgent(cosAgentId)
+      if (!agent) {
+        sendJson(res, 404, { error: `Agent '${cosAgentId}' not found` })
+        return
+      }
+
+      // Assign COS -- auto-upgrade team to closed (R1.3); validateTeamMutation auto-adds COS to agentIds (R4.6)
+      const updated = await updateTeam(teamId, { chiefOfStaffId: cosAgentId, type: 'closed' }, managerId)
+      sendJson(res, 200, { success: true, team: updated, chiefOfStaffName: agent.name || agent.alias })
+    } catch (error) {
+      // TeamValidationException carries the correct HTTP status code from business rule validation
+      if (error instanceof TeamValidationException) {
+        sendJson(res, error.code, { error: error.message })
+        return
+      }
+      console.error('Failed to set chief-of-staff:', error)
+      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to set chief-of-staff' })
+    }
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const auth = authenticateAgent(

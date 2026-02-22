@@ -39,6 +39,19 @@ const FETCH_TIMEOUT_MS = 5000
 /** Log prefix for all cross-host governance operations */
 const LOG_PREFIX = '[cross-host-governance]'
 
+/**
+ * NT-011: Extracted helper -- sends config request outcome notification with error suppression.
+ * Lazy-imports config-notification-service to avoid circular dependency chains.
+ */
+async function safeNotifyConfigOutcome(request: GovernanceRequest, outcome: 'approved' | 'rejected'): Promise<void> {
+  try {
+    const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+    await notifyConfigRequestOutcome(request, outcome)
+  } catch (err) {
+    console.warn(`${LOG_PREFIX} Failed to send config notification:`, err instanceof Error ? err.message : err)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 1. submitCrossHostRequest -- local caller initiates a cross-host operation
 // ---------------------------------------------------------------------------
@@ -209,12 +222,7 @@ export async function receiveCrossHostRequest(
         await performRequestExecution(approvedRequest)
         // Notify the requesting agent that their configure-agent request was auto-approved
         if (approvedRequest.type === 'configure-agent') {
-          try {
-            const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
-            await notifyConfigRequestOutcome(approvedRequest, 'approved')
-          } catch (err) {
-            console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
-          }
+          await safeNotifyConfigOutcome(approvedRequest, 'approved')
         }
       }
     }
@@ -289,12 +297,7 @@ export async function approveCrossHostRequest(
 
     // Notify the requesting agent that their configure-agent request was approved
     if (updated.type === 'configure-agent') {
-      try {
-        const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
-        await notifyConfigRequestOutcome(updated, 'approved')
-      } catch (err) {
-        console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
-      }
+      await safeNotifyConfigOutcome(updated, 'approved')
     }
   }
 
@@ -344,12 +347,7 @@ export async function rejectCrossHostRequest(
 
   // Notify the requesting agent that their configure-agent request was rejected
   if (updated.type === 'configure-agent') {
-    try {
-      const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
-      await notifyConfigRequestOutcome(updated, 'rejected')
-    } catch (err) {
-      console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
-    }
+    await safeNotifyConfigOutcome(updated, 'rejected')
   }
 
   // If the request originated from another host, notify the source host (fire-and-forget)
@@ -487,10 +485,15 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
             console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration payload`)
             return
           }
-          // Import and call the config deploy service (lazy import to avoid circular deps)
+          // Lazy import: agents-config-deploy-service imports getAgent which imports governance,
+          // creating a potential circular dependency chain. Keep lazy to be safe.
           const { deployConfigToAgent } = await import('@/services/agents-config-deploy-service')
           const deployResult = await deployConfigToAgent(request.payload.agentId, config, request.requestedBy)
           if (deployResult.error) {
+            // SF-013: The request status is already 'executed' at this point (set by approveGovernanceRequest
+            // before performRequestExecution is called). The 'executed' status means "execution was attempted,"
+            // not "succeeded." The deploy error is logged here. Adding a 'failed' status would require changes
+            // to the GovernanceRequest type and all callers, which is out of scope.
             console.warn(`${LOG_PREFIX} configure-agent execution failed for request ${request.id}: ${deployResult.error}`)
             return
           }
@@ -523,6 +526,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
 
 export function listCrossHostRequests(filter?: {
   status?: GovernanceRequestStatus
+  type?: string
   hostId?: string
   agentId?: string
 }): ServiceResult<GovernanceRequest[]> {

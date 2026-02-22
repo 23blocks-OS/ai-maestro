@@ -58,7 +58,14 @@ export interface GovernanceApprovals {
   targetManager?: GovernanceApproval
 }
 
-/** Structured configuration payload for configure-agent requests */
+/**
+ * Structured configuration payload for configure-agent requests.
+ *
+ * Fields are optional because the `operation` field determines which are relevant:
+ * e.g. 'add-skill' uses `skills`, 'update-model' uses `model`, etc.
+ * Runtime validation in agents-config-deploy-service.ts enforces required fields
+ * per operation before deployment.
+ */
 export interface ConfigurationPayload {
   operation: ConfigOperationType
   scope: ConfigScope

@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services/agents-skills-service'
 import { authenticateAgent } from '@/lib/agent-auth'
+import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
   _request: NextRequest,
@@ -20,6 +21,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const result = getSkillsConfig(id)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -40,6 +44,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     // CC-P2-006: Guard against malformed JSON body
     let body
     try { body = await request.json() } catch {
@@ -67,6 +74,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     // CC-P2-006: Guard against malformed JSON body
     let body
     try { body = await request.json() } catch {
@@ -94,6 +104,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
     const searchParams = request.nextUrl.searchParams
     const skill = searchParams.get('skill')
     const type = searchParams.get('type') || 'auto'

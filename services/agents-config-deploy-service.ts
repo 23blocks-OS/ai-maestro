@@ -11,6 +11,7 @@
 import { ServiceResult } from '@/types/service'
 import type { ConfigurationPayload, ConfigDiff, ConfigOperationType } from '@/types/governance-request'
 import { getAgent } from '@/lib/agent-registry'
+import { isValidUuid } from '@/lib/validation'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -40,6 +41,11 @@ export async function deployConfigToAgent(
   config: ConfigurationPayload,
   deployedBy?: string
 ): Promise<ServiceResult<ConfigDiff>> {
+  // NT-009: Validate agentId is a UUID to prevent path traversal in .claude/ writes
+  if (!isValidUuid(agentId)) {
+    return { error: 'Invalid agent ID format', status: 400 }
+  }
+
   // Validate agent exists
   const agent = getAgent(agentId)
   if (!agent) {
@@ -55,6 +61,13 @@ export async function deployConfigToAgent(
   const workingDir = agent.workingDirectory || agent.sessions?.[0]?.workingDirectory
   if (!workingDir) {
     return { error: `Agent '${agentId}' has no working directory configured`, status: 400 }
+  }
+
+  // SF-007: Verify agent working directory actually exists on disk before attempting deployment
+  try {
+    await fs.access(workingDir)
+  } catch {
+    return { error: `Agent working directory '${workingDir}' does not exist`, status: 400 }
   }
 
   const claudeDir = path.join(workingDir, '.claude')
@@ -439,7 +452,8 @@ async function deployBulkConfig(
   const before: Record<string, unknown> = {}
   const after: Record<string, unknown> = {}
 
-  // Process each non-empty field as a sub-operation
+  // SF-008: bulk-config always ADDS skills/plugins (not removes). To remove, use the specific
+  // remove-skill / remove-plugin operations. This is acceptable for the current use cases.
   if (config.skills && config.skills.length > 0) {
     const skillResult = await deployAddSkill(claudeDir, config, deployedBy)
     if (skillResult.error) return skillResult

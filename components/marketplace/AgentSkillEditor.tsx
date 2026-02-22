@@ -69,7 +69,25 @@ export default function AgentSkillEditor({
   // Governance: pending config requests for this agent
   const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
+  // canApprove checks if the current agent profile belongs to a manager/COS.
+  // In Phase 1 (localhost, single user), the "viewer" IS the system owner who has
+  // full access. In Phase 2 with auth, this should check the viewer's identity instead.
   const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
+
+  // Track which config requests are currently being resolved (for loading/disabled state)
+  const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())
+
+  // Handle approve/reject with error feedback and loading state
+  const handleResolve = async (requestId: string, approved: boolean) => {
+    setResolvingIds(prev => new Set(prev).add(requestId))
+    try {
+      await resolveConfigRequest(requestId, approved)
+    } catch (err) {
+      console.error('Failed to resolve config request:', err)
+    } finally {
+      setResolvingIds(prev => { const next = new Set(prev); next.delete(requestId); return next })
+    }
+  }
 
   // Load skills
   const loadSkills = useCallback(async () => {
@@ -283,7 +301,7 @@ export default function AgentSkillEditor({
                   <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-amber-300">
-                      {req.payload.configuration?.operation || req.type}
+                      {req.payload?.configuration?.operation || (req.type === 'configure-agent' ? 'Configuration change' : req.type)}
                     </span>
                     <span className="text-xs text-amber-400/60 ml-2">
                       {req.status === 'pending' ? 'Awaiting approval' : req.status}
@@ -292,16 +310,20 @@ export default function AgentSkillEditor({
                   {canApprove && req.status === 'pending' && (
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => resolveConfigRequest(req.id, true)}
-                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        onClick={() => handleResolve(req.id, true)}
+                        disabled={resolvingIds.has(req.id)}
+                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Approve"
+                        aria-label="Approve configuration request"
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => resolveConfigRequest(req.id, false)}
-                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors"
+                        onClick={() => handleResolve(req.id, false)}
+                        disabled={resolvingIds.has(req.id)}
+                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Reject"
+                        aria-label="Reject configuration request"
                       >
                         <XCircle className="w-4 h-4" />
                       </button>

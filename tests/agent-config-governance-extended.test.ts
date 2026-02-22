@@ -3,16 +3,16 @@
  *
  * Tests FOUR modules across Steps 2, 4, 5, 9 of the governance implementation:
  *
- *   Module 1: services/agents-skills-service.ts — RBAC enforcement (15 tests)
+ *   Module 1: services/agents-skills-service.ts — RBAC enforcement (20 tests)
  *     checkConfigGovernance() enforces governance on updateSkills, addSkill, removeSkill, saveSkillSettings.
  *     getSkillsConfig has NO governance (reads are public). getSkillSettings has NO governance.
  *
- *   Module 2: services/agents-config-deploy-service.ts — Deployment operations (12 tests)
+ *   Module 2: services/agents-config-deploy-service.ts — Deployment operations (16 tests)
  *     deployConfigToAgent() validates agent existence, operation type, working directory,
  *     and dispatches to add-skill, remove-skill, add-plugin, remove-plugin, update-hooks,
  *     update-mcp, update-model, bulk-config operations.
  *
- *   Module 3: services/cross-host-governance-service.ts — configure-agent flow (15 tests)
+ *   Module 3: services/cross-host-governance-service.ts — configure-agent flow (14 tests)
  *     submitCrossHostRequest validates configure-agent payloads.
  *     receiveCrossHostRequest accepts configure-agent as a valid type.
  *     approveCrossHostRequest triggers performRequestExecution for configure-agent.
@@ -23,7 +23,7 @@
  *     notifyConfigRequestOutcome sends AMP + tmux notifications for approved/rejected
  *     configure-agent requests. Non-configure-agent types are silently skipped.
  *
- * Total: 48 tests (15 + 12 + 15 + 6)
+ * Total: 56 tests (20 + 16 + 14 + 6)
  *
  * Mocking strategy: Only external dependencies are mocked (filesystem, governance,
  * agent-registry, network fetch, child_process). Internal logic is executed for real.
@@ -275,7 +275,7 @@ import {
 const MANAGER_ID = 'agent-manager-ext-001'
 const COS_ID = 'agent-cos-ext-002'
 const MEMBER_ID = 'agent-member-ext-003'
-const TARGET_AGENT_ID = 'agent-target-ext-004'
+const TARGET_AGENT_ID = '550e8400-e29b-41d4-a716-446655440000'
 const TEAM_ID = 'team-closed-ext-001'
 const AGENT_UUID = '12345678-1234-1234-1234-123456789abc'
 
@@ -300,6 +300,8 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
   } as Agent
 }
 
+// Returns Record<string, unknown> to match the mocked getAgent signature.
+// A more specific type would require importing Agent internals into the test.
 function makeAgentWithSubconscious(overrides: Partial<Agent> = {}): Record<string, unknown> {
   return {
     id: AGENT_UUID,
@@ -418,7 +420,7 @@ afterEach(() => {
 })
 
 // ============================================================================
-// MODULE 1: agents-skills-service RBAC (15 tests)
+// MODULE 1: agents-skills-service RBAC (20 tests)
 // ============================================================================
 
 describe('skills service RBAC', () => {
@@ -662,10 +664,20 @@ describe('skills service RBAC', () => {
 })
 
 // ============================================================================
-// MODULE 2: agents-config-deploy-service (12 tests)
+// MODULE 2: agents-config-deploy-service (16 tests)
 // ============================================================================
 
 describe('config deploy service', () => {
+  // SF-007 added fs.access(workingDir) validation before deployment operations.
+  // The mock must succeed for the agent's working directory but reject for other paths
+  // (skill/plugin existence checks) unless overridden in individual tests.
+  beforeEach(() => {
+    mockFsAccess.mockImplementation(async (p: string) => {
+      if (p === '/tmp/test-agent') return undefined  // working directory exists
+      throw new Error('ENOENT')  // other paths (skill/plugin dirs) don't exist
+    })
+  })
+
   it('add-skill creates skill directory and SKILL.md', async () => {
     /** Verifies that deploying an add-skill creates the skill folder and placeholder SKILL.md */
     const config: ConfigurationPayload = {
@@ -873,7 +885,7 @@ describe('config deploy service', () => {
       skills: ['test-skill'],
     }
 
-    const result = await deployConfigToAgent('nonexistent-agent', config, MANAGER_ID)
+    const result = await deployConfigToAgent('00000000-0000-0000-0000-000000000000', config, MANAGER_ID)
 
     expect(result.status).toBe(404)
     expect(result.error).toContain('not found')
@@ -947,7 +959,7 @@ describe('config deploy service', () => {
 })
 
 // ============================================================================
-// MODULE 3: cross-host configure-agent flow (15 tests)
+// MODULE 3: cross-host configure-agent flow (14 tests)
 // ============================================================================
 
 describe('cross-host configure-agent', () => {
@@ -1217,6 +1229,9 @@ describe('cross-host configure-agent', () => {
 // MODULE 4: config-notification-service (6 tests)
 // ============================================================================
 
+// Module 4 tests verify that cross-host-governance-service calls notifyConfigRequestOutcome
+// with correct arguments. Direct testing of config-notification-service.ts logic is deferred
+// to a future config-notification-service.test.ts file.
 describe('config notifications', () => {
   // We need to import the real module (not the mock) for this section.
   // But the module is already mocked above for cross-host tests.

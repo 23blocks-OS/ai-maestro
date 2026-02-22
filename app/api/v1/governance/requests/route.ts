@@ -86,8 +86,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     )
   }
   try {
+    // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
     const result = listCrossHostRequests({
       status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
+      type: searchParams.get('type') || undefined,
       hostId: searchParams.get('hostId') || undefined,
       agentId: searchParams.get('agentId') || undefined,
     })

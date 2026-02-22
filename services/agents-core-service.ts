@@ -63,6 +63,7 @@ import { initializeAllAgents, getStartupStatus } from '@/lib/agent-startup'
 import { sessionActivity } from '@/services/shared-state'
 import { getRuntime } from '@/lib/agent-runtime'
 import { isManager, isChiefOfStaffAnywhere } from '@/lib/governance'
+import { isValidUuid } from '@/lib/validation'
 import { loadTeams } from '@/lib/team-registry'
 import type { Host } from '@/types/host'
 
@@ -121,7 +122,8 @@ export interface RegisterAgentParams {
       websocketUrl: string
     }
   }
-  [key: string]: any // Allow additional fields for cloud config
+  // NT-006: Replaced index signature with explicit field for cloud-specific extras
+  cloudConfig?: Record<string, unknown>
 }
 
 export interface WakeAgentParams {
@@ -713,18 +715,18 @@ export async function deleteAgentById(id: string, hard: boolean, requestingAgent
       return { error: 'Agent not found', status: 404 }
     }
 
-    // Auto-reject pending configure-agent requests targeting the deleted agent (11b safeguard)
+    // SF-006: Auto-reject ALL pending governance requests targeting the deleted agent (not just configure-agent)
     try {
       const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
       const file = loadGovernanceRequests()
       const pendingForAgent = file.requests.filter((r: { type: string; status: string; payload: { agentId: string } }) =>
-        r.type === 'configure-agent' && r.status === 'pending' && r.payload.agentId === id
+        r.status === 'pending' && r.payload.agentId === id
       )
       for (const req of pendingForAgent) {
         await rejectGovernanceRequest(req.id, requestingAgentId || 'system', 'Target agent deleted')
       }
       if (pendingForAgent.length > 0) {
-        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending config request(s) for deleted agent ${id}`)
+        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending request(s) of any type for deleted agent ${id}`)
       }
     } catch (err) {
       console.warn('[agents] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
@@ -806,14 +808,19 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
       agentConfig = body
     }
 
+    // MF-002: Validate agentId format to prevent path traversal (UUID for cloud, sanitized name for session)
+    if (body.id && !isValidUuid(agentId)) {
+      return { error: 'Invalid agent ID format', status: 400 }
+    }
+
     // Ensure agents directory exists
     const agentsDir = path.join(os.homedir(), '.aimaestro', 'agents')
     if (!fs.existsSync(agentsDir)) {
       fs.mkdirSync(agentsDir, { recursive: true })
     }
 
-    // Save agent configuration to individual file
-    const agentFilePath = path.join(agentsDir, `${agentId}.json`)
+    // MF-002: Use path.basename to prevent directory traversal in file path construction
+    const agentFilePath = path.join(agentsDir, `${path.basename(agentId)}.json`)
     fs.writeFileSync(agentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
 
     return {
@@ -1574,7 +1581,15 @@ export async function initializeStartup(): Promise<ServiceResult<{
 // GET /api/agents/startup -- get startup status
 // ---------------------------------------------------------------------------
 
-export function getStartupInfo(): ServiceResult<any> {
+/** NT-004: Typed return for getStartupInfo */
+interface StartupInfo {
+  success: boolean
+  discoveredAgents: number
+  activeAgents: number
+  agents: Array<{ agentId: string; initialized: boolean; subconscious: boolean }>
+}
+
+export function getStartupInfo(): ServiceResult<StartupInfo> {
   try {
     const status = getStartupStatus()
     return { data: { success: true, ...status }, status: 200 }
@@ -1591,7 +1606,12 @@ export function getStartupInfo(): ServiceResult<any> {
 // POST /api/agents/health -- proxy health check
 // ---------------------------------------------------------------------------
 
-export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>> {
+/** NT-005: Typed return for proxyHealthCheck -- JSON shape comes from the remote agent */
+interface HealthCheckResult {
+  [key: string]: unknown
+}
+
+export async function proxyHealthCheck(url: string): Promise<ServiceResult<HealthCheckResult>> {
   try {
     if (!url || typeof url !== 'string') {
       return { error: 'URL is required', status: 400 }
@@ -1619,6 +1639,9 @@ export async function proxyHealthCheck(url: string): Promise<ServiceResult<any>>
     const isPrivateIP = privatePatterns.some(pattern => pattern.test(hostname))
 
     // CC-P1-601: Only allow requests to known peer hosts from hosts.json
+    // SF-010 accepted risk: hosts.json is writable via /api/hosts, so a compromised host entry
+    // could be used as SSRF proxy. In Phase 2 with remote access, add private IP blocking
+    // regardless of hosts.json.
     const knownHosts = getHosts()
     const isKnownHost = knownHosts.some(host => {
       try {

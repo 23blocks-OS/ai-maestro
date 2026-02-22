@@ -1184,15 +1184,15 @@ async function startServer(handleRequest) {
     // Purge expired governance requests on startup, then every 24 hours
     try {
       const { purgeOldRequests } = await import('./lib/governance-request-registry.ts')
-      const purged = await purgeOldRequests()
-      if (purged > 0) {
-        console.log(`[Governance] Purged ${purged} expired request(s) on startup`)
+      const result = await purgeOldRequests()
+      if (result.purged > 0 || result.expired > 0) {
+        console.log(`[Governance] Startup purge: ${result.purged} removed, ${result.expired} expired`)
       }
       setInterval(async () => {
         try {
-          const count = await purgeOldRequests()
-          if (count > 0) {
-            console.log(`[Governance] Purged ${count} expired request(s)`)
+          const result = await purgeOldRequests()
+          if (result.purged > 0 || result.expired > 0) {
+            console.log(`[Governance] Periodic purge: ${result.purged} removed, ${result.expired} expired`)
           }
         } catch (err) {
           console.error('[Governance] Periodic purge failed:', err.message)

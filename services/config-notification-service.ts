@@ -26,6 +26,12 @@ export async function notifyConfigRequestOutcome(
 
   const requestingAgent = getAgent(request.requestedBy)
   const targetAgent = getAgent(request.payload.agentId)
+
+  // SF-009: Warn when configure-agent request is missing its configuration field (possible data corruption)
+  if (!request.payload.configuration) {
+    console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration field`)
+  }
+
   const operation = request.payload.configuration?.operation || 'configure'
   const targetName = targetAgent?.name || request.payload.agentId
   const requesterName = requestingAgent?.name || request.requestedBy
@@ -98,16 +104,16 @@ async function sendTmuxNotification(
   sessionName: string,
   message: string
 ): Promise<void> {
-  const { exec } = await import('child_process')
+  // MF-001: Use execFile (no shell) to prevent command injection via sessionName or message
+  const { execFile } = await import('child_process')
   const { promisify } = await import('util')
-  const execAsync = promisify(exec)
+  const execFileAsync = promisify(execFile)
 
   // Truncate message for tmux display
   const truncated = message.length > 100 ? message.substring(0, 97) + '...' : message
-  const escaped = truncated.replace(/"/g, '\\"')
 
   try {
-    await execAsync(`tmux display-message -t "${sessionName}" "[GOVERNANCE] ${escaped}"`, { timeout: 5000 })
+    await execFileAsync('tmux', ['display-message', '-t', sessionName, `[GOVERNANCE] ${truncated}`], { timeout: 5000 })
   } catch {
     // Session may not exist or tmux not running -- silently ignore
   }

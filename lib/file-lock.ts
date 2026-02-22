@@ -15,6 +15,7 @@
  *   1. 'teams'
  *   2. 'transfers'
  *   3. 'governance'
+ *   4. 'governance-requests'
  * Violating this order will cause deadlock.
  *
  * Current nested lock usage:

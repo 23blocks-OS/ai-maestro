@@ -53,6 +53,12 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
 
   const governance = useGovernance(agentId || null)
+  // Note: AgentSkillEditor also calls useGovernance. In Phase 2, consider a GovernanceContext
+  // provider to avoid duplicate API calls. Acceptable for Phase 1 with localhost-only architecture.
+
+  // Pre-compute filtered pending config requests for this agent (avoids duplicate inline filtering)
+  const agentPendingConfigRequests = governance.pendingConfigRequests.filter(r => r.payload?.agentId === agent?.id)
+  const pendingConfigCount = agentPendingConfigRequests.length
 
   // Repository state
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -877,9 +883,9 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   )}
                   <Zap className="w-4 h-4" />
                   Skills
-                  {(governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length > 0) && (
+                  {pendingConfigCount > 0 && (
                     <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      {governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length}
+                      {pendingConfigCount}
                     </span>
                   )}
                 </button>

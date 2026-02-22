@@ -72,15 +72,26 @@ export function saveGovernanceRequests(file: GovernanceRequestsFile): void {
   fs.renameSync(tmpFile, REQUESTS_FILE)
 }
 
-/** Find a governance request by ID, or null if not found */
+/**
+ * Find a governance request by ID, or null if not found.
+ *
+ * Intentionally lock-free: reads are non-mutating and acceptable without
+ * serialization in the single-process Phase 1 architecture.
+ */
 export function getGovernanceRequest(id: string): GovernanceRequest | null {
   const file = loadGovernanceRequests()
   return file.requests.find((r) => r.id === id) ?? null
 }
 
-/** List governance requests with optional filtering by status, hostId, or agentId */
+/**
+ * List governance requests with optional filtering by status, type, hostId, or agentId.
+ *
+ * Intentionally lock-free: reads are non-mutating and acceptable without
+ * serialization in the single-process Phase 1 architecture.
+ */
 export function listGovernanceRequests(filter?: {
   status?: GovernanceRequestStatus
+  type?: string
   hostId?: string
   agentId?: string
 }): GovernanceRequest[] {
@@ -90,6 +101,8 @@ export function listGovernanceRequests(filter?: {
   return file.requests.filter((r) => {
     // Filter by status if specified
     if (filter.status && r.status !== filter.status) return false
+    // SF-024: Filter by request type if specified (e.g. 'configure-agent')
+    if (filter.type && r.type !== filter.type) return false
     // Filter by hostId: match either source or target host
     if (filter.hostId && r.sourceHostId !== filter.hostId && r.targetHostId !== filter.hostId) return false
     // Filter by agentId: match the payload's agentId or the requestedBy field
@@ -152,7 +165,8 @@ export async function approveGovernanceRequest(
     const request = file.requests.find((r) => r.id === requestId)
     if (!request) return null
 
-    // Cannot approve an already rejected or executed request
+    // Terminal states: return the unchanged request so callers can inspect request.status
+    // to distinguish "not found" (null) from "already finalized" (non-null, terminal status).
     if (request.status === 'rejected' || request.status === 'executed') return request
 
     const now = new Date().toISOString()
@@ -238,45 +252,68 @@ export async function executeGovernanceRequest(
 }
 
 /**
- * Remove governance requests in terminal states (executed, rejected) that are older
- * than the specified age. Prevents unbounded growth of governance-requests.json.
+ * Lock-free TTL expiry helper: auto-reject pending requests older than ttlDays.
+ * Operates on the requests array in-place. Caller must hold the governance-requests lock.
+ * Returns the number of requests expired.
  */
-export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number> {
+function expirePendingRequestsInPlace(requests: GovernanceRequest[], ttlDays: number): number {
+  const cutoff = Date.now() - ttlDays * 86_400_000
+  let expired = 0
+  for (const req of requests) {
+    if (req.status === 'pending') {
+      const createdAt = new Date(req.createdAt).getTime()
+      if (createdAt < cutoff) {
+        req.status = 'rejected'
+        req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
+        req.updatedAt = new Date().toISOString()
+        expired++
+      }
+    }
+  }
+  return expired
+}
+
+/** Structured result from purgeOldRequests to avoid double-counting */
+export interface PurgeResult {
+  /** Number of terminal-state (executed/rejected) requests removed */
+  purged: number
+  /** Number of pending requests auto-rejected via TTL expiry */
+  expired: number
+}
+
+/**
+ * Remove governance requests in terminal states (executed, rejected) that are older
+ * than the specified age, and auto-reject stale pending requests via TTL.
+ * Prevents unbounded growth of governance-requests.json.
+ *
+ * Delegates TTL expiry to the canonical expirePendingRequestsInPlace helper
+ * to avoid duplicating TTL logic (SF-002).
+ */
+export async function purgeOldRequests(maxAgeDays: number = 30): Promise<PurgeResult> {
   return withLock('governance-requests', () => {
     const file = loadGovernanceRequests()
     const cutoff = Date.now() - maxAgeDays * 86_400_000
     const before = file.requests.length
 
+    // First pass: remove terminal-state requests older than maxAgeDays
     const filtered = file.requests.filter((r) => {
       if (r.status !== 'executed' && r.status !== 'rejected') return true
       const updatedAt = new Date(r.updatedAt).getTime()
       return updatedAt > cutoff
     })
 
-    // Second pass: auto-reject pending requests past TTL — 7 days (11e safeguard)
-    const pendingCutoff = Date.now() - 7 * 86_400_000
-    let expired = 0
-    for (const req of filtered) {
-      if (req.status === 'pending') {
-        const createdAt = new Date(req.createdAt).getTime()
-        if (createdAt < pendingCutoff) {
-          req.status = 'rejected'
-          req.rejectReason = 'Request expired (TTL: 7d)'
-          req.updatedAt = new Date().toISOString()
-          expired++
-        }
-      }
-    }
+    // Second pass: auto-reject stale pending requests via canonical TTL helper
+    const expired = expirePendingRequestsInPlace(filtered, 7)
 
     const purged = before - filtered.length
-    if (filtered.length < before || expired > 0) {
+    if (purged > 0 || expired > 0) {
       saveGovernanceRequests({ ...file, requests: filtered })
     }
     if (expired > 0) {
       console.log(`[governance-requests] Expired ${expired} pending request(s) past 7-day TTL`)
     }
 
-    return purged + expired
+    return { purged, expired }
   })
 }
 
@@ -288,20 +325,7 @@ export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number>
 export async function expirePendingRequests(ttlDays: number = 7): Promise<number> {
   return withLock('governance-requests', () => {
     const file = loadGovernanceRequests()
-    const cutoff = Date.now() - ttlDays * 86_400_000
-    let expired = 0
-
-    for (const req of file.requests) {
-      if (req.status === 'pending') {
-        const createdAt = new Date(req.createdAt).getTime()
-        if (createdAt < cutoff) {
-          req.status = 'rejected'
-          req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
-          req.updatedAt = new Date().toISOString()
-          expired++
-        }
-      }
-    }
+    const expired = expirePendingRequestsInPlace(file.requests, ttlDays)
 
     if (expired > 0) {
       saveGovernanceRequests(file)

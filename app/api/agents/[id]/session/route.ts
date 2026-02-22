@@ -19,7 +19,7 @@ export async function POST(
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const result = linkAgentSession(id, body)
+  const result = await linkAgentSession(id, body)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

@@ -32,7 +32,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = updateMetrics(agentId, body)
+  const result = await updateMetrics(agentId, body)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

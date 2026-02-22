@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const result = registerAgent(body)
+  const result = await registerAgent(body)
 
   if (result.error) {
     return NextResponse.json(

@@ -540,7 +540,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/register$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, registerAgent(body))
+    sendServiceResult(res, await registerAgent(body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/by-name\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
     sendServiceResult(res, lookupAgentByName(params.name))
@@ -591,7 +591,7 @@ const routes: Route[] = [
     sendServiceResult(res, diagnoseHosts())
   }},
   { method: 'POST', pattern: /^\/api\/agents\/normalize-hosts$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, normalizeHosts())
+    sendServiceResult(res, await normalizeHosts())
   }},
   // Agent list / create (must be AFTER static agent sub-paths)
   { method: 'GET', pattern: /^\/api\/agents$/, paramNames: [], handler: async (_req, res, _params, query) => {
@@ -609,7 +609,7 @@ const routes: Route[] = [
       getHeader(req, 'X-Agent-Id')
     )
     // auth.agentId is undefined when no auth header — governance not enforced (backward compat)
-    sendServiceResult(res, createNewAgent(body, auth.error ? null : auth.agentId))
+    sendServiceResult(res, await createNewAgent(body, auth.error ? null : auth.agentId))
   }},
 
   // =========================================================================
@@ -622,7 +622,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, linkAgentSession(params.id, body))
+    sendServiceResult(res, await linkAgentSession(params.id, body))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -735,7 +735,7 @@ const routes: Route[] = [
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateMetrics(params.id, body))
+    sendServiceResult(res, await updateMetrics(params.id, body))
   }},
 
   // Graph - code
@@ -969,7 +969,7 @@ const routes: Route[] = [
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
     )
-    sendServiceResult(res, updateAgentById(params.id, body, auth.error ? null : auth.agentId))
+    sendServiceResult(res, await updateAgentById(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     // Layer 5: optional governance enforcement when agent identity is provided
@@ -977,7 +977,7 @@ const routes: Route[] = [
       getHeader(_req, 'Authorization'),
       getHeader(_req, 'X-Agent-Id')
     )
-    sendServiceResult(res, deleteAgentById(params.id, query.hard === 'true', auth.error ? null : auth.agentId))
+    sendServiceResult(res, await deleteAgentById(params.id, query.hard === 'true', auth.error ? null : auth.agentId))
   }},
 
   // =========================================================================

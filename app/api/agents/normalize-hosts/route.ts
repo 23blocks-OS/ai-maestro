@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST() {
-  const result = normalizeHosts()
+  const result = await normalizeHosts()
   if (result.error) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status })
   }

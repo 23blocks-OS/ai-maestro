@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
     // CC-P3-002: Wrap service call in try-catch for unexpected throws
-    const result = createNewAgent(body)
+    const result = await createNewAgent(body)
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

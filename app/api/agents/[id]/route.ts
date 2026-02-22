@@ -32,7 +32,7 @@ export async function PATCH(
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const result = updateAgentById(id, body)
+  const result = await updateAgentById(id, body)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -54,7 +54,7 @@ export async function DELETE(
   const hardParam = url.searchParams.get('hard')?.toLowerCase()
   const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
 
-  const result = deleteAgentById(id, hard)
+  const result = await deleteAgentById(id, hard)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

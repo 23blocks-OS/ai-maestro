@@ -270,12 +270,12 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
     toHost,
     timestamp: envelope.timestamp || new Date().toISOString(),
     subject: envelope.subject,
-    priority: envelope.priority || 'normal',
+    priority: (envelope.priority || 'normal') as 'high' | 'low' | 'normal' | 'urgent',
     status,
     content: {
-      type: payload.type || 'notification',
+      type: (payload.type || 'notification') as 'status' | 'system' | 'alert' | 'request' | 'response' | 'notification' | 'update' | 'task' | 'handoff' | 'ack',
       message: payload.message || '',
-      context: payload.context || undefined,
+      context: (payload.context || undefined) as Record<string, unknown> | undefined,
     },
     inReplyTo: envelope.in_reply_to || undefined,
     // Preserve AMP cryptographic fields from envelope for signature verification

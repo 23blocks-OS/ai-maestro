@@ -25,7 +25,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
   if (result.error) {
     return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
   }
-  return NextResponse.json(result.data, {
+  return NextResponse.json(result.data!, {
     status: result.status,
     headers: result.headers
   })
@@ -40,7 +40,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
   if (result.error) {
     return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
   }
-  return NextResponse.json(result.data, { status: result.status })
+  return NextResponse.json(result.data!, { status: result.status })
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<{ acknowledged: number } | AMPError>> {
@@ -60,5 +60,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
   if (result.error) {
     return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
   }
-  return NextResponse.json(result.data, { status: result.status })
+  return NextResponse.json(result.data!, { status: result.status })
 }

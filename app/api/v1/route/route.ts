@@ -34,7 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     if (result.error) {
       return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
     }
-    return NextResponse.json(result.data, {
+    return NextResponse.json(result.data!, {
       status: result.status,
       headers: result.headers
     })

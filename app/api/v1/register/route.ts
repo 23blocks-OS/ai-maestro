@@ -25,7 +25,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRegist
     if (result.error) {
       return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
     }
-    return NextResponse.json(result.data, { status: result.status })
+    return NextResponse.json(result.data!, { status: result.status })
   } catch (error) {
     // CC-P4-001: Top-level catch for unhandled service throws (consistent with agents/route.ts pattern)
     return NextResponse.json(

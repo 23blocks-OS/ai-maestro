@@ -63,6 +63,7 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
+import type { Agent } from '@/types/agent'
 import { ServiceResult } from '@/types/service'
 export type { ServiceResult }
 
@@ -617,7 +618,7 @@ export async function registerAgent(
 
     // Check if name already exists in this tenant (on this host)
     const existingAgent = getAgentByName(normalizedName, selfHostIdValue)
-    let agent: ReturnType<typeof createAgent>
+    let agent: Agent
 
     if (existingAgent) {
       const hasAMP = existingAgent.metadata?.amp?.registeredVia

@@ -218,13 +218,13 @@ export async function listMessages(
     }
 
     if (box === 'sent') {
-      const messages = await listAgentSentMessages(agentId, { priority, to })
+      const messages = await listAgentSentMessages(agentId, { priority: priority as 'high' | 'low' | 'normal' | 'urgent' | undefined, to })
       return { data: { messages }, status: 200 }
     } else if (box === 'stats') {
       const stats = await getAgentMessageStats(agentId)
       return { data: { stats }, status: 200 }
     } else {
-      const messages = await listAgentInboxMessages(agentId, { status, priority, from })
+      const messages = await listAgentInboxMessages(agentId, { status: status as 'unread' | 'read' | 'archived' | undefined, priority: priority as 'high' | 'low' | 'normal' | 'urgent' | undefined, from })
       return { data: { messages }, status: 200 }
     }
   } catch (error) {

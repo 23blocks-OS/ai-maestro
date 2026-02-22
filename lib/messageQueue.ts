@@ -270,12 +270,24 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
     toHost,
     timestamp: envelope.timestamp || new Date().toISOString(),
     subject: envelope.subject,
-    priority: (envelope.priority || 'normal') as 'high' | 'low' | 'normal' | 'urgent',
+    // SF-001/NT-002: Validate priority and type before casting (same pattern as status validation above)
+    priority: (() => {
+      const validPriorities: Message['priority'][] = ['low', 'normal', 'high', 'urgent']
+      const rawPriority = envelope.priority || 'normal'
+      return validPriorities.includes(rawPriority as Message['priority']) ? (rawPriority as Message['priority']) : 'normal'
+    })(),
     status,
     content: {
-      type: (payload.type || 'notification') as 'status' | 'system' | 'alert' | 'request' | 'response' | 'notification' | 'update' | 'task' | 'handoff' | 'ack',
+      type: (() => {
+        const validTypes: Message['content']['type'][] = ['status', 'system', 'alert', 'request', 'response', 'notification', 'update', 'task', 'handoff', 'ack']
+        const rawType = payload.type || 'notification'
+        return validTypes.includes(rawType as Message['content']['type']) ? (rawType as Message['content']['type']) : 'notification'
+      })(),
       message: payload.message || '',
-      context: (payload.context || undefined) as Record<string, unknown> | undefined,
+      // SF-001: Validate context is an object before casting (prevents silent miscast of strings/arrays)
+      context: (payload.context && typeof payload.context === 'object' && !Array.isArray(payload.context))
+        ? payload.context as Record<string, unknown>
+        : undefined,
     },
     inReplyTo: envelope.in_reply_to || undefined,
     // Preserve AMP cryptographic fields from envelope for signature verification

@@ -146,19 +146,9 @@ async function deployAddSkill(
       await fs.writeFile(skillMdPath, `# ${skillName}\n\nSkill deployed via governance at ${new Date().toISOString()}\n`, 'utf-8')
     }
 
-    // ToxicSkills scan on deployed content — cross-host security (11d safeguard)
-    try {
-      const { scanForToxicPatterns } = await import('@/lib/toxic-skills')
-      const content = await fs.readFile(skillMdPath, 'utf-8')
-      const scanResult = scanForToxicPatterns(content)
-      if (scanResult.toxic) {
-        // Remove the toxic skill and return error
-        await fs.rm(skillDir, { recursive: true, force: true })
-        return { error: `Skill '${skillName}' failed ToxicSkills scan: ${scanResult.reason}`, status: 403 }
-      }
-    } catch {
-      // ToxicSkills scanner not available — skip (Phase 1 acceptable)
-    }
+    // TODO: ToxicSkills scan on deployed content (11d safeguard)
+    // When @/lib/toxic-skills is implemented, scan skill content here before deployment
+    // and remove the skill directory + return 403 if content is toxic.
 
     after[skillName] = 'present'
   }

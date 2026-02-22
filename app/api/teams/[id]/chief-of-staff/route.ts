@@ -66,7 +66,7 @@ export async function POST(
             r.type === 'configure-agent' && r.status === 'pending' && r.requestedBy === oldCosId
           )
           for (const req of pendingFromCOS) {
-            await rejectGovernanceRequest(req.id, managerId, `COS role revoked for team '${team.name}'`)
+            await rejectGovernanceRequest(req.id, managerId || 'system', `COS role revoked for team '${team.name}'`)
           }
           if (pendingFromCOS.length > 0) {
             console.log(`[governance] Auto-rejected ${pendingFromCOS.length} pending config request(s) from removed COS ${oldCosId}`)

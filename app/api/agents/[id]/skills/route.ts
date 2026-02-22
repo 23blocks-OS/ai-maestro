@@ -32,7 +32,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching agent skills:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch agent skills', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to fetch agent skills' },
       { status: 500 }
     )
   }
@@ -52,8 +52,17 @@ export async function PATCH(
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
-    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    // SF-009: Distinguish "no auth attempted" from "auth attempted but failed"
+    const authHeader = request.headers.get('Authorization')
+    const agentIdHeader = request.headers.get('X-Agent-Id')
+    let requestingAgentId: string | null = null
+    if (authHeader || agentIdHeader) {
+      const auth = authenticateAgent(authHeader, agentIdHeader)
+      if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 })
+      }
+      requestingAgentId = auth.agentId || null
+    }
     const result = await updateSkills(id, body, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -62,7 +71,7 @@ export async function PATCH(
   } catch (error) {
     console.error('Error updating agent skills:', error)
     return NextResponse.json(
-      { error: 'Failed to update agent skills', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to update agent skills' },
       { status: 500 }
     )
   }
@@ -82,8 +91,17 @@ export async function POST(
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
-    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    // SF-009: Distinguish "no auth attempted" from "auth attempted but failed"
+    const authHeader = request.headers.get('Authorization')
+    const agentIdHeader = request.headers.get('X-Agent-Id')
+    let requestingAgentId: string | null = null
+    if (authHeader || agentIdHeader) {
+      const auth = authenticateAgent(authHeader, agentIdHeader)
+      if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 })
+      }
+      requestingAgentId = auth.agentId || null
+    }
     const result = await addSkill(id, body, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -92,7 +110,7 @@ export async function POST(
   } catch (error) {
     console.error('Error adding custom skill:', error)
     return NextResponse.json(
-      { error: 'Failed to add custom skill', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to add custom skill' },
       { status: 500 }
     )
   }
@@ -115,8 +133,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Missing required query parameter: skill' }, { status: 400 })
     }
 
-    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
-    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    // SF-009: Distinguish "no auth attempted" from "auth attempted but failed"
+    const authHeader = request.headers.get('Authorization')
+    const agentIdHeader = request.headers.get('X-Agent-Id')
+    let requestingAgentId: string | null = null
+    if (authHeader || agentIdHeader) {
+      const auth = authenticateAgent(authHeader, agentIdHeader)
+      if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 })
+      }
+      requestingAgentId = auth.agentId || null
+    }
     const result = await removeSkill(id, skill, type, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -125,7 +152,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error removing skill:', error)
     return NextResponse.json(
-      { error: 'Failed to remove skill', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to remove skill' },
       { status: 500 }
     )
   }

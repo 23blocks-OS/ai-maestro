@@ -45,7 +45,7 @@ export async function POST(
   } catch (error) {
     console.error('Error deploying agent config:', error)
     return NextResponse.json(
-      { error: 'Failed to deploy agent config', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to deploy agent config' },
       { status: 500 }
     )
   }

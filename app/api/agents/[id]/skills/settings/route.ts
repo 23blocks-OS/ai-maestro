@@ -49,8 +49,17 @@ export async function PUT(
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
-    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    // SF-009: Distinguish "no auth attempted" from "auth attempted but failed"
+    const authHeader = request.headers.get('Authorization')
+    const agentIdHeader = request.headers.get('X-Agent-Id')
+    let requestingAgentId: string | null = null
+    if (authHeader || agentIdHeader) {
+      const auth = authenticateAgent(authHeader, agentIdHeader)
+      if (auth.error) {
+        return NextResponse.json({ error: auth.error }, { status: 401 })
+      }
+      requestingAgentId = auth.agentId || null
+    }
     const result = await saveSkillSettings(agentId, body.settings, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

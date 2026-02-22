@@ -66,7 +66,9 @@ export async function submitCrossHostRequest(params: {
   note?: string
 }): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-gov-submit')
+  // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  const submitRateLimitKey = `cross-host-gov-submit:${params.requestedBy}`
+  const rateCheck = checkRateLimit(submitRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -74,10 +76,10 @@ export async function submitCrossHostRequest(params: {
 
   // Verify governance password
   if (!(await verifyPassword(params.password))) {
-    recordFailure('cross-host-gov-submit')
+    recordFailure(submitRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-gov-submit')
+  resetRateLimit(submitRateLimitKey)
 
   // Validate that the requesting agent exists locally
   const agent = getAgent(params.requestedBy)
@@ -244,7 +246,9 @@ export async function approveCrossHostRequest(
   password: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-gov-approve')
+  // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  const approveRateLimitKey = `cross-host-gov-approve:${approverAgentId}`
+  const rateCheck = checkRateLimit(approveRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -252,10 +256,10 @@ export async function approveCrossHostRequest(
 
   // Verify governance password
   if (!(await verifyPassword(password))) {
-    recordFailure('cross-host-gov-approve')
+    recordFailure(approveRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-gov-approve')
+  resetRateLimit(approveRateLimitKey)
 
   // Load the request
   const request = getGovernanceRequest(requestId)
@@ -283,6 +287,11 @@ export async function approveCrossHostRequest(
     approverType = isOnSourceHost ? 'sourceCOS' : 'targetCOS'
   } else {
     return { error: 'Only MANAGER or Chief of Staff can approve governance requests', status: 403 }
+  }
+
+  // SF-005: Pre-check for terminal state to prevent re-execution of finalized requests
+  if (request.status === 'executed' || request.status === 'rejected') {
+    return { error: `Request '${requestId}' is already ${request.status}`, status: 409 }
   }
 
   // Record the approval and update status
@@ -315,7 +324,9 @@ export async function rejectCrossHostRequest(
   reason?: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  const rateCheck = checkRateLimit('cross-host-gov-reject')
+  // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  const rejectRateLimitKey = `cross-host-gov-reject:${rejectorAgentId}`
+  const rateCheck = checkRateLimit(rejectRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
@@ -323,10 +334,10 @@ export async function rejectCrossHostRequest(
 
   // Verify governance password
   if (!(await verifyPassword(password))) {
-    recordFailure('cross-host-gov-reject')
+    recordFailure(rejectRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
-  resetRateLimit('cross-host-gov-reject')
+  resetRateLimit(rejectRateLimitKey)
 
   // Validate rejector is MANAGER or COS
   if (!isManager(rejectorAgentId) && !isChiefOfStaffAnywhere(rejectorAgentId)) {
@@ -369,6 +380,9 @@ export async function rejectCrossHostRequest(
 // 5. performRequestExecution -- execute the actual team/agent mutation
 // ---------------------------------------------------------------------------
 
+// NOTE: Execution failures are logged but do not propagate to callers.
+// The request status is already 'executed' before this runs.
+// A proper fix would add a 'failed' status to GovernanceRequestStatus (Phase 2).
 async function performRequestExecution(request: GovernanceRequest): Promise<void> {
   console.log(`${LOG_PREFIX} Executing request ${request.id} (type=${request.type})`)
 
@@ -526,7 +540,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
 
 export function listCrossHostRequests(filter?: {
   status?: GovernanceRequestStatus
-  type?: string
+  type?: GovernanceRequestType
   hostId?: string
   agentId?: string
 }): ServiceResult<GovernanceRequest[]> {

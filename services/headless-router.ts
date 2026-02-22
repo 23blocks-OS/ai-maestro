@@ -9,7 +9,6 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'http'
-import { parse } from 'url'
 import { authenticateAgent } from '../lib/agent-auth'
 
 // ---------------------------------------------------------------------------
@@ -349,17 +348,28 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let totalSize = 0
+    // SF-001: Guard against resolve after reject (matching readJsonBody pattern)
+    let rejected = false
     req.on('data', (chunk: Buffer) => {
+      if (rejected) return
       totalSize += chunk.length
       if (totalSize > MAX_RAW_BODY_SIZE) {
+        rejected = true
         req.destroy()
         reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }))
         return
       }
       chunks.push(chunk)
     })
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
+    req.on('end', () => {
+      if (rejected) return
+      resolve(Buffer.concat(chunks))
+    })
+    req.on('error', (err) => {
+      if (rejected) return
+      rejected = true
+      reject(err)
+    })
   })
 }
 
@@ -393,12 +403,11 @@ function getHeader(req: IncomingMessage, name: string): string | null {
   return typeof val === 'string' ? val : null
 }
 
+// NT-002: Use modern URL API instead of deprecated url.parse()
 function getQuery(url: string): Record<string, string> {
-  const parsed = parse(url, true)
+  const urlObj = new URL(url, 'http://localhost')
   const q: Record<string, string> = {}
-  for (const [k, v] of Object.entries(parsed.query)) {
-    if (typeof v === 'string') q[k] = v
-  }
+  urlObj.searchParams.forEach((v, k) => { q[k] = v })
   return q
 }
 
@@ -1359,40 +1368,46 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     // Determine if this is a local submission (with password) or a remote receive (with fromHostId)
     if (body?.fromHostId) {
-      // SR-001: Verify host signature for remote governance requests
-      const hostSignature = getHeader(req, 'X-Host-Signature')
-      const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
-      const hostId = getHeader(req, 'X-Host-Id')
-      if (!hostSignature || !hostTimestamp || !hostId) {
-        sendJson(res, 401, { error: 'Missing host authentication headers' })
-        return
+      // SF-010: Dedicated try/catch for remote receive branch (matching Next.js route pattern)
+      try {
+        // SR-001: Verify host signature for remote governance requests
+        const hostSignature = getHeader(req, 'X-Host-Signature')
+        const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
+        const hostId = getHeader(req, 'X-Host-Id')
+        if (!hostSignature || !hostTimestamp || !hostId) {
+          sendJson(res, 401, { error: 'Missing host authentication headers' })
+          return
+        }
+        if (hostId !== body.fromHostId) {
+          sendJson(res, 400, { error: 'Host ID header does not match body fromHostId' })
+          return
+        }
+        const hosts = getHosts()
+        const knownHost = hosts.find(h => h.id === hostId)
+        if (!knownHost) {
+          sendJson(res, 403, { error: 'Unknown host' })
+          return
+        }
+        if (!knownHost.publicKeyHex) {
+          sendJson(res, 403, { error: 'Host has no registered public key' })
+          return
+        }
+        const signedData = `gov-request|${hostId}|${hostTimestamp}`
+        if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
+          sendJson(res, 403, { error: 'Invalid host signature' })
+          return
+        }
+        const tsAge = Date.now() - new Date(hostTimestamp).getTime()
+        if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
+          sendJson(res, 403, { error: 'Signature expired' })
+          return
+        }
+        // Remote host is sending us a governance request
+        sendServiceResult(res, await receiveCrossHostRequest(body.fromHostId, body.request))
+      } catch (err) {
+        console.error('[Governance Requests] POST remote-receive error:', err)
+        sendJson(res, 500, { error: 'Internal server error processing remote governance request' })
       }
-      if (hostId !== body.fromHostId) {
-        sendJson(res, 400, { error: 'Host ID header does not match body fromHostId' })
-        return
-      }
-      const hosts = getHosts()
-      const knownHost = hosts.find(h => h.id === hostId)
-      if (!knownHost) {
-        sendJson(res, 403, { error: 'Unknown host' })
-        return
-      }
-      if (!knownHost.publicKeyHex) {
-        sendJson(res, 403, { error: 'Host has no registered public key' })
-        return
-      }
-      const signedData = `gov-request|${hostId}|${hostTimestamp}`
-      if (!verifyHostAttestation(signedData, hostSignature, knownHost.publicKeyHex)) {
-        sendJson(res, 403, { error: 'Invalid host signature' })
-        return
-      }
-      const tsAge = Date.now() - new Date(hostTimestamp).getTime()
-      if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
-        sendJson(res, 403, { error: 'Signature expired' })
-        return
-      }
-      // Remote host is sending us a governance request
-      sendServiceResult(res, await receiveCrossHostRequest(body.fromHostId, body.request))
     } else {
       // Local agent submitting a cross-host request
       sendServiceResult(res, await submitCrossHostRequest(body))
@@ -1402,7 +1417,7 @@ const routes: Route[] = [
     // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
     sendServiceResult(res, listCrossHostRequests({
       status: (query.status as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
-      type: query.type || undefined,
+      type: (query.type as import('@/types/governance-request').GovernanceRequestType) || undefined,
       hostId: query.hostId || undefined,
       agentId: query.agentId || undefined,
     }))
@@ -1846,10 +1861,12 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 export function createHeadlessRouter() {
   return {
     async handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
-      const parsedUrl = parse(req.url || '', true)
-      const pathname = parsedUrl.pathname || '/'
+      // NT-001/NT-002: Single URL parse with modern API (avoids double parse and deprecated url.parse)
+      const urlObj = new URL(req.url || '/', 'http://localhost')
+      const pathname = urlObj.pathname || '/'
       const method = req.method || 'GET'
-      const query = getQuery(req.url || '')
+      const query: Record<string, string> = {}
+      urlObj.searchParams.forEach((v, k) => { query[k] = v })
 
       const matched = matchRoute(method, pathname)
       if (!matched) {

@@ -308,7 +308,8 @@ describe('listGovernanceRequests', () => {
     const result = listGovernanceRequests()
 
     expect(result).toHaveLength(3)
-    expect(result.map(r => r.id)).toEqual(['req-pending', 'req-executed', 'req-rejected'])
+    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
+    expect(result.map(r => r.id)).toEqual(expect.arrayContaining(['req-pending', 'req-executed', 'req-rejected']))
   })
 
   it('filters by status', () => {
@@ -324,12 +325,14 @@ describe('listGovernanceRequests', () => {
     // host-A is source of pendingReq and rejectedReq
     const resultA = listGovernanceRequests({ hostId: 'host-A' })
     expect(resultA).toHaveLength(2)
-    expect(resultA.map(r => r.id)).toEqual(['req-pending', 'req-rejected'])
+    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
+    expect(resultA.map(r => r.id)).toEqual(expect.arrayContaining(['req-pending', 'req-rejected']))
 
     // host-C is target of executedReq and rejectedReq
     const resultC = listGovernanceRequests({ hostId: 'host-C' })
     expect(resultC).toHaveLength(2)
-    expect(resultC.map(r => r.id)).toEqual(['req-executed', 'req-rejected'])
+    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
+    expect(resultC.map(r => r.id)).toEqual(expect.arrayContaining(['req-executed', 'req-rejected']))
   })
 
   it('filters by agentId (payload or requestedBy)', () => {
@@ -337,7 +340,8 @@ describe('listGovernanceRequests', () => {
     // agent-x is both payload.agentId of pendingReq AND requestedBy of rejectedReq
     const result = listGovernanceRequests({ agentId: 'agent-x' })
     expect(result).toHaveLength(2)
-    expect(result.map(r => r.id)).toEqual(['req-pending', 'req-rejected'])
+    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
+    expect(result.map(r => r.id)).toEqual(expect.arrayContaining(['req-pending', 'req-rejected']))
   })
 
   it('filters by type', () => {
@@ -644,7 +648,8 @@ describe('purgeOldRequests', () => {
     // Verify persisted state: only recent executed and pending remain
     const loaded = loadGovernanceRequests()
     expect(loaded.requests).toHaveLength(2)
-    expect(loaded.requests.map(r => r.id)).toEqual(['req-recent-executed', 'req-pending-active'])
+    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
+    expect(loaded.requests.map(r => r.id)).toEqual(expect.arrayContaining(['req-recent-executed', 'req-pending-active']))
   })
 
   it('also expires stale pending requests via 7-day TTL', async () => {

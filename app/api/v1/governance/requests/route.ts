@@ -13,6 +13,7 @@ import {
 } from '@/services/cross-host-governance-service'
 import { verifyHostAttestation } from '@/lib/host-keys'
 import { getHosts } from '@/lib/hosts-config'
+import { isValidUuid } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // SF-007: Validate required fields before passing to submitCrossHostRequest
+  if (!body.type || typeof body.type !== 'string') {
+    return NextResponse.json({ error: 'Missing required field: type' }, { status: 400 })
+  }
+  if (!body.password || typeof body.password !== 'string') {
+    return NextResponse.json({ error: 'Missing required field: password' }, { status: 400 })
+  }
+  if (!body.targetHostId || typeof body.targetHostId !== 'string') {
+    return NextResponse.json({ error: 'Missing required field: targetHostId' }, { status: 400 })
+  }
+  if (!body.requestedBy || typeof body.requestedBy !== 'string') {
+    return NextResponse.json({ error: 'Missing required field: requestedBy' }, { status: 400 })
+  }
+
   try {
     const result = await submitCrossHostRequest(body)
     if (result.error) {
@@ -104,13 +119,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { status: 400 }
     )
   }
+  // SF-008: Validate agentId (UUID) and hostId (hostname) format before passing to filter
+  const hostId = searchParams.get('hostId') || undefined
+  const agentId = searchParams.get('agentId') || undefined
+  if (agentId && !isValidUuid(agentId)) {
+    return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
+  }
+  // hostId is a hostname (e.g. "macbook-pro"), not a UUID -- validate as safe hostname
+  const HOSTNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,253}[a-zA-Z0-9]$/
+  if (hostId && !HOSTNAME_RE.test(hostId)) {
+    return NextResponse.json({ error: 'Invalid hostId format' }, { status: 400 })
+  }
   try {
     // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
     const result = listCrossHostRequests({
       status: (statusParam as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
-      type: typeParam || undefined,
-      hostId: searchParams.get('hostId') || undefined,
-      agentId: searchParams.get('agentId') || undefined,
+      type: (typeParam as import('@/types/governance-request').GovernanceRequestType) || undefined,
+      hostId,
+      agentId,
     })
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

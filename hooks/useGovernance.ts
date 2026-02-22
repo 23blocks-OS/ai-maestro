@@ -28,8 +28,8 @@ export interface GovernanceState {
   requestTransfer: (agentId: string, fromTeamId: string, toTeamId: string, note?: string) => Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }>
   resolveTransfer: (transferId: string, action: 'approve' | 'reject', rejectReason?: string) => Promise<{ success: boolean; error?: string }>
   pendingConfigRequests: GovernanceRequest[]
-  submitConfigRequest: (agentId: string, config: Record<string, unknown>) => Promise<{ success: boolean; error?: string; requestId?: string }>
-  resolveConfigRequest: (requestId: string, approved: boolean, reason?: string) => Promise<{ success: boolean; error?: string }>
+  submitConfigRequest: (agentId: string, config: Record<string, unknown>, password: string, requestedBy: string, requestedByRole: string, targetHostId?: string) => Promise<{ success: boolean; error?: string; requestId?: string }>
+  resolveConfigRequest: (requestId: string, approved: boolean, password: string, resolverAgentId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export function useGovernance(agentId: string | null): GovernanceState {
@@ -284,18 +284,25 @@ export function useGovernance(agentId: string | null): GovernanceState {
   )
 
   const submitConfigRequest = useCallback(
-    async (targetAgentId: string, config: Record<string, unknown>): Promise<{ success: boolean; error?: string; requestId?: string }> => {
+    async (targetAgentId: string, config: Record<string, unknown>, password: string, requestedBy: string, requestedByRole: string, targetHostId?: string): Promise<{ success: boolean; error?: string; requestId?: string }> => {
       try {
         const res = await fetch('/api/v1/governance/requests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'configure-agent',
+            targetHostId: targetHostId || 'localhost',
+            requestedBy,
+            requestedByRole,
+            password,
             payload: { agentId: targetAgentId, configuration: config },
           })
         })
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
+          const data = await res.json().catch((parseErr: unknown) => {
+            console.warn('[useGovernance] Failed to parse response JSON:', parseErr)
+            return {}
+          })
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }
         const data = await res.json()
@@ -309,16 +316,23 @@ export function useGovernance(agentId: string | null): GovernanceState {
   )
 
   const resolveConfigRequest = useCallback(
-    async (requestId: string, approved: boolean, reason?: string): Promise<{ success: boolean; error?: string }> => {
+    async (requestId: string, approved: boolean, password: string, resolverAgentId: string, reason?: string): Promise<{ success: boolean; error?: string }> => {
       try {
         const endpoint = approved ? 'approve' : 'reject'
+        // Approve requires approverAgentId + password; reject requires rejectorAgentId + password + reason
+        const body = approved
+          ? { approverAgentId: resolverAgentId, password }
+          : { rejectorAgentId: resolverAgentId, password, reason }
         const res = await fetch(`/api/v1/governance/requests/${requestId}/${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
+          body: JSON.stringify(body)
         })
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
+          const data = await res.json().catch((parseErr: unknown) => {
+            console.warn('[useGovernance] Failed to parse response JSON:', parseErr)
+            return {}
+          })
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }
         refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state

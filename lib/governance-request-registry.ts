@@ -37,7 +37,7 @@ export function loadGovernanceRequests(): GovernanceRequestsFile {
   if (!fs.existsSync(REQUESTS_FILE)) {
     // First-time initialization: write defaults and return them
     saveGovernanceRequests(DEFAULT_GOVERNANCE_REQUESTS_FILE)
-    return { ...DEFAULT_GOVERNANCE_REQUESTS_FILE, requests: [] }
+    return { ...DEFAULT_GOVERNANCE_REQUESTS_FILE }
   }
   try {
     const data = fs.readFileSync(REQUESTS_FILE, 'utf-8')
@@ -52,13 +52,13 @@ export function loadGovernanceRequests(): GovernanceRequestsFile {
         const backupPath = REQUESTS_FILE + '.corrupted.' + Date.now()
         fs.copyFileSync(REQUESTS_FILE, backupPath)
         console.error(`[governance-requests] Corrupted file backed up to ${backupPath}`)
-      } catch { /* backup is best-effort */ }
+      } catch (backupErr) { console.warn('[governance-requests] Failed to backup corrupted file:', backupErr) }
       // Heal the corrupted file by writing defaults
       saveGovernanceRequests(DEFAULT_GOVERNANCE_REQUESTS_FILE)
     } else {
       console.error('[governance-requests] Failed to read governance requests:', error)
     }
-    return { ...DEFAULT_GOVERNANCE_REQUESTS_FILE, requests: [] }
+    return { ...DEFAULT_GOVERNANCE_REQUESTS_FILE }
   }
 }
 
@@ -91,7 +91,7 @@ export function getGovernanceRequest(id: string): GovernanceRequest | null {
  */
 export function listGovernanceRequests(filter?: {
   status?: GovernanceRequestStatus
-  type?: string
+  type?: GovernanceRequestType
   hostId?: string
   agentId?: string
 }): GovernanceRequest[] {

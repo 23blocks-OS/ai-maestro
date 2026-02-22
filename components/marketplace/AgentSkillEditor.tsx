@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Zap,
@@ -34,6 +34,8 @@ interface AgentSkillEditorProps {
   agentId: string
   hostUrl?: string
   onSkillsChange?: () => void
+  /** Governance password required for approving/rejecting config requests */
+  governancePassword?: string
 }
 
 // Default AI Maestro skills
@@ -48,7 +50,8 @@ const AI_MAESTRO_SKILLS = [
 export default function AgentSkillEditor({
   agentId,
   hostUrl = '',
-  onSkillsChange
+  onSkillsChange,
+  governancePassword
 }: AgentSkillEditorProps) {
   // State
   const [skills, setSkills] = useState<AgentSkillsConfig | null>(null)
@@ -56,6 +59,12 @@ export default function AgentSkillEditor({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Track save-success timeout for cleanup on unmount
+  const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => { if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current) }
+  }, [])
 
   // UI State
   const [showBrowser, setShowBrowser] = useState(false)
@@ -67,7 +76,7 @@ export default function AgentSkillEditor({
   })
 
   // Governance: pending config requests for this agent
-  const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
+  const { pendingConfigRequests, resolveConfigRequest, agentRole, managerId } = useGovernance(agentId)
   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
   // Phase 1: localhost single-user, viewer is always the system owner
   const canApprove = true
@@ -77,9 +86,15 @@ export default function AgentSkillEditor({
 
   // Handle approve/reject with error feedback and loading state
   const handleResolve = async (requestId: string, approved: boolean) => {
+    if (!governancePassword) {
+      console.error('Cannot resolve config request: governance password not provided')
+      setError('Governance password is required to approve/reject config requests')
+      return
+    }
+    const resolverAgent = managerId || agentId // Use manager if available, else self
     setResolvingIds(prev => new Set(prev).add(requestId))
     try {
-      await resolveConfigRequest(requestId, approved)
+      await resolveConfigRequest(requestId, approved, governancePassword, resolverAgent)
     } catch (err) {
       console.error('Failed to resolve config request:', err)
     } finally {
@@ -137,7 +152,7 @@ export default function AgentSkillEditor({
       onSkillsChange?.()
       setSaveSuccess(true)
       setShowBrowser(false) // Close the modal after successful add
-      setTimeout(() => setSaveSuccess(false), 2000)
+      saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add skill')
     } finally {
@@ -158,7 +173,7 @@ export default function AgentSkillEditor({
       await loadSkills()
       onSkillsChange?.()
       setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2000)
+      saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove skill')
     } finally {

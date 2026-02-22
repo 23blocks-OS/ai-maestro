@@ -351,7 +351,7 @@ async function fetchLocalSessions(hostId: string): Promise<Session[]> {
                   } catch { /* fallback to empty */ }
 
                   const { tags } = parseNameForDisplay(sessionName)
-                  const agent = createAgent({
+                  const agent = await createAgent({
                     name: sessionName,
                     program: 'openclaw',
                     taskDescription: `OpenClaw agent ${sessionName}`,
@@ -598,7 +598,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   if (!registeredAgent) {
     try {
       const { tags } = parseNameForDisplay(agentName)
-      registeredAgent = createAgent({
+      registeredAgent = await createAgent({
         name: agentName,
         label,
         avatar,

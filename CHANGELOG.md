@@ -11,7 +11,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Message event type in cerebellum** — `message` classification with 0ms cooldown for AMP notification detection in terminal output
 - Brain inbox API endpoint (`/api/agents/[id]/brain-inbox`) + headless route
 - Subconscious memory surfacing — after indexing, searches for relevant memories and writes to brain inbox
-- **Plugin Builder page** — Visual skill composition interface for building Claude Code plugins
 
 ### Changed
 - Hook refactored to single agent lookup (`findAgentByCwd`) shared across all check functions, eliminating 3 redundant `/api/agents` calls per idle_prompt
@@ -20,6 +19,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - Plugin builder security hardening, accessibility, and reliability improvements
+
+## [0.24.11] - 2026-02-21
+
+### Added
+- **Plugin Builder page** (`/plugin-builder`) — Visual skill composition interface for building Claude Code plugins
+- Plugin builder service layer with manifest generation, build execution, and repo scanning
+- API routes: build, build status, scan-repo, push-to-github
+- Two-column UI: skill picker (left) + plugin composer (right)
+- Plugin Builder marketing page (`docs/plugin-builder.html`) with SEO and Schema.org markup
+- **Agent roles** — `AgentRole` type (`manager` | `chief-of-staff` | `member`) added to Agent and AgentSummary
+- **Team types** — `TeamType` (`open` | `closed`) and `chiefOfStaffId` added to Team type (foundation for AMP routing policy)
 
 ## [0.24.10] - 2026-02-20
 

@@ -187,6 +187,8 @@ async function federatedEmailLookup(
 
 // ===========================================================================
 // PUBLIC API — Messages (GET/POST /api/agents/:id/messages)
+// SF-036: TODO Phase 2: Add agent identity verification at service or router layer.
+// Currently Phase 1 localhost-only -- any caller can read/send/delete for any agent.
 // ===========================================================================
 
 export async function listMessages(

@@ -92,6 +92,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Missing or invalid payload.agentId: must be a string' }, { status: 400 })
   }
 
+  // NT-034: body fields validated above (type, password, targetHostId, requestedBy, requestedByRole, payload);
+  // submitCrossHostRequest performs additional domain-level validation internally.
   try {
     const result = await submitCrossHostRequest(body)
     if (result.error) {
@@ -127,6 +129,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const statusParam = searchParams.get('status')
   if (statusParam && !VALID_GOVERNANCE_REQUEST_STATUSES.has(statusParam)) {
     return NextResponse.json(
+      // NT-035: Reflecting validated statusParam in error is acceptable for Phase 1 JSON API (not rendered in HTML).
       { error: `Invalid status value '${statusParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_STATUSES].join(', ')}` },
       { status: 400 }
     )

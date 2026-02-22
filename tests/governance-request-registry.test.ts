@@ -133,6 +133,8 @@ function makeRequestsFile(requests: GovernanceRequest[] = []): GovernanceRequest
 
 /** Build a valid GovernanceRequest with sensible defaults and optional overrides */
 function makeRequest(overrides: Partial<GovernanceRequest> = {}): GovernanceRequest {
+  // NT-012: Use a recent fixed date instead of a stale default, avoiding non-deterministic new Date()
+  const defaultTimestamp = '2026-02-20T12:00:00.000Z'
   return {
     id: 'req-default-id',
     type: 'add-to-team',
@@ -146,8 +148,8 @@ function makeRequest(overrides: Partial<GovernanceRequest> = {}): GovernanceRequ
     },
     approvals: {},
     status: 'pending',
-    createdAt: '2025-06-01T12:00:00.000Z',
-    updatedAt: '2025-06-01T12:00:00.000Z',
+    createdAt: defaultTimestamp,
+    updatedAt: defaultTimestamp,
     ...overrides,
   }
 }

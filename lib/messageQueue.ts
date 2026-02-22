@@ -262,8 +262,9 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
     fromAlias: fromName,
     fromLabel: fromAgent?.label || undefined,
     fromHost,
-    // MF-025: Propagate fromVerified from AMP envelope so UI can display verification status
-    fromVerified: ampMsg.fromVerified ?? false,
+    // MF-025/MF-027: Propagate fromVerified from AMP envelope; infer from signature presence
+    // when fromVerified is not explicitly set (AMP messages with valid signatures are verified)
+    fromVerified: ampMsg.fromVerified ?? Boolean(envelope.signature || ampMsg.signature) ?? false,
     to: toName,
     toAlias: toName,
     toLabel: toAgent?.label || undefined,
@@ -507,6 +508,7 @@ _agentCacheSweepInterval.unref()
  * Call this in tests to prevent timer leaks (vitest/jest open handle warnings).
  * SF-053: In production, .unref() above ensures the timer won't block process exit,
  * so explicit cleanup is only needed in test environments.
+ * SF-064: TODO: Wire into shutdown handler or remove export. Currently only called from tests.
  */
 export function cleanupAgentCacheSweep(): void {
   clearInterval(_agentCacheSweepInterval)

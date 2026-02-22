@@ -356,6 +356,23 @@ describe('checkMessageAllowed', () => {
     expect(result.reason).toBeUndefined()
   })
 
+  // SF-033: Step 5b ALLOW test — open-world sender (not in any closed team) sends to MANAGER agent
+  it('allows open-world sender not in any team to message a MANAGER agent in a closed team', () => {
+    /** SF-033: Explicit ALLOW test for step 5b with an agent completely outside all teams */
+    const teamAlpha = makeClosedTeam('alpha', [COS_ALPHA, MANAGER, MEMBER_A1], COS_ALPHA)
+
+    mockLoadTeams.mockReturnValue([teamAlpha])
+    mockLoadGovernance.mockReturnValue({ version: 1 as const, managerId: MANAGER, passwordHash: null, passwordSetAt: null })
+
+    // OPEN_A is not in any closed team — it should be allowed to reach MANAGER
+    const result = checkMessageAllowed({
+      senderAgentId: OPEN_A,
+      recipientAgentId: MANAGER,
+    })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
   // SF-023: Step 5b — open-world sender can reach COS who is in a closed team
   it('allows open-world sender to message COS even when COS is in a closed team', () => {
     /** Step 5b: open-world agents can always reach a Chief-of-Staff (v2 Rules 62-63) */

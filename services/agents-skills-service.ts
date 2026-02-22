@@ -169,6 +169,12 @@ export async function addSkill(
   body: { name: string; content: string; description?: string },
   requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  // SF-040 (P5): Validate agentId is a UUID before any path construction -- defense-in-depth
+  // against path traversal (getAgent also rejects invalid IDs, but this fails earlier and explicitly)
+  if (!isValidUuid(agentId)) {
+    return { error: 'Invalid agent ID format', status: 400 }
+  }
+
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }

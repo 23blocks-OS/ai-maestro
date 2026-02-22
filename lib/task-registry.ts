@@ -45,6 +45,7 @@ export function loadTasks(teamId: string): Task[] {
   }
 }
 
+// NT-008: Returns boolean for legacy compat. Phase 2: standardize on throw-on-failure.
 export function saveTasks(teamId: string, tasks: Task[]): boolean {
   try {
     ensureTeamsDir()

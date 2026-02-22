@@ -22,7 +22,9 @@ export default function GovernancePasswordDialog({
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Reset form state whenever the dialog opens, clearing stale values from previous sessions
+  // Defensive: reset on close AND on open to cover all paths (NT-016)
+  // The useEffect below resets on open; handleClose resets on close. Both are intentional
+  // to guard against edge cases where one path is skipped (e.g., unmount without close).
   useEffect(() => {
     if (isOpen) {
       setPassword('')

@@ -28,6 +28,8 @@ const locks = new Map<string, Array<() => void>>()
 const held = new Set<string>()
 
 // NT-007: Default lock acquisition timeout to prevent infinite waits if a lock holder crashes
+// NT-010: Phase 2: Consider adding deadlock cycle detection for multi-lock scenarios
+// (current timeout-based approach is sufficient for Phase 1 single-process deployment)
 const DEFAULT_LOCK_TIMEOUT_MS = 30_000 // 30 seconds
 
 /**

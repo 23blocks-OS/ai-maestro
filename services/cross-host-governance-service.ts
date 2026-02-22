@@ -28,7 +28,7 @@ import {
 } from '@/lib/governance-request-registry'
 import { broadcastGovernanceSync } from '@/lib/governance-sync'
 import { signHostAttestation } from '@/lib/host-keys'
-import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { withLock } from '@/lib/file-lock'
 import { loadTeams, saveTeams } from '@/lib/team-registry'
 import { shouldAutoApprove } from '@/lib/manager-trust'
@@ -67,16 +67,17 @@ export async function submitCrossHostRequest(params: {
 }): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
   // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
+  //              between separate check/record calls
   const submitRateLimitKey = `cross-host-gov-submit:${params.requestedBy}`
-  const rateCheck = checkRateLimit(submitRateLimitKey)
+  const rateCheck = checkAndRecordAttempt(submitRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
   }
 
-  // Verify governance password
+  // Verify governance password -- reset rate limit on success
   if (!(await verifyPassword(params.password))) {
-    recordFailure(submitRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit(submitRateLimitKey)
@@ -162,8 +163,10 @@ export async function receiveCrossHostRequest(
   }
 
   // Validate required request fields
-  if (!request.id || !request.type || !request.payload?.agentId) {
-    return { error: 'Invalid governance request: missing id, type, or payload.agentId', status: 400 }
+  // SF-003 (P5): Also validate requestedBy -- a missing requestedBy would bypass downstream
+  // role checks that depend on knowing who submitted the request
+  if (!request.id || !request.type || !request.requestedBy || !request.payload?.agentId) {
+    return { error: 'Invalid governance request: missing id, type, requestedBy, or payload.agentId', status: 400 }
   }
 
   // CC-P1-002: Validate that request.type is a recognized GovernanceRequestType
@@ -204,6 +207,9 @@ export async function receiveCrossHostRequest(
     // CC-P1-002: Force status to 'pending' and clear approvals regardless of what remote sent.
     // A malicious peer could send status:'executed' with pre-filled approvals to bypass the
     // dual-approval workflow. We always start received requests as 'pending' with empty approvals.
+    // NT-003 (P5): The spread copies all request fields -- in Phase 2, tighten to an explicit
+    // allowlist of fields (id, type, payload, requestedBy, requestedByRole, sourceHostId, note)
+    // to prevent unknown/future fields from leaking into the local store.
     file.requests.push({
       ...request,
       status: 'pending' as GovernanceRequestStatus,
@@ -251,16 +257,16 @@ export async function approveCrossHostRequest(
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
   // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
   const approveRateLimitKey = `cross-host-gov-approve:${approverAgentId}`
-  const rateCheck = checkRateLimit(approveRateLimitKey)
+  const rateCheck = checkAndRecordAttempt(approveRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
   }
 
-  // Verify governance password
+  // Verify governance password -- reset rate limit on success
   if (!(await verifyPassword(password))) {
-    recordFailure(approveRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit(approveRateLimitKey)
@@ -340,16 +346,16 @@ export async function rejectCrossHostRequest(
 ): Promise<ServiceResult<GovernanceRequest>> {
   // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
   // SF-002: Per-agent keys so one agent's failures don't lock out all others
+  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
   const rejectRateLimitKey = `cross-host-gov-reject:${rejectorAgentId}`
-  const rateCheck = checkRateLimit(rejectRateLimitKey)
+  const rateCheck = checkAndRecordAttempt(rejectRateLimitKey)
   if (!rateCheck.allowed) {
     const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000)
     return { error: `Too many failed attempts. Try again in ${retryAfterSeconds}s`, status: 429 }
   }
 
-  // Verify governance password
+  // Verify governance password -- reset rate limit on success
   if (!(await verifyPassword(password))) {
-    recordFailure(rejectRateLimitKey)
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit(rejectRateLimitKey)

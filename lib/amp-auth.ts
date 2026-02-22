@@ -101,9 +101,9 @@ function saveApiKeys(keys: AMPApiKeyRecord[]): void {
 /**
  * Hash an API key for secure storage
  * Uses SHA-256 with a prefix to identify the hash type.
- * SF-054: Salting is intentionally omitted because API keys are high-entropy
- * (32 random bytes = 256 bits), making rainbow table attacks infeasible.
+ * SF-054/SF-065: Unsalted SHA-256 acceptable for high-entropy API keys (256-bit).
  * Salting would require per-key salt storage and prevent O(1) hash lookup.
+ * Phase 2: Consider HMAC-SHA256 with per-record salt for defense-in-depth.
  */
 export function hashApiKey(apiKey: string): string {
   return 'sha256:' + createHash('sha256').update(apiKey).digest('hex')
@@ -202,6 +202,9 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   const keys = loadApiKeys()
   const keyHash = hashApiKey(apiKey)
 
+  // SF-009: Phase 1 acceptable -- find() loop reveals timing info (early-exit on match),
+  // but API keys have sufficient entropy (256-bit) that timing side-channel is impractical.
+  // Phase 2 should iterate all keys regardless and select the match afterward.
   const record = keys.find(k => {
     // Use constant-time comparison for hash to prevent timing attacks
     const a = Buffer.from(k.key_hash, 'utf8')

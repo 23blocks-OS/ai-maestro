@@ -104,6 +104,7 @@ const mockFsWriteFile = vi.fn()
 const mockFsMkdir = vi.fn()
 const mockFsRm = vi.fn()
 const mockFsAccess = vi.fn()
+const mockFsRename = vi.fn()
 vi.mock('fs/promises', () => ({
   default: {
     readFile: (...args: unknown[]) => mockFsReadFile(...args),
@@ -111,12 +112,14 @@ vi.mock('fs/promises', () => ({
     mkdir: (...args: unknown[]) => mockFsMkdir(...args),
     rm: (...args: unknown[]) => mockFsRm(...args),
     access: (...args: unknown[]) => mockFsAccess(...args),
+    rename: (...args: unknown[]) => mockFsRename(...args),
   },
   readFile: (...args: unknown[]) => mockFsReadFile(...args),
   writeFile: (...args: unknown[]) => mockFsWriteFile(...args),
   mkdir: (...args: unknown[]) => mockFsMkdir(...args),
   rm: (...args: unknown[]) => mockFsRm(...args),
   access: (...args: unknown[]) => mockFsAccess(...args),
+  rename: (...args: unknown[]) => mockFsRename(...args),
 }))
 
 // --- Cross-host governance service dependencies ---
@@ -172,6 +175,7 @@ vi.mock('@/lib/manager-trust', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
+  checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   recordFailure: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
@@ -389,6 +393,7 @@ beforeEach(() => {
   mockFsWriteFile.mockResolvedValue(undefined)
   mockFsMkdir.mockResolvedValue(undefined)
   mockFsRm.mockResolvedValue(undefined)
+  mockFsRename.mockResolvedValue(undefined)
   mockFsAccess.mockRejectedValue(new Error('ENOENT')) // fileExists returns false by default
 
   // Default: cross-host governance mocks
@@ -630,8 +635,10 @@ describe('skills service RBAC', () => {
   it('addSkill returns 404 when target agent does not exist', async () => {
     /** Verifies that adding a custom skill to a non-existent agent returns 404 */
     mockGetAgent.mockReturnValue(null)
+    // Must use a valid UUID format to pass SF-040 UUID validation before reaching the 404 check
+    const nonexistentUuid = '00000000-0000-0000-0000-000000000099'
 
-    const result = await addSkill('nonexistent', { name: 'skill', content: '# Skill' }, MANAGER_ID)
+    const result = await addSkill(nonexistentUuid, { name: 'skill', content: '# Skill' }, MANAGER_ID)
 
     expect(result.status).toBe(404)
     expect(result.error).toContain('Agent not found')
@@ -640,8 +647,10 @@ describe('skills service RBAC', () => {
   it('removeSkill returns 404 when target agent does not exist', async () => {
     /** Verifies that removing a skill from a non-existent agent returns 404 */
     mockGetAgent.mockReturnValue(null)
+    // Must use a valid UUID format to pass SF-030 UUID validation before reaching the 404 check
+    const nonexistentUuid = '00000000-0000-0000-0000-000000000099'
 
-    const result = await removeSkill('nonexistent', 'skill-1', 'custom', MANAGER_ID)
+    const result = await removeSkill(nonexistentUuid, 'skill-1', 'custom', MANAGER_ID)
 
     expect(result.status).toBe(404)
     expect(result.error).toContain('Agent not found')
@@ -723,8 +732,13 @@ describe('config deploy service', () => {
 
   it('remove-skill removes existing skill directory', async () => {
     /** Verifies that deploying a remove-skill calls fs.rm on the skill directory */
-    // Make fileExists return true (skill exists)
-    mockFsAccess.mockResolvedValue(undefined)
+    // SF-015: Use path-aware mockImplementation so only expected skill directory paths
+    // resolve, while unexpected paths still reject with ENOENT.
+    mockFsAccess.mockImplementation(async (p: string) => {
+      if (p === '/tmp/test-agent') return undefined  // working directory exists
+      if (typeof p === 'string' && p.includes('obsolete-skill')) return undefined  // skill dir exists
+      throw new Error('ENOENT')
+    })
 
     const config: ConfigurationPayload = {
       operation: 'remove-skill',
@@ -743,7 +757,9 @@ describe('config deploy service', () => {
 
   it('remove-skill is idempotent for non-existent skill (no error)', async () => {
     /** Verifies that removing a non-existent skill does not throw and marks before as absent */
-    // Default: mockFsAccess rejects (file doesn't exist)
+    // mockFsAccess behavior comes from the describe-level beforeEach, not from this test's setup.
+    // The describe-level beforeEach resolves for '/tmp/test-agent' (working dir) and rejects
+    // with ENOENT for all other paths (skill/plugin dirs), so fileExists returns false here.
     const config: ConfigurationPayload = {
       operation: 'remove-skill',
       scope: 'local',
@@ -777,7 +793,13 @@ describe('config deploy service', () => {
 
   it('remove-plugin removes existing plugin directory', async () => {
     /** Verifies that deploying a remove-plugin calls fs.rm on the plugin directory */
-    mockFsAccess.mockResolvedValue(undefined)
+    // SF-015: Use path-aware mockImplementation so only expected plugin directory paths
+    // resolve, while unexpected paths still reject with ENOENT.
+    mockFsAccess.mockImplementation(async (p: string) => {
+      if (p === '/tmp/test-agent') return undefined  // working directory exists
+      if (typeof p === 'string' && p.includes('old-plugin')) return undefined  // plugin dir exists
+      throw new Error('ENOENT')
+    })
 
     const config: ConfigurationPayload = {
       operation: 'remove-plugin',
@@ -871,6 +893,7 @@ describe('config deploy service', () => {
   it('returns 400 for an invalid operation', async () => {
     /** Verifies that an unrecognized operation type is rejected with 400 */
     const config = {
+      // Using `as any` intentionally for negative type-safety test
       operation: 'delete-everything' as any,
       scope: 'local' as const,
     }
@@ -1049,6 +1072,7 @@ describe('cross-host configure-agent', () => {
       ...configureAgentParams,
       payload: {
         agentId: TARGET_AGENT_ID,
+        // Using `as any` intentionally for negative type-safety test
         configuration: { scope: 'local' as const } as any,
       },
     })

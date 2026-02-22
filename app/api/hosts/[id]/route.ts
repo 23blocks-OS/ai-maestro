@@ -3,6 +3,9 @@ import { updateExistingHost, deleteExistingHost } from '@/services/hosts-service
 
 export const dynamic = 'force-dynamic'
 
+/** NT-040: Hostname format validation for path params (alphanumeric start/end, dots/hyphens/underscores, 1-253 chars) */
+const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?$/
+
 /**
  * PUT /api/hosts/[id]
  *
@@ -14,6 +17,9 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+    if (!HOSTNAME_RE.test(id)) {
+      return NextResponse.json({ error: 'Invalid host id format' }, { status: 400 })
+    }
 
     let hostData
     try { hostData = await request.json() } catch {
@@ -41,6 +47,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    if (!HOSTNAME_RE.test(id)) {
+      return NextResponse.json({ error: 'Invalid host id format' }, { status: 400 })
+    }
 
     const result = await deleteExistingHost(id)
     if (result.error) {

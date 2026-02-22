@@ -44,6 +44,7 @@ export function loadDocuments(teamId: string): TeamDocument[] {
   }
 }
 
+// NT-008: Returns boolean for legacy compat. Phase 2: standardize on throw-on-failure.
 export function saveDocuments(teamId: string, documents: TeamDocument[]): boolean {
   try {
     ensureTeamsDir()

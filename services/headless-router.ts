@@ -516,21 +516,9 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await createSession(body))
   }},
-  { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, await deleteSession(params.id))
-  }},
-  { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
-  }},
-  { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await sendCommand(params.id, body))
-  }},
-  { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const body = await readJsonBody(req)
-    sendServiceResult(res, await renameSession(params.id, body.name))
-  }},
+  // MF-006: Static sub-path routes MUST come before the parameterized catch-all
+  // to prevent /api/sessions/restore and /api/sessions/activity from being
+  // swallowed by /api/sessions/([^/]+) (first-match-wins routing)
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
     const result = await listRestorableSessions()
     sendJson(res, 200, result)
@@ -554,6 +542,22 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
     sendServiceResult(res, result)
+  }},
+  // Parameterized session routes AFTER all static sub-paths
+  { method: 'DELETE', pattern: /^\/api\/sessions\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, await deleteSession(params.id))
+  }},
+  { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    const result = await checkIdleStatus(params.id)
+    sendJson(res, 200, result)
+  }},
+  { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await sendCommand(params.id, body))
+  }},
+  { method: 'PATCH', pattern: /^\/api\/sessions\/([^/]+)\/rename$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await renameSession(params.id, body.name))
   }},
 
   // =========================================================================
@@ -1319,7 +1323,12 @@ const routes: Route[] = [
       sendJson(res, 403, { error: 'Signature expired' })
       return
     }
-    handleGovernanceSyncMessage(body.fromHostId, body)
+    // SF-026 (P5): Check return value -- handleGovernanceSyncMessage returns false on validation failure
+    const syncOk = handleGovernanceSyncMessage(body.fromHostId, body)
+    if (!syncOk) {
+      sendJson(res, 400, { error: 'Governance sync message rejected (validation failed)' })
+      return
+    }
     sendJson(res, 200, { ok: true })
   }},
   { method: 'GET', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (req, res) => {

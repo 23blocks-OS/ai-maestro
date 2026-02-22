@@ -135,6 +135,12 @@ vi.mock('@/lib/file-lock', () => ({
   withLock: vi.fn((_name: string, fn: () => unknown) => Promise.resolve(fn())),
 }))
 
+// SF-035: governance.ts imports broadcastGovernanceSync — mock to prevent real HTTP calls
+vi.mock('@/lib/governance-sync', () => ({
+  broadcastGovernanceSync: vi.fn(),
+  handleGovernanceSyncMessage: vi.fn(),
+}))
+
 // ============================================================================
 // Import module under test (after all mocks are declared)
 // ============================================================================

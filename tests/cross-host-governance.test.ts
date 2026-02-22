@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 /**
  * Unit tests for services/cross-host-governance-service.ts
  *
- * Coverage: 41 tests across 6 exported/internal functions
+ * Coverage: 40 tests across 6 exported/internal functions
  * - submitCrossHostRequest: 8 tests (password, agent, role, self-target, unknown host, success, fetch, fetch failure)
  * - receiveCrossHostRequest: 5 tests (unknown host, missing fields, success, returns id, duplicate)
- *     + 2 auto-approve tests (SF-018), 3 sanitization tests (SF-020)
+ *     + 2 auto-approve tests (SF-028), 4 sanitization tests (SF-030: status/approvals stripped, invalid type, invalid role, sourceHostId mismatch)
  * - approveCrossHostRequest: 7 tests (password, unknown req, sourceManager, targetManager, sourceCOS, not-manager, execution)
- *     + 1 source/target guard test (SF-021)
+ *     + 1 source/target guard test (SF-031)
  * - rejectCrossHostRequest: 5 tests (password, not authorized, sets rejected, unknown req, notifies source)
  * - listCrossHostRequests: 3 tests (no filter, filter status, filter hostId)
  * - performRequestExecution (via approve): 5 tests (add-to-team, remove-from-team, assign-cos, remove-cos, transfer-agent)
@@ -98,9 +98,11 @@ vi.mock('@/lib/manager-trust', () => ({
   shouldAutoApprove: (...args: unknown[]) => mockShouldAutoApprove(...args),
 }))
 
-// MF-008: Mock rate-limit to prevent cross-test rate-limit state leaking between tests
+// MF-009: Mock rate-limit to prevent cross-test rate-limit state leaking between tests.
+// Source imports checkAndRecordAttempt and resetRateLimit (not checkRateLimit/recordFailure).
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
+  checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   recordFailure: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
@@ -369,7 +371,7 @@ describe('receiveCrossHostRequest', () => {
     const result = await receiveCrossHostRequest('host-remote', badRequest)
 
     expect(result.status).toBe(400)
-    expect(result.error).toContain('missing id, type, or payload.agentId')
+    expect(result.error).toContain('missing id, type, requestedBy, or payload.agentId')
   })
 
   it('creates local record on success', async () => {
@@ -894,6 +896,19 @@ describe('receiveCrossHostRequest sanitization', () => {
 
     expect(result.status).toBe(400)
     expect(result.error).toContain('Invalid governance request type')
+  })
+
+  it('rejects request with invalid requestedByRole', async () => {
+    /** Verifies CC-P1-002: unrecognized roles are rejected */
+    const badRequest = makeGovernanceRequest({
+      sourceHostId: 'host-remote',
+      requestedByRole: 'superadmin' as any,
+    })
+
+    const result = await receiveCrossHostRequest('host-remote', badRequest)
+
+    expect(result.status).toBe(400)
+    expect(result.error).toContain('Invalid requestedByRole')
   })
 
   it('rejects request when sourceHostId does not match fromHostId', async () => {

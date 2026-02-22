@@ -20,6 +20,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ============================================================================
 // Standalone function replicas (mirror the hook's useCallback logic exactly)
+//
+// TODO: These replicas test the API call logic but do not test the refresh()
+// side-effect that the real hook triggers after successful operations.
+// Testing refresh() requires @testing-library/react or a minimal hook wrapper
+// to render the hook in a React context.
 // ============================================================================
 
 /**
@@ -111,6 +116,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // NOTE: restoreAllMocks does not restore global.fetch; beforeEach re-assigns it each time.
   vi.restoreAllMocks()
 })
 

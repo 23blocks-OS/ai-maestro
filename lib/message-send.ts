@@ -141,6 +141,14 @@ export interface SendFromUIOptions {
 export async function sendFromUI(options: SendFromUIOptions): Promise<{ message: Message; notified: boolean }> {
   const { from, to, subject, content } = options
 
+  // SF-066: Explicitly reject empty/whitespace-only sender and recipient identifiers
+  if (!from || from.trim() === '') {
+    throw new Error('Cannot send message: sender identifier is empty')
+  }
+  if (!to || to.trim() === '') {
+    throw new Error('Cannot send message: recipient identifier is empty')
+  }
+
   // Parse qualified name (identifier@host-id)
   const { identifier: toIdentifier, hostId: targetHostId } = parseQualifiedName(to)
 

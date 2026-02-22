@@ -61,6 +61,10 @@ export async function PUT(
       }
       requestingAgentId = auth.agentId || null
     }
+    // SF-044: Type guard for body.settings before passing to service
+    if (!body.settings || typeof body.settings !== 'object' || Array.isArray(body.settings)) {
+      return NextResponse.json({ error: 'body.settings must be a non-null object' }, { status: 400 })
+    }
     const result = await saveSkillSettings(agentId, body.settings, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })

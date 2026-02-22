@@ -42,6 +42,11 @@ export function loadGovernanceRequests(): GovernanceRequestsFile {
   try {
     const data = fs.readFileSync(REQUESTS_FILE, 'utf-8')
     const parsed: GovernanceRequestsFile = JSON.parse(data)
+    // NT-002 (P5): Version guard -- reject files with unexpected schema version or missing requests array
+    if (parsed.version !== 1 || !Array.isArray(parsed.requests)) {
+      console.error(`[governance-requests] Schema mismatch: version=${parsed.version}, requests isArray=${Array.isArray(parsed.requests)} -- returning defaults`)
+      return { ...DEFAULT_GOVERNANCE_REQUESTS_FILE }
+    }
     return parsed
   } catch (error) {
     // Distinguish read errors from parse errors -- parse errors indicate disk corruption
@@ -264,12 +269,18 @@ export async function executeGovernanceRequest(
 function expirePendingRequestsInPlace(requests: GovernanceRequest[], ttlDays: number): number {
   const cutoff = Date.now() - ttlDays * 86_400_000
   let expired = 0
+  // SF-002 (P5): Expire all non-terminal statuses, not just 'pending'. Intermediate
+  // approval states ('remote-approved', 'local-approved', 'dual-approved') can accumulate
+  // forever if the counterpart never responds. Terminal statuses are 'executed' and 'rejected'.
+  const NON_TERMINAL_STATUSES: GovernanceRequestStatus[] = [
+    'pending', 'remote-approved', 'local-approved', 'dual-approved',
+  ]
   for (const req of requests) {
-    if (req.status === 'pending') {
+    if (NON_TERMINAL_STATUSES.includes(req.status)) {
       const createdAt = new Date(req.createdAt).getTime()
       if (createdAt < cutoff) {
         req.status = 'rejected'
-        req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
+        req.rejectReason = `Request expired (TTL: ${ttlDays}d, was: ${req.status})`
         req.updatedAt = new Date().toISOString()
         expired++
       }

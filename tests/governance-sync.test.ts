@@ -240,6 +240,11 @@ describe('broadcastGovernanceSync', () => {
     expect(opts1.method).toBe('POST')
     expect(opts1.headers['Content-Type']).toBe('application/json')
 
+    // SF-034: Verify Ed25519 signature headers are included in the outbound request
+    expect(opts1.headers['X-Host-Id']).toBe('host-local')
+    expect(opts1.headers['X-Host-Timestamp']).toBeDefined()
+    expect(opts1.headers['X-Host-Signature']).toBe('mock-sig')
+
     const body1 = JSON.parse(opts1.body)
     expect(body1.type).toBe('manager-changed')
     expect(body1.fromHostId).toBe('host-local')

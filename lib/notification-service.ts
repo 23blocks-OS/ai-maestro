@@ -70,7 +70,7 @@ function formatNotification(options: NotificationOptions): string {
     ? `${fromName}@${fromHost}`
     : fromName
 
-  // NT-028: Use plain text priority indicators for terminal compatibility
+  // NT-028/NT-042: Plain text priority indicators for tmux notifications. Configurable in Phase 2.
   const priorityPrefix = priority === 'urgent' ? '[URGENT] '
     : priority === 'high' ? '[HIGH] '
     : ''

@@ -68,6 +68,8 @@ export default function AgentSkillEditor({
 
   // UI State
   const [showBrowser, setShowBrowser] = useState(false)
+  // TODO(NT-021): selectedSkill is never set to non-null; SkillDetailModal below is dead code.
+  // Remove both once the skill-detail UX is redesigned or confirmed unnecessary.
   const [selectedSkill, setSelectedSkill] = useState<MarketplaceSkill | null>(null)
   const [expandedSections, setExpandedSections] = useState({
     marketplace: true,
@@ -140,6 +142,8 @@ export default function AgentSkillEditor({
 
   // Add marketplace skill
   const handleAddSkill = async (skill: MarketplaceSkill) => {
+    // SF-025: Skip PATCH if skill is already installed
+    if (skills?.marketplace?.some(s => s.id === skill.id || s.name === skill.name)) return
     setSaving(true)
     setError(null)
     try {
@@ -447,7 +451,7 @@ export default function AgentSkillEditor({
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={skills?.aiMaestro.enabled}
+                    checked={skills?.aiMaestro.enabled ?? false}
                     onChange={e => handleToggleAllAiMaestro(e.target.checked)}
                     className="sr-only peer"
                     disabled={saving}
@@ -526,7 +530,7 @@ export default function AgentSkillEditor({
                   <div className="space-y-2 pl-6">
                     {skills?.custom.map(skill => (
                       <div
-                        key={skill.name}
+                        key={skill.path || skill.name}
                         className="flex items-center justify-between p-2 bg-gray-800/50 rounded-md group"
                       >
                         <div className="flex items-center gap-2 min-w-0">
@@ -588,8 +592,9 @@ export default function AgentSkillEditor({
                 onSkillInstall={async (skill) => {
                   await handleAddSkill(skill)
                 }}
-                onSkillsChange={() => {
-                  loadSkills()
+                onSkillsChange={async () => {
+                  // SF-024: Await loadSkills so errors propagate instead of being swallowed
+                  await loadSkills()
                   onSkillsChange?.()
                 }}
                 hostUrl={hostUrl}

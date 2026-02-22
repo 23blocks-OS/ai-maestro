@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { listSessions, listLocalSessions } from '@/services/sessions-service'
 
+// SF-054: TODO Phase 2 — Standardize all API error responses on { error: string } shape.
+// Currently, error responses vary across routes (some use { error }, some use { message },
+// some return plain strings). A shared errorResponse(msg, status) helper should be introduced.
+
 // Force this route to be dynamic (not statically generated at build time)
 export const dynamic = 'force-dynamic'
 

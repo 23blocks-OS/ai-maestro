@@ -77,6 +77,7 @@ vi.mock('@/lib/file-lock', () => ({
 // Uses real broadcastGovernanceSync to test Ed25519 header signing end-to-end.
 // This mock keeps real exports while mocking sub-dependencies (governance-sync internals).
 //
+// NOTE: When new imports are added to governance-sync.ts, this mock must be updated.
 // Sub-dependencies of governance-sync that MUST be mocked for this to work:
 //   - @/lib/host-keys        (signHostAttestation, getHostPublicKeyHex) — Ed25519 signing
 //   - @/lib/hosts-config     (getHosts, getSelfHostId, isSelf) — peer host discovery
@@ -100,6 +101,7 @@ vi.mock('@/lib/manager-trust', () => ({
 // SF-017: Mock rate-limit to prevent cross-host-governance-service from loading real rate-limit module
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
+  checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   recordFailure: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
@@ -352,6 +354,37 @@ describe('SR-007: submitCrossHostRequest type whitelist', () => {
     const result = await submitCrossHostRequest({
       ...baseParams,
       type: 'transfer-agent',
+    })
+    expect(result.status).toBe(201)
+  })
+
+  // NT-028: Verify SR-007 type whitelist allows add-to-team with chief-of-staff role
+  it('allows add-to-team type when requestedByRole is chief-of-staff', async () => {
+    /** Verifies that the type whitelist is role-independent — COS can use implemented types */
+    const governance = await import('@/lib/governance')
+    vi.mocked(governance.isChiefOfStaffAnywhere).mockImplementation((id: string) => id === 'cos-agent')
+    mockGetAgent.mockImplementation((id: string) => {
+      if (id === 'cos-agent') return { id: 'cos-agent', name: 'COS' }
+      return null
+    })
+    mockCreateGovernanceRequest.mockResolvedValue({
+      id: 'req-cos-001',
+      type: 'add-to-team',
+      sourceHostId: 'host-local',
+      targetHostId: 'host-remote',
+      requestedBy: 'cos-agent',
+      requestedByRole: 'chief-of-staff',
+      payload: { agentId: 'agent-001', teamId: 'team-001' },
+      approvals: {},
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    })
+
+    const result = await submitCrossHostRequest({
+      ...baseParams,
+      type: 'add-to-team',
+      requestedBy: 'cos-agent',
+      requestedByRole: 'chief-of-staff' as const,
     })
     expect(result.status).toBe(201)
   })

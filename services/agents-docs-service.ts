@@ -262,9 +262,11 @@ async function triggerBackgroundDocsDeltaIndexing(agentId: string, projectPath?:
     }
 
     const selfHost = getSelfHost()
+    // SF-041: Set guard header so the POST handler can detect background triggers
+    // and skip re-triggering (prevents recursive HTTP request loop)
     const response = await fetch(`${selfHost.url}/api/agents/${agentId}/docs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Background-Trigger': 'true' },
       body: JSON.stringify(body),
     })
 

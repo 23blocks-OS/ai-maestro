@@ -352,6 +352,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
   return {
     // SF-010: Return state-backed terminal instance so consumers re-render when it changes.
     // The ref is still used internally for synchronous access in callbacks.
+    // SF-017: terminalRef.current does not trigger re-renders. Callers must use the
+    // state-backed `terminal` value (or isReady in TerminalView) as their re-render trigger.
     terminal: terminalInstance,
     initializeTerminal,
     disposeTerminal,

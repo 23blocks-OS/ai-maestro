@@ -283,6 +283,28 @@ describe('verifyRoleAttestation', () => {
     )
   })
 
+  // SF-032: Verify expectedRecipientHostId parameter rejects mismatched recipients
+  it('returns false when expectedRecipientHostId does not match attestation recipientHostId', () => {
+    /** SF-001 (P5): expectedRecipientHostId enforces cross-target replay protection */
+    const attestation = createRoleAttestation('agent-sender-y', 'manager', 'host-intended-target')
+
+    // Verify it passes when expectedRecipientHostId matches
+    expect(verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX, 'host-intended-target')).toBe(true)
+
+    // Verify it fails when expectedRecipientHostId does NOT match
+    const result = verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX, 'host-wrong-target')
+    expect(result).toBe(false)
+  })
+
+  it('passes when expectedRecipientHostId is omitted (backward compatibility)', () => {
+    /** SF-032: Omitting expectedRecipientHostId skips the check entirely */
+    const attestation = createRoleAttestation('agent-sender-z', 'chief-of-staff', 'host-some-target')
+
+    // Without expectedRecipientHostId, the check is skipped -- should pass
+    const result = verifyRoleAttestation(attestation, MOCK_PUBLIC_KEY_HEX)
+    expect(result).toBe(true)
+  })
+
   // SF-022: Verify that recipientHostId is included in the data string during verification
   it('includes recipientHostId in rebuilt data string when present on attestation', () => {
     /** Verify recipientHostId is appended to canonical data during verification to prevent cross-target replay */

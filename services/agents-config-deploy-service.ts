@@ -348,7 +348,10 @@ async function deployUpdateSettings(
 
   // Ensure .claude/ directory exists
   await fs.mkdir(claudeDir, { recursive: true })
-  await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+  // SF-004 (P5): Atomic write -- write to temp file then rename to prevent corruption on crash
+  const tmpPath = settingsPath + '.tmp'
+  await fs.writeFile(tmpPath, JSON.stringify(settings, null, 2), 'utf-8')
+  await fs.rename(tmpPath, settingsPath)
 
   const opName = section === 'hooks' ? 'update-hooks' : 'update-mcp'
   console.log(`${LOG_PREFIX} Updated ${section} in ${settingsPath}`)

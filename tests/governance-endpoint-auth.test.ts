@@ -295,14 +295,14 @@ describe('SR-007: submitCrossHostRequest type whitelist', () => {
     expect(result.error).toContain('not yet implemented')
   })
 
-  it('rejects configure-agent type as unimplemented', async () => {
-    /** Verifies that configure-agent request type returns 400 with not-implemented error */
+  it('rejects configure-agent without configuration payload', async () => {
+    /** Verifies that configure-agent passes the type whitelist but requires a configuration payload */
     const result = await submitCrossHostRequest({
       ...baseParams,
       type: 'configure-agent',
     })
     expect(result.status).toBe(400)
-    expect(result.error).toContain('not yet implemented')
+    expect(result.error).toContain('configuration payload')
   })
 
   it('allows add-to-team type (implemented)', async () => {

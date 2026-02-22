@@ -17,9 +17,22 @@ export type GovernanceRequestType =
   | 'transfer-agent'
   | 'create-agent'
   | 'delete-agent'
-  | 'configure-agent'  // SF-057 (P5): Scaffolded type only -- receiveCrossHostRequest accepts it but
-                        // submitCrossHostRequest rejects it and performRequestExecution has no handler.
-                        // TODO: Implement end-to-end or remove if not needed.
+  | 'configure-agent'
+
+/** Types of agent configuration operations governed by RBAC */
+export type ConfigOperationType =
+  | 'add-skill'
+  | 'remove-skill'
+  | 'add-plugin'
+  | 'remove-plugin'
+  | 'update-hooks'
+  | 'update-mcp'
+  | 'update-model'
+  | 'update-program-args'
+  | 'bulk-config'
+
+/** Scope levels for configuration changes */
+export type ConfigScope = 'local' | 'user' | 'project'
 
 /** Status progression: pending -> remote-approved/local-approved/dual-approved -> executed/rejected */
 export type GovernanceRequestStatus =
@@ -45,6 +58,27 @@ export interface GovernanceApprovals {
   targetManager?: GovernanceApproval
 }
 
+/** Structured configuration payload for configure-agent requests */
+export interface ConfigurationPayload {
+  operation: ConfigOperationType
+  scope: ConfigScope
+  skills?: string[]                        // Skill names to add/remove
+  plugins?: string[]                       // Plugin names to add/remove
+  hooks?: Record<string, unknown>          // Hook config to merge/replace
+  mcpServers?: Record<string, unknown>     // MCP server config to merge/replace
+  model?: string                           // Model to set
+  programArgs?: string                     // Program args to set
+}
+
+/** Tracks what changed during a config deployment */
+export interface ConfigDiff {
+  operation: ConfigOperationType
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  appliedAt?: string                       // ISO timestamp when applied
+  appliedBy?: string                       // agentId who applied it
+}
+
 /** Payload for a governance request (type-specific fields) */
 export interface GovernanceRequestPayload {
   agentId: string                           // Agent being operated on
@@ -52,7 +86,7 @@ export interface GovernanceRequestPayload {
   fromTeamId?: string                       // Source team (for transfers)
   toTeamId?: string                         // Destination team (for transfers)
   role?: AgentRole                          // Role to assign
-  configuration?: Record<string, unknown>   // Agent configuration (for configure-agent)
+  configuration?: ConfigurationPayload      // Agent configuration (for configure-agent)
 }
 
 /** A cross-host governance request */

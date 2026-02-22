@@ -253,10 +253,61 @@ export async function purgeOldRequests(maxAgeDays: number = 30): Promise<number>
       return updatedAt > cutoff
     })
 
-    if (filtered.length < before) {
-      saveGovernanceRequests({ ...file, requests: filtered })
+    // Second pass: auto-reject pending requests past TTL — 7 days (11e safeguard)
+    const pendingCutoff = Date.now() - 7 * 86_400_000
+    let expired = 0
+    for (const req of filtered) {
+      if (req.status === 'pending') {
+        const createdAt = new Date(req.createdAt).getTime()
+        if (createdAt < pendingCutoff) {
+          req.status = 'rejected'
+          req.rejectReason = 'Request expired (TTL: 7d)'
+          req.updatedAt = new Date().toISOString()
+          expired++
+        }
+      }
     }
 
-    return before - filtered.length
+    const purged = before - filtered.length
+    if (filtered.length < before || expired > 0) {
+      saveGovernanceRequests({ ...file, requests: filtered })
+    }
+    if (expired > 0) {
+      console.log(`[governance-requests] Expired ${expired} pending request(s) past 7-day TTL`)
+    }
+
+    return purged + expired
+  })
+}
+
+/**
+ * Auto-reject pending governance requests that have exceeded their TTL.
+ * Default TTL: 7 days. Prevents stale pending requests from accumulating.
+ * Can be called independently of purgeOldRequests for targeted TTL enforcement.
+ */
+export async function expirePendingRequests(ttlDays: number = 7): Promise<number> {
+  return withLock('governance-requests', () => {
+    const file = loadGovernanceRequests()
+    const cutoff = Date.now() - ttlDays * 86_400_000
+    let expired = 0
+
+    for (const req of file.requests) {
+      if (req.status === 'pending') {
+        const createdAt = new Date(req.createdAt).getTime()
+        if (createdAt < cutoff) {
+          req.status = 'rejected'
+          req.rejectReason = `Request expired (TTL: ${ttlDays}d)`
+          req.updatedAt = new Date().toISOString()
+          expired++
+        }
+      }
+    }
+
+    if (expired > 0) {
+      saveGovernanceRequests(file)
+      console.log(`[governance-requests] Expired ${expired} pending request(s) past ${ttlDays}-day TTL`)
+    }
+
+    return expired
   })
 }

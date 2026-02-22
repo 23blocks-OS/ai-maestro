@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services/agents-skills-service'
+import { authenticateAgent } from '@/lib/agent-auth'
 
 export async function GET(
   _request: NextRequest,
@@ -44,7 +45,9 @@ export async function PATCH(
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const result = await updateSkills(id, body)
+    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
+    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    const result = await updateSkills(id, body, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
@@ -69,7 +72,9 @@ export async function POST(
     try { body = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    const result = await addSkill(id, body)
+    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
+    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    const result = await addSkill(id, body, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
@@ -97,7 +102,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Missing required query parameter: skill' }, { status: 400 })
     }
 
-    const result = await removeSkill(id, skill, type)
+    const auth = authenticateAgent(request.headers.get('Authorization'), request.headers.get('X-Agent-Id'))
+    const requestingAgentId = auth.error ? null : (auth.agentId || null)
+    const result = await removeSkill(id, skill, type, requestingAgentId)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }

@@ -713,6 +713,23 @@ export async function deleteAgentById(id: string, hard: boolean, requestingAgent
       return { error: 'Agent not found', status: 404 }
     }
 
+    // Auto-reject pending configure-agent requests targeting the deleted agent (11b safeguard)
+    try {
+      const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
+      const file = loadGovernanceRequests()
+      const pendingForAgent = file.requests.filter((r: { type: string; status: string; payload: { agentId: string } }) =>
+        r.type === 'configure-agent' && r.status === 'pending' && r.payload.agentId === id
+      )
+      for (const req of pendingForAgent) {
+        await rejectGovernanceRequest(req.id, requestingAgentId || 'system', 'Target agent deleted')
+      }
+      if (pendingForAgent.length > 0) {
+        console.log(`[agents] Auto-rejected ${pendingForAgent.length} pending config request(s) for deleted agent ${id}`)
+      }
+    } catch (err) {
+      console.warn('[agents] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
+    }
+
     return { data: { success: true, hard }, status: 200 }
   } catch (error) {
     console.error('Failed to delete agent:', error)

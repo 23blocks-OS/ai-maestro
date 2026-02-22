@@ -16,6 +16,8 @@ import {
 } from '@/lib/agent-registry'
 import { getSkillById } from '@/lib/marketplace-skills'
 import { agentRegistry } from '@/lib/agent'
+import { isManager, isChiefOfStaff, getClosedTeamsForAgent } from '@/lib/governance'
+import type { ConfigOperationType, ConfigScope } from '@/types/governance-request'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -23,6 +25,51 @@ import path from 'path'
 
 import { ServiceResult } from '@/types/service'
 export type { ServiceResult }
+
+// ── Governance ──────────────────────────────────────────────────────────────
+
+/**
+ * Check if the requesting agent has governance permission for the config operation.
+ * Returns null if allowed, or a ServiceResult error if denied.
+ *
+ * Phase 1 backward compat: if requestingAgentId is null (no auth header),
+ * governance is NOT enforced -- same opt-in pattern as agents-core-service.ts.
+ */
+function checkConfigGovernance(
+  agentId: string,
+  requestingAgentId: string | null,
+  operation: ConfigOperationType,
+  scope: ConfigScope = 'local'
+): ServiceResult<void> | null {
+  // No auth header = no governance enforcement (Phase 1 backward compat)
+  if (requestingAgentId === null) return null
+
+  // user/project scope: MANAGER only
+  if (scope === 'user' || scope === 'project') {
+    if (!isManager(requestingAgentId)) {
+      return { error: `Only the MANAGER can modify ${scope}-scope configuration`, status: 403 }
+    }
+    return null
+  }
+
+  // local scope: MANAGER always allowed
+  if (isManager(requestingAgentId)) return null
+
+  // local scope: COS allowed only for agents in their team(s)
+  const targetTeams = getClosedTeamsForAgent(agentId)
+  for (const team of targetTeams) {
+    if (isChiefOfStaff(requestingAgentId, team.id)) {
+      return null
+    }
+  }
+
+  // If target agent is not in any closed team, only MANAGER can configure
+  if (targetTeams.length === 0) {
+    return { error: 'Only the MANAGER can configure agents not in a closed team', status: 403 }
+  }
+
+  return { error: 'Insufficient governance permissions. Must be MANAGER or COS of the agent\'s team.', status: 403 }
+}
 
 // ── Public Functions ────────────────────────────────────────────────────────
 
@@ -42,12 +89,17 @@ export function getSkillsConfig(agentId: string): ServiceResult<Record<string, u
  */
 export async function updateSkills(
   agentId: string,
-  body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } }
+  body: { add?: string[]; remove?: string[]; aiMaestro?: { enabled?: boolean; skills?: string[] } },
+  requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
   }
+
+  // Layer 5: governance RBAC enforcement
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
+  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   // Handle skill additions
   if (body.add && Array.isArray(body.add) && body.add.length > 0) {
@@ -107,12 +159,17 @@ export async function updateSkills(
  */
 export async function addSkill(
   agentId: string,
-  body: { name: string; content: string; description?: string }
+  body: { name: string; content: string; description?: string },
+  requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
   }
+
+  // Layer 5: governance RBAC enforcement
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'add-skill')
+  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   if (!body.name || typeof body.name !== 'string') {
     return { error: 'Missing required field: name', status: 400 }
@@ -149,12 +206,17 @@ export async function addSkill(
 export async function removeSkill(
   agentId: string,
   skillId: string,
-  type: string = 'auto'
+  type: string = 'auto',
+  requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const agent = getAgent(agentId)
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
   }
+
+  // Layer 5: governance RBAC enforcement
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'remove-skill')
+  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   const isMarketplaceSkill = type === 'marketplace' || (type === 'auto' && skillId.includes(':'))
 
@@ -208,7 +270,8 @@ export async function getSkillSettings(agentId: string): Promise<ServiceResult<R
  */
 export async function saveSkillSettings(
   agentId: string,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  requestingAgentId: string | null = null
 ): Promise<ServiceResult<Record<string, unknown>>> {
   if (!settings) {
     return { error: 'Settings are required', status: 400 }
@@ -224,6 +287,10 @@ export async function saveSkillSettings(
   if (!agent) {
     return { error: 'Agent not found', status: 404 }
   }
+
+  // Layer 5: governance RBAC enforcement
+  const govCheck = checkConfigGovernance(agentId, requestingAgentId, 'update-hooks')
+  if (govCheck) return govCheck as ServiceResult<Record<string, unknown>>
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || ''
   const settingsPath = path.join(homeDir, '.aimaestro', 'agents', agentId, 'skill-settings.json')

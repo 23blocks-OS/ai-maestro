@@ -122,6 +122,8 @@ import {
   saveSkillSettings,
 } from '@/services/agents-skills-service'
 
+import { deployConfigToAgent } from '@/services/agents-config-deploy-service'
+
 import {
   getSubconsciousStatus as getAgentSubconsciousStatus,
   triggerSubconsciousAction,
@@ -800,21 +802,37 @@ const routes: Route[] = [
   }},
   { method: 'PUT', pattern: /^\/api\/agents\/([^/]+)\/skills\/settings$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await saveSkillSettings(params.id, body))
+    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
+    sendServiceResult(res, await saveSkillSettings(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, getSkillsConfig(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await updateSkills(params.id, body))
+    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
+    sendServiceResult(res, await updateSkills(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, await addSkill(params.id, body))
+    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
+    sendServiceResult(res, await addSkill(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await removeSkill(params.id, query.skill || ''))
+    const auth = authenticateAgent(getHeader(_req, 'Authorization'), getHeader(_req, 'X-Agent-Id'))
+    sendServiceResult(res, await removeSkill(params.id, query.skill || '', undefined, auth.error ? null : auth.agentId))
+  }},
+
+  // Config deployment (governance-gated)
+  { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/config\/deploy$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    // Accept host-signature auth (cross-host) or governance password auth (local admin)
+    const auth = authenticateAgent(getHeader(req, 'Authorization'), getHeader(req, 'X-Agent-Id'))
+    if (auth.error) {
+      sendJson(res, 403, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration || body, auth.agentId))
   }},
 
   // Subconscious

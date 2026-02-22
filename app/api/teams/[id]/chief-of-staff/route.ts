@@ -52,8 +52,30 @@ export async function POST(
     const managerId = getManagerId()
 
     if (cosAgentId === null) {
+      // Capture old COS id before updateTeam clears it
+      const oldCosId = team.chiefOfStaffId
       // Remove COS — auto-downgrade team to open (R1.5)
       const updated = await updateTeam(id, { chiefOfStaffId: null, type: 'open' }, managerId)
+
+      // Auto-reject pending configure-agent requests from the removed COS (11a safeguard)
+      if (oldCosId) {
+        try {
+          const { loadGovernanceRequests, rejectGovernanceRequest } = await import('@/lib/governance-request-registry')
+          const file = loadGovernanceRequests()
+          const pendingFromCOS = file.requests.filter((r: { type: string; status: string; requestedBy: string }) =>
+            r.type === 'configure-agent' && r.status === 'pending' && r.requestedBy === oldCosId
+          )
+          for (const req of pendingFromCOS) {
+            await rejectGovernanceRequest(req.id, managerId, `COS role revoked for team '${team.name}'`)
+          }
+          if (pendingFromCOS.length > 0) {
+            console.log(`[governance] Auto-rejected ${pendingFromCOS.length} pending config request(s) from removed COS ${oldCosId}`)
+          }
+        } catch (err) {
+          console.warn('[governance] Failed to auto-reject pending config requests:', err instanceof Error ? err.message : err)
+        }
+      }
+
       return NextResponse.json({ success: true, team: updated })
     }
 

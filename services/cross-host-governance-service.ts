@@ -12,7 +12,7 @@
 
 import { ServiceResult } from '@/types/service'
 export type { ServiceResult }
-import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload } from '@/types/governance-request'
+import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload, ConfigurationPayload } from '@/types/governance-request'
 import type { AgentRole } from '@/types/agent'
 import { verifyPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
@@ -91,9 +91,23 @@ export async function submitCrossHostRequest(params: {
   }
 
   // SR-007: Only allow implemented cross-host request types
-  const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent']
+  const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent', 'configure-agent']
   if (!IMPLEMENTED_TYPES.includes(params.type)) {
     return { error: `Request type '${params.type}' is not yet implemented`, status: 400 }
+  }
+
+  // Validate configure-agent payload has required configuration field
+  if (params.type === 'configure-agent') {
+    if (!params.payload.configuration) {
+      return { error: 'configure-agent requests require a configuration payload', status: 400 }
+    }
+    if (!params.payload.configuration.operation) {
+      return { error: 'configure-agent configuration must specify an operation', status: 400 }
+    }
+    // Cross-host only supports local scope (user/project scopes are local-only by design)
+    if (params.payload.configuration.scope && params.payload.configuration.scope !== 'local') {
+      return { error: `Cross-host configure-agent only supports 'local' scope (got '${params.payload.configuration.scope}')`, status: 400 }
+    }
   }
 
   // Create local record with sourceHostId = this host
@@ -193,6 +207,15 @@ export async function receiveCrossHostRequest(
       const approvedRequest = await approveGovernanceRequest(request.id, localManagerId, 'targetManager')
       if (approvedRequest?.status === 'executed') {
         await performRequestExecution(approvedRequest)
+        // Notify the requesting agent that their configure-agent request was auto-approved
+        if (approvedRequest.type === 'configure-agent') {
+          try {
+            const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+            await notifyConfigRequestOutcome(approvedRequest, 'approved')
+          } catch (err) {
+            console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+          }
+        }
       }
     }
   }
@@ -263,6 +286,16 @@ export async function approveCrossHostRequest(
   // If both managers approved and status became 'executed', perform the actual mutation
   if (updated.status === 'executed') {
     await performRequestExecution(updated)
+
+    // Notify the requesting agent that their configure-agent request was approved
+    if (updated.type === 'configure-agent') {
+      try {
+        const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+        await notifyConfigRequestOutcome(updated, 'approved')
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+      }
+    }
   }
 
   return { data: updated, status: 200 }
@@ -307,6 +340,16 @@ export async function rejectCrossHostRequest(
   const updated = await rejectGovernanceRequest(requestId, rejectorAgentId, reason)
   if (!updated) {
     return { error: `Failed to reject request '${requestId}'`, status: 500 }
+  }
+
+  // Notify the requesting agent that their configure-agent request was rejected
+  if (updated.type === 'configure-agent') {
+    try {
+      const { notifyConfigRequestOutcome } = await import('@/services/config-notification-service')
+      await notifyConfigRequestOutcome(updated, 'rejected')
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Config notification failed: ${err instanceof Error ? err.message : err}`)
+    }
   }
 
   // If the request originated from another host, notify the source host (fire-and-forget)
@@ -437,8 +480,26 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           break
         }
 
+        case 'configure-agent': {
+          // Deploy configuration to the target agent
+          const config = request.payload.configuration
+          if (!config) {
+            console.warn(`${LOG_PREFIX} configure-agent request ${request.id} missing configuration payload`)
+            return
+          }
+          // Import and call the config deploy service (lazy import to avoid circular deps)
+          const { deployConfigToAgent } = await import('@/services/agents-config-deploy-service')
+          const deployResult = await deployConfigToAgent(request.payload.agentId, config, request.requestedBy)
+          if (deployResult.error) {
+            console.warn(`${LOG_PREFIX} configure-agent execution failed for request ${request.id}: ${deployResult.error}`)
+            return
+          }
+          console.log(`${LOG_PREFIX} configure-agent executed for agent ${request.payload.agentId}: ${config.operation}`)
+          break
+        }
+
         default:
-          // Other types (create-agent, delete-agent, configure-agent) are not yet implemented
+          // Other types (create-agent, delete-agent) are not yet implemented
           console.warn(`${LOG_PREFIX} Request type '${request.type}' execution is not yet implemented`)
           return
       }

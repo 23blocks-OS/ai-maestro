@@ -877,6 +877,11 @@ export default function AgentProfile({ isOpen, onClose, agentId, sessionStatus, 
                   )}
                   <Zap className="w-4 h-4" />
                   Skills
+                  {(governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length > 0) && (
+                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      {governance.pendingConfigRequests.filter(r => r.payload.agentId === agent.id).length}
+                    </span>
+                  )}
                 </button>
 
                 {expandedSections.installedSkills && (

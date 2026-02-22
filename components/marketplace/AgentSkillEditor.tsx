@@ -21,9 +21,12 @@ import {
   ChevronDown,
   ChevronRight,
   Brain,
-  X
+  X,
+  Clock,
+  XCircle
 } from 'lucide-react'
 import type { MarketplaceSkill, AgentSkillsConfig } from '@/types/marketplace'
+import { useGovernance } from '@/hooks/useGovernance'
 import SkillBrowser from './SkillBrowser'
 import SkillDetailModal from './SkillDetailModal'
 
@@ -62,6 +65,11 @@ export default function AgentSkillEditor({
     aiMaestro: true,
     custom: true
   })
+
+  // Governance: pending config requests for this agent
+  const { pendingConfigRequests, resolveConfigRequest, agentRole } = useGovernance(agentId)
+  const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
+  const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
 
   // Load skills
   const loadSkills = useCallback(async () => {
@@ -259,6 +267,48 @@ export default function AgentSkillEditor({
             <div className="flex items-center gap-2 text-red-400 text-xs">
               <AlertCircle className="w-3 h-3" />
               {error}
+            </div>
+          </div>
+        )}
+
+        {/* Pending Configuration Changes */}
+        {agentPendingConfigs.length > 0 && (
+          <div className="px-4 py-3 border-b border-gray-800">
+            <h4 className="text-xs font-medium text-amber-400 uppercase tracking-wider mb-2">
+              Pending Configuration Changes
+            </h4>
+            <div className="space-y-2">
+              {agentPendingConfigs.map(req => (
+                <div key={req.id} className="flex items-center gap-2 px-3 py-2 rounded bg-amber-500/5 border border-amber-500/20">
+                  <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-amber-300">
+                      {req.payload.configuration?.operation || req.type}
+                    </span>
+                    <span className="text-xs text-amber-400/60 ml-2">
+                      {req.status === 'pending' ? 'Awaiting approval' : req.status}
+                    </span>
+                  </div>
+                  {canApprove && req.status === 'pending' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => resolveConfigRequest(req.id, true)}
+                        className="p-1 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        title="Approve"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => resolveConfigRequest(req.id, false)}
+                        className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors"
+                        title="Reject"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}

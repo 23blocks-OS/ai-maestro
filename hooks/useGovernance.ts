@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Team } from '@/types/team'
 import type { TransferRequest, GovernanceRole } from '@/types/governance'
+import type { GovernanceRequest } from '@/types/governance-request'
 
 // Re-export so downstream consumers still work
 export type { GovernanceRole } from '@/types/governance'
@@ -26,6 +27,9 @@ export interface GovernanceState {
   pendingTransfers: TransferRequest[]
   requestTransfer: (agentId: string, fromTeamId: string, toTeamId: string, note?: string) => Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }>
   resolveTransfer: (transferId: string, action: 'approve' | 'reject', rejectReason?: string) => Promise<{ success: boolean; error?: string }>
+  pendingConfigRequests: GovernanceRequest[]
+  submitConfigRequest: (agentId: string, config: Record<string, unknown>) => Promise<{ success: boolean; error?: string; requestId?: string }>
+  resolveConfigRequest: (requestId: string, approved: boolean, reason?: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export function useGovernance(agentId: string | null): GovernanceState {
@@ -36,6 +40,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
   const [managerName, setManagerName] = useState<string | null>(null)
   const [allTeams, setAllTeams] = useState<Team[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<TransferRequest[]>([])
+  const [pendingConfigRequests, setPendingConfigRequests] = useState<GovernanceRequest[]>([])
 
   // Derive governance role from current state
   const agentRole: GovernanceRole = useMemo(() => {
@@ -88,11 +93,19 @@ export function useGovernance(agentId: string | null): GovernanceState {
         console.error('[governance] fetch error:', err)
         return { requests: [] }
       }),
+      fetch('/api/v1/governance/requests?type=configure-agent&status=pending', { signal }).then((r) => {
+        if (!r.ok) throw new Error('Request failed')
+        return r.json()
+      }).catch((err) => {
+        if (err?.name === 'AbortError') return // Component unmounted
+        console.error('[governance] config requests fetch error:', err)
+        return { requests: [] }
+      }),
     ])
-      .then(([govData, teamsData, transfersData]) => {
+      .then(([govData, teamsData, transfersData, configReqData]) => {
         if (signal?.aborted) return  // Stale response guard
         // CC-003: Guard against undefined data (AbortError catch returns undefined)
-        if (!govData || !teamsData || !transfersData) return
+        if (!govData || !teamsData || !transfersData || !configReqData) return
         // React 18+ batches these 6 setters into a single re-render automatically
         setHasPassword(govData.hasPassword ?? false)
         setHasManager(govData.hasManager ?? false)
@@ -100,6 +113,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setManagerName(govData.managerName ?? null)
         setAllTeams(teamsData.teams ?? [])
         setPendingTransfers(transfersData.requests ?? [])
+        setPendingConfigRequests(configReqData.requests ?? [])
       })
       .catch(() => {
         // On fetch failure, reset to safe defaults
@@ -109,6 +123,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
         setManagerName(null)
         setAllTeams([])
         setPendingTransfers([])
+        setPendingConfigRequests([])
       })
       .finally(() => {
         // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)
@@ -268,6 +283,53 @@ export function useGovernance(agentId: string | null): GovernanceState {
     [refresh]
   )
 
+  const submitConfigRequest = useCallback(
+    async (targetAgentId: string, config: Record<string, unknown>): Promise<{ success: boolean; error?: string; requestId?: string }> => {
+      try {
+        const res = await fetch('/api/v1/governance/requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'configure-agent',
+            payload: { agentId: targetAgentId, configuration: config },
+          })
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          return { success: false, error: data.error || `HTTP ${res.status}` }
+        }
+        const data = await res.json()
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        return { success: true, requestId: data.id }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+      }
+    },
+    [refresh]
+  )
+
+  const resolveConfigRequest = useCallback(
+    async (requestId: string, approved: boolean, reason?: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const endpoint = approved ? 'approve' : 'reject'
+        const res = await fetch(`/api/v1/governance/requests/${requestId}/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          return { success: false, error: data.error || `HTTP ${res.status}` }
+        }
+        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+      }
+    },
+    [refresh]
+  )
+
   const requestTransfer = useCallback(
     async (targetAgentId: string, fromTeamId: string, toTeamId: string, note?: string): Promise<{ success: boolean; error?: string; transferRequest?: TransferRequest }> => {
       if (!agentId) return { success: false, error: 'No agent selected' } // Guard against null agentId
@@ -327,5 +389,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
     pendingTransfers,
     requestTransfer,
     resolveTransfer,
+    pendingConfigRequests,
+    submitConfigRequest,
+    resolveConfigRequest,
   }
 }

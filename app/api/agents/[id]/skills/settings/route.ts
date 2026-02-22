@@ -12,6 +12,7 @@ import { getSkillSettings, saveSkillSettings } from '@/services/agents-skills-se
 import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
 
+// Phase 1: no auth required for reads (localhost-only). Phase 2 should add auth for sensitive settings.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -29,7 +30,7 @@ export async function GET(
   } catch (error) {
     console.error('[Skill Settings API] GET Error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
@@ -68,7 +69,7 @@ export async function PUT(
   } catch (error) {
     console.error('[Skill Settings API] PUT Error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

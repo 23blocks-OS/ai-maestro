@@ -189,14 +189,16 @@ export async function receiveCrossHostRequest(
   // Store locally using the same ID from the remote request
   // Re-create via createGovernanceRequest to get proper file-locking and persistence
   // Note: createGovernanceRequest generates a new UUID; we store the remote request directly instead
-  await withLock('governance-requests', () => {
+  // SF-004: Track whether the request was newly inserted vs skipped (duplicate).
+  // Only run auto-approve logic for genuinely new requests to avoid re-approving duplicates.
+  const isNew = await withLock('governance-requests', () => {
     const file = loadGovernanceRequests()
 
     // Prevent duplicate: skip if a request with this ID already exists
     const existing = file.requests.find(r => r.id === request.id)
     if (existing) {
       console.log(`${LOG_PREFIX} Request ${request.id} already exists locally, skipping duplicate`)
-      return
+      return false
     }
 
     // CC-P1-002: Force status to 'pending' and clear approvals regardless of what remote sent.
@@ -209,12 +211,14 @@ export async function receiveCrossHostRequest(
       updatedAt: new Date().toISOString(),
     })
     saveGovernanceRequests(file)
+    return true
   })
 
   console.log(`${LOG_PREFIX} Received request ${request.id} (type=${request.type}) from host ${fromHostId}`)
 
-  // Layer 4: Auto-approve if the requesting manager is in the trust registry
-  if (shouldAutoApprove(request)) {
+  // Layer 4: Auto-approve if the requesting manager is in the trust registry.
+  // SF-004: Only auto-approve genuinely new requests -- skip duplicates to avoid re-execution.
+  if (isNew && shouldAutoApprove(request)) {
     console.log(`${LOG_PREFIX} Auto-approving request ${request.id} from trusted manager on host ${fromHostId}`)
     // Auto-approve as targetManager (we are the target host)
     const localManagerId = getManagerId()
@@ -294,14 +298,25 @@ export async function approveCrossHostRequest(
     return { error: `Request '${requestId}' is already ${request.status}`, status: 409 }
   }
 
+  // SF-003: Capture pre-approval status to detect TOCTOU race -- another caller may
+  // have transitioned the request to a terminal state between our pre-check and the
+  // lock-protected approveGovernanceRequest call below.
+  // Widen to `string` because TypeScript narrows request.status after the terminal-state
+  // pre-check above, but a concurrent writer could change it between now and the lock.
+  const preApprovalStatus: string = request.status
+
   // Record the approval and update status
   const updated = await approveGovernanceRequest(requestId, approverAgentId, approverType)
   if (!updated) {
     return { error: `Failed to approve request '${requestId}'`, status: 500 }
   }
 
-  // If both managers approved and status became 'executed', perform the actual mutation
-  if (updated.status === 'executed') {
+  // SF-003: Post-check -- only execute if WE caused the transition to 'executed'.
+  // If the pre-read status was already terminal (race with another approver), skip execution.
+  const weTriggeredExecution =
+    preApprovalStatus !== 'executed' && preApprovalStatus !== 'rejected' && updated.status === 'executed'
+
+  if (weTriggeredExecution) {
     await performRequestExecution(updated)
 
     // Notify the requesting agent that their configure-agent request was approved

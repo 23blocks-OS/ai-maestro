@@ -154,6 +154,11 @@ export async function createGovernanceRequest(params: {
  * - If both sides have COS approval but not both managers -> status = 'dual-approved'
  * - If only source side approved (sourceCOS or sourceManager) -> status = 'remote-approved'
  * - If only target side approved (targetCOS or targetManager) -> status = 'local-approved'
+ *
+ * Naming convention: 'remote-approved' / 'local-approved' are from the **target host's**
+ * perspective (the host that stores and evaluates the request).
+ *   - 'remote-approved' = the request's *source* (i.e. remote) host approved it.
+ *   - 'local-approved'  = the *target* (i.e. local) host approved it.
  */
 export async function approveGovernanceRequest(
   requestId: string,
@@ -285,6 +290,12 @@ export interface PurgeResult {
  * Remove governance requests in terminal states (executed, rejected) that are older
  * than the specified age, and auto-reject stale pending requests via TTL.
  * Prevents unbounded growth of governance-requests.json.
+ *
+ * Two different time windows apply:
+ *   1. **Pending requests** expire after a fixed 7-day TTL -- they are auto-rejected
+ *      (status set to 'rejected', reason: 'expired') by expirePendingRequestsInPlace.
+ *   2. **Terminal-state requests** (executed/rejected) are purged after `maxAgeDays`
+ *      (default 30 days) to keep the file size bounded while retaining audit history.
  *
  * Delegates TTL expiry to the canonical expirePendingRequestsInPlace helper
  * to avoid duplicating TTL logic (SF-002).

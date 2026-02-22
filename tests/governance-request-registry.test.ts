@@ -41,11 +41,11 @@ vi.mock('fs', () => ({
   default: {
     existsSync: vi.fn((filePath: string) => filePath in fsStore),
     mkdirSync: vi.fn(),
-    readFileSync: vi.fn((filePath: string) => {
+    readFileSync: vi.fn((filePath: string, _encoding?: string) => {
       if (filePath in fsStore) return fsStore[filePath]
       throw new Error(`ENOENT: no such file or directory, open '${filePath}'`)
     }),
-    writeFileSync: vi.fn((filePath: string, data: string) => {
+    writeFileSync: vi.fn((filePath: string, data: string, _encoding?: string) => {
       fsStore[filePath] = data
     }),
     renameSync: vi.fn((src: string, dest: string) => {
@@ -60,11 +60,11 @@ vi.mock('fs', () => ({
   },
   existsSync: vi.fn((filePath: string) => filePath in fsStore),
   mkdirSync: vi.fn(),
-  readFileSync: vi.fn((filePath: string) => {
+  readFileSync: vi.fn((filePath: string, _encoding?: string) => {
     if (filePath in fsStore) return fsStore[filePath]
     throw new Error(`ENOENT: no such file or directory, open '${filePath}'`)
   }),
-  writeFileSync: vi.fn((filePath: string, data: string) => {
+  writeFileSync: vi.fn((filePath: string, data: string, _encoding?: string) => {
     fsStore[filePath] = data
   }),
   renameSync: vi.fn((src: string, dest: string) => {
@@ -335,13 +335,29 @@ describe('listGovernanceRequests', () => {
     expect(resultC.map(r => r.id)).toEqual(expect.arrayContaining(['req-executed', 'req-rejected']))
   })
 
-  it('filters by agentId (payload or requestedBy)', () => {
-    /** Verifies agentId filter matches either payload.agentId or requestedBy */
-    // agent-x is both payload.agentId of pendingReq AND requestedBy of rejectedReq
-    const result = listGovernanceRequests({ agentId: 'agent-x' })
-    expect(result).toHaveLength(2)
-    // NT-005: Use sort-independent assertion — implementation does not guarantee ordering
-    expect(result.map(r => r.id)).toEqual(expect.arrayContaining(['req-pending', 'req-rejected']))
+  it('filters by agentId matching payload.agentId', () => {
+    /** Verifies agentId filter matches payload.agentId independently of requestedBy */
+    // agent-x is payload.agentId of pendingReq; use a unique agentId that only appears in payload
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-payload-match', payload: { agentId: 'agent-unique-payload', teamId: 'team-1' }, requestedBy: 'someone-else' }),
+      makeRequest({ id: 'req-no-match', payload: { agentId: 'agent-other', teamId: 'team-2' }, requestedBy: 'another-one' }),
+    ]))
+
+    const result = listGovernanceRequests({ agentId: 'agent-unique-payload' })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('req-payload-match')
+  })
+
+  it('filters by agentId matching requestedBy', () => {
+    /** Verifies agentId filter matches requestedBy independently of payload.agentId */
+    seedRequestsFile(makeRequestsFile([
+      makeRequest({ id: 'req-requester-match', payload: { agentId: 'agent-other', teamId: 'team-1' }, requestedBy: 'agent-unique-requester' }),
+      makeRequest({ id: 'req-no-match', payload: { agentId: 'agent-different', teamId: 'team-2' }, requestedBy: 'someone-else' }),
+    ]))
+
+    const result = listGovernanceRequests({ agentId: 'agent-unique-requester' })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('req-requester-match')
   })
 
   it('filters by type', () => {
@@ -511,6 +527,29 @@ describe('approveGovernanceRequest', () => {
     expect(result!.approvals.targetManager!.approved).toBe(true)
   })
 
+  it('sets status to dual-approved when both sides have COS approval but not both managers', async () => {
+    /** Verifies that sourceCOS + targetCOS approval results in dual-approved status */
+    const req = makeRequest({
+      id: 'req-dual',
+      status: 'pending',
+      approvals: {
+        sourceCOS: { approved: true, agentId: 'agent-cos-src', at: '2025-06-01T12:00:00Z' },
+      },
+    })
+    seedRequestsFile(makeRequestsFile([req]))
+
+    // Add targetCOS approval -- both sides have COS but neither has manager
+    const result = await approveGovernanceRequest('req-dual', 'agent-cos-tgt', 'targetCOS')
+
+    expect(result).not.toBeNull()
+    expect(result!.status).toBe('dual-approved')
+    expect(result!.approvals.sourceCOS!.approved).toBe(true)
+    expect(result!.approvals.targetCOS!.approved).toBe(true)
+    // Neither manager should be present
+    expect(result!.approvals.sourceManager).toBeUndefined()
+    expect(result!.approvals.targetManager).toBeUndefined()
+  })
+
   it('returns null for unknown request ID', async () => {
     /** Verifies that approving a non-existent request returns null */
     seedRequestsFile(makeRequestsFile([]))
@@ -576,6 +615,15 @@ describe('rejectGovernanceRequest', () => {
     expect(result!.updatedAt).toBeDefined()
   })
 
+  it('returns null for unknown request ID', async () => {
+    /** Verifies that rejecting a non-existent request returns null without throwing */
+    seedRequestsFile(makeRequestsFile([]))
+
+    const result = await rejectGovernanceRequest('nonexistent', 'agent-mgr', 'No such request')
+
+    expect(result).toBeNull()
+  })
+
   it('cannot reject already executed request', async () => {
     /** Verifies that an executed request is returned unchanged when rejection is attempted */
     const req = makeRequest({ id: 'req-exec-no-reject', status: 'executed' })
@@ -604,6 +652,15 @@ describe('executeGovernanceRequest', () => {
     expect(result).not.toBeNull()
     expect(result!.status).toBe('executed')
     expect(result!.updatedAt).toBeDefined()
+  })
+
+  it('returns null for unknown request ID', async () => {
+    /** Verifies that executing a non-existent request returns null without throwing */
+    seedRequestsFile(makeRequestsFile([]))
+
+    const result = await executeGovernanceRequest('nonexistent')
+
+    expect(result).toBeNull()
   })
 
   it('cannot execute rejected request', async () => {

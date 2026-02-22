@@ -76,9 +76,9 @@ export default function AgentSkillEditor({
   })
 
   // Governance: pending config requests for this agent
-  const { pendingConfigRequests, resolveConfigRequest, agentRole, managerId } = useGovernance(agentId)
+  const { pendingConfigRequests, resolveConfigRequest, managerId } = useGovernance(agentId)
   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
-  // Phase 1: localhost single-user, viewer is always the system owner
+  // Phase 1: localhost single-user; Phase 2 should wire to: agentRole === 'manager' || agentRole === 'chief-of-staff'
   const canApprove = true
 
   // Track which config requests are currently being resolved (for loading/disabled state)
@@ -94,9 +94,13 @@ export default function AgentSkillEditor({
     const resolverAgent = managerId || agentId // Use manager if available, else self
     setResolvingIds(prev => new Set(prev).add(requestId))
     try {
-      await resolveConfigRequest(requestId, approved, governancePassword, resolverAgent)
+      const result = await resolveConfigRequest(requestId, approved, governancePassword, resolverAgent)
+      if (!result.success) {
+        setError(result.error || 'Failed to resolve configuration request')
+      }
     } catch (err) {
       console.error('Failed to resolve config request:', err)
+      setError(err instanceof Error ? err.message : 'Failed to resolve configuration request')
     } finally {
       setResolvingIds(prev => { const next = new Set(prev); next.delete(requestId); return next })
     }
@@ -152,6 +156,7 @@ export default function AgentSkillEditor({
       onSkillsChange?.()
       setSaveSuccess(true)
       setShowBrowser(false) // Close the modal after successful add
+      if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current)
       saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add skill')
@@ -173,6 +178,7 @@ export default function AgentSkillEditor({
       await loadSkills()
       onSkillsChange?.()
       setSaveSuccess(true)
+      if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current)
       saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove skill')

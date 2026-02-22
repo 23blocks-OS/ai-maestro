@@ -403,14 +403,6 @@ function getHeader(req: IncomingMessage, name: string): string | null {
   return typeof val === 'string' ? val : null
 }
 
-// NT-002: Use modern URL API instead of deprecated url.parse()
-function getQuery(url: string): Record<string, string> {
-  const urlObj = new URL(url, 'http://localhost')
-  const q: Record<string, string> = {}
-  urlObj.searchParams.forEach((v, k) => { q[k] = v })
-  return q
-}
-
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
@@ -830,7 +822,8 @@ const routes: Route[] = [
     sendServiceResult(res, await indexDocs(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDocs(params.id, query.project))
+    // NT-010: clearDocs expects optional string; provide empty string fallback for undefined
+    sendServiceResult(res, await clearDocs(params.id, query.project || ''))
   }},
 
   // Skills
@@ -917,9 +910,11 @@ const routes: Route[] = [
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
+      // SF-014: Sanitize filename to prevent header injection via quotes/newlines/backslashes
+      const safeFilename = filename.replace(/["\r\n\\]/g, '_')
       sendBinary(res, 200, new Uint8Array(buffer), {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${safeFilename}"`,
         'Content-Length': buffer.length.toString(),
         'X-Agent-Id': agentId,
         'X-Agent-Name': agentName,
@@ -1316,7 +1311,9 @@ const routes: Route[] = [
       sendJson(res, 403, { error: 'Invalid host signature' })
       return
     }
-    // Check timestamp freshness (5 min window, allow 60s clock skew)
+    // NT-011: Timestamp freshness uses an asymmetric window: 5 min past (300s) to tolerate
+    // network latency and processing delays, but only 60s future to guard against clock skew
+    // without accepting pre-dated replay attacks. This pattern is repeated across all governance sync endpoints.
     const tsAge = Date.now() - new Date(hostTimestamp).getTime()
     if (isNaN(tsAge) || tsAge > 300_000 || tsAge < -60_000) {
       sendJson(res, 403, { error: 'Signature expired' })
@@ -1680,6 +1677,12 @@ const routes: Route[] = [
         return
       }
 
+      // MF-003: Validate UUID format before registry lookup (mirrors Next.js route)
+      if (!isValidUuid(cosAgentId)) {
+        sendJson(res, 400, { error: 'Invalid agent ID format' })
+        return
+      }
+
       const agent = getAgent(cosAgentId)
       if (!agent) {
         sendJson(res, 404, { error: `Agent '${cosAgentId}' not found` })
@@ -1878,8 +1881,8 @@ export function createHeadlessRouter() {
       } catch (error: any) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          // SF-03: propagate 413 from readJsonBody size limit
-          const statusCode = error?.statusCode || 500
+          // SF-015: Only honor 413 from readJsonBody; all other errors default to 500
+          const statusCode = error?.statusCode === 413 ? 413 : 500
           const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
           sendJson(res, statusCode, { error: message })
         }

@@ -428,6 +428,8 @@ afterEach(() => {
 // ============================================================================
 
 describe('skills service RBAC', () => {
+  // All tests are mock-based (no integration tests). See Phase 2 for integration test coverage.
+
   // ---- updateSkills governance ----
 
   it('updateSkills allows when requestingAgentId is null (Phase 1 backward compat)', async () => {

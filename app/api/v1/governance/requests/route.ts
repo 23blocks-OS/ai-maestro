@@ -77,6 +77,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!body.requestedBy || typeof body.requestedBy !== 'string') {
     return NextResponse.json({ error: 'Missing required field: requestedBy' }, { status: 400 })
   }
+  // SF-001: Validate requestedByRole against known AgentRole values
+  if (!body.requestedByRole || !VALID_REQUESTED_BY_ROLES.has(body.requestedByRole)) {
+    return NextResponse.json(
+      { error: `Invalid or missing requestedByRole. Must be one of: ${[...VALID_REQUESTED_BY_ROLES].join(', ')}` },
+      { status: 400 }
+    )
+  }
+  // SF-001: Validate payload is an object containing at least agentId as a string
+  if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+    return NextResponse.json({ error: 'Missing or invalid payload: must be an object' }, { status: 400 })
+  }
+  if (!body.payload.agentId || typeof body.payload.agentId !== 'string') {
+    return NextResponse.json({ error: 'Missing or invalid payload.agentId: must be a string' }, { status: 400 })
+  }
 
   try {
     const result = await submitCrossHostRequest(body)
@@ -100,6 +114,12 @@ const VALID_GOVERNANCE_REQUEST_TYPES = new Set([
   'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
   'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
 ])
+
+/** Valid AgentRole values for requestedByRole validation (SF-001) */
+const VALID_REQUESTED_BY_ROLES = new Set(['manager', 'chief-of-staff', 'member'])
+
+/** Hostname format: alphanumeric start/end, allows dots/hyphens/underscores, 1-253 chars (NT-001, SF-002) */
+const HOSTNAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,251}[a-zA-Z0-9])?$/
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const searchParams = request.nextUrl.searchParams
@@ -126,7 +146,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
   }
   // hostId is a hostname (e.g. "macbook-pro"), not a UUID -- validate as safe hostname
-  const HOSTNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,253}[a-zA-Z0-9]$/
   if (hostId && !HOSTNAME_RE.test(hostId)) {
     return NextResponse.json({ error: 'Invalid hostId format' }, { status: 400 })
   }

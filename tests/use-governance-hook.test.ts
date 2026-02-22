@@ -24,11 +24,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * Replica of useGovernance.submitConfigRequest — sends a configure-agent governance request.
- * Mirrors hooks/useGovernance.ts lines 286-309 exactly.
+ * Mirrors the submitConfigRequest useCallback in hooks/useGovernance.ts.
  */
 async function submitConfigRequest(
   targetAgentId: string,
   config: Record<string, unknown>,
+  password: string,
+  requestedBy: string,
+  requestedByRole: string,
+  targetHostId?: string,
 ): Promise<{ success: boolean; error?: string; requestId?: string }> {
   try {
     const res = await fetch('/api/v1/governance/requests', {
@@ -36,14 +40,24 @@ async function submitConfigRequest(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'configure-agent',
+        targetHostId: targetHostId || 'localhost',
+        requestedBy,
+        requestedByRole,
+        password,
         payload: { agentId: targetAgentId, configuration: config },
       }),
     })
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch((parseErr: unknown) => {
+        console.warn('[useGovernance] Failed to parse response JSON:', parseErr)
+        return {}
+      })
       return { success: false, error: data.error || `HTTP ${res.status}` }
     }
     const data = await res.json()
+    // TODO: The standalone function replica cannot verify that refresh() is called after success.
+    // The actual hook calls refresh() fire-and-forget here. Testing refresh() requires
+    // @testing-library/react or a minimal hook wrapper to render the hook in a React context.
     return { success: true, requestId: data.id }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -52,7 +66,7 @@ async function submitConfigRequest(
 
 /**
  * Replica of useGovernance.resolveConfigRequest — approves or rejects a governance request.
- * Mirrors hooks/useGovernance.ts lines 311-338 exactly.
+ * Mirrors the resolveConfigRequest useCallback in hooks/useGovernance.ts.
  */
 async function resolveConfigRequest(
   requestId: string,
@@ -112,7 +126,7 @@ describe('submitConfigRequest API contract', () => {
       json: async () => ({ id: 'req-001' }),
     })
 
-    await submitConfigRequest('agent-target-1', { maxTokens: 4096, model: 'opus' })
+    await submitConfigRequest('agent-target-1', { maxTokens: 4096, model: 'opus' }, 'gov-pw', 'agent-mgr-1', 'manager', 'host-remote')
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     const [url, options] = mockFetch.mock.calls[0]
@@ -122,6 +136,10 @@ describe('submitConfigRequest API contract', () => {
 
     const body = JSON.parse(options.body)
     expect(body.type).toBe('configure-agent')
+    expect(body.targetHostId).toBe('host-remote')
+    expect(body.requestedBy).toBe('agent-mgr-1')
+    expect(body.requestedByRole).toBe('manager')
+    expect(body.password).toBe('gov-pw')
     expect(body.payload.agentId).toBe('agent-target-1')
     expect(body.payload.configuration).toEqual({ maxTokens: 4096, model: 'opus' })
   })
@@ -133,7 +151,7 @@ describe('submitConfigRequest API contract', () => {
       json: async () => ({ id: 'governance-req-42' }),
     })
 
-    const result = await submitConfigRequest('agent-x', { debug: true })
+    const result = await submitConfigRequest('agent-x', { debug: true }, 'pw', 'requester', 'manager')
 
     expect(result.success).toBe(true)
     expect(result.requestId).toBe('governance-req-42')
@@ -148,7 +166,7 @@ describe('submitConfigRequest API contract', () => {
       json: async () => ({ error: 'Governance password required' }),
     })
 
-    const result = await submitConfigRequest('agent-x', { debug: true })
+    const result = await submitConfigRequest('agent-x', { debug: true }, 'pw', 'requester', 'manager')
 
     expect(result.success).toBe(false)
     expect(result.error).toBe('Governance password required')
@@ -162,7 +180,7 @@ describe('submitConfigRequest API contract', () => {
       json: async () => ({}),
     })
 
-    const result = await submitConfigRequest('agent-y', {})
+    const result = await submitConfigRequest('agent-y', {}, 'pw', 'requester', 'manager')
 
     expect(result.success).toBe(false)
     expect(result.error).toBe('HTTP 500')
@@ -172,10 +190,45 @@ describe('submitConfigRequest API contract', () => {
     /** Verifies that a fetch exception is caught and returned as an error result */
     mockFetch.mockRejectedValueOnce(new Error('Network unreachable'))
 
-    const result = await submitConfigRequest('agent-z', { setting: 'value' })
+    const result = await submitConfigRequest('agent-z', { setting: 'value' }, 'pw', 'requester', 'manager')
 
     expect(result.success).toBe(false)
     expect(result.error).toBe('Network unreachable')
+  })
+
+  it('handles unparseable error response body gracefully', async () => {
+    /** Verifies fallback to HTTP status when error response body is not valid JSON (symmetric with resolveConfigRequest test) */
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => { throw new Error('Unexpected token') },
+    })
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await submitConfigRequest('agent-x', { debug: true }, 'pw', 'requester', 'manager')
+
+    expect(result.success).toBe(false)
+    // Falls back to HTTP status code when JSON parsing fails
+    expect(result.error).toBe('HTTP 502')
+    // Verify console.warn was called with the parse error (matches actual hook behavior)
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[useGovernance] Failed to parse response JSON:',
+      expect.any(Error)
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('defaults targetHostId to localhost when not provided', async () => {
+    /** Verifies that omitting targetHostId sends localhost as the default */
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'req-default-host' }),
+    })
+
+    await submitConfigRequest('agent-target', { key: 'val' }, 'pw', 'requester', 'manager')
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.targetHostId).toBe('localhost')
   })
 })
 

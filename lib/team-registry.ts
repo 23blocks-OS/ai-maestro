@@ -244,7 +244,7 @@ export function saveTeams(teams: Team[]): void {
   ensureTeamsDir()
   const file: TeamsFile = { version: 1, teams }
   // Atomic write: write to temp file then rename to avoid corruption on crash
-  const tmpFile = TEAMS_FILE + '.tmp'
+  const tmpFile = TEAMS_FILE + '.tmp.' + process.pid
   fs.writeFileSync(tmpFile, JSON.stringify(file, null, 2), 'utf-8')
   fs.renameSync(tmpFile, TEAMS_FILE)
 }

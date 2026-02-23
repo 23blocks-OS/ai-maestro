@@ -1073,6 +1073,12 @@ async function startServer(handleRequest) {
     // Handle client input
     ws.on('message', (data) => {
       try {
+        // SF-005: Guard against accessing PTY after cleanup -- the PTY process
+        // may have exited between when the message was queued and processed
+        if (sessionState.cleanedUp || !sessionState.ptyProcess) {
+          return
+        }
+
         const message = data.toString()
 
         // Check if it's a JSON message (for resize events, logging control, etc.)

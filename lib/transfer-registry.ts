@@ -57,7 +57,7 @@ function saveTransfers(requests: TransferRequest[]): void {
   ensureDir()
   const data: TransfersFile = { version: 1, requests }
   // SF-002 (P5): Atomic write -- write to temp file then rename to prevent corruption on crash
-  const tmpFile = `${TRANSFERS_FILE}.tmp`
+  const tmpFile = `${TRANSFERS_FILE}.tmp.${process.pid}`
   writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf-8')
   renameSync(tmpFile, TRANSFERS_FILE)
 }

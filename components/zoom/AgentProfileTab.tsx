@@ -169,6 +169,9 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
       if (response.ok) {
         setHasChanges(false)
         setTimeout(() => setSaving(false), 500)
+      } else {
+        // SF-001: Reset saving state on non-OK response so button is not stuck
+        setSaving(false)
       }
     } catch (error) {
       console.error('Failed to save agent:', error)
@@ -609,7 +612,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                 <>
                   {repositories.map((repo, idx) => (
                     <div
-                      key={idx}
+                      key={repo.remoteUrl || repo.localPath || idx}
                       className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-all"
                     >
                       <div className="flex items-start gap-3">

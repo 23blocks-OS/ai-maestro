@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
@@ -17,6 +17,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // NT-006: Abort any in-flight scan on unmount to prevent state updates on unmounted component
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
 
   const handleScan = async () => {
     if (!url.trim()) return

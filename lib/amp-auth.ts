@@ -160,26 +160,26 @@ export async function createApiKey(
 ): Promise<string> {
   // SF-004: Serialize read-modify-write on the API keys file
   return withLock('amp-api-keys', () => {
-  const apiKey = generateApiKey()
-  const keyHash = hashApiKey(apiKey)
+    const apiKey = generateApiKey()
+    const keyHash = hashApiKey(apiKey)
 
-  const record: AMPApiKeyRecord = {
-    key_hash: keyHash,
-    agent_id: agentId,
-    tenant_id: tenantId,
-    address,
-    created_at: new Date().toISOString(),
-    expires_at: null,
-    status: 'active'
-  }
+    const record: AMPApiKeyRecord = {
+      key_hash: keyHash,
+      agent_id: agentId,
+      tenant_id: tenantId,
+      address,
+      created_at: new Date().toISOString(),
+      expires_at: null,
+      status: 'active'
+    }
 
-  const keys = loadApiKeys()
-  keys.push(record)
-  saveApiKeys(keys)
+    const keys = loadApiKeys()
+    keys.push(record)
+    saveApiKeys(keys)
 
-  console.log(`[AMP Auth] Created API key for agent ${agentId.substring(0, 8)}... (${address})`)
+    console.log(`[AMP Auth] Created API key for agent ${agentId.substring(0, 8)}... (${address})`)
 
-  return apiKey
+    return apiKey
   }) // end withLock('amp-api-keys')
 }
 

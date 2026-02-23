@@ -1030,54 +1030,54 @@ export async function queryCodeGraph(
           edges.push({ source, target, type: edgeType, ...extra })
         }
 
-        const escapedNodeId = nodeId.replace(/'/g, "''")
+        const escapedNodeId = escapeForCozo(nodeId)
 
         // Function calls
         try {
-          const callsOut = await agentDb.run(`?[caller_fn, callee_fn] := *calls{caller_fn, callee_fn}, caller_fn = '${escapedNodeId}'`)
-          const callsIn = await agentDb.run(`?[caller_fn, callee_fn] := *calls{caller_fn, callee_fn}, callee_fn = '${escapedNodeId}'`)
+          const callsOut = await agentDb.run(`?[caller_fn, callee_fn] := *calls{caller_fn, callee_fn}, caller_fn = ${escapedNodeId}`)
+          const callsIn = await agentDb.run(`?[caller_fn, callee_fn] := *calls{caller_fn, callee_fn}, callee_fn = ${escapedNodeId}`)
           for (const r of [...callsOut.rows, ...callsIn.rows]) { addEdge(r[0], r[1], 'calls') }
         } catch { /* table may not exist */ }
 
         // Imports
         try {
-          const importsOut = await agentDb.run(`?[from_file, to_file] := *imports{from_file, to_file}, from_file = '${escapedNodeId}'`)
-          const importsIn = await agentDb.run(`?[from_file, to_file] := *imports{from_file, to_file}, to_file = '${escapedNodeId}'`)
+          const importsOut = await agentDb.run(`?[from_file, to_file] := *imports{from_file, to_file}, from_file = ${escapedNodeId}`)
+          const importsIn = await agentDb.run(`?[from_file, to_file] := *imports{from_file, to_file}, to_file = ${escapedNodeId}`)
           for (const r of [...importsOut.rows, ...importsIn.rows]) { addEdge(r[0], r[1], 'imports') }
         } catch { /* table may not exist */ }
 
         // Extends
         try {
-          const extendsOut = await agentDb.run(`?[child_class, parent_class] := *extends{child_class, parent_class}, child_class = '${escapedNodeId}'`)
-          const extendsIn = await agentDb.run(`?[child_class, parent_class] := *extends{child_class, parent_class}, parent_class = '${escapedNodeId}'`)
+          const extendsOut = await agentDb.run(`?[child_class, parent_class] := *extends{child_class, parent_class}, child_class = ${escapedNodeId}`)
+          const extendsIn = await agentDb.run(`?[child_class, parent_class] := *extends{child_class, parent_class}, parent_class = ${escapedNodeId}`)
           for (const r of [...extendsOut.rows, ...extendsIn.rows]) { addEdge(r[0], r[1], 'extends') }
         } catch { /* table may not exist */ }
 
         // Includes
         try {
-          const includesOut = await agentDb.run(`?[class_id, module_name] := *includes{class_id, module_name}, class_id = '${escapedNodeId}'`)
-          const includesIn = await agentDb.run(`?[class_id, module_name] := *includes{class_id, module_name}, module_name = '${escapedNodeId}'`)
+          const includesOut = await agentDb.run(`?[class_id, module_name] := *includes{class_id, module_name}, class_id = ${escapedNodeId}`)
+          const includesIn = await agentDb.run(`?[class_id, module_name] := *includes{class_id, module_name}, module_name = ${escapedNodeId}`)
           for (const r of [...includesOut.rows, ...includesIn.rows]) { addEdge(r[0], r[1], 'includes') }
         } catch { /* table may not exist */ }
 
         // Associations
         try {
-          const assocsOut = await agentDb.run(`?[from_class, to_class, assoc_type] := *associations{from_class, to_class, assoc_type}, from_class = '${escapedNodeId}'`)
-          const assocsIn = await agentDb.run(`?[from_class, to_class, assoc_type] := *associations{from_class, to_class, assoc_type}, to_class = '${escapedNodeId}'`)
+          const assocsOut = await agentDb.run(`?[from_class, to_class, assoc_type] := *associations{from_class, to_class, assoc_type}, from_class = ${escapedNodeId}`)
+          const assocsIn = await agentDb.run(`?[from_class, to_class, assoc_type] := *associations{from_class, to_class, assoc_type}, to_class = ${escapedNodeId}`)
           for (const r of [...assocsOut.rows, ...assocsIn.rows]) { addEdge(r[0], r[1], 'association', { assoc_type: r[2] }) }
         } catch { /* table may not exist */ }
 
         // Serializes
         try {
-          const serializesOut = await agentDb.run(`?[serializer_id, model_id] := *serializes{serializer_id, model_id}, serializer_id = '${escapedNodeId}'`)
-          const serializesIn = await agentDb.run(`?[serializer_id, model_id] := *serializes{serializer_id, model_id}, model_id = '${escapedNodeId}'`)
+          const serializesOut = await agentDb.run(`?[serializer_id, model_id] := *serializes{serializer_id, model_id}, serializer_id = ${escapedNodeId}`)
+          const serializesIn = await agentDb.run(`?[serializer_id, model_id] := *serializes{serializer_id, model_id}, model_id = ${escapedNodeId}`)
           for (const r of [...serializesOut.rows, ...serializesIn.rows]) { addEdge(r[0], r[1], 'serializes') }
         } catch { /* table may not exist */ }
 
         // Declares
         try {
-          const declaresOut = await agentDb.run(`?[file_id, fn_id] := *declares{file_id, fn_id}, file_id = '${escapedNodeId}'`)
-          const declaresIn = await agentDb.run(`?[file_id, fn_id] := *declares{file_id, fn_id}, fn_id = '${escapedNodeId}'`)
+          const declaresOut = await agentDb.run(`?[file_id, fn_id] := *declares{file_id, fn_id}, file_id = ${escapedNodeId}`)
+          const declaresIn = await agentDb.run(`?[file_id, fn_id] := *declares{file_id, fn_id}, fn_id = ${escapedNodeId}`)
           for (const r of [...declaresOut.rows, ...declaresIn.rows]) { addEdge(r[0], r[1], 'declares') }
         } catch { /* table may not exist */ }
 
@@ -1086,9 +1086,9 @@ export async function queryCodeGraph(
         const nodes: any[] = []
 
         for (const id of nodeIdsArray) {
-          const escapedId = id.replace(/'/g, "''")
+          const escapedId = escapeForCozo(id)
           try {
-            const fileResult = await agentDb.run(`?[file_id, path, module, project_path] := *files{file_id, path, module, project_path}, file_id = '${escapedId}'`)
+            const fileResult = await agentDb.run(`?[file_id, path, module, project_path] := *files{file_id, path, module, project_path}, file_id = ${escapedId}`)
             if (fileResult.rows.length > 0) {
               const r = fileResult.rows[0]
               nodes.push({ id: r[0], path: r[1], module: r[2], project: r[3], type: 'file' })
@@ -1097,9 +1097,9 @@ export async function queryCodeGraph(
         }
 
         for (const id of nodeIdsArray) {
-          const escapedId = id.replace(/'/g, "''")
+          const escapedId = escapeForCozo(id)
           try {
-            const fnResult = await agentDb.run(`?[fn_id, name, file_id, is_export, lang] := *functions{fn_id, name, file_id, is_export, lang}, fn_id = '${escapedId}'`)
+            const fnResult = await agentDb.run(`?[fn_id, name, file_id, is_export, lang] := *functions{fn_id, name, file_id, is_export, lang}, fn_id = ${escapedId}`)
             if (fnResult.rows.length > 0) {
               const r = fnResult.rows[0]
               nodes.push({ id: r[0], name: r[1], file_id: r[2], is_export: r[3], lang: r[4], type: 'function' })
@@ -1108,13 +1108,13 @@ export async function queryCodeGraph(
         }
 
         for (const id of nodeIdsArray) {
-          const escapedId = id.replace(/'/g, "''")
+          const escapedId = escapeForCozo(id)
           try {
             let compResult: any
             try {
-              compResult = await agentDb.run(`?[component_id, name, file_id, class_type] := *components{component_id, name, file_id, class_type}, component_id = '${escapedId}'`)
+              compResult = await agentDb.run(`?[component_id, name, file_id, class_type] := *components{component_id, name, file_id, class_type}, component_id = ${escapedId}`)
             } catch {
-              compResult = await agentDb.run(`?[component_id, name, file_id] := *components{component_id, name, file_id}, component_id = '${escapedId}'`)
+              compResult = await agentDb.run(`?[component_id, name, file_id] := *components{component_id, name, file_id}, component_id = ${escapedId}`)
             }
             if (compResult.rows.length > 0) {
               const r = compResult.rows[0]

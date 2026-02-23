@@ -31,6 +31,7 @@ vi.mock('fs', () => ({
 }))
 
 let uuidCounter = 0
+let makeDocCounter = 0
 vi.mock('uuid', () => ({
   v4: vi.fn(() => {
     uuidCounter++
@@ -77,7 +78,7 @@ function docsFilePath(teamId: string): string {
 /** Build a TeamDocument object with sensible defaults. */
 function makeDoc(overrides: Partial<TeamDocument> = {}): TeamDocument {
   return {
-    id: `doc-${++uuidCounter}`,
+    id: `doc-helper-${++makeDocCounter}`,
     teamId: TEAM_1,
     title: 'Default Doc',
     content: 'Some content',
@@ -96,6 +97,7 @@ function makeDoc(overrides: Partial<TeamDocument> = {}): TeamDocument {
 beforeEach(() => {
   fsStore = {}
   uuidCounter = 0
+  makeDocCounter = 0
   vi.clearAllMocks()
 })
 

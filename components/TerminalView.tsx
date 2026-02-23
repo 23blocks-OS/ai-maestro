@@ -504,11 +504,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   // Load notes from localStorage ONCE on mount
   // Tab-based architecture: notes stay in memory, no need to reload on session switch
   useEffect(() => {
-    const key = `agent-notes-${storageId}`
-    const savedNotes = localStorage.getItem(key)
-    if (savedNotes !== null) {
-      setNotes(savedNotes)
-    } else {
+    // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
+    try {
+      const key = `agent-notes-${storageId}`
+      const savedNotes = localStorage.getItem(key)
+      if (savedNotes !== null) {
+        setNotes(savedNotes)
+      } else {
+        setNotes('')
+      }
+    } catch {
+      // localStorage unavailable (private browsing, storage full, etc.)
       setNotes('')
     }
     // Only load once on mount
@@ -516,11 +522,17 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   }, [])
 
   useEffect(() => {
-    const key = `agent-prompt-${storageId}`
-    const savedPrompt = localStorage.getItem(key)
-    if (savedPrompt !== null) {
-      setPromptDraft(savedPrompt)
-    } else {
+    // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
+    try {
+      const key = `agent-prompt-${storageId}`
+      const savedPrompt = localStorage.getItem(key)
+      if (savedPrompt !== null) {
+        setPromptDraft(savedPrompt)
+      } else {
+        setPromptDraft('')
+      }
+    } catch {
+      // localStorage unavailable (private browsing, storage full, etc.)
       setPromptDraft('')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,11 +540,21 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   // Save notes to localStorage when they change
   useEffect(() => {
-    localStorage.setItem(`agent-notes-${storageId}`, notes)
+    // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
+    try {
+      localStorage.setItem(`agent-notes-${storageId}`, notes)
+    } catch {
+      // localStorage unavailable — silently ignore write failure
+    }
   }, [notes, storageId])
 
   useEffect(() => {
-    localStorage.setItem(`agent-prompt-${storageId}`, promptDraft)
+    // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
+    try {
+      localStorage.setItem(`agent-prompt-${storageId}`, promptDraft)
+    } catch {
+      // localStorage unavailable — silently ignore write failure
+    }
   }, [promptDraft, storageId])
 
   useEffect(() => {

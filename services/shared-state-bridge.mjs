@@ -7,6 +7,11 @@
  *
  * server.mjs imports THIS file. API routes (via Next.js) import shared-state.ts.
  * Both reference the same globalThis objects, so state is truly shared.
+ *
+ * NT-039: SYNC WARNING -- This file intentionally duplicates the logic in
+ * services/shared-state.ts because server.mjs is plain ESM and cannot import
+ * TypeScript directly. Any changes to broadcastStatusUpdate() or the
+ * globalThis._sharedState shape MUST be mirrored in both files.
  */
 
 // Initialize shared maps on globalThis if not already present
@@ -40,9 +45,17 @@ export function broadcastStatusUpdate(sessionName, status, hookStatus, notificat
     timestamp: new Date().toISOString()
   })
 
+  // SF-039: Clean up dead/closed WebSocket subscribers during broadcast
+  // to prevent memory leaks from accumulated stale connections.
+  const dead = []
   statusSubscribers.forEach(ws => {
     if (ws.readyState === 1) { // WebSocket.OPEN
       ws.send(message)
+    } else {
+      dead.push(ws)
     }
   })
+  for (const ws of dead) {
+    statusSubscribers.delete(ws)
+  }
 }

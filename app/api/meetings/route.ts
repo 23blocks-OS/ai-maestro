@@ -8,7 +8,11 @@ export const dynamic = 'force-dynamic'
 // GET /api/meetings - List all meetings (optional ?status=active filter)
 export async function GET(request: NextRequest) {
   const result = listMeetings(request.nextUrl.searchParams.get('status'))
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  // SF-010 fix: Use explicit error check instead of ?? which can swallow errors
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 // POST /api/meetings - Create a new meeting
@@ -26,5 +30,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const result = createNewMeeting(body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  // SF-010 fix: Use explicit error check instead of ?? which can swallow errors
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

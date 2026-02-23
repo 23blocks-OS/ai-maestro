@@ -526,15 +526,23 @@ export interface UpdateMeetingParams {
   teamId?: string | null
 }
 
+// SF-049: Allowed meeting status values for runtime validation
+const VALID_MEETING_STATUSES = ['active', 'ended'] as const
+
 export function updateExistingMeeting(
   id: string,
   updates: UpdateMeetingParams,
 ): ServiceResult<{ meeting: any }> {
   try {
+    // SF-049: Validate status at runtime instead of casting to any
+    if (updates.status !== undefined && !VALID_MEETING_STATUSES.includes(updates.status as any)) {
+      return { error: `Invalid meeting status: "${updates.status}". Must be one of: ${VALID_MEETING_STATUSES.join(', ')}`, status: 400 }
+    }
+
     const meeting = updateMeeting(id, {
       name: updates.name,
       agentIds: updates.agentIds,
-      status: updates.status as any,
+      status: updates.status as typeof VALID_MEETING_STATUSES[number],
       activeAgentId: updates.activeAgentId,
       sidebarMode: updates.sidebarMode,
       lastActiveAt: updates.lastActiveAt,

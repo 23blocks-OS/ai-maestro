@@ -47,9 +47,11 @@ let _apiKeysCache: AMPApiKeyRecord[] | null = null
 let _apiKeysCacheTimestamp = 0
 
 /**
- * Load all API key records (uses in-memory cache with TTL)
+ * Internal: Load API keys and return the raw cache reference.
+ * Used only by validateApiKey for in-place last_used_at mutation (SF-039).
+ * All other callers MUST use loadApiKeys() which returns a defensive copy (SF-037).
  */
-function loadApiKeys(): AMPApiKeyRecord[] {
+function _loadApiKeysRaw(): AMPApiKeyRecord[] {
   const now = Date.now()
   if (_apiKeysCache !== null && (now - _apiKeysCacheTimestamp) < API_KEYS_CACHE_TTL_MS) {
     return _apiKeysCache
@@ -60,7 +62,7 @@ function loadApiKeys(): AMPApiKeyRecord[] {
   if (!fs.existsSync(API_KEYS_FILE)) {
     _apiKeysCache = []
     _apiKeysCacheTimestamp = now
-    return []
+    return _apiKeysCache
   }
 
   try {
@@ -72,6 +74,14 @@ function loadApiKeys(): AMPApiKeyRecord[] {
     console.error('[AMP Auth] Failed to load API keys:', error)
     return []
   }
+}
+
+/**
+ * Load all API key records (uses in-memory cache with TTL).
+ * SF-037: Returns a defensive shallow copy so external mutations cannot corrupt the cache.
+ */
+function loadApiKeys(): AMPApiKeyRecord[] {
+  return [..._loadApiKeysRaw()]
 }
 
 /**
@@ -199,28 +209,34 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
   // SF-004: validateApiKey remains sync because lastUsed writes are debounced (60s),
   // making concurrent write conflicts extremely unlikely. The mutating functions
   // (createApiKey, rotateApiKey, revokeApiKey) use withLock for safety.
-  const keys = loadApiKeys()
+  //
+  // SF-037: loadApiKeys() returns a defensive copy for external callers. For the
+  // validation hot path we need the raw cache reference so last_used_at mutations
+  // persist in the cache without cloning on every call.
+  const keys = _loadApiKeysRaw()
   const keyHash = hashApiKey(apiKey)
 
-  // SF-009: Phase 1 acceptable -- find() loop reveals timing info (early-exit on match),
-  // but API keys have sufficient entropy (256-bit) that timing side-channel is impractical.
-  // Phase 2 should iterate all keys regardless and select the match afterward.
-  const record = keys.find(k => {
-    // Use constant-time comparison for hash to prevent timing attacks
+  // SF-034: Iterate ALL keys to prevent timing side-channel from early-exit find().
+  // Even though 256-bit entropy makes timing attacks impractical, constant-time iteration
+  // is the correct pattern for credential validation.
+  let record: AMPApiKeyRecord | null = null
+  for (const k of keys) {
     const a = Buffer.from(k.key_hash, 'utf8')
     const b = Buffer.from(keyHash, 'utf8')
     const hashMatch = a.length === b.length && timingSafeEqual(a, b)
-    return hashMatch &&
+    const isValid = hashMatch &&
       k.status === 'active' &&
       (!k.expires_at || new Date(k.expires_at) > new Date())
-  })
+    // Always evaluate every key; capture the first match without breaking
+    if (isValid && record === null) {
+      record = k
+    }
+  }
 
   if (record) {
     // SF-039: Intentionally mutates cached array in-place for last_used_at tracking.
-    // This is safe because loadApiKeys() returns the authoritative array, and the
-    // debounce below limits disk writes. The mutation avoids cloning the entire
+    // The debounce below limits disk writes. The mutation avoids cloning the entire
     // array on every validation call (hot path).
-    // Debounce last_used_at disk writes (S8 fix)
     const now = Date.now()
     const lastWrite = _lastUsedWriteTimestamps.get(keyHash) || 0
     if (now - lastWrite > LAST_USED_WRITE_INTERVAL_MS) {

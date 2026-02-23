@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { notifyTeamAgents } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
 
+// NT-008 fix: Force dynamic rendering for consistency with other POST-only routes
+export const dynamic = 'force-dynamic'
+
 // POST /api/teams/notify - Notify team agents about a meeting
 export async function POST(request: NextRequest) {
   // Authenticate requesting agent identity (CC-P1-304)
@@ -18,8 +21,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  // SF-012: Pass authenticated agent ID to service for audit trail
-  const result = await notifyTeamAgents({ ...body, requestingAgentId: auth.agentId })
+  // NT-006: requestingAgentId removed -- NotifyTeamParams only accepts agentIds + teamName.
+  // Authentication is verified above; audit logging of the requesting agent is not yet needed.
+  const result = await notifyTeamAgents(body)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

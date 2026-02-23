@@ -109,4 +109,5 @@ export type TeamMeetingAction =
   | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }
   | { type: 'OPEN_KANBAN' }
   | { type: 'CLOSE_KANBAN' }
-  | { type: 'RESTORE_MEETING'; meeting: Meeting; teamId: string | null }
+  // NT-016: Removed redundant teamId -- meeting.teamId is the source of truth
+  | { type: 'RESTORE_MEETING'; meeting: Meeting }

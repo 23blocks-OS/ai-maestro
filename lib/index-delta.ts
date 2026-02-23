@@ -32,6 +32,9 @@ const indexQueue: Array<{
   timestamp: number
 }> = []
 
+// SF-035: Timeout for queued index slots to prevent indefinite waits
+const INDEX_SLOT_TIMEOUT_MS = 60_000 // 60 seconds, matching file-lock.ts pattern
+
 async function acquireIndexSlot(agentId: string): Promise<() => void> {
   if (activeIndexCount < MAX_CONCURRENT_INDEX) {
     activeIndexCount++
@@ -41,16 +44,26 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
 
   console.log(`[Delta Index Throttle] ${agentId.substring(0, 8)} queued (${indexQueue.length + 1} waiting)`)
 
-  return new Promise((resolve) => {
-    indexQueue.push({
+  return new Promise((resolve, reject) => {
+    // SF-035: Timeout prevents indefinite waits when releaseIndexSlot is never called
+    const timeoutHandle = setTimeout(() => {
+      // Remove this entry from the queue so it does not fire later
+      const idx = indexQueue.findIndex(q => q.agentId === agentId && q.timestamp === entry.timestamp)
+      if (idx !== -1) indexQueue.splice(idx, 1)
+      reject(new Error(`[Delta Index Throttle] Timeout: ${agentId.substring(0, 8)} waited ${INDEX_SLOT_TIMEOUT_MS}ms for index slot`))
+    }, INDEX_SLOT_TIMEOUT_MS)
+
+    const entry = {
       resolve: () => {
+        clearTimeout(timeoutHandle)
         activeIndexCount++
         console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
         resolve(() => releaseIndexSlot(agentId))
       },
       agentId,
       timestamp: Date.now()
-    })
+    }
+    indexQueue.push(entry)
   })
 }
 

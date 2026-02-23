@@ -145,6 +145,26 @@ echo ""
 print_step "$DOWNLOAD" "Fetching latest changes from GitHub..."
 echo ""
 
+# SF-042: Verify we are on the main branch before pulling from origin/main.
+# Running `git pull origin main` on a feature branch would merge main into it.
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    print_warning "You are on branch '${CURRENT_BRANCH}', not 'main'."
+    echo "         This updater pulls from origin/main. Switching branches automatically."
+    echo ""
+    if [ "$NON_INTERACTIVE" = true ]; then
+        git checkout main
+    else
+        read -p "Switch to main and continue? (y/n): " SWITCH_CONFIRM
+        if [[ "$SWITCH_CONFIRM" =~ ^[Yy]$ ]]; then
+            git checkout main
+        else
+            print_warning "Update cancelled -- please switch to main manually."
+            exit 0
+        fi
+    fi
+fi
+
 # Fetch and show what's new
 git fetch origin main
 

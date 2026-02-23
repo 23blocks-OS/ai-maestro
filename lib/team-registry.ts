@@ -276,9 +276,11 @@ export async function createTeam(
       description: data.description,
       agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
       type: (result.sanitized.type as TeamType) ?? data.type ?? 'open',
-      chiefOfStaffId: result.sanitized.chiefOfStaffId !== undefined
-        ? (result.sanitized.chiefOfStaffId as string | undefined)
-        : data.chiefOfStaffId,
+      // SF-038: Default to null (not undefined) when no COS is provided, matching
+      // the codebase convention where null means "no chief of staff assigned"
+      chiefOfStaffId: (result.sanitized.chiefOfStaffId !== undefined
+        ? result.sanitized.chiefOfStaffId as string | null
+        : data.chiefOfStaffId) ?? null,
       createdAt: now,
       updatedAt: now,
     }

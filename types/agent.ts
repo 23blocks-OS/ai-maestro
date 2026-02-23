@@ -91,6 +91,10 @@ export interface AMPExternalRegistration {
  *   "23blocks-apps-backend_2" → { agentName: "23blocks-apps-backend", index: 2 }
  */
 export function parseSessionName(tmuxName: string): { agentName: string; index: number } {
+  // NT-015: guard against empty string input (tmux never produces empty names, but callers might)
+  if (!tmuxName) {
+    return { agentName: '', index: 0 }
+  }
   const match = tmuxName.match(/^(.+)_(\d+)$/)
   if (match) {
     return { agentName: match[1], index: parseInt(match[2], 10) }
@@ -348,9 +352,14 @@ export interface EmailTool {
   addresses: EmailAddress[]
 
   // DEPRECATED: Legacy single-address fields (kept for migration)
-  // Remove after all agents migrated to addresses[]
-  address?: string              // @deprecated Use addresses[] instead
-  provider?: 'local' | 'smtp'   // @deprecated Gateway concern, not identity
+  // NT-018: Removal tracked as backlog task. Migration plan:
+  // 1. Registry loader auto-migrates address/provider into addresses[] on read
+  // 2. After all agents have been loaded at least once, these fields can be removed
+  // 3. Target removal: Phase 2 (next breaking schema change)
+  /** @deprecated Use addresses[] instead. Removal: Phase 2. */
+  address?: string
+  /** @deprecated Gateway concern, not identity. Removal: Phase 2. */
+  provider?: 'local' | 'smtp'
 }
 
 // ============================================================================

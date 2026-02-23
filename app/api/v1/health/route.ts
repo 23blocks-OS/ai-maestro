@@ -7,16 +7,19 @@
  * No authentication required - used for monitoring and load balancers.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+// NT-010: Simplified import — NextRequest not needed since _request param is unused for Next.js-specific features
+import { NextResponse } from 'next/server'
 import { getHealthStatus } from '@/services/amp-service'
 import type { AMPHealthResponse } from '@/lib/types/amp'
 
-export async function GET(_request: NextRequest): Promise<NextResponse<AMPHealthResponse | { error: string }>> {
+// NT-013: Prefix unused request parameter with underscore
+export async function GET(_request: Request): Promise<NextResponse<AMPHealthResponse | { error: string }>> {
   const result = getHealthStatus()
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json(result.data!, {
+  // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
+  return NextResponse.json(result.data ?? {} as AMPHealthResponse, {
     status: result.status,
     headers: result.headers
   })

@@ -49,8 +49,10 @@ async function sendTmuxNotification(sessionName: string, message: string): Promi
   const target = `${sessionName}:0.0`
 
   // Uses literal flag to prevent tmux from misinterpreting key names in notification text
-  // Note: If the session is running a non-shell program (vim, REPL, TUI), this echo command
-  // will be typed as input to that program. Notifications are designed for idle shell prompts.
+  // NT-027: KNOWN LIMITATION — If the session is running a non-shell program (vim, REPL, TUI),
+  // this echo command will be typed as input to that program. Notifications are designed for
+  // idle shell prompts. Phase 2 should consider using `tmux display-message` as an alternative
+  // that overlays text without injecting keystrokes into the active program.
   // Defense-in-depth: strip control characters to prevent terminal injection
   const sanitized = message.replace(/[\x00-\x1F\x7F]/g, '')
   // CC-P1-801: Escape single quotes to prevent shell injection when interpolated into echo '...'

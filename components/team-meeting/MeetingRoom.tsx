@@ -226,7 +226,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
 
         persistedMeetingIdRef.current = meeting.id
         setTeamId(meeting.teamId)
-        dispatch({ type: 'RESTORE_MEETING', meeting, teamId: meeting.teamId })
+        // NT-016: teamId removed -- meeting.teamId is the source of truth
+        dispatch({ type: 'RESTORE_MEETING', meeting })
       } catch {
         if (!cancelled) setNotFound(true)
       } finally {

@@ -34,7 +34,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     if (result.error) {
       return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
     }
-    return NextResponse.json(result.data!, {
+    // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
+    return NextResponse.json((result.data ?? {}) as AMPRouteResponse, {
       status: result.status,
       headers: result.headers
     })

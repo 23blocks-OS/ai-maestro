@@ -252,7 +252,6 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />

@@ -65,7 +65,8 @@ export interface UpdateTeamParams {
 export interface CreateTaskParams {
   subject: string
   description?: string
-  assigneeAgentId?: string
+  // SF-007: Allow null to explicitly unassign -- matches task-registry's `string | null` type
+  assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
   requestingAgentId?: string
@@ -75,7 +76,8 @@ export interface UpdateTaskParams {
   subject?: string
   description?: string
   status?: TaskStatus
-  assigneeAgentId?: string
+  // SF-008: Allow null to explicitly unassign -- matches task-registry's `string | null` type
+  assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
   requestingAgentId?: string
@@ -266,6 +268,25 @@ export async function deleteTeamById(id: string, requestingAgentId?: string): Pr
     return { error: 'Team not found', status: 404 }
   }
   return { data: { success: true }, status: 200 }
+}
+
+// ---------------------------------------------------------------------------
+// Bulk Stats (SF-028: Eliminates N+1 fetch for team task/document counts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get task and document counts for all teams in a single call.
+ * Returns a map of teamId -> { taskCount, docCount }.
+ */
+export function getTeamsBulkStats(): ServiceResult<Record<string, { taskCount: number; docCount: number }>> {
+  const teams = loadTeams()
+  const stats: Record<string, { taskCount: number; docCount: number }> = {}
+  for (const team of teams) {
+    const tasks = loadTasks(team.id)
+    const documents = loadDocuments(team.id)
+    stats[team.id] = { taskCount: tasks.length, docCount: documents.length }
+  }
+  return { data: stats, status: 200 }
 }
 
 // ---------------------------------------------------------------------------

@@ -620,9 +620,11 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
   }
 
   if (!fs.existsSync(conversationFile)) {
+    // SF-045: Log full path for server-side debugging but return a generic
+    // error message to avoid leaking filesystem path structure to the client.
     console.error('[Parse Conversation] File not found:', conversationFile)
     return {
-      error: `Conversation file not found: ${conversationFile}`,
+      error: 'Conversation file not found',
       status: 404,
     }
   }
@@ -632,6 +634,7 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
     const lines = fileContent.split('\n').filter(line => line.trim())
 
     const messages: any[] = []
+    let parseErrorCount = 0 // NT-038: Count parse errors for summary log
     const metadata: {
       sessionId?: string
       cwd?: string
@@ -726,10 +729,17 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
 
         messages.push(message)
         metadata.totalMessages++
-      } catch (parseErr) {
-        console.error('[Parse Conversation] Failed to parse line:', parseErr)
-        console.error('[Parse Conversation] Problematic line:', line.substring(0, 200))
+      } catch {
+        // NT-038: Count parse errors instead of logging each one at ERROR level.
+        // Malformed JSONL lines are common and logging each one creates noise
+        // and may expose sensitive content from raw line data.
+        parseErrorCount++
       }
+    }
+
+    // NT-038: Log a single summary warning instead of per-line ERROR entries
+    if (parseErrorCount > 0) {
+      console.warn(`[Parse Conversation] ${parseErrorCount} malformed JSONL line(s) skipped`)
     }
 
     const thinkingMessages = messages.filter(m => m.type === 'thinking')
@@ -776,7 +786,11 @@ export async function getConversationMessages(
   try {
     const conversationFile = decodeURIComponent(encodedFile)
 
+    // MF-006: Null-check agent before calling getDatabase() to return clean 404
     const agent = await agentRegistry.getAgent(agentId)
+    if (!agent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agentDb = await agent.getDatabase()
 
     // Use escapeForCozo to prevent CozoScript injection via conversationFile (CC-P1-803)

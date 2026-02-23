@@ -107,6 +107,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 beforeEach(() => {
   fsStore = {}
   uuidCounter = 0
+  makeTaskCounter = 1000
   vi.clearAllMocks()
 })
 

@@ -8,9 +8,13 @@
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
 import * as fs from 'fs'
+import * as fsp from 'fs/promises'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import os from 'os'
+
+// SF-047: Maximum conversation file size to prevent OOM (50 MB)
+const MAX_CONVERSATION_FILE_SIZE = 50 * 1024 * 1024
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +56,10 @@ export async function getConversationMessages(
   const projectDirName = workingDir.replace(/\//g, '-')
   const conversationDir = path.join(claudeProjectsDir, projectDirName)
 
-  if (!fs.existsSync(conversationDir)) {
+  // SF-048: Use async file I/O instead of sync to avoid blocking the event loop
+  try {
+    await fsp.access(conversationDir)
+  } catch {
     return {
       data: {
         success: true,
@@ -64,15 +71,18 @@ export async function getConversationMessages(
     }
   }
 
-  // Find the most recently modified .jsonl file
-  const files = fs.readdirSync(conversationDir)
-    .filter(f => f.endsWith('.jsonl'))
-    .map(f => ({
-      name: f,
-      path: path.join(conversationDir, f),
-      mtime: fs.statSync(path.join(conversationDir, f)).mtime
-    }))
-    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+  // SF-048: Use async readdir + stat instead of sync versions
+  const dirEntries = await fsp.readdir(conversationDir)
+  const jsonlFiles = dirEntries.filter(f => f.endsWith('.jsonl'))
+
+  const filesWithStats = await Promise.all(
+    jsonlFiles.map(async f => {
+      const filePath = path.join(conversationDir, f)
+      const stat = await fsp.stat(filePath)
+      return { name: f, path: filePath, mtime: stat.mtime, size: stat.size }
+    })
+  )
+  const files = filesWithStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
 
   if (files.length === 0) {
     return {
@@ -88,8 +98,16 @@ export async function getConversationMessages(
 
   const currentConversation = files[0]
 
-  // Read and parse the JSONL file
-  const fileContent = fs.readFileSync(currentConversation.path, 'utf-8')
+  // SF-047: Enforce maximum file size to prevent OOM on large conversation files
+  if (currentConversation.size > MAX_CONVERSATION_FILE_SIZE) {
+    return {
+      error: `Conversation file too large (${Math.round(currentConversation.size / 1024 / 1024)}MB). Maximum: ${MAX_CONVERSATION_FILE_SIZE / 1024 / 1024}MB`,
+      status: 413
+    }
+  }
+
+  // SF-048: Use async readFile instead of sync to avoid blocking the event loop
+  const fileContent = await fsp.readFile(currentConversation.path, 'utf-8')
   const lines = fileContent.split('\n').filter(line => line.trim())
 
   const sinceTime = since ? new Date(since).getTime() : 0

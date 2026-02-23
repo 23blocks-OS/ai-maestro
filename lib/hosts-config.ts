@@ -243,19 +243,23 @@ let cachedHosts: Host[] | null = null
 function migrateHost(host: Host): Host {
   const selfId = getSelfHostId() // Already lowercase
 
+  // NT-017: Strip deprecated `type` field during migration -- no longer meaningful in mesh network
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { type: _deprecatedType, ...hostWithoutType } = host
+
   // Migrate id:'local' to actual hostname
-  if (host.id === 'local') {
+  if (hostWithoutType.id === 'local') {
     return {
-      ...host,
+      ...hostWithoutType,
       id: selfId,
-      name: host.name || selfId,
+      name: hostWithoutType.name || selfId,
     }
   }
 
   // Normalize host ID to lowercase for case-insensitive consistency
   return {
-    ...host,
-    id: host.id.toLowerCase(),
+    ...hostWithoutType,
+    id: hostWithoutType.id.toLowerCase(),
   }
 }
 

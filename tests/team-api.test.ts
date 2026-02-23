@@ -357,7 +357,8 @@ describe('PUT /api/teams/[id]', () => {
     expect(data.team.name).toBe('Updated Name')
     // type and chiefOfStaffId must NOT have been changed
     expect(data.team.type).toBe('open')
-    expect(data.team.chiefOfStaffId).toBeUndefined()
+    // SF-038 (P8): createTeam now defaults chiefOfStaffId to null (not undefined)
+    expect(data.team.chiefOfStaffId).toBeNull()
 
     // Verify updateTeam was called WITHOUT type or chiefOfStaffId in the updates object
     expect(spy).toHaveBeenCalledTimes(1)

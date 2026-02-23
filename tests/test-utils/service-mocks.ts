@@ -48,6 +48,9 @@ export function createHostsConfigMock() {
 // Shared state mock
 // ---------------------------------------------------------------------------
 
+// NT-005: statusSubscribers, terminalSessions, companionClients are included for TypeScript
+// structural compatibility with the SharedState interface used by server.mjs and services.
+// Without these fields, vi.mocked() casts would fail when services access shared state properties.
 export function createSharedStateMock() {
   const sessionActivity = new Map<string, number>()
   return {

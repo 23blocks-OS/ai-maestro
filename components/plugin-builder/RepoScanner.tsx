@@ -5,7 +5,8 @@ import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
 interface RepoScannerProps {
-  onSkillsFound: (skills: RepoSkillInfo[], url: string, ref: string) => void
+  // NT-020: Made optional -- SkillPicker doesn't use the callback (passes no-op)
+  onSkillsFound?: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
   selectedSkillKeys: Set<string>
 }
@@ -52,7 +53,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        onSkillsFound?.(data.skills, url.trim(), ref)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return

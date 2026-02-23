@@ -264,7 +264,8 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
     fromHost,
     // MF-025/MF-027: Propagate fromVerified from AMP envelope; infer from signature presence
     // when fromVerified is not explicitly set (AMP messages with valid signatures are verified)
-    fromVerified: ampMsg.fromVerified ?? Boolean(envelope.signature || ampMsg.signature) ?? false,
+    // NT-026: Removed trailing `?? false` — Boolean() always returns a boolean, making it dead code
+    fromVerified: ampMsg.fromVerified ?? Boolean(envelope.signature || ampMsg.signature),
     to: toName,
     toAlias: toName,
     toLabel: toAgent?.label || undefined,
@@ -508,7 +509,9 @@ _agentCacheSweepInterval.unref()
  * Call this in tests to prevent timer leaks (vitest/jest open handle warnings).
  * SF-053: In production, .unref() above ensures the timer won't block process exit,
  * so explicit cleanup is only needed in test environments.
- * SF-064: TODO: Wire into shutdown handler or remove export. Currently only called from tests.
+ * NT-028: Exported solely for test cleanup. In production, the .unref() call on the
+ * interval handle (line above) ensures Node.js can exit even if this is never called.
+ * When a graceful shutdown handler is added (e.g., SIGTERM), it should call this function.
  */
 export function cleanupAgentCacheSweep(): void {
   clearInterval(_agentCacheSweepInterval)
@@ -923,8 +926,11 @@ export async function getMessageStats(agentIdentifier: string): Promise<{
     },
   }
 
+  // SF-036: Guard against undefined priority keys producing NaN increments
   messages.forEach(m => {
-    stats.byPriority[m.priority]++
+    if (m.priority in stats.byPriority) {
+      stats.byPriority[m.priority]++
+    }
   })
 
   return stats

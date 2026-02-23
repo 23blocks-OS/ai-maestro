@@ -218,6 +218,25 @@ describe('createDocument', () => {
     expect(doc.tags).toEqual(['api', 'design'])
   })
 
+  it('handles undefined pinned and tags fields (SF-003: exercise optional-field code path)', async () => {
+    const doc = await createDocument({
+      teamId: TEAM_1,
+      title: 'Undefined Optionals',
+      content: 'body',
+      pinned: undefined,
+      tags: undefined,
+    })
+
+    // createDocument should default these; verify round-trip still works
+    expect(doc.pinned).toBe(false)
+    expect(doc.tags).toEqual([])
+
+    // Verify persistence round-trip with undefined optional fields
+    const loaded = loadDocuments(TEAM_1)
+    expect(loaded[0].pinned).toBe(false)
+    expect(loaded[0].tags).toEqual([])
+  })
+
   it('appends to existing documents', async () => {
     await createDocument({ teamId: TEAM_1, title: 'First', content: '' })
     await createDocument({ teamId: TEAM_1, title: 'Second', content: '' })

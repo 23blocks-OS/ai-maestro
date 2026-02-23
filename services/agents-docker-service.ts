@@ -6,6 +6,8 @@
  */
 
 import { execFile } from 'child_process'
+import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { promisify } from 'util'
 import { createAgent, loadAgents, saveAgents } from '@/lib/agent-registry'
@@ -180,8 +182,14 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
     '-e', `TMUX_SESSION_NAME=${name}`,
     '-e', `AI_TOOL=${aiTool}`,
   ]
+  // SF-051: Pass GitHub token via a temporary env file to avoid plaintext exposure
+  // in `docker inspect` and /proc/[pid]/environ. File is cleaned up after container start.
+  let envFilePath: string | undefined
   if (body.githubToken) {
-    dockerArgs.push('-e', `GITHUB_TOKEN=${body.githubToken}`)
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-docker-'))
+    envFilePath = path.join(tmpDir, '.env')
+    fs.writeFileSync(envFilePath, `GITHUB_TOKEN=${body.githubToken}\n`, { mode: 0o600 })
+    dockerArgs.push('--env-file', envFilePath)
   }
   dockerArgs.push(
     '-v', `${workDir}:/workspace`,
@@ -201,6 +209,14 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { error: `Failed to start container: ${message}`, status: 500 }
+  } finally {
+    // SF-051: Clean up temporary env file immediately after docker run completes
+    if (envFilePath) {
+      try {
+        fs.unlinkSync(envFilePath)
+        fs.rmdirSync(path.dirname(envFilePath))
+      } catch { /* best-effort cleanup */ }
+    }
   }
 
   // Register in agent registry
@@ -236,7 +252,20 @@ export async function createDockerAgent(body: DockerCreateRequest): Promise<Serv
       saveAgents(agents)
     }
   } catch (err) {
-    console.error('[Docker Service] Registry error:', err)
+    // SF-050: Surface registry failure as a warning instead of silently swallowing.
+    // Container is already running -- caller needs to know registration failed so they can retry or clean up.
+    console.error('[Docker Service] Registry error (container already running):', err)
+    return {
+      data: {
+        success: true,
+        agentId: undefined,
+        containerId,
+        port,
+        containerName,
+        warning: 'Container started but agent registry update failed. Container may be orphaned.',
+      },
+      status: 207, // Multi-Status: partial success
+    }
   }
 
   return {

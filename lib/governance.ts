@@ -39,6 +39,11 @@ export function loadGovernance(): GovernanceConfig {
   try {
     const data = fs.readFileSync(GOVERNANCE_FILE, 'utf-8')
     const parsed: GovernanceConfig = JSON.parse(data)
+    // SF-025: Runtime version check -- TypeScript literal type `1` is not enforced after JSON.parse
+    if (parsed.version !== 1) {
+      console.error(`[governance] Unsupported config version: ${parsed.version} (expected 1). Returning defaults.`)
+      return { ...DEFAULT_GOVERNANCE_CONFIG }
+    }
     return parsed
   } catch (error) {
     // Distinguish read errors from parse errors — parse errors indicate disk corruption
@@ -53,7 +58,16 @@ export function loadGovernance(): GovernanceConfig {
       // Heal the corrupted file by writing defaults, matching the first-time init path (lines 34-36)
       saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
     } else {
-      console.error('[governance] Failed to read governance config:', error)
+      // NT-029: Distinguish ENOENT (expected on first run race) from permission/other errors.
+      // EACCES or other I/O errors are logged at error level to surface misconfiguration.
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') {
+        // File was deleted between existsSync and readFileSync — treat as first-time init
+        console.warn('[governance] governance.json disappeared between check and read — reinitializing defaults')
+        saveGovernance(DEFAULT_GOVERNANCE_CONFIG)
+      } else {
+        console.error(`[governance] Failed to read governance config (${code ?? 'unknown'}):`, error)
+      }
     }
     return { ...DEFAULT_GOVERNANCE_CONFIG }
   }

@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 })
     }
 
+    // SF-030 (P8): Validate teamId and agentId as UUIDs for consistency with POST route
+    if (teamId && !isValidUuid(teamId)) {
+      return NextResponse.json({ error: 'Invalid teamId format' }, { status: 400 })
+    }
+    if (agentId && !isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agentId format' }, { status: 400 })
+    }
+
     let requests = loadTransfers()
 
     if (teamId) {

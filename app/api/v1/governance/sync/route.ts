@@ -28,6 +28,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  // NT-025 (P8): Validate body.type against known GovernanceSyncType values
+  const validSyncTypes: string[] = ['manager-changed', 'team-updated', 'team-deleted', 'transfer-update']
+  if (!validSyncTypes.includes(body.type)) {
+    return NextResponse.json(
+      { error: `Invalid sync type: must be one of ${validSyncTypes.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
   // Verify sender is a known peer host
   const hosts = getHosts()
   const knownHost = hosts.find(h => h.id === body.fromHostId)

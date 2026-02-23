@@ -77,8 +77,9 @@ export function lookupAgentByDirectoryName(name: string): ServiceResult<any> {
       status: 200,
     }
   } catch (error) {
+    // NT-037: Return error field (not data) on 500 to match other service methods
     console.error('[Agent Directory Service] lookupAgentByDirectoryName error:', error)
-    return { data: { found: false }, status: 500 }
+    return { error: 'Failed to lookup agent', status: 500 }
   }
 }
 

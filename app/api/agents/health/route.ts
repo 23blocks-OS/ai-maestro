@@ -21,6 +21,15 @@ export async function POST(request: Request) {
     if (!url || typeof url !== 'string') {
       return NextResponse.json({ error: 'url is required and must be a string' }, { status: 400 })
     }
+    // SF-015 fix: Validate URL scheme to prevent SSRF (file://, gopher://, etc.)
+    try {
+      const parsed = new URL(url)
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return NextResponse.json({ error: 'Only http/https URLs are allowed' }, { status: 400 })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
+    }
     // CC-P3-003: Wrap proxyHealthCheck in try-catch for unexpected throws
     const result = await proxyHealthCheck(url)
 

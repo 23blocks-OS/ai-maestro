@@ -13,10 +13,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - **Layer 4 — Manager Trust Registry**: Trust relationships between MANAGERs (`lib/manager-trust.ts`) enable auto-approval of governance requests from trusted peers
 - **Agent configuration governance (Layer 5)**: MANAGER/COS role enforcement on agent CRUD operations — createNewAgent, updateAgentById, deleteAgentById in `agents-core-service.ts`
 - `AgentConfiguration` interface in `types/agent.ts` for governed agent config fields (skills, mcpServers, hooks, model, programArgs)
-- `agentHostMap` field on Team type for multi-host team membership tracking
+- `agentHostMap` field on Team type for multi-host team membership tracking (@planned — type stub only, not yet populated or consumed)
 - Message filter accepts attested mesh roles: verified MANAGER attestation allows cross-host messages to closed-team recipients
 - API routes: governance requests (submit/list/approve/reject), governance sync, manager trust (add/list/remove)
-- 169 new tests across 9 test files (governance-peers, governance-sync, host-keys, role-attestation, governance-request-registry, cross-host-governance, manager-trust, agent-config-governance, governance-endpoint-auth)
+- 252 new tests across 10 test files (governance-peers, governance-sync, host-keys, role-attestation, governance-request-registry, cross-host-governance, manager-trust, agent-config-governance, agent-config-governance-extended, governance-endpoint-auth)
 
 ### Changed
 - Standardized governance roles: `'normal'` → `'member'` across codebase (aligns with upstream `AgentRole`)

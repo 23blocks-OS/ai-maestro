@@ -31,7 +31,8 @@ export async function POST(request: Request) {
 
     const result = await importAgent(buffer, options)
     if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: result.status || 500 })
+      // NT-014 fix: Remove unique || 500 fallback, consistent with other routes
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
     return NextResponse.json(result.data, { status: result.status })
   } catch (error) {

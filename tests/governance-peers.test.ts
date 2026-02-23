@@ -27,6 +27,9 @@ import os from 'os'
 
 let fsStore: Record<string, string> = {}
 
+// NT-003: Dual export mock pattern — governance-peers.ts uses named imports (`import { readFileSync } from 'fs'`),
+// but some transitive dependencies use default import (`import fs from 'fs'`). Both must be mocked
+// with identical implementations sharing the same fsStore to ensure consistent behavior.
 vi.mock('fs', () => ({
   // Named exports (used by governance-peers.ts via `import { readFileSync, ... } from 'fs'`)
   existsSync: vi.fn((filePath: string) => filePath in fsStore),

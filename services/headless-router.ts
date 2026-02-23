@@ -219,6 +219,7 @@ import {
   updateTeamDocument,
   deleteTeamDocument,
   notifyTeamAgents,
+  getTeamsBulkStats,
 } from '@/services/teams-service'
 
 import {
@@ -1486,6 +1487,10 @@ const routes: Route[] = [
   // =========================================================================
   // Teams
   // =========================================================================
+  // SF-028: Bulk stats endpoint to eliminate N+1 fetch pattern on teams page
+  { method: 'GET', pattern: /^\/api\/teams\/stats$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, getTeamsBulkStats())
+  }},
   { method: 'POST', pattern: /^\/api\/teams\/notify$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await notifyTeamAgents(body))

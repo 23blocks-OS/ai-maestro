@@ -154,7 +154,12 @@ open_browser() {
     fi
 }
 
-# Cleanup on error/interrupt
+# Cleanup on error/interrupt.
+# NT-035: In non-interactive mode, partial installations are auto-removed.
+# This is acceptable because the guards ensure we only remove directories that:
+#   1) are under $HOME (never system dirs)
+#   2) lack a package.json (indicating incomplete clone)
+# In interactive mode, the user is warned but no deletion occurs.
 cleanup() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then

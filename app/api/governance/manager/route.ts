@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, setManager, removeManager, loadGovernance } from '@/lib/governance'
 import { getAgent } from '@/lib/agent-registry'
-import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+// SF-029 (P8): Use atomic checkAndRecordAttempt to match cross-host-governance-service pattern
+import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
+
+// NT-023 (P8): Ensure Next.js does not cache this route
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Governance password not set. Set a password first via POST /api/governance/password' }, { status: 400 })
     }
 
-    // Rate limit password verification to prevent brute-force attacks
-    const rateCheck = checkRateLimit('governance-manager-auth')
+    // SF-029 (P8): Atomic check-and-record to eliminate TOCTOU window (matches cross-host-governance-service)
+    const rateCheck = checkAndRecordAttempt('governance-manager-auth')
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` },
@@ -30,10 +34,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!(await verifyPassword(password))) {
-      recordFailure('governance-manager-auth')
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
-    // Password verified successfully — reset rate limit counter
+    // Password verified successfully -- reset rate limit counter
     resetRateLimit('governance-manager-auth')
 
     // agentId === null removes the manager role; undefined/missing is invalid

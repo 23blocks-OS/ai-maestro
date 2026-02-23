@@ -91,12 +91,20 @@ export function controlPlayback(
     return { error: `Invalid action. Must be one of: ${validActions.join(', ')}`, status: 400 }
   }
 
-  if ((action === 'seek' || action === 'setSpeed') && (value === undefined || isNaN(value))) {
+  // NT-040: Use Number.isNaN + type check instead of global isNaN which coerces argument
+  if ((action === 'seek' || action === 'setSpeed') && (value === undefined || typeof value !== 'number' || Number.isNaN(value))) {
     return { error: `Action '${action}' requires a numeric value parameter`, status: 400 }
   }
 
-  if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId, 10))) {
-    return { error: 'Session not found for this agent', status: 404 }
+  // SF-046: Validate parseInt result to avoid NaN comparison (always false) silently returning 404
+  if (sessionId) {
+    const parsedIndex = parseInt(sessionId, 10)
+    if (Number.isNaN(parsedIndex)) {
+      return { error: 'sessionId must be a numeric session index', status: 400 }
+    }
+    if (!agent.sessions?.some(s => s.index === parsedIndex)) {
+      return { error: 'Session not found for this agent', status: 404 }
+    }
   }
 
   // NT-021: Removed production console.log (placeholder implementation)

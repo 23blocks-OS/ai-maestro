@@ -18,7 +18,8 @@ import { loadGovernance, verifyPassword, setManager, removeManager, setPassword,
 import { addTrustedManager, removeTrustedManager, getTrustedManagers } from '@/lib/manager-trust'
 import type { ManagerTrust } from '@/lib/manager-trust'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
-import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+// SF-029 (P8): Use atomic checkAndRecordAttempt to match cross-host-governance-service pattern
+import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { checkMessageAllowed } from '@/lib/message-filter'
 import { loadTransfers, createTransferRequest, getTransferRequest, resolveTransferRequest, revertTransferToPending, getPendingTransfersForAgent } from '@/lib/transfer-registry'
 import type { TransferRequest } from '@/types/governance'
@@ -69,13 +70,13 @@ export async function setManagerRole(params: {
     return { error: 'Governance password not set. Set a password first via POST /api/governance/password', status: 400 }
   }
 
-  const rateCheck = checkRateLimit('governance-manager-auth')
+  // SF-029 (P8): Atomic check-and-record to eliminate TOCTOU window (matches cross-host-governance-service)
+  const rateCheck = checkAndRecordAttempt('governance-manager-auth')
   if (!rateCheck.allowed) {
     return { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
   }
 
   if (!(await verifyPassword(password))) {
-    recordFailure('governance-manager-auth')
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit('governance-manager-auth')
@@ -92,7 +93,8 @@ export async function setManagerRole(params: {
 
   const agent = getAgent(agentId)
   if (!agent) {
-    return { error: `Agent '${agentId}' not found`, status: 404 }
+    // NT-024 (P8): Consistent error format without quotes (agentId already validated as non-empty string)
+    return { error: `Agent ${agentId} not found`, status: 404 }
   }
 
   await setManager(agentId)
@@ -108,7 +110,11 @@ export async function setGovernancePassword(params: {
 }): Promise<ServiceResult<{ success: boolean }>> {
   const { password, currentPassword } = params
 
-  if (!password || typeof password !== 'string' || password.length < 6) {
+  // NT-022: split combined validation for readability
+  if (!password || typeof password !== 'string') {
+    return { error: 'Password must be a non-empty string', status: 400 }
+  }
+  if (password.length < 6) {
     return { error: 'Password must be at least 6 characters', status: 400 }
   }
   if (password.length > 72) {
@@ -119,17 +125,18 @@ export async function setGovernancePassword(params: {
 
   // If a password already exists, require current password for change
   if (config.passwordHash) {
-    const rateCheck = checkRateLimit('governance-password-change')
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      // Missing password is a client error (400), not an auth failure -- don't count toward rate limit
+      return { error: 'currentPassword is required when changing an existing password', status: 400 }
+    }
+
+    // SF-029 (P8): Atomic check-and-record to eliminate TOCTOU window (matches cross-host-governance-service)
+    const rateCheck = checkAndRecordAttempt('governance-password-change')
     if (!rateCheck.allowed) {
       return { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
     }
 
-    if (!currentPassword || typeof currentPassword !== 'string') {
-      // Missing password is a client error (400), not an auth failure — don't count toward rate limit
-      return { error: 'currentPassword is required when changing an existing password', status: 400 }
-    }
     if (!(await verifyPassword(currentPassword))) {
-      recordFailure('governance-password-change')
       return { error: 'Invalid current password', status: 401 }
     }
     resetRateLimit('governance-password-change')
@@ -187,10 +194,14 @@ export function getReachableAgents(agentId: string | null): ServiceResult<{ reac
 
   reachableCache.set(agentId, { ids: reachableAgentIds, expiresAt: Date.now() + CACHE_TTL_MS })
 
-  // Evict stale entries (ES6 spec guarantees safe Map deletion during for...of iteration)
+  // SF-033: Evict stale entries and enforce max-size bound to prevent unbounded growth.
+  // (ES6 spec guarantees safe Map deletion during for...of iteration)
   const now = Date.now()
   for (const [key, entry] of reachableCache) {
     if (now >= entry.expiresAt) reachableCache.delete(key)
+  }
+  if (reachableCache.size > 1000) {
+    reachableCache.clear()
   }
 
   return { data: { reachableAgentIds }, status: 200 }

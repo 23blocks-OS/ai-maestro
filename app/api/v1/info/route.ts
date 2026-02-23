@@ -7,16 +7,19 @@
  * and rate limits. No authentication required.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+// NT-010: Simplified import — NextRequest not needed since _request param is unused for Next.js-specific features
+import { NextResponse } from 'next/server'
 import { getProviderInfo } from '@/services/amp-service'
 import type { AMPInfoResponse } from '@/lib/types/amp'
 
-export async function GET(_request: NextRequest): Promise<NextResponse<AMPInfoResponse | { error: string }>> {
+// NT-013: Prefix unused request parameter with underscore
+export async function GET(_request: Request): Promise<NextResponse<AMPInfoResponse | { error: string }>> {
   const result = getProviderInfo()
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  return NextResponse.json(result.data!, {
+  // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
+  return NextResponse.json(result.data ?? {} as AMPInfoResponse, {
     status: result.status,
     headers: result.headers
   })

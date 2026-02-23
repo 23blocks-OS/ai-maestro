@@ -1,3 +1,8 @@
+// NT-031: This file dynamically imports .ts files (e.g., lib/agent-runtime.ts,
+// lib/agent.ts, lib/governance-request-registry.ts, services/headless-router.ts).
+// These imports rely on tsx or Next.js runtime transpilation. Running this file
+// with plain `node` (without tsx) will fail. In full mode Next.js provides the
+// transpiler; in headless mode `tsx server.mjs` must be used.
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import WebSocket from 'ws'
@@ -595,7 +600,11 @@ async function startServer(handleRequest) {
     console.log('[STATUS-WS] Client connected')
     statusSubscribers.add(ws)
 
-    // Send current status to new subscriber (including hook states)
+    // Send current status to new subscriber (including hook states).
+    // NT-034: This uses a loopback HTTP request to self. Ideally we would call
+    // the handler function directly, but the session activity endpoint lives in
+    // a Next.js API route that is only accessible via HTTP. The fallback below
+    // handles the case where the loopback fetch fails (e.g., during startup).
     try {
       const response = await fetch(`http://localhost:${port}/api/sessions/activity`)
       const data = await response.json()
@@ -737,6 +746,19 @@ async function startServer(handleRequest) {
 
     ws.on('close', () => {
       console.log(`[COMPANION-WS] Client disconnected from agent ${agentId.substring(0, 8)}`)
+
+      // SF-040: Each client removes its own listener on close to prevent
+      // event listener leaks when multiple companion clients connect.
+      if (ws._companionCleanup?.listener) {
+        import('./lib/agent.ts').then(({ agentRegistry }) => {
+          const agent = agentRegistry.getExistingAgent(agentId)
+          const cerebellum = agent?.getCerebellum()
+          if (cerebellum) {
+            cerebellum.off('voice:speak', ws._companionCleanup.listener)
+          }
+        }).catch(() => { /* ignore */ })
+      }
+
       const agentClients = companionClients.get(agentId)
       if (agentClients) {
         agentClients.delete(ws)
@@ -748,10 +770,6 @@ async function startServer(handleRequest) {
             const cerebellum = agent?.getCerebellum()
             if (cerebellum) {
               cerebellum.setCompanionConnected(false)
-              // Clean up listener
-              if (ws._companionCleanup?.listener) {
-                cerebellum.off('voice:speak', ws._companionCleanup.listener)
-              }
             }
           }).catch(() => { /* ignore */ })
         }
@@ -1010,9 +1028,15 @@ async function startServer(handleRequest) {
           }
         })
 
-        // Resume PTY after all clients have received the data
+        // Resume PTY after all clients have received the data.
+        // SF-041: Wrap resume() in try-catch because the PTY process may have
+        // already exited during the backpressure cycle.
         Promise.all(writePromises).finally(() => {
-          ptyProcess.resume()
+          try {
+            ptyProcess.resume()
+          } catch {
+            // PTY already exited -- nothing to resume
+          }
         })
       })
 

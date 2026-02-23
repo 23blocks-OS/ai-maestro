@@ -32,23 +32,20 @@ export default function TeamsPage() {
       const data = await res.json()
       const teamsData: Team[] = data.teams || []
 
-      // Phase 1: Client-side count via full fetch. Phase 2: Add /api/teams/[id]/stats endpoint for efficient counts.
-      // (N+1 query pattern: fetches all tasks/documents per team to derive counts)
-      const enriched = await Promise.all(
-        teamsData.map(async (team) => {
-          const [tasksRes, docsRes] = await Promise.all([
-            fetch(`/api/teams/${team.id}/tasks`).catch(() => null),
-            fetch(`/api/teams/${team.id}/documents`).catch(() => null),
-          ])
-          const tasksData = tasksRes?.ok ? await tasksRes.json() : { tasks: [] }
-          const docsData = docsRes?.ok ? await docsRes.json() : { documents: [] }
-          return {
-            ...team,
-            taskCount: (tasksData.tasks || []).length,
-            docCount: (docsData.documents || []).length,
-          }
-        })
-      )
+      // SF-028: Single bulk stats fetch replaces N+1 per-team task/document fetches
+      let statsMap: Record<string, { taskCount: number; docCount: number }> = {}
+      try {
+        const statsRes = await fetch('/api/teams/stats')
+        if (statsRes.ok) {
+          statsMap = await statsRes.json()
+        }
+      } catch { /* stats fetch failed -- fall back to zero counts */ }
+
+      const enriched = teamsData.map((team) => ({
+        ...team,
+        taskCount: statsMap[team.id]?.taskCount ?? 0,
+        docCount: statsMap[team.id]?.docCount ?? 0,
+      }))
 
       setTeams(enriched)
     } catch (err) {

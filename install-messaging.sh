@@ -266,18 +266,19 @@ distribute_shared_to_per_agent() {
     local AGENTS_BASE="$HOME/.agent-messaging/agents"
     local DISTRIBUTED=0
     local SKIPPED=0
+    # NT-033: Declare loop-scoped variables at the top of the function.
+    # Re-declaring `local` inside a while loop body is harmless but unconventional
+    # and can confuse shellcheck/readers.
+    local recipient sender dest_dir msg_basename
 
     # Distribute inbox messages
     if [ -d "$SHARED_INBOX" ]; then
         while IFS= read -r msg_file; do
-            local recipient
             recipient=$(_extract_recipient "$msg_file")
-            local sender
             sender=$(_extract_sender "$msg_file")
 
             if [ -n "$recipient" ] && [ -n "$sender" ]; then
-                local dest_dir="$AGENTS_BASE/$recipient/messages/inbox/$sender"
-                local msg_basename
+                dest_dir="$AGENTS_BASE/$recipient/messages/inbox/$sender"
                 msg_basename=$(basename "$msg_file")
 
                 # Skip if already exists in destination
@@ -298,14 +299,11 @@ distribute_shared_to_per_agent() {
     # Distribute sent messages
     if [ -d "$SHARED_SENT" ]; then
         while IFS= read -r msg_file; do
-            local sender
             sender=$(_extract_sender "$msg_file")
-            local recipient
             recipient=$(_extract_recipient "$msg_file")
 
             if [ -n "$sender" ] && [ -n "$recipient" ]; then
-                local dest_dir="$AGENTS_BASE/$sender/messages/sent/$recipient"
-                local msg_basename
+                dest_dir="$AGENTS_BASE/$sender/messages/sent/$recipient"
                 msg_basename=$(basename "$msg_file")
 
                 if [ -f "$dest_dir/$msg_basename" ]; then

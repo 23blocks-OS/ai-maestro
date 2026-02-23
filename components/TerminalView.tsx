@@ -67,17 +67,27 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const FOOTER_TAB_STORAGE_KEY = 'terminal-footer-tab'
 
+  // SF-026: Wrap localStorage reads in try/catch -- private browsing or full storage throws
   const [footerTab, setFooterTab] = useState<'notes' | 'prompt'>(() => {
     if (typeof window === 'undefined') return 'prompt'
-    const stored = localStorage.getItem(FOOTER_TAB_STORAGE_KEY)
-    return stored === 'notes' ? 'notes' : 'prompt'
+    try {
+      const stored = localStorage.getItem(FOOTER_TAB_STORAGE_KEY)
+      return stored === 'notes' ? 'notes' : 'prompt'
+    } catch {
+      return 'prompt'
+    }
   })
 
+  // SF-026: Wrap localStorage reads in try/catch -- private browsing or full storage throws
   const [loggingEnabled, setLoggingEnabled] = useState(() => {
     if (typeof window === 'undefined') return true
-    const loggingKey = `agent-logging-${session.agentId || session.id}`
-    const savedLogging = localStorage.getItem(loggingKey)
-    return savedLogging !== null ? savedLogging === 'true' : true
+    try {
+      const loggingKey = `agent-logging-${session.agentId || session.id}`
+      const savedLogging = localStorage.getItem(loggingKey)
+      return savedLogging !== null ? savedLogging === 'true' : true
+    } catch {
+      return true
+    }
   })
 
   const [globalLoggingEnabled, setGlobalLoggingEnabled] = useState(false)
@@ -573,17 +583,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   }, [footerTab, notesCollapsed])
 
   // Save collapsed state to localStorage
+  // SF-027: Wrap localStorage.setItem in try/catch -- storage may be full or unavailable
   useEffect(() => {
-    localStorage.setItem(`agent-notes-collapsed-${storageId}`, String(notesCollapsed))
+    try { localStorage.setItem(`agent-notes-collapsed-${storageId}`, String(notesCollapsed)) } catch { /* storage unavailable */ }
   }, [notesCollapsed, storageId])
 
   // Save logging state to localStorage
+  // SF-027: Wrap localStorage.setItem in try/catch -- storage may be full or unavailable
   useEffect(() => {
-    localStorage.setItem(`agent-logging-${storageId}`, String(loggingEnabled))
+    try { localStorage.setItem(`agent-logging-${storageId}`, String(loggingEnabled)) } catch { /* storage unavailable */ }
   }, [loggingEnabled, storageId])
 
+  // SF-027: Wrap localStorage.setItem in try/catch -- storage may be full or unavailable
   useEffect(() => {
-    localStorage.setItem(FOOTER_TAB_STORAGE_KEY, footerTab)
+    try { localStorage.setItem(FOOTER_TAB_STORAGE_KEY, footerTab) } catch { /* storage unavailable */ }
   }, [footerTab])
 
   // Send logging state to server when it changes

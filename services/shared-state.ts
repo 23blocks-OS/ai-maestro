@@ -96,10 +96,18 @@ export function broadcastStatusUpdate(
     timestamp: new Date().toISOString()
   } satisfies StatusUpdate)
 
+  // SF-039: Clean up dead/closed WebSocket subscribers during broadcast
+  // to prevent memory leaks from accumulated stale connections.
+  const dead: WebSocket[] = []
   statusSubscribers.forEach(ws => {
     // NT-020: Use named constant instead of magic number for WebSocket.OPEN
     if (ws.readyState === WS_OPEN) {
       ws.send(message)
+    } else {
+      dead.push(ws)
     }
   })
+  for (const ws of dead) {
+    statusSubscribers.delete(ws)
+  }
 }

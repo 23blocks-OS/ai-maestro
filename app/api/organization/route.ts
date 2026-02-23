@@ -24,7 +24,11 @@ export async function POST(request: Request) {
     const { organization, setBy } = body
 
     const result = setOrganizationName({ organization, setBy })
-    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+    // SF-011 fix: Use explicit error check instead of ?? which can swallow errors
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
     console.error('[Organization API] Error:', error)
     return NextResponse.json(

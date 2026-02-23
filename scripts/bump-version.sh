@@ -63,9 +63,11 @@ case "$1" in
         exit 0
         ;;
     *)
-        # Validate version format
+        # Validate version format (digits and dots only).
+        # SF-043: This also guards against characters like '|' that would
+        # break the sed delimiter used in update_file().
         if [[ ! "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo -e "${RED}Error: Invalid version format. Use X.Y.Z${NC}"
+            echo -e "${RED}Error: Invalid version format. Use X.Y.Z (digits and dots only)${NC}"
             exit 1
         fi
         NEW_VERSION="$1"
@@ -103,6 +105,8 @@ _sed_inplace() {
 
 # update_file uses escaped dots in the sed pattern (via CURRENT_VERSION_RE)
 # but literal dots in grep (grep -F for fixed-string match).
+# SF-043: The sed delimiter is '|'. Version strings are validated to contain
+# only digits and dots, so they cannot break the delimiter.
 update_file() {
     local file="$1"
     local pattern="$2"

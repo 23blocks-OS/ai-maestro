@@ -22,6 +22,7 @@ import {
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+// NT-036: TODO: Replace ServiceResult<any> with specific result types across service files.
 import { ServiceResult } from '@/types/service'
 export type { ServiceResult }
 
@@ -57,7 +58,11 @@ export async function queryDocs(
 
   console.log(`[Docs Service] Agent: ${agentId}, Action: ${action}`)
 
+  // MF-005: Null-check agent before calling getDatabase() to return clean 404
   const agent = await agentRegistry.getAgent(agentId)
+  if (!agent) {
+    return { error: 'Agent not found', status: 404 }
+  }
   const agentDb = await agent.getDatabase()
 
   let result: any = {}
@@ -103,7 +108,8 @@ export async function queryDocs(
     }
 
     case 'list': {
-      const listLimit = limit || 50
+      // MF-007: Force integer coercion to prevent CozoScript injection via unvalidated limit
+      const listLimit = Math.max(1, Math.min(1000, Math.floor(Number(limit) || 50)))
 
       let query = `
         ?[doc_id, file_path, title, doc_type, updated_at] :=
@@ -173,7 +179,11 @@ export async function indexDocs(
     console.log(`[Docs Service] Auto-detected projectPath from registry: ${projectPath}`)
   }
 
+  // MF-005: Null-check agent before calling getDatabase() to return clean 404
   const agent = await agentRegistry.getAgent(agentId)
+  if (!agent) {
+    return { error: 'Agent not found', status: 404 }
+  }
   const agentDb = await agent.getDatabase()
 
   let stats: any
@@ -224,7 +234,11 @@ export async function clearDocs(
 ): Promise<ServiceResult<Record<string, unknown>>> {
   console.log(`[Docs Service] Clearing docs for agent ${agentId}${projectPath ? `: ${projectPath}` : ' (all)'}`)
 
+  // MF-005: Null-check agent before calling getDatabase() to return clean 404
   const agent = await agentRegistry.getAgent(agentId)
+  if (!agent) {
+    return { error: 'Agent not found', status: 404 }
+  }
   const agentDb = await agent.getDatabase()
 
   await clearDocGraph(agentDb, projectPath)

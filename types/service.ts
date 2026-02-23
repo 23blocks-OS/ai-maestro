@@ -6,10 +6,28 @@
  *
  * The `headers` field is optional and only used by governance-service for
  * returning custom response headers. All other services can ignore it.
+ *
+ * SF-024: This interface allows simultaneous `data` and `error` fields.
+ * Callers MUST use the `if (result.error)` guard pattern (not `result.data ??`)
+ * to avoid silently discarding errors. A discriminated union refactor is tracked
+ * for Phase 2 to enforce this at the type level.
  */
 export interface ServiceResult<T> {
   data?: T
   error?: string
   status: number
   headers?: Record<string, string>
+}
+
+/**
+ * SF-024: Runtime guard to assert a ServiceResult is in a valid state.
+ * Detects when both `data` and `error` are set (indicates a service bug).
+ * Use in route handlers after service calls for defense-in-depth.
+ */
+export function assertValidServiceResult<T>(result: ServiceResult<T>, context?: string): void {
+  if (result.data !== undefined && result.error !== undefined) {
+    const ctx = context ? ` [${context}]` : ''
+    console.error(`[ServiceResult]${ctx} BUG: result has both data and error set. error="${result.error}" status=${result.status}`)
+    // In this ambiguous state, error takes precedence -- callers using `if (result.error)` are correct
+  }
 }

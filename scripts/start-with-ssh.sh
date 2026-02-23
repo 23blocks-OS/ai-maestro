@@ -26,5 +26,11 @@ else
 fi
 
 # Step 3: Start the actual server
+# NT-032: Verify tsx is available before exec to provide a clear error message
+# instead of a cryptic "command not found" after SSH setup completes.
+if ! command -v tsx &>/dev/null; then
+    echo "[AI Maestro] Error: tsx not found. Install with: npm install -g tsx"
+    exit 1
+fi
 echo "[AI Maestro] Starting server..."
 exec tsx server.mjs

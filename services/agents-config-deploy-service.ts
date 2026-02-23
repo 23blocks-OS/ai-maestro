@@ -159,10 +159,12 @@ async function deployAddSkill(
       await fs.writeFile(skillMdPath, `# ${skillName}\n\nSkill deployed via governance at ${new Date().toISOString()}\n`, 'utf-8')
     }
 
-    // TODO(Phase 2): ToxicSkills scan not yet implemented. Deployed skills are NOT scanned
-    // for malicious content. See lib/toxic-skills.ts (to be created). When implemented,
+    // MF-008: WARNING -- ToxicSkills scan is NOT implemented yet (Phase 2).
+    // Deployed skills are NOT scanned for malicious content.
+    // See lib/toxic-skills.ts (to be created). When implemented,
     // scan skill content here before deployment and remove the skill directory + return 403
     // if content is toxic (11d safeguard).
+    console.warn(`${LOG_PREFIX} WARNING: Skill "${skillName}" deployed WITHOUT ToxicSkills scan (not yet implemented). Skills are NOT checked for malicious content.`)
 
     after[skillName] = 'present'
   }

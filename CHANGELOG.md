@@ -3,6 +3,22 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.13] - 2026-02-25
+
+### Added
+- **Toast notification system** — Lightweight toast system (`ToastContext`, `Toast`, `ToastContainer`) using Framer Motion + createPortal with auto-dismiss, progress bar, and max 5 stacking
+- **SecretRevealDialog** — Modal for webhook secrets with show/hide toggle (Eye/EyeOff) and copy-to-clipboard feedback
+- **Providers wrapper** — Client-side `Providers.tsx` keeps `layout.tsx` as a server component
+
+### Changed
+- Replaced all 11 `alert()` calls across 5 files with contextual toast notifications
+- Network error toasts now hint at connectivity issues ("The agent host may be unreachable")
+- ForwardDialog uses inline validation error instead of browser alert
+- WebhooksSection shows secret in a proper modal dialog instead of alert
+
+### Removed
+- All browser `alert()` usage eliminated from the codebase
+
 ## [0.24.12] - 2026-02-22
 
 ### Added

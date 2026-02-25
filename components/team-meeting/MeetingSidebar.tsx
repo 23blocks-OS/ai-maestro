@@ -6,6 +6,7 @@ import type { Agent } from '@/types/agent'
 import type { SidebarMode } from '@/types/team'
 import type { TaskWithDeps } from '@/types/task'
 import WakeAgentDialog from '@/components/WakeAgentDialog'
+import { useToast } from '@/contexts/ToastContext'
 
 interface MeetingSidebarProps {
   agents: Agent[]
@@ -32,6 +33,7 @@ export default function MeetingSidebar({
   messageCountsByAgent = {},
   canRemove = false,
 }: MeetingSidebarProps) {
+  const { addToast } = useToast()
   const [wakingAgents, setWakingAgents] = useState<Set<string>>(new Set())
   const [hibernatingAgents, setHibernatingAgents] = useState<Set<string>>(new Set())
   const [wakeDialogAgent, setWakeDialogAgent] = useState<Agent | null>(null)
@@ -54,7 +56,11 @@ export default function MeetingSidebar({
       }
     } catch (error) {
       console.error('Failed to hibernate agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to hibernate agent')
+      addToast({
+        type: 'error',
+        title: 'Failed to hibernate agent',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
     } finally {
       setHibernatingAgents(prev => {
         const next = new Set(prev)
@@ -91,7 +97,11 @@ export default function MeetingSidebar({
       setWakeDialogAgent(null)
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      addToast({
+        type: 'error',
+        title: 'Failed to wake agent',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
     } finally {
       setWakingAgents(prev => {
         const next = new Set(prev)

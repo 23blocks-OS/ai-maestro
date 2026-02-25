@@ -20,6 +20,7 @@ import TranscriptExport from '@/components/TranscriptExport'
 import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
+import { useToast } from '@/contexts/ToastContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
@@ -82,6 +83,7 @@ const DocumentationPanel = dynamic(
 )
 
 export default function DashboardPage() {
+  const { addToast } = useToast()
   // Agent-centric: Primary hook is useAgents
   const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
 
@@ -445,7 +447,11 @@ export default function DashboardPage() {
         setActiveAgentId(agent.id)
       }, 500)
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to start session')
+      addToast({
+        type: 'error',
+        title: 'Failed to start session',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
     }
   }
 
@@ -484,10 +490,11 @@ export default function DashboardPage() {
       refreshAgents()
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      // Use setTimeout to ensure state updates happen first
-      setTimeout(() => {
-        alert(error instanceof Error ? error.message : 'Failed to wake agent')
-      }, 0)
+      addToast({
+        type: 'error',
+        title: 'Failed to wake agent',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
     } finally {
       setWakingAgentId(null)
     }

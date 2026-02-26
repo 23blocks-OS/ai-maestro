@@ -154,6 +154,9 @@ export default function TeamMembershipSection({
       const result = await onLeaveTeam(teamId)
       if (!result.success) {
         setError(result.error || 'Failed to leave team')
+      } else {
+        // NT-032: Brief success feedback so the user knows the leave action completed
+        setInfoMessage('Successfully left team')
       }
     } catch {
       setError('Failed to leave team')

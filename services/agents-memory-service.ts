@@ -23,7 +23,7 @@
  *   PATCH  /api/agents/:id/metrics                  -> updateMetrics
  */
 
-// NT-031: TODO: Replace ServiceResult<any> with specific result types across service files.
+// TODO: Replace ServiceResult<any> with specific result types across service files.
 
 import * as fs from 'fs'
 import * as path from 'path'
@@ -73,7 +73,7 @@ import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -217,6 +217,11 @@ async function prepareConversations(
 
 export async function getMemory(agentId: string): Promise<ServiceResult<any>> {
   try {
+    // Verify agent exists in file-based registry before creating runtime resources
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -256,6 +261,10 @@ export async function initializeMemory(
   body: { populateFromSessions?: boolean; force?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -461,6 +470,10 @@ export async function initializeMemory(
 
 export async function getConsolidationStatus(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -533,6 +546,10 @@ export async function triggerConsolidation(
     const provider = (options.provider || 'auto') as 'ollama' | 'claude' | 'auto'
     const maxConversations = options.maxConversations || 50
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -584,6 +601,10 @@ export async function manageConsolidation(
   body: { action: string; minReinforcements?: number; minAgeDays?: number; retentionDays?: number; dryRun?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -650,6 +671,10 @@ export async function queryLongTermMemories(
       minConfidence = 0, tier, view, memoryId, maxTokens = 2000
     } = params
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -758,6 +783,10 @@ export async function deleteLongTermMemory(agentId: string, memoryId: string): P
       return { error: 'Memory ID is required', status: 400 }
     }
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -811,6 +840,10 @@ export async function updateLongTermMemory(
       return { error: 'At least one field (content, category, context) must be provided', status: 400 }
     }
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -908,6 +941,10 @@ export async function searchConversations(
       console.error('[Memory Service] Background delta indexing failed:', err)
     })
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -956,6 +993,10 @@ export async function ingestConversations(
       return { error: 'Missing or invalid conversationFiles array', status: 400 }
     }
 
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1006,6 +1047,10 @@ export async function runDeltaIndex(
 
 export async function getTracking(agentId: string): Promise<ServiceResult<any>> {
   try {
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1030,6 +1075,10 @@ export async function initializeTracking(
   body: { addSampleData?: boolean }
 ): Promise<ServiceResult<any>> {
   try {
+    const registryAgent = getAgentFromFileRegistry(agentId)
+    if (!registryAgent) {
+      return { error: 'Agent not found', status: 404 }
+    }
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
 
@@ -1113,7 +1162,7 @@ export function getMetrics(agentId: string): ServiceResult<any> {
   }
 }
 
-// SF-027: Whitelist of allowed metric field names to prevent arbitrary key injection
+// Whitelist of allowed metric field names to prevent arbitrary key injection
 const ALLOWED_METRIC_FIELDS = [
   'totalMessages', 'totalConversations', 'totalTokens',
   'lastActiveAt', 'sessionsCreated', 'commandsExecuted',
@@ -1127,7 +1176,7 @@ export async function updateMetrics(
     const { action, metric, amount } = body
 
     if (action === 'increment' && metric) {
-      // SF-032: Use nullish coalescing to preserve intentional amount=0
+      // Use nullish coalescing to preserve intentional amount=0
       const success = await incrementAgentMetric(agentId, metric as any, amount ?? 1)
       if (!success) {
         return { error: 'Agent not found', status: 404 }
@@ -1136,7 +1185,7 @@ export async function updateMetrics(
       return { data: { metrics: agent?.metrics }, status: 200 }
     }
 
-    // SF-027: Only allow whitelisted metric fields instead of arbitrary rest spread
+    // Only allow whitelisted metric fields instead of arbitrary rest spread
     const filteredMetrics: Record<string, any> = {}
     for (const field of ALLOWED_METRIC_FIELDS) {
       if (field in body) {

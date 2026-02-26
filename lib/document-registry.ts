@@ -53,7 +53,13 @@ export function saveDocuments(teamId: string, documents: TeamDocument[]): void {
   // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
   const tmpPath = `${filePath}.tmp.${process.pid}`
   fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
-  fs.renameSync(tmpPath, filePath)
+  try {
+    fs.renameSync(tmpPath, filePath)
+  } catch (err) {
+    // NT-026: Clean up temp file if rename fails (e.g., cross-device rename)
+    try { fs.unlinkSync(tmpPath) } catch { /* best-effort cleanup */ }
+    throw err
+  }
 }
 
 export function getDocument(teamId: string, docId: string): TeamDocument | null {

@@ -110,7 +110,8 @@ export async function POST(
           const agentId = transferReq.agentId
           const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
           if (!isPrivileged) {
-            // SF-056: Explicit null checks instead of non-null assertions
+            // Defensive guard: fromTeam/toTeam are guaranteed non-null by earlier checks
+            // but TypeScript cannot narrow across the conditional blocks above
             if (!fromTeam || !toTeam) {
               return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
             }
@@ -138,7 +139,8 @@ export async function POST(
       if (action === 'approve') {
         // Remove agent from source team — direct mutation under the held lock
         // (avoids calling updateTeam which would re-acquire the non-reentrant lock)
-        // SF-056: Explicit null checks instead of non-null assertions for fromTeam/toTeam
+        // Defensive guard: fromTeam/toTeam are guaranteed non-null by earlier checks
+        // but TypeScript cannot narrow across the conditional blocks above
         if (!fromTeam || !toTeam) {
           return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
         }

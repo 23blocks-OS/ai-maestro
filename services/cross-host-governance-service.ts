@@ -11,7 +11,7 @@
  */
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 import type { GovernanceRequest, GovernanceRequestType, GovernanceRequestStatus, GovernanceRequestPayload, ConfigurationPayload } from '@/types/governance-request'
 import type { AgentRole } from '@/types/agent'
 import { verifyPassword, isManager, isChiefOfStaffAnywhere, getManagerId } from '@/lib/governance'
@@ -65,9 +65,9 @@ export async function submitCrossHostRequest(params: {
   password: string
   note?: string
 }): Promise<ServiceResult<GovernanceRequest>> {
-  // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  // SF-002: Per-agent keys so one agent's failures don't lock out all others
-  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
+  // Rate-limit governance password attempts to prevent brute-force attacks.
+  // Per-agent keys so one agent's failures don't lock out all others.
+  // Use atomic checkAndRecordAttempt to eliminate TOCTOU window.
   //              between separate check/record calls
   const submitRateLimitKey = `cross-host-gov-submit:${params.requestedBy}`
   const rateCheck = checkAndRecordAttempt(submitRateLimitKey)
@@ -106,7 +106,7 @@ export async function submitCrossHostRequest(params: {
     return { error: 'Target host cannot be self -- use local governance APIs for same-host operations', status: 400 }
   }
 
-  // SR-007: Only allow implemented cross-host request types
+  // Only allow implemented cross-host request types
   const IMPLEMENTED_TYPES: GovernanceRequestType[] = ['add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos', 'transfer-agent', 'configure-agent']
   if (!IMPLEMENTED_TYPES.includes(params.type)) {
     return { error: `Request type '${params.type}' is not yet implemented`, status: 400 }
@@ -163,13 +163,13 @@ export async function receiveCrossHostRequest(
   }
 
   // Validate required request fields
-  // SF-003 (P5): Also validate requestedBy -- a missing requestedBy would bypass downstream
+  // Also validate requestedBy -- a missing requestedBy would bypass downstream
   // role checks that depend on knowing who submitted the request
   if (!request.id || !request.type || !request.requestedBy || !request.payload?.agentId) {
     return { error: 'Invalid governance request: missing id, type, requestedBy, or payload.agentId', status: 400 }
   }
 
-  // CC-P1-002: Validate that request.type is a recognized GovernanceRequestType
+  // Validate that request.type is a recognized GovernanceRequestType
   const VALID_REQUEST_TYPES: GovernanceRequestType[] = [
     'add-to-team', 'remove-from-team', 'assign-cos', 'remove-cos',
     'transfer-agent', 'create-agent', 'delete-agent', 'configure-agent',
@@ -178,13 +178,13 @@ export async function receiveCrossHostRequest(
     return { error: `Invalid governance request type: '${request.type}'`, status: 400 }
   }
 
-  // CC-P1-002: Validate requestedByRole is a valid AgentRole
+  // Validate requestedByRole is a valid AgentRole
   const VALID_ROLES: AgentRole[] = ['manager', 'chief-of-staff', 'member']
   if (!request.requestedByRole || !VALID_ROLES.includes(request.requestedByRole)) {
     return { error: `Invalid requestedByRole: '${request.requestedByRole}'`, status: 400 }
   }
 
-  // CC-008: Validate that the request's sourceHostId matches the actual sender
+  // Validate that the request's sourceHostId matches the actual sender
   if (request.sourceHostId !== fromHostId) {
     return { error: 'Source host ID in request does not match sender', status: 400 }
   }
@@ -192,7 +192,7 @@ export async function receiveCrossHostRequest(
   // Store locally using the same ID from the remote request
   // Re-create via createGovernanceRequest to get proper file-locking and persistence
   // Note: createGovernanceRequest generates a new UUID; we store the remote request directly instead
-  // SF-004: Track whether the request was newly inserted vs skipped (duplicate).
+  // Track whether the request was newly inserted vs skipped (duplicate).
   // Only run auto-approve logic for genuinely new requests to avoid re-approving duplicates.
   const isNew = await withLock('governance-requests', () => {
     const file = loadGovernanceRequests()
@@ -204,10 +204,10 @@ export async function receiveCrossHostRequest(
       return false
     }
 
-    // CC-P1-002: Force status to 'pending' and clear approvals regardless of what remote sent.
+    // Force status to 'pending' and clear approvals regardless of what remote sent.
     // A malicious peer could send status:'executed' with pre-filled approvals to bypass the
     // dual-approval workflow. We always start received requests as 'pending' with empty approvals.
-    // NT-003 (P5): The spread copies all request fields -- in Phase 2, tighten to an explicit
+    // The spread copies all request fields -- in Phase 2, tighten to an explicit
     // allowlist of fields (id, type, payload, requestedBy, requestedByRole, sourceHostId, note)
     // to prevent unknown/future fields from leaking into the local store.
     file.requests.push({
@@ -223,7 +223,7 @@ export async function receiveCrossHostRequest(
   console.log(`${LOG_PREFIX} Received request ${request.id} (type=${request.type}) from host ${fromHostId}`)
 
   // Layer 4: Auto-approve if the requesting manager is in the trust registry.
-  // SF-004: Only auto-approve genuinely new requests -- skip duplicates to avoid re-execution.
+  // Only auto-approve genuinely new requests -- skip duplicates to avoid re-execution.
   if (isNew && shouldAutoApprove(request)) {
     console.log(`${LOG_PREFIX} Auto-approving request ${request.id} from trusted manager on host ${fromHostId}`)
     // Auto-approve as targetManager (we are the target host)
@@ -255,9 +255,9 @@ export async function approveCrossHostRequest(
   approverAgentId: string,
   password: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
-  // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  // SF-002: Per-agent keys so one agent's failures don't lock out all others
-  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
+  // Rate-limit governance password attempts to prevent brute-force attacks.
+  // Per-agent keys so one agent's failures don't lock out all others.
+  // Use atomic checkAndRecordAttempt to eliminate TOCTOU window.
   const approveRateLimitKey = `cross-host-gov-approve:${approverAgentId}`
   const rateCheck = checkAndRecordAttempt(approveRateLimitKey)
   if (!rateCheck.allowed) {
@@ -282,7 +282,7 @@ export async function approveCrossHostRequest(
   const isOnSourceHost = request.sourceHostId === selfHostId
   const isOnTargetHost = request.targetHostId === selfHostId
 
-  // CC-010: Reject if this host is neither source nor target of the request
+  // Reject if this host is neither source nor target of the request
   if (!isOnSourceHost && !isOnTargetHost) {
     return { error: 'This host is neither source nor target of this request', status: 400 }
   }
@@ -299,12 +299,12 @@ export async function approveCrossHostRequest(
     return { error: 'Only MANAGER or Chief of Staff can approve governance requests', status: 403 }
   }
 
-  // SF-005: Pre-check for terminal state to prevent re-execution of finalized requests
+  // Pre-check for terminal state to prevent re-execution of finalized requests
   if (request.status === 'executed' || request.status === 'rejected') {
     return { error: `Request '${requestId}' is already ${request.status}`, status: 409 }
   }
 
-  // SF-003: Capture pre-approval status to detect TOCTOU race -- another caller may
+  // Capture pre-approval status to detect TOCTOU race -- another caller may
   // have transitioned the request to a terminal state between our pre-check and the
   // lock-protected approveGovernanceRequest call below.
   // Widen to `string` because TypeScript narrows request.status after the terminal-state
@@ -317,7 +317,7 @@ export async function approveCrossHostRequest(
     return { error: `Failed to approve request '${requestId}'`, status: 500 }
   }
 
-  // SF-003: Post-check -- only execute if WE caused the transition to 'executed'.
+  // Post-check -- only execute if WE caused the transition to 'executed'.
   // If the pre-read status was already terminal (race with another approver), skip execution.
   const weTriggeredExecution =
     preApprovalStatus !== 'executed' && preApprovalStatus !== 'rejected' && updated.status === 'executed'
@@ -344,9 +344,9 @@ export async function rejectCrossHostRequest(
   password: string,
   reason?: string,
 ): Promise<ServiceResult<GovernanceRequest>> {
-  // CC-006: Rate-limit governance password attempts to prevent brute-force attacks
-  // SF-002: Per-agent keys so one agent's failures don't lock out all others
-  // SF-001 (P5): Use atomic checkAndRecordAttempt to eliminate the TOCTOU window
+  // Rate-limit governance password attempts to prevent brute-force attacks.
+  // Per-agent keys so one agent's failures don't lock out all others.
+  // Use atomic checkAndRecordAttempt to eliminate TOCTOU window.
   const rejectRateLimitKey = `cross-host-gov-reject:${rejectorAgentId}`
   const rateCheck = checkAndRecordAttempt(rejectRateLimitKey)
   if (!rateCheck.allowed) {
@@ -408,7 +408,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
   console.log(`${LOG_PREFIX} Executing request ${request.id} (type=${request.type})`)
 
   try {
-    // CC-002: Acquire the teams lock for the entire mutation to prevent concurrent corruption
+    // Acquire the teams lock for the entire mutation to prevent concurrent corruption
     await withLock('teams', async () => {
       switch (request.type) {
         case 'add-to-team': {
@@ -525,10 +525,10 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
           const { deployConfigToAgent } = await import('@/services/agents-config-deploy-service')
           const deployResult = await deployConfigToAgent(request.payload.agentId, config, request.requestedBy)
           if (deployResult.error) {
-            // SF-013: The request status is already 'executed' at this point (set by approveGovernanceRequest
+            // The request status is already 'executed' at this point (set by approveGovernanceRequest
             // before performRequestExecution is called). The 'executed' status means "execution was attempted,"
-            // not "succeeded." The deploy error is logged here. Adding a 'failed' status would require changes
-            // to the GovernanceRequest type and all callers, which is out of scope.
+            // not "succeeded." The deploy error is logged here; the executionError field is set in the
+            // catch block to allow admins to detect failures programmatically.
             console.warn(`${LOG_PREFIX} configure-agent execution failed for request ${request.id}: ${deployResult.error}`)
             return
           }
@@ -543,7 +543,7 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
       }
     })
 
-    // CC-003: Removed redundant executeGovernanceRequest call — caller already set status to 'executed'
+    // Caller already set status to 'executed' -- no redundant executeGovernanceRequest call needed
 
     // Broadcast the governance state change to all peers
     broadcastGovernanceSync('team-updated', { requestId: request.id, type: request.type }).catch(() => {})
@@ -552,6 +552,25 @@ async function performRequestExecution(request: GovernanceRequest): Promise<void
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`${LOG_PREFIX} Failed to execute request ${request.id}: ${msg}`)
+
+    // Record the execution error on the request so admins can detect silent failures.
+    // The request status remains 'executed' (meaning "execution was attempted") because adding
+    // a 'failed' status would require changes to GovernanceRequestStatus and all callers.
+    // The executionError field provides a programmatic way to detect failures.
+    try {
+      await withLock('governance-requests', async () => {
+        const file = loadGovernanceRequests()
+        const idx = file.requests.findIndex(r => r.id === request.id)
+        if (idx !== -1) {
+          ;(file.requests[idx] as any).executionError = msg
+          ;(file.requests[idx] as any).executionFailedAt = new Date().toISOString()
+          file.requests[idx].updatedAt = new Date().toISOString()
+          saveGovernanceRequests(file)
+        }
+      })
+    } catch (saveErr) {
+      console.error(`${LOG_PREFIX} Failed to record execution error for request ${request.id}:`, saveErr)
+    }
   }
 }
 

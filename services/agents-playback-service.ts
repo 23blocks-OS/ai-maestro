@@ -11,7 +11,7 @@ import type { Agent } from '@/types/agent'
 // ── Types ───────────────────────────────────────────────────────────────────
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 interface PlaybackState {
   agentId: string
@@ -44,9 +44,7 @@ export function getPlaybackState(
     return { error: 'Agent not found', status: 404 }
   }
 
-  // NT-021: Removed production console.log (placeholder implementation)
-
-  // TODO: Load playback state from CozoDB (Phase 5)
+  // TODO: Load playback state from CozoDB (Phase 5 -- this file is a placeholder)
   const playbackState: PlaybackState = {
     agentId: agent.id,
     sessionId: sessionId || undefined,
@@ -91,12 +89,12 @@ export function controlPlayback(
     return { error: `Invalid action. Must be one of: ${validActions.join(', ')}`, status: 400 }
   }
 
-  // NT-040: Use Number.isNaN + type check instead of global isNaN which coerces argument
+  // Use Number.isNaN + type check instead of global isNaN which coerces argument
   if ((action === 'seek' || action === 'setSpeed') && (value === undefined || typeof value !== 'number' || Number.isNaN(value))) {
     return { error: `Action '${action}' requires a numeric value parameter`, status: 400 }
   }
 
-  // SF-046: Validate parseInt result to avoid NaN comparison (always false) silently returning 404
+  // Validate parseInt result to avoid NaN comparison (always false) silently returning 404
   if (sessionId) {
     const parsedIndex = parseInt(sessionId, 10)
     if (Number.isNaN(parsedIndex)) {
@@ -107,7 +105,7 @@ export function controlPlayback(
     }
   }
 
-  // NT-021: Removed production console.log (placeholder implementation)
+  // TODO: Phase 5 -- placeholder
 
   // TODO: Implement actual playback control (Phase 5)
   const playbackState: PlaybackState = {

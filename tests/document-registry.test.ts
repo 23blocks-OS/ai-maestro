@@ -20,11 +20,21 @@ vi.mock('fs', () => ({
     writeFileSync: vi.fn((filePath: string, data: string) => {
       fsStore[filePath] = data
     }),
-    // MF-024: Support atomic write pattern (write to .tmp then rename)
+    // Support atomic write pattern (write to .tmp then rename)
     renameSync: vi.fn((src: string, dest: string) => {
       if (src in fsStore) {
         fsStore[dest] = fsStore[src]
         delete fsStore[src]
+      }
+    }),
+    // Defensive mock for file deletion operations
+    unlinkSync: vi.fn((filePath: string) => {
+      delete fsStore[filePath]
+    }),
+    // Defensive mock for file copy operations (e.g., backup before write)
+    copyFileSync: vi.fn((src: string, dest: string) => {
+      if (src in fsStore) {
+        fsStore[dest] = fsStore[src]
       }
     }),
   },
@@ -48,6 +58,7 @@ vi.mock('@/lib/file-lock', () => ({
 // Import module under test (after mocks are declared)
 // ============================================================================
 
+import fs from 'fs'
 import {
   loadDocuments,
   saveDocuments,
@@ -157,6 +168,16 @@ describe('saveDocuments', () => {
     const loaded = loadDocuments(TEAM_1)
     expect(loaded).toHaveLength(1)
     expect(loaded[0].title).toBe('Round Trip')
+  })
+
+  it('propagates write errors to the caller', () => {
+    // Make writeFileSync throw to simulate disk-full or permission error
+    vi.mocked(fs.writeFileSync).mockImplementationOnce(() => {
+      throw new Error('ENOSPC: no space left on device')
+    })
+
+    const doc = makeDoc({ id: 'doc-err', teamId: TEAM_2 })
+    expect(() => saveDocuments(TEAM_2, [doc])).toThrow('ENOSPC')
   })
 })
 

@@ -15,73 +15,17 @@ import { Host, HostsConfig } from '@/types/host'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-
-// File lock state
-let lockHeld = false
-// MF-007: Use a monotonic counter for stable waiter identification instead of
-// function reference equality (closures wrapped the original resolve, breaking findIndex)
-let _lockWaiterId = 0
-const lockQueue: Array<{ id: number; resolve: () => void; reject: (err: Error) => void }> = []
-const LOCK_TIMEOUT = 5000 // 5 second timeout for acquiring lock
+// MF-010: Use the shared file-lock instead of a duplicate local lock implementation.
+// The shared lock has 30s timeout (vs the old 5s), consistent naming, and is visible
+// to other modules that also use file-lock.ts to prevent cross-module races.
+import { withLock as sharedWithLock } from '@/lib/file-lock'
 
 /**
- * Acquire a lock for file operations
- */
-async function acquireLock(): Promise<void> {
-  if (!lockHeld) {
-    lockHeld = true
-    return
-  }
-
-  return new Promise((resolve, reject) => {
-    // MF-007: Assign a stable numeric id so the timeout can reliably remove this waiter
-    const waiterId = ++_lockWaiterId
-    const timeout = setTimeout(() => {
-      const index = lockQueue.findIndex(item => item.id === waiterId)
-      if (index !== -1) {
-        lockQueue.splice(index, 1)
-      }
-      reject(new Error('Lock acquisition timeout'))
-    }, LOCK_TIMEOUT)
-
-    lockQueue.push({
-      id: waiterId,
-      resolve: () => {
-        clearTimeout(timeout)
-        resolve()
-      },
-      reject: (err: Error) => {
-        clearTimeout(timeout)
-        reject(err)
-      },
-    })
-  })
-}
-
-/**
- * Release the lock and process next in queue
- */
-function releaseLock(): void {
-  if (lockQueue.length > 0) {
-    const next = lockQueue.shift()
-    if (next) {
-      next.resolve()
-    }
-  } else {
-    lockHeld = false
-  }
-}
-
-/**
- * Execute a function with lock protection
+ * Execute a function with 'hosts' lock protection.
+ * MF-010: Wraps the shared file-lock with the 'hosts' lock name.
  */
 async function withLock<T>(fn: () => T | Promise<T>): Promise<T> {
-  await acquireLock()
-  try {
-    return await fn()
-  } finally {
-    releaseLock()
-  }
+  return sharedWithLock('hosts', fn)
 }
 
 // ============================================================================
@@ -388,7 +332,8 @@ export function getHostById(hostId: string): Host | undefined {
   if (hostId === 'local') {
     return hosts.find(host => isSelf(host.id))
   }
-  return hosts.find(host => host.id === hostId || host.id.toLowerCase() === hostId.toLowerCase())
+  // NT-022: Simplified to just the case-insensitive check (subsumes the exact match)
+  return hosts.find(host => host.id.toLowerCase() === hostId.toLowerCase())
 }
 
 /**
@@ -510,7 +455,7 @@ export function createExampleConfig(): HostsConfig {
         id: selfId,
         name: selfId,
         url: selfHost.url,
-        type: 'local',
+        // NT-020: Removed deprecated 'type: local' field -- use isSelf(host.id) instead
         enabled: true,
         description: 'This machine',
       },
@@ -562,7 +507,10 @@ export function saveHosts(hosts: Host[]): { success: boolean; error?: string } {
     }
 
     const config: HostsConfig = { ...existing, hosts }
-    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+    // MF-009: Atomic write -- write to temp file then rename to avoid data loss on crash
+    const tmpFile = `${HOSTS_CONFIG_PATH}.tmp.${process.pid}`
+    fs.writeFileSync(tmpFile, JSON.stringify(config, null, 2), 'utf-8')
+    fs.renameSync(tmpFile, HOSTS_CONFIG_PATH)
     clearHostsCache()
 
     return { success: true }
@@ -686,7 +634,8 @@ export function updateHost(
   try {
     const currentHosts = getHosts()
 
-    const hostIndex = currentHosts.findIndex(h => h.id === hostId)
+    // SF-035: Use case-insensitive ID comparison, consistent with addHost() at line 636
+    const hostIndex = currentHosts.findIndex(h => h.id.toLowerCase() === hostId.toLowerCase())
     if (hostIndex === -1) {
       return {
         success: false,
@@ -694,7 +643,7 @@ export function updateHost(
       }
     }
 
-    if (updates.id && updates.id !== hostId) {
+    if (updates.id && updates.id.toLowerCase() !== hostId.toLowerCase()) {
       return {
         success: false,
         error: 'Cannot change host ID',
@@ -736,7 +685,8 @@ export function deleteHost(hostId: string): { success: boolean; error?: string }
   try {
     const currentHosts = getHosts()
 
-    const host = currentHosts.find(h => h.id === hostId)
+    // SF-036: Use case-insensitive comparison, consistent with addHost()
+    const host = currentHosts.find(h => h.id.toLowerCase() === hostId.toLowerCase())
     if (!host) {
       return {
         success: false,
@@ -752,7 +702,7 @@ export function deleteHost(hostId: string): { success: boolean; error?: string }
       }
     }
 
-    const updatedHosts = currentHosts.filter(h => h.id !== hostId)
+    const updatedHosts = currentHosts.filter(h => h.id.toLowerCase() !== hostId.toLowerCase())
     const result = saveHosts(updatedHosts)
     if (!result.success) {
       return result
@@ -847,6 +797,9 @@ export function setOrganization(
   name: string,
   setBy?: string
 ): { success: boolean; error?: string } {
+  // MF-011: TOCTOU risk acknowledged -- two concurrent calls could both read organization: null
+  // and both proceed to write. Mitigation: setOrganizationAsync() wraps this in a lock.
+  // Sync version preserved for backward compatibility with callers that cannot await.
   try {
     // Validate name format
     if (!isValidOrganizationName(name)) {
@@ -882,8 +835,10 @@ export function setOrganization(
       fs.mkdirSync(configDir, { recursive: true })
     }
 
-    // Save config
-    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+    // Save config -- MF-009: Atomic write to prevent data loss on crash
+    const tmpFile = `${HOSTS_CONFIG_PATH}.tmp.${process.pid}`
+    fs.writeFileSync(tmpFile, JSON.stringify(config, null, 2), 'utf-8')
+    fs.renameSync(tmpFile, HOSTS_CONFIG_PATH)
     clearHostsCache()
 
     console.log(`[Hosts] Organization set to "${name}" by ${config.organizationSetBy}`)
@@ -895,6 +850,17 @@ export function setOrganization(
       error: error instanceof Error ? error.message : 'Failed to set organization',
     }
   }
+}
+
+/**
+ * MF-011: Lock-protected version of setOrganization to prevent TOCTOU race.
+ * Callers should prefer this async version when possible.
+ */
+export async function setOrganizationAsync(
+  name: string,
+  setBy?: string
+): Promise<{ success: boolean; error?: string }> {
+  return withLock(() => setOrganization(name, setBy))
 }
 
 /**
@@ -910,6 +876,7 @@ export function adoptOrganization(
   setAt: string,
   setBy: string
 ): { success: boolean; adopted: boolean; error?: string } {
+  // MF-011: TOCTOU risk acknowledged -- see adoptOrganizationAsync() for lock-protected version.
   try {
     // Read existing config
     let config: HostsConfig = { hosts: [] }
@@ -943,8 +910,10 @@ export function adoptOrganization(
       fs.mkdirSync(configDir, { recursive: true })
     }
 
-    // Save config
-    fs.writeFileSync(HOSTS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+    // Save config -- MF-009: Atomic write to prevent data loss on crash
+    const tmpFile = `${HOSTS_CONFIG_PATH}.tmp.${process.pid}`
+    fs.writeFileSync(tmpFile, JSON.stringify(config, null, 2), 'utf-8')
+    fs.renameSync(tmpFile, HOSTS_CONFIG_PATH)
     clearHostsCache()
 
     console.log(`[Hosts] Adopted organization "${organization}" from ${setBy}`)
@@ -957,4 +926,16 @@ export function adoptOrganization(
       error: error instanceof Error ? error.message : 'Failed to adopt organization',
     }
   }
+}
+
+/**
+ * MF-011: Lock-protected version of adoptOrganization to prevent TOCTOU race.
+ * Callers should prefer this async version when possible.
+ */
+export async function adoptOrganizationAsync(
+  organization: string,
+  setAt: string,
+  setBy: string
+): Promise<{ success: boolean; adopted: boolean; error?: string }> {
+  return withLock(() => adoptOrganization(organization, setAt, setBy))
 }

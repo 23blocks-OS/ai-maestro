@@ -34,8 +34,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<AMPRouteR
     if (result.error) {
       return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
     }
-    // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
-    return NextResponse.json((result.data ?? {}) as AMPRouteResponse, {
+    // Guard against null/undefined data -- service should always return data on success
+    if (!result.data) {
+      return NextResponse.json({ error: 'internal_error', message: 'Route response missing' } as AMPError, { status: 500 })
+    }
+    return NextResponse.json(result.data as AMPRouteResponse, {
       status: result.status,
       headers: result.headers
     })

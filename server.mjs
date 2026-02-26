@@ -58,7 +58,10 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Reason:', reason)
 
   // Log to file for debugging
-  const crashLogPath = path.join(process.cwd(), 'logs', 'crash.log')
+  // MF-015: Ensure logs directory exists before writing (same guard as uncaughtException)
+  const logsDir = path.join(process.cwd(), 'logs')
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true })
+  const crashLogPath = path.join(logsDir, 'crash.log')
   const timestamp = new Date().toISOString()
   const logEntry = `[${timestamp}] Unhandled rejection:\n${reason?.stack || reason}\n\n`
 
@@ -486,10 +489,34 @@ async function startServer(handleRequest) {
         // Track activity for remote sessions
         sessionActivity.set(sessionName, Date.now())
 
-        // Remove any stale listeners from previous retry attempts to avoid duplicates
+        // Remove stale listeners from previous retry attempts to avoid duplicates.
+        // MF-016: Only remove client listeners added inside the 'open' handler (message
+        // proxying and per-connection close/error). The early-close handler registered
+        // outside attemptConnection() is re-established immediately after clearing to
+        // prevent a gap where client disconnection would go unhandled.
         clientWs.removeAllListeners('message')
         clientWs.removeAllListeners('close')
         clientWs.removeAllListeners('error')
+
+        // MF-016: Re-register client close and error handlers immediately after
+        // clearing to prevent any gap where client disconnection goes unhandled.
+        // These replace both the early-close handler (registered outside
+        // attemptConnection) and the previous per-connection handlers.
+        clientWs.on('close', () => {
+          clientClosed = true
+          console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
+          if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+            workerWs.close()
+          }
+        })
+
+        clientWs.on('error', (error) => {
+          clientClosed = true
+          console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
+          if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+            workerWs.close()
+          }
+        })
 
         // Proxy messages: browser → remote worker
         clientWs.on('message', (data) => {
@@ -529,22 +556,8 @@ async function startServer(handleRequest) {
           }
         })
 
-        // Handle client disconnection
-        clientWs.on('close', () => {
-          clientClosed = true
-          console.log(`🌐 [REMOTE] Client disconnected from ${sessionName}`)
-          if (workerWs.readyState === WebSocket.OPEN) {
-            workerWs.close()
-          }
-        })
-
-        clientWs.on('error', (error) => {
-          clientClosed = true
-          console.error(`🌐 [REMOTE] Client error for ${sessionName}:`, error.message)
-          if (workerWs.readyState === WebSocket.OPEN) {
-            workerWs.close()
-          }
-        })
+        // Client close/error handlers are registered immediately after
+        // removeAllListeners above (MF-016) -- no duplicate registration needed here.
       })
 
       workerWs.on('error', (error) => {
@@ -613,7 +626,7 @@ async function startServer(handleRequest) {
     // a Next.js API route that is only accessible via HTTP. The fallback below
     // handles the case where the loopback fetch fails (e.g., during startup).
     try {
-      const response = await fetch(`http://localhost:${port}/api/sessions/activity`)
+      const response = await fetch(`http://127.0.0.1:${port}/api/sessions/activity`)
       const data = await response.json()
       ws.send(JSON.stringify({ type: 'initial_status', activity: data.activity || {} }))
     } catch (err) {
@@ -1170,7 +1183,7 @@ async function startServer(handleRequest) {
     // This ensures all agents have canonical hostIds for proper AMP addressing
     setTimeout(async () => {
       try {
-        const response = await fetch(`http://localhost:${port}/api/agents/normalize-hosts`, {
+        const response = await fetch(`http://127.0.0.1:${port}/api/agents/normalize-hosts`, {
           method: 'POST',
           signal: AbortSignal.timeout(10000)
         })
@@ -1188,7 +1201,7 @@ async function startServer(handleRequest) {
     // Sync agent directory with peers on startup (Phase 3: AMP Protocol Fix)
     setTimeout(async () => {
       try {
-        const response = await fetch(`http://localhost:${port}/api/agents/directory/sync`, {
+        const response = await fetch(`http://127.0.0.1:${port}/api/agents/directory/sync`, {
           method: 'POST',
           signal: AbortSignal.timeout(30000)  // 30s timeout for sync
         })
@@ -1206,14 +1219,15 @@ async function startServer(handleRequest) {
     // Sync with remote hosts on startup (register ourselves with known peers)
     setTimeout(async () => {
       try {
-        const hostsResponse = await fetch(`http://localhost:${port}/api/hosts`)
+        const hostsResponse = await fetch(`http://127.0.0.1:${port}/api/hosts`)
         const hostsData = await hostsResponse.json()
-        const remoteHosts = (hostsData.hosts || []).filter(h => h.type === 'remote' && h.enabled)
+        // SF-055: Use isSelf() + enabled check instead of deprecated h.type === 'remote'
+        const remoteHosts = (hostsData.hosts || []).filter(h => !isSelf(h.id) && h.enabled !== false)
 
         if (remoteHosts.length > 0) {
           console.log(`[Host Sync] Registering with ${remoteHosts.length} remote host(s) on startup...`)
 
-          const selfResponse = await fetch(`http://localhost:${port}/api/hosts/identity`)
+          const selfResponse = await fetch(`http://127.0.0.1:${port}/api/hosts/identity`)
           const selfData = await selfResponse.json()
 
           for (const host of remoteHosts) {

@@ -58,3 +58,7 @@ jobs:
 
       - name: Lint
         run: yarn lint
+
+      # NT-039: Add TypeScript type-checking step
+      - name: Type check
+        run: yarn tsc --noEmit

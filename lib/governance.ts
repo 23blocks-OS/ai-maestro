@@ -40,8 +40,11 @@ export function loadGovernance(): GovernanceConfig {
     const data = fs.readFileSync(GOVERNANCE_FILE, 'utf-8')
     const parsed: GovernanceConfig = JSON.parse(data)
     // SF-025: Runtime version check -- TypeScript literal type `1` is not enforced after JSON.parse
+    // NT-021: Version mismatch is NOT healed (unlike JSON corruption) because it may indicate
+    // a deliberate schema upgrade from a newer version. Healing would destroy newer-format data.
+    // Instead, return defaults and log prominently so the operator can migrate manually.
     if (parsed.version !== 1) {
-      console.error(`[governance] Unsupported config version: ${parsed.version} (expected 1). Returning defaults.`)
+      console.error(`[governance] Unsupported config version: ${parsed.version} (expected 1). Returning defaults. File NOT overwritten -- manual migration required: ${GOVERNANCE_FILE}`)
       return { ...DEFAULT_GOVERNANCE_CONFIG }
     }
     return parsed

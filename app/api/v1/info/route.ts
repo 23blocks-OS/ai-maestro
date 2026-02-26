@@ -18,8 +18,11 @@ export async function GET(_request: Request): Promise<NextResponse<AMPInfoRespon
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
-  return NextResponse.json(result.data ?? {} as AMPInfoResponse, {
+  // Guard against null/undefined data -- service should always return data on success
+  if (!result.data) {
+    return NextResponse.json({ error: 'Provider info unavailable' }, { status: 500 })
+  }
+  return NextResponse.json(result.data as AMPInfoResponse, {
     status: result.status,
     headers: result.headers
   })

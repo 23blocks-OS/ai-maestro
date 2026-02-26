@@ -51,8 +51,9 @@ function generateAndStoreKeyPair(): { publicKeyHex: string; privateKeyHex: strin
   const publicKeyHex = (publicKey as Buffer).toString('hex')
 
   // Atomic write: write to .tmp then rename to avoid half-written files
-  const privateTmp = PRIVATE_KEY_PATH + '.tmp'
-  const publicTmp = PUBLIC_KEY_PATH + '.tmp'
+  // SF-033: Include process.pid in temp file names to prevent collisions between concurrent processes
+  const privateTmp = `${PRIVATE_KEY_PATH}.tmp.${process.pid}`
+  const publicTmp = `${PUBLIC_KEY_PATH}.tmp.${process.pid}`
 
   // Private key: owner-only read/write (0o600)
   fs.writeFileSync(privateTmp, privateKeyHex, { mode: 0o600 })

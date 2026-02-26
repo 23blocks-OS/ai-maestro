@@ -15,7 +15,6 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -42,7 +41,6 @@ export async function PATCH(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -50,7 +48,7 @@ export async function PATCH(
     try { metadata = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-    // SF-052: Validate metadata is a plain object with depth/size limits
+    // Validate metadata is a plain object with depth/size limits
     if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
       return NextResponse.json({ error: 'Metadata must be a plain object' }, { status: 400 })
     }
@@ -58,7 +56,7 @@ export async function PATCH(
     if (metadataStr.length > 65536) {
       return NextResponse.json({ error: 'Metadata exceeds maximum size (64KB)' }, { status: 400 })
     }
-    // SF-052: Check nesting depth (max 5 levels)
+    // Check nesting depth (max 5 levels)
     const checkDepth = (obj: unknown, depth: number): boolean => {
       if (depth > 5) return false
       if (obj !== null && typeof obj === 'object') {
@@ -80,7 +78,7 @@ export async function PATCH(
 
     return NextResponse.json({ metadata: agent.metadata })
   } catch (error) {
-    // SF-007: Differentiate validation errors (400) from internal errors (500)
+    // Differentiate validation errors (400) from internal errors (500)
     console.error('Failed to update agent metadata:', error)
     if (error instanceof TypeError || (error instanceof Error && error.message.includes('Invalid'))) {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -99,11 +97,22 @@ export async function DELETE(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
-    const agent = await updateAgent(agentId, { metadata: {} })
+    // MF-001 fix: Read current metadata keys and set each to undefined,
+    // because updateAgent merges via spread (empty object is a no-op)
+    const existing = getAgent(agentId)
+    if (!existing) {
+      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+    const nulledMetadata: Record<string, undefined> = {}
+    if (existing.metadata) {
+      for (const key of Object.keys(existing.metadata)) {
+        nulledMetadata[key] = undefined
+      }
+    }
+    const agent = await updateAgent(agentId, { metadata: nulledMetadata as Record<string, unknown> })
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

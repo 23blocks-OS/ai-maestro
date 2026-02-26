@@ -18,7 +18,7 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { randomUUID } from 'crypto'
 import matter from 'gray-matter'
-// NT-006: Import ServiceResult directly from canonical source
+// ServiceResult imported directly from canonical source
 import type { ServiceResult } from '@/types/service'
 import type {
   PluginBuildConfig,
@@ -196,9 +196,15 @@ function evictStaleBuildResults(): void {
   }
 }
 
-// Run eviction every 10 minutes
-const evictionInterval = setInterval(evictStaleBuildResults, 10 * 60 * 1000)
-evictionInterval.unref() // Don't prevent process exit
+// Lazy eviction: only start the interval when the first build is created,
+// so the timer does not run forever if no builds are ever created.
+let evictionInterval: ReturnType<typeof setInterval> | null = null
+
+function ensureEvictionStarted(): void {
+  if (evictionInterval) return
+  evictionInterval = setInterval(evictStaleBuildResults, 10 * 60 * 1000)
+  evictionInterval.unref() // Don't prevent process exit
+}
 
 // ============================================================================
 // PUBLIC API
@@ -363,6 +369,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       createdAt: new Date().toISOString(),
     }
     buildResults.set(buildId, result)
+    ensureEvictionStarted()
 
     // Run build asynchronously
     runBuild(buildId, buildDir, manifest).catch(err => {

@@ -265,7 +265,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to add agent to team' }
         }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to add agent to team' }
@@ -311,7 +314,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
           const errData = await res.json()
           return { success: false, error: errData.error || 'Failed to remove agent from team' }
         }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to remove agent from team' }
@@ -345,7 +351,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }
         const data = await res.json()
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true, requestId: data.id }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -374,7 +383,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
           })
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -394,7 +406,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to create transfer request' }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true, transferRequest: data.request }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to create transfer request' }
@@ -414,7 +429,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to resolve transfer' }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // MF-014 + SF-040: Use mutationAbortRef so unmount cancels in-flight refresh
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to resolve transfer' }

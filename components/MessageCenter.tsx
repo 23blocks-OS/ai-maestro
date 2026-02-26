@@ -495,7 +495,8 @@ export default function MessageCenter({ sessionName, agentId, allAgents, hostUrl
         break
       case 'Enter':
         e.preventDefault()
-        if (selectedSuggestionIndex >= 0) {
+        // SF-044: Bounds-check selectedSuggestionIndex against filteredAgents length
+        if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < filteredAgents.length) {
           selectAgent(filteredAgents[selectedSuggestionIndex])
         }
         break

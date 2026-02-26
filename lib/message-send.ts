@@ -567,11 +567,14 @@ export async function forwardFromUI(options: ForwardFromUIOptions): Promise<{ me
       // Local delivery via deliver()
       const recipientName = toResolved.alias || toResolved.agentId
       const { envelope, payload } = buildAMPEnvelope(forwardedMessage)
+      // SF-042: Only use VERIFIED_LOCAL_SENDER if the sender agent is actually local.
+      // Forwarding a message on behalf of a remote agent should not mark it as locally verified.
+      const isFromLocalAgent = isSelf(fromHostId)
       const result = await deliver({
         envelope,
         payload,
         recipientAgentName: recipientName,
-        senderPublicKeyHex: VERIFIED_LOCAL_SENDER,  // CC-P4-008: Forwards are always from a local verified agent
+        senderPublicKeyHex: isFromLocalAgent ? VERIFIED_LOCAL_SENDER : undefined,
         senderName: fromResolved.alias || fromResolved.agentId,
         senderHost: fromHostId,
         recipientAgentId: toResolved.agentId,

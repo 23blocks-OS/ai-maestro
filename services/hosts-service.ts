@@ -57,7 +57,7 @@ const execAsync = promisify(exec)
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -254,18 +254,18 @@ async function fetchDockerInfo(
  * Check if a single host is reachable via health check.
  */
 async function checkHostHealth(url: string, timeoutMs: number = 5000): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), timeoutMs)
-
     const response = await fetch(`${url}/api/config`, {
       signal: controller.signal,
     })
-    clearTimeout(timeout)
-
     return response.ok
   } catch {
     return false
+  } finally {
+    // Always clear the timeout to prevent timer leak when fetch throws before timeout fires
+    clearTimeout(timeout)
   }
 }
 
@@ -606,14 +606,12 @@ export async function getMeshStatus(): Promise<ServiceResult<any>> {
     // Check health of all peers concurrently
     const healthChecks = await Promise.all(
       remotePeers.map(async (peer) => {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
         try {
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), 5000)
-
           const response = await fetch(`${peer.url}/api/config`, {
             signal: controller.signal,
           })
-          clearTimeout(timeout)
 
           return {
             id: peer.id,
@@ -634,6 +632,9 @@ export async function getMeshStatus(): Promise<ServiceResult<any>> {
             syncedAt: peer.syncedAt,
             syncSource: peer.syncSource,
           }
+        } finally {
+          // Always clear the timeout to prevent timer leak when fetch throws before timeout fires
+          clearTimeout(timeout)
         }
       })
     )
@@ -982,6 +983,8 @@ export async function exchangePeers(body: PeerExchangeRequest): Promise<ServiceR
 
     // Filter hosts that need processing
     const hostsToProcess: HostIdentity[] = []
+    // Hoist getHosts() call before the loop to avoid re-reading from disk on each iteration
+    const knownHosts = getHosts()
     console.log(`[Host Sync] Processing ${uniqueHosts.length} unique hosts from ${body.fromHost.name}`)
 
     for (const peerHost of uniqueHosts) {
@@ -1005,9 +1008,8 @@ export async function exchangePeers(body: PeerExchangeRequest): Promise<ServiceR
         continue
       }
 
-      // Check if URL already exists
-      const hosts = getHosts()
-      const hostWithSameUrl = hosts.find(h => h.url === peerHost.url && !isSelf(h.id))
+      // Check if URL already exists (using hoisted hosts list)
+      const hostWithSameUrl = knownHosts.find(h => h.url === peerHost.url && !isSelf(h.id))
       if (hostWithSameUrl) {
         console.log(`[Host Sync] Skipping ${peerHost.name} (${peerHost.id}): URL ${peerHost.url} already exists as ${hostWithSameUrl.id}`)
         alreadyKnown.push(peerHost.id)

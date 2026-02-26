@@ -114,6 +114,8 @@ import {
   addSessionToAgent,
   incrementAgentMetric,
 } from '@/lib/agent-registry'
+import path from 'path'
+import os from 'os'
 import type { Agent, CreateAgentRequest } from '@/types/agent'
 
 // ============================================================================
@@ -163,28 +165,19 @@ describe('loadAgents', () => {
 
   it('returns an empty array when registry file contains invalid JSON', () => {
     // Manually seed a file with bad JSON
-    const _registryPath = Object.keys(fileStore).length === 0
-      ? (() => {
-          // Create agents dir and write bad data
-          const p = require('path')
-          const os = require('os')
-          const dir = p.join(os.homedir(), '.aimaestro', 'agents')
-          const file = p.join(dir, 'registry.json')
-          dirStore.add(dir)
-          fileStore[file] = '{{not json}}'
-          fileMtimes[file] = ++mtimeCounter
-          return file
-        })()
-      : ''
+    const dir = path.join(os.homedir(), '.aimaestro', 'agents')
+    const file = path.join(dir, 'registry.json')
+    dirStore.add(dir)
+    fileStore[file] = '{{not json}}'
+    fileMtimes[file] = ++mtimeCounter
+
     const agents = loadAgents()
     expect(agents).toEqual([])
   })
 
   it('returns an empty array when registry file contains a non-array', () => {
-    const p = require('path')
-    const os = require('os')
-    const file = p.join(os.homedir(), '.aimaestro', 'agents', 'registry.json')
-    dirStore.add(p.dirname(file))
+    const file = path.join(os.homedir(), '.aimaestro', 'agents', 'registry.json')
+    dirStore.add(path.dirname(file))
     fileStore[file] = JSON.stringify({ notAnArray: true })
     fileMtimes[file] = ++mtimeCounter
 
@@ -430,11 +423,11 @@ describe('updateAgent', () => {
 
   it('updates lastActive timestamp', async () => {
     const agent = await createAgent(makeCreateRequest({ name: 'ts-agent' }))
-    const originalLastActive = agent.lastActive
 
-    // Small delay to ensure different timestamp
     const updated = await updateAgent(agent.id, { taskDescription: 'changed' })
     expect(updated!.lastActive).toBeDefined()
+    // Verify lastActive is a valid ISO timestamp (updateAgent always refreshes it)
+    expect(new Date(updated!.lastActive).toISOString()).toBe(updated!.lastActive)
   })
 
   it('merges documentation fields', async () => {

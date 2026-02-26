@@ -51,7 +51,7 @@ import type { SidebarMode } from '@/types/team'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Messages: GET /api/messages
@@ -143,6 +143,12 @@ export async function getMessages(params: GetMessagesParams): Promise<ServiceRes
   if (action === 'agents' || action === 'sessions') {
     const agents = await listAgentsWithMessages()
     return { data: { agents, sessions: agents }, status: 200 }
+  }
+
+  // Validate action parameter: if provided but not one of the recognized values, reject with 400
+  const RECOGNIZED_ACTIONS = ['resolve', 'search', 'unread-count', 'sent-count', 'stats', 'agents', 'sessions', 'list']
+  if (action && !RECOGNIZED_ACTIONS.includes(action)) {
+    return { error: `Invalid action: '${String(action).slice(0, 50)}'. Valid actions: ${RECOGNIZED_ACTIONS.join(', ')}`, status: 400 }
   }
 
   // List messages for an agent
@@ -329,13 +335,23 @@ export async function forwardMessage(params: ForwardMessageParams): Promise<Serv
     }
   }
 
+  // Validate session identifier format: length limit and no control characters
+  const SESSION_MAX_LEN = 200
+  const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/
+  if (fromSession.length > SESSION_MAX_LEN || CONTROL_CHAR_RE.test(fromSession)) {
+    return { error: 'Invalid fromSession format', status: 400 }
+  }
+  if (toSession.length > SESSION_MAX_LEN || CONTROL_CHAR_RE.test(toSession)) {
+    return { error: 'Invalid toSession format', status: 400 }
+  }
+
   // Validate that from and to sessions are different
   if (fromSession === toSession) {
     return { error: 'Cannot forward message to the same session', status: 400 }
   }
 
   try {
-    // CC-P1-411: Pass undefined instead of empty string when messageId is missing,
+    // Pass undefined instead of empty string when messageId is missing,
     // to avoid silent lookup failures if the calling pattern changes
     const result = await forwardFromUI({
       originalMessageId: messageId || undefined,
@@ -526,7 +542,7 @@ export interface UpdateMeetingParams {
   teamId?: string | null
 }
 
-// SF-049: Allowed meeting status values for runtime validation
+// Allowed meeting status values for runtime validation
 const VALID_MEETING_STATUSES = ['active', 'ended'] as const
 
 export function updateExistingMeeting(
@@ -534,7 +550,7 @@ export function updateExistingMeeting(
   updates: UpdateMeetingParams,
 ): ServiceResult<{ meeting: any }> {
   try {
-    // SF-049: Validate status at runtime instead of casting to any
+    // Validate status at runtime instead of casting to any
     if (updates.status !== undefined && !VALID_MEETING_STATUSES.includes(updates.status as any)) {
       return { error: `Invalid meeting status: "${updates.status}". Must be one of: ${VALID_MEETING_STATUSES.join(', ')}`, status: 400 }
     }

@@ -55,8 +55,9 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
 
     // SF-035: Timeout prevents indefinite waits when releaseIndexSlot is never called
     const timeoutHandle = setTimeout(() => {
-      // Remove this entry from the queue so it does not fire later
-      const idx = indexQueue.findIndex(q => q.agentId === agentId && q.timestamp === entry.timestamp)
+      // SF-039: Use direct object reference (indexOf) instead of matching by agentId + timestamp,
+      // which could match a different entry if the same agent queues twice in the same millisecond
+      const idx = indexQueue.indexOf(entry)
       if (idx !== -1) indexQueue.splice(idx, 1)
       reject(new Error(`[Delta Index Throttle] Timeout: ${agentId.substring(0, 8)} waited ${INDEX_SLOT_TIMEOUT_MS}ms for index slot`))
     }, INDEX_SLOT_TIMEOUT_MS)
@@ -341,9 +342,19 @@ function extractConversationMetadata(jsonlPath: string, projectPath: string): {
       }
       if (message.type === 'assistant' && message.message?.model) {
         const model = message.message.model
-        if (model.includes('sonnet')) modelSet.add('Sonnet 4.5')
-        else if (model.includes('haiku')) modelSet.add('Haiku 4.5')
-        else if (model.includes('opus')) modelSet.add('Opus 4.5')
+        // NT-027: Extract version dynamically from model string instead of hardcoding "4.5".
+        // Model strings look like "claude-sonnet-4-5-20260620" or "claude-3-5-sonnet-20241022".
+        // Extract the family name and use the raw model string for version context.
+        if (model.includes('sonnet')) {
+          const version = model.match(/(\d[\d.-]*\d)/)?.[1]?.replace(/-/g, '.') || ''
+          modelSet.add(version ? `Sonnet ${version}` : `Sonnet (${model})`)
+        } else if (model.includes('haiku')) {
+          const version = model.match(/(\d[\d.-]*\d)/)?.[1]?.replace(/-/g, '.') || ''
+          modelSet.add(version ? `Haiku ${version}` : `Haiku (${model})`)
+        } else if (model.includes('opus')) {
+          const version = model.match(/(\d[\d.-]*\d)/)?.[1]?.replace(/-/g, '.') || ''
+          modelSet.add(version ? `Opus ${version}` : `Opus (${model})`)
+        }
       }
     } catch {
       // Skip malformed

@@ -27,9 +27,9 @@ export interface Team {
                            // Always present at runtime — loadTeams() migration guarantees this field is populated
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
   /**
-   * @planned Layer 3 — type stub only, not yet populated or consumed anywhere.
+   * @planned Layer 3 -- type stub only, not yet populated or consumed anywhere.
    * Will map agentId -> hostId for multi-host team membership tracking.
-   * SF-056 (P5): Confirmed as planned feature, not dead code.
+   * Target implementation: Phase 2 multi-host team support.
    */
   agentHostMap?: Record<string, string>
   createdAt: string       // ISO
@@ -109,5 +109,6 @@ export type TeamMeetingAction =
   | { type: 'OPEN_RIGHT_PANEL'; tab: RightPanelTab }
   | { type: 'OPEN_KANBAN' }
   | { type: 'CLOSE_KANBAN' }
-  // NT-016: Removed redundant teamId -- meeting.teamId is the source of truth
+  // Uses full Meeting type because all fields are needed to restore reducer state from persistence.
+  // Consider using Pick<Meeting, ...> if the set of needed fields becomes a strict subset.
   | { type: 'RESTORE_MEETING'; meeting: Meeting }

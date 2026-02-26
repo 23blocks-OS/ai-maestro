@@ -16,7 +16,16 @@ export async function POST(request: NextRequest) {
     }
     const { sessionName, status, hookStatus, notificationType } = body
 
-    // SF-003: Validate status is one of the known activity statuses
+    // Validate sessionName format: only alphanumeric, hyphens, and underscores allowed
+    // (tmux session names are restricted to this charset)
+    if (sessionName && (typeof sessionName !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(sessionName))) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid sessionName format — only alphanumeric, hyphens, and underscores allowed' },
+        { status: 400 }
+      )
+    }
+
+    // Validate status is one of the known activity statuses
     const VALID_STATUSES = ['active', 'idle', 'busy', 'offline', 'error', 'waiting', 'stopped']
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json(

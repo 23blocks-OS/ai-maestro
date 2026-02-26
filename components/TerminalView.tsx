@@ -516,7 +516,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   }, [isMobile, terminal])
 
   // Load notes from localStorage ONCE on mount
-  // Tab-based architecture: notes stay in memory, no need to reload on session switch
+  // SF-047: storageId is stable for the lifetime of this component instance (keyed by session).
+  // Tab-based architecture: each TerminalView is mounted once per agent and never reused,
+  // so storageId never changes during the component lifecycle. Empty deps is intentional.
   useEffect(() => {
     // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
     try {
@@ -531,7 +533,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // localStorage unavailable (private browsing, storage full, etc.)
       setNotes('')
     }
-    // Only load once on mount
+    // Only load once on mount — storageId is stable per component instance (see SF-047)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -549,6 +551,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // localStorage unavailable (private browsing, storage full, etc.)
       setPromptDraft('')
     }
+    // Only load once on mount — storageId is stable per component instance (see SF-047)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

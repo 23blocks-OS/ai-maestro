@@ -35,7 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = await createNewTeam({ ...body, requestingAgentId })
+  // Whitelist expected fields instead of spreading raw body
+  const { name, description, agentIds, type } = body
+  const result = await createNewTeam({ name, description, agentIds, type, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

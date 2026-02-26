@@ -7,17 +7,16 @@
  * Thin wrapper — business logic in services/agents-transfer-service.ts
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { exportAgentZip, createTranscriptExportJob } from '@/services/agents-transfer-service'
 import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
-  _request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -36,7 +35,8 @@ export async function GET(
         'Content-Disposition': `attachment; filename="${filename.replace(/["\r\n\\]/g, '_')}"`,
         'Content-Length': buffer.length.toString(),
         'X-Agent-Id': agentId,
-        'X-Agent-Name': agentName,
+        // SF-006 fix: Sanitize agent name to prevent header injection
+        'X-Agent-Name': agentName.replace(/[\r\n]/g, ''),
         'X-Export-Version': '1.0.0'
       }
     })
@@ -50,12 +50,11 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }

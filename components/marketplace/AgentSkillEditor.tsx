@@ -78,8 +78,8 @@ export default function AgentSkillEditor({
   // Governance: pending config requests for this agent
   const { pendingConfigRequests, resolveConfigRequest, managerId } = useGovernance(agentId)
   const agentPendingConfigs = pendingConfigRequests.filter(r => r.payload.agentId === agentId)
-  // SF-059: Phase 1 localhost: canApprove always true (single-user mode).
-  // Phase 2 will check isManager || isCos:
+  // SF-046 / SF-059: Phase 1 localhost: canApprove always true (single-user mode).
+  // TODO Phase 2 (governance-role-check): Replace with actual role check:
   //   const canApprove = agentRole === 'manager' || agentRole === 'chief-of-staff'
   // This requires passing the current user's role from the governance context.
   const canApprove = true

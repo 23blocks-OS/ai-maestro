@@ -46,7 +46,7 @@ import {
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -63,7 +63,7 @@ function formatBytes(bytes: number): string {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
-// MF-009: Local escapeString removed -- use escapeForCozo from @/lib/cozo-utils
+// Local escapeString removed -- use escapeForCozo from @/lib/cozo-utils
 // escapeForCozo uses backslash escaping (correct for CozoDB) and wraps in quotes
 
 // ===========================================================================
@@ -159,7 +159,7 @@ export async function queryDbGraph(
   try {
     const { action, name, column } = params
 
-    console.log(`[Graph Service] queryDbGraph Agent: ${agentId}, Action: ${action}`)
+    console.debug(`[Graph Service] queryDbGraph Agent: ${agentId}, Action: ${action}`)
 
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
@@ -309,7 +309,7 @@ export async function indexDbSchema(
       status: 200
     }
   } catch (error) {
-    // SF-029: Log full error server-side but return generic message to prevent leaking connection details
+    // Log full error server-side but return generic message to prevent leaking connection details
     console.error('[Graph Service] indexDbSchema Error:', error)
     return {
       error: 'Failed to index database schema',
@@ -364,7 +364,7 @@ export async function queryGraph(
   try {
     const { queryType, name, type, from, to } = params
 
-    console.log(`[Graph Service] queryGraph Agent: ${agentId}, Query: ${queryType}, Name: ${name}`)
+    console.debug(`[Graph Service] queryGraph Agent: ${agentId}, Query: ${queryType}, Name: ${name}`)
 
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()
@@ -854,14 +854,14 @@ export async function queryCodeGraph(
     to?: string | null
     project?: string | null
     nodeId?: string | null
-    /** NT-008: depth is accepted but not yet used for traversal limiting — reserved for future use */
+    /** depth is accepted but not yet used for traversal limiting -- reserved for future use */
     depth?: number
   }
 ): Promise<ServiceResult<any>> {
   try {
     const { action, name, from, to, project: projectFilter, nodeId, depth = 1 } = params
 
-    console.log(`[Graph Service] queryCodeGraph Agent: ${agentId}, Action: ${action}`)
+    console.debug(`[Graph Service] queryCodeGraph Agent: ${agentId}, Action: ${action}`)
 
     const agent = await agentRegistry.getAgent(agentId)
     const agentDb = await agent.getDatabase()

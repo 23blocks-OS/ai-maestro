@@ -12,11 +12,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
-    const { searchParams } = new URL(request.url)
+    // SF-001 fix: Use NextRequest.nextUrl.searchParams instead of new URL(request.url)
+    const searchParams = request.nextUrl.searchParams
 
     const result = await listMessages(id, {
       box: searchParams.get('box') || undefined,
@@ -31,7 +31,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Messages GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -47,7 +46,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -63,7 +61,6 @@ export async function POST(
     }
     return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Messages POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

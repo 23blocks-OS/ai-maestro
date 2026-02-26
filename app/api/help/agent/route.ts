@@ -17,43 +17,58 @@ import {
  * POST - Create or return existing assistant agent
  */
 export async function POST() {
-  const result = await createAssistantAgent()
+  try {
+    const result = await createAssistantAgent()
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[HelpAgent] POST error:', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
  * DELETE - Kill assistant agent and clean up
  */
 export async function DELETE() {
-  const result = await deleteAssistantAgent()
+  try {
+    const result = await deleteAssistantAgent()
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[HelpAgent] DELETE error:', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
  * GET - Check assistant agent status
  */
 export async function GET() {
-  const result = await getAssistantStatus()
+  try {
+    const result = await getAssistantStatus()
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[HelpAgent] GET error:', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

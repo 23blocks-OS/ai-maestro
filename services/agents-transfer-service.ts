@@ -19,7 +19,7 @@ import { execFileSync } from 'child_process'
 import type { Agent, Repository } from '@/types/agent'
 import type { AgentExportManifest, AgentImportOptions, AgentImportResult, PortableRepository, RepositoryImportResult } from '@/types/portable'
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
 
     let remoteUrl = ''
     try {
-      // CC-P2-003: Use execFileSync (array args) instead of execSync (shell) to prevent injection
+      // Use execFileSync (array args) instead of execSync (shell) to prevent injection
       remoteUrl = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
         cwd: dirPath,
         encoding: 'utf-8',
@@ -114,7 +114,7 @@ function detectGitRepo(dirPath: string): PortableRepository | null {
 
     let defaultBranch = 'main'
     try {
-      // CC-P2-003: Use execFileSync with try/catch instead of shell fallback (2>/dev/null || echo "")
+      // Use execFileSync with try/catch instead of shell fallback (2>/dev/null || echo "")
       const remoteBranch = execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
         cwd: dirPath,
         encoding: 'utf-8',
@@ -166,7 +166,7 @@ function cloneRepository(
       const gitDir = path.join(targetPath, '.git')
       if (fs.existsSync(gitDir)) {
         try {
-          // CC-P2-003: Use execFileSync instead of execSync to prevent shell injection
+          // Use execFileSync instead of execSync to prevent shell injection
           const existingRemote = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
             cwd: targetPath,
             encoding: 'utf-8',
@@ -197,7 +197,7 @@ function cloneRepository(
     ensureDir(path.dirname(targetPath))
 
     const branch = repo.defaultBranch || 'main'
-    // CC-P1-506: Use execFileSync to prevent shell injection via branch name
+    // Use execFileSync to prevent shell injection via branch name
     // execFileSync passes args directly to the process without shell interpolation
     execFileSync('git', ['clone', '--branch', branch, repo.remoteUrl, targetPath], {
       encoding: 'utf-8',
@@ -243,7 +243,7 @@ async function extractZip(zipBuffer: Buffer, destDir: string): Promise<void> {
       zipfile.on('entry', (entry) => {
         const fullPath = path.join(destDir, entry.fileName)
 
-        // CC-P1-507: Zip Slip protection — ensure extracted path stays within destDir
+        // Zip Slip protection -- ensure extracted path stays within destDir
         const resolvedDest = path.resolve(destDir)
         const resolvedFull = path.resolve(fullPath)
         if (!resolvedFull.startsWith(resolvedDest + path.sep) && resolvedFull !== resolvedDest) {
@@ -546,8 +546,14 @@ export function createTranscriptExportJob(
     return { error: 'Invalid endDate format. Must be ISO 8601 timestamp', status: 400 }
   }
 
-  if (sessionId && !agent.sessions?.some(s => s.index === parseInt(sessionId))) {
-    return { error: 'Session not found for this agent', status: 404 }
+  if (sessionId) {
+    const parsedSessionIndex = parseInt(sessionId, 10)
+    if (Number.isNaN(parsedSessionIndex)) {
+      return { error: 'sessionId must be a numeric session index', status: 400 }
+    }
+    if (!agent.sessions?.some(s => s.index === parsedSessionIndex)) {
+      return { error: 'Session not found for this agent', status: 404 }
+    }
   }
 
   console.log(
@@ -1013,7 +1019,7 @@ export async function transferAgent(
   }
   normalizedUrl = normalizedUrl.replace(/\/+$/, '')
 
-  // CC-P4-004: Validate normalizedUrl scheme and verify it matches a known host to prevent SSRF
+  // Validate normalizedUrl scheme and verify it matches a known host to prevent SSRF
   let parsedTargetUrl: URL
   try {
     parsedTargetUrl = new URL(normalizedUrl)

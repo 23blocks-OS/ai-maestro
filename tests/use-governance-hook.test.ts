@@ -34,7 +34,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // critical aspect for integration correctness.
 // ============================================================================
 
-// NOTE: Tests standalone function replicas. Phase 2 will use @testing-library/react for actual hook testing.
+// KNOWN LIMITATION: Tests standalone function replicas, NOT the actual useGovernance hook.
+// Phase 2: Add @testing-library/react to render the hook and test refresh(), state updates, and memoization.
 
 /**
  * Replica of useGovernance.submitConfigRequest — sends a configure-agent governance request.
@@ -121,12 +122,13 @@ let mockFetch: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   mockFetch = vi.fn()
-  global.fetch = mockFetch
+  // Use vi.stubGlobal for proper cleanup via vi.unstubAllGlobals()
+  vi.stubGlobal('fetch', mockFetch)
 })
 
 afterEach(() => {
-  // NOTE: restoreAllMocks does not restore global.fetch; beforeEach re-assigns it each time.
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 // ============================================================================

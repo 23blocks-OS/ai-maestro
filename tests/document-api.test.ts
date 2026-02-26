@@ -214,7 +214,8 @@ describe('POST /api/teams/[id]/documents', () => {
     expect(docs[0].title).toBe('Persisted')
   })
 
-  // SECURITY: Stored XSS risk — frontend MUST sanitize before rendering. Track in security issue.
+  // SECURITY: Stored XSS risk -- API stores values verbatim; frontend MUST sanitize before rendering.
+  // Phase 2: Add server-side HTML sanitization for document titles and content.
   it('stores HTML content verbatim without sanitization (known security surface)', async () => {
     const team = await createTeam({ name: 'XSS Team', agentIds: [] })
     const xssTitle = '<script>alert(1)</script>'

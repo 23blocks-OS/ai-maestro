@@ -8,6 +8,11 @@
  * 1. No auth headers → system owner (web UI) → { agentId: undefined }
  * 2. Valid Authorization: Bearer → authenticated agent → { agentId: 'uuid' }
  * 3. X-Agent-Id without valid Bearer, or invalid Bearer → { error, status: 401 }
+ *
+ * PHASE 2 REQUIRED: Make auth mandatory. Currently (Phase 1), governance enforcement
+ * is opt-in -- endpoints skip RBAC checks when auth headers are omitted. This means
+ * any localhost client can bypass governance by simply not sending Authorization headers.
+ * Phase 2 must require auth on all governance-enforced endpoints. (SF-058)
  */
 import { authenticateRequest } from './amp-auth'
 

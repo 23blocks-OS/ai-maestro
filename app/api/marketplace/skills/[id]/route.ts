@@ -16,6 +16,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  // Validate skill ID: reject excessively long or control-character-containing IDs
+  if (!id || id.length > 200 || /[\x00-\x1f]/.test(id)) {
+    return NextResponse.json({ error: 'Invalid skill ID format' }, { status: 400 })
+  }
   const result = await getMarketplaceSkillById(id)
 
   if (result.error) {

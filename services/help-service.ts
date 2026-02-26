@@ -11,9 +11,10 @@
  *   GET    /api/help/agent   -> getAssistantStatus
  */
 
-import { writeFileSync } from 'fs'
+import { writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { randomUUID } from 'crypto'
 import { getAgentByName, createAgent, deleteAgent } from '@/lib/agent-registry'
 import { parseNameForDisplay } from '@/types/agent'
 import { getRuntime } from '@/lib/agent-runtime'
@@ -23,7 +24,7 @@ import { getRuntime } from '@/lib/agent-runtime'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -152,8 +153,9 @@ export async function createAssistantAgent(): Promise<ServiceResult<{
     // Small delay for env to take effect
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    // Write system prompt to a temp file (avoids shell escaping issues with long prompts)
-    const promptFile = join(tmpdir(), 'aim-assistant-prompt.txt')
+    // Write system prompt to a unique temp file (avoids shell escaping issues with long prompts
+    // and prevents predictable temp file path attacks)
+    const promptFile = join(tmpdir(), `aim-assistant-prompt-${randomUUID()}.txt`)
     writeFileSync(promptFile, SYSTEM_PROMPT)
 
     // Launch claude with read-only tools and bypass permissions

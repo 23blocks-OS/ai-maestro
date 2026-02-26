@@ -214,6 +214,11 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
       return skill.id.split(':')[2] || skill.id
     case 'repo':
       return skill.name
+    default: {
+      // NT-030: Exhaustiveness check — if a new skill type is added, TypeScript will error here
+      const _exhaustive: never = skill
+      return String((_exhaustive as PluginSkillSelection).type ?? 'unknown')
+    }
   }
 }
 
@@ -225,5 +230,11 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
       return `${skill.plugin} / ${skill.marketplace}`
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+    default: {
+      // Exhaustiveness check (consistent with getSkillDisplayName)
+      const _exhaustive: never = skill
+      void _exhaustive
+      return null
+    }
   }
 }

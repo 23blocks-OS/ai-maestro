@@ -2,8 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { searchConversations, ingestConversations } from '@/services/agents-memory-service'
 import { isValidUuid } from '@/lib/validation'
 
-// SF-022: Allowed role values for runtime validation
+// Allowed role values for runtime validation
 const VALID_ROLES: readonly string[] = ['user', 'assistant', 'system']
+
+// NT-002 fix: Reusable helpers to parse query params with NaN safety
+function parseIntParam(searchParams: URLSearchParams, key: string): number | undefined {
+  const raw = searchParams.get(key)
+  if (!raw) return undefined
+  const parsed = parseInt(raw, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+function parseFloatParam(searchParams: URLSearchParams, key: string): number | undefined {
+  const raw = searchParams.get(key)
+  if (!raw) return undefined
+  const parsed = parseFloat(raw)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
 
 /**
  * GET /api/agents/:id/search
@@ -28,35 +43,30 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
     const searchParams = request.nextUrl.searchParams
 
-    // SF-022: Validate roleFilter against allowed values before casting
+    // Validate roleFilter against allowed values before casting
     const roleParam = searchParams.get('role')
     if (roleParam && !VALID_ROLES.includes(roleParam)) {
       return NextResponse.json({ error: `Invalid role parameter. Allowed: ${VALID_ROLES.join(', ')}` }, { status: 400 })
     }
 
+    // NT-002 fix: Store param values in local variables instead of repeated get() calls
     const result = await searchConversations(agentId, {
       query: searchParams.get('q') || '',
       mode: searchParams.get('mode') || undefined,
-      // SF-017 fix: Use NaN-check instead of || undefined to preserve valid zero values
-      limit: searchParams.get('limit') ? (Number.isNaN(parseInt(searchParams.get('limit')!, 10)) ? undefined : parseInt(searchParams.get('limit')!, 10)) : undefined,
-      // SF-016 fix: Use NaN-check instead of || undefined to preserve valid zero for minScore
-      minScore: searchParams.get('minScore') ? (Number.isNaN(parseFloat(searchParams.get('minScore')!)) ? undefined : parseFloat(searchParams.get('minScore')!)) : undefined,
+      limit: parseIntParam(searchParams, 'limit'),
+      minScore: parseFloatParam(searchParams, 'minScore'),
       roleFilter: roleParam as 'user' | 'assistant' | 'system' | null,
       conversationFile: searchParams.get('conversation_file') || undefined,
-      // SF-017 fix: Use NaN-check instead of || undefined to preserve valid zero for timestamps
-      startTs: searchParams.get('startTs') ? (Number.isNaN(parseInt(searchParams.get('startTs')!, 10)) ? undefined : parseInt(searchParams.get('startTs')!, 10)) : undefined,
-      endTs: searchParams.get('endTs') ? (Number.isNaN(parseInt(searchParams.get('endTs')!, 10)) ? undefined : parseInt(searchParams.get('endTs')!, 10)) : undefined,
+      startTs: parseIntParam(searchParams, 'startTs'),
+      endTs: parseIntParam(searchParams, 'endTs'),
       useRrf: searchParams.get('useRrf') !== 'false',
-      // SF-050: NaN guard for bm25Weight (defense-in-depth)
-      bm25Weight: searchParams.get('bm25Weight') ? (Number.isNaN(parseFloat(searchParams.get('bm25Weight')!)) ? undefined : parseFloat(searchParams.get('bm25Weight')!)) : undefined,
-      // SF-050: NaN guard for semanticWeight (defense-in-depth)
-      semanticWeight: searchParams.get('semanticWeight') ? (Number.isNaN(parseFloat(searchParams.get('semanticWeight')!)) ? undefined : parseFloat(searchParams.get('semanticWeight')!)) : undefined,
+      bm25Weight: parseFloatParam(searchParams, 'bm25Weight'),
+      semanticWeight: parseFloatParam(searchParams, 'semanticWeight'),
     })
 
     if (result.error) {
@@ -64,7 +74,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Search GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -84,7 +93,6 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -103,7 +111,6 @@ export async function POST(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Search POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

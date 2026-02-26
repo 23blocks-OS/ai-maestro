@@ -500,16 +500,22 @@ export async function updateAgent(id: string, updates: UpdateAgentRequest): Prom
       throw new Error(`Agent "${newName}" already exists on host "${agentHostId}"`)
     }
 
-    // Also rename the tmux session if it exists
+    // SF-040: Rename tmux sessions using computed session names (with _N suffix),
+    // not the bare agent name. Each session in the sessions array has an index.
     if (currentName) {
-      try {
-        if (sessionExistsSync(currentName)) {
-          renameSessionSync(currentName, newName)
-          console.log(`[Agent Registry] Renamed tmux session: ${currentName} -> ${newName}`)
+      const sessions = agents[index].sessions || []
+      for (const session of sessions) {
+        const oldSessionName = computeSessionName(currentName, session.index)
+        const newSessionName = computeSessionName(newName, session.index)
+        try {
+          if (sessionExistsSync(oldSessionName)) {
+            renameSessionSync(oldSessionName, newSessionName)
+            console.log(`[Agent Registry] Renamed tmux session: ${oldSessionName} -> ${newSessionName}`)
+          }
+        } catch (err) {
+          console.error(`[Agent Registry] Failed to rename tmux session ${oldSessionName}:`, err)
+          // Don't fail the agent update if tmux rename fails
         }
-      } catch (err) {
-        console.error(`[Agent Registry] Failed to rename tmux session:`, err)
-        // Don't fail the agent update if tmux rename fails
       }
     }
   }
@@ -532,21 +538,25 @@ export async function updateAgent(id: string, updates: UpdateAgentRequest): Prom
   delete (updateData as any).displayName
 
   // Update agent
+  // MF-001: When updates.metadata is an empty object {}, replace instead of merging.
+  // Spreading {} over existing metadata is a no-op and prevents metadata clearing.
+  // Same logic applies to documentation and preferences for consistency.
+  const mergedMetadata = (updates.metadata && Object.keys(updates.metadata).length === 0)
+    ? {} // Explicit clear: replace entirely
+    : { ...agents[index].metadata, ...updates.metadata }
+  const mergedDocumentation = (updates.documentation && Object.keys(updates.documentation).length === 0)
+    ? {}
+    : { ...agents[index].documentation, ...updates.documentation }
+  const mergedPreferences = (updates.preferences && Object.keys(updates.preferences).length === 0)
+    ? {}
+    : { ...agents[index].preferences, ...updates.preferences }
+
   agents[index] = {
     ...agents[index],
     ...updateData,
-    documentation: {
-      ...agents[index].documentation,
-      ...updates.documentation
-    },
-    metadata: {
-      ...agents[index].metadata,
-      ...updates.metadata
-    },
-    preferences: {
-      ...agents[index].preferences,
-      ...updates.preferences
-    },
+    documentation: mergedDocumentation,
+    metadata: mergedMetadata,
+    preferences: mergedPreferences,
     lastActive: new Date().toISOString()
   }
 
@@ -1082,6 +1092,25 @@ export async function renameAgent(agentId: string, newName: string): Promise<boo
   const oldName = agents[index].name || agents[index].alias
   console.log(`[Agent Registry] Renaming agent from "${oldName}" to "${normalizedNewName}"`)
 
+  // SF-041: Rename tmux sessions before updating the registry name.
+  // Each session in the sessions array is named via computeSessionName(agentName, index).
+  if (oldName) {
+    const sessions = agents[index].sessions || []
+    for (const session of sessions) {
+      const oldSessionName = computeSessionName(oldName, session.index)
+      const newSessionName = computeSessionName(normalizedNewName, session.index)
+      try {
+        if (sessionExistsSync(oldSessionName)) {
+          renameSessionSync(oldSessionName, newSessionName)
+          console.log(`[Agent Registry] Renamed tmux session: ${oldSessionName} -> ${newSessionName}`)
+        }
+      } catch (err) {
+        console.error(`[Agent Registry] Failed to rename tmux session ${oldSessionName}:`, err)
+        // Best-effort: don't block agent rename if tmux rename fails
+      }
+    }
+  }
+
   agents[index].name = normalizedNewName
   // Clear deprecated alias
   delete agents[index].alias
@@ -1111,7 +1140,10 @@ export async function renameAgent(agentId: string, newName: string): Promise<boo
               }
             }
           }
-          fs.writeFileSync(configPath, JSON.stringify(configData, null, 2))
+          // NT-025: Atomic write for config.json to prevent corruption on crash
+          const tmpConfigPath = `${configPath}.tmp.${process.pid}`
+          fs.writeFileSync(tmpConfigPath, JSON.stringify(configData, null, 2))
+          fs.renameSync(tmpConfigPath, configPath)
         } catch {
           // Best-effort config update
         }

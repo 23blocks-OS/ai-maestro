@@ -53,7 +53,9 @@ export async function PUT(
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-  const result = await updateTeamDocument(id, docId, { ...body, requestingAgentId })
+  // Whitelist only expected fields instead of spreading raw body
+  const { title, content, pinned, tags } = body
+  const result = await updateTeamDocument(id, docId, { title, content, pinned, tags, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

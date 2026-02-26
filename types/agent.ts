@@ -443,7 +443,11 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
  */
 export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
 
-/** Agent configuration fields governed by MANAGER/COS roles (Layer 5) */
+/**
+ * @deprecated Dead type -- never imported or referenced anywhere in the codebase.
+ * The actual governance configuration uses `ConfigurationPayload` from `types/governance-request.ts`.
+ * TODO: Remove in next breaking schema change (Phase 2).
+ */
 export interface AgentConfiguration {
   skills?: string[]                    // Skill names to enable
   mcpServers?: Record<string, unknown> // MCP server configs

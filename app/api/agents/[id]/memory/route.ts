@@ -12,7 +12,6 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -23,7 +22,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Memory GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -39,11 +37,14 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
-    const body = await request.json().catch(() => ({}))
+    // NT-003 fix: Use explicit try/catch instead of silently swallowing JSON parse errors
+    let body: Record<string, unknown>
+    try { body = await request.json() } catch {
+      body = {}
+    }
 
     const result = await initializeMemory(agentId, {
       populateFromSessions: body.populateFromSessions,
@@ -55,7 +56,6 @@ export async function POST(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Memory POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

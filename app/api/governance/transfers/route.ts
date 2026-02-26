@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       request.headers.get('X-Agent-Id')
     )
     if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+      return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 })
     }
 
     // Fix: catch malformed JSON and return 400 instead of letting it bubble as 500

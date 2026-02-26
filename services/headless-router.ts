@@ -239,12 +239,12 @@ import {
 import { handleGovernanceSyncMessage, buildLocalGovernanceSnapshot } from '@/lib/governance-sync'
 import { getHosts, getSelfHostId } from '@/lib/hosts-config'
 import { verifyHostAttestation } from '@/lib/host-keys'
-// SF-025: Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
+// Imports for chief-of-staff endpoint (mirrors app/api/teams/[id]/chief-of-staff/route.ts)
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
-// SF-058: Use recordAttempt (canonical name) instead of deprecated recordFailure alias
-import { checkRateLimit, recordAttempt, resetRateLimit } from '@/lib/rate-limit'
+// Atomic rate limiting for auth endpoints
+import { checkAndRecordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { isValidUuid } from '@/lib/validation'
 
 import {
@@ -308,12 +308,12 @@ import {
 // ---------------------------------------------------------------------------
 
 async function readJsonBody(req: IncomingMessage): Promise<any> {
-  // SF-03: enforce 1MB size limit to prevent memory exhaustion
+  // Enforce 1MB size limit to prevent memory exhaustion
   const MAX_BODY_SIZE = 1_048_576
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let totalSize = 0
-    // NT-007: Guard against multiple reject() calls (e.g. size limit hit then error event)
+    // Guard against multiple reject() calls (e.g. size limit hit then error event)
     let rejected = false
     req.on('data', (chunk: Buffer) => {
       if (rejected) return
@@ -329,7 +329,7 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
     req.on('end', () => {
       if (rejected) return
       const body = Buffer.concat(chunks).toString('utf-8')
-      // SF-007: Return null for empty bodies instead of {} to distinguish no-body from empty-object
+      // Return null for empty bodies instead of {} to distinguish no-body from empty-object
       if (!body) return resolve(null)
       try {
         resolve(JSON.parse(body))
@@ -345,14 +345,14 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   })
 }
 
-// SF-004: 50 MB size limit for raw body reads (e.g. binary uploads)
+// 50 MB size limit for raw body reads (e.g. binary uploads)
 const MAX_RAW_BODY_SIZE = 50 * 1024 * 1024
 
 async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let totalSize = 0
-    // SF-001: Guard against resolve after reject (matching readJsonBody pattern)
+    // Guard against resolve after reject (matching readJsonBody pattern)
     let rejected = false
     req.on('data', (chunk: Buffer) => {
       if (rejected) return
@@ -393,8 +393,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  // SF-04: prioritize error — if error is set, always send error response
-  // NT-008: Do not spread result.data into error responses to avoid leaking internal state
+  // Prioritize error -- if error is set, always send error response.
+  // Do not spread result.data into error responses to avoid leaking internal state.
   if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
@@ -520,7 +520,7 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await createSession(body))
   }},
-  // MF-006: Static sub-path routes MUST come before the parameterized catch-all
+  // Static sub-path routes MUST come before the parameterized catch-all
   // to prevent /api/sessions/restore and /api/sessions/activity from being
   // swallowed by /api/sessions/([^/]+) (first-match-wins routing)
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
@@ -830,7 +830,7 @@ const routes: Route[] = [
     sendServiceResult(res, await indexDocs(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    // NT-010: clearDocs expects optional string; provide empty string fallback for undefined
+    // clearDocs expects optional string; provide empty string fallback for undefined
     sendServiceResult(res, await clearDocs(params.id, query.project || ''))
   }},
 
@@ -870,12 +870,12 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    // MF-003: Require authenticated identity — authenticateAgent returns {} when both headers absent
+    // Require authenticated identity -- authenticateAgent returns {} when both headers absent
     if (!auth.agentId) {
       sendJson(res, 401, { error: 'Authenticated agent identity required for config deployment' })
       return
     }
-    // SF-012: Strict undefined check — falsy body.configuration (e.g. empty string) should not fall through to body
+    // Strict undefined check -- falsy body.configuration (e.g. empty string) should not fall through to body
     sendServiceResult(res, await deployConfigToAgent(params.id, body.configuration !== undefined ? body.configuration : body, auth.agentId))
   }},
 
@@ -918,7 +918,7 @@ const routes: Route[] = [
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
-      // SF-014: Sanitize filename to prevent header injection via quotes/newlines/backslashes
+      // Sanitize filename to prevent header injection via quotes/newlines/backslashes
       const safeFilename = filename.replace(/["\r\n\\]/g, '_')
       sendBinary(res, 200, new Uint8Array(buffer), {
         'Content-Type': 'application/zip',
@@ -1149,7 +1149,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    // SF-013: Validate parseInt result to avoid passing NaN
+    // Validate parseInt result to avoid passing NaN
     let limit: number | undefined = query.limit ? parseInt(query.limit, 10) : undefined
     if (limit !== undefined && isNaN(limit)) limit = 50
     sendServiceResult(res, listPendingMessages(authHeader, limit))
@@ -1185,7 +1185,7 @@ const routes: Route[] = [
   // Messages (global)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    // SF-006: Extract and validate specific query parameters instead of passing raw query as any
+    // Extract and validate specific query parameters instead of passing raw query as any
     const meetingParams = {
       meetingId: query.meetingId || null,
       participants: query.participants || null,
@@ -1198,7 +1198,7 @@ const routes: Route[] = [
     sendServiceResult(res, await forwardGlobalMessage(body))
   }},
   { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    // SF-006: Extract and validate specific query parameters instead of passing raw query as any
+    // Extract and validate specific query parameters instead of passing raw query as any
     const msgParams = {
       agent: query.agent || null,
       id: query.id || null,
@@ -1271,7 +1271,7 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    // MF-07: require authenticated identity — never fall back to body.resolvedBy
+    // Require authenticated identity -- never fall back to body.resolvedBy
     if (!auth.agentId) {
       sendJson(res, 401, { error: 'Authenticated agent identity required to resolve transfers' })
       return
@@ -1288,7 +1288,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/governance\/transfers$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    // MF-08: authenticate agent — use auth.agentId as requestedBy, not body
+    // Authenticate agent -- use auth.agentId as requestedBy, not body
     const auth = authenticateAgent(
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
@@ -1340,7 +1340,7 @@ const routes: Route[] = [
       sendJson(res, 403, { error: 'Invalid host signature' })
       return
     }
-    // NT-011: Timestamp freshness uses an asymmetric window: 5 min past (300s) to tolerate
+    // Timestamp freshness uses an asymmetric window: 5 min past (300s) to tolerate
     // network latency and processing delays, but only 60s future to guard against clock skew
     // without accepting pre-dated replay attacks. This pattern is repeated across all governance sync endpoints.
     const tsAge = Date.now() - new Date(hostTimestamp).getTime()
@@ -1348,7 +1348,7 @@ const routes: Route[] = [
       sendJson(res, 403, { error: 'Signature expired' })
       return
     }
-    // SF-026 (P5): Check return value -- handleGovernanceSyncMessage returns false on validation failure
+    // Check return value -- handleGovernanceSyncMessage returns false on validation failure
     const syncOk = await handleGovernanceSyncMessage(body.fromHostId, body)
     if (!syncOk) {
       sendJson(res, 400, { error: 'Governance sync message rejected (validation failed)' })
@@ -1357,7 +1357,7 @@ const routes: Route[] = [
     sendJson(res, 200, { ok: true })
   }},
   { method: 'GET', pattern: /^\/api\/v1\/governance\/sync$/, paramNames: [], handler: async (req, res) => {
-    // SR-002: Require host authentication for governance snapshot reads
+    // Require host authentication for governance snapshot reads
     const hostId = getHeader(req, 'X-Host-Id')
     const hostSignature = getHeader(req, 'X-Host-Signature')
     const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
@@ -1399,9 +1399,9 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     // Determine if this is a local submission (with password) or a remote receive (with fromHostId)
     if (body?.fromHostId) {
-      // SF-010: Dedicated try/catch for remote receive branch (matching Next.js route pattern)
+      // Dedicated try/catch for remote receive branch (matching Next.js route pattern)
       try {
-        // SR-001: Verify host signature for remote governance requests
+        // Verify host signature for remote governance requests
         const hostSignature = getHeader(req, 'X-Host-Signature')
         const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
         const hostId = getHeader(req, 'X-Host-Id')
@@ -1445,7 +1445,7 @@ const routes: Route[] = [
     }
   }},
   { method: 'GET', pattern: /^\/api\/v1\/governance\/requests$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    // SF-024: Pass type filter through to listCrossHostRequests (was silently ignored)
+    // Pass type filter through to listCrossHostRequests (was silently ignored)
     sendServiceResult(res, listCrossHostRequests({
       status: (query.status as import('@/types/governance-request').GovernanceRequestStatus) || undefined,
       type: (query.type as import('@/types/governance-request').GovernanceRequestType) || undefined,
@@ -1463,7 +1463,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/v1\/governance\/requests\/([^/]+)\/reject$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    // SR-P4-001: Accept host-signature auth as alternative for remote rejection notifications
+    // Accept host-signature auth as alternative for remote rejection notifications
     const hostSignature = getHeader(req, 'X-Host-Signature')
     const hostTimestamp = getHeader(req, 'X-Host-Timestamp')
     const hostId = getHeader(req, 'X-Host-Id')
@@ -1511,7 +1511,7 @@ const routes: Route[] = [
   // =========================================================================
   // Teams
   // =========================================================================
-  // SF-028: Bulk stats endpoint to eliminate N+1 fetch pattern on teams page
+  // Bulk stats endpoint to eliminate N+1 fetch pattern on teams page
   { method: 'GET', pattern: /^\/api\/teams\/stats$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getTeamsBulkStats())
   }},
@@ -1520,7 +1520,7 @@ const routes: Route[] = [
     sendServiceResult(res, await notifyTeamAgents(body))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
-    // SF-010: Implement GET single task by calling getTeamTask
+    // Implement GET single task by calling getTeamTask
     const auth = authenticateAgent(
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
@@ -1640,7 +1640,7 @@ const routes: Route[] = [
     const requestingAgentId = auth.agentId
     sendServiceResult(res, await createTeamDocument(params.id, { ...body, requestingAgentId }))
   }},
-  // SF-025: Chief-of-Staff assignment/removal -- mirrors app/api/teams/[id]/chief-of-staff/route.ts
+  // Chief-of-Staff assignment/removal -- mirrors app/api/teams/[id]/chief-of-staff/route.ts
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/chief-of-staff$/, paramNames: ['id'], handler: async (req, res, params) => {
     const teamId = params.id
     if (!isValidUuid(teamId)) {
@@ -1661,9 +1661,10 @@ const routes: Route[] = [
       return
     }
 
-    // SF-003: Rate limit per-team to prevent brute-force attacks on one team from blocking others
+    // Rate limit per-team to prevent brute-force attacks on one team from blocking others.
+    // Use atomic checkAndRecordAttempt to eliminate TOCTOU window between check and record.
     const rateLimitKey = `governance-cos-auth:${teamId}`
-    const rateCheck = checkRateLimit(rateLimitKey)
+    const rateCheck = checkAndRecordAttempt(rateLimitKey)
     if (!rateCheck.allowed) {
       sendJson(res, 429, { error: `Too many failed password attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s` })
       return
@@ -1671,7 +1672,6 @@ const routes: Route[] = [
 
     // Password auth -- only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordAttempt(rateLimitKey)
       sendJson(res, 401, { error: 'Invalid governance password' })
       return
     }
@@ -1720,7 +1720,7 @@ const routes: Route[] = [
         return
       }
 
-      // MF-003: Validate UUID format before registry lookup (mirrors Next.js route)
+      // Validate UUID format before registry lookup (mirrors Next.js route)
       if (!isValidUuid(cosAgentId)) {
         sendJson(res, 400, { error: 'Invalid agent ID format' })
         return
@@ -1847,7 +1847,15 @@ const routes: Route[] = [
     sendServiceResult(res, await getMarketplaceSkillById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/marketplace\/skills$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listMarketplaceSkills(query as any))
+    // Construct typed SkillSearchParams from raw query instead of casting to any
+    const searchParams: import('@/types/marketplace').SkillSearchParams = {
+      marketplace: query.marketplace || undefined,
+      plugin: query.plugin || undefined,
+      category: query.category || undefined,
+      search: query.search || undefined,
+      includeContent: query.includeContent === 'true',
+    }
+    sendServiceResult(res, await listMarketplaceSkills(searchParams))
   }},
 
   // =========================================================================
@@ -1907,7 +1915,7 @@ function matchRoute(method: string, pathname: string): { handler: RouteHandler; 
 export function createHeadlessRouter() {
   return {
     async handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
-      // NT-001/NT-002: Single URL parse with modern API (avoids double parse and deprecated url.parse)
+      // Single URL parse with modern API (avoids double parse and deprecated url.parse)
       const urlObj = new URL(req.url || '/', 'http://localhost')
       const pathname = urlObj.pathname || '/'
       const method = req.method || 'GET'
@@ -1924,7 +1932,7 @@ export function createHeadlessRouter() {
       } catch (error: any) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          // SF-015: Only honor 413 from readJsonBody; all other errors default to 500
+          // Only honor 413 from readJsonBody; all other errors default to 500
           const statusCode = error?.statusCode === 413 ? 413 : 500
           const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
           sendJson(res, statusCode, { error: message })

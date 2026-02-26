@@ -276,8 +276,9 @@ export async function createTeam(
       description: data.description,
       agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
       type: (result.sanitized.type as TeamType) ?? data.type ?? 'open',
-      // SF-038: Default to null (not undefined) when no COS is provided, matching
-      // the codebase convention where null means "no chief of staff assigned"
+      // SF-034: Prefer sanitized COS ID if present; fall back to raw input; default to null.
+      // Three-way chain: sanitized value (if validation set it) -> raw data -> null (no COS).
+      // Uses !== undefined because sanitized.chiefOfStaffId can legitimately be null (explicit unset).
       chiefOfStaffId: (result.sanitized.chiefOfStaffId !== undefined
         ? result.sanitized.chiefOfStaffId as string | null
         : data.chiefOfStaffId) ?? null,

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getAgentById, updateAgentById, deleteAgentById } from '@/services/agents-core-service'
 import type { UpdateAgentRequest } from '@/types/agent'
 import { isValidUuid } from '@/lib/validation'
@@ -8,12 +8,11 @@ import { isValidUuid } from '@/lib/validation'
  * Get a specific agent by ID
  */
 export async function GET(
-  request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -24,7 +23,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-002: Outer try-catch for unhandled service throws
     console.error('[Agents GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -35,12 +33,11 @@ export async function GET(
  * Update an agent
  */
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -55,7 +52,6 @@ export async function PATCH(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-002: Outer try-catch for unhandled service throws
     console.error('[Agents PATCH] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -67,17 +63,15 @@ export async function PATCH(
  * Pass ?hard=true for permanent deletion (creates backup first).
  */
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
-    const url = new URL(request.url)
-    const hardParam = url.searchParams.get('hard')?.toLowerCase()
+    const hardParam = request.nextUrl.searchParams.get('hard')?.toLowerCase()
     const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'
 
     const result = await deleteAgentById(id, hard)
@@ -87,7 +81,6 @@ export async function DELETE(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-002: Outer try-catch for unhandled service throws
     console.error('[Agents DELETE] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

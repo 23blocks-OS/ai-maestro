@@ -78,9 +78,10 @@ function formatNotification(options: NotificationOptions): string {
     : ''
 
   // Format using template
+  // NT-024: Use replaceAll to handle templates with multiple occurrences of the same placeholder
   let message = NOTIFICATION_FORMAT
-    .replace('{from}', senderWithHost)
-    .replace('{subject}', subject)
+    .replaceAll('{from}', senderWithHost)
+    .replaceAll('{subject}', subject)
 
   return priorityPrefix + message
 }

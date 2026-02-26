@@ -734,9 +734,23 @@ export async function getSentCount(agentIdentifier: string): Promise<number> {
   if (!agent?.agentId) return 0
   const sentDir = getAMPSentDir(agent.agentId)
   try {
-    const entries = fsSync.readdirSync(sentDir)
-    // Count only .json files to exclude temp/lock files
-    return entries.filter(e => e.endsWith('.json')).length
+    // MF-012: Recurse into subdirectories because writeToAMPSent() stores messages
+    // in sent/{recipientDir}/{messageId}.json, not directly in sent/
+    let count = 0
+    const entries = fsSync.readdirSync(sentDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.json')) {
+        count++
+      } else if (entry.isDirectory()) {
+        try {
+          const subEntries = fsSync.readdirSync(path.join(sentDir, entry.name))
+          count += subEntries.filter(e => e.endsWith('.json')).length
+        } catch {
+          // Skip inaccessible subdirectories
+        }
+      }
+    }
+    return count
   } catch {
     return 0 // Directory does not exist -- no sent messages
   }
@@ -880,7 +894,12 @@ export async function deleteMessage(agentIdentifier: string, messageId: string):
 }
 
 /**
- * Get unread message count for an agent
+ * Get unread message count for an agent.
+ * SF-043: Delegates to listInboxMessages for correctness -- filter logic, AMP envelope
+ * conversion, and governance filtering all affect the count. A count-only optimized
+ * path would need to replicate all that logic.
+ * TODO(Phase 2): Add an optimized count-only code path that reads status headers
+ * without full message deserialization for better performance.
  */
 export async function getUnreadCount(agentIdentifier: string): Promise<number> {
   const messages = await listInboxMessages(agentIdentifier, { status: 'unread' })

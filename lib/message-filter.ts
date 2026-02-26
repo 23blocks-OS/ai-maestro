@@ -152,6 +152,10 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
   }
 
   // Step 5: Sender is a normal member of a closed team (R6.1)
+  // SF-038: By design, closed-team members CANNOT directly message MANAGER.
+  // They must go through their team's Chief-of-Staff (COS), who relays to MANAGER.
+  // This enforces the chain-of-command hierarchy: Member -> COS -> MANAGER.
+  // MANAGER reachability is intentionally absent here.
   if (senderInClosed) {
     // Can message members of the same closed team
     const shareTeam = senderTeams.some(team =>
@@ -160,7 +164,7 @@ export function checkMessageAllowed(input: MessageFilterInput): MessageFilterRes
     if (shareTeam) {
       return { allowed: true }
     }
-    // Can message the COS of their own team
+    // Can message the COS of their own team (chain-of-command escalation path)
     const canReachCOS = senderTeams.some(team => team.chiefOfStaffId === recipientAgentId)
     if (canReachCOS) {
       return { allowed: true }

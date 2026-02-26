@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getDomainById, updateDomainById, deleteDomainById } from '@/services/domains-service'
 
+// Force dynamic -- reads runtime filesystem state
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/domains/[id]
  * Get a single domain by ID
@@ -9,13 +12,18 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const result = getDomainById(id)
+  try {
+    const { id } = await params
+    const result = getDomainById(id)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[Domains] GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -26,17 +34,22 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
-  const result = updateDomainById(id, body)
+  try {
+    const { id } = await params
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const result = updateDomainById(id, body)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[Domains] PATCH error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -47,11 +60,16 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const result = deleteDomainById(id)
+  try {
+    const { id } = await params
+    const result = deleteDomainById(id)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('[Domains] DELETE error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

@@ -12,12 +12,11 @@ import { isValidUuid } from '@/lib/validation'
  * Link a tmux session to an agent
  */
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -32,7 +31,6 @@ export async function POST(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Session POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -48,7 +46,6 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -80,7 +77,6 @@ export async function PATCH(
 
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Session PATCH] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -96,7 +92,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -110,7 +105,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Session GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -126,7 +120,6 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -142,7 +135,6 @@ export async function DELETE(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Session DELETE] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

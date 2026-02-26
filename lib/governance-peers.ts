@@ -76,13 +76,16 @@ export async function savePeerGovernance(hostId: string, state: GovernancePeerSt
 /**
  * Delete peer governance state for a specific host.
  * No-op if the file does not exist.
+ * SF-032: Protected by file lock to prevent races with concurrent savePeerGovernance.
  */
-export function deletePeerGovernance(hostId: string): void {
+export async function deletePeerGovernance(hostId: string): Promise<void> {
   validateHostId(hostId)
-  const filePath = path.join(PEERS_DIR, `${hostId}.json`)
-  if (existsSync(filePath)) {
-    unlinkSync(filePath)
-  }
+  return withLock(`governance-peers-${hostId}`, () => {
+    const filePath = path.join(PEERS_DIR, `${hostId}.json`)
+    if (existsSync(filePath)) {
+      unlinkSync(filePath)
+    }
+  })
 }
 
 /**

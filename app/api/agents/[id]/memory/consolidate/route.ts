@@ -6,6 +6,14 @@ import {
 } from '@/services/agents-memory-service'
 import { isValidUuid } from '@/lib/validation'
 
+// NT-001 fix: Reusable helper to parse integer query params with NaN safety
+function parseIntParam(searchParams: URLSearchParams, key: string): number | undefined {
+  const raw = searchParams.get(key)
+  if (!raw) return undefined
+  const parsed = parseInt(raw, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
 /**
  * GET /api/agents/:id/memory/consolidate
  * Get consolidation status and history
@@ -16,7 +24,6 @@ export async function GET(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -27,7 +34,6 @@ export async function GET(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Consolidate GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -48,7 +54,6 @@ export async function POST(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -57,10 +62,8 @@ export async function POST(
     const result = await triggerConsolidation(agentId, {
       dryRun: searchParams.get('dryRun') === 'true',
       provider: searchParams.get('provider') || undefined,
-      // SF-018 fix: Use NaN-check instead of || undefined to preserve valid zero
-      maxConversations: searchParams.get('maxConversations')
-        ? (Number.isNaN(parseInt(searchParams.get('maxConversations')!, 10)) ? undefined : parseInt(searchParams.get('maxConversations')!, 10))
-        : undefined,
+      // NT-001 fix: Use parseIntParam helper for cleaner NaN-safe parsing
+      maxConversations: parseIntParam(searchParams, 'maxConversations'),
     })
 
     if (result.error) {
@@ -71,7 +74,6 @@ export async function POST(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Consolidate POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -91,7 +93,6 @@ export async function PATCH(
 ) {
   try {
     const { id: agentId } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(agentId)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
@@ -113,7 +114,6 @@ export async function PATCH(
     }
     return NextResponse.json(result.data)
   } catch (error) {
-    // MF-003: Outer try-catch for unhandled service throws
     console.error('[Consolidate PATCH] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

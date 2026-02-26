@@ -7,22 +7,21 @@
  * Thin wrapper — business logic in services/agents-playback-service.ts
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getPlaybackState, controlPlayback } from '@/services/agents-playback-service'
 import { isValidUuid } from '@/lib/validation'
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
+    // SF-001 fix: Use NextRequest.nextUrl.searchParams instead of new URL(request.url)
+    const sessionId = request.nextUrl.searchParams.get('sessionId')
 
     const result = getPlaybackState(id, sessionId)
     if (result.error) {
@@ -39,12 +38,11 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // SF-009: Validate UUID format for agent ID (defense-in-depth)
     if (!isValidUuid(id)) {
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }

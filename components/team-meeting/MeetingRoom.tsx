@@ -322,8 +322,10 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
           window.history.replaceState(null, '', `/team-meeting?meeting=${data.meeting.id}`)
         }
       } catch {
-        creatingMeetingRef.current = false
         // meeting still works ephemerally
+      } finally {
+        // MF-013: Always reset guard so future meeting creation is not blocked
+        creatingMeetingRef.current = false
       }
     }
     createMeetingRecord()
@@ -372,7 +374,10 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
     return () => clearInterval(interval)
   }, [state.phase])
 
-  // Team ID resolution for restored meetings that may not have one
+  // SF-045: Team ID resolution for restored meetings that may not have one.
+  // This effect can race with createMeetingRecord above (both can fire when phase becomes 'active'
+  // and teamId is null). The creatingTeamRef guard (MF-012) prevents duplicate team creation —
+  // whichever fires first acquires the lock, the other returns early.
   useEffect(() => {
     if (state.phase === 'active' && !teamId && state.teamName.trim()) {
       // MF-012: Prevent concurrent team creation from multiple useEffects

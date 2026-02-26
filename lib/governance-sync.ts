@@ -95,10 +95,13 @@ export async function broadcastGovernanceSync(
 
     // Build the sync message with full snapshot embedded in the payload
     const snapshot = buildLocalGovernanceSnapshot()
+    // SF-037: Use a single timestamp for both the message body and the signature header,
+    // avoiding a subtle mismatch between two separate Date.now() calls
+    const syncTimestamp = new Date().toISOString()
     const message: GovernanceSyncMessage = {
       type,
       fromHostId: selfHostId,
-      timestamp: new Date().toISOString(),
+      timestamp: syncTimestamp,
       payload: {
         ...payload,
         // Always include the full snapshot so receivers can overwrite their peer state
@@ -119,15 +122,15 @@ export async function broadcastGovernanceSync(
         try {
           const url = `${host.url}/api/v1/governance/sync`
           // Sign the outbound request with this host's Ed25519 key (SR-001)
-          const timestamp = new Date().toISOString()
-          const signedData = `gov-sync|${selfHostId}|${timestamp}`
+          // SF-037: Reuse the same timestamp for message and signature consistency
+          const signedData = `gov-sync|${selfHostId}|${syncTimestamp}`
           const signature = signHostAttestation(signedData)
           const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'X-Host-Id': selfHostId,
-              'X-Host-Timestamp': timestamp,
+              'X-Host-Timestamp': syncTimestamp,
               'X-Host-Signature': signature,
             },
             body,

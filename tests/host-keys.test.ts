@@ -167,25 +167,25 @@ describe('key persistence', () => {
     const { getOrCreateHostKeyPair } = await importHostKeys()
     getOrCreateHostKeyPair()
 
-    // writeFileSync should have been called for the .tmp files
+    // writeFileSync should have been called for the .tmp.{pid} files (SF-033: pid prevents collisions)
     expect(fs.writeFileSync).toHaveBeenCalledWith(
-      PRIVATE_KEY_PATH + '.tmp',
+      `${PRIVATE_KEY_PATH}.tmp.${process.pid}`,
       expect.stringMatching(/^[a-f0-9]+$/),
       { mode: 0o600 }
     )
     expect(fs.writeFileSync).toHaveBeenCalledWith(
-      PUBLIC_KEY_PATH + '.tmp',
+      `${PUBLIC_KEY_PATH}.tmp.${process.pid}`,
       expect.stringMatching(/^[a-f0-9]+$/),
       { mode: 0o600 }
     )
 
     // renameSync should have been called to atomically move tmp to final
     expect(fs.renameSync).toHaveBeenCalledWith(
-      PRIVATE_KEY_PATH + '.tmp',
+      `${PRIVATE_KEY_PATH}.tmp.${process.pid}`,
       PRIVATE_KEY_PATH
     )
     expect(fs.renameSync).toHaveBeenCalledWith(
-      PUBLIC_KEY_PATH + '.tmp',
+      `${PUBLIC_KEY_PATH}.tmp.${process.pid}`,
       PUBLIC_KEY_PATH
     )
   })

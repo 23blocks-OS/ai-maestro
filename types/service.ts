@@ -22,9 +22,14 @@ export interface ServiceResult<T> {
 }
 
 /**
- * SF-024: Runtime guard to assert a ServiceResult is in a valid state.
+ * Runtime guard that warns when a ServiceResult is in an invalid state.
  * Detects when both `data` and `error` are set (indicates a service bug).
  * Use in route handlers after service calls for defense-in-depth.
+ *
+ * Note: Intentionally logs a warning instead of throwing, because callers
+ * using `if (result.error)` already handle the ambiguous state correctly.
+ * The `assert` prefix is a misnomer -- consider renaming to `warnOnInvalidServiceResult`
+ * in the next breaking change.
  */
 export function assertValidServiceResult<T>(result: ServiceResult<T>, context?: string): void {
   if (result.data !== undefined && result.error !== undefined) {

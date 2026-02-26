@@ -27,7 +27,7 @@ import type { CreateWebhookRequest, WebhookEventType } from '@/types/agent'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -85,9 +85,12 @@ export function createNewWebhook(body: CreateWebhookRequest): ServiceResult<{ we
     return { error: 'At least one event is required', status: 400 }
   }
 
-  // Validate URL format
+  // Validate URL format and restrict to http/https schemes
   try {
-    new URL(body.url)
+    const parsed = new URL(body.url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { error: 'Webhook URL must use http or https scheme', status: 400 }
+    }
   } catch {
     return { error: 'Invalid URL format', status: 400 }
   }
@@ -95,7 +98,7 @@ export function createNewWebhook(body: CreateWebhookRequest): ServiceResult<{ we
   // Validate event types
   for (const event of body.events) {
     if (!VALID_EVENTS.includes(event)) {
-      return { error: `Invalid event type: ${event}. Valid events: ${VALID_EVENTS.join(', ')}`, status: 400 }
+      return { error: `Invalid event type: ${String(event).slice(0, 50)}. Valid events: ${VALID_EVENTS.join(', ')}`, status: 400 }
     }
   }
 

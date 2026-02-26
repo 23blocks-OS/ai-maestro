@@ -74,7 +74,7 @@ done
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║                                                                ║"
-echo "║                 AI Maestro - Full Updater                      ║"
+echo "║                   AI Maestro - Full Updater                    ║"
 echo "║                                                                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -357,9 +357,9 @@ fi
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 if [ "$BUILD_FAILED" = true ] || [ "$VERIFICATION_WARNINGS" = true ]; then
-echo "║               Update Complete (with warnings)                  ║"
+echo "║                Update Complete (with warnings)                 ║"
 else
-echo "║                     Update Complete!                           ║"
+echo "║                        Update Complete!                        ║"
 fi
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""

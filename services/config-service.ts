@@ -21,8 +21,7 @@
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
-import { exec } from 'child_process'
+import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
 import { discoverAgentDatabases } from '@/lib/agent-startup'
 import { agentRegistry } from '@/lib/agent'
@@ -37,14 +36,14 @@ import type {
   MessageCheckResult,
 } from '@/types/subconscious'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 // -- Config types --
 
@@ -511,7 +510,9 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
     let ptyProcesses: { command: string; count: number }[] = []
 
     try {
-      // Safe: fixed command strings with no user input; shell piping required for data processing
+      // Shell invocation (execSync) is intentional here: these PTY debug commands use shell piping
+      // (|, 2>/dev/null, ||) which cannot be expressed with execFileSync. All command strings are
+      // hardcoded constants with no user input, so shell injection is not a concern.
       const limitOutput = execSync('sysctl -n kern.tty.ptmx_max 2>/dev/null || echo 511', { encoding: 'utf8' })
       ptyLimit = parseInt(limitOutput.trim()) || 511
 
@@ -575,10 +576,11 @@ export async function getPtyDebugInfo(): Promise<ServiceResult<PtyDebugInfo>> {
  */
 export async function getDockerInfo(): Promise<ServiceResult<DockerInfo>> {
   try {
-    const { stdout } = await execAsync("docker version --format '{{.Server.Version}}'", {
+    // Use execFileAsync (no shell) for Docker version check, consistent with agents-docker-service.ts
+    const { stdout } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}'], {
       timeout: 5000,
     })
-    const version = stdout.trim().replace(/'/g, '')
+    const version = stdout.trim()
     return {
       data: { available: true, version },
       status: 200,
@@ -620,7 +622,7 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
   }
 
   if (!fs.existsSync(conversationFile)) {
-    // SF-045: Log full path for server-side debugging but return a generic
+    // Log full path for server-side debugging but return a generic
     // error message to avoid leaking filesystem path structure to the client.
     console.error('[Parse Conversation] File not found:', conversationFile)
     return {
@@ -634,7 +636,7 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
     const lines = fileContent.split('\n').filter(line => line.trim())
 
     const messages: any[] = []
-    let parseErrorCount = 0 // NT-038: Count parse errors for summary log
+    let parseErrorCount = 0 // Count parse errors for summary log
     const metadata: {
       sessionId?: string
       cwd?: string
@@ -730,14 +732,14 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
         messages.push(message)
         metadata.totalMessages++
       } catch {
-        // NT-038: Count parse errors instead of logging each one at ERROR level.
+        // Count parse errors instead of logging each one at ERROR level.
         // Malformed JSONL lines are common and logging each one creates noise
         // and may expose sensitive content from raw line data.
         parseErrorCount++
       }
     }
 
-    // NT-038: Log a single summary warning instead of per-line ERROR entries
+    // Log a single summary warning instead of per-line ERROR entries
     if (parseErrorCount > 0) {
       console.warn(`[Parse Conversation] ${parseErrorCount} malformed JSONL line(s) skipped`)
     }
@@ -786,7 +788,7 @@ export async function getConversationMessages(
   try {
     const conversationFile = decodeURIComponent(encodedFile)
 
-    // MF-006: Null-check agent before calling getDatabase() to return clean 404
+    // Null-check agent before calling getDatabase() to return clean 404
     const agent = await agentRegistry.getAgent(agentId)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }

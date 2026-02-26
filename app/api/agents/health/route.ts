@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: Request) {
   try {
-    // CC-P1-606: Guard against malformed JSON body
     let body: { url?: string }
     try {
       body = await request.json()
@@ -17,20 +16,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
     const { url } = body
-    // CC-P2-010: Validate url is present and is a string before proxying
+    // Validate url is present and is a string before proxying
     if (!url || typeof url !== 'string') {
       return NextResponse.json({ error: 'url is required and must be a string' }, { status: 400 })
     }
-    // SF-015 fix: Validate URL scheme to prevent SSRF (file://, gopher://, etc.)
+    // Validate URL scheme and hostname to prevent SSRF
     try {
       const parsed = new URL(url)
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return NextResponse.json({ error: 'Only http/https URLs are allowed' }, { status: 400 })
       }
+      // SF-013 fix: Block private/internal IPs to prevent SSRF probing
+      const hostname = parsed.hostname.toLowerCase()
+      const isPrivateHost =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname === '0.0.0.0' ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('169.254.') ||
+        hostname.startsWith('fc00:') ||
+        hostname.startsWith('fd') ||
+        hostname.startsWith('fe80:') ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+        hostname.endsWith('.local') ||
+        hostname.endsWith('.internal')
+      if (isPrivateHost) {
+        return NextResponse.json({ error: 'Requests to private/internal addresses are not allowed' }, { status: 400 })
+      }
     } catch {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
     }
-    // CC-P3-003: Wrap proxyHealthCheck in try-catch for unexpected throws
     const result = await proxyHealthCheck(url)
 
     if (result.error) {

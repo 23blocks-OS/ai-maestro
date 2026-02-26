@@ -74,9 +74,10 @@ export interface GovernanceSyncMessage {
   type: GovernanceSyncType
   fromHostId: string
   timestamp: string          // ISO — used for conflict ordering
-  // Phase 2: Refactor to discriminated union keyed on `type` (e.g., ManagerChangedPayload | TeamUpdatedPayload)
+  // Phase 2 backlog: Refactor to discriminated union keyed on `type` (e.g., ManagerChangedPayload | TeamUpdatedPayload)
   // to enforce payload shape at the type level instead of relying on runtime checks.
-  payload: Record<string, unknown>  // type-specific data
+  // Tracked as Phase 2 tech debt (see NT-038).
+  payload: Record<string, unknown>  // type-specific data; untyped until Phase 2 discriminated union refactor
 }
 
 /** Summary of a team as seen from a peer host (subset of Team) */

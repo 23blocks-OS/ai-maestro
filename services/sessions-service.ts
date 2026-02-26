@@ -45,7 +45,7 @@ const execFileAsync = promisify(execFile)
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+// ServiceResult imported directly from canonical source
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
 
@@ -82,7 +82,7 @@ let cachedSessions: Session[] | null = null
 let cacheTimestamp = 0
 let pendingRequest: Promise<Session[]> | null = null
 
-// NT-010: Intentional synchronous read at module load time — this runs once during
+// Intentional synchronous read at module load time -- this runs once during
 // server startup to cache the version string. Async is unnecessary here because
 // the module must be fully initialized before any request handler runs.
 const packageJson = JSON.parse(
@@ -619,7 +619,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   }
 
   // Persist session metadata (legacy)
-  // MF-003: Use only registeredAgent.id as the canonical agentId source
+  // Use only registeredAgent.id as the canonical agentId source
   persistSession({
     id: actualSessionName,
     name: actualSessionName,
@@ -639,7 +639,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       await runtime.setEnvironment(actualSessionName, 'AIM_AGENT_ID', registeredAgentId)
     }
     await runtime.unsetEnvironment(actualSessionName, 'CLAUDECODE')
-    // CC-P1-802: Removed redundant sendKeys export command — tmux set-environment (above)
+    // Removed redundant sendKeys export command -- tmux set-environment (above)
     // already sets AMP_DIR, AIM_AGENT_NAME, and AIM_AGENT_ID in the session environment.
     // The previous sendKeys approach interpolated unsanitized values into a shell command string,
     // creating a shell injection vector. tmux set-environment is safe because it does not
@@ -670,7 +670,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     await new Promise(resolve => setTimeout(resolve, 300))
 
     try {
-      // CC-P1-805: Send command without wrapping double quotes — tmux send-keys does not
+      // Send command without wrapping double quotes -- tmux send-keys does not
       // need shell quoting, and wrapping the entire string (including arguments) in quotes
       // causes the shell to look for a single executable named "claude --arg" with spaces.
       await runtime.sendKeys(actualSessionName, startCommand, { enter: true })
@@ -729,9 +729,9 @@ export async function renameSession(oldName: string, newName: string): Promise<S
     if (fs.existsSync(newAgentFilePath)) {
       return { error: 'Agent name already exists', status: 409 }
     }
-    // MF-002: Atomic rename — write to temp file, rename to final, then delete old
+    // Atomic rename -- write to temp file, rename to final, then delete old
     const agentConfig = JSON.parse(fs.readFileSync(oldAgentFilePath, 'utf8'))
-    agentConfig.id = newName
+    // Keep agentConfig.id as the original UUID to preserve UUID-based lookups
     agentConfig.name = newName
     agentConfig.alias = newName
     const tmpFilePath = newAgentFilePath + '.tmp'
@@ -782,7 +782,7 @@ export async function sendCommand(
   }
 
   if (requireIdle && !isSessionIdle(sessionName)) {
-    // MF-001: Return ONLY error without data field to avoid ambiguous response
+    // Return ONLY error without data field to avoid ambiguous response
     return {
       error: 'Session is not idle',
       status: 409

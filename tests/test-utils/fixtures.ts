@@ -137,6 +137,8 @@ export function makeDocument(overrides: Partial<TeamDocument> = {}): TeamDocumen
     teamId: 'team-1',
     title: `Test Document ${n}`,
     content: `Content for document ${n}`,
+    pinned: false,
+    tags: [],
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides,

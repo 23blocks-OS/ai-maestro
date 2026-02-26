@@ -266,6 +266,8 @@ import {
   deleteExportJob,
 } from '@/services/config-service'
 
+import { runDiagnostics } from '@/services/diagnostics-service'
+
 // ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
@@ -407,6 +409,9 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/debug\/pty$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getPtyDebugInfo())
+  }},
+  { method: 'GET', pattern: /^\/api\/diagnostics$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await runDiagnostics())
   }},
   { method: 'GET', pattern: /^\/api\/docker\/info$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getDockerInfo())

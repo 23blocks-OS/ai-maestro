@@ -132,8 +132,7 @@ export default function WakeAgentDialog({
                 </div>
                 <button
                   onClick={handleClose}
-                  disabled={isWaking}
-                  className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
+                  className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -203,8 +202,7 @@ export default function WakeAgentDialog({
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-700 bg-zinc-800/50">
                 <button
                   onClick={handleClose}
-                  disabled={isWaking}
-                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>

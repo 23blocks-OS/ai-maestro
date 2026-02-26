@@ -63,11 +63,10 @@ export default function AgentCard({
 
     setIsWaking(true)
     try {
-      const baseUrl = agent.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+      const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program: 'claude' }),
+        body: JSON.stringify({ program: 'claude', hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -86,11 +85,11 @@ export default function AgentCard({
 
     setIsShuttingDown(true)
     try {
-      const baseUrl = agent.hostUrl || ''
       // Use hibernate endpoint (shutdown doesn't exist)
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/hibernate`, {
+      const response = await fetch(`/api/agents/${agent.id}/hibernate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {

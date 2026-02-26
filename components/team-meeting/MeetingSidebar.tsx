@@ -86,7 +86,7 @@ export default function MeetingSidebar({
       const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program }),
+        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -97,11 +97,15 @@ export default function MeetingSidebar({
       setWakeDialogAgent(null)
     } catch (error) {
       console.error('Failed to wake agent:', error)
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
       addToast({
         type: 'error',
         title: 'Failed to wake agent',
-        message: 'The agent host may be unreachable. Check your network connection and try again.',
+        message: agent.hostUrl
+          ? `Host ${agent.hostUrl} may be unreachable: ${errMsg}`
+          : `${errMsg}. Check your network connection and try again.`,
       })
+      setWakeDialogAgent(null)
     } finally {
       setWakingAgents(prev => {
         const next = new Set(prev)

@@ -475,11 +475,11 @@ export default function DashboardPage() {
     setWakingAgentId(agent.id)
 
     try {
-      const baseUrl = agent.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+      // Always call local server — the route proxies to remote hosts server-side
+      const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program }),
+        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -490,10 +490,13 @@ export default function DashboardPage() {
       refreshAgents()
     } catch (error) {
       console.error('Failed to wake agent:', error)
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
       addToast({
         type: 'error',
         title: 'Failed to wake agent',
-        message: 'The agent host may be unreachable. Check your network connection and try again.',
+        message: agent.hostUrl
+          ? `Host ${agent.hostUrl} may be unreachable: ${errMsg}`
+          : `${errMsg}. Check your network connection and try again.`,
       })
     } finally {
       setWakingAgentId(null)

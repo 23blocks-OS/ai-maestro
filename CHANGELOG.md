@@ -3,6 +3,15 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.17] - 2026-02-26
+
+### Added
+- **Startup self-diagnostics** — `services/diagnostics-service.ts` runs checks on server start and logs a clear pass/fail/warn summary to console
+- **`GET /api/diagnostics` endpoint** — On-demand system health report checking tmux, node-pty, agent registry, Node.js version, disk space, and remote host reachability
+- Remote host diagnostics cascade — local startup checks each remote host's `/api/diagnostics` (or `/api/v1/health` fallback) to surface broken hosts (e.g., tmux unavailable on a remote)
+- Pre-flight tmux check in `scripts/start-with-ssh.sh` — warns if tmux is missing before starting the server
+- Headless router entry for `/api/diagnostics`
+
 ## [0.24.13] - 2026-02-25
 
 ### Added

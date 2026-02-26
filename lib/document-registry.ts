@@ -44,21 +44,16 @@ export function loadDocuments(teamId: string): TeamDocument[] {
   }
 }
 
-// NT-008: Returns boolean for legacy compat. Phase 2: standardize on throw-on-failure.
-export function saveDocuments(teamId: string, documents: TeamDocument[]): boolean {
-  try {
-    ensureTeamsDir()
-    const file: TeamDocumentsFile = { version: 1, documents }
-    const filePath = docsFilePath(teamId)
-    // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
-    const tmpPath = `${filePath}.tmp.${process.pid}`
-    fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
-    fs.renameSync(tmpPath, filePath)
-    return true
-  } catch (error) {
-    console.error(`Failed to save documents for team ${teamId}:`, error)
-    return false
-  }
+// SF-029: Throws on error instead of returning false -- callers already ignore the return value.
+// The previous boolean return masked write failures silently.
+export function saveDocuments(teamId: string, documents: TeamDocument[]): void {
+  ensureTeamsDir()
+  const file: TeamDocumentsFile = { version: 1, documents }
+  const filePath = docsFilePath(teamId)
+  // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
+  const tmpPath = `${filePath}.tmp.${process.pid}`
+  fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
+  fs.renameSync(tmpPath, filePath)
 }
 
 export function getDocument(teamId: string, docId: string): TeamDocument | null {

@@ -35,7 +35,11 @@ export async function POST(
     }
 
     const result = await approveCrossHostRequest(id, body.approverAgentId, body.password)
-    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+    // MF-004 (P8): Explicit error branching instead of fragile nullish coalescing
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
   } catch (err) {
     // MF-011: Log full error internally, return generic message to prevent information disclosure
     console.error('[Governance Approve] POST error:', err)

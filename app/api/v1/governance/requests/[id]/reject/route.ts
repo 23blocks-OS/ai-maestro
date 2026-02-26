@@ -69,12 +69,21 @@ export async function POST(
         return NextResponse.json({ error: 'Invalid rejectorAgentId format' }, { status: 400 })
       }
       const result = await receiveRemoteRejection(id, hostId, body.rejectorAgentId, body.reason)
-      return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+      // MF-004 (P8): Explicit error branching instead of fragile nullish coalescing
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+      return NextResponse.json(result.data, { status: result.status })
     }
 
     // Local rejection — requires password
     if (!body?.rejectorAgentId || !body?.password) {
       return NextResponse.json({ error: 'Missing required fields: rejectorAgentId, password' }, { status: 400 })
+    }
+
+    // SF-032 (P8): Validate password is a string (matches requests/route.ts:93 pattern)
+    if (typeof body.password !== 'string') {
+      return NextResponse.json({ error: 'password must be a string' }, { status: 400 })
     }
 
     // SF-025: Validate rejectorAgentId is a string and valid UUID (local path)
@@ -83,7 +92,11 @@ export async function POST(
     }
 
     const result = await rejectCrossHostRequest(id, body.rejectorAgentId, body.password, body.reason)
-    return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+    // MF-004 (P8): Explicit error branching instead of fragile nullish coalescing
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data, { status: result.status })
   } catch (err) {
     // MF-012: Log full error internally, return generic message to prevent information disclosure
     console.error('[Governance Reject] POST error:', err)

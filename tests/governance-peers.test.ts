@@ -27,64 +27,69 @@ import os from 'os'
 
 let fsStore: Record<string, string> = {}
 
-// NT-003: Dual export mock pattern — governance-peers.ts uses named imports (`import { readFileSync } from 'fs'`),
+// SF-032: Use vi.hoisted() so mock functions are available when vi.mock factory runs (hoisted to top).
+// Dual export mock pattern — governance-peers.ts uses named imports (`import { readFileSync } from 'fs'`),
 // but some transitive dependencies use default import (`import fs from 'fs'`). Both must be mocked
 // with identical implementations sharing the same fsStore to ensure consistent behavior.
-vi.mock('fs', () => ({
-  // Named exports (used by governance-peers.ts via `import { readFileSync, ... } from 'fs'`)
-  existsSync: vi.fn((filePath: string) => filePath in fsStore),
-  mkdirSync: vi.fn(),
-  readFileSync: vi.fn((filePath: string) => {
+const {
+  mockExistsSync,
+  mockMkdirSync,
+  mockReadFileSync,
+  mockWriteFileSync,
+  mockRenameSync,
+  mockReaddirSync,
+  mockUnlinkSync,
+} = vi.hoisted(() => ({
+  mockExistsSync: vi.fn((filePath: string) => filePath in fsStore),
+  mockMkdirSync: vi.fn(),
+  mockReadFileSync: vi.fn((filePath: string) => {
     if (filePath in fsStore) return fsStore[filePath]
     throw new Error(`ENOENT: no such file or directory, open '${filePath}'`)
   }),
-  writeFileSync: vi.fn((filePath: string, data: string) => {
+  mockWriteFileSync: vi.fn((filePath: string, data: string) => {
     fsStore[filePath] = data
   }),
-  renameSync: vi.fn((oldPath: string, newPath: string) => {
-    // Atomic write support: move tmp file to final destination in the in-memory store
+  mockRenameSync: vi.fn((oldPath: string, newPath: string) => {
     if (oldPath in fsStore) {
       fsStore[newPath] = fsStore[oldPath]
       delete fsStore[oldPath]
     }
   }),
-  readdirSync: vi.fn((dirPath: string) => {
-    // Return filenames whose full path starts with dirPath
+  mockReaddirSync: vi.fn((dirPath: string) => {
     const prefix = dirPath.endsWith('/') ? dirPath : dirPath + '/'
     return Object.keys(fsStore)
-      .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
-      .map(k => k.slice(prefix.length))
+      .filter((k: string) => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
+      .map((k: string) => k.slice(prefix.length))
   }),
-  unlinkSync: vi.fn((filePath: string) => {
+  mockUnlinkSync: vi.fn((filePath: string) => {
     delete fsStore[filePath]
   }),
-  // Default export (for modules that use `import fs from 'fs'`)
+}))
+
+vi.mock('fs', () => ({
+  // Named exports (used by governance-peers.ts via `import { readFileSync, ... } from 'fs'`)
+  existsSync: mockExistsSync,
+  mkdirSync: mockMkdirSync,
+  readFileSync: mockReadFileSync,
+  writeFileSync: mockWriteFileSync,
+  renameSync: mockRenameSync,
+  readdirSync: mockReaddirSync,
+  unlinkSync: mockUnlinkSync,
+  // Default export (for modules that use `import fs from 'fs'`) — same references
   default: {
-    existsSync: vi.fn((filePath: string) => filePath in fsStore),
-    mkdirSync: vi.fn(),
-    readFileSync: vi.fn((filePath: string) => {
-      if (filePath in fsStore) return fsStore[filePath]
-      throw new Error(`ENOENT: no such file or directory, open '${filePath}'`)
-    }),
-    writeFileSync: vi.fn((filePath: string, data: string) => {
-      fsStore[filePath] = data
-    }),
-    renameSync: vi.fn((oldPath: string, newPath: string) => {
-      if (oldPath in fsStore) {
-        fsStore[newPath] = fsStore[oldPath]
-        delete fsStore[oldPath]
-      }
-    }),
-    readdirSync: vi.fn((dirPath: string) => {
-      const prefix = dirPath.endsWith('/') ? dirPath : dirPath + '/'
-      return Object.keys(fsStore)
-        .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
-        .map(k => k.slice(prefix.length))
-    }),
-    unlinkSync: vi.fn((filePath: string) => {
-      delete fsStore[filePath]
-    }),
+    existsSync: mockExistsSync,
+    mkdirSync: mockMkdirSync,
+    readFileSync: mockReadFileSync,
+    writeFileSync: mockWriteFileSync,
+    renameSync: mockRenameSync,
+    readdirSync: mockReaddirSync,
+    unlinkSync: mockUnlinkSync,
   },
+}))
+
+// Mock file-lock: withLock just runs the callback immediately (no actual locking in tests)
+vi.mock('@/lib/file-lock', () => ({
+  withLock: vi.fn((_lockName: string, fn: () => unknown) => fn()),
 }))
 
 // ============================================================================
@@ -214,7 +219,7 @@ describe('loadPeerGovernance', () => {
 // ============================================================================
 
 describe('savePeerGovernance', () => {
-  it('writes peer state to disk and can be read back', () => {
+  it('writes peer state to disk and can be read back', async () => {
     /** Verifies round-trip: save then load returns identical data */
     const state = makePeerState({
       hostId: 'remote-server',
@@ -224,7 +229,7 @@ describe('savePeerGovernance', () => {
       ],
     })
 
-    savePeerGovernance('remote-server', state)
+    await savePeerGovernance('remote-server', state)
 
     const loaded = loadPeerGovernance('remote-server')
     expect(loaded).not.toBeNull()

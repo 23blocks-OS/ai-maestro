@@ -4,8 +4,9 @@ import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
 
 // GET /api/meetings/[id] - Get a single meeting
+// SF-014 (P8): Authenticate agent for read operations, consistent with PATCH/DELETE
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
@@ -13,8 +14,18 @@ export async function GET(
   if (!isValidUuid(id)) {
     return NextResponse.json({ error: 'Invalid meeting ID format' }, { status: 400 })
   }
+  const auth = authenticateAgent(
+    request.headers.get('Authorization'),
+    request.headers.get('X-Agent-Id')
+  )
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+  }
   const result = getMeetingById(id)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 // PATCH /api/meetings/[id] - Update a meeting
@@ -40,7 +51,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const result = updateExistingMeeting(id, body)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }
 
 // DELETE /api/meetings/[id] - Delete a meeting
@@ -62,5 +76,8 @@ export async function DELETE(
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
   }
   const result = deleteExistingMeeting(id)
-  return NextResponse.json(result.data ?? { error: result.error }, { status: result.status })
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

@@ -10,24 +10,30 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const searchParams = request.nextUrl.searchParams
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const searchParams = request.nextUrl.searchParams
 
-  const result = await queryDbGraph(agentId, {
-    action: searchParams.get('action') || 'stats',
-    name: searchParams.get('name'),
-    column: searchParams.get('column'),
-    database: searchParams.get('database'),
-  })
+    const result = await queryDbGraph(agentId, {
+      action: searchParams.get('action') || 'stats',
+      name: searchParams.get('name'),
+      column: searchParams.get('column'),
+      database: searchParams.get('database'),
+    })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error, ...(result.data || {}) }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error, ...(result.data || {}) }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Graph DB GET] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -38,22 +44,28 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const result = await indexDbSchema(agentId, body)
+    const result = await indexDbSchema(agentId, body)
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Graph DB POST] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -64,17 +76,23 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const databaseName = request.nextUrl.searchParams.get('database') || ''
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const databaseName = request.nextUrl.searchParams.get('database') || ''
 
-  const result = await clearDbGraph(agentId, databaseName)
+    const result = await clearDbGraph(agentId, databaseName)
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Graph DB DELETE] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

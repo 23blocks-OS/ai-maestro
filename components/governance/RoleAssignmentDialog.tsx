@@ -227,11 +227,22 @@ export default function RoleAssignmentDialog({
           }
         }
         // CC-001: Only assign COS to teams where this agent is not already COS — avoids redundant API calls
+        // SF-045: Run assignments in parallel with partial failure reporting (same pattern as COS removal above)
         const existingCosTeamIds = governance.cosTeams.map(t => t.id)
         const newTeamIds = selectedTeamIds.filter(id => !existingCosTeamIds.includes(id))
-        for (const teamId of newTeamIds) {
-          const result = await governance.assignCOS(teamId, agentId, password)
-          if (!result.success) throw new Error(result.error || 'Failed to assign chief-of-staff')
+        if (newTeamIds.length > 0) {
+          const assignResults = await Promise.allSettled(
+            newTeamIds.map(async (teamId) => {
+              const result = await governance.assignCOS(teamId, agentId, password)
+              if (!result.success) throw new Error(result.error || 'Failed to assign chief-of-staff')
+            })
+          )
+          const failures = assignResults
+            .map((r, i) => r.status === 'rejected' ? newTeamIds[i] : null)
+            .filter(Boolean)
+          if (failures.length > 0) {
+            throw new Error(`Failed to assign COS to ${failures.length} team(s)`)
+          }
         }
       }
 

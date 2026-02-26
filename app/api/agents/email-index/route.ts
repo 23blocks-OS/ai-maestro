@@ -13,17 +13,24 @@ import { queryEmailIndex } from '@/services/agents-messaging-service'
  *   ?federated=true - Query all known hosts (not just local)
  */
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
+  try {
+    // NT-027: Use request.nextUrl.searchParams for consistent URL parsing
+    const searchParams = request.nextUrl.searchParams
 
-  const result = await queryEmailIndex({
-    addressQuery: searchParams.get('address'),
-    agentIdQuery: searchParams.get('agentId'),
-    federated: searchParams.get('federated') === 'true',
-    isFederatedSubQuery: request.headers.get('X-Federated-Query') === 'true',
-  })
+    const result = await queryEmailIndex({
+      addressQuery: searchParams.get('address'),
+      agentIdQuery: searchParams.get('agentId'),
+      federated: searchParams.get('federated') === 'true',
+      isFederatedSubQuery: request.headers.get('X-Federated-Query') === 'true',
+    })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // SF-046: Outer try-catch for unhandled service throws
+    console.error('[Email Index GET] error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

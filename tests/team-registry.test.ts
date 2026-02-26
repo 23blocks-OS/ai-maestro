@@ -41,7 +41,7 @@ vi.mock('uuid', () => ({
 }))
 
 vi.mock('@/lib/file-lock', () => ({
-  withLock: vi.fn((_name: string, fn: () => any) => Promise.resolve(fn())),
+  withLock: vi.fn((_name: string, fn: () => unknown) => Promise.resolve(fn())),
 }))
 
 // ============================================================================

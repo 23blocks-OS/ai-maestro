@@ -9,7 +9,11 @@ export const dynamic = 'force-dynamic'
  * uses agent IDs for proper multi-host support.
  * Removal target: v0.28.0
  */
+// NT-011: warn-once guard to avoid flooding logs on every request
+let _deprecationWarned = false
 function logDeprecation() {
+  if (_deprecationWarned) return
+  _deprecationWarned = true
   console.warn('[DEPRECATED] PATCH /api/sessions/[id]/rename - Use PATCH /api/agents/[id] to update alias instead')
 }
 
@@ -26,6 +30,11 @@ export async function PATCH(
     // NT-003: Use standard two-line pattern instead of tuple destructuring
     const { id: oldName } = await params
     const { newName } = jsonBody
+
+    // SF-021: Validate newName matches tmux session naming constraints
+    if (!newName || typeof newName !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(newName)) {
+      return NextResponse.json({ error: 'newName is required and must match ^[a-zA-Z0-9_-]+$' }, { status: 400 })
+    }
 
     const result = await renameSession(oldName, newName)
 

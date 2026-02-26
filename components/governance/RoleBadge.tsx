@@ -62,9 +62,12 @@ export default function RoleBadge({ role, onClick, size = 'md' }: RoleBadgeProps
     }
 
     default: {
+      // NT-022: Exhaustiveness check — if all GovernanceRole variants are handled above,
+      // this line will cause a compile-time error when a new variant is added but not handled.
+      const _exhaustive: never = role
       // Fallback for any future role values not yet handled explicitly.
       // CC-P1-708: Use String() instead of `as string` to convert the exhausted `never` type safely.
-      const displayLabel = String(role).toUpperCase()
+      const displayLabel = String(_exhaustive).toUpperCase()
       const classes = `inline-flex items-center ${sizeClasses} rounded-full border font-medium transition-colors
             bg-gray-500/20 text-gray-300 border-gray-500/30
             ${onClick ? 'hover:bg-gray-500/30 cursor-pointer' : 'cursor-default'}`

@@ -55,6 +55,10 @@ export async function POST(request: NextRequest) {
   if (!Array.isArray(manifest.sources)) {
     return NextResponse.json({ error: 'Manifest sources must be an array' }, { status: 400 })
   }
+  // SF-014: Validate each source element is a string to prevent unsafe `as` cast downstream
+  if (!manifest.sources.every((s: unknown) => typeof s === 'string')) {
+    return NextResponse.json({ error: 'Each manifest source must be a string' }, { status: 400 })
+  }
   if (body.branch !== undefined && typeof body.branch !== 'string') {
     return NextResponse.json({ error: 'Branch must be a string if provided' }, { status: 400 })
   }

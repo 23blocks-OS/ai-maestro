@@ -99,10 +99,11 @@ vi.mock('@/lib/manager-trust', () => ({
 }))
 
 // SF-017: Mock rate-limit to prevent cross-host-governance-service from loading real rate-limit module
+// SF-058: recordFailure alias removed -- only canonical names remain
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
-  recordFailure: vi.fn(),
+  recordAttempt: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
 

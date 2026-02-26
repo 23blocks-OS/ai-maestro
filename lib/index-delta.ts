@@ -45,6 +45,14 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
   console.log(`[Delta Index Throttle] ${agentId.substring(0, 8)} queued (${indexQueue.length + 1} waiting)`)
 
   return new Promise((resolve, reject) => {
+    // MF-008: Declare entry BEFORE the setTimeout callback that references it,
+    // to avoid a temporal dead zone (entry was used before its `const` declaration)
+    const entry = {
+      resolve: null as unknown as () => void, // Patched below after timeoutHandle is available
+      agentId,
+      timestamp: Date.now()
+    }
+
     // SF-035: Timeout prevents indefinite waits when releaseIndexSlot is never called
     const timeoutHandle = setTimeout(() => {
       // Remove this entry from the queue so it does not fire later
@@ -53,15 +61,12 @@ async function acquireIndexSlot(agentId: string): Promise<() => void> {
       reject(new Error(`[Delta Index Throttle] Timeout: ${agentId.substring(0, 8)} waited ${INDEX_SLOT_TIMEOUT_MS}ms for index slot`))
     }, INDEX_SLOT_TIMEOUT_MS)
 
-    const entry = {
-      resolve: () => {
-        clearTimeout(timeoutHandle)
-        activeIndexCount++
-        console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
-        resolve(() => releaseIndexSlot(agentId))
-      },
-      agentId,
-      timestamp: Date.now()
+    // MF-008: Now that timeoutHandle exists, assign the real resolve callback
+    entry.resolve = () => {
+      clearTimeout(timeoutHandle)
+      activeIndexCount++
+      console.log(`[Delta Index Throttle] Acquired slot for ${agentId.substring(0, 8)} from queue (${activeIndexCount}/${MAX_CONCURRENT_INDEX} active)`)
+      resolve(() => releaseIndexSlot(agentId))
     }
     indexQueue.push(entry)
   })

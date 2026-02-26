@@ -726,11 +726,20 @@ export async function listSentMessages(
 
 
 /**
- * Get sent message count for an agent
+ * Get sent message count for an agent.
+ * SF-030: Optimized to count directory entries directly instead of loading + parsing all messages.
  */
 export async function getSentCount(agentIdentifier: string): Promise<number> {
-  const messages = await listSentMessages(agentIdentifier)
-  return messages.length
+  const agent = resolveAgent(agentIdentifier)
+  if (!agent?.agentId) return 0
+  const sentDir = getAMPSentDir(agent.agentId)
+  try {
+    const entries = fsSync.readdirSync(sentDir)
+    // Count only .json files to exclude temp/lock files
+    return entries.filter(e => e.endsWith('.json')).length
+  } catch {
+    return 0 // Directory does not exist -- no sent messages
+  }
 }
 
 /**
@@ -859,12 +868,15 @@ export async function deleteMessage(agentIdentifier: string, messageId: string):
   const messagePath = await findMessagePath(agentIdentifier, messageId, 'inbox')
   if (!messagePath) return false
 
-  try {
-    await fs.unlink(messagePath)
-    return true
-  } catch (error) {
-    return false
-  }
+  // SF-023: Serialize unlink under per-message lock to prevent races with concurrent read/archive
+  return withLock(`msg-${messageId}`, async () => {
+    try {
+      await fs.unlink(messagePath)
+      return true
+    } catch (error) {
+      return false
+    }
+  }) // end withLock
 }
 
 /**

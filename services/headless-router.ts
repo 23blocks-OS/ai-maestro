@@ -210,6 +210,7 @@ import {
   updateTeamById,
   deleteTeamById,
   listTeamTasks,
+  getTeamTask,
   createTeamTask,
   updateTeamTask,
   deleteTeamTask,
@@ -242,7 +243,8 @@ import { verifyHostAttestation } from '@/lib/host-keys'
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
-import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+// SF-058: Use recordAttempt (canonical name) instead of deprecated recordFailure alias
+import { checkRateLimit, recordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { isValidUuid } from '@/lib/validation'
 
 import {
@@ -327,7 +329,8 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
     req.on('end', () => {
       if (rejected) return
       const body = Buffer.concat(chunks).toString('utf-8')
-      if (!body) return resolve({})
+      // SF-007: Return null for empty bodies instead of {} to distinguish no-body from empty-object
+      if (!body) return resolve(null)
       try {
         resolve(JSON.parse(body))
       } catch (e) {
@@ -1146,7 +1149,10 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    // SF-013: Validate parseInt result to avoid passing NaN
+    let limit: number | undefined = query.limit ? parseInt(query.limit, 10) : undefined
+    if (limit !== undefined && isNaN(limit)) limit = 50
+    sendServiceResult(res, listPendingMessages(authHeader, limit))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1179,14 +1185,32 @@ const routes: Route[] = [
   // Messages (global)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMeetingMessages(query as any))
+    // SF-006: Extract and validate specific query parameters instead of passing raw query as any
+    const meetingParams = {
+      meetingId: query.meetingId || null,
+      participants: query.participants || null,
+      since: query.since || null,
+    }
+    sendServiceResult(res, await getMeetingMessages(meetingParams))
   }},
   { method: 'POST', pattern: /^\/api\/messages\/forward$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await forwardGlobalMessage(body))
   }},
   { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMessages(query as any))
+    // SF-006: Extract and validate specific query parameters instead of passing raw query as any
+    const msgParams = {
+      agent: query.agent || null,
+      id: query.id || null,
+      action: query.action || null,
+      box: query.box || null,
+      limit: query.limit || null,
+      status: query.status || null,
+      priority: query.priority || null,
+      from: query.from || null,
+      to: query.to || null,
+    }
+    sendServiceResult(res, await getMessages(msgParams))
   }},
   { method: 'POST', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1325,7 +1349,7 @@ const routes: Route[] = [
       return
     }
     // SF-026 (P5): Check return value -- handleGovernanceSyncMessage returns false on validation failure
-    const syncOk = handleGovernanceSyncMessage(body.fromHostId, body)
+    const syncOk = await handleGovernanceSyncMessage(body.fromHostId, body)
     if (!syncOk) {
       sendJson(res, 400, { error: 'Governance sync message rejected (validation failed)' })
       return
@@ -1495,9 +1519,14 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await notifyTeamAgents(body))
   }},
-  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, _params) => {
-    // GET single task not implemented in route — taskId routes only have PUT/DELETE
-    sendJson(res, 405, { error: 'Method not allowed' })
+  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
+    // SF-010: Implement GET single task by calling getTeamTask
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    const requestingAgentId = auth.error ? undefined : auth.agentId
+    sendServiceResult(res, getTeamTask(params.id, params.taskId, requestingAgentId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1642,7 +1671,7 @@ const routes: Route[] = [
 
     // Password auth -- only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordFailure(rateLimitKey)
+      recordAttempt(rateLimitKey)
       sendJson(res, 401, { error: 'Invalid governance password' })
       return
     }

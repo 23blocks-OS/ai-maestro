@@ -159,9 +159,9 @@ describe('loadTasks', () => {
 describe('saveTasks', () => {
   it('writes tasks to the correct file path with version wrapper', () => {
     const task = makeTask({ id: 'task-s1', teamId: TEAM_2 })
-    const result = saveTasks(TEAM_2, [task])
+    // SF-028: saveTasks now returns void (throws on error instead of returning boolean)
+    saveTasks(TEAM_2, [task])
 
-    expect(result).toBe(true)
     const written = JSON.parse(fsStore[tasksFilePath(TEAM_2)])
     expect(written.version).toBe(1)
     expect(written.tasks).toHaveLength(1)
@@ -238,21 +238,18 @@ describe('createTask', () => {
     expect(task.assigneeAgentId).toBeNull()
   })
 
-  it('keeps empty string assigneeAgentId as-is (nullish coalescing does not convert empty string)', async () => {
-    // Source uses `??` not `||`, so empty string is not nullish and passes through unchanged
+  it('normalizes empty string assigneeAgentId to null (SF-034)', async () => {
+    // SF-034: Source uses `||` to normalize empty string to null (empty string is not a valid agent ID)
     const task = await createTask({ teamId: TEAM_1, subject: 'Test', assigneeAgentId: '' })
-    expect(task.assigneeAgentId).toBe('')
+    expect(task.assigneeAgentId).toBeNull()
   })
 
-  it('rejects non-UUID teamId by failing to persist the task', async () => {
+  it('rejects non-UUID teamId', async () => {
     // tasksFilePath() throws 'Invalid team ID' for non-UUID input;
-    // createTask() catches via loadTasks/saveTasks error handling, so the promise resolves
-    // but the task is never written to disk
-    const task = await createTask({ teamId: 'not-a-uuid', subject: 'Bad' })
-    expect(task.subject).toBe('Bad')
-    // Verify not persisted: loadTasks also fails for invalid teamId and returns []
-    const persisted = loadTasks('not-a-uuid')
-    expect(persisted).toEqual([])
+    // loadTasks catches this and returns [], but saveTasks does NOT catch (SF-028),
+    // so the error propagates and createTask rejects
+    await expect(createTask({ teamId: 'not-a-uuid', subject: 'Bad' }))
+      .rejects.toThrow('Invalid team ID')
   })
 })
 

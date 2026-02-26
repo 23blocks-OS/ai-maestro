@@ -24,7 +24,7 @@ import {
 
 // NT-036: TODO: Replace ServiceResult<any> with specific result types across service files.
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 export interface DocsQueryOptions {
   action: string

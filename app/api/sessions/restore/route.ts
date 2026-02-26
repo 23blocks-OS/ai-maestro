@@ -7,6 +7,8 @@ import { listRestorableSessions, restoreSessions, deletePersistedSession } from 
  */
 export async function GET() {
   try {
+    // NT-013: listRestorableSessions returns raw data, not a ServiceResult.
+    // Phase 2 standardization will migrate this to the { data, error, status } pattern.
     const result = await listRestorableSessions()
     return NextResponse.json(result)
   } catch (error) {

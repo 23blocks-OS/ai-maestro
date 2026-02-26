@@ -15,21 +15,27 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(id)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
-  const result = await linkAgentSession(id, body)
+  try {
+    const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const result = await linkAgentSession(id, body)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Session POST] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -40,38 +46,44 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(id)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try {
+    const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const result = await sendAgentSessionCommand(id, {
-    command: body.command,
-    requireIdle: body.requireIdle,
-    addNewline: body.addNewline,
-  })
+    const result = await sendAgentSessionCommand(id, {
+      command: body.command,
+      requireIdle: body.requireIdle,
+      addNewline: body.addNewline,
+    })
 
-  if (result.error && result.status !== 409) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error && result.status !== 409) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+
+    // For 409 (not idle), include data + error together
+    if (result.status === 409) {
+      return NextResponse.json(
+        { success: false, error: result.error, ...result.data },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Session PATCH] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-
-  // For 409 (not idle), include data + error together
-  if (result.status === 409) {
-    return NextResponse.json(
-      { success: false, error: result.error, ...result.data },
-      { status: 409 }
-    )
-  }
-
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -79,23 +91,29 @@ export async function PATCH(
  * Get session status for an agent
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(id)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const result = await getAgentSessionStatus(id)
+  try {
+    const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const result = await getAgentSessionStatus(id)
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Session GET] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -106,20 +124,26 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(id)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const searchParams = request.nextUrl.searchParams
+  try {
+    const { id } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(id)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const searchParams = request.nextUrl.searchParams
 
-  const result = await unlinkOrDeleteAgentSession(id, {
-    kill: searchParams.get('kill') === 'true',
-    deleteAgent: searchParams.get('deleteAgent') === 'true',
-  })
+    const result = await unlinkOrDeleteAgentSession(id, {
+      kill: searchParams.get('kill') === 'true',
+      deleteAgent: searchParams.get('deleteAgent') === 'true',
+    })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Session DELETE] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

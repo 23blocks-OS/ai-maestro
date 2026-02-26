@@ -10,6 +10,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { removeTrust } from '@/services/governance-service'
 
+// NT-030: Ensure Next.js does not cache this route
+export const dynamic = 'force-dynamic'
+
 /** DELETE: Remove a trusted manager by hostId */
 export async function DELETE(
   request: NextRequest,

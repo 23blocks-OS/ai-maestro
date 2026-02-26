@@ -7,20 +7,26 @@ import { isValidUuid } from '@/lib/validation'
  * Get agent metrics
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const result = getMetrics(agentId)
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const result = getMetrics(agentId)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Metrics GET] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -31,20 +37,26 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const result = await updateMetrics(agentId, body)
+    const result = await updateMetrics(agentId, body)
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Metrics PATCH] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

@@ -44,16 +44,23 @@ export async function PUT(
     }
   }
   // MF-006: Runtime validation for blockedBy -- must be an array of strings if provided
-  if (body.blockedBy !== undefined && !Array.isArray(body.blockedBy)) {
-    return NextResponse.json({ error: 'blockedBy must be an array of strings' }, { status: 400 })
+  // SF-006: Also validate each element is a string (defense-in-depth)
+  if (body.blockedBy !== undefined) {
+    if (!Array.isArray(body.blockedBy)) {
+      return NextResponse.json({ error: 'blockedBy must be an array of strings' }, { status: 400 })
+    }
+    if (!body.blockedBy.every((v: unknown) => typeof v === 'string')) {
+      return NextResponse.json({ error: 'blockedBy array elements must all be strings' }, { status: 400 })
+    }
   }
   // Whitelist only known UpdateTaskParams fields to avoid passing arbitrary data
+  // SF-008: Handle null assigneeAgentId explicitly -- String(null) produces literal "null" string
   const safeParams: UpdateTaskParams = {
     ...(body.subject !== undefined && { subject: String(body.subject) }),
     ...(body.description !== undefined && { description: String(body.description) }),
     ...(body.status !== undefined && { status: body.status as UpdateTaskParams['status'] }),
     ...(body.priority !== undefined && { priority: Number(body.priority) }),
-    ...(body.assigneeAgentId !== undefined && { assigneeAgentId: String(body.assigneeAgentId) }),
+    ...(body.assigneeAgentId !== undefined && { assigneeAgentId: body.assigneeAgentId === null ? null : String(body.assigneeAgentId) }),
     ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
     requestingAgentId,
   }

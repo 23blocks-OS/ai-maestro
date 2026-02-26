@@ -65,7 +65,7 @@ import type {
 
 import type { Agent } from '@/types/agent'
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // Module-level state (shared across requests, lives in the service)
@@ -1628,7 +1628,15 @@ export async function rotateKeypair(authHeader: string | null): Promise<ServiceR
     }
   }
 
-  const agent = getAgent(auth.agentId!)
+  // NT-009: Guard against missing agentId instead of non-null assertion
+  if (!auth.agentId) {
+    return {
+      data: { error: 'unauthorized', message: 'Agent ID not found in authentication' } as AMPError,
+      status: 401
+    }
+  }
+
+  const agent = getAgent(auth.agentId)
   if (!agent) {
     return {
       data: { error: 'not_found', message: 'Agent not found' } as AMPError,
@@ -1638,7 +1646,7 @@ export async function rotateKeypair(authHeader: string | null): Promise<ServiceR
 
   // Generate new keypair and save to disk
   const newKeyPair = await generateKeyPair()
-  saveKeyPair(auth.agentId!, newKeyPair)
+  saveKeyPair(auth.agentId, newKeyPair)
 
   // Update agent metadata with new fingerprint
   const existingAmpMeta = (agent.metadata?.amp || {}) as Record<string, unknown>

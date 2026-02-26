@@ -325,8 +325,10 @@ detect_os() {
 # The -i.bak flag creates a temporary backup (works everywhere),
 # then we remove the .bak file immediately after.
 portable_sed() {
-    local file="${@: -1}"
-    sed -i.bak "$@" && rm -f "${file}.bak"
+    # Extract last argument as the file path, remaining args are sed expressions
+    local file="${!#}"
+    local args=("${@:1:$#-1}")
+    sed -i.bak "${args[@]}" "$file" && rm -f "${file}.bak"
 }
 
 # Install a system package on any Linux distro

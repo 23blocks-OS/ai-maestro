@@ -74,6 +74,8 @@ export interface GovernanceSyncMessage {
   type: GovernanceSyncType
   fromHostId: string
   timestamp: string          // ISO — used for conflict ordering
+  // Phase 2: Refactor to discriminated union keyed on `type` (e.g., ManagerChangedPayload | TeamUpdatedPayload)
+  // to enforce payload shape at the type level instead of relying on runtime checks.
   payload: Record<string, unknown>  // type-specific data
 }
 

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, loadGovernance, getManagerId } from '@/lib/governance'
 import { getTeam, updateTeam, TeamValidationException } from '@/lib/team-registry'
 import { getAgent } from '@/lib/agent-registry'
-import { checkRateLimit, recordFailure, resetRateLimit } from '@/lib/rate-limit'
+// NT-007: Use recordAttempt (the canonical name) instead of deprecated recordFailure alias
+import { checkRateLimit, recordAttempt, resetRateLimit } from '@/lib/rate-limit'
 import { isValidUuid } from '@/lib/validation'
+
+// NT-008 fix: Force dynamic rendering for consistency with other POST-only routes
+export const dynamic = 'force-dynamic'
 
 export async function POST(
   request: NextRequest,
@@ -39,7 +43,7 @@ export async function POST(
 
     // Password auth is stronger than ACL — only managers know the governance password
     if (!(await verifyPassword(password))) {
-      recordFailure(rateLimitKey)
+      recordAttempt(rateLimitKey)
       return NextResponse.json({ error: 'Invalid governance password' }, { status: 401 })
     }
     // Password verified successfully — reset rate limit counter
@@ -102,8 +106,9 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: error.code })
     }
     console.error('Failed to set chief-of-staff:', error)
+    // NT-001: Return generic message instead of exposing internal error details
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to set chief-of-staff' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

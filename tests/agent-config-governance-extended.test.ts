@@ -191,10 +191,11 @@ vi.mock('@/lib/manager-trust', () => ({
   shouldAutoApprove: (...args: unknown[]) => mockShouldAutoApprove(...args),
 }))
 
+// SF-058: recordFailure alias removed -- only canonical names remain
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
-  recordFailure: vi.fn(),
+  recordAttempt: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
 
@@ -377,8 +378,6 @@ function makeGovernanceRequest(overrides: Partial<GovernanceRequest> = {}): Gove
 // Global setup / teardown
 // ============================================================================
 
-const originalFetch = globalThis.fetch
-
 beforeEach(() => {
   vi.clearAllMocks()
   uuidExtCounter = 0 // NT-011: Reset UUID counter so each test starts from ext-001
@@ -438,12 +437,12 @@ beforeEach(() => {
   mockNotifyConfigRequestOutcome.mockResolvedValue(undefined)
   mockUpdateAgentById.mockResolvedValue({ data: { agent: makeAgent() }, status: 200 })
 
-  // Default fetch mock
-  globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) })
+  // SF-033: Use vi.stubGlobal for proper restoration via vi.restoreAllMocks()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) }))
 })
 
 afterEach(() => {
-  globalThis.fetch = originalFetch
+  vi.unstubAllGlobals()
 })
 
 // ============================================================================

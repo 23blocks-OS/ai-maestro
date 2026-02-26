@@ -34,6 +34,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // critical aspect for integration correctness.
 // ============================================================================
 
+// NOTE: Tests standalone function replicas. Phase 2 will use @testing-library/react for actual hook testing.
+
 /**
  * Replica of useGovernance.submitConfigRequest — sends a configure-agent governance request.
  * Mirrors the submitConfigRequest useCallback in hooks/useGovernance.ts.

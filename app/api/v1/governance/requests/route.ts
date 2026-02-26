@@ -86,44 +86,45 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // SF-007: Validate required fields before passing to submitCrossHostRequest
-  if (!body.type || typeof body.type !== 'string') {
-    return NextResponse.json({ error: 'Missing required field: type' }, { status: 400 })
-  }
-  if (!body.password || typeof body.password !== 'string') {
-    return NextResponse.json({ error: 'Missing required field: password' }, { status: 400 })
-  }
-  if (!body.targetHostId || typeof body.targetHostId !== 'string') {
-    return NextResponse.json({ error: 'Missing required field: targetHostId' }, { status: 400 })
-  }
-  if (!body.requestedBy || typeof body.requestedBy !== 'string') {
-    return NextResponse.json({ error: 'Missing required field: requestedBy' }, { status: 400 })
-  }
-  // SF-001: Validate requestedByRole against known AgentRole values
-  if (!body.requestedByRole || !VALID_REQUESTED_BY_ROLES.has(body.requestedByRole)) {
-    return NextResponse.json(
-      { error: `Invalid or missing requestedByRole. Must be one of: ${[...VALID_REQUESTED_BY_ROLES].join(', ')}` },
-      { status: 400 }
-    )
-  }
-  // SF-001: Validate payload is an object containing at least agentId as a string
-  if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
-    return NextResponse.json({ error: 'Missing or invalid payload: must be an object' }, { status: 400 })
-  }
-  if (!body.payload.agentId || typeof body.payload.agentId !== 'string') {
-    return NextResponse.json({ error: 'Missing or invalid payload.agentId: must be a string' }, { status: 400 })
-  }
-
-  // NT-034: body fields validated above (type, password, targetHostId, requestedBy, requestedByRole, payload);
-  // submitCrossHostRequest performs additional domain-level validation internally.
+  // SF-055: Wrap local submission validation in try-catch to prevent unhandled errors
   try {
+    // SF-007: Validate required fields before passing to submitCrossHostRequest
+    if (!body.type || typeof body.type !== 'string') {
+      return NextResponse.json({ error: 'Missing required field: type' }, { status: 400 })
+    }
+    if (!body.password || typeof body.password !== 'string') {
+      return NextResponse.json({ error: 'Missing required field: password' }, { status: 400 })
+    }
+    if (!body.targetHostId || typeof body.targetHostId !== 'string') {
+      return NextResponse.json({ error: 'Missing required field: targetHostId' }, { status: 400 })
+    }
+    if (!body.requestedBy || typeof body.requestedBy !== 'string') {
+      return NextResponse.json({ error: 'Missing required field: requestedBy' }, { status: 400 })
+    }
+    // SF-001: Validate requestedByRole against known AgentRole values
+    if (!body.requestedByRole || !VALID_REQUESTED_BY_ROLES.has(body.requestedByRole)) {
+      return NextResponse.json(
+        { error: `Invalid or missing requestedByRole. Must be one of: ${[...VALID_REQUESTED_BY_ROLES].join(', ')}` },
+        { status: 400 }
+      )
+    }
+    // SF-001: Validate payload is an object containing at least agentId as a string
+    if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+      return NextResponse.json({ error: 'Missing or invalid payload: must be an object' }, { status: 400 })
+    }
+    if (!body.payload.agentId || typeof body.payload.agentId !== 'string') {
+      return NextResponse.json({ error: 'Missing or invalid payload.agentId: must be a string' }, { status: 400 })
+    }
+
+    // NT-034: body fields validated above (type, password, targetHostId, requestedBy, requestedByRole, payload);
+    // submitCrossHostRequest performs additional domain-level validation internally.
     const result = await submitCrossHostRequest(body)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
     return NextResponse.json(result.data, { status: result.status })
   } catch (err) {
-    console.error('[Governance Requests] POST error:', err)
+    console.error('[Governance Requests] POST local-submission error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -134,8 +135,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const statusParam = searchParams.get('status')
   if (statusParam && !VALID_GOVERNANCE_REQUEST_STATUSES.has(statusParam)) {
     return NextResponse.json(
-      // NT-035: Reflecting validated statusParam in error is acceptable for Phase 1 JSON API (not rendered in HTML).
-      { error: `Invalid status value '${statusParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_STATUSES].join(', ')}` },
+      // SF-057: Truncate reflected query param values to max 50 chars to limit reflected content
+      { error: `Invalid status value '${statusParam.slice(0, 50)}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_STATUSES].join(', ')}` },
       { status: 400 }
     )
   }
@@ -143,7 +144,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const typeParam = searchParams.get('type')
   if (typeParam && !VALID_GOVERNANCE_REQUEST_TYPES.has(typeParam)) {
     return NextResponse.json(
-      { error: `Invalid type value '${typeParam}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_TYPES].join(', ')}` },
+      // SF-057: Truncate reflected query param values to max 50 chars to limit reflected content
+      { error: `Invalid type value '${typeParam.slice(0, 50)}'. Must be one of: ${[...VALID_GOVERNANCE_REQUEST_TYPES].join(', ')}` },
       { status: 400 }
     )
   }

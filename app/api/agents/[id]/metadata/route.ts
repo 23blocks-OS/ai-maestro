@@ -50,6 +50,27 @@ export async function PATCH(
     try { metadata = await request.json() } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
+    // SF-052: Validate metadata is a plain object with depth/size limits
+    if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return NextResponse.json({ error: 'Metadata must be a plain object' }, { status: 400 })
+    }
+    const metadataStr = JSON.stringify(metadata)
+    if (metadataStr.length > 65536) {
+      return NextResponse.json({ error: 'Metadata exceeds maximum size (64KB)' }, { status: 400 })
+    }
+    // SF-052: Check nesting depth (max 5 levels)
+    const checkDepth = (obj: unknown, depth: number): boolean => {
+      if (depth > 5) return false
+      if (obj !== null && typeof obj === 'object') {
+        for (const val of Object.values(obj as Record<string, unknown>)) {
+          if (!checkDepth(val, depth + 1)) return false
+        }
+      }
+      return true
+    }
+    if (!checkDepth(metadata, 1)) {
+      return NextResponse.json({ error: 'Metadata exceeds maximum nesting depth (5)' }, { status: 400 })
+    }
 
     const agent = await updateAgent(agentId, { metadata })
 

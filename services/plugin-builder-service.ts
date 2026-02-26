@@ -18,7 +18,8 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { randomUUID } from 'crypto'
 import matter from 'gray-matter'
-import type { ServiceResult } from '@/services/marketplace-service'
+// NT-006: Import ServiceResult directly from canonical source
+import type { ServiceResult } from '@/types/service'
 import type {
   PluginBuildConfig,
   PluginBuildResult,

@@ -18,7 +18,10 @@ import os from 'os'
 
 // File lock state
 let lockHeld = false
-const lockQueue: Array<{ resolve: () => void; reject: (err: Error) => void }> = []
+// MF-007: Use a monotonic counter for stable waiter identification instead of
+// function reference equality (closures wrapped the original resolve, breaking findIndex)
+let _lockWaiterId = 0
+const lockQueue: Array<{ id: number; resolve: () => void; reject: (err: Error) => void }> = []
 const LOCK_TIMEOUT = 5000 // 5 second timeout for acquiring lock
 
 /**
@@ -31,8 +34,10 @@ async function acquireLock(): Promise<void> {
   }
 
   return new Promise((resolve, reject) => {
+    // MF-007: Assign a stable numeric id so the timeout can reliably remove this waiter
+    const waiterId = ++_lockWaiterId
     const timeout = setTimeout(() => {
-      const index = lockQueue.findIndex(item => item.resolve === resolve)
+      const index = lockQueue.findIndex(item => item.id === waiterId)
       if (index !== -1) {
         lockQueue.splice(index, 1)
       }
@@ -40,6 +45,7 @@ async function acquireLock(): Promise<void> {
     }, LOCK_TIMEOUT)
 
     lockQueue.push({
+      id: waiterId,
       resolve: () => {
         clearTimeout(timeout)
         resolve()
@@ -178,8 +184,8 @@ export function isSelf(hostId: string): boolean {
   const selfId = getSelfHostId()
   const hostIdLower = hostId.toLowerCase()
 
-  // Direct hostname match
-  if (hostIdLower === selfId.toLowerCase()) return true
+  // Direct hostname match (NT-015: selfId is already lowercase from getSelfHostId)
+  if (hostIdLower === selfId) return true
 
   // Legacy 'local' value (DEPRECATED)
   if (hostId === 'local') return true
@@ -192,7 +198,8 @@ export function isSelf(hostId: string): boolean {
   try {
     const url = new URL(hostId)
     const urlHost = url.hostname.toLowerCase()
-    if (urlHost === selfId.toLowerCase() || selfIPs.includes(urlHost)) return true
+    // NT-015: selfId is already lowercase from getSelfHostId
+    if (urlHost === selfId || selfIPs.includes(urlHost)) return true
   } catch {
     // Not a URL, that's fine
   }
@@ -234,6 +241,8 @@ const HOSTS_ENV_VAR = 'AIMAESTRO_HOSTS'
 const HOSTS_CONFIG_PATH = path.join(os.homedir(), '.aimaestro', 'hosts.json')
 
 let cachedHosts: Host[] | null = null
+// SF-026: Track file mtime so the cache is invalidated when hosts.json is edited externally
+let cachedHostsMtimeMs: number | null = null
 
 /**
  * Migrate and normalize host config
@@ -268,6 +277,20 @@ function migrateHost(host: Host): Host {
  * Priority: AIMAESTRO_HOSTS env var > .aimaestro/hosts.json > default self host
  */
 export function loadHostsConfig(): Host[] {
+  // SF-026: Invalidate cache when hosts.json file mtime has changed
+  if (cachedHosts !== null) {
+    try {
+      if (fs.existsSync(HOSTS_CONFIG_PATH)) {
+        const currentMtime = fs.statSync(HOSTS_CONFIG_PATH).mtimeMs
+        if (currentMtime !== cachedHostsMtimeMs) {
+          cachedHosts = null // File changed on disk -- reload
+        }
+      }
+    } catch {
+      // stat failed -- fall through to reload
+      cachedHosts = null
+    }
+  }
   if (cachedHosts !== null) {
     return cachedHosts
   }
@@ -305,6 +328,12 @@ export function loadHostsConfig(): Host[] {
   }
 
   cachedHosts = hosts
+  // SF-026: Record file mtime at cache-fill time for later invalidation
+  try {
+    if (fs.existsSync(HOSTS_CONFIG_PATH)) {
+      cachedHostsMtimeMs = fs.statSync(HOSTS_CONFIG_PATH).mtimeMs
+    }
+  } catch { /* stat failed -- no mtime to cache */ }
   return hosts
 }
 

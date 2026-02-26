@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { searchConversations, ingestConversations } from '@/services/agents-memory-service'
 import { isValidUuid } from '@/lib/validation'
 
+// SF-022: Allowed role values for runtime validation
+const VALID_ROLES: readonly string[] = ['user', 'assistant', 'system']
+
 /**
  * GET /api/agents/:id/search
  * Search agent's conversation history using hybrid RAG search
@@ -23,31 +26,48 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  const searchParams = request.nextUrl.searchParams
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    const searchParams = request.nextUrl.searchParams
 
-  const result = await searchConversations(agentId, {
-    query: searchParams.get('q') || '',
-    mode: searchParams.get('mode') || undefined,
-    limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) || undefined : undefined,
-    minScore: searchParams.get('minScore') ? parseFloat(searchParams.get('minScore')!) || undefined : undefined,
-    roleFilter: searchParams.get('role') as 'user' | 'assistant' | 'system' | null,
-    conversationFile: searchParams.get('conversation_file') || undefined,
-    startTs: searchParams.get('startTs') ? parseInt(searchParams.get('startTs')!, 10) || undefined : undefined,
-    endTs: searchParams.get('endTs') ? parseInt(searchParams.get('endTs')!, 10) || undefined : undefined,
-    useRrf: searchParams.get('useRrf') !== 'false',
-    bm25Weight: searchParams.get('bm25Weight') ? parseFloat(searchParams.get('bm25Weight')!) : undefined,
-    semanticWeight: searchParams.get('semanticWeight') ? parseFloat(searchParams.get('semanticWeight')!) : undefined,
-  })
+    // SF-022: Validate roleFilter against allowed values before casting
+    const roleParam = searchParams.get('role')
+    if (roleParam && !VALID_ROLES.includes(roleParam)) {
+      return NextResponse.json({ error: `Invalid role parameter. Allowed: ${VALID_ROLES.join(', ')}` }, { status: 400 })
+    }
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    const result = await searchConversations(agentId, {
+      query: searchParams.get('q') || '',
+      mode: searchParams.get('mode') || undefined,
+      // SF-017 fix: Use NaN-check instead of || undefined to preserve valid zero values
+      limit: searchParams.get('limit') ? (Number.isNaN(parseInt(searchParams.get('limit')!, 10)) ? undefined : parseInt(searchParams.get('limit')!, 10)) : undefined,
+      // SF-016 fix: Use NaN-check instead of || undefined to preserve valid zero for minScore
+      minScore: searchParams.get('minScore') ? (Number.isNaN(parseFloat(searchParams.get('minScore')!)) ? undefined : parseFloat(searchParams.get('minScore')!)) : undefined,
+      roleFilter: roleParam as 'user' | 'assistant' | 'system' | null,
+      conversationFile: searchParams.get('conversation_file') || undefined,
+      // SF-017 fix: Use NaN-check instead of || undefined to preserve valid zero for timestamps
+      startTs: searchParams.get('startTs') ? (Number.isNaN(parseInt(searchParams.get('startTs')!, 10)) ? undefined : parseInt(searchParams.get('startTs')!, 10)) : undefined,
+      endTs: searchParams.get('endTs') ? (Number.isNaN(parseInt(searchParams.get('endTs')!, 10)) ? undefined : parseInt(searchParams.get('endTs')!, 10)) : undefined,
+      useRrf: searchParams.get('useRrf') !== 'false',
+      // SF-050: NaN guard for bm25Weight (defense-in-depth)
+      bm25Weight: searchParams.get('bm25Weight') ? (Number.isNaN(parseFloat(searchParams.get('bm25Weight')!)) ? undefined : parseFloat(searchParams.get('bm25Weight')!)) : undefined,
+      // SF-050: NaN guard for semanticWeight (defense-in-depth)
+      semanticWeight: searchParams.get('semanticWeight') ? (Number.isNaN(parseFloat(searchParams.get('semanticWeight')!)) ? undefined : parseFloat(searchParams.get('semanticWeight')!)) : undefined,
+    })
+
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Search GET] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -62,23 +82,29 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: agentId } = await params
-  // SF-009: Validate UUID format for agent ID (defense-in-depth)
-  if (!isValidUuid(agentId)) {
-    return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
-  }
-  let body
-  try { body = await request.json() } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try {
+    const { id: agentId } = await params
+    // SF-009: Validate UUID format for agent ID (defense-in-depth)
+    if (!isValidUuid(agentId)) {
+      return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
+    }
+    let body
+    try { body = await request.json() } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    }
 
-  const result = await ingestConversations(agentId, {
-    conversationFiles: body.conversationFiles,
-    batchSize: body.batchSize,
-  })
+    const result = await ingestConversations(agentId, {
+      conversationFiles: body.conversationFiles,
+      batchSize: body.batchSize,
+    })
 
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[Search POST] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

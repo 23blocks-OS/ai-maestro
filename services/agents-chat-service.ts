@@ -19,7 +19,7 @@ const MAX_CONVERSATION_FILE_SIZE = 50 * 1024 * 1024
 // ── Types ───────────────────────────────────────────────────────────────────
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

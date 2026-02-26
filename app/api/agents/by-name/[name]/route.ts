@@ -9,11 +9,21 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
-  const { name } = await params
-  const result = lookupAgentByName(name)
+  try {
+    const { name } = await params
+    // SF-051: Validate name format (alphanumeric, hyphens, underscores only)
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      return NextResponse.json({ error: 'Invalid agent name format' }, { status: 400 })
+    }
+    const result = lookupAgentByName(name)
 
-  if (result.error) {
-    return NextResponse.json(result.data || { exists: false }, { status: result.status })
+    if (result.error) {
+      return NextResponse.json(result.data || { exists: false }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-003: Outer try-catch for unhandled service throws
+    console.error('[By-Name GET] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

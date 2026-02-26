@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+// NT-017: Import shared MockTeamValidationException instead of defining inline duplicate
+import { MockTeamValidationException } from './test-utils/service-mocks'
 
 // ============================================================================
 // Mocks — must be declared before importing the module under test
@@ -20,13 +22,7 @@ const mockSaveTeams = vi.fn()
 vi.mock('@/lib/team-registry', () => ({
   loadTeams: (...args: unknown[]) => mockLoadTeams(...args),
   saveTeams: (...args: unknown[]) => mockSaveTeams(...args),
-  TeamValidationException: class TeamValidationException extends Error {
-    code: number
-    constructor(message: string, code: number) {
-      super(message)
-      this.code = code
-    }
-  },
+  TeamValidationException: MockTeamValidationException,
 }))
 
 const mockIsManager = vi.fn()

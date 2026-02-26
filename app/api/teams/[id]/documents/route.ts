@@ -55,7 +55,9 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const result = await createTeamDocument(id, { ...body, requestingAgentId })
+  // SF-002: Whitelist only expected CreateDocumentParams fields instead of spreading raw body
+  const { title, content, pinned, tags } = body
+  const result = await createTeamDocument(id, { title, content, pinned, tags, requestingAgentId })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

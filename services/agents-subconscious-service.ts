@@ -7,7 +7,7 @@
 
 import { agentRegistry } from '@/lib/agent'
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ── Public Functions ────────────────────────────────────────────────────────
 

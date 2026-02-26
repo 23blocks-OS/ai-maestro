@@ -11,9 +11,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { syncDirectory } from '@/services/agents-directory-service'
 
 export async function POST(_request: NextRequest) {
-  const result = await syncDirectory()
-  if (result.error) {
-    return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+  try {
+    const result = await syncDirectory()
+    if (result.error) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-017: Outer try-catch for unhandled service throws
+    console.error('[Directory Sync POST] error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

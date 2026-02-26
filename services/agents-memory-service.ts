@@ -73,7 +73,7 @@ import { escapeForCozo } from '@/lib/cozo-utils'
 import { embedTexts } from '@/lib/rag/embeddings'
 import type { UpdateAgentMetricsRequest } from '@/types/agent'
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // Internal helpers

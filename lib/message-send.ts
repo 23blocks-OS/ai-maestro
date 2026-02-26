@@ -177,6 +177,9 @@ export async function sendFromUI(options: SendFromUIOptions): Promise<{ message:
   // null senders (denies mesh-forward into closed teams).
   // When recipient is unresolved (both agentId and alias empty), deny by default
   // to prevent the literal 'unknown' from bypassing closed-team isolation.
+  // SF-025: recipientIdForFilter may be an alias (display name) when agentId is unresolved.
+  // checkMessageAllowed currently accepts this because alias-based team membership lookup
+  // works for local agents. Phase 2: normalize all identifiers to UUIDs before filtering.
   const recipientIdForFilter = toResolved.agentId || toResolved.alias
   if (!recipientIdForFilter) {
     throw new Error('Cannot send message: recipient could not be resolved to any known agent or alias')

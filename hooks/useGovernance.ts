@@ -48,6 +48,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
   // SF-023: Track mount state so stale refresh callbacks don't update unmounted component
   const isMountedRef = useRef(true)
 
+  // SF-040: AbortController for mutation-triggered refresh() calls — aborted on unmount
+  // so fire-and-forget refreshes don't update state after the component is gone
+  const mutationAbortRef = useRef<AbortController | null>(null)
+
   // Derive governance role from current state
   const agentRole: GovernanceRole = useMemo(() => {
     if (!agentId) return 'member'
@@ -152,6 +156,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
     refresh(controller.signal)
     return () => {
       controller.abort()
+      // SF-040: Also abort any in-flight mutation-triggered refreshes
+      mutationAbortRef.current?.abort()
       isMountedRef.current = false // SF-023: Prevent state updates after unmount
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (empty deps), only agentId triggers re-fetch
@@ -167,7 +173,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to set password' }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // CC-002 + SF-040: Fire-and-forget refresh with abort signal so unmount cancels in-flight fetch
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to set password' }
@@ -186,7 +195,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign manager' }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // CC-002 + SF-040: Fire-and-forget refresh with abort signal so unmount cancels in-flight fetch
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign manager' }
@@ -205,7 +217,10 @@ export function useGovernance(agentId: string | null): GovernanceState {
         })
         const data = await res.json()
         if (!res.ok) return { success: false, error: data.error || 'Failed to assign chief-of-staff' }
-        refresh() // CC-002: Intentionally fire-and-forget — user-initiated mutation, we want the updated state
+        // CC-002 + SF-040: Fire-and-forget refresh with abort signal so unmount cancels in-flight fetch
+        mutationAbortRef.current?.abort()
+        mutationAbortRef.current = new AbortController()
+        refresh(mutationAbortRef.current.signal)
         return { success: true }
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : 'Failed to assign chief-of-staff' }

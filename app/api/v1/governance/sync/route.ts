@@ -13,6 +13,11 @@ import { getHosts } from '@/lib/hosts-config'
 import { verifyHostAttestation } from '@/lib/host-keys'
 import type { GovernanceSyncMessage } from '@/types/governance'
 
+// NT-031: Module-scope Set for sync type validation (avoids per-request array allocation)
+const VALID_SYNC_TYPES: ReadonlySet<string> = new Set([
+  'manager-changed', 'team-updated', 'team-deleted', 'transfer-update',
+])
+
 /** POST: Receive governance sync from a peer host */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: GovernanceSyncMessage
@@ -29,10 +34,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // NT-025 (P8): Validate body.type against known GovernanceSyncType values
-  const validSyncTypes: string[] = ['manager-changed', 'team-updated', 'team-deleted', 'transfer-update']
-  if (!validSyncTypes.includes(body.type)) {
+  if (!VALID_SYNC_TYPES.has(body.type)) {
     return NextResponse.json(
-      { error: `Invalid sync type: must be one of ${validSyncTypes.join(', ')}` },
+      { error: `Invalid sync type: must be one of ${[...VALID_SYNC_TYPES].join(', ')}` },
       { status: 400 }
     )
   }
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // CC-P4-005: Use return value to detect silently dropped messages
-  const accepted = handleGovernanceSyncMessage(body.fromHostId, body)
+  const accepted = await handleGovernanceSyncMessage(body.fromHostId, body)
   if (!accepted) {
     return NextResponse.json({ error: 'Message dropped: sender mismatch' }, { status: 400 })
   }

@@ -21,9 +21,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  // NT-006: requestingAgentId removed -- NotifyTeamParams only accepts agentIds + teamName.
-  // Authentication is verified above; audit logging of the requesting agent is not yet needed.
-  const result = await notifyTeamAgents(body)
+  // SF-001: Whitelist only expected fields instead of passing raw body
+  const { agentIds, teamName } = body
+
+  // SF-003: Validate that each agentIds element is a string
+  if (agentIds && Array.isArray(agentIds) && !agentIds.every((id: unknown) => typeof id === 'string')) {
+    return NextResponse.json({ error: 'Each agentIds element must be a string' }, { status: 400 })
+  }
+
+  const result = await notifyTeamAgents({ agentIds, teamName })
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })

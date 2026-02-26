@@ -355,7 +355,11 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       setIsReady(false)
       messageBufferRef.current = []
     }
-    // Empty deps = initialize once on mount, cleanup only on unmount
+    // NT-021: Empty deps array is intentional and safe because session.id is stable
+    // for the lifetime of this component instance. In the tab-based architecture,
+    // each TerminalView is keyed by session.id, so a new session.id always means
+    // a new component instance (React unmounts/remounts). Therefore session.id
+    // never changes within a single mount cycle, and omitting it from deps is correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

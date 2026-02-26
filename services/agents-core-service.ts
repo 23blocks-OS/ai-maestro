@@ -72,7 +72,7 @@ import type { Host } from '@/types/host'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 interface DiscoveredSession {
   name: string
@@ -183,7 +183,8 @@ function sanitizeArgs(args: string): string {
 
 /** Resolve program name to CLI command */
 function resolveStartCommand(program: string): string {
-  if (program.includes('claude') || program.includes('claude code')) {
+  // SF-008: Removed redundant `|| program.includes('claude code')` — 'claude code' always matches 'claude' first
+  if (program.includes('claude')) {
     return 'claude'
   } else if (program.includes('codex')) {
     return 'codex'
@@ -195,6 +196,9 @@ function resolveStartCommand(program: string): string {
     return 'gemini'
   } else if (program.includes('opencode')) {
     return 'opencode'
+  } else if (program.includes('openclaw')) {
+    // SF-009: Keep resolveStartCommand in sync with sessions-service program resolution
+    return 'openclaw'
   }
   return 'claude' // Default
 }
@@ -1180,15 +1184,8 @@ export async function sendAgentSessionCommand(
     }
 
     if (requireIdle && !isSessionIdle(sessionName)) {
-      const lastActivity = sessionActivity.get(sessionName)
-      const timeSinceActivity = lastActivity ? Date.now() - lastActivity : 0
+      // MF-001: Return ONLY error without data field to avoid ambiguous response
       return {
-        data: {
-          success: false,
-          idle: false,
-          timeSinceActivity,
-          idleThreshold: IDLE_THRESHOLD_MS,
-        },
         error: 'Session is not idle',
         status: 409,
       }

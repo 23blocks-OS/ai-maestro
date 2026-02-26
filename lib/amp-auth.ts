@@ -72,6 +72,9 @@ function _loadApiKeysRaw(): AMPApiKeyRecord[] {
     return _apiKeysCache
   } catch (error) {
     console.error('[AMP Auth] Failed to load API keys:', error)
+    // SF-027: Cache the empty result on error to avoid re-reading a corrupt file on every call
+    _apiKeysCache = []
+    _apiKeysCacheTimestamp = Date.now()
     return []
   }
 }
@@ -241,7 +244,9 @@ export function validateApiKey(apiKey: string): AMPApiKeyRecord | null {
     const lastWrite = _lastUsedWriteTimestamps.get(keyHash) || 0
     if (now - lastWrite > LAST_USED_WRITE_INTERVAL_MS) {
       record.last_used_at = new Date().toISOString()
-      saveApiKeys(keys)
+      // MF-009: Wrap saveApiKeys in withLock to prevent concurrent cache mutation
+      // Fire-and-forget: validation remains synchronous; the debounced write serializes on disk
+      void withLock('amp-api-keys', () => { saveApiKeys(keys) })
       _lastUsedWriteTimestamps.set(keyHash, now)
     }
   }

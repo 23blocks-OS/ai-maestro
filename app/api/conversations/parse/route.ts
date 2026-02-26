@@ -13,6 +13,14 @@ export async function POST(request: NextRequest) {
     }
     const { conversationFile } = body
 
+    // SF-016: Validate conversationFile is a non-empty string before passing to service
+    if (!conversationFile || typeof conversationFile !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'conversationFile must be a non-empty string' },
+        { status: 400 }
+      )
+    }
+
     const result = parseConversationFile(conversationFile)
 
     if (result.error) {

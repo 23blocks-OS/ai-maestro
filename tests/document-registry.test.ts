@@ -142,9 +142,8 @@ describe('loadDocuments', () => {
 describe('saveDocuments', () => {
   it('writes documents to the correct file path with version wrapper', () => {
     const doc = makeDoc({ id: 'doc-s1', teamId: TEAM_2 })
-    const result = saveDocuments(TEAM_2, [doc])
-
-    expect(result).toBe(true)
+    // SF-029: saveDocuments now returns void (throws on error instead of returning boolean)
+    saveDocuments(TEAM_2, [doc])
     const written = JSON.parse(fsStore[docsFilePath(TEAM_2)])
     expect(written.version).toBe(1)
     expect(written.documents).toHaveLength(1)

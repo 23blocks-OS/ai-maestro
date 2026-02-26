@@ -168,10 +168,10 @@ export async function broadcastGovernanceSync(
  * to disk via savePeerGovernance(). The payload is expected to contain the
  * full governance snapshot (managerId, managerName, teams).
  */
-export function handleGovernanceSyncMessage(
+export async function handleGovernanceSyncMessage(
   fromHostId: string,
   message: GovernanceSyncMessage
-): boolean {
+): Promise<boolean> {
   // Validate that the declared sender matches the message envelope
   if (fromHostId !== message.fromHostId) {
     console.error(
@@ -219,8 +219,8 @@ export function handleGovernanceSyncMessage(
     ttl: DEFAULT_TTL,
   }
 
-  // Persist the peer's governance state to disk
-  savePeerGovernance(fromHostId, peerState)
+  // Persist the peer's governance state to disk (SF-024: now async with file lock)
+  await savePeerGovernance(fromHostId, peerState)
 
   console.log(
     `[governance-sync] Updated peer state for ${fromHostId}: type=${message.type}, manager=${managerId ?? 'none'}, teams=${peerState.teams.length}`

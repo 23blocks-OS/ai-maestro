@@ -70,8 +70,7 @@ export function checkAndRecordAttempt(
   return result
 }
 
-/** @deprecated Use recordAttempt instead. Alias kept for backward compatibility. */
-export const recordFailure = recordAttempt
+// SF-058: Deprecated recordFailure alias removed -- all callers now use recordAttempt directly
 
 /** Reset rate limit on successful attempt */
 export function resetRateLimit(key: string): void {

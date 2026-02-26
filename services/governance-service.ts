@@ -28,7 +28,7 @@ import { notifyAgent } from '@/lib/notification-service'
 import { acquireLock } from '@/lib/file-lock'
 import { isValidUuid } from '@/lib/validation'
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // GET /api/governance
@@ -489,14 +489,14 @@ export async function addTrust(params: {
     return { error: 'Governance password not set', status: 400 }
   }
 
-  const rateCheck = checkRateLimit('governance-trust-auth')
+  // SF-058: Use atomic checkAndRecordAttempt instead of separate checkRateLimit + recordFailure
+  const rateCheck = checkAndRecordAttempt('governance-trust-auth')
   if (!rateCheck.allowed) {
     return { error: `Too many failed attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
   }
 
   const valid = await verifyPassword(password)
   if (!valid) {
-    recordFailure('governance-trust-auth')
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit('governance-trust-auth')
@@ -519,15 +519,14 @@ export async function removeTrust(
     return { error: 'Governance password not set', status: 400 }
   }
 
-  // Rate-limit password attempts to prevent brute-force (CC-004 fix)
-  const rateCheck = checkRateLimit('governance-trust-auth')
+  // SF-058: Use atomic checkAndRecordAttempt instead of separate checkRateLimit + recordFailure
+  const rateCheck = checkAndRecordAttempt('governance-trust-auth')
   if (!rateCheck.allowed) {
     return { error: `Too many failed attempts. Try again in ${Math.ceil(rateCheck.retryAfterMs / 1000)}s`, status: 429 }
   }
 
   const valid = await verifyPassword(password)
   if (!valid) {
-    recordFailure('governance-trust-auth')
     return { error: 'Invalid governance password', status: 401 }
   }
   resetRateLimit('governance-trust-auth')

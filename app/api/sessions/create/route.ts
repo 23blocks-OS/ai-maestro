@@ -9,6 +9,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
+    // SF-020: Validate session name matches tmux naming constraints
+    if (!body.name || typeof body.name !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(body.name)) {
+      return NextResponse.json({ error: 'Session name is required and must match ^[a-zA-Z0-9_-]+$' }, { status: 400 })
+    }
+
     // SF-004: Validate workingDirectory is an absolute path to prevent path traversal
     if (body.workingDirectory && !path.isAbsolute(body.workingDirectory)) {
       return NextResponse.json({ error: 'workingDirectory must be an absolute path' }, { status: 400 })

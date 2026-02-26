@@ -51,7 +51,7 @@ import type { SidebarMode } from '@/types/team'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // Messages: GET /api/messages

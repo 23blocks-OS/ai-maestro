@@ -160,6 +160,8 @@ export function isChiefOfStaff(agentId: string, teamId: string): boolean {
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Check if agentId is chief-of-staff in any closed team */
 export function isChiefOfStaffAnywhere(agentId: string): boolean {
+  // NT-014: Guard against null/undefined to prevent false positive from null === null
+  if (!agentId) return false
   const teams = loadTeams()
   // NT-001 (P5): team.chiefOfStaffId can be null/undefined for open teams; the strict
   // equality check (===) safely returns false when comparing a string against null/undefined
@@ -171,6 +173,8 @@ export function isChiefOfStaffAnywhere(agentId: string): boolean {
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get the first closed team where agentId is a member (normal agents belong to at most one) */
 export function getClosedTeamForAgent(agentId: string): Team | null {
+  // NT-014: Guard against null/undefined to prevent includes(null) false positives
+  if (!agentId) return null
   const teams = loadTeams()
   return (
     teams.find(
@@ -182,6 +186,8 @@ export function getClosedTeamForAgent(agentId: string): Team | null {
 // Phase 1: Re-reads governance.json per call. Acceptable for localhost. TODO Phase 2: Add in-memory caching.
 /** Get all closed teams where agentId is a member (MANAGER/COS can be in multiple) */
 export function getClosedTeamsForAgent(agentId: string): Team[] {
+  // NT-014: Guard against null/undefined to prevent includes(null) false positives
+  if (!agentId) return []
   const teams = loadTeams()
   return teams.filter(
     (team) => team.type === 'closed' && team.agentIds.includes(agentId)

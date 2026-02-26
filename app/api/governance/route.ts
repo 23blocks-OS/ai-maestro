@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const config = loadGovernance()
-    const managerName = config.managerId ? getAgent(config.managerId)?.name || null : null
+    // SF-054: Use nullish coalescing to preserve empty-string names
+    const managerName = config.managerId ? getAgent(config.managerId)?.name ?? null : null
     return NextResponse.json({
       hasPassword: !!config.passwordHash,
       hasManager: !!config.managerId,

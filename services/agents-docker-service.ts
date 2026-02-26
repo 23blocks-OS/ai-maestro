@@ -18,8 +18,7 @@ const execFileAsync = promisify(execFile)
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-// CC-P2-005: Use canonical ServiceResult from types/service.ts (deduplication)
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 export interface DockerCreateRequest {
   name: string

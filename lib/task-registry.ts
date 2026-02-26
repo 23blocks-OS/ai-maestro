@@ -45,21 +45,16 @@ export function loadTasks(teamId: string): Task[] {
   }
 }
 
-// NT-008: Returns boolean for legacy compat. Phase 2: standardize on throw-on-failure.
-export function saveTasks(teamId: string, tasks: Task[]): boolean {
-  try {
-    ensureTeamsDir()
-    const file: TasksFile = { version: 1, tasks }
-    const filePath = tasksFilePath(teamId)
-    // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
-    const tmpPath = `${filePath}.tmp.${process.pid}`
-    fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
-    fs.renameSync(tmpPath, filePath)
-    return true
-  } catch (error) {
-    console.error(`Failed to save tasks for team ${teamId}:`, error)
-    return false
-  }
+// SF-028: Throws on error instead of returning false -- callers already ignore the return value.
+// The previous boolean return masked write failures silently.
+export function saveTasks(teamId: string, tasks: Task[]): void {
+  ensureTeamsDir()
+  const file: TasksFile = { version: 1, tasks }
+  const filePath = tasksFilePath(teamId)
+  // MF-024: Atomic write -- write to temp file then rename to avoid corruption on crash
+  const tmpPath = `${filePath}.tmp.${process.pid}`
+  fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2), 'utf-8')
+  fs.renameSync(tmpPath, filePath)
 }
 
 /**
@@ -120,7 +115,8 @@ export function createTask(data: {
       description: data.description,
       // Default to 'pending' (skip 'backlog') — tasks created via API are considered already triaged
       status: 'pending',
-      assigneeAgentId: data.assigneeAgentId ?? null,
+      // SF-034: Use || instead of ?? to normalize empty string to null (empty string is not a valid agent ID)
+      assigneeAgentId: data.assigneeAgentId || null,
       blockedBy: data.blockedBy ?? [],
       priority: data.priority,
       createdAt: now,

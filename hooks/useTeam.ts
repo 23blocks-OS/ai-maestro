@@ -58,7 +58,9 @@ export function useTeam(teamId: string | null): UseTeamResult {
     // Structural typing could allow extra keys at runtime; explicit key filtering prevents
     // unexpected properties from polluting the team object. Server is the authority.
     // CC-P1-709: Include 'instructions' so optimistic update applies it immediately in the UI
-    const validKeys = ['name', 'description', 'type', 'agentIds', 'chiefOfStaffId', 'managerId', 'instructions'] as const
+    // SF-044: Only include keys that match the updateTeam function signature — 'type', 'chiefOfStaffId',
+    // 'managerId' are not accepted by updateTeam and should not be optimistically applied
+    const validKeys = ['name', 'description', 'agentIds', 'instructions'] as const
     const safeUpdates = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (validKeys as readonly string[]).includes(k))
     )

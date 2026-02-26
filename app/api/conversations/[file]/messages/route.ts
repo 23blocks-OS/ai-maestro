@@ -10,6 +10,16 @@ export async function GET(
   { params }: { params: Promise<{ file: string }> }
 ) {
   const { file: encodedFile } = await params
+
+  // SF-017: Reject path traversal attempts (../) in the file parameter
+  const decodedFile = decodeURIComponent(encodedFile)
+  if (decodedFile.includes('../') || decodedFile.includes('..\\')) {
+    return NextResponse.json(
+      { success: false, error: 'Path traversal not allowed' },
+      { status: 400 }
+    )
+  }
+
   const agentId = request.nextUrl.searchParams.get('agentId') || ''
 
   const result = await getConversationMessages(encodedFile, agentId)

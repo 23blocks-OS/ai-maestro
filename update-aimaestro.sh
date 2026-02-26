@@ -116,7 +116,7 @@ echo "Current version: ${CYAN}${CURRENT_VERSION}${NC}"
 echo ""
 
 # Check for uncommitted changes
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     print_warning "You have uncommitted changes in your working directory"
     echo ""
     echo "Options:"

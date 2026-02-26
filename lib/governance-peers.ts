@@ -12,6 +12,8 @@ import path from 'path'
 import type { GovernancePeerState, PeerTeamSummary } from '@/types/governance'
 import { isManager, getManagerId } from '@/lib/governance'
 import { loadTeams } from '@/lib/team-registry'
+// SF-024: File lock for serializing peer governance writes per host
+import { withLock } from '@/lib/file-lock'
 
 const PEERS_DIR = path.join(os.homedir(), '.aimaestro', 'governance-peers')
 
@@ -57,15 +59,18 @@ export function loadPeerGovernance(hostId: string): GovernancePeerState | null {
  * Save peer governance state for a specific host.
  * Overwrites any existing state for that hostId.
  */
-export function savePeerGovernance(hostId: string, state: GovernancePeerState): void {
+// SF-024: Serialize writes per host to prevent concurrent file corruption
+export async function savePeerGovernance(hostId: string, state: GovernancePeerState): Promise<void> {
   validateHostId(hostId)
-  ensurePeersDir()
-  const filePath = path.join(PEERS_DIR, `${hostId}.json`)
-  // Atomic write: write to temp file then rename to avoid corruption on crash (CC-005 fix)
-  // SF-040: Include process.pid for multi-process safety
-  const tmpFile = `${filePath}.tmp.${process.pid}`
-  writeFileSync(tmpFile, JSON.stringify(state, null, 2), 'utf-8')
-  renameSync(tmpFile, filePath)
+  return withLock(`governance-peers-${hostId}`, () => {
+    ensurePeersDir()
+    const filePath = path.join(PEERS_DIR, `${hostId}.json`)
+    // Atomic write: write to temp file then rename to avoid corruption on crash (CC-005 fix)
+    // SF-040: Include process.pid for multi-process safety
+    const tmpFile = `${filePath}.tmp.${process.pid}`
+    writeFileSync(tmpFile, JSON.stringify(state, null, 2), 'utf-8')
+    renameSync(tmpFile, filePath)
+  })
 }
 
 /**

@@ -26,7 +26,9 @@
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
-import type { TaskStatus } from '@/types/task'
+import type { TaskStatus, TaskWithDeps } from '@/types/task'
+import type { Team } from '@/types/team'
+import type { TeamDocument } from '@/types/document'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
 import { getManagerId, isManager } from '@/lib/governance'
@@ -39,7 +41,7 @@ import type { TeamType } from '@/types/governance'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 export interface CreateTeamParams {
   name: string
@@ -104,6 +106,15 @@ export interface NotifyTeamParams {
   teamName: string
 }
 
+// SF-004: Concrete type for notification results (replaces any[])
+export interface AgentNotifyResult {
+  agentId: string
+  agentName?: string
+  success: boolean
+  reason?: string
+  error?: string
+}
+
 const VALID_TASK_STATUSES = ['backlog', 'pending', 'in_progress', 'review', 'completed']
 
 // ===========================================================================
@@ -117,7 +128,7 @@ const VALID_TASK_STATUSES = ['backlog', 'pending', 'in_progress', 'review', 'com
 /**
  * List all teams.
  */
-export function listAllTeams(): ServiceResult<{ teams: any[] }> {
+export function listAllTeams(): ServiceResult<{ teams: Team[] }> {
   const teams = loadTeams()
   return { data: { teams }, status: 200 }
 }
@@ -297,7 +308,7 @@ export function getTeamsBulkStats(): ServiceResult<Record<string, { taskCount: n
  * List all tasks for a team, with resolved dependencies.
  * Governance: enforces team ACL for closed teams.
  */
-export function listTeamTasks(teamId: string, requestingAgentId?: string): ServiceResult<{ tasks: any[] }> {
+export function listTeamTasks(teamId: string, requestingAgentId?: string): ServiceResult<{ tasks: TaskWithDeps[] }> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -313,6 +324,30 @@ export function listTeamTasks(teamId: string, requestingAgentId?: string): Servi
   const tasks = loadTasks(teamId)
   const resolved = resolveTaskDeps(tasks)
   return { data: { tasks: resolved }, status: 200 }
+}
+
+/**
+ * Get a single task by ID within a team.
+ * Governance: enforces team ACL for closed teams.
+ * SF-010: Added to support GET /api/teams/[id]/tasks/[taskId]
+ */
+export function getTeamTask(teamId: string, taskId: string, requestingAgentId?: string): ServiceResult<{ task: any }> {
+  const team = getTeam(teamId)
+  if (!team) {
+    return { error: 'Team not found', status: 404 }
+  }
+
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
+  }
+
+  const task = getTask(teamId, taskId)
+  if (!task) {
+    return { error: 'Task not found', status: 404 }
+  }
+
+  return { data: { task }, status: 200 }
 }
 
 /**
@@ -465,7 +500,7 @@ export async function deleteTeamTask(teamId: string, taskId: string, requestingA
  * List all documents for a team.
  * Governance: enforces team ACL for closed teams.
  */
-export function listTeamDocuments(teamId: string, requestingAgentId?: string): ServiceResult<{ documents: any[] }> {
+export function listTeamDocuments(teamId: string, requestingAgentId?: string): ServiceResult<{ documents: TeamDocument[] }> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -620,7 +655,7 @@ export async function deleteTeamDocument(teamId: string, docId: string, requesti
 /**
  * Notify team agents about a meeting.
  */
-export async function notifyTeamAgents(params: NotifyTeamParams): Promise<ServiceResult<{ results: any[] }>> {
+export async function notifyTeamAgents(params: NotifyTeamParams): Promise<ServiceResult<{ results: AgentNotifyResult[] }>> {
   const { agentIds, teamName } = params
 
   if (!agentIds || !Array.isArray(agentIds)) {

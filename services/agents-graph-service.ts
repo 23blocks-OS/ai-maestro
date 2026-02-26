@@ -46,7 +46,7 @@ import {
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -854,6 +854,7 @@ export async function queryCodeGraph(
     to?: string | null
     project?: string | null
     nodeId?: string | null
+    /** NT-008: depth is accepted but not yet used for traversal limiting — reserved for future use */
     depth?: number
   }
 ): Promise<ServiceResult<any>> {

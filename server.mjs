@@ -33,7 +33,9 @@ process.on('uncaughtException', (error, origin) => {
   console.error(error)
 
   // Log to file for debugging
-  const crashLogPath = path.join(process.cwd(), 'logs', 'crash.log')
+  const logsDir = path.join(process.cwd(), 'logs')
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true })
+  const crashLogPath = path.join(logsDir, 'crash.log')
   const timestamp = new Date().toISOString()
   const logEntry = `[${timestamp}] Uncaught exception (${origin}):\n${error.stack || error}\n\n`
 
@@ -483,6 +485,11 @@ async function startServer(handleRequest) {
 
         // Track activity for remote sessions
         sessionActivity.set(sessionName, Date.now())
+
+        // Remove any stale listeners from previous retry attempts to avoid duplicates
+        clientWs.removeAllListeners('message')
+        clientWs.removeAllListeners('close')
+        clientWs.removeAllListeners('error')
 
         // Proxy messages: browser → remote worker
         clientWs.on('message', (data) => {

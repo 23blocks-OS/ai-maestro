@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
     }
 
     await setManager(agentId)
-    return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name || agent.alias })
+    // NT-028: Use nullish coalescing to preserve empty-string agent names
+    return NextResponse.json({ success: true, managerId: agentId, managerName: agent.name ?? agent.alias })
   } catch (error) {
     console.error('[governance] manager POST error:', error)
     return NextResponse.json(

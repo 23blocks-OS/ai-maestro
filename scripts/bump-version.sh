@@ -188,7 +188,7 @@ update_file "$PROJECT_ROOT/docs/ai-index.html" \
 # 8. docs/ai-index.html (Version: display text)
 if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
-        "s|<strong>Version:</strong> $CURRENT_VERSION_RE ([A-Za-z]* [0-9]*)|<strong>Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+        "s|<strong>Version:</strong> $CURRENT_VERSION_RE ([A-Za-z][A-Za-z]* [0-9][0-9]*)|<strong>Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
     echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Version display)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi
@@ -196,7 +196,7 @@ fi
 # 9. docs/ai-index.html (Current Version: display text)
 if [ -f "$PROJECT_ROOT/docs/ai-index.html" ]; then
     _sed_inplace "$PROJECT_ROOT/docs/ai-index.html" \
-        "s|<strong>Current Version:</strong> $CURRENT_VERSION_RE ([A-Za-z]* [0-9]*)|<strong>Current Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
+        "s|<strong>Current Version:</strong> $CURRENT_VERSION_RE ([A-Za-z][A-Za-z]* [0-9][0-9]*)|<strong>Current Version:</strong> $NEW_VERSION ($MONTH_YEAR)|g"
     echo -e "  ${GREEN}✓${NC} docs/ai-index.html (Current Version display)"
     FILES_UPDATED=$((FILES_UPDATED + 1))
 fi
@@ -209,7 +209,7 @@ if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then
 fi
 
 echo ""
-echo -e "${GREEN}Updated $FILES_UPDATED files${NC}"
+echo -e "${GREEN}Applied $FILES_UPDATED replacements across files${NC}"
 echo ""
 
 # Show what changed

@@ -57,7 +57,7 @@ const execAsync = promisify(exec)
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 // ---------------------------------------------------------------------------
 // Constants

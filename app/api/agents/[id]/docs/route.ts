@@ -58,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid agent ID format' }, { status: 400 })
     }
 
-    let body: any = {}
+    let body: Record<string, unknown> = {} // NT-012: typed instead of `any`
     try {
       const text = await request.text()
       if (text && text.trim()) {

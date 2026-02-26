@@ -29,7 +29,8 @@ export async function POST(
       request.headers.get('X-Agent-Id')
     )
     if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
+      // SF-053: Use nullish coalescing to avoid hiding status 0 (though unlikely)
+      return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 })
     }
 
     let body: Record<string, unknown>
@@ -109,8 +110,12 @@ export async function POST(
           const agentId = transferReq.agentId
           const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
           if (!isPrivileged) {
+            // SF-056: Explicit null checks instead of non-null assertions
+            if (!fromTeam || !toTeam) {
+              return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
+            }
             const otherClosedTeam = teams.find(t =>
-              t.type === 'closed' && t.id !== fromTeam!.id && t.id !== toTeam!.id && t.agentIds.includes(agentId)
+              t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
             )
             if (otherClosedTeam) {
               return NextResponse.json({
@@ -133,7 +138,11 @@ export async function POST(
       if (action === 'approve') {
         // Remove agent from source team — direct mutation under the held lock
         // (avoids calling updateTeam which would re-acquire the non-reentrant lock)
-        const fromIdx = teams.findIndex(t => t.id === fromTeam!.id)
+        // SF-056: Explicit null checks instead of non-null assertions for fromTeam/toTeam
+        if (!fromTeam || !toTeam) {
+          return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
+        }
+        const fromIdx = teams.findIndex(t => t.id === fromTeam.id)
         if (fromIdx !== -1) {
           teams[fromIdx] = {
             ...teams[fromIdx],
@@ -143,7 +152,7 @@ export async function POST(
         }
 
         // Add agent to destination team — direct mutation under the held lock
-        const toIdx = teams.findIndex(t => t.id === toTeam!.id)
+        const toIdx = teams.findIndex(t => t.id === toTeam.id)
         if (toIdx !== -1 && !teams[toIdx].agentIds.includes(transferReq.agentId)) {
           teams[toIdx] = {
             ...teams[toIdx],
@@ -157,6 +166,8 @@ export async function POST(
         try {
           saveTeams(teams)
         } catch (saveError) {
+          // NT-029: Log the save error for debugging before reverting
+          console.error('[TransferResolve] Failed to save teams after approval:', saveError)
           // Compensating action (SR-007): revert transfer from 'approved' back to 'pending'
           // to maintain consistency when team save fails
           await revertTransferToPending(id)

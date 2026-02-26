@@ -12,6 +12,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listPendingMessages, acknowledgePendingMessage, batchAcknowledgeMessages } from '@/services/amp-service'
 import type { AMPError, AMPPendingMessagesResponse } from '@/lib/types/amp'
 
+// NT-011: AMPError requires both `error` (code) and `message` (human-readable) fields.
+// When a service returns only an error string, we populate both fields with the same value.
+// This is intentional to satisfy the AMPError type contract without losing information.
+function ampError(error: string, status: number): NextResponse<AMPError> {
+  return NextResponse.json({ error, message: error } as AMPError, { status })
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse<AMPPendingMessagesResponse | AMPError>> {
   const authHeader = request.headers.get('Authorization')
   // CC-P4-009: Use request.nextUrl.searchParams instead of new URL(request.url) for consistency
@@ -23,7 +30,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<AMPPending
 
   const result = listPendingMessages(authHeader, limit)
   if (result.error) {
-    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+    return ampError(result.error, result.status)
   }
   // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
   return NextResponse.json((result.data ?? {}) as AMPPendingMessagesResponse, {
@@ -39,7 +46,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<{ ackno
 
   const result = acknowledgePendingMessage(authHeader, messageId)
   if (result.error) {
-    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+    return ampError(result.error, result.status)
   }
   // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
   return NextResponse.json((result.data ?? {}) as { acknowledged: boolean }, { status: result.status })
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ acknowl
 
   const result = batchAcknowledgeMessages(authHeader, body.ids)
   if (result.error) {
-    return NextResponse.json({ error: result.error, message: result.error } as AMPError, { status: result.status })
+    return ampError(result.error, result.status)
   }
   // SF-012: Use nullish coalescing instead of non-null assertion to avoid passing undefined
   return NextResponse.json((result.data ?? {}) as { acknowledged: number }, { status: result.status })

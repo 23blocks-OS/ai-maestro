@@ -195,7 +195,7 @@ export interface Agent {
   // Sessions (zero or more, Phase 1: max 1)
   sessions: AgentSession[]      // Active/historical sessions for this agent
 
-  // DEPRECATED: alias - use 'name' instead (kept temporarily for migration)
+  /** @deprecated Use 'name' instead. Kept temporarily for migration. */
   alias?: string
 
   // Host (where the agent lives)
@@ -469,10 +469,12 @@ export interface AgentSummary {
   deployment?: AgentDeployment  // Deployment configuration (needed for icon display)
   // Soft-delete: when set, agent is marked as deleted but data is preserved
   deletedAt?: string            // ISO timestamp when soft-deleted, undefined = active
-  // DEPRECATED: for backward compatibility during migration
+  /** @deprecated Use 'name' instead. Kept for backward compatibility during migration. */
   alias?: string
+  /** @deprecated Use 'label' instead. Kept for backward compatibility during migration. */
   displayName?: string
-  currentSession?: string       // First online session name (deprecated, use sessions[0])
+  /** @deprecated Use sessions[0] instead. First online session name. */
+  currentSession?: string
 }
 
 /**

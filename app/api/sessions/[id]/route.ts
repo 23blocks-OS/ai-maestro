@@ -9,7 +9,11 @@ export const dynamic = 'force-dynamic'
  * uses agent IDs for proper multi-host support.
  * Removal target: v0.28.0
  */
+// NT-011: warn-once guard to avoid flooding logs on every request
+let _deprecationWarned = false
 function logDeprecation() {
+  if (_deprecationWarned) return
+  _deprecationWarned = true
   console.warn('[DEPRECATED] DELETE /api/sessions/[id] - Use DELETE /api/agents/[id]/session?kill=true&deleteAgent=true instead')
 }
 

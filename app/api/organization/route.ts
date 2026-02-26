@@ -7,6 +7,10 @@ import { getOrganization, setOrganizationName } from '@/services/config-service'
  */
 export async function GET() {
   const result = getOrganization()
+  // MF-006: Error guard to prevent returning undefined data on failure
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status ?? 500 })
+  }
   return NextResponse.json(result.data, { status: result.status })
 }
 

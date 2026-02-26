@@ -12,6 +12,11 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const hostUrl = request.nextUrl.searchParams.get('url') || ''
 
+  // MF-004: Reject empty hostUrl to prevent SSRF bypass via missing parameter
+  if (!hostUrl) {
+    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
+  }
+
   // MF-001: SSRF protection — allowlist approach. Only allow URLs whose hostname
   // matches a known host in hosts.json. The old blocklist was bypassable via
   // octal/hex/decimal/IPv6-mapped IP representations.
@@ -40,9 +45,18 @@ export async function GET(request: NextRequest) {
               const aliasParsed = new URL(alias.includes('://') ? alias : `http://${alias}`)
               if (aliasParsed.origin.toLowerCase() === requestOrigin) return true
             } catch { /* skip malformed aliases */ }
-            // Direct string match for bare hostnames/IPs -- compare against hostname
-            // (bare aliases have no port info, so hostname match is acceptable here)
-            if (alias.toLowerCase() === parsed.hostname.toLowerCase()) return true
+            // MF-005: Direct string match for bare hostnames/IPs -- compare against hostname
+            // AND validate the requested port matches the host's configured port to prevent
+            // SSRF to arbitrary ports on known hostnames (e.g. Redis :6379, Postgres :5432)
+            if (alias.toLowerCase() === parsed.hostname.toLowerCase()) {
+              try {
+                const hostParsed = new URL(host.url)
+                // Extract effective ports (default 80 for http, 443 for https)
+                const requestPort = parsed.port || (parsed.protocol === 'https:' ? '443' : '80')
+                const hostPort = hostParsed.port || (hostParsed.protocol === 'https:' ? '443' : '80')
+                if (requestPort === hostPort) return true
+              } catch { /* skip if host URL is malformed */ }
+            }
           }
         }
         return false

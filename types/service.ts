@@ -9,8 +9,10 @@
  *
  * SF-024: This interface allows simultaneous `data` and `error` fields.
  * Callers MUST use the `if (result.error)` guard pattern (not `result.data ??`)
- * to avoid silently discarding errors. A discriminated union refactor is tracked
- * for Phase 2 to enforce this at the type level.
+ * to avoid silently discarding errors.
+ *
+ * Phase 2: Refactor to discriminated union (e.g., `ServiceSuccess<T> | ServiceError`)
+ * to enforce mutual exclusivity of `data` and `error` at the type level.
  */
 export interface ServiceResult<T> {
   data?: T

@@ -99,11 +99,11 @@ vi.mock('@/lib/manager-trust', () => ({
 }))
 
 // MF-009: Mock rate-limit to prevent cross-test rate-limit state leaking between tests.
-// Source imports checkAndRecordAttempt and resetRateLimit (not checkRateLimit/recordFailure).
+// SF-058: recordFailure alias removed -- only canonical names remain
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
   checkAndRecordAttempt: vi.fn(() => ({ allowed: true, retryAfterMs: 0 })),
-  recordFailure: vi.fn(),
+  recordAttempt: vi.fn(),
   resetRateLimit: vi.fn(),
 }))
 

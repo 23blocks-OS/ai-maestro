@@ -15,10 +15,16 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
-  const { name } = await params
-  const result = lookupAgentByDirectoryName(name)
-  if (result.error) {
-    return NextResponse.json({ found: false }, { status: result.status })
+  try {
+    const { name } = await params
+    const result = lookupAgentByDirectoryName(name)
+    if (result.error) {
+      return NextResponse.json({ found: false }, { status: result.status })
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-015: Outer try-catch for unhandled service throws
+    console.error('[Directory Lookup GET] error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

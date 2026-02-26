@@ -85,6 +85,9 @@ export default function TeamsPage() {
   }, [creating])
 
   // Real-time team name validation (runs on every keystroke)
+  // NT-023: This runs synchronously on every keystroke which is fine for the current
+  // regex + array.find() checks. If validation becomes async (e.g. server-side uniqueness
+  // check), debounce should be added here. Deferred to Phase 2.
   const validateTeamName = useCallback((raw: string) => {
     // Same sanitization as server-side sanitizeTeamName()
     const clean = raw.replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim()

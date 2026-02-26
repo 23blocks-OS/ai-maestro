@@ -15,7 +15,7 @@ import { isValidUuid } from '@/lib/validation'
 import fs from 'fs/promises'
 import path from 'path'
 
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 const LOG_PREFIX = '[config-deploy]'
 

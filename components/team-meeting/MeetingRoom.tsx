@@ -97,6 +97,8 @@ function meetingReducer(state: TeamMeetingState, action: TeamMeetingAction): Tea
       }
 
     case 'AGENT_JOINED':
+      // SF-042: Guard against duplicate joins — includes() check prevents the same agentId appearing twice
+      if (state.joinedAgentIds.includes(action.agentId)) return state
       return {
         ...state,
         joinedAgentIds: [...state.joinedAgentIds, action.agentId],
@@ -203,6 +205,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   const [notFound, setNotFound] = useState(false)
   const persistedMeetingIdRef = useRef<string | null>(null)
   const creatingMeetingRef = useRef(false)
+  // MF-012: Guard against duplicate team creation from concurrent useEffects
+  const creatingTeamRef = useRef(false)
 
   // Restore meeting from disk on mount (skip for new meetings)
   useEffect(() => {
@@ -271,6 +275,9 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
       // Ensure we have a teamId first
       let resolvedTeamId = teamId
       if (!resolvedTeamId && state.teamName.trim()) {
+        // MF-012: Prevent concurrent team creation from multiple useEffects
+        if (creatingTeamRef.current) return
+        creatingTeamRef.current = true
         try {
           const teamsRes = await fetch('/api/teams')
           const teamsData = await teamsRes.json()
@@ -292,6 +299,8 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
           setTeamId(resolvedTeamId)
         } catch {
           // continue without teamId
+        } finally {
+          creatingTeamRef.current = false
         }
       }
 
@@ -366,6 +375,9 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   // Team ID resolution for restored meetings that may not have one
   useEffect(() => {
     if (state.phase === 'active' && !teamId && state.teamName.trim()) {
+      // MF-012: Prevent concurrent team creation from multiple useEffects
+      if (creatingTeamRef.current) return
+      creatingTeamRef.current = true
       fetch('/api/teams')
         .then(r => r.json())
         .then(data => {
@@ -387,6 +399,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
           }
         })
         .catch(() => {})
+        .finally(() => { creatingTeamRef.current = false })
     }
   }, [state.phase, state.teamName, state.selectedAgentIds, teamId])
 
@@ -445,8 +458,12 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
   }, [])
 
   const handleStartMeeting = useCallback(async () => {
-    if (!state.teamName.trim()) {
-      dispatch({ type: 'SET_TEAM_NAME', name: generateTeamName() })
+    // MF-013: Capture team name in local variable so the notification uses the
+    // correct value even after dispatch (which updates state asynchronously)
+    let effectiveTeamName = state.teamName.trim()
+    if (!effectiveTeamName) {
+      effectiveTeamName = generateTeamName()
+      dispatch({ type: 'SET_TEAM_NAME', name: effectiveTeamName })
     }
     dispatch({ type: 'START_MEETING' })
 
@@ -456,7 +473,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentIds: state.selectedAgentIds,
-          teamName: state.teamName || 'Unnamed Team',
+          teamName: effectiveTeamName,
         }),
       }).catch(err => console.error('Failed to notify team:', err))
     }

@@ -8,15 +8,21 @@ export const dynamic = 'force-dynamic'
  * Initialize all registered agents on server boot
  */
 export async function POST() {
-  const result = await initializeStartup()
+  try {
+    const result = await initializeStartup()
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-018: Outer try-catch for unhandled service throws
+    console.error('[Startup POST] error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }
 
 /**
@@ -24,13 +30,19 @@ export async function POST() {
  * Get startup status (how many agents discovered vs initialized)
  */
 export async function GET() {
-  const result = getStartupInfo()
+  try {
+    const result = getStartupInfo()
 
-  if (result.error) {
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: result.status }
-    )
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    // MF-018: Outer try-catch for unhandled service throws
+    console.error('[Startup GET] error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-  return NextResponse.json(result.data)
 }

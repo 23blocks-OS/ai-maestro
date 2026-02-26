@@ -45,7 +45,7 @@ const execFileAsync = promisify(execFile)
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 export type SessionActivityStatus = 'active' | 'idle' | 'waiting'
 
@@ -82,7 +82,9 @@ let cachedSessions: Session[] | null = null
 let cacheTimestamp = 0
 let pendingRequest: Promise<Session[]> | null = null
 
-// Read version from package.json (once at module load)
+// NT-010: Intentional synchronous read at module load time — this runs once during
+// server startup to cache the version string. Async is unnecessary here because
+// the module must be fully initialized before any request handler runs.
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8')
 )
@@ -617,12 +619,12 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   }
 
   // Persist session metadata (legacy)
+  // MF-003: Use only registeredAgent.id as the canonical agentId source
   persistSession({
     id: actualSessionName,
     name: actualSessionName,
     workingDirectory: cwd,
     createdAt: new Date().toISOString(),
-    ...(agentId && { agentId }),
     ...(registeredAgent && { agentId: registeredAgent.id })
   })
 
@@ -727,11 +729,14 @@ export async function renameSession(oldName: string, newName: string): Promise<S
     if (fs.existsSync(newAgentFilePath)) {
       return { error: 'Agent name already exists', status: 409 }
     }
+    // MF-002: Atomic rename — write to temp file, rename to final, then delete old
     const agentConfig = JSON.parse(fs.readFileSync(oldAgentFilePath, 'utf8'))
     agentConfig.id = newName
     agentConfig.name = newName
     agentConfig.alias = newName
-    fs.writeFileSync(newAgentFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
+    const tmpFilePath = newAgentFilePath + '.tmp'
+    fs.writeFileSync(tmpFilePath, JSON.stringify(agentConfig, null, 2), 'utf8')
+    fs.renameSync(tmpFilePath, newAgentFilePath)
     fs.unlinkSync(oldAgentFilePath)
     await renameAgentSession(oldName, newName)
     return { data: { success: true, oldName, newName, type: 'cloud' }, status: 200 }
@@ -777,10 +782,8 @@ export async function sendCommand(
   }
 
   if (requireIdle && !isSessionIdle(sessionName)) {
-    const lastActivity = sessionActivity.get(sessionName)
-    const timeSinceActivity = lastActivity ? Date.now() - lastActivity : 0
+    // MF-001: Return ONLY error without data field to avoid ambiguous response
     return {
-      data: { success: false, sessionName, idle: false, timeSinceActivity, idleThreshold: IDLE_THRESHOLD_MS },
       error: 'Session is not idle',
       status: 409
     }

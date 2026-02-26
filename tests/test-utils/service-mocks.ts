@@ -72,3 +72,18 @@ export function createChildProcessMock() {
     execSync: vi.fn(),
   }
 }
+
+// ---------------------------------------------------------------------------
+// TeamValidationException mock
+// ---------------------------------------------------------------------------
+
+// NT-017: Shared mock class for TeamValidationException to avoid inline duplicates
+// across test files. Must be a real class so `instanceof` checks work in service code.
+export class MockTeamValidationException extends Error {
+  code: number
+  constructor(message: string, code: number) {
+    super(message)
+    this.name = 'TeamValidationException'
+    this.code = code
+  }
+}

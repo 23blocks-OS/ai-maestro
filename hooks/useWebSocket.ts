@@ -202,6 +202,7 @@ export function useWebSocket({
   // Auto-connect on mount or when connection parameters change
   // NT-019: Include hostId and socketPath in deps -- changing host/socket should
   // trigger disconnect (which resets reconnectAttemptsRef) then reconnect
+  // SF-041: Include connect and disconnect in deps for React hooks exhaustive-deps correctness
   useEffect(() => {
     if (autoConnect) {
       connect()
@@ -212,8 +213,7 @@ export function useWebSocket({
     return () => {
       disconnect()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, hostId, socketPath, autoConnect])
+  }, [sessionId, hostId, socketPath, autoConnect, connect, disconnect])
 
   return {
     isConnected,

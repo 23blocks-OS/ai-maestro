@@ -22,7 +22,7 @@ import type { CreateDomainRequest } from '@/types/agent'
 // ---------------------------------------------------------------------------
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 export interface UpdateDomainParams {
   description?: string

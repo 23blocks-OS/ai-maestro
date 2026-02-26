@@ -11,7 +11,7 @@ import type { Agent } from '@/types/agent'
 // ── Types ───────────────────────────────────────────────────────────────────
 
 import { ServiceResult } from '@/types/service'
-export type { ServiceResult }
+// NT-006: ServiceResult re-export removed — import directly from @/types/service
 
 interface PlaybackState {
   agentId: string

@@ -7,7 +7,9 @@ set -e
 echo "[AI Maestro] Starting up..."
 
 # Step 1: Update SSH agent symlink if needed
-if [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
+if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+    echo "[AI Maestro] ⚠ SSH_AUTH_SOCK not set — skipping SSH agent symlink"
+elif [ -S "$SSH_AUTH_SOCK" ] && [ ! -h "$SSH_AUTH_SOCK" ]; then
     echo "[AI Maestro] Creating SSH agent symlink..."
     mkdir -p ~/.ssh
     ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh_auth_sock

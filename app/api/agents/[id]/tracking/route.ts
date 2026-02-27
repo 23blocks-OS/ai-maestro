@@ -47,7 +47,7 @@ export async function POST(
     }
 
     const result = await initializeTracking(agentId, {
-      addSampleData: body.addSampleData,
+      addSampleData: body.addSampleData as boolean | undefined,
     })
 
     if (result.error) {

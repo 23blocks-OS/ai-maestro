@@ -111,12 +111,15 @@ export async function POST(
           const isPrivileged = agentId === managerId || isChiefOfStaffAnywhere(agentId)
           if (!isPrivileged) {
             // Defensive guard: fromTeam/toTeam are guaranteed non-null by earlier checks
-            // but TypeScript cannot narrow across the conditional blocks above
+            // but TypeScript cannot narrow across the conditional blocks above.
+            // Assign to local consts so the .find() callback sees narrowed types.
             if (!fromTeam || !toTeam) {
               return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
             }
+            const srcTeam = fromTeam
+            const dstTeam = toTeam
             const otherClosedTeam = teams.find(t =>
-              t.type === 'closed' && t.id !== fromTeam.id && t.id !== toTeam.id && t.agentIds.includes(agentId)
+              t.type === 'closed' && t.id !== srcTeam.id && t.id !== dstTeam.id && t.agentIds.includes(agentId)
             )
             if (otherClosedTeam) {
               return NextResponse.json({
@@ -140,11 +143,14 @@ export async function POST(
         // Remove agent from source team — direct mutation under the held lock
         // (avoids calling updateTeam which would re-acquire the non-reentrant lock)
         // Defensive guard: fromTeam/toTeam are guaranteed non-null by earlier checks
-        // but TypeScript cannot narrow across the conditional blocks above
+        // but TypeScript cannot narrow across the conditional blocks above.
+        // Assign to local consts so closures and array methods see narrowed types.
         if (!fromTeam || !toTeam) {
           return NextResponse.json({ error: 'Source or destination team not found' }, { status: 404 })
         }
-        const fromIdx = teams.findIndex(t => t.id === fromTeam.id)
+        const confirmedFrom = fromTeam
+        const confirmedTo = toTeam
+        const fromIdx = teams.findIndex(t => t.id === confirmedFrom.id)
         if (fromIdx !== -1) {
           teams[fromIdx] = {
             ...teams[fromIdx],
@@ -154,7 +160,7 @@ export async function POST(
         }
 
         // Add agent to destination team — direct mutation under the held lock
-        const toIdx = teams.findIndex(t => t.id === toTeam.id)
+        const toIdx = teams.findIndex(t => t.id === confirmedTo.id)
         if (toIdx !== -1 && !teams[toIdx].agentIds.includes(transferReq.agentId)) {
           teams[toIdx] = {
             ...teams[toIdx],

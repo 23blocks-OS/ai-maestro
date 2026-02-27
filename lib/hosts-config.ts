@@ -197,7 +197,6 @@ function migrateHost(host: Host): Host {
   const selfId = getSelfHostId() // Already lowercase
 
   // NT-017: Strip deprecated `type` field during migration -- no longer meaningful in mesh network
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { type: _deprecatedType, ...hostWithoutType } = host
 
   // Migrate id:'local' to actual hostname

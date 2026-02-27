@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const result = await buildPlugin(body)
+  const result = await buildPlugin(body as Parameters<typeof buildPlugin>[0])
 
   if (result.error) {
     return NextResponse.json(

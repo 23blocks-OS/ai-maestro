@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Branch must be a string if provided' }, { status: 400 })
   }
 
-  const config: PluginPushConfig = body as PluginPushConfig
+  const config: PluginPushConfig = body as unknown as PluginPushConfig
 
   const result = await pushToGitHub(config)
 

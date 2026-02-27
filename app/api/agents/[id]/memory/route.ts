@@ -47,8 +47,8 @@ export async function POST(
     }
 
     const result = await initializeMemory(agentId, {
-      populateFromSessions: body.populateFromSessions,
-      force: body.force,
+      populateFromSessions: body.populateFromSessions as boolean | undefined,
+      force: body.force as boolean | undefined,
     })
 
     if (result.error) {

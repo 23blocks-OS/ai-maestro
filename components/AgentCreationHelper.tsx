@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Check, ArrowLeft, Loader2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import AgentConfigPanel, { type AgentConfigDraft, createEmptyDraft } from './AgentConfigPanel'
 
 // --- Types ---
@@ -539,15 +540,56 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                         <img src={HAEPHESTOS_AVATAR_THUMB} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                       </div>
                     )}
-                    <div className="max-w-[85%]">
+                    <div className={msg.role === 'assistant' ? 'max-w-[90%]' : 'max-w-[85%]'}>
                       <div
-                        className={`rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap ${
+                        className={`rounded-xl px-3.5 py-2.5 text-sm ${
                           msg.role === 'assistant'
                             ? 'bg-gray-800 text-gray-200 rounded-tl-sm'
-                            : 'bg-amber-600 text-white rounded-tr-sm'
+                            : 'bg-amber-600 text-white rounded-tr-sm whitespace-pre-wrap'
                         }`}
                       >
-                        {formatMessageText(msg.text)}
+                        {msg.role === 'assistant' ? (
+                          <ReactMarkdown
+                            components={{
+                              h1: ({ children }) => <h1 className="text-lg font-bold text-amber-300 mt-3 mb-1 first:mt-0">{children}</h1>,
+                              h2: ({ children }) => <h2 className="text-base font-semibold text-amber-300 mt-2.5 mb-1 first:mt-0">{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-sm font-semibold text-amber-200 mt-2 mb-0.5 first:mt-0">{children}</h3>,
+                              p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                              strong: ({ children }) => <strong className="font-semibold text-amber-300">{children}</strong>,
+                              em: ({ children }) => <em className="italic text-gray-300">{children}</em>,
+                              ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                              li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                              code: ({ className, children }) => {
+                                const isBlock = className?.includes('language-')
+                                if (isBlock) {
+                                  return (
+                                    <code className="block bg-gray-900 rounded-md px-3 py-2 my-2 text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre">
+                                      {children}
+                                    </code>
+                                  )
+                                }
+                                return <code className="bg-gray-900/60 rounded px-1 py-0.5 text-xs font-mono text-amber-200">{children}</code>
+                              },
+                              pre: ({ children }) => <pre className="my-2">{children}</pre>,
+                              table: ({ children }) => (
+                                <div className="overflow-x-auto my-2">
+                                  <table className="w-full text-xs border-collapse">{children}</table>
+                                </div>
+                              ),
+                              thead: ({ children }) => <thead className="bg-gray-900/60">{children}</thead>,
+                              th: ({ children }) => <th className="border border-gray-700 px-2 py-1.5 text-left font-semibold text-amber-300">{children}</th>,
+                              td: ({ children }) => <td className="border border-gray-700/50 px-2 py-1 text-gray-300">{children}</td>,
+                              blockquote: ({ children }) => <blockquote className="border-l-2 border-amber-500/40 pl-3 my-2 text-gray-400 italic">{children}</blockquote>,
+                              hr: () => <hr className="border-gray-700 my-3" />,
+                              a: ({ href, children }) => <a href={href} className="text-amber-400 underline hover:text-amber-300" target="_blank" rel="noopener noreferrer">{children}</a>,
+                            }}
+                          >
+                            {msg.text}
+                          </ReactMarkdown>
+                        ) : (
+                          msg.text
+                        )}
                       </div>
                       <div className="text-[9px] text-gray-600 mt-0.5 px-1">
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -664,13 +706,3 @@ function getStepLabel(step: ConversationStep): string {
   }
 }
 
-function formatMessageText(text: string): React.ReactNode {
-  // Simple markdown-like formatting for bold (**text**) and bullets (•)
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-semibold text-amber-300">{part.slice(2, -2)}</strong>
-    }
-    return part
-  })
-}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, ArrowLeft, Loader2 } from 'lucide-react'
+import { X, Send, Check, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import AgentConfigPanel, { type AgentConfigDraft, createEmptyDraft } from './AgentConfigPanel'
 
@@ -487,14 +487,14 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const canAccept = step === 'review' && config.name
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
         className="bg-gray-900 rounded-xl w-full max-w-5xl shadow-2xl border border-gray-700 overflow-hidden flex flex-col"
         style={{ maxHeight: '90vh', height: '85vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700/50">
+        {/* Header — matches standard AI Maestro modal header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2.5">
             <img
               src={HAEPHESTOS_AVATAR_THUMB}
@@ -520,10 +520,10 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           </button>
         </div>
 
-        {/* Body: Left (chat) + Right (config panel) */}
-        <div className="flex flex-1 min-h-0">
+        {/* Body: Chat + Config panel — stacks vertically on small screens */}
+        <div className="flex flex-col md:flex-row flex-1 min-h-0">
           {/* Left panel - Chat */}
-          <div className="flex-1 flex flex-col min-h-0 min-w-0 border-r border-gray-700/50">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 md:border-r border-gray-800">
             {/* Chat messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               <AnimatePresence initial={false}>
@@ -545,7 +545,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                         className={`rounded-xl px-3.5 py-2.5 text-sm ${
                           msg.role === 'assistant'
                             ? 'bg-gray-800 text-gray-200 rounded-tl-sm'
-                            : 'bg-amber-600 text-white rounded-tr-sm whitespace-pre-wrap'
+                            : 'bg-blue-600 text-white rounded-tr-sm whitespace-pre-wrap'
                         }`}
                       >
                         {msg.role === 'assistant' ? (
@@ -616,7 +616,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
             </div>
 
             {/* Input area */}
-            <div className="px-4 py-3 border-t border-gray-700/50">
+            <div className="px-4 py-3 border-t border-gray-800">
               <div className="flex items-end gap-2">
                 <textarea
                   ref={inputRef}
@@ -626,13 +626,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   placeholder={step === 'done' ? 'Agent created!' : getPlaceholder(step)}
                   disabled={step === 'done' || sending}
                   rows={1}
-                  className="flex-1 text-sm bg-gray-800/50 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/50 max-h-20 disabled:opacity-40"
+                  className="flex-1 text-sm bg-gray-800/50 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50 max-h-20 disabled:opacity-40"
                   style={{ minHeight: '40px' }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!inputText.trim() || sending || step === 'done'}
-                  className="p-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -648,28 +648,27 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           />
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-700/50">
-          <button
-            onClick={onClose}
-            className="text-sm text-gray-400 hover:text-gray-200 transition-colors flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Cancel
-          </button>
+        {/* Footer — matches standard AI Maestro dialog footer pattern */}
+        <div className="flex items-center justify-between p-5 border-t border-gray-800">
+          <span className="text-xs text-gray-500">
+            {getStepLabel(step)}
+          </span>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">
-              {getStepLabel(step)}
-            </span>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               onClick={() => {
                 if (canAccept) onComplete(config)
               }}
               disabled={!canAccept}
-              className="px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none text-sm flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:scale-100 text-sm flex items-center gap-2"
             >
               <Check className="w-4 h-4" />
-              Accept
+              Create Agent
             </button>
           </div>
         </div>

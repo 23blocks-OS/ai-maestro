@@ -187,7 +187,7 @@ export default function AgentConfigPanel({
   onRemove,
 }: AgentConfigPanelProps) {
   return (
-    <div className="w-80 flex-shrink-0 h-full overflow-y-auto bg-gray-900 border-l border-gray-800 px-4 py-4">
+    <div className="hidden md:block w-80 flex-shrink-0 h-full overflow-y-auto bg-gray-900 border-l border-gray-800 px-4 py-4">
       {/* Header */}
       <div className="flex items-center gap-2.5 mb-5">
         <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">

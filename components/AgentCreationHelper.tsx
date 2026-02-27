@@ -4,7 +4,19 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Check, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import AgentConfigPanel, { type AgentConfigDraft, createEmptyDraft } from './AgentConfigPanel'
+
+// react-syntax-highlighter type definitions lag behind React 18 (missing `refs` property).
+// Double-cast via unknown to satisfy JSX element type constraints.
+const SyntaxHighlighter = _SyntaxHighlighter as unknown as React.ComponentType<{
+  style: Record<string, React.CSSProperties>
+  language: string
+  PreTag: string
+  customStyle?: React.CSSProperties
+  children: string
+}>
 
 // --- Types ---
 
@@ -579,17 +591,24 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                               ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
                               li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                               code: ({ className, children }) => {
-                                const isBlock = className?.includes('language-')
-                                if (isBlock) {
+                                // Fenced code blocks get className="language-xxx" from react-markdown
+                                const langMatch = /language-(\w+)/.exec(className || '')
+                                if (langMatch) {
                                   return (
-                                    <code className="block bg-gray-900 rounded-md px-3 py-2 my-2 text-xs font-mono text-gray-300 overflow-x-auto whitespace-pre">
-                                      {children}
-                                    </code>
+                                    <SyntaxHighlighter
+                                      style={vscDarkPlus}
+                                      language={langMatch[1]}
+                                      PreTag="div"
+                                      customStyle={{ margin: '0.5rem 0', borderRadius: '0.375rem', fontSize: '0.75rem' }}
+                                    >
+                                      {String(children).replace(/\n$/, '')}
+                                    </SyntaxHighlighter>
                                   )
                                 }
                                 return <code className="bg-gray-900/60 rounded px-1 py-0.5 text-xs font-mono text-amber-200">{children}</code>
                               },
-                              pre: ({ children }) => <pre className="my-2">{children}</pre>,
+                              // Unwrap <pre> — SyntaxHighlighter renders its own wrapper for fenced blocks
+                              pre: ({ children }) => <>{children}</>,
                               table: ({ children }) => (
                                 <div className="overflow-x-auto my-2">
                                   <table className="w-full text-xs border-collapse">{children}</table>

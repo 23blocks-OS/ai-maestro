@@ -1518,6 +1518,11 @@ export default function AgentList({
           onComplete={async (config) => {
             if (!config.name) return
             try {
+              // Build programArgs, appending --model if the config specifies one
+              const argParts: string[] = []
+              if (config.programArgs) argParts.push(config.programArgs)
+              if (config.model) argParts.push(`--model ${config.model}`)
+
               const response = await fetch('/api/sessions/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1525,7 +1530,7 @@ export default function AgentList({
                   name: config.name,
                   workingDirectory: config.workingDirectory || undefined,
                   program: config.program || 'claude-code',
-                  programArgs: config.programArgs || undefined,
+                  programArgs: argParts.length > 0 ? argParts.join(' ') : undefined,
                 }),
               })
               if (!response.ok) {
@@ -1556,6 +1561,18 @@ export default function AgentList({
                 } catch {
                   // Skills application is best-effort -- agent is already created
                   console.warn('Could not apply skills to new agent:', result.agentId)
+                }
+              }
+              // Apply tags to the newly created agent (best-effort)
+              if (result.agentId && config.tags && config.tags.length > 0) {
+                try {
+                  await fetch(`/api/agents/${result.agentId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tags: config.tags }),
+                  })
+                } catch {
+                  console.warn('Could not apply tags to new agent:', result.agentId)
                 }
               }
               handleCreateComplete()

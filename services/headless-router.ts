@@ -284,6 +284,14 @@ import {
 } from '@/services/help-service'
 
 import {
+  createCreationHelper,
+  deleteCreationHelper,
+  getCreationHelperStatus,
+  sendMessage as sendCreationHelperMessage,
+  captureResponse as captureCreationHelperResponse,
+} from '@/services/creation-helper-service'
+
+import {
   buildPlugin,
   getBuildStatus,
   scanRepo,
@@ -1869,6 +1877,26 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/help\/agent$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await deleteAssistantAgent())
+  }},
+
+  // =========================================================================
+  // Creation Helper (Haephestos)
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/agents\/creation-helper\/session$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await getCreationHelperStatus())
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/creation-helper\/session$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await createCreationHelper())
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/creation-helper\/session$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await deleteCreationHelper())
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/creation-helper\/chat$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    sendServiceResult(res, await sendCreationHelperMessage(body?.message || ''))
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/creation-helper\/response$/, paramNames: [], handler: async (_req, res) => {
+    sendServiceResult(res, await captureCreationHelperResponse())
   }},
 
   // =========================================================================

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, Loader2 } from 'lucide-react'
+import { X, Send, Check, Loader2, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -40,137 +40,29 @@ interface ChatMessage {
   timestamp: number
 }
 
-type ConversationStep = 'greeting' | 'purpose' | 'name' | 'skills' | 'plugins' | 'mcp' | 'rules' | 'review' | 'done'
+// Session lifecycle states
+type SessionState = 'starting' | 'ready' | 'error' | 'closed'
 
 // --- Constants ---
 
-// Haephestos is a TEMPORARY, EPHEMERAL UI-only helper.  It is never registered
-// in the agent registry, never assigned to a team, never receives or sends AMP
-// messages, and is destroyed when this modal closes.  Its only communication
-// channel is this chat panel with the human user.
-
-// Full-size avatar (1024x1024 PNG with alpha) — shown in the modal header
-const HAEPHESTOS_AVATAR_FULL = '/avatars/haephestos.png'
-// Retina-ready thumbnail (256x256 PNG with alpha) — rendered at 32px (64px @2x)
+// Haephestos is a TEMPORARY, EPHEMERAL agent backed by a real Claude Code session
+// running in tmux.  It is destroyed when this modal closes.
 const HAEPHESTOS_AVATAR_THUMB = '/avatars/haephestos_thumb.png'
 
-const INITIAL_CONFIG: AgentConfigDraft = {
-  ...createEmptyDraft(),
-  program: 'claude-code',
-  model: 'claude-sonnet-4-5',
-  role: 'member',
-}
+// Polling intervals (ms)
+const STATUS_POLL_INTERVAL = 1000
+const RESPONSE_POLL_INTERVAL = 800
 
-// --- Keyword-based suggestion profiles ---
-
-interface SuggestionProfile {
-  label: string
-  skills: ConfigItem[]
-  plugins: ConfigItem[]
-  mcpServers: ConfigItem[]
-  rules: string[]
-  tags: string[]
-}
-
-const PROFILES: Record<string, SuggestionProfile> = {
-  development: {
-    label: 'Development',
-    skills: [
-      { name: 'tdd', description: 'Test-driven development workflow' },
-      { name: 'git-workflow', description: 'Git branching and commit workflow' },
-      { name: 'github-workflow', description: 'GitHub issues, PRs, and CI/CD' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-      { name: 'planning', description: 'Task planning with persistent files' },
-    ],
-    plugins: [],
-    mcpServers: [],
-    rules: ['Write tests before implementation', 'Use feature branches for all changes'],
-    tags: ['development', 'coding'],
-  },
-  research: {
-    label: 'Research',
-    skills: [
-      { name: 'research-agent', description: 'External documentation and API research' },
-      { name: 'planning', description: 'Task planning with persistent files' },
-      { name: 'memory-search', description: 'Search conversation history' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-    ],
-    plugins: [],
-    mcpServers: [{ name: 'filesystem', description: 'Local file system access' }],
-    rules: ['Always cite sources', 'Verify claims before asserting'],
-    tags: ['research', 'analysis'],
-  },
-  operations: {
-    label: 'Operations',
-    skills: [
-      { name: 'ai-maestro-agents-management', description: 'Agent lifecycle management' },
-      { name: 'team-governance', description: 'Team management and governance' },
-      { name: 'planning', description: 'Task planning with persistent files' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-    ],
-    plugins: [],
-    mcpServers: [],
-    rules: ['Check agent health before operations', 'Log all operational changes'],
-    tags: ['operations', 'management'],
-  },
-  documentation: {
-    label: 'Documentation',
-    skills: [
-      { name: 'planning', description: 'Task planning with persistent files' },
-      { name: 'create-handoff', description: 'Create handoff documents' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-    ],
-    plugins: [],
-    mcpServers: [{ name: 'filesystem', description: 'Local file system access' }],
-    rules: ['Keep documentation concise and actionable'],
-    tags: ['documentation', 'writing'],
-  },
-  data: {
-    label: 'Data Science',
-    skills: [
-      { name: 'planning', description: 'Task planning with persistent files' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-    ],
-    plugins: [],
-    mcpServers: [{ name: 'filesystem', description: 'Local file system access' }],
-    rules: ['Validate data before processing', 'Document all transformations'],
-    tags: ['data-science', 'analysis'],
-  },
-  general: {
-    label: 'General Purpose',
-    skills: [
-      { name: 'planning', description: 'Task planning with persistent files' },
-      { name: 'agent-messaging', description: 'AMP inter-agent messaging' },
-    ],
-    plugins: [],
-    mcpServers: [],
-    rules: [],
-    tags: ['general'],
-  },
-}
-
-function detectProfile(text: string): string {
-  const lower = text.toLowerCase()
-  if (/\b(code|develop|build|implement|fix|bug|feature|program|software)\b/.test(lower)) return 'development'
-  if (/\b(research|search|analyze|explor|investigat|study)\b/.test(lower)) return 'research'
-  if (/\b(deploy|monitor|manage|ops|infra|devops|orchestrat)\b/.test(lower)) return 'operations'
-  if (/\b(writ|document|content|blog|article|report)\b/.test(lower)) return 'documentation'
-  if (/\b(data|ml|machine.?learn|visualiz|analy|statistic|model)\b/.test(lower)) return 'data'
-  return 'general'
-}
-
-let msgIdCounter = 0
-function makeId(): string {
-  return `heph-${++msgIdCounter}-${Math.random().toString(36).slice(2, 6)}`
-}
-
-// --- Input sanitization ---
-
-// Only allow safe URL protocols in rendered markdown links
+// Protocol whitelist for rendered markdown links
 const SAFE_URL_PROTOCOL = /^(https?:\/\/|mailto:|#)/i
 
-// Strip control characters (except \n and \t for multiline input), null bytes,
-// and Unicode bi-directional override characters that enable text-direction spoofing.
+// --- Helpers ---
+
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+}
+
+/** Strip null bytes, ASCII control chars (except newline/tab), and bidi-override chars. */
 function sanitizeInput(text: string): string {
   return text
     .replace(/\0/g, '')
@@ -185,31 +77,41 @@ interface AgentCreationHelperProps {
   onComplete: (config: AgentConfigDraft) => void
 }
 
-// --- Component ---
+// --- Main Component ---
 
 export default function AgentCreationHelper({ onClose, onComplete }: AgentCreationHelperProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(true)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState('')
-  const [sending, setSending] = useState(false)
-  const [step, setStep] = useState<ConversationStep>('greeting')
-  const [config, setConfig] = useState<AgentConfigDraft>({ ...INITIAL_CONFIG })
-  const [detectedProfile, setDetectedProfile] = useState<string>('')
+  const [sessionState, setSessionState] = useState<SessionState>('starting')
+  const [sessionError, setSessionError] = useState<string | null>(null)
+  const [waitingForResponse, setWaitingForResponse] = useState(false)
+  const [config, setConfig] = useState<AgentConfigDraft>({
+    ...createEmptyDraft(),
+    program: 'claude-code',
+    model: 'claude-sonnet-4-5',
+    role: 'member',
+  })
 
-  // Initialize greeting
+  // ----- Session lifecycle -----
+
+  // Start session on mount, kill on unmount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMessages([{
-        id: makeId(),
-        role: 'assistant',
-        text: "Welcome to the Agent Forge! I'm Haephestos, and I'll help you craft a new agent. What kind of agent do you need? Tell me about its purpose — for example: \"a development agent for building a React app\" or \"a research agent for analyzing scientific papers\".",
-        timestamp: Date.now(),
-      }])
-      setStep('purpose')
-    }, 300)
-    return () => clearTimeout(timer)
+    mountedRef.current = true
+    startSession()
+
+    return () => {
+      mountedRef.current = false
+      clearPolling()
+      // Fire-and-forget cleanup — session kill doesn't need to block unmount
+      fetch('/api/agents/creation-helper/session', { method: 'DELETE' }).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-scroll on new messages
@@ -220,12 +122,21 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     return () => clearTimeout(timer)
   }, [messages.length])
 
-  // Focus input when step changes
+  // Focus input when session becomes ready or after response arrives
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [step])
+    if (sessionState === 'ready' && !waitingForResponse) {
+      inputRef.current?.focus()
+    }
+  }, [sessionState, waitingForResponse])
 
-  // Apply suggestions to config
+  // ----- Helpers -----
+
+  const clearPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    if (statusPollRef.current) { clearInterval(statusPollRef.current); statusPollRef.current = null }
+  }, [])
+
+  // Apply config suggestions from Claude's structured output
   const applySuggestions = useCallback((suggestions: ConfigSuggestion[]) => {
     setConfig(prev => {
       const next = { ...prev }
@@ -237,10 +148,12 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           if (Array.isArray(arr)) {
             const item = s.value
             if (typeof item === 'string') {
-              if (!(arr as unknown[]).includes(item)) (arr as string[]).push(item)
+              if (!(arr as unknown[]).includes(item)) {
+                (next as Record<string, unknown>)[s.field] = [...arr, item]
+              }
             } else {
               if (!(arr as ConfigItem[]).find(x => x.name === item.name)) {
-                (arr as ConfigItem[]).push(item)
+                (next as Record<string, unknown>)[s.field] = [...arr, item]
               }
             }
           }
@@ -258,249 +171,162 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     })
   }, [])
 
-  // Add assistant message with delay
-  const addAssistantMessage = useCallback((text: string, delay = 600) => {
-    return new Promise<void>(resolve => {
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          id: makeId(),
-          role: 'assistant',
-          text,
-          timestamp: Date.now(),
-        }])
-        resolve()
-      }, delay)
-    })
+  // ----- Session start -----
+
+  const startSession = useCallback(async () => {
+    try {
+      setSessionState('starting')
+      setSessionError(null)
+
+      // Request session creation
+      const res = await fetch('/api/agents/creation-helper/session', { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Failed to start session (${res.status})`)
+      }
+
+      // Poll for readiness (Claude needs time to load)
+      statusPollRef.current = setInterval(async () => {
+        if (!mountedRef.current) return
+        try {
+          const statusRes = await fetch('/api/agents/creation-helper/session')
+          if (!statusRes.ok) return
+          const status = await statusRes.json()
+
+          if (status.ready) {
+            // Session ready — stop polling, capture initial greeting
+            if (statusPollRef.current) {
+              clearInterval(statusPollRef.current)
+              statusPollRef.current = null
+            }
+            if (!mountedRef.current) return
+            setSessionState('ready')
+            // Capture Claude's initial greeting
+            captureInitialGreeting()
+          }
+        } catch {
+          // Ignore transient polling errors
+        }
+      }, STATUS_POLL_INTERVAL)
+    } catch (error) {
+      if (!mountedRef.current) return
+      setSessionState('error')
+      setSessionError(error instanceof Error ? error.message : 'Failed to start Haephestos')
+    }
   }, [])
 
-  // Handle conversation flow
-  const processMessage = useCallback(async (rawText: string) => {
-    // Sanitize input: strip control chars, null bytes, bidi overrides
-    const userText = sanitizeInput(rawText)
-    if (!userText.trim()) return
+  // Capture the initial greeting that Claude produces on startup
+  const captureInitialGreeting = useCallback(async () => {
+    if (!mountedRef.current) return
+    setWaitingForResponse(true)
 
-    // Add user message immediately
+    // Poll for the initial response
+    pollRef.current = setInterval(async () => {
+      if (!mountedRef.current) return
+      try {
+        const res = await fetch('/api/agents/creation-helper/response')
+        if (!res.ok) return
+        const data = await res.json()
+
+        if (data.isComplete && data.text) {
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+          if (!mountedRef.current) return
+
+          setWaitingForResponse(false)
+          setMessages(prev => [...prev, {
+            id: makeId(),
+            role: 'assistant',
+            text: data.text,
+            timestamp: Date.now(),
+          }])
+          // Apply any config suggestions from greeting
+          if (data.configSuggestions?.length) {
+            applySuggestions(data.configSuggestions as ConfigSuggestion[])
+          }
+        }
+      } catch {
+        // Ignore transient errors
+      }
+    }, RESPONSE_POLL_INTERVAL)
+  }, [applySuggestions])
+
+  // ----- Message sending -----
+
+  const sendUserMessage = useCallback(async (rawText: string) => {
+    const userText = sanitizeInput(rawText)
+    if (!userText.trim() || sessionState !== 'ready' || waitingForResponse) return
+
+    // Add user message to UI
     setMessages(prev => [...prev, {
       id: makeId(),
       role: 'user',
       text: userText,
       timestamp: Date.now(),
     }])
+    setWaitingForResponse(true)
 
-    setSending(true)
+    try {
+      // Send to Claude via tmux
+      const res = await fetch('/api/agents/creation-helper/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText }),
+      })
 
-    switch (step) {
-      case 'purpose': {
-        const profile = detectProfile(userText)
-        setDetectedProfile(profile)
-        const p = PROFILES[profile]
-
-        // Apply profile suggestions
-        const suggestions: ConfigSuggestion[] = [
-          ...p.skills.map(s => ({ action: 'add' as const, field: 'skills', value: s })),
-          ...p.plugins.map(s => ({ action: 'add' as const, field: 'plugins', value: s })),
-          ...p.mcpServers.map(s => ({ action: 'add' as const, field: 'mcpServers', value: s })),
-          ...p.rules.map(r => ({ action: 'add' as const, field: 'rules', value: r })),
-          ...p.tags.map(t => ({ action: 'add' as const, field: 'tags', value: t })),
-        ]
-        applySuggestions(suggestions)
-
-        await addAssistantMessage(
-          `Sounds like a ${p.label.toLowerCase()} agent! I've loaded a ${p.label} profile with ${p.skills.length} skills` +
-          (p.rules.length ? ` and ${p.rules.length} rules` : '') +
-          `. You can see the configuration building on the right panel.\n\nNow, what should we name this agent? Use lowercase letters, numbers, dashes, and underscores (e.g., "my-api-builder").`
-        )
-        setStep('name')
-        break
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to send message')
       }
 
-      case 'name': {
-        const trimmed = userText.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
-        if (!trimmed) {
-          await addAssistantMessage('That name doesn\'t look right. Use letters, numbers, dashes, and underscores. Try again!')
-          break
-        }
-        applySuggestions([{ action: 'set', field: 'name', value: trimmed }])
-        await addAssistantMessage(
-          `"${trimmed}" — nice name! Take a look at the skills I've suggested in the right panel. ` +
-          `Want to add more skills, remove any, or are these good? You can say things like:\n` +
-          `• "add the security skill"\n` +
-          `• "remove tdd"\n` +
-          `• "these look good"\n` +
-          `• "what other skills are available?"`
-        )
-        setStep('skills')
-        break
-      }
+      // Poll for Claude's response
+      pollRef.current = setInterval(async () => {
+        if (!mountedRef.current) return
+        try {
+          const respRes = await fetch('/api/agents/creation-helper/response')
+          if (!respRes.ok) return
+          const data = await respRes.json()
 
-      case 'skills': {
-        const lower = userText.toLowerCase()
-        if (/\b(good|fine|ok|great|perfect|done|next|continue|skip)\b/.test(lower)) {
-          await addAssistantMessage(
-            'Skills are set! Do you need any MCP servers for external data access? ' +
-            'For example:\n' +
-            '• "filesystem" for local file access\n' +
-            '• "postgres" for database access\n' +
-            '• "github" for GitHub API\n\n' +
-            'Or say "skip" to move on.'
-          )
-          setStep('mcp')
-        } else if (/\b(add|include|want)\b/.test(lower)) {
-          // Try to extract skill name
-          const match = lower.match(/(?:add|include|want)\s+(?:the\s+)?["']?([a-z0-9_-]+)["']?/)
-          if (match) {
-            const skillName = match[1]
-            applySuggestions([{ action: 'add', field: 'skills', value: { name: skillName, description: 'User-requested skill' } }])
-            await addAssistantMessage(`Added "${skillName}" to your skills. Anything else, or are we good?`)
-          } else {
-            await addAssistantMessage('Which skill would you like to add? Give me the name.')
-          }
-        } else if (/\b(remove|drop|delete)\b/.test(lower)) {
-          const match = lower.match(/(?:remove|drop|delete)\s+(?:the\s+)?["']?([a-z0-9_-]+)["']?/)
-          if (match) {
-            applySuggestions([{ action: 'remove', field: 'skills', value: match[1] }])
-            await addAssistantMessage(`Removed "${match[1]}". Anything else?`)
-          } else {
-            await addAssistantMessage('Which skill should I remove?')
-          }
-        } else if (/\b(what|list|available|show)\b/.test(lower)) {
-          await addAssistantMessage(
-            'Here are some popular skills:\n' +
-            '• **tdd** — Test-driven development\n' +
-            '• **git-workflow** — Git branching and commits\n' +
-            '• **github-workflow** — GitHub issues and PRs\n' +
-            '• **security** — Security vulnerability scanning\n' +
-            '• **research-agent** — External research\n' +
-            '• **planning** — Persistent task planning\n' +
-            '• **memory-search** — Search past conversations\n' +
-            '• **docs-search** — Search documentation\n' +
-            '• **agent-messaging** — Inter-agent messaging\n' +
-            '• **team-governance** — Team management\n\n' +
-            'Which would you like to add?'
-          )
-        } else {
-          // Try to interpret as a skill name
-          const words = lower.split(/\s+/).filter(w => w.length > 2)
-          if (words.length === 1 || (words.length === 2 && words.join('-').length < 30)) {
-            const skillName = words.join('-')
-            applySuggestions([{ action: 'add', field: 'skills', value: { name: skillName, description: 'User-requested skill' } }])
-            await addAssistantMessage(`Added "${skillName}". Want to add more, or move on?`)
-          } else {
-            await addAssistantMessage('I didn\'t quite catch that. Try "add [skill-name]", "remove [skill-name]", or "done" to continue.')
-          }
-        }
-        break
-      }
+          if (data.isComplete && data.text) {
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+            if (!mountedRef.current) return
 
-      case 'mcp': {
-        const lower = userText.toLowerCase()
-        if (/\b(skip|none|no|done|next|continue)\b/.test(lower)) {
-          await addAssistantMessage(
-            'Almost done! Any custom rules you want this agent to follow? ' +
-            'For example:\n' +
-            '• "Always write tests"\n' +
-            '• "Never commit directly to main"\n' +
-            '• "Use TypeScript strict mode"\n\n' +
-            'Or say "skip" to finalize with the current rules.'
-          )
-          setStep('rules')
-        } else if (/\b(add|include|want|yes)\b/.test(lower) || /\b(filesystem|postgres|github|sqlite|redis)\b/.test(lower)) {
-          const mcpMatch = lower.match(/\b(filesystem|postgres|github|sqlite|redis|mongodb|docker)\b/)
-          if (mcpMatch) {
-            const mcpName = mcpMatch[1]
-            const descriptions: Record<string, string> = {
-              filesystem: 'Local file system access',
-              postgres: 'PostgreSQL database access',
-              github: 'GitHub API integration',
-              sqlite: 'SQLite database access',
-              redis: 'Redis cache/store access',
-              mongodb: 'MongoDB database access',
-              docker: 'Docker container management',
+            setWaitingForResponse(false)
+            setMessages(prev => [...prev, {
+              id: makeId(),
+              role: 'assistant',
+              text: data.text,
+              timestamp: Date.now(),
+            }])
+            // Apply config suggestions
+            if (data.configSuggestions?.length) {
+              applySuggestions(data.configSuggestions as ConfigSuggestion[])
             }
-            applySuggestions([{ action: 'add', field: 'mcpServers', value: { name: mcpName, description: descriptions[mcpName] || 'MCP server' } }])
-            await addAssistantMessage(`Added "${mcpName}" MCP server. Any others, or say "done"?`)
-          } else {
-            await addAssistantMessage('Which MCP server? Available: filesystem, postgres, github, sqlite, redis, mongodb, docker.')
           }
-        } else {
-          await addAssistantMessage('Available MCP servers: filesystem, postgres, github, sqlite, redis, mongodb, docker. Which do you need?')
+        } catch {
+          // Ignore transient polling errors
         }
-        break
-      }
-
-      case 'rules': {
-        const lower = userText.toLowerCase()
-        if (/\b(skip|none|no|done|next|continue|finalize)\b/.test(lower)) {
-          setStep('review')
-          await addAssistantMessage(
-            'Your agent is ready for review! Check the configuration on the right panel. ' +
-            'If everything looks good, click **Accept** to create the agent. ' +
-            'Or tell me what you\'d like to change.'
-          )
-        } else {
-          // Add as a rule
-          const rule = userText.trim()
-          if (rule.length > 3) {
-            applySuggestions([{ action: 'add', field: 'rules', value: rule }])
-            await addAssistantMessage(`Added rule: "${rule}". Any more rules, or say "done" to finalize?`)
-          } else {
-            await addAssistantMessage('That rule is too short. Please provide a meaningful rule, or say "done" to finalize.')
-          }
-        }
-        break
-      }
-
-      case 'review': {
-        const lower = userText.toLowerCase()
-        if (/\b(accept|create|go|yes|confirm|looks good|perfect)\b/.test(lower)) {
-          setStep('done')
-          await addAssistantMessage('Forging your agent now! Stand by...')
-          // Trigger creation
-          setTimeout(() => onComplete(config), 800)
-        } else if (/\b(change|modify|update|edit)\b/.test(lower)) {
-          await addAssistantMessage('What would you like to change? You can say things like "change the name to X", "add skill Y", "remove rule Z".')
-        } else if (/\b(add)\b/.test(lower)) {
-          const skillMatch = lower.match(/add\s+(?:skill\s+)?["']?([a-z0-9_-]+)["']?/)
-          if (skillMatch) {
-            applySuggestions([{ action: 'add', field: 'skills', value: { name: skillMatch[1], description: 'User-requested skill' } }])
-            await addAssistantMessage(`Added "${skillMatch[1]}". Ready to create?`)
-          } else {
-            await addAssistantMessage('What would you like to add?')
-          }
-        } else if (/\b(remove)\b/.test(lower)) {
-          const match = lower.match(/remove\s+(?:skill\s+|rule\s+)?["']?([a-z0-9_-]+)["']?/)
-          if (match) {
-            applySuggestions([{ action: 'remove', field: 'skills', value: match[1] }])
-            await addAssistantMessage(`Removed "${match[1]}". Ready to create?`)
-          }
-        } else if (/\b(name)\b/.test(lower)) {
-          const nameMatch = lower.match(/name\s+(?:to\s+)?["']?([a-z0-9_-]+)["']?/)
-          if (nameMatch) {
-            applySuggestions([{ action: 'set', field: 'name', value: nameMatch[1] }])
-            await addAssistantMessage(`Updated name to "${nameMatch[1]}". Ready to create?`)
-          }
-        } else {
-          await addAssistantMessage('Ready to forge? Click **Accept** below, or tell me what to change.')
-        }
-        break
-      }
-
-      default:
-        break
+      }, RESPONSE_POLL_INTERVAL)
+    } catch (error) {
+      if (!mountedRef.current) return
+      setWaitingForResponse(false)
+      setMessages(prev => [...prev, {
+        id: makeId(),
+        role: 'assistant',
+        text: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+        timestamp: Date.now(),
+      }])
     }
+  }, [sessionState, waitingForResponse, applySuggestions])
 
-    setSending(false)
-  }, [step, config, applySuggestions, addAssistantMessage, onComplete])
+  // ----- UI handlers -----
 
-  // Handle send
   const handleSend = useCallback(() => {
     const text = inputText.trim()
-    if (!text || sending || step === 'done') return
+    if (!text) return
     setInputText('')
-    processMessage(text)
-  }, [inputText, sending, step, processMessage])
+    sendUserMessage(text)
+  }, [inputText, sendUserMessage])
 
-  // Handle key press
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -508,13 +334,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     }
   }, [handleSend])
 
-  // Handle remove from config panel
   const handleRemove = useCallback((field: string, name: string) => {
     applySuggestions([{ action: 'remove', field, value: name }])
   }, [applySuggestions])
 
-  const isBuilding = step !== 'review' && step !== 'done'
-  const canAccept = step === 'review' && config.name
+  const canAccept = !!config.name
+
+  // ----- Render -----
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -523,7 +349,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         style={{ maxHeight: '90vh', height: '85vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header — matches standard AI Maestro modal header */}
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2.5">
             <img
@@ -535,10 +361,22 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
               <h3 className="text-base font-semibold text-gray-100">Haephestos</h3>
               <span className="text-[10px] text-gray-500 leading-none">Agent Forge Master</span>
             </div>
-            {isBuilding && (
+            {sessionState === 'starting' && (
+              <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Starting...
+              </span>
+            )}
+            {sessionState === 'ready' && waitingForResponse && (
               <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Configuring...
+                Thinking...
+              </span>
+            )}
+            {sessionState === 'ready' && !waitingForResponse && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Online
               </span>
             )}
           </div>
@@ -550,12 +388,41 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           </button>
         </div>
 
-        {/* Body: Chat + Config panel — stacks vertically on small screens */}
+        {/* Body: Chat + Config panel */}
         <div className="flex flex-col md:flex-row flex-1 min-h-0">
           {/* Left panel - Chat */}
           <div className="flex-1 flex flex-col min-h-0 min-w-0 md:border-r border-gray-800">
             {/* Chat messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Starting state */}
+              {sessionState === 'starting' && messages.length === 0 && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 text-amber-400 animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-gray-400">Starting Haephestos...</p>
+                    <p className="text-xs text-gray-600 mt-1">Loading the Agent Forge</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error state */}
+              {sessionState === 'error' && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center max-w-sm">
+                    <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
+                    <p className="text-sm text-red-300 font-medium">Failed to start Haephestos</p>
+                    <p className="text-xs text-gray-500 mt-1">{sessionError}</p>
+                    <button
+                      onClick={startSession}
+                      className="mt-3 px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
               <AnimatePresence initial={false}>
                 {messages.map((msg) => (
                   <motion.div
@@ -591,7 +458,6 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                               ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
                               li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                               code: ({ className, children }) => {
-                                // Fenced code blocks get className="language-xxx" from react-markdown
                                 const langMatch = /language-(\w+)/.exec(className || '')
                                 if (langMatch) {
                                   return (
@@ -607,7 +473,6 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                                 }
                                 return <code className="bg-gray-900/60 rounded px-1 py-0.5 text-xs font-mono text-amber-200">{children}</code>
                               },
-                              // Unwrap <pre> — SyntaxHighlighter renders its own wrapper for fenced blocks
                               pre: ({ children }) => <>{children}</>,
                               table: ({ children }) => (
                                 <div className="overflow-x-auto my-2">
@@ -619,14 +484,12 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                               td: ({ children }) => <td className="border border-gray-700/50 px-2 py-1 text-gray-300">{children}</td>,
                               blockquote: ({ children }) => <blockquote className="border-l-2 border-amber-500/40 pl-3 my-2 text-gray-400 italic">{children}</blockquote>,
                               hr: () => <hr className="border-gray-700 my-3" />,
-                              // Block javascript:/data:/vbscript: protocols — render as plain text
                               a: ({ href, children }) => {
                                 const safeHref = href && SAFE_URL_PROTOCOL.test(href) ? href : undefined
                                 return safeHref
                                   ? <a href={safeHref} className="text-amber-400 underline hover:text-amber-300" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{children}</a>
                                   : <span className="text-amber-400">{children}</span>
                               },
-                              // Block external image loading from markdown to prevent tracking pixels
                               img: () => null,
                             }}
                           >
@@ -643,7 +506,9 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {sending && (
+
+              {/* Thinking indicator */}
+              {waitingForResponse && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -668,15 +533,20 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={step === 'done' ? 'Agent created!' : getPlaceholder(step)}
-                  disabled={step === 'done' || sending}
+                  placeholder={
+                    sessionState === 'starting' ? 'Waiting for Haephestos...'
+                    : sessionState === 'error' ? 'Session failed — click Retry above'
+                    : waitingForResponse ? 'Haephestos is thinking...'
+                    : 'Tell Haephestos what kind of agent you need...'
+                  }
+                  disabled={sessionState !== 'ready' || waitingForResponse}
                   rows={1}
                   className="flex-1 text-sm bg-gray-800/50 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50 max-h-20 disabled:opacity-40"
                   style={{ minHeight: '40px' }}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!inputText.trim() || sending || step === 'done'}
+                  disabled={!inputText.trim() || sessionState !== 'ready' || waitingForResponse}
                   className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                 >
                   <Send className="w-4 h-4" />
@@ -688,15 +558,19 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           {/* Right panel - Config */}
           <AgentConfigPanel
             config={config}
-            isBuilding={isBuilding}
+            isBuilding={sessionState === 'starting' || waitingForResponse}
             onRemove={handleRemove}
           />
         </div>
 
-        {/* Footer — matches standard AI Maestro dialog footer pattern */}
+        {/* Footer */}
         <div className="flex items-center justify-between p-5 border-t border-gray-800">
           <span className="text-xs text-gray-500">
-            {getStepLabel(step)}
+            {sessionState === 'starting' ? 'Loading Haephestos...'
+            : sessionState === 'error' ? 'Session error'
+            : sessionState === 'ready' && waitingForResponse ? 'Haephestos is responding...'
+            : messages.length === 0 ? 'Ready'
+            : `${messages.length} messages`}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -721,32 +595,3 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     </div>
   )
 }
-
-// --- Helpers ---
-
-function getPlaceholder(step: ConversationStep): string {
-  switch (step) {
-    case 'purpose': return 'Describe the agent you need...'
-    case 'name': return 'Enter agent name...'
-    case 'skills': return 'Add, remove, or say "done"...'
-    case 'mcp': return 'Add MCP servers or say "skip"...'
-    case 'rules': return 'Add a rule or say "done"...'
-    case 'review': return 'Request changes or say "accept"...'
-    default: return 'Type a message...'
-  }
-}
-
-function getStepLabel(step: ConversationStep): string {
-  switch (step) {
-    case 'greeting': return 'Starting...'
-    case 'purpose': return 'Step 1: Purpose'
-    case 'name': return 'Step 2: Naming'
-    case 'skills': return 'Step 3: Skills'
-    case 'mcp': return 'Step 4: MCP Servers'
-    case 'rules': return 'Step 5: Rules'
-    case 'review': return 'Review & Accept'
-    case 'done': return 'Creating...'
-    default: return ''
-  }
-}
-

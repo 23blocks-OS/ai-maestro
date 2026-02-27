@@ -152,6 +152,20 @@ function makeId(): string {
   return `heph-${++msgIdCounter}-${Math.random().toString(36).slice(2, 6)}`
 }
 
+// --- Input sanitization ---
+
+// Only allow safe URL protocols in rendered markdown links
+const SAFE_URL_PROTOCOL = /^(https?:\/\/|mailto:|#)/i
+
+// Strip control characters (except \n and \t for multiline input), null bytes,
+// and Unicode bi-directional override characters that enable text-direction spoofing.
+function sanitizeInput(text: string): string {
+  return text
+    .replace(/\0/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')
+}
+
 // --- Props ---
 
 interface AgentCreationHelperProps {
@@ -248,7 +262,11 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   }, [])
 
   // Handle conversation flow
-  const processMessage = useCallback(async (userText: string) => {
+  const processMessage = useCallback(async (rawText: string) => {
+    // Sanitize input: strip control chars, null bytes, bidi overrides
+    const userText = sanitizeInput(rawText)
+    if (!userText.trim()) return
+
     // Add user message immediately
     setMessages(prev => [...prev, {
       id: makeId(),
@@ -582,7 +600,15 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                               td: ({ children }) => <td className="border border-gray-700/50 px-2 py-1 text-gray-300">{children}</td>,
                               blockquote: ({ children }) => <blockquote className="border-l-2 border-amber-500/40 pl-3 my-2 text-gray-400 italic">{children}</blockquote>,
                               hr: () => <hr className="border-gray-700 my-3" />,
-                              a: ({ href, children }) => <a href={href} className="text-amber-400 underline hover:text-amber-300" target="_blank" rel="noopener noreferrer">{children}</a>,
+                              // Block javascript:/data:/vbscript: protocols — render as plain text
+                              a: ({ href, children }) => {
+                                const safeHref = href && SAFE_URL_PROTOCOL.test(href) ? href : undefined
+                                return safeHref
+                                  ? <a href={safeHref} className="text-amber-400 underline hover:text-amber-300" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{children}</a>
+                                  : <span className="text-amber-400">{children}</span>
+                              },
+                              // Block external image loading from markdown to prevent tracking pixels
+                              img: () => null,
                             }}
                           >
                             {msg.text}

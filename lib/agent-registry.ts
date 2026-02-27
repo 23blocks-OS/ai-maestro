@@ -14,6 +14,15 @@ const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
 const REGISTRY_FILE = path.join(AGENTS_DIR, 'registry.json')
 
+// System helper names that must never be registered as agents, assigned to teams,
+// or receive/send AMP messages.  These are ephemeral UI-only helpers (e.g. the
+// agent creation wizard persona).
+export const SYSTEM_HELPER_NAMES: ReadonlySet<string> = new Set([
+  'haephestos',
+  'haephestos-creation-helper',
+  'creation-helper',
+])
+
 // Real names containing "IA" (feminine) or "AI" (masculine) to match avatar gender
 const FEMALE_NAMES = [
   'Maria', 'Sofia', 'Lucia', 'Julia', 'Natalia', 'Olivia', 'Victoria', 'Valeria',
@@ -358,6 +367,10 @@ export async function createAgent(request: CreateAgentRequest): Promise<Agent> {
   const agentName = (request.name || request.alias)?.toLowerCase()
   if (!agentName) {
     throw new Error('Agent name is required')
+  }
+  // Block system helper names from being registered as real agents
+  if (SYSTEM_HELPER_NAMES.has(agentName)) {
+    throw new Error(`"${agentName}" is a reserved system helper name and cannot be registered as an agent`)
   }
 
   // Determine deployment type

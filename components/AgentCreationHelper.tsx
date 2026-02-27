@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Hammer, Check, ArrowLeft, Loader2 } from 'lucide-react'
+import { X, Send, Check, ArrowLeft, Loader2 } from 'lucide-react'
 import AgentConfigPanel, { type AgentConfigDraft, createEmptyDraft } from './AgentConfigPanel'
 
 // --- Types ---
@@ -31,7 +31,15 @@ type ConversationStep = 'greeting' | 'purpose' | 'name' | 'skills' | 'plugins' |
 
 // --- Constants ---
 
-const HAEPHESTOS_AVATAR = '/avatars/robots_07.png'
+// Haephestos is a TEMPORARY, EPHEMERAL UI-only helper.  It is never registered
+// in the agent registry, never assigned to a team, never receives or sends AMP
+// messages, and is destroyed when this modal closes.  Its only communication
+// channel is this chat panel with the human user.
+
+// Full-size avatar (1024x1024 PNG with alpha) — shown in the modal header
+const HAEPHESTOS_AVATAR_FULL = '/avatars/haephestos.png'
+// Retina-ready thumbnail (256x256 PNG with alpha) — rendered at 32px (64px @2x)
+const HAEPHESTOS_AVATAR_THUMB = '/avatars/haephestos_thumb.png'
 
 const INITIAL_CONFIG: AgentConfigDraft = {
   ...createEmptyDraft(),
@@ -487,8 +495,15 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700/50">
           <div className="flex items-center gap-2.5">
-            <Hammer className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-semibold text-gray-100">Agent Creation Helper</h3>
+            <img
+              src={HAEPHESTOS_AVATAR_THUMB}
+              alt="Haephestos"
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-500/50"
+            />
+            <div>
+              <h3 className="text-base font-semibold text-gray-100">Haephestos</h3>
+              <span className="text-[10px] text-gray-500 leading-none">Agent Forge Master</span>
+            </div>
             {isBuilding && (
               <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -521,7 +536,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   >
                     {msg.role === 'assistant' && (
                       <div className="flex-shrink-0 mr-2 mt-1">
-                        <img src={HAEPHESTOS_AVATAR} alt="Haephestos" className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-500/40" />
+                        <img src={HAEPHESTOS_AVATAR_THUMB} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                       </div>
                     )}
                     <div className="max-w-[85%]">
@@ -548,7 +563,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   className="flex justify-start"
                 >
                   <div className="flex-shrink-0 mr-2 mt-1">
-                    <img src={HAEPHESTOS_AVATAR} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-500/40" />
+                    <img src={HAEPHESTOS_AVATAR_THUMB} alt="" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                   </div>
                   <div className="bg-gray-800 rounded-xl rounded-tl-sm px-4 py-3">
                     <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />

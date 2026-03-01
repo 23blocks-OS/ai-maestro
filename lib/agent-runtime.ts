@@ -181,7 +181,7 @@ export class TmuxRuntime implements AgentRuntime {
       const escaped = keys.replace(/'/g, "'\\''")
       if (enter) {
         await execAsync(
-          `tmux send-keys -t "${name}" -l '${escaped}' \\; send-keys -t "${name}" Enter`
+          `tmux send-keys -t "${name}" -l '${escaped}' \\; send-keys -t "${name}" C-m`
         )
       } else {
         await execAsync(`tmux send-keys -t "${name}" -l '${escaped}'`)
@@ -189,7 +189,7 @@ export class TmuxRuntime implements AgentRuntime {
     } else {
       // Non-literal: keys is a raw key sequence (e.g. "C-c", "exit Enter", quoted command)
       if (enter) {
-        await execAsync(`tmux send-keys -t "${name}" ${keys} Enter`)
+        await execAsync(`tmux send-keys -t "${name}" ${keys} C-m`)
       } else {
         await execAsync(`tmux send-keys -t "${name}" ${keys}`)
       }

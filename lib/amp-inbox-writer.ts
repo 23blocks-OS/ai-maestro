@@ -336,6 +336,7 @@ export async function writeToAMPInbox(
         timestamp: envelope.timestamp,
         thread_id: envelope.thread_id || envelope.in_reply_to || envelope.id,
         in_reply_to: envelope.in_reply_to || null,
+        reply_to: envelope.reply_to || envelope.from,
         expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },
@@ -402,6 +403,7 @@ export async function writeToAMPSent(
         timestamp: envelope.timestamp,
         thread_id: envelope.thread_id || envelope.in_reply_to || envelope.id,
         in_reply_to: envelope.in_reply_to || null,
+        reply_to: envelope.reply_to || envelope.from,
         expires_at: envelope.expires_at || null,
         signature: envelope.signature || null
       },

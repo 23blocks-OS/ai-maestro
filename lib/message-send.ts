@@ -86,6 +86,7 @@ function buildAMPEnvelope(message: Message): { envelope: AMPEnvelope; payload: A
     timestamp: message.timestamp,
     signature: message.amp?.signature || '',
     thread_id: message.inReplyTo || msgIdNormalized,
+    reply_to: `${message.fromAlias || message.from}@${selfHostId}.aimaestro.local`,
   }
   if (message.inReplyTo) {
     envelope.in_reply_to = message.inReplyTo

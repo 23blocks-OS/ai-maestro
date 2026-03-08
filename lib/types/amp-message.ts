@@ -62,6 +62,9 @@ export interface AMPEnvelope {
   /** ID of message being replied to */
   in_reply_to: string | null;
 
+  /** Cached return address for replies (avoids re-resolving sender) */
+  reply_to: string | null;
+
   /** ISO 8601 expiration time (null = no expiration) */
   expires_at: string | null;
 
@@ -252,6 +255,7 @@ export function createAMPMessage(
       timestamp,
       thread_id: options.inReplyTo || id,
       in_reply_to: options.inReplyTo || null,
+      reply_to: from, // Cache sender address for reply routing
       expires_at: options.expiresAt || null,
       signature: null, // Set by signing function for external messages
     },

@@ -382,19 +382,28 @@ export async function queryGraph(
           return { error: 'find-callers requires "name" parameter', status: 400 }
         }
 
-        const callersResult = await agentDb.run(`
-          ?[caller_name, caller_file] :=
-            *functions{fn_id: callee, name: callee_name},
-            callee_name = '${escapeString(name)}',
-            *calls{caller_fn: caller, callee_fn: callee},
-            *functions{fn_id: caller, name: caller_name, file_id: caller_file_id},
-            *files{file_id: caller_file_id, path: caller_file}
-        `)
+        try {
+          const callersResult = await agentDb.run(`
+            ?[caller_name, caller_file] :=
+              *functions{fn_id: callee, name: callee_name},
+              callee_name = '${escapeString(name)}',
+              *calls{caller_fn: caller, callee_fn: callee},
+              *functions{fn_id: caller, name: caller_name, file_id: caller_file_id},
+              *files{file_id: caller_file_id, path: caller_file}
+          `)
 
-        result = {
-          function: name,
-          callers: callersResult.rows.map((r: any[]) => ({ name: r[0], file: r[1] })),
-          count: callersResult.rows.length,
+          result = {
+            function: name,
+            callers: callersResult.rows.map((r: any[]) => ({ name: r[0], file: r[1] })),
+            count: callersResult.rows.length,
+          }
+        } catch {
+          result = {
+            function: name,
+            callers: [],
+            count: 0,
+            error: 'Code graph not indexed - run graph-index-delta.sh first',
+          }
         }
         break
       }
@@ -404,19 +413,28 @@ export async function queryGraph(
           return { error: 'find-callees requires "name" parameter', status: 400 }
         }
 
-        const calleesResult = await agentDb.run(`
-          ?[callee_name, callee_file] :=
-            *functions{fn_id: caller, name: caller_name},
-            caller_name = '${escapeString(name)}',
-            *calls{caller_fn: caller, callee_fn: callee},
-            *functions{fn_id: callee, name: callee_name, file_id: callee_file_id},
-            *files{file_id: callee_file_id, path: callee_file}
-        `)
+        try {
+          const calleesResult = await agentDb.run(`
+            ?[callee_name, callee_file] :=
+              *functions{fn_id: caller, name: caller_name},
+              caller_name = '${escapeString(name)}',
+              *calls{caller_fn: caller, callee_fn: callee},
+              *functions{fn_id: callee, name: callee_name, file_id: callee_file_id},
+              *files{file_id: callee_file_id, path: callee_file}
+          `)
 
-        result = {
-          function: name,
-          callees: calleesResult.rows.map((r: any[]) => ({ name: r[0], file: r[1] })),
-          count: calleesResult.rows.length,
+          result = {
+            function: name,
+            callees: calleesResult.rows.map((r: any[]) => ({ name: r[0], file: r[1] })),
+            count: calleesResult.rows.length,
+          }
+        } catch {
+          result = {
+            function: name,
+            callees: [],
+            count: 0,
+            error: 'Code graph not indexed - run graph-index-delta.sh first',
+          }
         }
         break
       }

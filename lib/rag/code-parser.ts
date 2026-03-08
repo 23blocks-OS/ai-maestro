@@ -313,6 +313,7 @@ export async function parseProject(
 
 /**
  * Parse specific files (for incremental updates)
+ * Uses unified parser to support TypeScript, JavaScript, Python, and Ruby
  */
 export async function parseFiles(
   projectPath: string,
@@ -320,7 +321,10 @@ export async function parseFiles(
 ): Promise<ParsedFile[]> {
   console.log(`[CodeParser] Parsing ${filePaths.length} files`)
 
-  const project = createTsMorphProject(projectPath)
+  const { detectProjectType } = await import('./parsers')
+  const projectType = detectProjectType(projectPath)
+  console.log(`[CodeParser] Detected project type: ${projectType}`)
+
   const parsedFiles: ParsedFile[] = []
 
   for (const filePath of filePaths) {
@@ -329,9 +333,20 @@ export async function parseFiles(
       : path.join(projectPath, filePath)
 
     try {
-      const sourceFile = project.addSourceFileAtPath(absolutePath)
-      const parsed = parseFile(sourceFile, projectPath)
-      parsedFiles.push(parsed)
+      const content = fs.readFileSync(absolutePath, 'utf-8')
+
+      if (projectType === 'python') {
+        const { parsePythonFile } = await import('./parsers/python-parser')
+        parsedFiles.push(parsePythonFile(absolutePath, content, projectPath) as unknown as ParsedFile)
+      } else if (projectType === 'ruby') {
+        const { parseRubyFile } = await import('./parsers/ruby-parser')
+        parsedFiles.push(parseRubyFile(absolutePath, content, projectPath) as unknown as ParsedFile)
+      } else {
+        // TypeScript/JavaScript - use ts-morph
+        const project = createTsMorphProject(projectPath)
+        const sourceFile = project.addSourceFileAtPath(absolutePath)
+        parsedFiles.push(parseFile(sourceFile, projectPath))
+      }
     } catch (err) {
       console.error(`[CodeParser] Failed to parse ${filePath}:`, err)
     }

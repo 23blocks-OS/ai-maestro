@@ -26,6 +26,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import os from 'os'
+import { getConversationSource } from '@/lib/conversation-source'
 import { agentRegistry } from '@/lib/agent'
 import {
   initializeSimpleSchema,
@@ -328,118 +329,48 @@ export async function initializeMemory(
         }
       }
 
-      const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+      // Discover conversation files via ConversationSource
+      const source = getConversationSource(registryAgent?.program)
+      const discoveredFiles = source.discoverFiles(Array.from(projectPaths))
 
-      if (fs.existsSync(claudeProjectsDir)) {
-        const findJsonlFiles = (dir: string): string[] => {
-          const files: string[] = []
-          try {
-            const items = fs.readdirSync(dir)
-            for (const item of items) {
-              const itemPath = path.join(dir, item)
-              try {
-                const stats = fs.statSync(itemPath)
-                if (stats.isDirectory()) {
-                  files.push(...findJsonlFiles(itemPath))
-                } else if (item.endsWith('.jsonl')) {
-                  files.push(itemPath)
-                }
-              } catch {
-                // Skip
-              }
-            }
-          } catch (err) {
-            console.error(`[Memory Service] Error reading directory ${dir}:`, err)
-          }
-          return files
-        }
+      // Also include files matching agent session IDs
+      const allFiles = agentSessionIds.size > 0
+        ? source.discoverFiles().filter(f =>
+            (f.sessionId && agentSessionIds.has(f.sessionId)) ||
+            (f.cwd && projectPaths.has(f.cwd))
+          )
+        : discoveredFiles
 
-        const allJsonlFiles = findJsonlFiles(claudeProjectsDir)
+      for (const file of allFiles) {
+        try {
+          const metadata = source.extractMetadata(file.path)
+          const cwd = metadata.cwd || file.cwd
 
-        for (const jsonlPath of allJsonlFiles) {
-          try {
-            const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-            const allLines = fileContent.split('\n').filter(line => line.trim())
+          if (!cwd) continue
 
-            let sessionId: string | null = null
-            let cwd: string | null = null
-            let firstUserMessage: string | null = null
-            let gitBranch: string | null = null
-            let claudeVersion: string | null = null
-            let firstMessageAt: number | null = null
-            let lastMessageAt: number | null = null
-            const modelSet = new Set<string>()
+          const projectName = cwd.split('/').pop() || 'unknown'
+          const conversationsDir = path.dirname(file.path)
 
-            const metadataLines = allLines.slice(0, 50)
-            for (const line of metadataLines) {
-              try {
-                const message = JSON.parse(line)
-                if (message.sessionId && !sessionId) sessionId = message.sessionId
-                if (message.cwd && !cwd) cwd = message.cwd
-                if (message.gitBranch && !gitBranch) gitBranch = message.gitBranch
-                if (message.version && !claudeVersion) claudeVersion = message.version
-                if (message.timestamp) {
-                  const ts = new Date(message.timestamp).getTime()
-                  if (!firstMessageAt || ts < firstMessageAt) firstMessageAt = ts
-                }
-                if (message.type === 'user' && message.message?.content && !firstUserMessage) {
-                  firstUserMessage = message.message.content.substring(0, 100)
-                }
-                if (message.type === 'assistant' && message.message?.model) {
-                  const model = message.message.model
-                  if (model.includes('sonnet')) modelSet.add('Sonnet 4.5')
-                  else if (model.includes('haiku')) modelSet.add('Haiku 4.5')
-                  else if (model.includes('opus')) modelSet.add('Opus 4.5')
-                }
-              } catch {
-                // Skip
-              }
-            }
+          await recordProject(agentDb, {
+            project_path: cwd,
+            project_name: projectName,
+            claude_dir: conversationsDir
+          })
 
-            for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
-              try {
-                const message = JSON.parse(allLines[i])
-                if (message.timestamp) {
-                  lastMessageAt = new Date(message.timestamp).getTime()
-                  break
-                }
-              } catch {
-                // Skip
-              }
-            }
-
-            const belongsToAgent =
-              (sessionId && agentSessionIds.has(sessionId)) ||
-              (cwd && projectPaths.has(cwd))
-
-            if (belongsToAgent && cwd) {
-              const messageCount = allLines.length
-              const modelNames = Array.from(modelSet).join(', ')
-              const projectName = cwd.split('/').pop() || 'unknown'
-              const conversationsDir = path.dirname(jsonlPath)
-
-              await recordProject(agentDb, {
-                project_path: cwd,
-                project_name: projectName,
-                claude_dir: conversationsDir
-              })
-
-              await recordConversation(agentDb, {
-                jsonl_file: jsonlPath,
-                project_path: cwd,
-                session_id: sessionId || 'unknown',
-                message_count: messageCount,
-                first_message_at: firstMessageAt || undefined,
-                last_message_at: lastMessageAt || undefined,
-                first_user_message: firstUserMessage || undefined,
-                model_names: modelNames || undefined,
-                git_branch: gitBranch || undefined,
-                claude_version: claudeVersion || undefined
-              })
-            }
-          } catch (err) {
-            console.error(`[Memory Service] Error processing ${jsonlPath}:`, err)
-          }
+          await recordConversation(agentDb, {
+            jsonl_file: file.path,
+            project_path: cwd,
+            session_id: metadata.sessionId || 'unknown',
+            message_count: metadata.messageCount,
+            first_message_at: metadata.firstMessageAt || undefined,
+            last_message_at: metadata.lastMessageAt || undefined,
+            first_user_message: metadata.firstUserMessage || undefined,
+            model_names: metadata.modelNames || undefined,
+            git_branch: metadata.gitBranch || undefined,
+            claude_version: metadata.claudeVersion || undefined
+          })
+        } catch (err) {
+          console.error(`[Memory Service] Error processing ${file.path}:`, err)
         }
       }
     }

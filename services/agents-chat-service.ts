@@ -7,6 +7,7 @@
 
 import { getAgent } from '@/lib/agent-registry'
 import { getRuntime } from '@/lib/agent-runtime'
+import { getConversationSource } from '@/lib/conversation-source'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
@@ -50,46 +51,21 @@ export async function getConversationMessages(
     return { error: 'Agent has no working directory configured', status: 400 }
   }
 
-  // Find the Claude conversation directory for this project
-  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-  const projectDirName = workingDir.replace(/\//g, '-')
-  const conversationDir = path.join(claudeProjectsDir, projectDirName)
+  // Find conversation files via ConversationSource
+  const source = getConversationSource(agent?.program)
+  const currentConversation = source.findMostRecentFile(workingDir)
 
-  if (!fs.existsSync(conversationDir)) {
+  if (!currentConversation) {
     return {
       data: {
         success: true,
         messages: [],
         conversationFile: null,
-        message: 'No conversation directory found for this project'
+        message: 'No conversation files found for this project'
       },
       status: 200
     }
   }
-
-  // Find the most recently modified .jsonl file
-  const files = fs.readdirSync(conversationDir)
-    .filter(f => f.endsWith('.jsonl'))
-    .map(f => ({
-      name: f,
-      path: path.join(conversationDir, f),
-      mtime: fs.statSync(path.join(conversationDir, f)).mtime
-    }))
-    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
-
-  if (files.length === 0) {
-    return {
-      data: {
-        success: true,
-        messages: [],
-        conversationFile: null,
-        message: 'No conversation files found'
-      },
-      status: 200
-    }
-  }
-
-  const currentConversation = files[0]
 
   // Read and parse the JSONL file
   const fileContent = fs.readFileSync(currentConversation.path, 'utf-8')
@@ -227,7 +203,7 @@ export async function getConversationMessages(
       messages: limitedMessages,
       conversationFile: currentConversation.path,
       totalMessages: messages.length,
-      lastModified: currentConversation.mtime.toISOString(),
+      lastModified: new Date(currentConversation.mtime).toISOString(),
       hookState,
       terminalPrompt,
       promptType

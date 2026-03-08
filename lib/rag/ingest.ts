@@ -294,65 +294,14 @@ export async function ingestAllConversations(
  * Find all conversation files for an agent
  */
 export function findConversationFiles(agentId: string, workingDirectories: string[]): string[] {
-  const conversationFiles: string[] = []
+  const { getConversationSource } = require('@/lib/conversation-source')
+  const source = getConversationSource()
 
-  // Search in .claude/projects directories
-  const claudeProjectsDir = path.join(require('os').homedir(), '.claude', 'projects')
+  const files = source.discoverFiles(workingDirectories)
+  const paths = files.map((f: { path: string }) => f.path)
 
-  if (!fs.existsSync(claudeProjectsDir)) {
-    console.warn(`[Ingest] Claude projects directory not found: ${claudeProjectsDir}`)
-    return conversationFiles
-  }
-
-  // Recursively find all .jsonl files
-  const findJsonlFiles = (dir: string): string[] => {
-    const files: string[] = []
-    try {
-      const items = fs.readdirSync(dir)
-      for (const item of items) {
-        const itemPath = path.join(dir, item)
-        try {
-          const stats = fs.statSync(itemPath)
-          if (stats.isDirectory()) {
-            files.push(...findJsonlFiles(itemPath))
-          } else if (item.endsWith('.jsonl')) {
-            files.push(itemPath)
-          }
-        } catch (err) {
-          // Skip files we can't read
-        }
-      }
-    } catch (err) {
-      console.error(`[Ingest] Error reading directory ${dir}:`, err)
-    }
-    return files
-  }
-
-  const allJsonlFiles = findJsonlFiles(claudeProjectsDir)
-  console.log(`[Ingest] Found ${allJsonlFiles.length} total conversation files`)
-
-  // Filter by working directories
-  for (const file of allJsonlFiles) {
-    const fileContent = fs.readFileSync(file, 'utf-8')
-    const lines = fileContent.split('\n').filter((line) => line.trim())
-
-    // Check first 10 lines for matching working directory
-    for (const line of lines.slice(0, 10)) {
-      try {
-        const msg = JSON.parse(line)
-        if (msg.cwd && workingDirectories.some((dir) => msg.cwd === dir)) {
-          conversationFiles.push(file)
-          break
-        }
-      } catch (err) {
-        // Skip malformed lines
-      }
-    }
-  }
-
-  console.log(`[Ingest] Found ${conversationFiles.length} conversations for agent ${agentId}`)
-
-  return conversationFiles
+  console.log(`[Ingest] Found ${paths.length} conversations for agent ${agentId}`)
+  return paths
 }
 
 /**

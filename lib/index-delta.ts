@@ -16,6 +16,7 @@ import { AgentDatabase } from '@/lib/cozo-db'
 import { getConversations, recordConversation, recordProject, getProjects, getSessions } from '@/lib/cozo-schema-simple'
 import { indexConversationDelta } from '@/lib/rag/ingest'
 import { getAgent as getRegistryAgent, getAgentBySession, updateAgentWorkingDirectory } from '@/lib/agent-registry'
+import { getConversationSource } from '@/lib/conversation-source'
 import { computeSessionName } from '@/types/agent'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -94,7 +95,7 @@ function updateFileSizeCache(filePath: string) {
 }
 
 // ============================================================================
-// PROJECT DISCOVERY CACHE: Scan ~/.claude/projects/ once, share across agents
+// PROJECT DISCOVERY CACHE: Uses ConversationSource, cached across agents
 // ============================================================================
 interface CachedJsonlFile {
   path: string
@@ -115,69 +116,13 @@ function getCachedProjectFiles(): CachedJsonlFile[] {
     return projectDiscoveryCache.files
   }
 
-  // Rebuild cache
-  const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-  if (!fs.existsSync(claudeProjectsDir)) {
-    projectDiscoveryCache = { files: [], timestamp: now }
-    return []
-  }
-
-  const findJsonlFiles = (dir: string): string[] => {
-    const files: string[] = []
-    try {
-      const items = fs.readdirSync(dir)
-      for (const item of items) {
-        const itemPath = path.join(dir, item)
-        try {
-          const stats = fs.statSync(itemPath)
-          if (stats.isDirectory()) {
-            files.push(...findJsonlFiles(itemPath))
-          } else if (item.endsWith('.jsonl')) {
-            files.push(itemPath)
-          }
-        } catch {
-          // Skip
-        }
-      }
-    } catch {
-      // Skip
-    }
-    return files
-  }
-
-  const allPaths = findJsonlFiles(claudeProjectsDir)
-  const files: CachedJsonlFile[] = []
-
-  for (const jsonlPath of allPaths) {
-    try {
-      // Read only the first 4KB to extract metadata (sessionId, cwd)
-      const fd = fs.openSync(jsonlPath, 'r')
-      const buf = Buffer.alloc(4096)
-      const bytesRead = fs.readSync(fd, buf, 0, 4096, 0)
-      fs.closeSync(fd)
-
-      const header = buf.toString('utf-8', 0, bytesRead)
-      const firstLines = header.split('\n').slice(0, 20)
-
-      let sessionId: string | null = null
-      let cwd: string | null = null
-
-      for (const line of firstLines) {
-        if (!line.trim()) continue
-        try {
-          const message = JSON.parse(line)
-          if (message.sessionId && !sessionId) sessionId = message.sessionId
-          if (message.cwd && !cwd) cwd = message.cwd
-        } catch {
-          // Skip malformed
-        }
-      }
-
-      files.push({ path: jsonlPath, sessionId, cwd })
-    } catch {
-      // Skip
-    }
-  }
+  const source = getConversationSource()
+  const discovered = source.discoverFiles()
+  const files: CachedJsonlFile[] = discovered.map(f => ({
+    path: f.path,
+    sessionId: f.sessionId,
+    cwd: f.cwd,
+  }))
 
   console.log(`[Delta Index] Project discovery cache rebuilt: ${files.length} files (TTL: ${PROJECT_CACHE_TTL / 60000}m)`)
   projectDiscoveryCache = { files, timestamp: now }
@@ -261,79 +206,9 @@ async function getLiveTmuxWorkingDirectory(sessionName: string): Promise<string 
 // ============================================================================
 // EXTRACT CONVERSATION METADATA (reads file once, extracts everything)
 // ============================================================================
-function extractConversationMetadata(jsonlPath: string, projectPath: string): {
-  sessionId: string | null
-  cwd: string | null
-  firstUserMessage: string | null
-  gitBranch: string | null
-  claudeVersion: string | null
-  firstMessageAt: number | null
-  lastMessageAt: number | null
-  modelNames: string
-  messageCount: number
-} {
-  const fileContent = fs.readFileSync(jsonlPath, 'utf-8')
-  const allLines = fileContent.split('\n').filter(line => line.trim())
-
-  let sessionId: string | null = null
-  let cwd: string | null = null
-  let firstUserMessage: string | null = null
-  let gitBranch: string | null = null
-  let claudeVersion: string | null = null
-  let firstMessageAt: number | null = null
-  let lastMessageAt: number | null = null
-  const modelSet = new Set<string>()
-
-  const metadataLines = allLines.slice(0, 50)
-  for (const line of metadataLines) {
-    try {
-      const message = JSON.parse(line)
-      if (message.sessionId && !sessionId) sessionId = message.sessionId
-      if (message.cwd && !cwd) cwd = message.cwd
-      if (message.gitBranch && !gitBranch) gitBranch = message.gitBranch
-      if (message.version && !claudeVersion) claudeVersion = message.version
-      if (message.timestamp) {
-        const ts = new Date(message.timestamp).getTime()
-        if (!firstMessageAt || ts < firstMessageAt) firstMessageAt = ts
-      }
-      if (message.type === 'user' && message.message?.content && !firstUserMessage) {
-        const content = message.message.content
-        firstUserMessage = content.substring(0, 100).replace(/[\n\r]/g, ' ').trim()
-      }
-      if (message.type === 'assistant' && message.message?.model) {
-        const model = message.message.model
-        if (model.includes('sonnet')) modelSet.add('Sonnet 4.5')
-        else if (model.includes('haiku')) modelSet.add('Haiku 4.5')
-        else if (model.includes('opus')) modelSet.add('Opus 4.5')
-      }
-    } catch {
-      // Skip malformed
-    }
-  }
-
-  for (let i = allLines.length - 1; i >= Math.max(0, allLines.length - 20); i--) {
-    try {
-      const message = JSON.parse(allLines[i])
-      if (message.timestamp) {
-        lastMessageAt = new Date(message.timestamp).getTime()
-        break
-      }
-    } catch {
-      // Skip
-    }
-  }
-
-  return {
-    sessionId,
-    cwd: cwd || projectPath,
-    firstUserMessage,
-    gitBranch,
-    claudeVersion,
-    firstMessageAt,
-    lastMessageAt,
-    modelNames: Array.from(modelSet).join(', '),
-    messageCount: allLines.length
-  }
+function extractConversationMetadata(jsonlPath: string, projectPath: string) {
+  const source = getConversationSource()
+  return source.extractMetadata(jsonlPath, projectPath)
 }
 
 // ============================================================================

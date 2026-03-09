@@ -8,7 +8,7 @@
  * Phase 4 of the service-layer refactoring.
  */
 
-import { exec, execSync as nodeExecSync, execFileSync as nodeExecFileSync } from 'child_process'
+import { exec, execFileSync as nodeExecFileSync } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -260,12 +260,12 @@ export function sessionExistsSync(name: string, socketPath?: string): boolean {
 
 export function killSessionSync(name: string): void {
   try {
-    nodeExecSync(`tmux kill-session -t "${name}" 2>/dev/null || true`, { encoding: 'utf-8' })
+    nodeExecFileSync('tmux', ['kill-session', '-t', name], { encoding: 'utf-8', stdio: 'ignore' })
   } catch {
     // Session may not exist
   }
 }
 
 export function renameSessionSync(oldName: string, newName: string): void {
-  nodeExecSync(`tmux rename-session -t "${oldName}" "${newName}"`)
+  nodeExecFileSync('tmux', ['rename-session', '-t', oldName, newName], { encoding: 'utf-8' })
 }

@@ -344,6 +344,12 @@ export function createAgent(request: CreateAgentRequest): Agent {
     throw new Error('Agent name is required')
   }
 
+  // Validate agent name: only alphanumeric, hyphens, underscores, forward slashes, and dots
+  // This prevents shell injection via crafted names (GHSA-mf7j-vfrr-jmfh)
+  if (!/^[a-zA-Z0-9/_.-]+$/.test(agentName)) {
+    throw new Error('Agent name must only contain alphanumeric characters, hyphens, underscores, dots, and forward slashes')
+  }
+
   // Determine deployment type
   const deploymentType: DeploymentType = request.deploymentType || 'local'
 

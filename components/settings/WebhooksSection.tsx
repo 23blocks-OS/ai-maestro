@@ -6,6 +6,7 @@ import {
   Check, Copy, PlayCircle, CheckCircle, XCircle, Clock
 } from 'lucide-react'
 import type { WebhookSubscription, CreateWebhookRequest, WebhookEventType } from '@/types/agent'
+import SecretRevealDialog from './SecretRevealDialog'
 
 const VALID_EVENTS: { id: WebhookEventType; label: string; description: string }[] = [
   { id: 'agent.email.changed', label: 'Email Changed', description: 'When an agent adds or removes email addresses' },
@@ -23,6 +24,8 @@ export default function WebhooksSection() {
   const [testingId, setTestingId] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null)
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null)
+  const [showSecretDialog, setShowSecretDialog] = useState(false)
+  const [revealedSecret, setRevealedSecret] = useState('')
 
   // Create form state
   const [newUrl, setNewUrl] = useState('')
@@ -75,7 +78,8 @@ export default function WebhooksSection() {
       if (response.ok) {
         const data = await response.json()
         // Show the secret to the user (only time it's visible)
-        alert(`Webhook created!\n\nIMPORTANT: Copy your secret now. It won't be shown again.\n\nSecret: ${data.webhook.secret}`)
+        setRevealedSecret(data.webhook.secret)
+        setShowSecretDialog(true)
         setShowCreateDialog(false)
         setNewUrl('')
         setNewEvents(['agent.email.changed'])
@@ -490,6 +494,11 @@ export default function WebhooksSection() {
           </div>
         </div>
       )}
+      <SecretRevealDialog
+        isOpen={showSecretDialog}
+        secret={revealedSecret}
+        onClose={() => setShowSecretDialog(false)}
+      />
     </div>
   )
 }

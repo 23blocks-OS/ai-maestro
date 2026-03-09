@@ -49,6 +49,7 @@ import AgentBadge from './AgentBadge'
 import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwitcher'
 import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
+import { useToast } from '@/contexts/ToastContext'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -164,6 +165,7 @@ export default function AgentList({
   subconsciousRefreshTrigger,
   sidebarWidth = 320,
 }: AgentListProps) {
+  const { addToast } = useToast()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
   const [showWizardModal, setShowWizardModal] = useState(false)
@@ -500,10 +502,11 @@ export default function AgentList({
     setHibernatingAgents(prev => new Set(prev).add(agent.id))
 
     try {
-      const baseUrl = agent.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/hibernate`, {
+      // Always call local server — the route proxies to remote hosts server-side
+      const response = await fetch(`/api/agents/${agent.id}/hibernate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -515,7 +518,14 @@ export default function AgentList({
       onRefresh?.()
     } catch (error) {
       console.error('Failed to hibernate agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to hibernate agent')
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
+      addToast({
+        type: 'error',
+        title: 'Failed to hibernate agent',
+        message: agent.hostUrl
+          ? `Host ${agent.hostUrl} may be unreachable: ${errMsg}`
+          : `${errMsg}. Check your network connection and try again.`,
+      })
     } finally {
       setHibernatingAgents(prev => {
         const next = new Set(prev)
@@ -539,11 +549,11 @@ export default function AgentList({
     setWakingAgents(prev => new Set(prev).add(agent.id))
 
     try {
-      const baseUrl = agent.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+      // Always call local server — the route proxies to remote hosts server-side
+      const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program }),
+        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -556,7 +566,15 @@ export default function AgentList({
       onRefresh?.()
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to wake agent')
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
+      addToast({
+        type: 'error',
+        title: 'Failed to wake agent',
+        message: agent.hostUrl
+          ? `Host ${agent.hostUrl} may be unreachable: ${errMsg}`
+          : `${errMsg}. Check your network connection and try again.`,
+      })
+      setWakeDialogAgent(null)
     } finally {
       setWakingAgents(prev => {
         const next = new Set(prev)
@@ -639,7 +657,11 @@ export default function AgentList({
       onRefresh?.()
     } catch (error) {
       console.error('Failed to move agent:', error)
-      alert(error instanceof Error ? error.message : 'Failed to move agent')
+      addToast({
+        type: 'error',
+        title: 'Failed to move agent',
+        message: 'Could not complete the request. Check your network connection and try again.',
+      })
     } finally {
       setDraggedAgent(null)
     }
@@ -662,7 +684,11 @@ export default function AgentList({
 
       return true // Success - modal will handle showing celebration
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to create session')
+      addToast({
+        type: 'error',
+        title: 'Failed to create session',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
       return false
     } finally {
       setActionLoading(false)

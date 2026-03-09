@@ -20,6 +20,7 @@ import TranscriptExport from '@/components/TranscriptExport'
 import AgentPlayback from '@/components/AgentPlayback'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
+import { useToast } from '@/contexts/ToastContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
 import { agentToSession } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
@@ -82,6 +83,7 @@ const DocumentationPanel = dynamic(
 )
 
 export default function DashboardPage() {
+  const { addToast } = useToast()
   // Agent-centric: Primary hook is useAgents
   const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
 
@@ -445,7 +447,11 @@ export default function DashboardPage() {
         setActiveAgentId(agent.id)
       }, 500)
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to start session')
+      addToast({
+        type: 'error',
+        title: 'Failed to start session',
+        message: 'The agent host may be unreachable. Check your network connection and try again.',
+      })
     }
   }
 
@@ -469,11 +475,11 @@ export default function DashboardPage() {
     setWakingAgentId(agent.id)
 
     try {
-      const baseUrl = agent.hostUrl || ''
-      const response = await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
+      // Always call local server — the route proxies to remote hosts server-side
+      const response = await fetch(`/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program }),
+        body: JSON.stringify({ program, hostUrl: agent.hostUrl }),
       })
 
       if (!response.ok) {
@@ -484,10 +490,14 @@ export default function DashboardPage() {
       refreshAgents()
     } catch (error) {
       console.error('Failed to wake agent:', error)
-      // Use setTimeout to ensure state updates happen first
-      setTimeout(() => {
-        alert(error instanceof Error ? error.message : 'Failed to wake agent')
-      }, 0)
+      const errMsg = error instanceof Error ? error.message : 'Unknown error'
+      addToast({
+        type: 'error',
+        title: 'Failed to wake agent',
+        message: agent.hostUrl
+          ? `Host ${agent.hostUrl} may be unreachable: ${errMsg}`
+          : `${errMsg}. Check your network connection and try again.`,
+      })
     } finally {
       setWakingAgentId(null)
     }

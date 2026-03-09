@@ -22,10 +22,11 @@ export default function ForwardDialog({
   const [selectedAgent, setSelectedAgent] = useState('')
   const [forwardNote, setForwardNote] = useState('')
   const [isForwarding, setIsForwarding] = useState(false)
+  const [validationError, setValidationError] = useState('')
 
   const handleConfirm = async () => {
     if (!selectedAgent) {
-      alert('Please select an agent to forward to')
+      setValidationError('Please select an agent to forward to')
       return
     }
 
@@ -66,7 +67,7 @@ export default function ForwardDialog({
               id="forward-agent-select"
               name="forwardAgent"
               value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
+              onChange={(e) => { setSelectedAgent(e.target.value); setValidationError('') }}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isForwarding}
             >
@@ -77,6 +78,9 @@ export default function ForwardDialog({
                 </option>
               ))}
             </select>
+            {validationError && (
+              <p className="text-xs text-red-400 mt-1">{validationError}</p>
+            )}
           </div>
 
           {/* Forward Note */}

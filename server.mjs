@@ -1089,6 +1089,19 @@ async function startServer(handleRequest) {
   server.listen(port, hostname, async () => {
     console.log(`> Ready on http://${hostname}:${port}`)
 
+    // Run startup self-diagnostics (non-blocking)
+    setTimeout(async () => {
+      try {
+        const { runDiagnostics, logDiagnosticReport } = await import('./services/diagnostics-service.ts')
+        const result = await runDiagnostics()
+        if (result.data) {
+          logDiagnosticReport(result.data)
+        }
+      } catch (error) {
+        console.error('[Diagnostics] Failed to run startup diagnostics:', error.message)
+      }
+    }, 1000) // Run after 1 second to avoid blocking other startup tasks
+
     // Sync agent databases on startup
     try {
       const { syncAgentDatabases } = await import('./lib/agent-db-sync.mjs')

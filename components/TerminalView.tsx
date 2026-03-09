@@ -8,6 +8,7 @@ import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import MobileKeyToolbar from './MobileKeyToolbar'
 import type { Session } from '@/types/session'
+import { useToast } from '@/contexts/ToastContext'
 
 const BRACKETED_PASTE_START = '\u001b[200~'
 const BRACKETED_PASTE_END = '\u001b[201~'
@@ -32,6 +33,7 @@ interface TerminalViewProps {
 }
 
 export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
+  const { addToast } = useToast()
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false) // Gate for input handler
@@ -414,7 +416,11 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     } catch (err) {
       console.error('[Terminal] Failed to paste:', err)
       // On mobile, clipboard access might fail - show user-friendly message
-      alert('Unable to access clipboard. Please use the Prompt Builder tab to paste text.')
+      addToast({
+        type: 'warning',
+        title: 'Clipboard unavailable',
+        message: 'Unable to access clipboard. Try using the Prompt Builder tab to paste text.',
+      })
     }
   }, [isConnected, sendMessage])
 

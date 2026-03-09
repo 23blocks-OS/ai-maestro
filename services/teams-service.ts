@@ -148,8 +148,15 @@ export function getTeamById(id: string): ServiceResult<{ team: any }> {
  */
 export function updateTeamById(id: string, params: UpdateTeamParams): ServiceResult<{ team: any }> {
   try {
-    const { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt } = params
-    const team = updateTeam(id, { name, description, agentIds, lastMeetingAt, instructions, lastActivityAt })
+    // Filter out undefined values to avoid overwriting existing fields
+    const updates: Record<string, unknown> = {}
+    if (params.name !== undefined) updates.name = params.name
+    if (params.description !== undefined) updates.description = params.description
+    if (params.agentIds !== undefined) updates.agentIds = params.agentIds
+    if (params.lastMeetingAt !== undefined) updates.lastMeetingAt = params.lastMeetingAt
+    if (params.instructions !== undefined) updates.instructions = params.instructions
+    if (params.lastActivityAt !== undefined) updates.lastActivityAt = params.lastActivityAt
+    const team = updateTeam(id, updates as any)
     if (!team) {
       return { error: 'Team not found', status: 404 }
     }

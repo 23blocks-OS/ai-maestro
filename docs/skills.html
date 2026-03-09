@@ -151,7 +151,7 @@
         "name": "Can I use AI Maestro skills with other AI agents?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "The skills (SKILL.md files) are specific to Claude Code. However, the underlying command-line scripts (memory-search.sh, graph-describe.sh, etc.) work with any AI agent running in tmux - Aider, Cursor, Copilot, or custom agents."
+          "text": "Yes! All 6 skills comply with the Agent Skills Standard (agentskills.io/specification), adopted by 30+ agent products including Claude Code, OpenCode, Codex CLI, Gemini CLI, Cursor, and GitHub Copilot. The planning skill works standalone on any compatible agent. The other 5 skills require the AI Maestro service running for their backend APIs."
         }
       }]
     }
@@ -385,12 +385,18 @@
     <header class="py-12 md:py-24 text-center px-4 md:px-0 bg-gradient-to-br from-cyan-500/10 to-amber-500/10">
         <div class="max-w-[1200px] mx-auto">
             <p class="text-[2rem] md:text-[3rem] font-semibold text-slate-500 mb-4" id="announcement"><span class="typing-cursor"></span></p>
-            <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-mono mb-6">
-                <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
-                Claude Code Skills System
+            <div class="flex flex-wrap justify-center gap-3 mb-6">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-mono">
+                    <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+                    Claude Code Skills System
+                </div>
+                <a href="https://agentskills.io/specification" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-sm font-mono no-underline hover:bg-emerald-500/20 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Agent Skills Standard Compliant
+                </a>
             </div>
             <h1 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-6 max-w-[900px] mx-auto">Give Your AI Agents <span class="gradient-text">Superpowers</span></h1>
-            <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Skills that make Claude Code agents proactively intelligent. Memory search, code graph queries, documentation lookup, and agent-to-agent messaging - all auto-triggered without you asking.</p>
+            <p class="text-lg md:text-xl text-slate-400 max-w-[700px] mx-auto mb-8">Skills that work with Claude Code, OpenCode, Codex CLI, Gemini CLI, Cursor, and 30+ compatible agents. Memory search, code graph queries, documentation lookup, and agent-to-agent messaging - all auto-triggered.</p>
             <div class="flex flex-col md:flex-row gap-4 justify-center mb-8 md:items-center max-w-[400px] md:max-w-none mx-auto">
                 <a href="#skills" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-cyan-500 text-slate-900 hover:bg-cyan-400 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,212,255,0.4)] text-lg">Explore Skills</a>
                 <a href="#installation" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg no-underline font-semibold transition-all duration-200 bg-slate-900 text-cyan-400 border-2 border-cyan-500 hover:bg-cyan-500 hover:text-slate-900 text-lg">Install Now</a>
@@ -401,8 +407,8 @@
     <!-- What Are Skills Section -->
     <section class="py-16 px-8 bg-slate-950">
         <div class="max-w-[1200px] mx-auto">
-            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">What Are Claude Code Skills?</h2>
-            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Skills are SKILL.md files that teach Claude Code how to use specific tools and workflows. They're like plugins - but smarter.</p>
+            <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white text-center mb-4">What Are Agent Skills?</h2>
+            <p class="text-center text-lg text-slate-400 max-w-[700px] mx-auto mb-12">Skills are SKILL.md files that follow the open <a href="https://agentskills.io/specification" target="_blank" class="text-cyan-400 hover:underline">Agent Skills Standard</a>. They teach AI agents how to use specific tools and workflows. Install them on any compatible agent - not just Claude Code.</p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div class="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-center">
@@ -736,38 +742,59 @@
                 </div>
 
                 <!-- Service Dependency Warning -->
+                <!-- Agent Skills Standard Compliance -->
+                <div class="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-2xl mb-6">
+                    <div class="flex items-start gap-4">
+                        <span class="text-2xl">&#9989;</span>
+                        <div>
+                            <h4 class="text-lg font-semibold text-emerald-400 mb-2">Agent Skills Standard Compliant</h4>
+                            <p class="text-slate-300 mb-3">All 6 skills follow the open <a href="https://agentskills.io/specification" target="_blank" class="text-cyan-400 hover:underline">Agent Skills Standard</a> (agentskills.io). Install them on <strong class="text-white">any compatible agent</strong>:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">Claude Code</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">OpenCode</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">Codex CLI</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">Gemini CLI</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">Cursor</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">GitHub Copilot</span>
+                                <span class="px-3 py-1 bg-slate-800 border border-slate-600 rounded-full text-xs font-mono text-slate-300">30+ more</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl">
                     <div class="flex items-start gap-4">
-                        <span class="text-2xl">⚠️</span>
+                        <span class="text-2xl">&#9888;&#65039;</span>
                         <div>
                             <h4 class="text-lg font-semibold text-amber-400 mb-2">Service Dependency</h4>
-                            <p class="text-slate-300 mb-4"><strong>4 of 5 skills require the AI Maestro service running</strong> on localhost:23000.</p>
+                            <p class="text-slate-300 mb-4"><strong>5 of 6 skills require the AI Maestro service running</strong> on localhost:23000. The planning skill works standalone on any agent.</p>
                             <table class="w-full text-sm">
                                 <tr class="border-b border-slate-700">
                                     <td class="py-2 text-emerald-400 font-mono">planning</td>
-                                    <td class="py-2 text-emerald-400">✓ Works standalone</td>
+                                    <td class="py-2 text-emerald-400">Works standalone on any agent</td>
                                 </tr>
                                 <tr class="border-b border-slate-700">
                                     <td class="py-2 text-amber-400 font-mono">memory-search</td>
-                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro service *</td>
                                 </tr>
                                 <tr class="border-b border-slate-700">
                                     <td class="py-2 text-amber-400 font-mono">docs-search</td>
-                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro service *</td>
                                 </tr>
                                 <tr class="border-b border-slate-700">
                                     <td class="py-2 text-amber-400 font-mono">graph-query</td>
-                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro service *</td>
+                                </tr>
+                                <tr class="border-b border-slate-700">
+                                    <td class="py-2 text-amber-400 font-mono">agent-messaging</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro service *</td>
                                 </tr>
                                 <tr>
-                                    <td class="py-2 text-amber-400 font-mono">agent-messaging</td>
-                                    <td class="py-2 text-slate-400">Needs AI Maestro running</td>
+                                    <td class="py-2 text-amber-400 font-mono">agents-management</td>
+                                    <td class="py-2 text-slate-400">Needs AI Maestro service *</td>
                                 </tr>
                             </table>
-                            <p class="text-slate-400 mt-4">To enable all skills, install AI Maestro:</p>
-                            <div class="bg-slate-800 p-3 rounded-lg font-mono text-sm mt-2 overflow-x-auto">
-                                curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh
-                            </div>
+                            <p class="text-slate-500 mt-3 text-xs">* Install AI Maestro to enable these skills: <code class="bg-slate-800 px-2 py-0.5 rounded">curl -fsSL https://raw.githubusercontent.com/23blocks-OS/ai-maestro/main/scripts/remote-install.sh | sh</code></p>
                         </div>
                     </div>
                 </div>
@@ -790,11 +817,12 @@
             <div class="space-y-4">
                 <details class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden group">
                     <summary class="p-6 cursor-pointer font-semibold text-white flex justify-between items-center hover:bg-slate-800/50 transition-colors">
-                        Can I use these skills with Aider, Cursor, or other AI agents?
+                        Can I use these skills with OpenCode, Codex CLI, Gemini CLI, or other agents?
                         <span class="text-cyan-400 group-open:rotate-180 transition-transform">▼</span>
                     </summary>
                     <div class="px-6 pb-6 text-slate-400">
-                        The skills (SKILL.md files) are specific to Claude Code. However, the underlying command-line scripts (<code class="bg-slate-800 px-2 py-1 rounded text-sm">memory-search.sh</code>, <code class="bg-slate-800 px-2 py-1 rounded text-sm">graph-describe.sh</code>, etc.) work with any AI agent running in tmux. You can teach other agents to use these scripts directly.
+                        <strong class="text-emerald-400">Yes!</strong> All 6 skills comply with the <a href="https://agentskills.io/specification" target="_blank" class="text-cyan-400 hover:underline">Agent Skills Standard</a>, adopted by 30+ agent products including Claude Code, OpenCode, Codex CLI, Gemini CLI, Cursor, and GitHub Copilot. Any agent that reads SKILL.md files can use these skills.<br><br>
+                        <strong>The planning skill works standalone</strong> on any compatible agent with no dependencies. The other 5 skills require the AI Maestro service running for their backend APIs (memory, graph, docs, messaging, agent management).
                     </div>
                 </details>
 

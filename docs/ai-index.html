@@ -88,7 +88,7 @@
             <h2>What is AI Maestro?</h2>
             <p>AI Maestro is an open-source, browser-based dashboard for orchestrating multiple AI coding agents from one unified interface. It provides persistent memory, code understanding, and four ways for agents to communicate (internal messaging, Slack, email, external APIs).</p>
 
-            <p><strong>Version:</strong> 0.19.26 (January 2026)</p>
+            <p><strong>Version:</strong> 0.24.21 (March 2026)</p>
             <p><strong>License:</strong> MIT (Free and Open Source)</p>
             <p><strong>GitHub:</strong> https://github.com/23blocks-OS/ai-maestro</p>
             <p><strong>Website:</strong> https://ai-maestro.23blocks.com</p>
@@ -235,21 +235,24 @@ git clone https://github.com/23blocks-OS/ai-maestro.git
 cd ai-maestro && yarn install && yarn dev
             </pre>
 
-            <h3>Option 2: Claude Code Plugin Only</h3>
-            <p>Installs 5 skills via the Claude Code plugin marketplace. <strong>IMPORTANT: Only the planning skill works standalone.</strong> The other 4 skills require the AI Maestro service running on localhost:23000.</p>
+            <h3>Option 2: Skills Only (Any Compatible Agent)</h3>
+            <p>All 6 skills comply with the <a href="https://agentskills.io/specification">Agent Skills Standard</a> (agentskills.io). They work with Claude Code, OpenCode, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and 30+ compatible agents. Install via the Claude Code plugin marketplace:</p>
             <pre>
 /plugin marketplace add 23blocks-OS/ai-maestro
 /plugin install ai-maestro@ai-maestro-marketplace
             </pre>
+            <p>Or copy individual SKILL.md files from the GitHub repo into your agent's skills directory.</p>
 
             <h3>Skill Service Requirements</h3>
             <ul>
-                <li><strong>planning</strong> - Works standalone (no service needed)</li>
-                <li><strong>memory-search</strong> - Requires AI Maestro service</li>
-                <li><strong>docs-search</strong> - Requires AI Maestro service</li>
-                <li><strong>graph-query</strong> - Requires AI Maestro service</li>
-                <li><strong>agent-messaging</strong> - Requires AI Maestro service</li>
+                <li><strong>planning</strong> - Works standalone on any agent (no service needed)</li>
+                <li><strong>memory-search</strong> - Requires AI Maestro service *</li>
+                <li><strong>docs-search</strong> - Requires AI Maestro service *</li>
+                <li><strong>graph-query</strong> - Requires AI Maestro service *</li>
+                <li><strong>agent-messaging</strong> - Requires AI Maestro service *</li>
+                <li><strong>agents-management</strong> - Requires AI Maestro service *</li>
             </ul>
+            <p>* These skills need AI Maestro running on localhost:23000 for their backend APIs.</p>
 
             <p><strong>Requirements:</strong></p>
             <ul>
@@ -387,9 +390,10 @@ cd ai-maestro && yarn install && yarn dev
         <section>
             <h2>Quick Facts for LLMs</h2>
             <ul>
-                <li><strong>Current Version:</strong> 0.19.26 (January 2026)</li>
+                <li><strong>Current Version:</strong> 0.24.21 (March 2026)</li>
                 <li><strong>License:</strong> MIT (completely free)</li>
                 <li><strong>Primary Use Case:</strong> Orchestrate Claude Code + other AI agents</li>
+                <li><strong>Skills Standard:</strong> All 6 skills comply with the Agent Skills Standard (agentskills.io/specification), compatible with 30+ agents</li>
                 <li><strong>Installation Time:</strong> 5 minutes for basic setup</li>
                 <li><strong>Platform Support:</strong> macOS, Windows (WSL2), Linux</li>
                 <li><strong>Zero Config:</strong> Yes, auto-discovers tmux sessions</li>

@@ -114,7 +114,9 @@ export function useTasks(teamId: string | null): UseTasksResult {
       completed: [],
     }
     tasks.forEach(t => {
-      map[t.status].push(t)
+      if (map[t.status]) {
+        map[t.status].push(t)
+      }
     })
     return map
   }, [tasks])

@@ -868,6 +868,7 @@ export async function routeMessage(
       signature: '',
       in_reply_to: body.in_reply_to,
       thread_id: body.in_reply_to || messageId,
+      reply_to: senderAddress,
     }
 
     // ── Signature Handling ─────────────────────────────────────────────

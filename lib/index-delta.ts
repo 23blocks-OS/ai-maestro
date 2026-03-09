@@ -221,7 +221,13 @@ async function autoDiscoverProjects(
       matchedConversations++
       if (!discoveredProjects.has(file.cwd)) {
         const projectName = file.cwd.split('/').pop() || 'unknown'
-        const claudeDir = path.dirname(file.path)
+        // Derive the top-level Claude project directory, not a subdirectory.
+        // Files may be nested (e.g. <project-slug>/<session>/subagents/agent.jsonl)
+        // but the project dir is always ~/.claude/projects/<project-slug>/
+        const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
+        const relToProjects = path.relative(claudeProjectsDir, file.path)
+        const projectSlug = relToProjects.split(path.sep)[0]
+        const claudeDir = path.join(claudeProjectsDir, projectSlug)
         discoveredProjects.set(file.cwd, { projectName, claudeDir })
         console.log(`[Delta Index] Auto-discovered project: ${projectName} (${file.cwd})`)
       }
@@ -482,15 +488,33 @@ export async function runIndexDelta(
       const existingConvosResult = await getConversations(agentDb, projectPath)
       const existingFiles = new Set(existingConvosResult.rows.map((row: unknown[]) => row[0] as string))
 
-      try {
-        const files = fs.readdirSync(claudeDir)
-        const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+      // Recursively find all .jsonl files (Claude Code stores subagent
+      // conversations in <session-id>/subagents/ subdirectories)
+      const findJsonlRecursive = (dir: string): string[] => {
+        const results: string[] = []
+        try {
+          for (const entry of fs.readdirSync(dir)) {
+            const entryPath = path.join(dir, entry)
+            try {
+              const stat = fs.statSync(entryPath)
+              if (stat.isDirectory()) {
+                results.push(...findJsonlRecursive(entryPath))
+              } else if (entry.endsWith('.jsonl')) {
+                results.push(entryPath)
+              }
+            } catch { /* skip inaccessible */ }
+          }
+        } catch { /* skip */ }
+        return results
+      }
 
-        for (const jsonlFile of jsonlFiles) {
-          const fullPath = path.join(claudeDir, jsonlFile)
+      try {
+        const jsonlPaths = findJsonlRecursive(claudeDir)
+
+        for (const fullPath of jsonlPaths) {
           if (existingFiles.has(fullPath)) continue
 
-          console.log(`[Delta Index] Discovered new conversation: ${jsonlFile}`)
+          console.log(`[Delta Index] Discovered new conversation: ${path.relative(claudeDir, fullPath)}`)
 
           try {
             const metadata = extractConversationMetadata(fullPath, projectPath)
@@ -514,7 +538,7 @@ export async function runIndexDelta(
 
             newConversationsDiscovered++
           } catch (err) {
-            console.error(`[Delta Index] Failed to process ${jsonlFile}:`, err)
+            console.error(`[Delta Index] Failed to process ${path.relative(claudeDir, fullPath)}:`, err)
           }
         }
       } catch (err) {

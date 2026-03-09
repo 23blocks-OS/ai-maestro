@@ -139,6 +139,9 @@ export interface AMPEnvelope {
 
   /** Thread ID for conversation tracking (ID of first message in thread) */
   thread_id: string
+
+  /** Cached return address for replies (avoids re-resolving sender) */
+  reply_to?: string
 }
 
 /**

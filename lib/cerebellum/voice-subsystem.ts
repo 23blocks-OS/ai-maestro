@@ -241,84 +241,22 @@ export class VoiceSubsystem implements Subsystem {
    */
   private readRecentConversation(maxTurns = 6): ConversationTurn[] {
     try {
-      const fs = require('fs')
-      const path = require('path')
-      const os = require('os')
-
-      // Get agent's working directory from registry
       const { getAgent: getRegistryAgent } = require('../agent-registry')
+      const { getConversationSource } = require('../conversation-source')
+
       if (!this.context) return []
       const registryAgent = getRegistryAgent(this.context.agentId)
       const workingDir = registryAgent?.workingDirectory
         || registryAgent?.sessions?.[0]?.workingDirectory
       if (!workingDir) return []
 
-      // Derive the Claude projects directory path (same as chat route.ts)
-      const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects')
-      const projectDirName = workingDir.replace(/\//g, '-')
-      const conversationDir = path.join(claudeProjectsDir, projectDirName)
+      const source = getConversationSource(registryAgent?.program)
+      const recentFile = source.findMostRecentFile(workingDir)
+      if (!recentFile) return []
 
-      if (!fs.existsSync(conversationDir)) return []
-
-      // Find the most recently modified .jsonl file
-      const files = fs.readdirSync(conversationDir)
-        .filter((f: string) => f.endsWith('.jsonl'))
-        .map((f: string) => ({
-          name: f,
-          path: path.join(conversationDir, f),
-          mtime: fs.statSync(path.join(conversationDir, f)).mtime,
-        }))
-        .sort((a: { mtime: Date }, b: { mtime: Date }) => b.mtime.getTime() - a.mtime.getTime())
-
-      if (files.length === 0) return []
-
-      const content = fs.readFileSync(files[0].path, 'utf-8')
-      const lines = content.split('\n').filter((line: string) => line.trim())
-
-      // Parse and extract last N turns
-      const turns: ConversationTurn[] = []
-      for (const line of lines) {
-        try {
-          const msg = JSON.parse(line)
-          if (msg.type === 'human' || msg.role === 'user') {
-            // Extract text from human message
-            const text = typeof msg.message === 'string'
-              ? msg.message
-              : msg.message?.content
-                ? (typeof msg.message.content === 'string'
-                  ? msg.message.content
-                  : msg.message.content
-                    .filter((b: { type: string }) => b.type === 'text')
-                    .map((b: { text: string }) => b.text)
-                    .join(' '))
-                : null
-            if (text) {
-              turns.push({ role: 'user', text: text.substring(0, 400) })
-            }
-          } else if (msg.type === 'assistant' || msg.role === 'assistant') {
-            const text = typeof msg.message === 'string'
-              ? msg.message
-              : msg.message?.content
-                ? (typeof msg.message.content === 'string'
-                  ? msg.message.content
-                  : msg.message.content
-                    .filter((b: { type: string }) => b.type === 'text')
-                    .map((b: { text: string }) => b.text)
-                    .join(' '))
-                : null
-            if (text) {
-              turns.push({ role: 'assistant', text: text.substring(0, 400) })
-            }
-          }
-        } catch {
-          // Skip malformed lines
-        }
-      }
-
-      // Return last N turns
-      return turns.slice(-maxTurns)
+      return source.readRecentTurns(recentFile.path, maxTurns)
     } catch (err) {
-      console.error('[Cerebellum:Voice] Failed to read conversation JSONL:', err)
+      console.error('[Cerebellum:Voice] Failed to read conversation:', err)
       return []
     }
   }

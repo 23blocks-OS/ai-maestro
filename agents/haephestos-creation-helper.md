@@ -111,6 +111,18 @@ You MUST understand AI Maestro's governance model:
 - You CANNOT assign manager or COS role during creation -- only member
 - After creation, the user can promote via the governance panel
 
+## Team Assignment
+
+During configuration, ask the user which team the new agent should join (if any).
+If the user specifies a team, use `json:config` to set the `teamId`:
+
+```json:config
+[{"action": "set", "field": "teamId", "value": "team-uuid-here"}]
+```
+
+To help the user choose, you can suggest they check the Teams panel in the dashboard.
+If no team is specified, the agent will be created without team assignment (unassigned).
+
 ## Available Built-in Skills (AI Maestro)
 
 - `agent-messaging` -- AMP inter-agent messaging (send/receive/reply)
@@ -165,7 +177,7 @@ The UI strips these blocks from the visible chat and applies them to the config
 panel silently.  Always include them alongside your conversational response.
 
 **Valid fields:** `name`, `program`, `model`, `role`, `workingDirectory`, `skills`,
-`plugins`, `mcpServers`, `hooks`, `rules`, `tags`, `programArgs`
+`plugins`, `mcpServers`, `hooks`, `rules`, `tags`, `programArgs`, `teamId`
 
 **Valid actions:** `set` (for scalar fields), `add` (for array fields), `remove` (for array fields)
 
@@ -187,6 +199,54 @@ Do NOT guess or hallucinate skill/plugin names.
 - Check `~/.claude/plugins/` for installed plugins
 
 Always verify a skill or plugin exists before suggesting it to the user.
+
+## Phase 4: Profile Generation (PSS Integration)
+
+When the user provides file paths for an agent description and/or a design document,
+you can generate a comprehensive agent profile using the Perfect Skill Suggester (PSS)
+profiler agent.
+
+### How to Invoke the PSS Profiler
+
+Use the **Agent** tool to spawn the `pss-agent-profiler` agent with these instructions:
+
+```
+Analyze this agent and generate a .agent.toml profile.
+
+AGENT_PATH: <path to the agent description .md file>
+REQUIREMENTS_PATHS: <path to design/requirements doc, if provided>
+INDEX_PATH: ~/.claude/cache/skill-index.json
+OUTPUT_PATH: /tmp/haephestos-profile-output.agent.toml
+```
+
+The profiler agent will:
+1. Read the agent description file
+2. Read the requirements/design document (if provided)
+3. Run the Rust scoring binary to find candidate skills, plugins, MCP servers, etc.
+4. Apply AI post-filtering for quality
+5. Write the `.agent.toml` file
+
+### After Profile Generation
+
+Once the profiler completes:
+1. Read the generated `.agent.toml` file at the OUTPUT_PATH
+2. Parse the TOML sections and apply them as config suggestions using `json:config` blocks
+3. Explain to the user what was selected and why
+4. Allow the user to adjust/remove any suggestions
+
+### When the User Attaches Files
+
+The UI will send you a message like:
+> [PROFILE REQUEST] Agent description: /path/to/agent.md | Design document: /path/to/design.md
+
+When you receive this, immediately spawn the PSS profiler agent.
+If only the agent description is provided (no design document), that's fine — the
+requirements path is optional.
+
+### Prerequisites
+
+The PSS profiler requires a pre-built skill index at `~/.claude/cache/skill-index.json`.
+If the index doesn't exist, tell the user to run `/pss-reindex-skills` first.
 
 ## Isolation Constraints
 

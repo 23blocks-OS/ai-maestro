@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, Loader2, AlertCircle } from 'lucide-react'
+import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -20,7 +20,7 @@ const SyntaxHighlighter = _SyntaxHighlighter as unknown as React.ComponentType<{
 
 // --- Types ---
 
-export interface ConfigItem {
+interface ConfigItem {
   name: string
   description: string
 }
@@ -40,8 +40,8 @@ interface ChatMessage {
   timestamp: number
 }
 
-// Session lifecycle states
-type SessionState = 'starting' | 'ready' | 'error' | 'closed'
+// Session lifecycle states (component unmounts on close, no 'closed' state needed)
+type SessionState = 'starting' | 'ready' | 'error'
 
 // --- Constants ---
 
@@ -52,6 +52,8 @@ const HAEPHESTOS_AVATAR_THUMB = '/avatars/haephestos_thumb.png'
 // Polling intervals (ms)
 const STATUS_POLL_INTERVAL = 1000
 const RESPONSE_POLL_INTERVAL = 800
+const RESPONSE_TIMEOUT_MS = 60_000  // Max wait for Claude response before showing error
+const STARTUP_TIMEOUT_MS = 30_000   // Max wait for Claude to become ready after launch
 
 // Protocol whitelist for rendered markdown links
 const SAFE_URL_PROTOCOL = /^(https?:\/\/|mailto:|#)/i
@@ -85,6 +87,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState('')
@@ -97,6 +100,10 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     model: 'claude-sonnet-4-5',
     role: 'member',
   })
+  const [agentDescPath, setAgentDescPath] = useState('')
+  const [designDocPath, setDesignDocPath] = useState('')
+  const [showAttachments, setShowAttachments] = useState(false)
+  const [isProfileGenerating, setIsProfileGenerating] = useState(false)
 
   // ----- Session lifecycle -----
 
@@ -129,11 +136,21 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     }
   }, [sessionState, waitingForResponse])
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [onClose])
+
   // ----- Helpers -----
 
   const clearPolling = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     if (statusPollRef.current) { clearInterval(statusPollRef.current); statusPollRef.current = null }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
   }, [])
 
   // Apply config suggestions from Claude's structured output
@@ -194,10 +211,14 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           const status = await statusRes.json()
 
           if (status.ready) {
-            // Session ready — stop polling, capture initial greeting
+            // Session ready — stop polling and timeout, capture initial greeting
             if (statusPollRef.current) {
               clearInterval(statusPollRef.current)
               statusPollRef.current = null
+            }
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current)
+              timeoutRef.current = null
             }
             if (!mountedRef.current) return
             setSessionState('ready')
@@ -208,6 +229,17 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
           // Ignore transient polling errors
         }
       }, STATUS_POLL_INTERVAL)
+
+      // Timeout: if Claude doesn't start within STARTUP_TIMEOUT_MS, show error
+      timeoutRef.current = setTimeout(() => {
+        if (statusPollRef.current) {
+          clearInterval(statusPollRef.current)
+          statusPollRef.current = null
+        }
+        if (!mountedRef.current) return
+        setSessionState('error')
+        setSessionError('Haephestos took too long to start. Please close and try again.')
+      }, STARTUP_TIMEOUT_MS)
     } catch (error) {
       if (!mountedRef.current) return
       setSessionState('error')
@@ -220,6 +252,22 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     if (!mountedRef.current) return
     setWaitingForResponse(true)
 
+    // Clear any existing poll before starting a new one (prevent interval leak)
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+
+    // Timeout: show fallback if no greeting arrives within RESPONSE_TIMEOUT_MS
+    timeoutRef.current = setTimeout(() => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      if (!mountedRef.current) return
+      setWaitingForResponse(false)
+      setMessages(prev => [...prev, {
+        id: makeId(),
+        role: 'assistant',
+        text: 'Haephestos took too long to respond. Please try sending a message to get started.',
+        timestamp: Date.now(),
+      }])
+    }, RESPONSE_TIMEOUT_MS)
+
     // Poll for the initial response
     pollRef.current = setInterval(async () => {
       if (!mountedRef.current) return
@@ -230,6 +278,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
 
         if (data.isComplete && data.text) {
           if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+          if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
           if (!mountedRef.current) return
 
           setWaitingForResponse(false)
@@ -278,6 +327,22 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         throw new Error(data.error || 'Failed to send message')
       }
 
+      // Clear any existing poll before starting a new one (prevent interval leak)
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+
+      // Timeout: show error if no response within RESPONSE_TIMEOUT_MS
+      timeoutRef.current = setTimeout(() => {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        if (!mountedRef.current) return
+        setWaitingForResponse(false)
+        setMessages(prev => [...prev, {
+          id: makeId(),
+          role: 'assistant',
+          text: 'Haephestos took too long to respond. The session may have encountered an issue. Please try again.',
+          timestamp: Date.now(),
+        }])
+      }, RESPONSE_TIMEOUT_MS)
+
       // Poll for Claude's response
       pollRef.current = setInterval(async () => {
         if (!mountedRef.current) return
@@ -288,6 +353,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
 
           if (data.isComplete && data.text) {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
             if (!mountedRef.current) return
 
             setWaitingForResponse(false)
@@ -337,6 +403,19 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const handleRemove = useCallback((field: string, name: string) => {
     applySuggestions([{ action: 'remove', field, value: name }])
   }, [applySuggestions])
+
+  const handleGenerateProfile = useCallback(() => {
+    if (!agentDescPath.trim() || sessionState !== 'ready' || waitingForResponse || isProfileGenerating) return
+    setIsProfileGenerating(true)
+    const parts = [`[PROFILE REQUEST] Agent description: ${agentDescPath.trim()}`]
+    if (designDocPath.trim()) {
+      parts.push(`Design document: ${designDocPath.trim()}`)
+    }
+    sendUserMessage(parts.join(' | '))
+    // Profile generation is async — Haephestos will respond when done
+    // Reset the flag when next response arrives
+    setTimeout(() => setIsProfileGenerating(false), 2000)
+  }, [agentDescPath, designDocPath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
 
   const canAccept = !!config.name
 
@@ -527,7 +606,86 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
 
             {/* Input area */}
             <div className="px-4 py-3 border-t border-gray-800">
+              {/* Attachment panel */}
+              <AnimatePresence>
+                {showAttachments && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mb-2 space-y-1.5 bg-gray-800/40 rounded-lg p-2.5">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={agentDescPath}
+                          onChange={e => setAgentDescPath(e.target.value)}
+                          placeholder="Path to agent description (.md) — required"
+                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={designDocPath}
+                          onChange={e => setDesignDocPath(e.target.value)}
+                          placeholder="Path to design/requirements document (.md) — optional"
+                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                        />
+                      </div>
+                      {agentDescPath.trim() && (
+                        <button
+                          onClick={handleGenerateProfile}
+                          disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                          className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mt-1"
+                        >
+                          <Wand2 className="w-3 h-3" />
+                          {isProfileGenerating ? 'Generating...' : 'Generate Profile with PSS'}
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Attached file chips */}
+              {!showAttachments && (agentDescPath.trim() || designDocPath.trim()) && (
+                <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                  {agentDescPath.trim() && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 rounded px-1.5 py-0.5">
+                      <FileText className="w-2.5 h-2.5" />
+                      {agentDescPath.split('/').pop()}
+                      <button onClick={() => setAgentDescPath('')} className="hover:text-amber-100">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  {designDocPath.trim() && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 rounded px-1.5 py-0.5">
+                      <FileText className="w-2.5 h-2.5" />
+                      {designDocPath.split('/').pop()}
+                      <button onClick={() => setDesignDocPath('')} className="hover:text-blue-100">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-end gap-2">
+                <button
+                  onClick={() => setShowAttachments(prev => !prev)}
+                  className={`p-2.5 rounded-lg transition-colors flex-shrink-0 ${
+                    showAttachments ? 'bg-amber-600/20 text-amber-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                  }`}
+                  title="Attach agent description & design document for PSS profiling"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
                 <textarea
                   ref={inputRef}
                   value={inputText}

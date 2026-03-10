@@ -36,11 +36,24 @@ const LOG_PREFIX = '[CreationHelper]'
 // Sonnet for intelligent config suggestions; haiku would be too limited
 const MODEL = 'sonnet'
 // Read-only tools — the helper can browse skills/plugins catalogs but never modify
-const TOOLS = 'Read,Glob,Grep'
+const TOOLS = 'Read,Glob,Grep,Agent'
 const PERMISSION_MODE = 'bypassPermissions'
 
-// ANSI escape code stripper — removes all SGR, cursor movement, and erase sequences
-const ANSI_RE = /\x1B(?:\[[0-9;]*[a-zA-Z]|\].*?(?:\x07|\x1B\\)|\(B)/g
+// ANSI escape code stripper — removes SGR, cursor movement, erase, and DEC Private Mode sequences
+const ANSI_RE = /\x1B(?:\[[?]?[0-9;]*[a-zA-Z]|\].*?(?:\x07|\x1B\\)|\(B)/g
+
+// Simple djb2 hash for response deduplication
+function simpleHash(text: string): string {
+  let hash = 5381
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0
+  }
+  return hash.toString(36)
+}
+
+// Tracks the response visible when the last message was sent, to prevent
+// returning the same (stale) response before Claude starts its new reply.
+let staleResponseHash: string | null = null
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -312,6 +325,8 @@ export async function createCreationHelper(): Promise<ServiceResult<{
  * Kill creation helper agent and clean up.
  */
 export async function deleteCreationHelper(): Promise<ServiceResult<{ success: boolean }>> {
+  // Reset stale response tracking on session destruction
+  staleResponseHash = null
   try {
     // Kill tmux session
     const runtime = getRuntime()
@@ -412,6 +427,17 @@ export async function sendMessage(text: string): Promise<ServiceResult<{ success
     }
 
     const runtime = getRuntime()
+
+    // Snapshot current response hash so captureResponse() can detect stale data
+    try {
+      const stdout = await runtime.capturePane(SESSION_NAME, 200)
+      const lines = stdout.trim().split('\n')
+      const state = detectResponseState(lines)
+      if (state.isComplete && state.responseText) {
+        staleResponseHash = simpleHash(state.responseText)
+      }
+    } catch { /* non-critical — worst case: one duplicate response */ }
+
     await runtime.sendKeys(SESSION_NAME, sanitized, { literal: true, enter: true })
 
     return { data: { success: true }, status: 200 }
@@ -460,6 +486,20 @@ export async function captureResponse(): Promise<ServiceResult<{
         },
         status: 200,
       }
+    }
+
+    // Check for stale response (old response still visible after new message sent)
+    if (staleResponseHash) {
+      const hash = simpleHash(state.responseText)
+      if (hash === staleResponseHash) {
+        // Same response as before — Claude hasn't started replying yet
+        return {
+          data: { text: '', configSuggestions: [], isComplete: false, isThinking: false },
+          status: 200,
+        }
+      }
+      // New response detected — clear stale tracking
+      staleResponseHash = null
     }
 
     // Parse config suggestion blocks from response

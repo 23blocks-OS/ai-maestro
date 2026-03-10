@@ -102,6 +102,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   })
   const [agentDescPath, setAgentDescPath] = useState('')
   const [designDocPath, setDesignDocPath] = useState('')
+  const [existingProfilePath, setExistingProfilePath] = useState('')
   const [showAttachments, setShowAttachments] = useState(false)
   const [isProfileGenerating, setIsProfileGenerating] = useState(false)
 
@@ -404,18 +405,27 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     applySuggestions([{ action: 'remove', field, value: name }])
   }, [applySuggestions])
 
-  const handleGenerateProfile = useCallback(() => {
-    if (!agentDescPath.trim() || sessionState !== 'ready' || waitingForResponse || isProfileGenerating) return
+  const handleGenerateProfile = useCallback((mode: 'create' | 'edit' | 'align') => {
+    if (sessionState !== 'ready' || waitingForResponse || isProfileGenerating) return
+    // Validate required fields per mode
+    if (mode === 'create' && !agentDescPath.trim()) return
+    if (mode === 'edit' && !existingProfilePath.trim()) return
+    if (mode === 'align' && (!existingProfilePath.trim() || !designDocPath.trim())) return
+
     setIsProfileGenerating(true)
-    const parts = [`[PROFILE REQUEST] Agent description: ${agentDescPath.trim()}`]
+    const parts = [`[PROFILE REQUEST] mode: ${mode}`]
+    if (mode === 'create') {
+      parts.push(`Agent description: ${agentDescPath.trim()}`)
+    }
+    if (existingProfilePath.trim() && (mode === 'edit' || mode === 'align')) {
+      parts.push(`Existing profile: ${existingProfilePath.trim()}`)
+    }
     if (designDocPath.trim()) {
       parts.push(`Design document: ${designDocPath.trim()}`)
     }
     sendUserMessage(parts.join(' | '))
-    // Profile generation is async — Haephestos will respond when done
-    // Reset the flag when next response arrives
     setTimeout(() => setIsProfileGenerating(false), 2000)
-  }, [agentDescPath, designDocPath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
+  }, [agentDescPath, designDocPath, existingProfilePath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
 
   const canAccept = !!config.name
 
@@ -623,8 +633,18 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                           type="text"
                           value={agentDescPath}
                           onChange={e => setAgentDescPath(e.target.value)}
-                          placeholder="Path to agent description (.md) — required"
+                          placeholder="Agent description (.md) — for new agents"
                           className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={existingProfilePath}
+                          onChange={e => setExistingProfilePath(e.target.value)}
+                          placeholder="Existing profile (.agent.toml) — for editing/aligning"
+                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -633,33 +653,64 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                           type="text"
                           value={designDocPath}
                           onChange={e => setDesignDocPath(e.target.value)}
-                          placeholder="Path to design/requirements document (.md) — optional"
+                          placeholder="Design/requirements document (.md) — optional"
                           className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                         />
                       </div>
-                      {agentDescPath.trim() && (
-                        <button
-                          onClick={handleGenerateProfile}
-                          disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
-                          className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mt-1"
-                        >
-                          <Wand2 className="w-3 h-3" />
-                          {isProfileGenerating ? 'Generating...' : 'Generate Profile with PSS'}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {agentDescPath.trim() && (
+                          <button
+                            onClick={() => handleGenerateProfile('create')}
+                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Wand2 className="w-3 h-3" />
+                            {isProfileGenerating ? 'Generating...' : 'New Profile'}
+                          </button>
+                        )}
+                        {existingProfilePath.trim() && (
+                          <button
+                            onClick={() => handleGenerateProfile('edit')}
+                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            className="flex items-center gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Wand2 className="w-3 h-3" />
+                            {isProfileGenerating ? 'Updating...' : 'Edit Profile'}
+                          </button>
+                        )}
+                        {existingProfilePath.trim() && designDocPath.trim() && (
+                          <button
+                            onClick={() => handleGenerateProfile('align')}
+                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Wand2 className="w-3 h-3" />
+                            {isProfileGenerating ? 'Aligning...' : 'Align to Design'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Attached file chips */}
-              {!showAttachments && (agentDescPath.trim() || designDocPath.trim()) && (
+              {!showAttachments && (agentDescPath.trim() || designDocPath.trim() || existingProfilePath.trim()) && (
                 <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                   {agentDescPath.trim() && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 rounded px-1.5 py-0.5">
                       <FileText className="w-2.5 h-2.5" />
                       {agentDescPath.split('/').pop()}
                       <button onClick={() => setAgentDescPath('')} className="hover:text-amber-100">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  {existingProfilePath.trim() && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-purple-500/10 text-purple-300 rounded px-1.5 py-0.5">
+                      <FileText className="w-2.5 h-2.5" />
+                      {existingProfilePath.split('/').pop()}
+                      <button onClick={() => setExistingProfilePath('')} className="hover:text-purple-100">
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </span>

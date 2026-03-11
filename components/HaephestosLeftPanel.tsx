@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { FileText, X } from 'lucide-react'
 
 interface HaephestosLeftPanelProps {
@@ -29,13 +30,18 @@ export default function HaephestosLeftPanel({
       </div>
 
       {/* Avatar */}
-      <div className="flex flex-col items-center py-6 border-b border-gray-700">
-        <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center">
-          <span className="text-5xl leading-none" role="img" aria-label="Haephestos">
-            🔨
-          </span>
+      <div className="flex flex-col items-center py-4 border-b border-gray-700">
+        <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-800 ring-2 ring-amber-500/30">
+          <Image
+            src="/avatars/haephestos_thumb.png"
+            alt="Haephestos"
+            width={56}
+            height={56}
+            className="object-cover"
+            priority
+          />
         </div>
-        <span className="mt-2 text-sm font-medium tracking-wide" style={{ fontVariant: 'small-caps' }}>
+        <span className="mt-1.5 text-xs font-semibold text-amber-400 tracking-wide">
           Haephestos
         </span>
       </div>

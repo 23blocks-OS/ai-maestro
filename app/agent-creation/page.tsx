@@ -11,15 +11,9 @@ import { Loader2, X, Hammer, FileText, Eye } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 
 const SESSION_NAME = '_aim-creation-helper'
-const TOML_DRAFT_PATH = `${process.env.NEXT_PUBLIC_HOME || '~'}/.aimaestro/tmp/haephestos-draft.toml`
+const TOML_DRAFT_PATH = '~/.aimaestro/tmp/haephestos-draft.toml'
 
-// Resolve ~ at runtime on the client
-function resolveTomlPath(): string {
-  // The API handles ~ resolution server-side; we pass the literal path
-  return '~/.aimaestro/tmp/haephestos-draft.toml'
-}
-
-type PageState = 'creating' | 'ready' | 'error' | 'destroying'
+type PageState = 'creating' | 'ready' | 'error' | 'destroying' | 'finalizing'
 
 export default function AgentCreationPage() {
   const router = useRouter()
@@ -31,7 +25,7 @@ export default function AgentCreationPage() {
   const [pageState, setPageState] = useState<PageState>('creating')
   const [error, setError] = useState<string | null>(null)
   const [agent, setAgent] = useState<Agent | null>(null)
-  const [tomlPath, setTomlPath] = useState(resolveTomlPath())
+  const [tomlPath] = useState(TOML_DRAFT_PATH)
   const [files, setFiles] = useState<Array<{ path: string; filename: string }>>([])
   const [mobilePanel, setMobilePanel] = useState<'none' | 'files' | 'toml'>('none')
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
@@ -106,15 +100,16 @@ export default function AgentCreationPage() {
     return () => { cancelled = true }
   }, [])
 
-  // Destroy session on unmount (if not already destroyed by Cancel/Create)
+  // Destroy session + cleanup on unmount (if not already destroyed by Cancel/Create)
   useEffect(() => {
     return () => {
       if (!destroyingRef.current) {
-        fetch(`/api/sessions/delete`, {
+        fetch('/api/sessions/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: SESSION_NAME }),
         }).catch(() => {})
+        fetch('/api/agents/creation-helper/cleanup', { method: 'POST' }).catch(() => {})
       }
     }
   }, [])
@@ -123,28 +118,86 @@ export default function AgentCreationPage() {
     destroyingRef.current = true
     setPageState('destroying')
     try {
-      await fetch('/api/sessions/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: SESSION_NAME }),
-      })
+      await Promise.allSettled([
+        fetch('/api/sessions/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: SESSION_NAME }),
+        }),
+        fetch('/api/agents/creation-helper/cleanup', { method: 'POST' }),
+      ])
     } catch { /* best-effort cleanup */ }
     router.push('/')
   }, [router])
 
   const handleCreate = useCallback(async () => {
-    // TODO: Read the .agent.toml file, parse it, create the real agent
-    // For now, just navigate back
-    destroyingRef.current = true
-    setPageState('destroying')
+    setPageState('finalizing')
+
     try {
+      // 1. Read the draft TOML to extract agent name and config
+      const tomlRes = await fetch(
+        `/api/agents/creation-helper/toml-preview?path=${encodeURIComponent(TOML_DRAFT_PATH)}`
+      )
+      const tomlData = await tomlRes.json()
+
+      if (!tomlData.exists || !tomlData.content?.trim()) {
+        setError('No agent profile found. Chat with Haephestos to generate one first.')
+        setPageState('error')
+        return
+      }
+
+      // Parse agent name from TOML (simple extraction — name = "...")
+      const nameMatch = tomlData.content.match(/^name\s*=\s*"([^"]+)"/m)
+      const agentName = nameMatch?.[1]
+      if (!agentName) {
+        setError('Agent profile is missing a name. Ask Haephestos to add one.')
+        setPageState('error')
+        return
+      }
+
+      // Parse optional fields
+      const modelMatch = tomlData.content.match(/^model\s*=\s*"([^"]+)"/m)
+      const wdMatch = tomlData.content.match(/^workingDirectory\s*=\s*"([^"]+)"/m)
+      const programMatch = tomlData.content.match(/^program\s*=\s*"([^"]+)"/m)
+
+      // 2. Create the actual agent session
+      const createRes = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: agentName,
+          program: programMatch?.[1] || 'claude-code',
+          programArgs: modelMatch?.[1] ? `--model ${modelMatch[1]}` : undefined,
+          workingDirectory: wdMatch?.[1] || undefined,
+          label: agentName,
+        }),
+      })
+
+      if (!createRes.ok) {
+        const errData = await createRes.json().catch(() => ({ error: 'Failed to create agent' }))
+        setError(errData.error || 'Failed to create agent')
+        setPageState('error')
+        return
+      }
+
+      // 3. Destroy the Haephestos session and clean up
+      destroyingRef.current = true
       await fetch('/api/sessions/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: SESSION_NAME }),
-      })
-    } catch { /* best-effort cleanup */ }
-    router.push('/')
+      }).catch(() => {})
+
+      // Clean up temp files
+      await fetch('/api/agents/creation-helper/cleanup', {
+        method: 'POST',
+      }).catch(() => {})
+
+      router.push('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create agent')
+      setPageState('error')
+    }
   }, [router])
 
   const handleRemoveFile = useCallback((path: string) => {
@@ -159,12 +212,12 @@ export default function AgentCreationPage() {
   }, [])
 
   // Loading state
-  if (pageState === 'creating' || pageState === 'destroying') {
+  if (pageState === 'creating' || pageState === 'destroying' || pageState === 'finalizing') {
     return (
       <div className="fixed inset-0 bg-gray-950 flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
         <p className="text-sm text-gray-400">
-          {pageState === 'creating' ? 'Firing up the forge...' : 'Shutting down...'}
+          {pageState === 'creating' ? 'Firing up the forge…' : pageState === 'finalizing' ? 'Forging your agent…' : 'Shutting down…'}
         </p>
       </div>
     )
@@ -175,13 +228,23 @@ export default function AgentCreationPage() {
     return (
       <div className="fixed inset-0 bg-gray-950 flex flex-col items-center justify-center gap-4 px-6">
         <Hammer className="w-12 h-12 text-red-400" />
-        <p className="text-sm text-red-400 text-center">{error}</p>
-        <button
-          onClick={() => router.push('/')}
-          className="px-4 py-2 text-sm rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
-        >
-          Go Back
-        </button>
+        <p className="text-sm text-red-400 text-center max-w-md">{error}</p>
+        <div className="flex items-center gap-3">
+          {agent && (
+            <button
+              onClick={() => { setError(null); setPageState('ready') }}
+              className="px-4 py-2 text-sm rounded-lg bg-amber-600 text-white hover:bg-amber-500"
+            >
+              Back to Terminal
+            </button>
+          )}
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 text-sm rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
+          >
+            Go Home
+          </button>
+        </div>
       </div>
     )
   }

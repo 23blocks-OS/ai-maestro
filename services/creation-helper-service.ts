@@ -227,8 +227,15 @@ function detectResponseState(capturedLines: string[]): {
   const recentLines = capturedLines.slice(-15)
   const recentText = recentLines.join('\n').toLowerCase()
 
-  // Check thinking indicators
-  const isThinking = recentText.includes('elucidating') ||
+  // Check thinking indicators.
+  // Claude Code shows "<spinner> <whimsical-word>… (Ns · tokens)" while thinking.
+  // The spinner character rotates (·, ✶, ✢, ✻, etc.) and the word changes
+  // across versions, so we detect the consistent "<word>… (<time>" pattern.
+  const hasThinkingIndicator = recentLines.some(l => {
+    const stripped = stripAnsi(l).trim()
+    return stripped.match(/\S+…\s+\(\d+[ms]/)
+  })
+  const isThinking = hasThinkingIndicator ||
     recentText.includes('thinking') ||
     recentText.includes('analyzing') ||
     recentText.includes('generating') ||

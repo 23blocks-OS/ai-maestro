@@ -119,9 +119,11 @@ function stripAnsi(text: string): string {
 /**
  * Parse JSON config suggestion blocks from Claude's response.
  *
- * Looks for fenced code blocks tagged `json:config` containing arrays of
- * ConfigSuggestion objects.  Returns the suggestions and the response text
- * with the config blocks removed (so the UI shows only conversational text).
+ * Claude Code's terminal renderer strips markdown code fences, so
+ * ```json:config blocks appear as plain indented JSON in the captured pane.
+ * We detect config arrays by finding JSON arrays whose objects all have
+ * the {action, field, value} shape.  Returns the suggestions and the
+ * response text with the config blocks removed.
  */
 function parseConfigBlocks(text: string): {
   cleanText: string
@@ -129,9 +131,9 @@ function parseConfigBlocks(text: string): {
 } {
   const suggestions: Array<{ action: string; field: string; value: unknown }>  = []
 
-  // Match ```json:config ... ``` blocks
+  // Strategy 1: fenced ```json:config blocks (works if source is raw markdown)
   const configBlockRe = /```json:config\s*\n([\s\S]*?)```/g
-  const cleanText = text.replace(configBlockRe, (_match, content: string) => {
+  let cleanText = text.replace(configBlockRe, (_match, content: string) => {
     try {
       const parsed = JSON.parse(content.trim())
       if (Array.isArray(parsed)) {
@@ -142,12 +144,64 @@ function parseConfigBlocks(text: string): {
         }
       }
     } catch {
-      // Malformed JSON in config block — ignore, show as regular text
-      console.warn(`${LOG_PREFIX} Failed to parse config block:`, content.slice(0, 100))
-      return _match // Keep the block visible if we can't parse it
+      console.warn(`${LOG_PREFIX} Failed to parse fenced config block:`, content.slice(0, 100))
+      return _match
     }
-    return '' // Remove successfully parsed config blocks from visible text
+    return ''
   }).trim()
+
+  // Strategy 2: raw JSON arrays in terminal output (fences stripped by renderer).
+  // Find lines starting with '[', collect until matching ']', try to parse.
+  if (suggestions.length === 0) {
+    const lines = cleanText.split('\n')
+    let blockStart = -1
+    let bracketDepth = 0
+    let blockLines: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim()
+      if (blockStart < 0 && trimmed.startsWith('[')) {
+        blockStart = i
+        bracketDepth = 0
+        blockLines = []
+      }
+      if (blockStart >= 0) {
+        blockLines.push(lines[i])
+        for (const ch of trimmed) {
+          if (ch === '[') bracketDepth++
+          else if (ch === ']') bracketDepth--
+        }
+        if (bracketDepth <= 0) {
+          // Potential complete JSON array — try to parse.
+          // Terminal wrapping inserts newlines inside JSON string values,
+          // so join all lines with spaces to normalize before parsing.
+          const candidate = blockLines.map(l => l.trim()).join(' ')
+          try {
+            const parsed = JSON.parse(candidate)
+            if (Array.isArray(parsed) && parsed.length > 0 &&
+                parsed.every((item: unknown) =>
+                  item && typeof item === 'object' &&
+                  'action' in (item as Record<string, unknown>) &&
+                  'field' in (item as Record<string, unknown>) &&
+                  'value' in (item as Record<string, unknown>)
+                )) {
+              for (const item of parsed) {
+                suggestions.push(item as { action: string; field: string; value: unknown })
+              }
+              // Remove the config block lines from the visible text
+              lines.splice(blockStart, i - blockStart + 1)
+              cleanText = lines.join('\n').trim()
+              break
+            }
+          } catch {
+            // Not valid JSON — reset and keep scanning
+          }
+          blockStart = -1
+          blockLines = []
+        }
+      }
+    }
+  }
 
   return { cleanText, suggestions }
 }

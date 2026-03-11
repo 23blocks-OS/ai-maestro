@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, FolderOpen } from 'lucide-react'
+import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, FolderOpen, Upload } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -101,10 +101,19 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     role: 'member',
   })
   const [agentDescPath, setAgentDescPath] = useState('')
+  const [agentDescDisplay, setAgentDescDisplay] = useState('')
   const [designDocPath, setDesignDocPath] = useState('')
+  const [designDocDisplay, setDesignDocDisplay] = useState('')
   const [existingProfilePath, setExistingProfilePath] = useState('')
+  const [existingProfileDisplay, setExistingProfileDisplay] = useState('')
   const [showAttachments, setShowAttachments] = useState(false)
   const [isProfileGenerating, setIsProfileGenerating] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
+  // Hidden file input refs for the 3 attachment fields
+  const agentDescFileRef = useRef<HTMLInputElement>(null)
+  const designDocFileRef = useRef<HTMLInputElement>(null)
+  const existingProfileFileRef = useRef<HTMLInputElement>(null)
 
   // ----- Session lifecycle -----
 
@@ -427,24 +436,48 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     setTimeout(() => setIsProfileGenerating(false), 2000)
   }, [agentDescPath, designDocPath, existingProfilePath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
 
-  // Open native macOS file picker and set the selected path
-  const browseFile = useCallback(async (
-    setter: (path: string) => void,
-    fileTypes: string[] = ['md', 'toml', 'txt']
+  // Upload a file to the server and store the server-side path
+  const uploadFile = useCallback(async (
+    file: File,
+    pathSetter: (path: string) => void,
+    displaySetter: (name: string) => void,
   ) => {
+    setIsUploading(true)
     try {
+      const formData = new FormData()
+      formData.append('file', file)
       const res = await fetch('/api/agents/creation-helper/file-picker', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileTypes }),
+        body: formData,
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        console.error('Upload failed:', data.error)
+        return
+      }
       const data = await res.json()
-      if (data.path) setter(data.path)
-    } catch {
-      // Ignore errors (user cancelled, etc.)
+      if (data.path) {
+        pathSetter(data.path)
+        displaySetter(data.filename || file.name)
+      }
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setIsUploading(false)
     }
   }, [])
+
+  // File input change handlers
+  const handleFileChange = useCallback((
+    e: React.ChangeEvent<HTMLInputElement>,
+    pathSetter: (path: string) => void,
+    displaySetter: (name: string) => void,
+  ) => {
+    const file = e.target.files?.[0]
+    if (file) uploadFile(file, pathSetter, displaySetter)
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }, [uploadFile])
 
   const canAccept = !!config.name
 
@@ -646,56 +679,96 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                     className="overflow-hidden"
                   >
                     <div className="mb-2 space-y-1.5 bg-gray-800/40 rounded-lg p-2.5">
+                      {/* Hidden file inputs */}
+                      <input ref={agentDescFileRef} type="file" accept=".md,.txt" className="hidden"
+                        onChange={e => handleFileChange(e, setAgentDescPath, setAgentDescDisplay)} />
+                      <input ref={designDocFileRef} type="file" accept=".md,.txt" className="hidden"
+                        onChange={e => handleFileChange(e, setDesignDocPath, setDesignDocDisplay)} />
+                      <input ref={existingProfileFileRef} type="file" accept=".toml" className="hidden"
+                        onChange={e => handleFileChange(e, setExistingProfilePath, setExistingProfileDisplay)} />
+
+                      {/* Agent description */}
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                        <input
-                          type="text"
-                          value={agentDescPath}
-                          onChange={e => setAgentDescPath(e.target.value)}
-                          placeholder="Agent description (.md) — for new agents"
-                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                        />
+                        <div className="flex-1 flex items-center gap-1.5 text-xs bg-gray-900/60 rounded px-2 py-1.5 min-h-[28px]">
+                          {agentDescDisplay ? (
+                            <span className="text-amber-200 truncate">{agentDescDisplay}</span>
+                          ) : (
+                            <span className="text-gray-500">Agent description (.md) — for new agents</span>
+                          )}
+                        </div>
                         <button
-                          onClick={() => browseFile(setAgentDescPath, ['md', 'txt'])}
-                          className="p-1.5 rounded hover:bg-gray-700 text-amber-400 hover:text-amber-300 transition-colors flex-shrink-0"
-                          title="Browse for agent description file"
+                          onClick={() => agentDescFileRef.current?.click()}
+                          disabled={isUploading}
+                          className="p-1.5 rounded hover:bg-gray-700 text-amber-400 hover:text-amber-300 transition-colors flex-shrink-0 disabled:opacity-40"
+                          title="Upload agent description file"
                         >
-                          <FolderOpen className="w-3.5 h-3.5" />
+                          <Upload className="w-3.5 h-3.5" />
                         </button>
+                        {agentDescPath && (
+                          <button
+                            onClick={() => { setAgentDescPath(''); setAgentDescDisplay('') }}
+                            className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
+
+                      {/* Existing profile */}
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                        <input
-                          type="text"
-                          value={existingProfilePath}
-                          onChange={e => setExistingProfilePath(e.target.value)}
-                          placeholder="Existing profile (.agent.toml) — for editing/aligning"
-                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
-                        />
+                        <div className="flex-1 flex items-center gap-1.5 text-xs bg-gray-900/60 rounded px-2 py-1.5 min-h-[28px]">
+                          {existingProfileDisplay ? (
+                            <span className="text-purple-200 truncate">{existingProfileDisplay}</span>
+                          ) : (
+                            <span className="text-gray-500">Existing profile (.agent.toml) — for editing/aligning</span>
+                          )}
+                        </div>
                         <button
-                          onClick={() => browseFile(setExistingProfilePath, ['toml'])}
-                          className="p-1.5 rounded hover:bg-gray-700 text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
-                          title="Browse for existing .agent.toml profile"
+                          onClick={() => existingProfileFileRef.current?.click()}
+                          disabled={isUploading}
+                          className="p-1.5 rounded hover:bg-gray-700 text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0 disabled:opacity-40"
+                          title="Upload existing .agent.toml profile"
                         >
-                          <FolderOpen className="w-3.5 h-3.5" />
+                          <Upload className="w-3.5 h-3.5" />
                         </button>
+                        {existingProfilePath && (
+                          <button
+                            onClick={() => { setExistingProfilePath(''); setExistingProfileDisplay('') }}
+                            className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
+
+                      {/* Design document */}
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                        <input
-                          type="text"
-                          value={designDocPath}
-                          onChange={e => setDesignDocPath(e.target.value)}
-                          placeholder="Design/requirements document (.md) — optional"
-                          className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                        />
+                        <div className="flex-1 flex items-center gap-1.5 text-xs bg-gray-900/60 rounded px-2 py-1.5 min-h-[28px]">
+                          {designDocDisplay ? (
+                            <span className="text-blue-200 truncate">{designDocDisplay}</span>
+                          ) : (
+                            <span className="text-gray-500">Design/requirements document (.md) — optional</span>
+                          )}
+                        </div>
                         <button
-                          onClick={() => browseFile(setDesignDocPath, ['md', 'txt'])}
-                          className="p-1.5 rounded hover:bg-gray-700 text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0"
-                          title="Browse for design/requirements document"
+                          onClick={() => designDocFileRef.current?.click()}
+                          disabled={isUploading}
+                          className="p-1.5 rounded hover:bg-gray-700 text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0 disabled:opacity-40"
+                          title="Upload design/requirements document"
                         >
-                          <FolderOpen className="w-3.5 h-3.5" />
+                          <Upload className="w-3.5 h-3.5" />
                         </button>
+                        {designDocPath && (
+                          <button
+                            onClick={() => { setDesignDocPath(''); setDesignDocDisplay('') }}
+                            className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {agentDescPath.trim() && (
@@ -735,31 +808,31 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
               </AnimatePresence>
 
               {/* Attached file chips */}
-              {!showAttachments && (agentDescPath.trim() || designDocPath.trim() || existingProfilePath.trim()) && (
+              {!showAttachments && (agentDescDisplay || designDocDisplay || existingProfileDisplay) && (
                 <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                  {agentDescPath.trim() && (
+                  {agentDescDisplay && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 rounded px-1.5 py-0.5">
                       <FileText className="w-2.5 h-2.5" />
-                      {agentDescPath.split('/').pop()}
-                      <button onClick={() => setAgentDescPath('')} className="hover:text-amber-100">
+                      {agentDescDisplay}
+                      <button onClick={() => { setAgentDescPath(''); setAgentDescDisplay('') }} className="hover:text-amber-100">
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </span>
                   )}
-                  {existingProfilePath.trim() && (
+                  {existingProfileDisplay && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-purple-500/10 text-purple-300 rounded px-1.5 py-0.5">
                       <FileText className="w-2.5 h-2.5" />
-                      {existingProfilePath.split('/').pop()}
-                      <button onClick={() => setExistingProfilePath('')} className="hover:text-purple-100">
+                      {existingProfileDisplay}
+                      <button onClick={() => { setExistingProfilePath(''); setExistingProfileDisplay('') }} className="hover:text-purple-100">
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </span>
                   )}
-                  {designDocPath.trim() && (
+                  {designDocDisplay && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 rounded px-1.5 py-0.5">
                       <FileText className="w-2.5 h-2.5" />
-                      {designDocPath.split('/').pop()}
-                      <button onClick={() => setDesignDocPath('')} className="hover:text-blue-100">
+                      {designDocDisplay}
+                      <button onClick={() => { setDesignDocPath(''); setDesignDocDisplay('') }} className="hover:text-blue-100">
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </span>

@@ -1,48 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { homedir } from 'os'
+import { randomBytes } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
+// Uploaded files are saved to a temp directory under ~/.aimaestro/tmp/creation-helper/
+// and cleaned up when the session is destroyed.
+const UPLOAD_DIR = join(homedir(), '.aimaestro', 'tmp', 'creation-helper')
+
+// Max file size: 1MB (these are .md and .toml text files)
+const MAX_FILE_SIZE = 1_048_576
+
+// Allowed extensions (sanitized server-side, not trusted from client)
+const ALLOWED_EXTENSIONS = new Set(['md', 'txt', 'toml'])
+
 /**
  * POST /api/agents/creation-helper/file-picker
- * Opens a native macOS file picker dialog via osascript and returns the selected path.
- * Body: { fileTypes?: string[] } — optional file type filter (e.g. ["md", "toml"])
+ * Upload a file for the creation helper. Saves to a server-side temp directory
+ * and returns the server path (never exposed to the browser).
+ *
+ * Accepts multipart/form-data with a single "file" field.
+ * Returns: { path: string, filename: string }
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}))
-    const fileTypes = Array.isArray(body.fileTypes) ? body.fileTypes : ['md', 'toml', 'txt']
+    const formData = await req.formData()
+    const file = formData.get('file')
 
-    // Build the AppleScript file type filter
-    const typeFilter = fileTypes.map((t: string) => `"${t}"`).join(', ')
-    const script = `choose file with prompt "Select a file" of type {${typeFilter}}`
-
-    const result = execSync(
-      `osascript -e '${script}'`,
-      { encoding: 'utf-8', timeout: 60000 }
-    ).trim()
-
-    // osascript returns HFS alias format:
-    //   "alias Macintosh HD:Users:joe:file.md"
-    // Strip the "alias " prefix, then convert colon-delimited HFS path to POSIX.
-    let filePath = result
-    if (filePath.startsWith('alias ')) {
-      const hfsPath = filePath.slice('alias '.length)
-      filePath = execSync(
-        `osascript -e 'POSIX path of "${hfsPath}"'`,
-        { encoding: 'utf-8', timeout: 5000 }
-      ).trim()
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    return NextResponse.json({ path: filePath })
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File too large (max ${MAX_FILE_SIZE / 1024}KB)` },
+        { status: 400 }
+      )
+    }
+
+    // Validate extension
+    const originalName = file.name || 'unknown'
+    const ext = originalName.split('.').pop()?.toLowerCase() || ''
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return NextResponse.json(
+        { error: `File type .${ext} not allowed. Use: ${[...ALLOWED_EXTENSIONS].join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Read file content as text
+    const content = await file.text()
+
+    // Generate a safe filename: <random>-<sanitized-original>
+    const safeBase = originalName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+    const uniquePrefix = randomBytes(4).toString('hex')
+    const savedName = `${uniquePrefix}-${safeBase}`
+
+    // Ensure upload directory exists
+    await mkdir(UPLOAD_DIR, { recursive: true })
+
+    const savedPath = join(UPLOAD_DIR, savedName)
+    await writeFile(savedPath, content, 'utf-8')
+
+    // Return the server path (for internal use) and the display filename
+    return NextResponse.json({
+      path: savedPath,
+      filename: originalName,
+    })
   } catch (error) {
-    // User cancelled the dialog — osascript exits with code 1
-    const msg = error instanceof Error ? error.message : String(error)
-    if (msg.includes('User canceled') || msg.includes('(-128)')) {
-      return NextResponse.json({ path: null, cancelled: true })
-    }
+    console.error('[creation-helper/file-picker] Upload failed:', error)
     return NextResponse.json(
-      { error: 'Failed to open file picker' },
+      { error: 'Failed to upload file' },
       { status: 500 }
     )
   }

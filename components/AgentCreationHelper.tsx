@@ -52,7 +52,7 @@ const HAEPHESTOS_AVATAR_THUMB = '/avatars/haephestos_thumb.png'
 // Polling intervals (ms)
 const STATUS_POLL_INTERVAL = 1000
 const RESPONSE_POLL_INTERVAL = 800
-const RESPONSE_TIMEOUT_MS = 60_000  // Max wait for Claude response before showing error
+const RESPONSE_TIMEOUT_MS = 120_000  // Idle timeout — reset each time thinking is detected
 const STARTUP_TIMEOUT_MS = 30_000   // Max wait for Claude to become ready after launch
 
 // Protocol whitelist for rendered markdown links
@@ -340,26 +340,38 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
       // Clear any existing poll before starting a new one (prevent interval leak)
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
 
-      // Timeout: show error if no response within RESPONSE_TIMEOUT_MS
-      timeoutRef.current = setTimeout(() => {
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-        if (!mountedRef.current) return
-        setWaitingForResponse(false)
-        setMessages(prev => [...prev, {
-          id: makeId(),
-          role: 'assistant',
-          text: 'Haephestos took too long to respond. The session may have encountered an issue. Please try again.',
-          timestamp: Date.now(),
-        }])
-      }, RESPONSE_TIMEOUT_MS)
+      // Poll for Claude's response.
+      // Reset the idle timeout each time we detect thinking — sub-agents
+      // like PSS profiler can run 10+ minutes, and we should wait patiently
+      // as long as Claude is actively working.
+      const resetTimeout = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        timeoutRef.current = setTimeout(() => {
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+          if (!mountedRef.current) return
+          setWaitingForResponse(false)
+          setMessages(prev => [...prev, {
+            id: makeId(),
+            role: 'assistant',
+            text: 'Haephestos took too long to respond. The session may have encountered an issue. Please try again.',
+            timestamp: Date.now(),
+          }])
+        }, RESPONSE_TIMEOUT_MS)
+      }
+      resetTimeout()  // Start the first idle timeout
 
-      // Poll for Claude's response
       pollRef.current = setInterval(async () => {
         if (!mountedRef.current) return
         try {
           const respRes = await fetch('/api/agents/creation-helper/response')
           if (!respRes.ok) return
           const data = await respRes.json()
+
+          // Still thinking — reset idle timeout so we keep waiting
+          if (data.isThinking) {
+            resetTimeout()
+            return
+          }
 
           if (data.isComplete && data.text) {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }

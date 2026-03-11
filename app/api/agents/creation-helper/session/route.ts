@@ -13,6 +13,8 @@ import {
   getCreationHelperStatus,
 } from '@/services/creation-helper-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST() {
   try {
     const result = await createCreationHelper()

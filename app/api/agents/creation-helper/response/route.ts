@@ -7,6 +7,8 @@
 import { NextResponse } from 'next/server'
 import { captureResponse } from '@/services/creation-helper-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const result = await captureResponse()

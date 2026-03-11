@@ -181,12 +181,15 @@ function detectResponseState(capturedLines: string[]): {
   }
 
   // Find separator lines (bottom-up)
+  // Claude v2.x separators may contain text (e.g. "────── agent-name ──")
+  // so we match lines that START with 10+ separator chars.
+  // Exclude cost-box continuation lines that end with box-drawing chars (╮╯┤│)
   const separators: number[] = []
   for (let i = capturedLines.length - 1; i >= 0; i--) {
     const line = capturedLines[i].trim()
-    if (line.match(/^[─╌═]{10,}$/)) {
+    if (line.match(/^[─╌═]{10,}/) && !line.match(/[╮╯┤│]$/)) {
       separators.push(i)
-      if (separators.length === 3) break // Need up to 3: top of response, bottom of response, input prompt area
+      if (separators.length === 3) break
     }
   }
 
@@ -195,21 +198,80 @@ function detectResponseState(capturedLines: string[]): {
     return { isThinking: false, isComplete: false, responseText: '' }
   }
 
-  // Check if the area below the bottom separator has an input prompt
+  // Claude v2.x terminal layout (bottom-up):
+  //   ⏵⏵ bypass permissions on (shift+tab to cycle)    ← chrome
+  //   🤖 Sonnet 4.6 ... | 📁 project | 📊 tokens      ← chrome (status bar)
+  //   ────────────────────────────────────────────────  ← bottomSep (separators[0])
+  //   ❯                                                ← input prompt
+  //   ────────────────── agent-name ──────────────────  ← topSep (separators[1])
+  //   [Claude's response text]                          ← what we want
+  //   ────────────────────────────────────────────────  ← prevSep (separators[2])
+  //
+  // Check if the prompt area between topSep and bottomSep contains the input prompt
   const [bottomSep, topSep] = separators
-  const afterBottom = capturedLines.slice(bottomSep + 1)
+  const betweenSeps = capturedLines.slice(topSep + 1, bottomSep)
     .map(l => l.trim())
     .filter(l => l)
 
-  const isInputPrompt = afterBottom.length <= 1 &&
-    (afterBottom.length === 0 || afterBottom[0].match(/^>\s*$/))
+  // The prompt area should contain just the ❯ or > character (possibly with user text)
+  const hasPrompt = betweenSeps.length <= 1 &&
+    (betweenSeps.length === 0 || betweenSeps[0].match(/^[>❯]/))
 
-  if (!isInputPrompt) {
+  if (!hasPrompt) {
     return { isThinking: false, isComplete: false, responseText: '' }
   }
 
-  // Extract response text between separators
-  const responseLines = capturedLines.slice(topSep + 1, bottomSep)
+  // Determine response start boundary
+  let responseStart: number
+  if (separators.length >= 3) {
+    // Standard case: 3+ separators — response is between prevSep and topSep
+    responseStart = separators[2] + 1
+  } else {
+    // First response case: only 2 separators (no prevSep above the response).
+    // Find the user's message line above topSep (❯ followed by text) and use
+    // the area after it (skipping hook notifications) as the response start.
+    let userMsgLine = -1
+    for (let i = topSep - 1; i >= 0; i--) {
+      const stripped = stripAnsi(capturedLines[i]).trim()
+      if (stripped.match(/^[❯>]\s+\S/)) {
+        userMsgLine = i
+        break
+      }
+    }
+    if (userMsgLine < 0) {
+      // No user message found — initial state, prompt is ready but no response
+      return { isThinking: false, isComplete: true, responseText: '' }
+    }
+    // Find the first response marker (⏺) after the user message.  This skips
+    // multi-line hook notifications (⎿ prefix + indented continuation lines).
+    responseStart = userMsgLine + 1
+    while (responseStart < topSep) {
+      const stripped = stripAnsi(capturedLines[responseStart]).trim()
+      if (stripped.startsWith('⏺')) break
+      responseStart++
+    }
+    if (responseStart >= topSep) {
+      // No response marker found — Claude may still be processing
+      return { isThinking: false, isComplete: true, responseText: '' }
+    }
+  }
+
+  // Strip cost box: find "⎿  Stop says:" marker and truncate there.
+  // Everything from that marker to topSep is noise (cost box, "Worked for", etc.)
+  let responseEnd = topSep
+  for (let i = responseStart; i < topSep; i++) {
+    const stripped = stripAnsi(capturedLines[i]).trim()
+    if (stripped.match(/^⎿\s+Stop says/)) {
+      responseEnd = i
+      break
+    }
+  }
+  // Also strip trailing empty lines
+  while (responseEnd > responseStart && stripAnsi(capturedLines[responseEnd - 1]).trim() === '') {
+    responseEnd--
+  }
+
+  const responseLines = capturedLines.slice(responseStart, responseEnd)
   const responseText = stripAnsi(responseLines.join('\n')).trim()
 
   return { isThinking: false, isComplete: true, responseText }

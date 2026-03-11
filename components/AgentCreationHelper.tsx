@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2 } from 'lucide-react'
+import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, FolderOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -427,6 +427,25 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     setTimeout(() => setIsProfileGenerating(false), 2000)
   }, [agentDescPath, designDocPath, existingProfilePath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
 
+  // Open native macOS file picker and set the selected path
+  const browseFile = useCallback(async (
+    setter: (path: string) => void,
+    fileTypes: string[] = ['md', 'toml', 'txt']
+  ) => {
+    try {
+      const res = await fetch('/api/agents/creation-helper/file-picker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileTypes }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.path) setter(data.path)
+    } catch {
+      // Ignore errors (user cancelled, etc.)
+    }
+  }, [])
+
   const canAccept = !!config.name
 
   // ----- Render -----
@@ -636,6 +655,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                           placeholder="Agent description (.md) — for new agents"
                           className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                         />
+                        <button
+                          onClick={() => browseFile(setAgentDescPath, ['md', 'txt'])}
+                          className="p-1.5 rounded hover:bg-gray-700 text-amber-400 hover:text-amber-300 transition-colors flex-shrink-0"
+                          title="Browse for agent description file"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
@@ -646,6 +672,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                           placeholder="Existing profile (.agent.toml) — for editing/aligning"
                           className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
                         />
+                        <button
+                          onClick={() => browseFile(setExistingProfilePath, ['toml'])}
+                          className="p-1.5 rounded hover:bg-gray-700 text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
+                          title="Browse for existing .agent.toml profile"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
@@ -656,6 +689,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                           placeholder="Design/requirements document (.md) — optional"
                           className="flex-1 text-xs bg-gray-900/60 text-gray-200 placeholder-gray-500 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                         />
+                        <button
+                          onClick={() => browseFile(setDesignDocPath, ['md', 'txt'])}
+                          className="p-1.5 rounded hover:bg-gray-700 text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0"
+                          title="Browse for design/requirements document"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {agentDescPath.trim() && (

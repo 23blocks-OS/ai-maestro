@@ -235,7 +235,52 @@ function detectResponseState(capturedLines: string[]): {
     const stripped = stripAnsi(l).trim()
     return stripped.match(/\S+…\s+\(\d+[ms]/)
   })
-  const isThinking = hasThinkingIndicator ||
+
+  // Check for active tool/sub-agent execution.
+  // When Haephestos spawns a sub-agent (e.g. PSS profiler), the terminal shows
+  // tool invocation output like "+69 more tool uses (ctrl+o to expand)" and
+  // "ctrl+b ctrl+b (twice) to run in background". The thinking spinner may scroll
+  // out of the visible last 15 lines during long-running sub-agents, so we scan
+  // ALL captured lines for active tool execution markers.
+  const hasActiveToolCall = capturedLines.some(l => {
+    const stripped = stripAnsi(l).trim()
+    return (
+      stripped.match(/^\+\d+ more tool uses?/) ||       // "+N more tool uses"
+      stripped.includes('ctrl+o to expand') ||            // tool output collapsed
+      stripped.includes('ctrl+b ctrl+b') ||               // "run in background" hint
+      stripped.match(/^\s*⎿\s+(Read|Write|Edit|Bash)\(/)  // active tool invocation line
+    )
+  })
+  // Only treat tool markers as "still running" if there is no completed response
+  // below them (i.e., the tool marker is in the last response region, not a prior one).
+  // We check this by verifying tool markers appear AFTER the last separator pair.
+  let toolCallIsRecent = false
+  if (hasActiveToolCall) {
+    // Find the last separator line index
+    let lastSepIdx = -1
+    for (let i = capturedLines.length - 1; i >= 0; i--) {
+      const line = capturedLines[i].trim()
+      if (line.match(/^[─╌═]{10,}/) && !line.match(/[╮╯┤│]$/)) {
+        lastSepIdx = i
+        break
+      }
+    }
+    // Check if any tool marker appears after the second-to-last separator
+    // (i.e., within the current response region)
+    for (let i = Math.max(0, lastSepIdx); i < capturedLines.length; i++) {
+      const stripped = stripAnsi(capturedLines[i]).trim()
+      if (
+        stripped.match(/^\+\d+ more tool uses?/) ||
+        stripped.includes('ctrl+o to expand') ||
+        stripped.includes('ctrl+b ctrl+b')
+      ) {
+        toolCallIsRecent = true
+        break
+      }
+    }
+  }
+
+  const isThinking = hasThinkingIndicator || toolCallIsRecent ||
     recentText.includes('thinking') ||
     recentText.includes('analyzing') ||
     recentText.includes('generating') ||

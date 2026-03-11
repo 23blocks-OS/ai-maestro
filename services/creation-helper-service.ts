@@ -160,7 +160,10 @@ function parseConfigBlocks(text: string): {
 
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim()
-      if (blockStart < 0 && trimmed.startsWith('[')) {
+      // Detect JSON array start — may follow ⏺ response marker or indentation
+      const bracketPos = trimmed.indexOf('[')
+      if (blockStart < 0 && bracketPos >= 0 &&
+          (bracketPos === 0 || /^[⏺\s]+$/.test(trimmed.slice(0, bracketPos)))) {
         blockStart = i
         bracketDepth = 0
         blockLines = []
@@ -175,7 +178,9 @@ function parseConfigBlocks(text: string): {
           // Potential complete JSON array — try to parse.
           // Terminal wrapping inserts newlines inside JSON string values,
           // so join all lines with spaces to normalize before parsing.
-          const candidate = blockLines.map(l => l.trim()).join(' ')
+          const candidate = blockLines
+            .map(l => l.trim().replace(/^⏺\s*/, ''))  // Strip response marker
+            .join(' ')
           try {
             const parsed = JSON.parse(candidate)
             if (Array.isArray(parsed) && parsed.length > 0 &&

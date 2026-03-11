@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, FolderOpen, Upload } from 'lucide-react'
+import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, Upload } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'

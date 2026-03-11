@@ -7,6 +7,7 @@ import { createResizeMessage } from '@/lib/websocket'
 import { useTerminalRegistry } from '@/contexts/TerminalContext'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import MobileKeyToolbar from './MobileKeyToolbar'
+import { Paperclip } from 'lucide-react'
 import type { Session } from '@/types/session'
 
 const BRACKETED_PASTE_START = '\u001b[200~'
@@ -29,9 +30,10 @@ interface TerminalViewProps {
   hideFooter?: boolean  // Hide notes/prompt footer (used in MobileDashboard)
   hideHeader?: boolean  // Hide terminal header (used in MobileDashboard)
   onConnectionStatusChange?: (isConnected: boolean) => void  // Callback for connection status changes
+  onFileUploaded?: (path: string, filename: string) => void  // Callback when file is uploaded via prompt builder
 }
 
-export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange }: TerminalViewProps) {
+export default function TerminalView({ session, isVisible = true, hideFooter = false, hideHeader = false, onConnectionStatusChange, onFileUploaded }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [isReady, setIsReady] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false) // Gate for input handler
@@ -43,6 +45,8 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [pasteFeedback, setPasteFeedback] = useState(false)
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   // Agent-centric storage: Use agentId as primary key (falls back to session.id for backward compatibility)
   const storageId = session.agentId || session.id
@@ -669,6 +673,37 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     [handlePromptSubmit]
   )
 
+  // File upload handler for the prompt builder attach button
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    // Reset input so the same file can be re-selected
+    event.target.value = ''
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/agents/creation-helper/file-picker', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.path) {
+        // Insert the server path into the prompt textarea
+        setPromptDraft(prev => {
+          const prefix = prev && !prev.endsWith('\n') && !prev.endsWith(' ') ? ' ' : ''
+          return `${prev}${prefix}${data.path}`
+        })
+        // Notify parent (e.g., Haephestos page tracks uploaded files)
+        onFileUploaded?.(data.path, data.filename || file.name)
+      }
+    } finally {
+      setIsUploading(false)
+    }
+  }, [onFileUploaded])
+
   return (
     <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
       {/* Terminal Header */}
@@ -947,9 +982,20 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
                 }}
               />
               <div className="px-4 py-2 border-t border-gray-800 bg-gray-800 flex items-center justify-between">
-                <p className="text-xs text-gray-400">
-                  {promptDraft.length} character{promptDraft.length === 1 ? '' : 's'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-gray-400">
+                    {promptDraft.length} character{promptDraft.length === 1 ? '' : 's'}
+                  </p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="rounded-md border border-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:border-gray-600 hover:text-white disabled:opacity-50 flex items-center gap-1"
+                    title="Upload file (.md, .txt, .toml)"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    {!isTouch && <span>{isUploading ? 'Uploading…' : 'Upload'}</span>}
+                  </button>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPromptDraft('')}
@@ -1002,6 +1048,15 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
           </span>
         </div>
       )}
+
+      {/* Hidden file input for upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".md,.txt,.toml,.json,.yaml,.yml"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
     </div>
   )
 }

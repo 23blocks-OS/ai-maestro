@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import type { UnifiedAgent } from '@/types/agent'
 import { formatDistanceToNow } from '@/lib/utils'
 import {
@@ -165,6 +166,7 @@ export default function AgentList({
   subconsciousRefreshTrigger,
   sidebarWidth = 320,
 }: AgentListProps) {
+  const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
   const [showWizardModal, setShowWizardModal] = useState(false)
@@ -733,7 +735,7 @@ export default function AgentList({
                   <button
                     onClick={() => {
                       setShowCreateDropdown(false)
-                      setShowAdvancedCreateModal(true)
+                      router.push('/agent-creation')
                     }}
                     className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
                   >
@@ -1496,7 +1498,7 @@ export default function AgentList({
           onComplete={handleCreateComplete}
           onSwitchToAdvanced={() => {
             setShowWizardModal(false)
-            setShowAdvancedCreateModal(true)
+            router.push('/agent-creation')
           }}
         />
       )}
@@ -1573,6 +1575,26 @@ export default function AgentList({
                   })
                 } catch {
                   console.warn('Could not apply tags to new agent:', result.agentId)
+                }
+              }
+              // Assign agent to team if Haephestos suggested one (best-effort)
+              if (result.agentId && config.teamId) {
+                try {
+                  // Fetch team to get current agentIds, then append new agent
+                  const teamRes = await fetch(`/api/teams/${config.teamId}`)
+                  if (teamRes.ok) {
+                    const teamData = await teamRes.json()
+                    const currentAgentIds: string[] = teamData.team?.agentIds || []
+                    if (!currentAgentIds.includes(result.agentId)) {
+                      await fetch(`/api/teams/${config.teamId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentIds: [...currentAgentIds, result.agentId] }),
+                      })
+                    }
+                  }
+                } catch {
+                  console.warn('Could not assign agent to team:', config.teamId)
                 }
               }
               handleCreateComplete()

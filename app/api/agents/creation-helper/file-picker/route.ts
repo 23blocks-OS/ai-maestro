@@ -22,16 +22,16 @@ export async function POST(req: NextRequest) {
       { encoding: 'utf-8', timeout: 60000 }
     ).trim()
 
-    // osascript returns POSIX-like path but with "alias" format — convert
-    // e.g. "alias Macintosh HD:Users:joe:file.md" → "/Users/joe/file.md"
+    // osascript returns HFS alias format:
+    //   "alias Macintosh HD:Users:joe:file.md"
+    // Strip the "alias " prefix, then convert colon-delimited HFS path to POSIX.
     let filePath = result
     if (filePath.startsWith('alias ')) {
-      // Convert HFS path to POSIX
-      const posixResult = execSync(
-        `osascript -e 'POSIX path of (${JSON.stringify(result)} as alias)'`,
+      const hfsPath = filePath.slice('alias '.length)
+      filePath = execSync(
+        `osascript -e 'POSIX path of "${hfsPath}"'`,
         { encoding: 'utf-8', timeout: 5000 }
       ).trim()
-      filePath = posixResult
     }
 
     return NextResponse.json({ path: filePath })

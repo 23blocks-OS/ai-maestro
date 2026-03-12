@@ -2723,7 +2723,7 @@ create_macos_app() {
   mkdir -p "$HOME/Applications/AI Maestro.app/Contents/MacOS"
   cat > "$HOME/Applications/AI Maestro.app/Contents/MacOS/AI Maestro" << 'EOF'
 #!/bin/bash
-cd ~/ai-maestro && pm2 start ecosystem.config.cjs 2>/dev/null
+cd ~/ai-maestro && pm2 start ecosystem.config.js 2>/dev/null
 sleep 2
 open http://localhost:23000
 EOF

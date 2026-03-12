@@ -85,7 +85,7 @@ yarn dev
 npm install -g pm2
 
 # Start with pm2
-pm2 start ecosystem.config.cjs
+pm2 start ecosystem.config.js
 
 # Save pm2 process list
 pm2 save

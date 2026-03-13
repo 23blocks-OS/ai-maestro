@@ -103,6 +103,15 @@ export function createTask(data: {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  status?: string
+  labels?: string[]
+  taskType?: string
+  externalRef?: string
+  externalProjectRef?: string
+  acceptanceCriteria?: string[]
+  handoffDoc?: string
+  prUrl?: string
+  reviewResult?: string
 }): Promise<Task> {
   return withLock('tasks-' + data.teamId, () => {
     const tasks = loadTasks(data.teamId)
@@ -114,11 +123,19 @@ export function createTask(data: {
       subject: data.subject,
       description: data.description,
       // Default to 'pending' (skip 'backlog') — tasks created via API are considered already triaged
-      status: 'pending',
+      status: data.status || 'pending',
       // SF-034: Use || instead of ?? to normalize empty string to null (empty string is not a valid agent ID)
       assigneeAgentId: data.assigneeAgentId || null,
       blockedBy: data.blockedBy ?? [],
       priority: data.priority,
+      labels: data.labels,
+      taskType: data.taskType,
+      externalRef: data.externalRef,
+      externalProjectRef: data.externalProjectRef,
+      acceptanceCriteria: data.acceptanceCriteria,
+      handoffDoc: data.handoffDoc,
+      prUrl: data.prUrl,
+      reviewResult: data.reviewResult,
       createdAt: now,
       updatedAt: now,
     }
@@ -140,7 +157,7 @@ export function getTask(teamId: string, taskId: string): Task | null {
 export function updateTask(
   teamId: string,
   taskId: string,
-  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority'>>
+  updates: Partial<Pick<Task, 'subject' | 'description' | 'status' | 'assigneeAgentId' | 'blockedBy' | 'priority' | 'labels' | 'taskType' | 'externalRef' | 'externalProjectRef' | 'previousStatus' | 'acceptanceCriteria' | 'handoffDoc' | 'prUrl' | 'reviewResult'>>
 ): Promise<{ task: Task | null; unblocked: Task[] }> {
   return withLock('tasks-' + teamId, () => {
     const tasks = loadTasks(teamId)

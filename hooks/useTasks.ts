@@ -10,10 +10,10 @@ interface UseTasksResult {
   pendingTasks: TaskWithDeps[]
   inProgressTasks: TaskWithDeps[]
   completedTasks: TaskWithDeps[]
-  tasksByStatus: Record<TaskStatus, TaskWithDeps[]>
+  tasksByStatus: Record<string, TaskWithDeps[]>
   tasksByAgent: Record<string, TaskWithDeps[]>
-  createTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
-  updateTask: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number }) => Promise<{ unblocked: TaskWithDeps[] }>
+  createTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number; status?: string; labels?: string[]; taskType?: string; externalRef?: string }) => Promise<void>
+  updateTask: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number; labels?: string[]; taskType?: string; externalRef?: string; externalProjectRef?: string; previousStatus?: string; acceptanceCriteria?: string[]; handoffDoc?: string; prUrl?: string; reviewResult?: string }) => Promise<{ unblocked: TaskWithDeps[] }>
   deleteTask: (taskId: string) => Promise<void>
   assignTask: (taskId: string, agentId: string | null) => Promise<void>
   refreshTasks: () => Promise<void>
@@ -57,7 +57,7 @@ export function useTasks(teamId: string | null): UseTasksResult {
     }
   }, [teamId, fetchTasks])
 
-  const createTask = useCallback(async (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => {
+  const createTask = useCallback(async (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number; status?: string; labels?: string[]; taskType?: string; externalRef?: string }) => {
     if (!teamId) return
     const res = await fetch(`/api/teams/${teamId}/tasks`, {
       method: 'POST',
@@ -68,7 +68,7 @@ export function useTasks(teamId: string | null): UseTasksResult {
     await fetchTasks()
   }, [teamId, fetchTasks])
 
-  const updateTask = useCallback(async (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number }) => {
+  const updateTask = useCallback(async (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[]; priority?: number; labels?: string[]; taskType?: string; externalRef?: string; externalProjectRef?: string; previousStatus?: string; acceptanceCriteria?: string[]; handoffDoc?: string; prUrl?: string; reviewResult?: string }) => {
     if (!teamId) return { unblocked: [] as TaskWithDeps[] }
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
@@ -106,14 +106,9 @@ export function useTasks(teamId: string | null): UseTasksResult {
   const completedTasks = useMemo(() => tasks.filter(t => t.status === 'completed'), [tasks])
 
   const tasksByStatus = useMemo(() => {
-    const map: Record<TaskStatus, TaskWithDeps[]> = {
-      backlog: [],
-      pending: [],
-      in_progress: [],
-      review: [],
-      completed: [],
-    }
+    const map: Record<string, TaskWithDeps[]> = {}
     tasks.forEach(t => {
+      if (!map[t.status]) map[t.status] = []
       map[t.status].push(t)
     })
     return map

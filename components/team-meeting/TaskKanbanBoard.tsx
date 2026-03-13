@@ -1,25 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Archive, Circle, PlayCircle, Eye, CheckCircle2 } from 'lucide-react'
+import { X, Archive, Circle, PlayCircle, Eye, CheckCircle2, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import type { KanbanColumnConfig } from '@/types/team'
+import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import KanbanColumn from './KanbanColumn'
 import TaskDetailView from './TaskDetailView'
 import TaskCreateForm from './TaskCreateForm'
 
-const COLUMNS: { status: TaskStatus; label: string; dotColor: string; icon: typeof Circle }[] = [
-  { status: 'backlog', label: 'Backlog', dotColor: 'bg-gray-500', icon: Archive },
-  { status: 'pending', label: 'To Do', dotColor: 'bg-gray-400', icon: Circle },
-  { status: 'in_progress', label: 'In Progress', dotColor: 'bg-blue-400', icon: PlayCircle },
-  { status: 'review', label: 'Review', dotColor: 'bg-amber-400', icon: Eye },
-  { status: 'completed', label: 'Done', dotColor: 'bg-emerald-400', icon: CheckCircle2 },
-]
+const ICON_MAP: Record<string, typeof Circle> = {
+  Archive, Circle, PlayCircle, Eye, CheckCircle2, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion,
+}
 
 interface TaskKanbanBoardProps {
   agents: Agent[]
   tasks: TaskWithDeps[]
-  tasksByStatus: Record<TaskStatus, TaskWithDeps[]>
+  tasksByStatus: Record<string, TaskWithDeps[]>
+  kanbanColumns?: KanbanColumnConfig[]
   onUpdateTask: (taskId: string, updates: { status?: TaskStatus; [key: string]: unknown }) => Promise<{ unblocked: TaskWithDeps[] }>
   onDeleteTask: (taskId: string) => Promise<void>
   onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
@@ -31,14 +30,17 @@ export default function TaskKanbanBoard({
   agents,
   tasks,
   tasksByStatus,
+  kanbanColumns,
   onUpdateTask,
   onDeleteTask,
   onCreateTask,
   onClose,
   teamName,
 }: TaskKanbanBoardProps) {
+  const columns = kanbanColumns || DEFAULT_KANBAN_COLUMNS
+
   const [selectedTask, setSelectedTask] = useState<TaskWithDeps | null>(null)
-  const [quickAddStatus, setQuickAddStatus] = useState<TaskStatus | null>(null)
+  const [quickAddStatus, setQuickAddStatus] = useState<string | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -52,13 +54,13 @@ export default function TaskKanbanBoard({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedTask, quickAddStatus, onClose])
 
-  const handleDrop = async (taskId: string, newStatus: TaskStatus) => {
+  const handleDrop = async (taskId: string, newStatus: string) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task || task.status === newStatus || task.isBlocked) return
-    await onUpdateTask(taskId, { status: newStatus })
+    await onUpdateTask(taskId, { status: newStatus as TaskStatus })
   }
 
-  const handleQuickAdd = (status: TaskStatus) => {
+  const handleQuickAdd = (status: string) => {
     setQuickAddStatus(status)
   }
 
@@ -104,16 +106,19 @@ export default function TaskKanbanBoard({
       {/* Board */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
         <div className="flex gap-2.5 h-full min-w-min">
-          {COLUMNS.map(col => (
-            <KanbanColumn
-              key={col.status}
-              config={col}
-              tasks={tasksByStatus[col.status] || []}
-              onDrop={handleDrop}
-              onSelectTask={setSelectedTask}
-              onQuickAdd={handleQuickAdd}
-            />
-          ))}
+          {columns.map(col => {
+            const IconComponent = ICON_MAP[col.icon || 'Circle'] || Circle
+            return (
+              <KanbanColumn
+                key={col.id}
+                config={{ status: col.id, label: col.label, dotColor: col.color, icon: IconComponent }}
+                tasks={tasksByStatus[col.id] || []}
+                onDrop={handleDrop}
+                onSelectTask={setSelectedTask}
+                onQuickAdd={handleQuickAdd}
+              />
+            )
+          })}
         </div>
       </div>
 
@@ -145,7 +150,7 @@ export default function TaskKanbanBoard({
           >
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-medium text-gray-200">
-                New task in {COLUMNS.find(c => c.status === quickAddStatus)?.label}
+                New task in {columns.find(c => c.id === quickAddStatus)?.label}
               </h4>
               <button onClick={() => setQuickAddStatus(null)} className="p-1 hover:bg-gray-800 rounded">
                 <X className="w-4 h-4 text-gray-500" />

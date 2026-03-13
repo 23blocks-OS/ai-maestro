@@ -12,7 +12,7 @@ interface TeamTasksSectionProps {
 
 export default function TeamTasksSection({ teamId, agents, teamAgentIds }: TeamTasksSectionProps) {
   const {
-    tasks, pendingTasks, inProgressTasks, completedTasks,
+    tasks, tasksByStatus,
     createTask, updateTask, deleteTask,
   } = useTasks(teamId)
 
@@ -29,9 +29,7 @@ export default function TeamTasksSection({ teamId, agents, teamAgentIds }: TeamT
         <TaskPanel
           agents={teamAgents}
           tasks={tasks}
-          pendingTasks={pendingTasks}
-          inProgressTasks={inProgressTasks}
-          completedTasks={completedTasks}
+          tasksByStatus={tasksByStatus}
           onCreateTask={createTask}
           onUpdateTask={updateTask}
           onDeleteTask={deleteTask}

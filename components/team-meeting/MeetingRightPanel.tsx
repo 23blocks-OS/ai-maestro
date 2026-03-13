@@ -16,9 +16,7 @@ interface MeetingRightPanelProps {
   // Task props
   agents: Agent[]
   tasks: TaskWithDeps[]
-  pendingTasks: TaskWithDeps[]
-  inProgressTasks: TaskWithDeps[]
-  completedTasks: TaskWithDeps[]
+  tasksByStatus: Record<string, TaskWithDeps[]>
   onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[] }) => Promise<void>
   onUpdateTask: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[] }) => Promise<{ unblocked: TaskWithDeps[] }>
   onDeleteTask: (taskId: string) => Promise<void>
@@ -36,9 +34,7 @@ export default function MeetingRightPanel({
   onClose,
   agents,
   tasks,
-  pendingTasks,
-  inProgressTasks,
-  completedTasks,
+  tasksByStatus,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
@@ -108,9 +104,7 @@ export default function MeetingRightPanel({
           <TaskPanel
             agents={agents}
             tasks={tasks}
-            pendingTasks={pendingTasks}
-            inProgressTasks={inProgressTasks}
-            completedTasks={completedTasks}
+            tasksByStatus={tasksByStatus}
             onCreateTask={onCreateTask}
             onUpdateTask={onUpdateTask}
             onDeleteTask={onDeleteTask}

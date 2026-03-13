@@ -37,6 +37,10 @@ import {
 } from '@/services/agents-core-service'
 
 import {
+  scanAgentLocalConfig,
+} from '@/services/agent-local-config-service'
+
+import {
   getDirectory,
   lookupAgentByDirectoryName,
   syncDirectory,
@@ -221,6 +225,8 @@ import {
   deleteTeamDocument,
   notifyTeamAgents,
   getTeamsBulkStats,
+  getKanbanConfig,
+  setKanbanConfig,
 } from '@/services/teams-service'
 
 import {
@@ -697,6 +703,11 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/hibernate$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await hibernateAgent(params.id, body))
+  }},
+
+  // Local Config (Agent Profile Panel)
+  { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/local-config$/, paramNames: ['id'], handler: async (_req, res, params) => {
+    sendServiceResult(res, scanAgentLocalConfig(params.id))
   }},
 
   // Chat
@@ -1571,7 +1582,15 @@ const routes: Route[] = [
       return
     }
     const requestingAgentId = auth.agentId
-    sendServiceResult(res, listTeamTasks(params.id, requestingAgentId))
+    // Extract optional query filters from URL
+    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const filters: { assignee?: string; status?: string; label?: string; taskType?: string } = {}
+    if (url.searchParams.has('assignee')) filters.assignee = url.searchParams.get('assignee')!
+    if (url.searchParams.has('status')) filters.status = url.searchParams.get('status')!
+    if (url.searchParams.has('label')) filters.label = url.searchParams.get('label')!
+    if (url.searchParams.has('taskType')) filters.taskType = url.searchParams.get('taskType')!
+    const hasFilters = Object.keys(filters).length > 0
+    sendServiceResult(res, listTeamTasks(params.id, requestingAgentId, hasFilters ? filters : undefined))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1585,6 +1604,34 @@ const routes: Route[] = [
     }
     const requestingAgentId = auth.agentId
     sendServiceResult(res, await createTeamTask(params.id, { ...body, requestingAgentId }))
+  }},
+  // Kanban config routes
+  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/kanban-config$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, getKanbanConfig(params.id, auth.agentId))
+  }},
+  { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/kanban-config$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const body = await readJsonBody(req)
+    const auth = authenticateAgent(
+      getHeader(req, 'Authorization'),
+      getHeader(req, 'X-Agent-Id')
+    )
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    if (!body.columns || !Array.isArray(body.columns)) {
+      sendJson(res, 400, { error: 'columns array is required' })
+      return
+    }
+    sendServiceResult(res, await setKanbanConfig(params.id, body.columns, auth.agentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
     const auth = authenticateAgent(

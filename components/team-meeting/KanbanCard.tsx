@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, Circle, PlayCircle, Eye, CheckCircle2, Lock, User } from 'lucide-react'
+import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 
 interface KanbanCardProps {
@@ -8,16 +8,12 @@ interface KanbanCardProps {
   onSelect: (task: TaskWithDeps) => void
 }
 
-const statusIcon: Record<TaskStatus, typeof Circle> = {
-  backlog: Archive,
-  pending: Circle,
-  in_progress: PlayCircle,
-  review: Eye,
-  completed: CheckCircle2,
+const ICON_MAP: Record<string, typeof Circle> = {
+  Archive, Circle, PlayCircle, Eye, CheckCircle2, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion,
 }
 
 export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
-  const Icon = statusIcon[task.status]
+  const Icon = Circle
 
   const handleDragStart = (e: React.DragEvent) => {
     if (task.isBlocked) {
@@ -44,6 +40,19 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
         {task.subject}
       </p>
 
+      {task.labels && task.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {task.labels.slice(0, 3).map(label => (
+            <span key={label} className="text-[9px] px-1 py-0.5 rounded bg-gray-700/80 text-gray-400">
+              {label}
+            </span>
+          ))}
+          {task.labels.length > 3 && (
+            <span className="text-[9px] text-gray-600">+{task.labels.length - 3}</span>
+          )}
+        </div>
+      )}
+
       {/* Footer row */}
       <div className="flex items-center gap-2 mt-2">
         {task.isBlocked ? (
@@ -64,6 +73,12 @@ export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
         {task.blockedBy.length > 0 && (
           <span className="text-[10px] text-amber-500/70 flex-shrink-0">
             {task.blockedBy.length} dep{task.blockedBy.length > 1 ? 's' : ''}
+          </span>
+        )}
+
+        {task.taskType && (
+          <span className="text-[9px] px-1 py-0.5 rounded bg-gray-700/60 text-gray-500 flex-shrink-0">
+            {task.taskType}
           </span>
         )}
       </div>

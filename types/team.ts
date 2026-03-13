@@ -17,6 +17,23 @@
  */
 export type TeamType = 'open' | 'closed'
 
+/** Per-team kanban column configuration */
+export interface KanbanColumnConfig {
+  id: string           // Column key, used as task status value (e.g., "ai-review")
+  label: string        // Display name (e.g., "AI Review")
+  color: string        // Tailwind dot color class (e.g., "bg-purple-400")
+  icon?: string        // Lucide icon name (e.g., "SearchCheck") — resolved at render time
+}
+
+/** Default 5-column kanban — used when team has no custom kanban config */
+export const DEFAULT_KANBAN_COLUMNS: KanbanColumnConfig[] = [
+  { id: 'backlog', label: 'Backlog', color: 'bg-gray-500', icon: 'Archive' },
+  { id: 'pending', label: 'To Do', color: 'bg-gray-400', icon: 'Circle' },
+  { id: 'in_progress', label: 'In Progress', color: 'bg-blue-400', icon: 'PlayCircle' },
+  { id: 'review', label: 'Review', color: 'bg-amber-400', icon: 'Eye' },
+  { id: 'completed', label: 'Done', color: 'bg-emerald-400', icon: 'CheckCircle2' },
+]
+
 export interface Team {
   id: string              // UUID
   name: string            // "Backend Squad"
@@ -26,6 +43,7 @@ export interface Team {
   type: TeamType           // 'open' (default) or 'closed' — governs messaging isolation and ACL
                            // Always present at runtime — loadTeams() migration guarantees this field is populated
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
+  kanbanConfig?: KanbanColumnConfig[] // Per-team kanban columns (if undefined, use DEFAULT_KANBAN_COLUMNS)
   /**
    * @planned Layer 3 -- type stub only, not yet populated or consumed anywhere.
    * Will map agentId -> hostId for multi-host team membership tracking.

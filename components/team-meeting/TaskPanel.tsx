@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import type { KanbanColumnConfig } from '@/types/team'
+import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import TaskCard from './TaskCard'
 import TaskCreateForm from './TaskCreateForm'
 import TaskDetailView from './TaskDetailView'
@@ -11,20 +13,21 @@ import TaskDetailView from './TaskDetailView'
 interface TaskPanelProps {
   agents: Agent[]
   tasks: TaskWithDeps[]
-  pendingTasks: TaskWithDeps[]
-  inProgressTasks: TaskWithDeps[]
-  completedTasks: TaskWithDeps[]
+  tasksByStatus: Record<string, TaskWithDeps[]>
+  kanbanColumns?: KanbanColumnConfig[]
   onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[] }) => Promise<void>
   onUpdateTask: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[] }) => Promise<{ unblocked: TaskWithDeps[] }>
   onDeleteTask: (taskId: string) => Promise<void>
 }
 
 export default function TaskPanel({
-  agents, tasks, pendingTasks, inProgressTasks, completedTasks,
+  agents, tasks, tasksByStatus, kanbanColumns,
   onCreateTask, onUpdateTask, onDeleteTask,
 }: TaskPanelProps) {
   const [selectedTask, setSelectedTask] = useState<TaskWithDeps | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({ completed: true })
+
+  const columns = kanbanColumns || DEFAULT_KANBAN_COLUMNS
 
   const toggleSection = (key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }))
@@ -52,6 +55,7 @@ export default function TaskPanel({
         onUpdate={async (taskId, updates) => { await onUpdateTask(taskId, updates) }}
         onDelete={onDeleteTask}
         onClose={() => setSelectedTask(null)}
+        kanbanColumns={kanbanColumns}
       />
     )
   }
@@ -65,49 +69,30 @@ export default function TaskPanel({
       />
 
       <div className="flex-1 overflow-y-auto">
-        {/* In Progress */}
-        {inProgressTasks.length > 0 && (
-          <TaskSection
-            title="In Progress"
-            count={inProgressTasks.length}
-            collapsed={!!collapsedSections.in_progress}
-            onToggle={() => toggleSection('in_progress')}
-          >
-            {inProgressTasks.map(t => (
-              <TaskCard key={t.id} task={t} onSelect={setSelectedTask} onStatusChange={handleStatusChange} />
-            ))}
-          </TaskSection>
-        )}
-
-        {/* Pending */}
-        <TaskSection
-          title="Pending"
-          count={pendingTasks.length}
-          collapsed={!!collapsedSections.pending}
-          onToggle={() => toggleSection('pending')}
-        >
-          {pendingTasks.length === 0 ? (
-            <p className="text-[11px] text-gray-600 px-3 py-2">No pending tasks</p>
-          ) : (
-            pendingTasks.map(t => (
-              <TaskCard key={t.id} task={t} onSelect={setSelectedTask} onStatusChange={handleStatusChange} />
-            ))
-          )}
-        </TaskSection>
-
-        {/* Completed */}
-        {completedTasks.length > 0 && (
-          <TaskSection
-            title="Completed"
-            count={completedTasks.length}
-            collapsed={!!collapsedSections.completed}
-            onToggle={() => toggleSection('completed')}
-          >
-            {completedTasks.map(t => (
-              <TaskCard key={t.id} task={t} onSelect={setSelectedTask} onStatusChange={handleStatusChange} />
-            ))}
-          </TaskSection>
-        )}
+        {columns.map(col => {
+          const colTasks = tasksByStatus[col.id] || []
+          if (colTasks.length === 0 && collapsedSections[col.id]) return null
+          return (
+            <div key={col.id}>
+              <button
+                onClick={() => toggleSection(col.id)}
+                className="flex items-center gap-1 w-full text-left px-2 py-1 hover:bg-gray-800/50 rounded"
+              >
+                {collapsedSections[col.id] ? <ChevronRight className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
+                <span className="text-[11px] font-medium text-gray-400">{col.label}</span>
+                <span className="text-[10px] text-gray-600 ml-1">{colTasks.length}</span>
+              </button>
+              {!collapsedSections[col.id] && colTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onSelect={setSelectedTask}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

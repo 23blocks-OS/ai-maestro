@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User } from 'lucide-react'
+import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion } from 'lucide-react'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
 
 interface TaskCardProps {
@@ -9,7 +9,7 @@ interface TaskCardProps {
   onStatusChange: (taskId: string, status: TaskStatus) => void
 }
 
-const statusConfig: Record<TaskStatus, { icon: typeof Circle; color: string; bg: string }> = {
+const DEFAULT_STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string; bg: string }> = {
   backlog: { icon: Archive, color: 'text-gray-500', bg: 'bg-gray-500' },
   pending: { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-400' },
   in_progress: { icon: PlayCircle, color: 'text-blue-400', bg: 'bg-blue-400' },
@@ -17,16 +17,18 @@ const statusConfig: Record<TaskStatus, { icon: typeof Circle; color: string; bg:
   completed: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400' },
 }
 
+const FALLBACK_CONFIG = { icon: Circle, color: 'text-gray-400', bg: 'bg-gray-400' }
+
 export default function TaskCard({ task, onSelect, onStatusChange }: TaskCardProps) {
-  const config = statusConfig[task.status]
+  const config = DEFAULT_STATUS_CONFIG[task.status] || FALLBACK_CONFIG
   const StatusIcon = config.icon
 
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (task.isBlocked) return
-    const cycle: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'completed']
-    const idx = cycle.indexOf(task.status)
-    const next = cycle[(idx + 1) % cycle.length]
+    const defaultCycle = ['backlog', 'pending', 'in_progress', 'review', 'completed']
+    const idx = defaultCycle.indexOf(task.status)
+    const next = idx >= 0 ? defaultCycle[(idx + 1) % defaultCycle.length] : 'pending'
     onStatusChange(task.id, next)
   }
 
@@ -58,6 +60,15 @@ export default function TaskCard({ task, onSelect, onStatusChange }: TaskCardPro
         <p className={`text-xs leading-snug ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
           {task.subject}
         </p>
+        {task.labels && task.labels.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {task.labels.slice(0, 3).map(label => (
+              <span key={label} className="text-[9px] px-1 py-0.5 rounded bg-gray-700/80 text-gray-400">
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-1">
           {task.assigneeName && (
             <span className="flex items-center gap-1 text-[10px] text-gray-500">

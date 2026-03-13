@@ -633,9 +633,7 @@ export default function MeetingRoom({ meetingId, teamParam }: MeetingRoomProps) 
                   onClose={() => dispatch({ type: 'TOGGLE_RIGHT_PANEL' })}
                   agents={selectedAgents}
                   tasks={taskHook.tasks}
-                  pendingTasks={taskHook.pendingTasks}
-                  inProgressTasks={taskHook.inProgressTasks}
-                  completedTasks={taskHook.completedTasks}
+                  tasksByStatus={taskHook.tasksByStatus}
                   onCreateTask={taskHook.createTask}
                   onUpdateTask={taskHook.updateTask}
                   onDeleteTask={taskHook.deleteTask}

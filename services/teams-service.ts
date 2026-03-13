@@ -1,3 +1,4 @@
+
 /**
  * Teams Service
  *
@@ -27,7 +28,9 @@ import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam, TeamValidationE
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
 import type { TaskStatus, TaskWithDeps } from '@/types/task'
-import type { Team } from '@/types/team'
+import { DEFAULT_STATUSES } from '@/types/task'
+import type { Team, KanbanColumnConfig } from '@/types/team'
+import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import type { TeamDocument } from '@/types/document'
 import { getAgent, loadAgents } from '@/lib/agent-registry'
 import { notifyAgent } from '@/lib/notification-service'
@@ -71,17 +74,34 @@ export interface CreateTaskParams {
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  status?: string
+  labels?: string[]
+  taskType?: string
+  externalRef?: string
+  externalProjectRef?: string
+  acceptanceCriteria?: string[]
+  handoffDoc?: string
+  prUrl?: string
   requestingAgentId?: string
 }
 
 export interface UpdateTaskParams {
   subject?: string
   description?: string
-  status?: TaskStatus
+  status?: string
   // SF-008: Allow null to explicitly unassign -- matches task-registry's `string | null` type
   assigneeAgentId?: string | null
   blockedBy?: string[]
   priority?: number
+  labels?: string[]
+  taskType?: string
+  externalRef?: string
+  externalProjectRef?: string
+  previousStatus?: string
+  acceptanceCriteria?: string[]
+  handoffDoc?: string
+  prUrl?: string
+  reviewResult?: string
   requestingAgentId?: string
 }
 
@@ -115,7 +135,7 @@ export interface AgentNotifyResult {
   error?: string
 }
 
-const VALID_TASK_STATUSES = ['backlog', 'pending', 'in_progress', 'review', 'completed']
+const VALID_TASK_STATUSES = DEFAULT_STATUSES
 
 // ===========================================================================
 // PUBLIC API -- called by API routes
@@ -152,6 +172,14 @@ export async function createNewTeam(params: CreateTeamParams): Promise<ServiceRe
   // Governance: validate type field
   if (params.type && params.type !== 'open' && params.type !== 'closed') {
     return { error: 'type must be "open" or "closed"', status: 400 }
+  }
+
+  // Governance: only MANAGER or web UI (no requestingAgentId) can create teams
+  if (params.requestingAgentId) {
+    const managerId = getManagerId()
+    if (managerId && managerId !== params.requestingAgentId) {
+      return { error: 'Only the MANAGER agent can create teams. Use the dashboard to create teams without manager role.', status: 403 }
+    }
   }
 
   try {
@@ -308,7 +336,7 @@ export function getTeamsBulkStats(): ServiceResult<Record<string, { taskCount: n
  * List all tasks for a team, with resolved dependencies.
  * Governance: enforces team ACL for closed teams.
  */
-export function listTeamTasks(teamId: string, requestingAgentId?: string): ServiceResult<{ tasks: TaskWithDeps[] }> {
+export function listTeamTasks(teamId: string, requestingAgentId?: string, filters?: { assignee?: string; status?: string; label?: string; taskType?: string }): ServiceResult<{ tasks: TaskWithDeps[] }> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -323,7 +351,14 @@ export function listTeamTasks(teamId: string, requestingAgentId?: string): Servi
 
   const tasks = loadTasks(teamId)
   const resolved = resolveTaskDeps(tasks)
-  return { data: { tasks: resolved }, status: 200 }
+  let filtered = resolved
+  if (filters) {
+    if (filters.assignee) filtered = filtered.filter(t => t.assigneeAgentId === filters.assignee)
+    if (filters.status) filtered = filtered.filter(t => t.status === filters.status)
+    if (filters.label) filtered = filtered.filter(t => t.labels?.includes(filters.label!) || false)
+    if (filters.taskType) filtered = filtered.filter(t => t.taskType === filters.taskType)
+  }
+  return { data: { tasks: filtered }, status: 200 }
 }
 
 /**
@@ -389,6 +424,14 @@ export async function createTeamTask(teamId: string, params: CreateTaskParams): 
       assigneeAgentId,
       blockedBy,
       priority,
+      status: taskFields.status,
+      labels: taskFields.labels,
+      taskType: taskFields.taskType,
+      externalRef: taskFields.externalRef,
+      externalProjectRef: taskFields.externalProjectRef,
+      acceptanceCriteria: taskFields.acceptanceCriteria,
+      handoffDoc: taskFields.handoffDoc,
+      prUrl: taskFields.prUrl,
     })
     return { data: { task }, status: 201 }
   } catch (error) {
@@ -441,9 +484,12 @@ export async function updateTeamTask(
     }
   }
 
-  // Validate status enum
-  if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
-    return { error: 'Invalid status. Must be backlog, pending, in_progress, review, or completed', status: 400 }
+  // Validate status against team's kanban config columns (or default statuses)
+  if (status !== undefined) {
+    const validStatuses = (team.kanbanConfig || DEFAULT_KANBAN_COLUMNS).map(c => c.id)
+    if (!validStatuses.includes(status)) {
+      return { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`, status: 400 }
+    }
   }
 
   try {
@@ -454,6 +500,15 @@ export async function updateTeamTask(
       assigneeAgentId,
       blockedBy,
       priority,
+      labels: taskFields.labels,
+      taskType: taskFields.taskType,
+      externalRef: taskFields.externalRef,
+      externalProjectRef: taskFields.externalProjectRef,
+      previousStatus: taskFields.previousStatus,
+      acceptanceCriteria: taskFields.acceptanceCriteria,
+      handoffDoc: taskFields.handoffDoc,
+      prUrl: taskFields.prUrl,
+      reviewResult: taskFields.reviewResult,
     })
 
     if (!result.task) {
@@ -699,5 +754,53 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
   } catch (error) {
     console.error('Failed to notify team:', error)
     return { error: error instanceof Error ? error.message : 'Failed to notify team', status: 500 }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kanban Configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * Get kanban column configuration for a team.
+ * Returns team's custom config or DEFAULT_KANBAN_COLUMNS.
+ */
+export function getKanbanConfig(teamId: string, requestingAgentId?: string): ServiceResult<{ columns: KanbanColumnConfig[] }> {
+  const team = getTeam(teamId)
+  if (!team) {
+    return { error: 'Team not found', status: 404 }
+  }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
+  }
+  return { data: { columns: team.kanbanConfig || DEFAULT_KANBAN_COLUMNS }, status: 200 }
+}
+
+/**
+ * Set kanban column configuration for a team.
+ */
+export async function setKanbanConfig(teamId: string, columns: KanbanColumnConfig[], requestingAgentId?: string): Promise<ServiceResult<{ columns: KanbanColumnConfig[] }>> {
+  const team = getTeam(teamId)
+  if (!team) {
+    return { error: 'Team not found', status: 404 }
+  }
+  const access = checkTeamAccess({ teamId, requestingAgentId })
+  if (!access.allowed) {
+    return { error: access.reason || 'Access denied', status: 403 }
+  }
+  if (!Array.isArray(columns) || columns.length === 0) {
+    return { error: 'columns must be a non-empty array', status: 400 }
+  }
+  for (const col of columns) {
+    if (!col.id || !col.label || !col.color) {
+      return { error: 'Each column must have id, label, and color', status: 400 }
+    }
+  }
+  try {
+    await updateTeam(teamId, { kanbanConfig: columns } as any)
+    return { data: { columns }, status: 200 }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Failed to update kanban config', status: 500 }
   }
 }

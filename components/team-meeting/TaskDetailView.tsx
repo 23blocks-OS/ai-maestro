@@ -4,24 +4,29 @@ import { useState, useEffect } from 'react'
 import { X, Trash2, Archive, Circle, PlayCircle, Eye, CheckCircle2, Lock } from 'lucide-react'
 import type { Agent } from '@/types/agent'
 import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import type { KanbanColumnConfig } from '@/types/team'
+import { DEFAULT_KANBAN_COLUMNS } from '@/types/team'
 import DependencyPicker from './DependencyPicker'
 
 interface TaskDetailViewProps {
   task: TaskWithDeps
   agents: Agent[]
   allTasks: TaskWithDeps[]
+  kanbanColumns?: KanbanColumnConfig[]
   onUpdate: (taskId: string, updates: { subject?: string; description?: string; status?: TaskStatus; assigneeAgentId?: string | null; blockedBy?: string[] }) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onClose: () => void
 }
 
-export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDelete, onClose }: TaskDetailViewProps) {
+export default function TaskDetailView({ task, agents, allTasks, kanbanColumns, onUpdate, onDelete, onClose }: TaskDetailViewProps) {
   const [subject, setSubject] = useState(task.subject)
   const [description, setDescription] = useState(task.description || '')
   const [assigneeAgentId, setAssigneeAgentId] = useState(task.assigneeAgentId || '')
   const [blockedBy, setBlockedBy] = useState<string[]>(task.blockedBy)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const columns = kanbanColumns || DEFAULT_KANBAN_COLUMNS
 
   // Sync when task changes externally
   useEffect(() => {
@@ -78,28 +83,20 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {/* Status buttons */}
         <div className="flex flex-wrap gap-1">
-          {([
-            { status: 'backlog' as TaskStatus, icon: Archive, label: 'Backlog', activeClass: 'bg-gray-700 text-gray-200' },
-            { status: 'pending' as TaskStatus, icon: Circle, label: 'To Do', activeClass: 'bg-gray-700 text-gray-200' },
-            { status: 'in_progress' as TaskStatus, icon: PlayCircle, label: 'In Progress', activeClass: 'bg-blue-600/30 text-blue-300' },
-            { status: 'review' as TaskStatus, icon: Eye, label: 'Review', activeClass: 'bg-amber-600/30 text-amber-300' },
-            { status: 'completed' as TaskStatus, icon: CheckCircle2, label: 'Done', activeClass: 'bg-emerald-600/30 text-emerald-300' },
-          ]).map(({ status: s, icon: Icon, label, activeClass }) => {
-            const isActive = task.status === s
-            const disabled = task.isBlocked && s !== 'pending' && s !== 'backlog'
-
-            return (
-              <button
-                key={s}
-                onClick={() => handleStatusChange(s)}
-                disabled={disabled}
-                className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors ${isActive ? activeClass : 'text-gray-500 hover:bg-gray-800'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                {disabled ? <Lock className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                {label}
-              </button>
-            )
-          })}
+          {columns.map(col => (
+            <button
+              key={col.id}
+              onClick={() => handleStatusChange(col.id)}
+              disabled={task.isBlocked && col.id !== 'pending' && col.id !== 'backlog'}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                task.status === col.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              } ${task.isBlocked && col.id !== 'pending' && col.id !== 'backlog' ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {col.label}
+            </button>
+          ))}
         </div>
 
         {task.isBlocked && (
@@ -153,6 +150,64 @@ export default function TaskDetailView({ task, agents, allTasks, onUpdate, onDel
           onChange={setBlockedBy}
           excludeTaskId={task.id}
         />
+
+        {/* External Reference */}
+        {task.externalRef && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">External Reference</label>
+            <div className="text-xs text-gray-300">{task.externalRef}</div>
+          </div>
+        )}
+
+        {/* PR URL */}
+        {task.prUrl && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">PR URL</label>
+            <a href={task.prUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300">{task.prUrl}</a>
+          </div>
+        )}
+
+        {/* Review Result */}
+        {task.reviewResult && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">Review Result</label>
+            <span className={`text-xs px-2 py-0.5 rounded ${task.reviewResult === 'pass' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400'}`}>
+              {task.reviewResult.toUpperCase()}
+            </span>
+          </div>
+        )}
+
+        {/* Type */}
+        {task.taskType && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">Type</label>
+            <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400">{task.taskType}</span>
+          </div>
+        )}
+
+        {/* Labels */}
+        {task.labels && task.labels.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">Labels</label>
+            <div className="flex flex-wrap gap-1">
+              {task.labels.map(label => (
+                <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{label}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Acceptance Criteria */}
+        {task.acceptanceCriteria && task.acceptanceCriteria.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-[11px] text-gray-500 font-medium">Acceptance Criteria</label>
+            <ul className="text-xs text-gray-400 space-y-0.5 list-disc list-inside">
+              {task.acceptanceCriteria.map((criterion, i) => (
+                <li key={i}>{criterion}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Timestamps */}
         <div className="text-[10px] text-gray-600 space-y-0.5 pt-2 border-t border-gray-800/50">

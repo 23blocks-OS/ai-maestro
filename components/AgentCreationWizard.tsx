@@ -6,6 +6,7 @@ import { X, ArrowLeft, ExternalLink, ChevronRight } from 'lucide-react'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
+import { getRandomAlias } from '@/lib/agent-utils'
 
 // --- Types ---
 
@@ -31,28 +32,6 @@ const PROGRAM_OPTIONS = [
   { value: 'opencode', label: 'OpenCode', desc: 'Open-source AI coding' },
   { value: 'terminal', label: 'Terminal Only', desc: 'Plain shell, no AI' },
 ]
-
-const FEMALE_ALIASES = [
-  'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
-  'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
-]
-const MALE_ALIASES = [
-  'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
-  'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
-  'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
-]
-
-function getRandomAlias(agentName: string): string {
-  let hash = 0
-  for (let i = 0; i < agentName.length; i++) {
-    const char = agentName.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  const isMale = (Math.abs(hash >> 8) % 2 === 0)
-  const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
-  return aliases[Math.abs(hash) % aliases.length]
-}
 
 // --- Step logic ---
 

@@ -50,6 +50,7 @@ import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwit
 import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
 import { useToast } from '@/contexts/ToastContext'
+import { getAgentBaseUrl } from '@/lib/agent-utils'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -380,7 +381,7 @@ export default function AgentList({
         agents.map(async (agent) => {
           try {
             // Use agent's hostUrl to route to the correct host for remote agents
-            const baseUrl = agent.hostUrl || ''
+            const baseUrl = getAgentBaseUrl(agent)
             const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
             const data = await response.json()
             return { agentId: agent.id, count: data.count || 0 }
@@ -641,7 +642,7 @@ export default function AgentList({
 
     try {
       // Use agent's hostUrl for remote agents
-      const baseUrl = draggedAgent.hostUrl || ''
+      const baseUrl = getAgentBaseUrl(draggedAgent)
       const response = await fetch(`${baseUrl}/api/agents/${draggedAgent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

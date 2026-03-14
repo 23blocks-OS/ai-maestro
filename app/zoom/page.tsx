@@ -7,7 +7,7 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X, ExternalLink, Search, Mail } from 'lucide-react'
 import { VersionChecker } from '@/components/VersionChecker'
-import { agentToSession } from '@/lib/agent-utils'
+import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import './zoom.css'
 
@@ -54,7 +54,7 @@ export default function ZoomPage() {
 
       for (const agent of agents) {
         try {
-          const baseUrl = agent.hostUrl || ''
+          const baseUrl = getAgentBaseUrl(agent)
           const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(agent.id)}&action=unread-count`)
           if (response.ok) {
             const data = await response.json()
@@ -135,7 +135,7 @@ export default function ZoomPage() {
 
   const handleWake = async (agent: Agent) => {
     try {
-      const baseUrl = agent.hostUrl || ''
+      const baseUrl = getAgentBaseUrl(agent)
       await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

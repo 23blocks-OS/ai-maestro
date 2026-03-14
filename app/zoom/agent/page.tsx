@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { ArrowLeft, Loader2, AlertCircle, X } from 'lucide-react'
-import { agentToSession } from '@/lib/agent-utils'
+import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 
 // Dynamic import for AgentCardView
@@ -59,7 +59,7 @@ function ZoomAgentContent() {
 
     setIsWaking(true)
     try {
-      const baseUrl = agent.hostUrl || ''
+      const baseUrl = getAgentBaseUrl(agent)
       await fetch(`${baseUrl}/api/agents/${agent.id}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

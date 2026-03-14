@@ -8,7 +8,7 @@ import MobileWorkTree from './MobileWorkTree'
 import MobileHostsList from './MobileHostsList'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Server, MessageSquare, Phone } from 'lucide-react'
-import { agentToSession } from '@/lib/agent-utils'
+import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 import versionInfo from '@/version.json'
@@ -225,7 +225,7 @@ export default function MobileDashboard({
                     tmuxSessionName: a.session?.tmuxSessionName,
                     hostId: a.hostId
                   }))}
-                  hostUrl={agent.hostUrl}
+                  hostUrl={getAgentBaseUrl(agent)}
                 />
               )}
             </div>

@@ -143,8 +143,19 @@ export function useTerminal(options: UseTerminalOptions = {}) {
         console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
         try { webglAddon.dispose() } catch { /* ignore */ }
         webglAddonRef.current = null
-        if (terminalRef.current) {
-          terminalRef.current.refresh(0, terminalRef.current.rows - 1)
+        // After WebGL disposal, xterm.js _renderer.value becomes undefined.
+        // RenderService.dimensions uses an unsafe non-null assertion (!), so any
+        // call to scrollToBottom/scrollLines/fit will crash with:
+        //   "Cannot read properties of undefined (reading 'dimensions')"
+        // The only recovery is to re-open the terminal element, which forces
+        // xterm.js to create a new canvas renderer.
+        const term = terminalRef.current
+        const parent = term?.element?.parentElement
+        if (term && parent) {
+          term.open(parent)
+          if (fitAddonRef.current) {
+            try { fitAddonRef.current.fit() } catch { /* ignore */ }
+          }
         }
       })
 

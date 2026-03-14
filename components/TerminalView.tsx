@@ -217,22 +217,31 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
         if (parsed.type === 'history-complete') {
           setHistoryLoaded(true)
           if (terminalInstanceRef.current) {
-            const term = terminalInstanceRef.current
-
             // Wait for xterm.js to finish processing history
             setTimeout(() => {
+              const t = terminalInstanceRef.current
+              if (!t) return
+
               // 1. CRITICAL: Refit terminal to ensure correct dimensions
               fitTerminal()
 
               // 2. Send resize to PTY to sync tmux with correct dimensions
               // This also triggers a redraw which helps with color issues
-              const resizeMsg = createResizeMessage(term.cols, term.rows)
+              const resizeMsg = createResizeMessage(t.cols, t.rows)
               sendMessage(resizeMsg)
 
               // 3. Scroll to bottom and focus
+              // try-catch guards against xterm.js renderer being undefined
+              // (WebGL context loss leaves RenderService.dimensions broken)
               setTimeout(() => {
-                term.scrollToBottom()
-                term.focus()
+                try {
+                  if (terminalInstanceRef.current) {
+                    terminalInstanceRef.current.scrollToBottom()
+                    terminalInstanceRef.current.focus()
+                  }
+                } catch {
+                  // Renderer not ready — safe to ignore, terminal will recover
+                }
               }, 50)
             }, 100)
           }

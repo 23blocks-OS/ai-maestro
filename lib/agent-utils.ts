@@ -9,6 +9,25 @@ import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
 
 /**
+ * Get the base URL for API calls to an agent's host.
+ *
+ * Returns '' (empty string = relative fetch) when the agent lives on the same
+ * machine as the dashboard, even if hostUrl is a WSL2/NAT internal IP that
+ * the browser can't reach.
+ *
+ * Components that receive `hostUrl` as a prop should have callers pass the
+ * result of this function instead of raw `agent.hostUrl`.
+ */
+export function getAgentBaseUrl(agent: { hostUrl?: string; isSelf?: boolean } | null | undefined): string {
+  if (!agent) return ''
+  if (agent.isSelf) return ''
+  if (!agent.hostUrl) return ''
+  const lowered = agent.hostUrl.toLowerCase()
+  if (lowered.includes('localhost') || lowered.includes('127.0.0.1')) return ''
+  return agent.hostUrl
+}
+
+/**
  * Convert an Agent to a Session-like object for TerminalView compatibility.
  *
  * TerminalView expects a Session (tmux session metadata) for WebSocket connections.

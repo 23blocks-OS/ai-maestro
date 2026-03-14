@@ -47,7 +47,7 @@ interface HostFetchResult {
  * Fetch agents from a specific host
  */
 async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
-  const isSelf = isLocalhostUrl(host.url)
+  const isSelf = host.isSelf || isLocalhostUrl(host.url)
   const baseUrl = isSelf ? '' : host.url
   const timeout = isSelf ? SELF_FETCH_TIMEOUT : PEER_FETCH_TIMEOUT
 
@@ -72,7 +72,8 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
       ...agent,
       hostId: host.id,
       hostName: host.name,
-      hostUrl: host.url
+      hostUrl: host.url,
+      isSelf,
     }))
 
     // Cache peer host agents for offline access (not self host)

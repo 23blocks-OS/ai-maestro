@@ -172,6 +172,7 @@ export interface Agent {
   hostId: string                // Host identifier (e.g., "local", "mac-mini")
   hostName?: string             // Human-readable host name
   hostUrl?: string              // Host URL for API/WebSocket (e.g., "http://100.80.12.6:23000")
+  isSelf?: boolean              // Whether agent is on the same host as the dashboard
 
   // Metadata
   program: string               // AI program (e.g., "Claude Code", "Aider", "Cursor")

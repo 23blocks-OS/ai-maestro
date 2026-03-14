@@ -413,6 +413,14 @@ cmd_install() {
         skill_installed_json="true"
     fi
 
+    # Build files array in bash to avoid jq array concatenation (breaks on older jq)
+    local files_json
+    files_json="[\"${INSTALL_DIR}/aimaestro-agent.sh\", \"${HELPERS_DIR}/agent-helper.sh\""
+    if [[ "$skill_installed_json" == "true" ]]; then
+        files_json+=", \"${skill_dir}/SKILL.md\""
+    fi
+    files_json+="]"
+
     manifest=$(jq -n \
         --arg version "$INSTALLER_VERSION" \
         --arg installed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -422,6 +430,7 @@ cmd_install() {
         --arg skill_dir "$skill_dir" \
         --argjson path_modified "$path_modified_json" \
         --argjson skill_installed "$skill_installed_json" \
+        --argjson files "$files_json" \
         --arg shell_config "${shell_config:-}" \
         '{
             version: $version,
@@ -430,10 +439,7 @@ cmd_install() {
             install_dir: $install_dir,
             helpers_dir: $helpers_dir,
             skill_dir: $skill_dir,
-            files: [
-                ($install_dir + "/aimaestro-agent.sh"),
-                ($helpers_dir + "/agent-helper.sh")
-            ] + (if $skill_installed then [($skill_dir + "/SKILL.md")] else [] end),
+            files: $files,
             path_modified: $path_modified,
             skill_installed: $skill_installed,
             shell_config_file: $shell_config

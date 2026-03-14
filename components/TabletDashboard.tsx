@@ -7,7 +7,7 @@ import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileConversationDetail from './MobileConversationDetail'
 import { Terminal, Mail, RefreshCw, Activity, Phone, MessageSquare } from 'lucide-react'
-import { agentToSession } from '@/lib/agent-utils'
+import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
 import versionInfo from '@/version.json'
@@ -261,7 +261,7 @@ export default function TabletDashboard({
                     tmuxSessionName: a.session?.tmuxSessionName,
                     hostId: a.hostId
                   }))}
-                  hostUrl={activeAgent.hostUrl}
+                  hostUrl={getAgentBaseUrl(activeAgent)}
                 />
               </div>
             )

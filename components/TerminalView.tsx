@@ -279,49 +279,58 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
   useEffect(() => {
     let cleanup: (() => void) | undefined
     let retryCount = 0
-    const maxRetries = 20
-    const retryDelay = 150 // ms
+    const maxRefRetries = 10 // Quick retries for DOM ref only
+    const refRetryDelay = 50 // ms
     let retryTimer: NodeJS.Timeout | null = null
+    let resizeObserver: ResizeObserver | null = null
     let mounted = true
 
-    const tryInit = async () => {
+    const doInit = async (containerElement: HTMLDivElement) => {
       if (!mounted) return
-
-      // Wait for the DOM ref to be ready
-      if (!terminalRef.current) {
-        if (retryCount < maxRetries) {
-          retryCount++
-          retryTimer = setTimeout(tryInit, retryDelay)
-        }
-        return
-      }
-
-      // Check if container is actually visible and has dimensions
-      const rect = terminalRef.current.getBoundingClientRect()
-      if (rect.width === 0 || rect.height === 0) {
-        if (retryCount < maxRetries) {
-          retryCount++
-          retryTimer = setTimeout(tryInit, retryDelay)
-        } else {
-          console.warn(`[Terminal] Failed to get valid dimensions after ${maxRetries} retries for session ${session.id}`)
-        }
-        return
-      }
-
-      const containerElement = terminalRef.current
-      if (!containerElement) {
-        console.error(`❌ [INIT-ERROR] Container disappeared during init for session ${session.id}`)
-        return
-      }
-
       try {
         cleanup = await initializeTerminal(containerElement)
         if (mounted) {
           setIsReady(true)
         }
       } catch (error) {
-        console.error(`❌ [INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
+        console.error(`[INIT-ERROR] Failed to initialize terminal for session ${session.id}:`, error)
       }
+    }
+
+    const tryInit = () => {
+      if (!mounted) return
+
+      // Wait for the DOM ref to be ready (quick retries)
+      if (!terminalRef.current) {
+        if (retryCount < maxRefRetries) {
+          retryCount++
+          retryTimer = setTimeout(tryInit, refRetryDelay)
+        }
+        return
+      }
+
+      const containerElement = terminalRef.current
+
+      // Check if container already has dimensions
+      const rect = containerElement.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        doInit(containerElement)
+        return
+      }
+
+      // Use ResizeObserver to wait for non-zero dimensions (no polling cap)
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect
+          if (width > 0 && height > 0) {
+            resizeObserver?.disconnect()
+            resizeObserver = null
+            doInit(containerElement)
+            return
+          }
+        }
+      })
+      resizeObserver.observe(containerElement)
     }
 
     tryInit()
@@ -331,6 +340,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       mounted = false
       if (retryTimer) {
         clearTimeout(retryTimer)
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect()
       }
       if (cleanup) {
         cleanup()

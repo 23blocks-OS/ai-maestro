@@ -22,7 +22,7 @@ import { useAgents } from '@/hooks/useAgents'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { useToast } from '@/contexts/ToastContext'
 import { Terminal, Mail, User, GitBranch, MessageSquare, Share2, FileText, Moon, Power, Loader2, Brain, Plus, Search, Download, Play, ExternalLink } from 'lucide-react'
-import { agentToSession } from '@/lib/agent-utils'
+import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 
 // Dynamic imports for heavy components that are conditionally rendered
@@ -292,7 +292,7 @@ export default function DashboardPage() {
       console.log(`[Dashboard] Initializing memory for ${agents.length} agents...`)
 
       const initPromises = agents.map(async (agent) => {
-        const baseUrl = agent.hostUrl || ''
+        const baseUrl = getAgentBaseUrl(agent)
         const timeout = baseUrl ? INIT_TIMEOUT_REMOTE : INIT_TIMEOUT_LOCAL
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeout)
@@ -345,7 +345,7 @@ export default function DashboardPage() {
     const fetchUnreadCount = async () => {
       try {
         // Use agent's hostUrl to route to the correct host for remote agents
-        const baseUrl = activeAgent.hostUrl || ''
+        const baseUrl = getAgentBaseUrl(activeAgent)
         const response = await fetch(`${baseUrl}/api/messages?agent=${encodeURIComponent(activeAgentId)}&action=unread-count`)
         if (response.ok) {
           const data = await response.json()
@@ -387,7 +387,7 @@ export default function DashboardPage() {
   const handleDeleteAgent = async (agentId: string) => {
     try {
       // Use profileAgent's hostUrl to route to correct host for remote agents
-      const baseUrl = profileAgent?.hostUrl || ''
+      const baseUrl = getAgentBaseUrl(profileAgent)
       const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
         method: 'DELETE',
       })
@@ -825,7 +825,7 @@ export default function DashboardPage() {
                     </button>
                     <div className="flex-1" />
                     <div className="flex items-center">
-                      <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
+                      <AgentSubconsciousIndicator agentId={agent.id} hostUrl={getAgentBaseUrl(agent)} />
                       <button
                         onClick={() => handleShowAgentProfile(agent)}
                         className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                             tmuxSessionName: a.session?.tmuxSessionName,
                             hostId: a.hostId
                           }))}
-                          hostUrl={agent.hostUrl}
+                          hostUrl={getAgentBaseUrl(agent)}
                           isActive={true}
                         />
                       </ErrorBoundary>
@@ -950,13 +950,13 @@ export default function DashboardPage() {
                         sessionName={session.id}
                         agentId={agent.id}
                         workingDirectory={session.workingDirectory}
-                        hostUrl={agent.hostUrl}
+                        hostUrl={getAgentBaseUrl(agent)}
                         isActive={true}
                       />
                     ) : activeTab === 'memory' ? (
                       <MemoryViewer
                         agentId={agent.id}
-                        hostUrl={agent.hostUrl}
+                        hostUrl={getAgentBaseUrl(agent)}
                         isActive={true}
                       />
                     ) : activeTab === 'docs' ? (
@@ -964,7 +964,7 @@ export default function DashboardPage() {
                         sessionName={session.id}
                         agentId={agent.id}
                         workingDirectory={session.workingDirectory}
-                        hostUrl={agent.hostUrl}
+                        hostUrl={getAgentBaseUrl(agent)}
                         isActive={true}
                       />
                     ) : activeTab === 'search' ? (
@@ -1044,7 +1044,7 @@ export default function DashboardPage() {
             onStartSession={() => handleStartSession(profileAgent)}
             onDeleteAgent={handleDeleteAgent}
             scrollToDangerZone={profileScrollToDangerZone}
-            hostUrl={profileAgent.hostUrl}
+            hostUrl={getAgentBaseUrl(profileAgent)}
           />
         )}
 

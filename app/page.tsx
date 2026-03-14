@@ -98,8 +98,19 @@ export default function DashboardPage() {
   })
   const [isResizing, setIsResizing] = useState(false)
   const { deviceType } = useDeviceType()
-  const isMobile = deviceType === 'phone'
-  const isTablet = deviceType === 'tablet'
+  const [layoutOverride, setLayoutOverride] = useState<'desktop' | 'tablet' | null>(() => {
+    if (typeof window === 'undefined') return null
+    const saved = localStorage.getItem('aimaestro-layout-mode')
+    return (saved === 'desktop' || saved === 'tablet') ? saved : null
+  })
+  const effectiveLayout = layoutOverride || (deviceType === 'phone' ? 'phone' : deviceType)
+  const isMobile = effectiveLayout === 'phone'
+  const isTablet = effectiveLayout === 'tablet'
+  const toggleLayout = () => {
+    const next = isTablet ? 'desktop' : 'tablet'
+    setLayoutOverride(next)
+    localStorage.setItem('aimaestro-layout-mode', next)
+  }
   const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -578,6 +589,7 @@ export default function DashboardPage() {
           loading={agentsLoading}
           error={agentsError?.message || null}
           onRefresh={refreshAgents}
+          onSwitchLayout={toggleLayout}
         />
       </TerminalProvider>
     )
@@ -593,6 +605,7 @@ export default function DashboardPage() {
           sidebarCollapsed={sidebarCollapsed}
           activeAgentId={activeAgentId}
           onOpenHelp={() => setIsHelpOpen(true)}
+          onSwitchLayout={toggleLayout}
         />
 
         {/* Migration Banner */}

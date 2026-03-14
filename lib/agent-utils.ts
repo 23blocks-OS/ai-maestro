@@ -7,6 +7,7 @@
 
 import type { Agent } from '@/types/agent'
 import type { Session } from '@/types/session'
+import { computeHash, getGenderFromHash } from '@/lib/hash-utils'
 
 /**
  * Get the base URL for API calls to an agent's host.
@@ -44,13 +45,8 @@ export const MALE_ALIASES = [
  * Uses same hash logic as AgentBadge avatar selection for consistency.
  */
 export function getRandomAlias(agentName: string): string {
-  let hash = 0
-  for (let i = 0; i < agentName.length; i++) {
-    const char = agentName.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  const isMale = (Math.abs(hash >> 8) % 2 === 0)
+  const hash = computeHash(agentName)
+  const isMale = getGenderFromHash(hash) === 'male'
   const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
   return aliases[Math.abs(hash) % aliases.length]
 }

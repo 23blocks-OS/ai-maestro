@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAgents } from '@/hooks/useAgents'
+import { debounce } from '@/lib/utils'
 import type { UnifiedAgent } from '@/types/agent'
 
 // Import xterm CSS
@@ -131,28 +132,22 @@ export default function ImmersivePage() {
       fitAddonRef.current = fitAddon
 
       // ResizeObserver instead of window resize event (handles container size changes too)
-      const debouncedFit = (() => {
-        let timer: ReturnType<typeof setTimeout> | null = null
-        return () => {
-          if (timer) clearTimeout(timer)
-          timer = setTimeout(() => {
-            if (fitAddon && term) {
-              try {
-                fitAddon.fit()
-                if (wsRef.current?.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({
-                    type: 'resize',
-                    cols: term.cols,
-                    rows: term.rows
-                  }))
-                }
-              } catch (e) {
-                console.warn('[Immersive] Fit failed during resize:', e)
-              }
+      const debouncedFit = debounce(() => {
+        if (fitAddon && term) {
+          try {
+            fitAddon.fit()
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({
+                type: 'resize',
+                cols: term.cols,
+                rows: term.rows
+              }))
             }
-          }, 150)
+          } catch (e) {
+            console.warn('[Immersive] Fit failed during resize:', e)
+          }
         }
-      })()
+      }, 150)
 
       resizeObserver = new ResizeObserver(() => debouncedFit())
       resizeObserver.observe(terminalRef.current!)

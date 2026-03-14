@@ -27,6 +27,34 @@ export function getAgentBaseUrl(agent: { hostUrl?: string; isSelf?: boolean } | 
   return agent.hostUrl
 }
 
+// Fun AI-themed aliases - split by gender to match avatar photos
+// IA names are feminine (Spanish style), AI names are masculine
+export const FEMALE_ALIASES = [
+  'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
+  'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
+]
+export const MALE_ALIASES = [
+  'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
+  'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
+  'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
+]
+
+/**
+ * Get a gender-matched alias based on the agent name.
+ * Uses same hash logic as AgentBadge avatar selection for consistency.
+ */
+export function getRandomAlias(agentName: string): string {
+  let hash = 0
+  for (let i = 0; i < agentName.length; i++) {
+    const char = agentName.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  const isMale = (Math.abs(hash >> 8) % 2 === 0)
+  const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
+  return aliases[Math.abs(hash) % aliases.length]
+}
+
 /**
  * Convert an Agent to a Session-like object for TerminalView compatibility.
  *

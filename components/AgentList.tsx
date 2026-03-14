@@ -50,7 +50,7 @@ import SidebarViewSwitcher, { type SidebarView } from './sidebar/SidebarViewSwit
 import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
 import { useToast } from '@/contexts/ToastContext'
-import { getAgentBaseUrl } from '@/lib/agent-utils'
+import { getAgentBaseUrl, getRandomAlias } from '@/lib/agent-utils'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -1727,33 +1727,6 @@ function CreateAgentModal({
   const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
   const [showButton, setShowButton] = useState(false)  // Show "Let's Go!" button
 
-  // Fun AI-themed aliases - split by gender to match avatar photos
-  // IA names are feminine (Spanish style), AI names are masculine
-  const FEMALE_ALIASES = [
-    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
-    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
-  ]
-  const MALE_ALIASES = [
-    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
-    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
-    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
-  ]
-
-  // Get a gender-matched alias based on the agent name
-  // Uses same hash logic as AgentBadge avatar selection for consistency
-  const getRandomAlias = (agentName: string): string => {
-    let hash = 0
-    for (let i = 0; i < agentName.length; i++) {
-      const char = agentName.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    // Same gender logic as avatar - ensures name matches photo gender
-    const isMale = (Math.abs(hash >> 8) % 2 === 0)
-    const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
-    return aliases[Math.abs(hash) % aliases.length]
-  }
-
   // Animate through phases when creating - spread over 10 seconds for a delightful experience
   useEffect(() => {
     if (isCreating) {
@@ -2041,29 +2014,6 @@ function CreateAgentAdvancedModal({
       setRuntime('tmux')
     }
   }, [selectedHostId, dockerAvailable, runtime])
-
-  // Fun AI-themed aliases (same as simple modal)
-  const FEMALE_ALIASES = [
-    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
-    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
-  ]
-  const MALE_ALIASES = [
-    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
-    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
-    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
-  ]
-
-  const getRandomAlias = (agentName: string): string => {
-    let hash = 0
-    for (let i = 0; i < agentName.length; i++) {
-      const char = agentName.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    const isMale = (Math.abs(hash >> 8) % 2 === 0)
-    const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
-    return aliases[Math.abs(hash) % aliases.length]
-  }
 
   // Animation effect
   useEffect(() => {

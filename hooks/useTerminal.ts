@@ -14,14 +14,7 @@ export interface UseTerminalOptions {
   onUnregister?: () => void
 }
 
-// Debounce utility for resize events
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
-  return ((...args: unknown[]) => {
-    if (timeoutId) clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), ms)
-  }) as T
-}
+import { debounce } from '@/lib/utils'
 
 export function useTerminal(options: UseTerminalOptions = {}) {
   const terminalRef = useRef<Terminal | null>(null)

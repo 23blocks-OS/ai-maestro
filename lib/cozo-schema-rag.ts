@@ -203,7 +203,7 @@ export async function initializeRagSchema(agentDb: AgentDatabase): Promise<void>
             if (existingData.rows.length > 0) {
               for (const row of existingData.rows) {
                 await agentDb.run(`
-                  ?[component_id, name, file_id, class_type] <- [['${row[0]}', '${row[1]}', '${row[2]}', 'class']]
+                  ?[component_id, name, file_id, class_type] <- [[${escapeForCozo(row[0])}, ${escapeForCozo(row[1])}, ${escapeForCozo(row[2])}, 'class']]
                   :put components
                 `)
               }
@@ -835,7 +835,7 @@ export async function upsertMessage(
     const base64Vec = embedding.toString('base64')
     await agentDb.run(`
       ?[msg_id, vec] <- [[
-        '${message.msg_id}',
+        ${escapeForCozo(message.msg_id)},
         decode_base64('${base64Vec}')
       ]]
       :put msg_vec
@@ -886,7 +886,7 @@ export async function getMessagesByIds(
 }>> {
   if (msgIds.length === 0) return []
 
-  const ids = msgIds.map((id) => `'${id}'`).join(', ')
+  const ids = msgIds.map((id) => escapeForCozo(id)).join(', ')
   const result = await agentDb.run(`
     ?[msg_id, conversation_file, role, ts, text] :=
       *messages{msg_id, conversation_file, role, ts, text},
@@ -910,7 +910,7 @@ export async function searchMessagesByTerm(
   term: string
 ): Promise<Array<{ msg_id: string }>> {
   const result = await agentDb.run(`
-    ?[msg_id] := *msg_terms{msg_id, term}, term = '${term.toLowerCase()}'
+    ?[msg_id] := *msg_terms{msg_id, term}, term = ${escapeForCozo(term.toLowerCase())}
   `)
 
   return result.rows.map((row: any[]) => ({
@@ -926,7 +926,7 @@ export async function searchMessagesBySymbol(
   symbol: string
 ): Promise<Array<{ msg_id: string }>> {
   const result = await agentDb.run(`
-    ?[msg_id] := *code_symbols{msg_id, symbol}, symbol = '${symbol}'
+    ?[msg_id] := *code_symbols{msg_id, symbol}, symbol = ${escapeForCozo(symbol)}
   `)
 
   return result.rows.map((row: any[]) => ({

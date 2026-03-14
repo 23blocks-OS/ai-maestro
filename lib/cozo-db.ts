@@ -12,6 +12,7 @@ import { CozoDb } from 'cozo-node'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { escapeForCozo } from './cozo-utils'
 
 export interface AgentDatabaseConfig {
   agentId: string
@@ -133,8 +134,8 @@ export class AgentDatabase {
       const now = Date.now()
       await this.run(`
         ?[key, value, created_at, updated_at] <- [
-          ['agent_id', '${this.agentId}', ${now}, ${now}],
-          ['created_at', '${now}', ${now}, ${now}],
+          ['agent_id', ${escapeForCozo(this.agentId)}, ${now}, ${now}],
+          ['created_at', ${escapeForCozo(String(now))}, ${now}, ${now}],
           ['db_version', '0.1.0', ${now}, ${now}]
         ]
         :put agent_metadata {key => value, created_at, updated_at}

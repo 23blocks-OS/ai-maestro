@@ -10,6 +10,7 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import { glob } from 'glob'
 import { AgentDatabase } from '../cozo-db'
+import { escapeForCozo } from '../cozo-utils'
 import { embedTexts, vectorToBuffer } from './embeddings'
 import { extractTerms } from './keywords'
 
@@ -320,18 +321,6 @@ async function parseDocument(filePath: string, projectPath: string): Promise<Ind
   }
 }
 
-/**
- * CozoDB string escaping helper
- */
-function escapeForCozo(s: string): string {
-  return "'" + s
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t')
-    + "'"
-}
 
 /**
  * Clear documentation graph for a project

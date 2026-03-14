@@ -18,6 +18,7 @@ import { hostHints } from './host-hints'
 import { getAgent as getAgentFromRegistry } from './agent-registry'
 import { getSelfHost } from './hosts-config'
 import { computeSessionName } from '@/types/agent'
+import { computeHash } from './hash-utils'
 import { Cerebellum } from './cerebellum/cerebellum'
 import { MemorySubsystem } from './cerebellum/memory-subsystem'
 import { VoiceSubsystem } from './cerebellum/voice-subsystem'
@@ -186,10 +187,7 @@ class AgentSubconscious {
    * This ensures consistent spreading of agents across time
    */
   private calculateStaggerOffset(): number {
-    // Hash the agentId to get a consistent number
-    const hash = this.agentId.split('').reduce(
-      (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0
-    )
+    const hash = computeHash(this.agentId)
     // Spread across 5 minutes (300 seconds) to avoid clustering
     const maxOffset = 5 * 60 * 1000 // 5 minutes
     return Math.abs(hash) % maxOffset
@@ -282,9 +280,7 @@ class AgentSubconscious {
     }
 
     // Add stagger offset to prevent all agents from running at once
-    const staggerMinutes = Math.abs(this.agentId.split('').reduce(
-      (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0
-    )) % 30  // Spread across 30 minutes
+    const staggerMinutes = Math.abs(computeHash(this.agentId)) % 30  // Spread across 30 minutes
     nextRun.setMinutes(staggerMinutes)
 
     const timeUntilRun = nextRun.getTime() - now.getTime()

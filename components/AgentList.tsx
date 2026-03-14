@@ -51,6 +51,7 @@ import TeamListView from './sidebar/TeamListView'
 import MeetingListView from './sidebar/MeetingListView'
 import { useToast } from '@/contexts/ToastContext'
 import { getAgentBaseUrl, getRandomAlias } from '@/lib/agent-utils'
+import { computeHash } from '@/lib/hash-utils'
 
 interface AgentListProps {
   agents: UnifiedAgent[]
@@ -469,9 +470,7 @@ export default function AgentList({
       }
     }
 
-    const hash = category.split('').reduce((acc, char) => {
-      return char.charCodeAt(0) + ((acc << 5) - acc)
-    }, 0)
+    const hash = computeHash(category)
 
     const colorIndex = Math.abs(hash) % COLOR_PALETTE.length
     return COLOR_PALETTE[colorIndex]

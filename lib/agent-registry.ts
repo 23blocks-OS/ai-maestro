@@ -8,6 +8,7 @@ import { getSelfHost, getSelfHostId } from '@/lib/hosts-config'
 import { renameInIndex, removeFromIndex } from '@/lib/amp-inbox-writer'
 import { invalidateAgentCache } from '@/lib/messageQueue'
 import { sessionExistsSync, killSessionSync, renameSessionSync } from '@/lib/agent-runtime'
+import { computeHash, getGenderFromHash, getAvatarUrl } from '@/lib/hash-utils'
 
 const AIMAESTRO_DIR = path.join(os.homedir(), '.aimaestro')
 const AGENTS_DIR = path.join(AIMAESTRO_DIR, 'agents')
@@ -31,35 +32,17 @@ const MALE_NAMES = [
 ]
 
 /**
- * Compute hash from string (same algorithm as AgentBadge.tsx)
- */
-function computeHash(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return hash
-}
-
-/**
- * Determine gender from agent ID (same logic as avatar selection)
+ * Determine gender from agent ID (convenience wrapper)
  */
 function getGenderFromId(agentId: string): 'male' | 'female' {
-  const hash = computeHash(agentId)
-  return (Math.abs(hash >> 8) % 2 === 0) ? 'male' : 'female'
+  return getGenderFromHash(computeHash(agentId))
 }
 
 /**
- * Generate avatar URL from agent ID (same as AgentBadge.tsx)
- * RandomUser.me has 100 men + 100 women = 200 unique portraits
+ * Generate avatar URL from agent ID (delegates to shared hash-utils)
  */
 function generateAvatarUrl(agentId: string): string {
-  const hash = computeHash(agentId)
-  const index = Math.abs(hash) % 100
-  const gender = getGenderFromId(agentId) === 'male' ? 'men' : 'women'
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
+  return getAvatarUrl(agentId)
 }
 
 /**

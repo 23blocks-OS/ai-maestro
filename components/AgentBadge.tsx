@@ -13,6 +13,7 @@ import {
   Mail,
   Box,
 } from 'lucide-react'
+import { computeHash, getAvatarUrl } from '@/lib/hash-utils'
 import { Agent, AgentSession } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
@@ -32,26 +33,6 @@ interface AgentBadgeProps {
   showActions?: boolean
 }
 
-// Generate a consistent unique avatar URL from agent ID using RandomUser.me
-// RandomUser.me has 100 men + 100 women = 200 unique portraits
-function getAvatarUrl(agentId: string): string {
-  // Hash the agent ID to get a consistent number
-  let hash = 0
-  for (let i = 0; i < agentId.length; i++) {
-    const char = agentId.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32-bit integer
-  }
-
-  // Use absolute value and mod to get index 0-99
-  const index = Math.abs(hash) % 100
-
-  // Alternate between men and women based on another bit of the hash
-  const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
-
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
-}
-
 // Generate a consistent color from a string (for avatar ring/fallback)
 function stringToRingColor(str: string): string {
   const colors = [
@@ -67,10 +48,7 @@ function stringToRingColor(str: string): string {
     'ring-pink-500',
   ]
 
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
+  const hash = computeHash(str)
 
   return colors[Math.abs(hash) % colors.length]
 }

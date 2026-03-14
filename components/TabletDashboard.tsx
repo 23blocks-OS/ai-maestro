@@ -6,7 +6,7 @@ import MobileChatView from './MobileChatView'
 import MobileMessageCenter from './MobileMessageCenter'
 import MobileWorkTree from './MobileWorkTree'
 import MobileConversationDetail from './MobileConversationDetail'
-import { Terminal, Mail, RefreshCw, Activity, Phone, MessageSquare } from 'lucide-react'
+import { Terminal, Mail, RefreshCw, Activity, Phone, MessageSquare, Plus, Settings, Monitor } from 'lucide-react'
 import { agentToSession, getAgentBaseUrl } from '@/lib/agent-utils'
 import type { Agent } from '@/types/agent'
 import { useHosts } from '@/hooks/useHosts'
@@ -17,13 +17,15 @@ interface TabletDashboardProps {
   loading: boolean
   error: string | null
   onRefresh: () => void
+  onSwitchLayout?: () => void
 }
 
 export default function TabletDashboard({
   agents,
   loading,
   error,
-  onRefresh
+  onRefresh,
+  onSwitchLayout
 }: TabletDashboardProps) {
   const { hosts } = useHosts()
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -94,14 +96,34 @@ export default function TabletDashboard({
             </span>
           </div>
 
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 flex-shrink-0"
-            aria-label="Refresh agents"
-          >
-            <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onSwitchLayout && (
+              <button
+                onClick={onSwitchLayout}
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+                aria-label="Switch to desktop layout"
+                title="Switch to desktop layout"
+              >
+                <Monitor className="w-5 h-5 text-gray-400" />
+              </button>
+            )}
+            <a
+              href="/settings"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-gray-400" />
+            </a>
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50"
+              aria-label="Refresh agents"
+            >
+              <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -115,8 +137,16 @@ export default function TabletDashboard({
       <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
         {/* Left: Agent sidebar */}
         <aside className="w-60 flex-shrink-0 border-r border-gray-800 bg-gray-950 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-gray-800">
+          <div className="px-3 py-2 border-b border-gray-800 flex items-center justify-between">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Agents</p>
+            <a
+              href="/zoom"
+              className="p-1 rounded hover:bg-gray-800 transition-colors"
+              aria-label="Create agent"
+              title="Create agent"
+            >
+              <Plus className="w-4 h-4 text-gray-500 hover:text-gray-300" />
+            </a>
           </div>
           {onlineAgents.length === 0 && (
             <div className="px-4 py-8 text-center">

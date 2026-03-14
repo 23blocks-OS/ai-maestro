@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Star, Cpu, Terminal, Zap, Heart, Code, Folder, GitBranch, FolderOpen, Play, MessageSquare, Server } from 'lucide-react'
+import { getAvatarUrl } from '@/lib/hash-utils'
 
 interface CreateAgentAnimationProps {
   phase: 'naming' | 'preparing' | 'creating' | 'ready' | 'error'
@@ -12,18 +13,8 @@ interface CreateAgentAnimationProps {
   showNextSteps?: boolean  // Show next steps guide in ready phase
 }
 
-// Generate a preview avatar URL from agent name (same logic as AgentBadge)
-export function getPreviewAvatarUrl(agentName: string): string {
-  let hash = 0
-  for (let i = 0; i < agentName.length; i++) {
-    const char = agentName.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  const index = Math.abs(hash) % 100
-  const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
-}
+// Re-export for backward compatibility with existing callers
+export const getPreviewAvatarUrl = getAvatarUrl
 
 const PHASE_CONFIG = {
   naming: {

@@ -1,15 +1,16 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Tablet } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
   sidebarCollapsed?: boolean
   activeAgentId?: string | null
   onOpenHelp?: () => void
+  onSwitchLayout?: () => void
 }
 
-export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentId, onOpenHelp }: HeaderProps) {
+export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentId, onOpenHelp, onSwitchLayout }: HeaderProps) {
   const immersiveUrl = activeAgentId ? `/immersive?agent=${encodeURIComponent(activeAgentId)}` : '/immersive'
   const companionUrl = activeAgentId ? `/companion?agent=${encodeURIComponent(activeAgentId)}` : '/companion'
   const zoomUrl = '/zoom'
@@ -86,6 +87,16 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           >
             Immersive Experience
           </a>
+          {onSwitchLayout && (
+            <button
+              onClick={onSwitchLayout}
+              className="p-1.5 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-gray-300"
+              aria-label="Switch to tablet layout"
+              title="Switch to tablet layout"
+            >
+              <Tablet className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </header>

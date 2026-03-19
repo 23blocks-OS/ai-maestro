@@ -686,12 +686,29 @@ export function deleteAgent(id: string, hard: boolean = false): boolean {
   killAgentSessions(agentToDelete)
 
   if (!hard) {
-    // --- Soft-delete path: mark as deleted, preserve all data on disk ---
+    // --- Soft-delete path: mark as deleted, preserve agent data on disk, clean AMP ---
     const agentIndex = agents.findIndex(a => a.id === id)
     agents[agentIndex].deletedAt = new Date().toISOString()
     agents[agentIndex].status = 'deleted'
     saveAgents(agents)
     invalidateAgentCache()
+
+    // Clean up AMP directory and index so deleted agents stop receiving messages
+    try {
+      const ampAgentsDir = path.join(os.homedir(), '.agent-messaging', 'agents')
+      const uuidDir = path.join(ampAgentsDir, id)
+      if (fs.existsSync(uuidDir)) {
+        fs.rmSync(uuidDir, { recursive: true })
+        console.log(`[Agent Registry] Cleaned up AMP dir for soft-deleted agent ${id}`)
+      }
+      if (agentName) {
+        removeFromIndex(agentName)
+        console.log(`[Agent Registry] Removed ${agentName} from AMP index on soft-delete`)
+      }
+    } catch (ampError) {
+      console.warn(`[Agent Registry] Could not clean up AMP for soft-deleted agent ${id}:`, ampError)
+    }
+
     console.log(`[Agent Registry] Soft-deleted agent ${agentName} (id: ${id})`)
     return true
   }

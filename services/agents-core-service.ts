@@ -411,7 +411,9 @@ export async function listAgents(): Promise<ServiceResult<{
     const hostUrl = selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
 
     // 1. Load all registered agents from this host's registry
-    const agents = loadAgents()
+    // Filter out soft-deleted agents (those with deletedAt timestamp)
+    const allAgents = loadAgents()
+    const agents = allAgents.filter(a => !a.deletedAt)
 
     // 2. Discover local tmux sessions
     const discoveredSessions = await discoverLocalSessions()
@@ -1259,9 +1261,16 @@ export async function wakeAgent(agentId: string, params: WakeAgentParams): Promi
   try {
     const { startProgram = true, sessionIndex = 0, program: programOverride } = params
 
-    const agent = getAgent(agentId)
+    // Check including soft-deleted to give a better error message (410 Gone vs 404)
+    const agent = getAgent(agentId, true)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }
+    }
+    if (agent.deletedAt) {
+      return {
+        error: `Agent was deleted on ${new Date(agent.deletedAt).toLocaleDateString()}. Restore from backup or create a new agent.`,
+        status: 410
+      }
     }
 
     const agentName = agent.name || agent.alias

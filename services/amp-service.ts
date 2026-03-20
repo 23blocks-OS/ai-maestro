@@ -918,7 +918,8 @@ export async function routeMessage(
     }
 
     // ── Recipient Resolution ───────────────────────────────────────────
-    const recipientName = recipientParsed?.name || body.to.split('@')[0]
+    // Normalize to lowercase — agent names are case-insensitive
+    const recipientName = (recipientParsed?.name || body.to.split('@')[0]).toLowerCase()
     const selfHostIdValue = getSelfHostId()
 
     const targetTenant = recipientParsed?.tenant

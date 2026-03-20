@@ -58,7 +58,7 @@ function writeIndex(index: Record<string, string>): void {
  */
 export function updateIndex(agentName: string, agentId: string): void {
   const index = readIndex()
-  index[agentName] = agentId
+  index[agentName.toLowerCase()] = agentId
   writeIndex(index)
 }
 
@@ -67,7 +67,7 @@ export function updateIndex(agentName: string, agentId: string): void {
  */
 export function removeFromIndex(agentName: string): void {
   const index = readIndex()
-  delete index[agentName]
+  delete index[agentName.toLowerCase()]
   writeIndex(index)
 }
 
@@ -76,8 +76,8 @@ export function removeFromIndex(agentName: string): void {
  */
 export function renameInIndex(oldName: string, newName: string, agentId: string): void {
   const index = readIndex()
-  delete index[oldName]
-  index[newName] = agentId
+  delete index[oldName.toLowerCase()]
+  index[newName.toLowerCase()] = agentId
   writeIndex(index)
 }
 
@@ -86,7 +86,7 @@ export function renameInIndex(oldName: string, newName: string, agentId: string)
  */
 function lookupUUID(agentName: string): string | undefined {
   const index = readIndex()
-  return index[agentName]
+  return index[agentName.toLowerCase()]
 }
 
 // ============================================================================

@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+*.md
+!package.json
+marketing/
+docs/images/
+.env*
+.DS_Store

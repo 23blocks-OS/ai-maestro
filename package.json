@@ -1,6 +1,6 @@
 {
   "name": "ai-maestro",
-  "version": "0.25.6",
+  "version": "0.25.7",
   "description": "Web dashboard for orchestrating multiple AI coding agents with hierarchical organization and real-time terminals",
   "author": "Juan Peláez <juan@23blocks.com> (https://23blocks.com)",
   "license": "MIT",
@@ -35,7 +35,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:services": "vitest run tests/services/",
-    "test:lib": "vitest run --exclude 'tests/services/**'"
+    "test:lib": "vitest run --exclude 'tests/services/**'",
+    "container:build": "podman build -t ai-maestro-dev -f Containerfile .",
+    "container:test": "podman run --rm ai-maestro-dev yarn test",
+    "container:lint": "podman run --rm ai-maestro-dev yarn lint",
+    "container:build-app": "podman run --rm ai-maestro-dev sh -c 'rm -rf .next && yarn build'",
+    "container:shell": "podman run --rm -it ai-maestro-dev bash",
+    "container:ci": "podman run --rm ai-maestro-dev sh -c 'yarn test && yarn lint && npx tsc --noEmit && rm -rf .next && yarn build'"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",

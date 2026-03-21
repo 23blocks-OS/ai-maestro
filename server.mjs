@@ -852,10 +852,16 @@ async function startServer(handleRequest) {
 
           const { getRuntime: getRt } = await import('./lib/agent-runtime.ts')
           const { command: attachCmd, args: attachArgs } = getRt().getAttachCommand(sessionName, socketPath)
+          // Use client-provided dimensions if available (passed via WebSocket URL query params)
+          // This ensures PTY spawns at the correct terminal size, preventing history/output
+          // from rendering at wrong width (the "overlapping text" bug when first connecting)
+          const initialCols = parseInt(query.cols, 10) || 80
+          const initialRows = parseInt(query.rows, 10) || 24
+
           ptyProcess = pty.spawn(attachCmd, attachArgs, {
             name: 'xterm-256color',
-            cols: 80,
-            rows: 24,
+            cols: initialCols,
+            rows: initialRows,
             cwd: process.env.HOME || process.cwd(),
             env: process.env
           })

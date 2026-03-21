@@ -10,6 +10,8 @@ interface UseWebSocketOptions {
   sessionId: string
   hostId?: string  // Host ID for remote sessions (peer mesh network)
   socketPath?: string  // Custom tmux socket path (e.g., OpenClaw agents)
+  initialCols?: number  // Initial terminal columns for PTY spawn (avoids 80-col default)
+  initialRows?: number  // Initial terminal rows for PTY spawn (avoids 24-row default)
   onMessage?: (data: string) => void
   onOpen?: () => void
   onClose?: () => void
@@ -21,6 +23,8 @@ export function useWebSocket({
   sessionId,
   hostId,
   socketPath,
+  initialCols,
+  initialRows,
   onMessage,
   onOpen,
   onClose,
@@ -67,8 +71,17 @@ export function useWebSocket({
       url += `&socket=${encodeURIComponent(socketPath)}`
     }
 
+    // Pass initial terminal dimensions so PTY spawns at correct size
+    // Without this, PTY defaults to 80x24 and history/output renders at wrong width
+    if (initialCols && initialCols > 0) {
+      url += `&cols=${initialCols}`
+    }
+    if (initialRows && initialRows > 0) {
+      url += `&rows=${initialRows}`
+    }
+
     return url
-  }, [sessionId, hostId, socketPath])
+  }, [sessionId, hostId, socketPath, initialCols, initialRows])
 
   const sendMessage = useCallback((data: string | WebSocketMessage) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {

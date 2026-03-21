@@ -195,7 +195,9 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     sessionId: session.id,
     hostId: session.hostId,  // Pass host ID for remote session routing
     socketPath: session.socketPath,  // Custom tmux socket (e.g., OpenClaw agents)
-    autoConnect: isVisible,  // Only auto-connect when visible
+    initialCols: terminal?.cols,   // Pass actual terminal dimensions so PTY spawns at correct size
+    initialRows: terminal?.rows,
+    autoConnect: isVisible && isReady,  // Wait for terminal init so PTY gets correct dimensions
     onOpen: () => {
       // Reset historyLoaded - server will send new history on each connect
       setHistoryLoaded(false)

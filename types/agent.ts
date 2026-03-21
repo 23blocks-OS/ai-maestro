@@ -436,6 +436,7 @@ export interface AgentSummary {
  * Agent creation request
  */
 export interface CreateAgentRequest {
+  id?: string                   // Client-provided UUID (offline-first). Generated if not provided.
   name: string                  // Agent identity (was alias)
   label?: string                // Optional display override (was displayName)
   avatar?: string

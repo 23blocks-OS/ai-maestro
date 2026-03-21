@@ -367,8 +367,9 @@ export function createAgent(request: CreateAgentRequest): Agent {
     })
   }
 
-  // Generate ID first so we can use it for gender-matched persona name and avatar
-  const agentId = uuidv4()
+  // Use client-provided ID (offline-first) or generate one
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const agentId = (request.id && UUID_RE.test(request.id)) ? request.id : uuidv4()
 
   // Get already used labels and avatars on this host
   const { labels: usedLabels, avatars: usedAvatars } = getUsedLabelsAndAvatars(hostId)

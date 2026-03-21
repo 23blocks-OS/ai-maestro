@@ -190,6 +190,9 @@ export interface AMPMessage {
  * POST /v1/register
  */
 export interface AMPRegistrationRequest {
+  /** Client-provided agent UUID (offline-first identity). Server uses this if valid, generates one otherwise. */
+  agent_id?: string
+
   /** Tenant/organization identifier */
   tenant: string
 

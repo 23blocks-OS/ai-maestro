@@ -1043,6 +1043,10 @@ const routes: Route[] = [
     const authHeader = getHeader(req, 'Authorization')
     sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || null))
   }},
+  { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
+    const authHeader = getHeader(req, 'Authorization')
+    sendServiceResult(res, acknowledgePendingMessage(authHeader, params.id))
+  }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     const authHeader = getHeader(req, 'Authorization')

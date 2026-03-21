@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.10] - 2026-03-21
+
+### Added
+- **`DELETE /api/v1/messages/pending/:id`** — Path-param route for acknowledging pending relay messages. Both `DELETE /pending/:id` and `DELETE /pending?id=X` are now supported for client compatibility.
+
 ## [0.25.9] - 2026-03-21
 
 ### Fixed

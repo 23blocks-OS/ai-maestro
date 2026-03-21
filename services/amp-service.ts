@@ -635,6 +635,7 @@ export async function registerAgent(
     } else {
       try {
         agent = createAgent({
+          id: body.agent_id,
           name: normalizedName,
           label: body.alias,
           program: 'Claude Code',

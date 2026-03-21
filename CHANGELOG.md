@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.12] - 2026-03-21
+
+### Added
+- **Client-provided `agent_id` in AMP registration** — `POST /api/v1/register` now accepts an optional `agent_id` field. If a valid UUIDv4 is provided, the server uses it as the agent's canonical identifier instead of generating one. Supports offline-first agent initialization.
+
 ## [0.25.11] - 2026-03-21
 
 ### Fixed

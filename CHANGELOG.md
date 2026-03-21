@@ -3,6 +3,11 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.11] - 2026-03-21
+
+### Fixed
+- **AMP inbox name→UUID resolution** — `registerAgent()` now calls `initAgentAMPHome()` so `.index.json` maps agent names to UUIDs. Previously, server wrote messages to UUID-based directories but CLI tools resolved via name-based paths, causing delivered messages to be invisible to `amp-inbox.sh`.
+
 ## [0.25.10] - 2026-03-21
 
 ### Added

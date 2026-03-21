@@ -120,6 +120,18 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       console.warn(`[Terminal] ClipboardAddon not available for session ${optionsRef.current.sessionId}:`, e)
     }
 
+    // Load Unicode 11 addon for proper wide character / emoji width calculation.
+    // Without this, TUI layouts (Claude Code /plan mode, box-drawing) are corrupted
+    // because xterm.js miscalculates character widths for CJK and emoji.
+    try {
+      const { Unicode11Addon } = await import('@xterm/addon-unicode11')
+      const unicode11Addon = new Unicode11Addon()
+      terminal.loadAddon(unicode11Addon)
+      terminal.unicode.activeVersion = '11'
+    } catch (e) {
+      console.warn(`[Terminal] Unicode11Addon not available for session ${optionsRef.current.sessionId}:`, e)
+    }
+
     // Open terminal in container
     terminal.open(container)
 

@@ -1116,7 +1116,7 @@ export function acknowledgePendingMessage(
 
   if (!messageId) {
     return {
-      data: { error: 'missing_field', message: 'Message ID required (use ?id=<messageId>)', field: 'id' } as AMPError,
+      data: { error: 'missing_field', message: 'Message ID required (use DELETE /pending/:id or DELETE /pending?id=<messageId>)', field: 'id' } as AMPError,
       status: 400
     }
   }

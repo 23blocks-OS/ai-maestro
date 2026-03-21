@@ -3,6 +3,72 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.9] - 2026-03-21
+
+### Fixed
+- **Terminal overlapping text** — PTY was spawning at hardcoded 80×24 while browser terminal was wider, causing history/output to render at wrong width. Client now passes `cols`/`rows` via WebSocket URL query params so PTY spawns at correct dimensions. WebSocket connection deferred until terminal is initialized.
+
+## [0.25.8] - 2026-03-21
+
+### Fixed
+- **`/plan` mode rendering** — Added `@xterm/addon-unicode11` for proper wide character and emoji width calculation in TUI layouts. Without this, box-drawing characters and emoji caused corrupted layouts in Claude Code's `/plan` mode (#279)
+- Send immediate resize on WebSocket connect so PTY/tmux starts at correct size
+
+## [0.25.7] - 2026-03-21
+
+### Added
+- **Podman dev container** — `Containerfile` and `.containerignore` for running tests, lint, and builds in a reproducible container environment. Six `container:*` scripts in package.json (#296)
+
+## [0.25.6] - 2026-03-21
+
+### Fixed
+- **AMP case sensitivity** — Agent name lookups in `.index.json`, server routing, and CLI scripts (`amp-helper.sh`, `amp-fetch.sh`) now normalize to lowercase. Fixes message delivery failures when agent names have mixed case (#298)
+
+## [0.25.5] - 2026-03-21
+
+### Fixed
+- **Soft-deleted agents reappearing** — `listAgents()` now filters out agents with `deletedAt` (#292)
+- **Wake returns 410 Gone** for soft-deleted agents instead of generic 404 (#294)
+- **AMP cleanup on soft-delete** — Removes UUID directory and index entry when agent is soft-deleted (#295)
+
+## [0.25.4] - 2026-03-20
+
+### Fixed
+- **Mac Mini WebGL crash** — Recover from WebGL context loss by re-opening terminal element to force canvas renderer fallback. Wraps `scrollToBottom`/`focus` in try-catch to prevent crash when renderer is undefined (#278, #290)
+
+## [0.25.3] - 2026-03-20
+
+### Fixed
+- **DJB2 hash consolidation** — Single `djb2Hash()` in `lib/utils.ts` replacing 3 duplicate implementations (#282)
+- **Tablet navigation** — Layout toggle and nav button fixes for tablet dashboard (#280)
+- **Pin onnxruntime-node** to 1.17.0 via resolutions to prevent build failures (#233)
+
+## [0.25.2] - 2026-03-20
+
+### Fixed
+- **CozoDB query injection** — Parameterized all CozoScript queries to prevent injection via agent names (#286)
+- **Deduplicate graph aliases** — Prevent duplicate alias rows in agent graph (#284)
+- **Debounce subconscious indexing** — Prevent concurrent indexing runs (#283)
+
+## [0.25.1] - 2026-03-20
+
+### Fixed
+- **WSL2/NAT agent connectivity** — `isSelf` flag + `getAgentBaseUrl()` helper so dashboard works when browser and server are on different networks (#273-#277)
+- **jq compatibility** — Restructured array concatenation in `install-agent-cli.sh` for older jq versions (#268, #272)
+- **TerminalView ResizeObserver** — Replaced 20×150ms polling loop with ResizeObserver for terminal container dimension detection (#278)
+
+## [0.25.0] - 2026-03-15
+
+### Changed
+- Plugin rebuilt with AMP standard compliance
+- Agent Skills standard compliance for all 6 skills (#264)
+- Integrated community contributions (#256, #258, #260, #261)
+- Reverted premature onnxruntime-node downgrade and ConversationSource abstraction (#263)
+
+### Fixed
+- PM2 ecosystem config references (`ecosystem.config.cjs` → `.js`) (#269, #271)
+- RCE command injection in tmux session management (v0.24.18)
+
 ## [0.24.17] - 2026-02-26
 
 ### Added

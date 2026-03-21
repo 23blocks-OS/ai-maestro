@@ -35,6 +35,7 @@ import { authenticateRequest, createApiKey, hashApiKey, extractApiKeyFromHeader,
 import { saveKeyPair, loadKeyPair, calculateFingerprint, verifySignature, generateKeyPair } from '@/lib/amp-keys'
 import { queueMessage, getPendingMessages, acknowledgeMessage, acknowledgeMessages, cleanupAllExpiredMessages } from '@/lib/amp-relay'
 import { deliver } from '@/lib/message-delivery'
+import { initAgentAMPHome } from '@/lib/amp-inbox-writer'
 import { deliverViaWebSocket } from '@/lib/amp-websocket'
 import { resolveAgentIdentifier } from '@/lib/messageQueue'
 import { getSelfHostId, getSelfHost, getHostById, isSelf, getOrganization } from '@/lib/hosts-config-server.mjs'
@@ -672,6 +673,15 @@ export async function registerAgent(
       })
     } catch (err) {
       console.error('[AMP Register] Failed to save public key:', err)
+    }
+
+    // Initialize AMP home directory and update .index.json with name→UUID mapping
+    // Without this, amp-inbox.sh resolves to a name-based directory instead of the UUID directory
+    // where the server writes incoming messages
+    try {
+      await initAgentAMPHome(normalizedName, agent.id)
+    } catch (err) {
+      console.warn('[AMP Register] Failed to init AMP home:', err)
     }
 
     // Get provider domain based on organization

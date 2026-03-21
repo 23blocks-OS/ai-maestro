@@ -203,6 +203,15 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       reportActivity(session.id)
       // Notify parent of connection status change
       onConnectionStatusChange?.(true)
+
+      // Send initial resize immediately so PTY/tmux starts at the correct size
+      // instead of defaulting to 80×24 (which corrupts TUI layouts like /plan mode)
+      const term = terminalInstanceRef.current
+      if (term) {
+        fitTerminal()
+        const resizeMsg = createResizeMessage(term.cols, term.rows)
+        sendMessage(resizeMsg)
+      }
     },
     onClose: () => {
       // Notify parent of connection status change

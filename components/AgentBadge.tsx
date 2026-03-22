@@ -202,25 +202,16 @@ export default function AgentBadge({
           </div>
         )}
 
-        {/* Status LED — two circles: outer semi-transparent + inner solid */}
+        {/* Status LED — same style as compact view, slightly bigger */}
         <div className="relative flex items-center justify-center" title={statusInfo.label}>
           {statusInfo.pulse && (
-            <span className={`absolute w-6 h-6 rounded-full animate-ping opacity-50`} style={{ backgroundColor: statusInfo.pulseColor }} />
+            <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
           )}
-          {/* Outer circle: semi-transparent glow ring */}
-          <span
-            className="relative w-7 h-7 rounded-full flex items-center justify-center"
-            style={{
-              backgroundColor: `${statusInfo.pulseColor}30`,
-              boxShadow: statusInfo.pulse ? `0 0 10px 3px ${statusInfo.pulseColor}` : 'none',
-            }}
-          >
-            {/* Inner circle: solid color dot */}
-            <span
-              className="w-4.5 h-4.5 rounded-full"
-              style={{ backgroundColor: statusInfo.pulseColor, width: '18px', height: '18px' }}
-            />
-          </span>
+          <div className={`w-3 h-3 rounded-full ${statusInfo.color} ring-[3px] ${
+            statusInfo.color === 'bg-green-400' ? 'ring-green-400/30'
+            : statusInfo.color === 'bg-amber-400' ? 'ring-amber-400/30'
+            : 'ring-slate-500/30'
+          } ${statusInfo.pulse ? 'animate-pulse' : ''}`} />
         </div>
       </div>
 

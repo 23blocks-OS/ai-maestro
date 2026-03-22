@@ -211,7 +211,7 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      return skill.id.split(':').pop() || skill.id
     case 'repo':
       return skill.name
   }
@@ -222,7 +222,7 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
     case 'core':
       return null
     case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
+      return `${skill.marketplaceSkillId} / ${skill.marketplace}`
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
   }

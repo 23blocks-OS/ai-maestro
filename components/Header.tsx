@@ -82,8 +82,9 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href={immersiveUrl}
-            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-1.5"
           >
+            <Grid3X3 className="w-3.5 h-3.5" />
             Immersive Experience
           </a>
         </div>

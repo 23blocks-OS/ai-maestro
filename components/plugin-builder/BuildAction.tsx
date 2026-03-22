@@ -28,11 +28,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
+  // Ref for the "copied" feedback timeout so it can be cleared on unmount
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Clean up polling on unmount
+  // Clean up polling and copy timeout on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     }
   }, [])
 
@@ -45,9 +48,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }, [])
 
   const handleBuild = async () => {
-    // Clear any existing poll interval first (prevents leak on rapid re-clicks)
-    clearPoll()
-
     setBuilding(true)
     setResult(null)
     setError(null)
@@ -64,14 +64,26 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Build failed')
+        // Attempt to parse a specific error message from the response body,
+        // falling back to a generic message if JSON parsing fails
+        let errorMessage = 'Build failed'
+        try {
+          const errData = await res.json()
+          errorMessage = errData.error || errorMessage
+        } catch {
+          // JSON parsing failed; keep the default message
+        }
+        setError(errorMessage)
         setBuilding(false)
         return
       }
 
       const data: PluginBuildResult = await res.json()
       setResult(data)
+
+      // Clear any previous poll only after a new build has successfully started,
+      // preventing a rapid re-click from cancelling the new build's own interval
+      clearPoll()
 
       // Poll for completion
       if (data.status === 'building') {
@@ -89,19 +101,29 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 setShowLogs(true)
               }
             } else {
+              // Attempt to read a specific error message from the response body
+              let errorMessage = 'Lost connection to build server'
+              try {
+                const errorData = await statusRes.json()
+                errorMessage = errorData.error || errorMessage
+              } catch {
+                // JSON parsing failed; keep the default message
+              }
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
-                setError('Lost connection to build server')
+                setError(errorMessage)
                 setBuilding(false)
+                return
               }
             }
           } catch {
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
-              setError('Lost connection to build server')
+              setError('Failed to connect to build server during polling')
               setBuilding(false)
+              return
             }
           }
         }, 1000)
@@ -133,7 +155,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           forkUrl: forkUrl.trim(),
-          manifest: result.manifest,
+          manifest: result?.manifest,
         }),
       })
 
@@ -153,7 +175,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (!result?.outputPath) return
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Clear any previous pending timeout before setting a new one
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopied(false)
+        copyTimeoutRef.current = null
+      }, 2000)
     }).catch(() => {
       // Clipboard API not available (insecure context or unfocused)
     })
@@ -183,7 +210,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={disabled || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -220,7 +247,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabledReason && disabled && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -258,7 +285,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">

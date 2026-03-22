@@ -48,8 +48,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           const data = await res.json()
           if (!signal.aborted) setMarketplaceSkills(data.skills || [])
         }
-      } catch {
-        // Marketplace may not be available or request aborted
+      } catch (err) {
+        // Marketplace may not be available or request aborted — log non-abort errors
+        if (!signal.aborted) console.error('Failed to load marketplace skills:', err)
       } finally {
         if (!signal.aborted) setLoadingMarketplace(false)
       }
@@ -129,7 +130,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               const Icon = skill.icon
               return (
                 <div
-                  key={skill.name}
+                  key={key}
                   role="button"
                   tabIndex={0}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -191,7 +192,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    key={key}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -206,8 +207,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                         onAddSkill({
                           type: 'marketplace',
                           id: skill.id,
+                          name: skill.name,
                           marketplace: skill.marketplace,
-                          plugin: skill.plugin,
+                          marketplaceSkillId: skill.id,
                         })
                       }
                     }}
@@ -215,7 +217,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, name: skill.name, marketplace: skill.marketplace, marketplaceSkillId: skill.id })
                       }
                     }}
                     aria-pressed={isSelected}

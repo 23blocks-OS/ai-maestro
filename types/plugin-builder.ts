@@ -26,7 +26,7 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
+  | { type: 'marketplace'; id: string; marketplace: string; marketplaceSkillId: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
 // ============================================================================
@@ -69,21 +69,24 @@ export interface PluginManifest {
 }
 
 export interface PluginManifestMetadata {
-  name: string
-  version: string
+  // This interface holds additional plugin metadata (author, homepage, license).
+  // The `name` and `version` fields are defined at the top level of `PluginManifest`
+  // to avoid duplication and inconsistency; they are not present here.
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
 export interface PluginManifestSource {
-  name: string
+  name: string                         // Name of the source location (e.g., "Core Skills", "My Git Repo")
   description?: string
   type: 'local' | 'git'
   path?: string                        // For local sources
   repo?: string                        // For git sources
   ref?: string                         // Git branch/tag
   map: Record<string, string>          // Source pattern -> output pattern
+  id?: string                          // Optional unique identifier for this source (should be provided when multiple local sources share the same name — this is a runtime/logic constraint, not enforced by the type)
+  marketplaceSkillId?: string          // The id from PluginSkillSelection 'marketplace' — uniquely identifies the marketplace skill within its plugin
 }
 
 // ============================================================================

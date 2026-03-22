@@ -16,10 +16,19 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Store the exact url/ref used for the last successful scan so that handleAddSkill
+  // always references the values that produced the current scanResult, not the live inputs.
+  const [lastScannedUrl, setLastScannedUrl] = useState<string | null>(null)
+  const [lastScannedRef, setLastScannedRef] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
-    if (!url.trim()) return
+    // Capture current state values before any async operations to avoid stale closures.
+    // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.
+    const currentUrl = url.trim()
+    const currentRef = ref.trim() || 'main'
+
+    if (!currentUrl) return
 
     // Abort any in-flight scan
     abortRef.current?.abort()
@@ -34,7 +43,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: currentUrl, ref: currentRef }),
         signal,
       })
 
@@ -47,7 +56,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Record the exact url/ref that produced this result so handleAddSkill stays consistent.
+        setLastScannedUrl(currentUrl)
+        setLastScannedRef(currentRef)
+        // Use the captured values to avoid passing stale state after async operations
+        onSkillsFound(data.skills, currentUrl, currentRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -58,10 +71,13 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use the url/ref that were captured at scan time, not the current live input values,
+    // to ensure the skill references the same source that produced the scanResult.
+    if (!lastScannedUrl || !lastScannedRef) return
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: lastScannedUrl,
+      ref: lastScannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +109,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,7 +140,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Use lastScannedUrl to match the key format used in handleAddSkill
+            const key = `repo:${lastScannedUrl}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

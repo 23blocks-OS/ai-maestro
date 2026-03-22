@@ -19,20 +19,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (body.ref !== undefined && typeof body.ref !== 'string') {
+      return NextResponse.json(
+        { error: 'Repository reference (ref) must be a string if provided' },
+        { status: 400 }
+      )
+    }
+
     const result = await scanRepo(body.url, body.ref || 'main')
 
     if (result.error) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        // Fall back to 500 if the service omits a status code, preventing an accidental 200 OK on error
+        { status: result.status ?? 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error scanning repo:', error)
+    // Differentiate JSON parse errors (bad request) from internal errors (scanRepo failures, etc.)
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Failed to scan repository due to an internal server error.' },
+      { status: 500 }
     )
   }
 }

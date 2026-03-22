@@ -22,10 +22,22 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data, { status: result.status })
-  } catch {
+  } catch (error) {
+    // Log full error for internal debugging regardless of error type
+    console.error('Error in POST /api/plugin-builder/build:', error)
+
+    // Return 400 only when the error is clearly a JSON parsing failure
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body: Malformed JSON' },
+        { status: 400 }
+      )
+    }
+
+    // All other unexpected errors are server-side; do not mislead the client
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'An unexpected server error occurred' },
+      { status: 500 }
     )
   }
 }

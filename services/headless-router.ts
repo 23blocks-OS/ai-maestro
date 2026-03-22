@@ -270,6 +270,16 @@ import {
 // Utility helpers
 // ---------------------------------------------------------------------------
 
+// Sentinel error class so the top-level handler can distinguish a malformed
+// request body (client fault → 400) from an internal server fault (→ 500).
+class JsonParseError extends Error {
+  readonly status = 400
+  constructor() {
+    super('Invalid JSON body')
+    this.name = 'JsonParseError'
+  }
+}
+
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -280,7 +290,9 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       try {
         resolve(JSON.parse(body))
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        // Malformed request body is a client error — reject with a typed error
+        // so the top-level catch block can return 400 instead of 500.
+        reject(new JsonParseError())
       }
     })
     req.on('error', reject)
@@ -297,7 +309,15 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 function sendJson(res: ServerResponse, statusCode: number, data: any, headers?: Record<string, string>) {
-  const body = JSON.stringify(data)
+  let body: string
+  try {
+    body = JSON.stringify(data)
+  } catch (e) {
+    // Circular references or other non-serializable values — send a safe fallback.
+    console.error('[Headless] Failed to serialize response data:', e)
+    body = JSON.stringify({ error: 'Failed to serialize response data' })
+    statusCode = 500
+  }
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
@@ -312,7 +332,10 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Presence of result.error is the sole indicator of an error response;
+  // result.data may also be present (e.g. partial results) but must not
+  // suppress error reporting.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -336,31 +359,66 @@ function getQuery(url: string): Record<string, string> {
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
+ *
+ * Operates entirely on raw Buffers so that binary file content is never corrupted
+ * by a string encoding round-trip (the old latin1 approach mangled multi-byte data).
+ * Only the MIME headers and plain-text fields are decoded as UTF-8.
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
-  const bodyStr = body.toString('latin1')
-  const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
+  const boundaryBuf = Buffer.from('--' + boundaryMatch[1])
+  const crlfBuf = Buffer.from('\r\n')
+  const doubleCrlfBuf = Buffer.from('\r\n\r\n')
 
   let file: Buffer | null = null
   let options: string | null = null
 
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n')
-    if (headerEnd === -1) continue
+  let searchStart = 0
+  while (searchStart < body.length) {
+    // Find the next boundary delimiter in the raw buffer
+    const boundaryIdx = body.indexOf(boundaryBuf, searchStart)
+    if (boundaryIdx === -1) break
 
-    const headers = part.substring(0, headerEnd)
-    const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
+    // The two bytes after the boundary are either '--' (epilogue) or CRLF (part start)
+    const afterBoundary = boundaryIdx + boundaryBuf.length
+    if (afterBoundary + 1 < body.length &&
+        body[afterBoundary] === 0x2d && body[afterBoundary + 1] === 0x2d) {
+      break // Closing boundary '--<boundary>--'
+    }
+
+    // Skip the CRLF that follows the boundary line
+    const partStart = afterBoundary + crlfBuf.length
+    if (partStart >= body.length) break
+
+    // Find end of MIME headers (double CRLF)
+    const headerEnd = body.indexOf(doubleCrlfBuf, partStart)
+    if (headerEnd === -1) break
+
+    // Decode only the headers as UTF-8 (headers are always ASCII-safe)
+    const headers = body.subarray(partStart, headerEnd).toString('utf8')
+
+    // Content begins right after the double CRLF
+    const contentStart = headerEnd + doubleCrlfBuf.length
+
+    // Content ends at the CRLF immediately before the next boundary
+    const nextBoundaryIdx = body.indexOf(boundaryBuf, contentStart)
+    const contentEnd = nextBoundaryIdx === -1
+      ? body.length
+      : nextBoundaryIdx - crlfBuf.length // strip the CRLF preceding the boundary
+
+    const contentBuf = body.subarray(contentStart, contentEnd)
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
-      file = Buffer.from(content, 'latin1')
+      // Preserve raw bytes — no encoding conversion
+      file = contentBuf
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Text field: decode as UTF-8
+      options = contentBuf.toString('utf8')
     }
+
+    searchStart = nextBoundaryIdx === -1 ? body.length : nextBoundaryIdx
   }
 
   return { file, options }
@@ -393,10 +451,12 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSystemConfig())
+    // await is intentional: guards against future async refactors of getSystemConfig
+    sendServiceResult(res, await getSystemConfig())
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getOrganization())
+    // await is intentional: guards against future async refactors of getOrganization
+    sendServiceResult(res, await getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -430,16 +490,13 @@ const routes: Route[] = [
   // Sessions
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/sessions$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    try {
-      if (query.local === 'true') {
-        const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
-      } else {
-        const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
-      }
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+    // No local try/catch: errors propagate to the global handler in createHeadlessRouter().handle
+    if (query.local === 'true') {
+      const result = await listLocalSessions()
+      sendServiceResult(res, { data: { sessions: result.sessions, fromCache: false }, status: 200 })
+    } else {
+      const result = await listSessions()
+      sendServiceResult(res, { data: { sessions: result.sessions, fromCache: result.fromCache }, status: 200 })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -473,12 +530,9 @@ const routes: Route[] = [
     sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const activity = await getActivity()
-      sendJson(res, 200, { activity })
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
-    }
+    // No local try/catch: errors propagate to the global handler in createHeadlessRouter().handle
+    const activity = await getActivity()
+    sendServiceResult(res, { data: { activity }, status: 200 })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -490,10 +544,11 @@ const routes: Route[] = [
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const parsedTimeout = query.timeout ? parseInt(query.timeout) : undefined
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: (parsedTimeout !== undefined && !isNaN(parsedTimeout)) ? parsedTimeout : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -537,11 +592,19 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch (jsonError) {
+          sendJson(res, 400, { error: `Invalid JSON for options: ${jsonError instanceof Error ? jsonError.message : 'Malformed JSON'}` })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error during agent import' })
     }
   }},
   // Agent directory
@@ -609,9 +672,10 @@ const routes: Route[] = [
 
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const parsedLimit = query.limit ? parseInt(query.limit) : undefined
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: (parsedLimit !== undefined && !isNaN(parsedLimit)) ? parsedLimit : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -632,16 +696,19 @@ const routes: Route[] = [
     sendServiceResult(res, await manageConsolidation(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const parsedLimit = query.limit ? parseInt(query.limit) : undefined
+    const parsedMinConfidence = query.minConfidence ? parseFloat(query.minConfidence) : undefined
+    const parsedMaxTokens = query.maxTokens ? parseInt(query.maxTokens) : undefined
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: (parsedLimit !== undefined && !isNaN(parsedLimit)) ? parsedLimit : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: (parsedMinConfidence !== undefined && !isNaN(parsedMinConfidence)) ? parsedMinConfidence : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: (parsedMaxTokens !== undefined && !isNaN(parsedMaxTokens)) ? parsedMaxTokens : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -649,7 +716,13 @@ const routes: Route[] = [
     sendServiceResult(res, await updateLongTermMemory(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id || ''))
+    // query.id is required — an empty string would silently delete the wrong memory or cause
+    // undefined behavior in the service; reject early with a clear client error.
+    if (!query.id) {
+      sendJson(res, 400, { error: 'Memory ID is required for deletion' })
+      return
+    }
+    sendServiceResult(res, await deleteLongTermMemory(params.id, query.id))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, await getMemory(params.id))
@@ -661,18 +734,24 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const parsedLimit = query.limit ? parseInt(query.limit) : undefined
+    const parsedMinScore = query.minScore ? parseFloat(query.minScore) : undefined
+    const parsedStartTs = query.startTs ? parseInt(query.startTs) : undefined
+    const parsedEndTs = query.endTs ? parseInt(query.endTs) : undefined
+    const parsedBm25Weight = query.bm25Weight ? parseFloat(query.bm25Weight) : undefined
+    const parsedSemanticWeight = query.semanticWeight ? parseFloat(query.semanticWeight) : undefined
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: (parsedLimit !== undefined && !isNaN(parsedLimit)) ? parsedLimit : undefined,
+      minScore: (parsedMinScore !== undefined && !isNaN(parsedMinScore)) ? parsedMinScore : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: (parsedStartTs !== undefined && !isNaN(parsedStartTs)) ? parsedStartTs : undefined,
+      endTs: (parsedEndTs !== undefined && !isNaN(parsedEndTs)) ? parsedEndTs : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: (parsedBm25Weight !== undefined && !isNaN(parsedBm25Weight)) ? parsedBm25Weight : undefined,
+      semanticWeight: (parsedSemanticWeight !== undefined && !isNaN(parsedSemanticWeight)) ? parsedSemanticWeight : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -702,26 +781,52 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    const parsedDepth = query.depth ? parseInt(query.depth) : undefined
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action || '',
+      name: query.name || null,
+      from: query.from || null,
+      to: query.to || null,
+      project: query.project || null,
+      nodeId: query.nodeId || null,
+      depth: (parsedDepth !== undefined && !isNaN(parsedDepth)) ? parsedDepth : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await indexCodeGraph(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath || ''))
+    // query.projectPath is required — an empty string would cause the service to target
+    // the wrong or no project, potentially corrupting data; reject early.
+    if (!query.projectPath) {
+      sendJson(res, 400, { error: 'Project path is required for code graph deletion' })
+      return
+    }
+    sendServiceResult(res, await deleteCodeGraph(params.id, query.projectPath))
   }},
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action || '',
+      name: query.name || null,
+      column: query.column || null,
+      database: query.database || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await indexDbSchema(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await clearDbGraph(params.id, query.database || ''))
+    // query.database is required — an empty string would cause clearDbGraph to target
+    // an unintended database; reject early with a clear client error.
+    if (!query.database) {
+      sendJson(res, 400, { error: 'Database name is required for graph deletion' })
+      return
+    }
+    sendServiceResult(res, await clearDbGraph(params.id, query.database))
   }},
 
   // Graph - query
@@ -804,24 +909,20 @@ const routes: Route[] = [
 
   // Export / Transfer
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    try {
-      const result = await exportAgentZip(params.id)
-      if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
-        return
-      }
-      const { buffer, filename, agentId, agentName } = result.data
-      sendBinary(res, 200, new Uint8Array(buffer), {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length.toString(),
-        'X-Agent-Id': agentId,
-        'X-Agent-Name': agentName,
-        'X-Export-Version': '1.0.0',
-      })
-    } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+    const result = await exportAgentZip(params.id)
+    if (result.error || !result.data) {
+      sendServiceResult(res, result)
+      return
     }
+    const { buffer, filename, agentId, agentName } = result.data
+    sendBinary(res, 200, new Uint8Array(buffer), {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length.toString(),
+      'X-Agent-Id': agentId,
+      'X-Agent-Name': agentName,
+      'X-Export-Version': '1.0.0',
+    })
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -897,26 +998,26 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendServiceResult(res, { data: { metadata: result.data?.agent?.metadata || {} }, status: 200 })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendServiceResult(res, { data: { metadata: result.data?.agent?.metadata }, status: 200 })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { success: true })
+      sendServiceResult(res, { data: { success: true }, status: 200 })
     }
   }},
 
@@ -1024,7 +1125,8 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    const parsedLimit = query.limit ? parseInt(query.limit) : undefined
+    sendServiceResult(res, listPendingMessages(authHeader, (parsedLimit !== undefined && !isNaN(parsedLimit)) ? parsedLimit : undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1279,9 +1381,19 @@ export function createHeadlessRouter() {
       try {
         await matched.handler(req, res, matched.params, query)
       } catch (error) {
-        console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
+        // JsonParseError is a client fault (malformed request body) — return 400,
+        // not 500, so callers receive an accurate signal without server-side noise.
+        const statusCode = error instanceof JsonParseError ? 400 : 500
+        const message = error instanceof JsonParseError ? (error as JsonParseError).message : 'Internal server error'
+        if (statusCode === 500) {
+          console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
+        }
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          sendJson(res, statusCode, { error: message })
+        } else if (!res.writableEnded) {
+          // Headers already sent (partial response started before the error); just
+          // close the connection — we cannot send a new status code at this point.
+          res.end()
         }
       }
 

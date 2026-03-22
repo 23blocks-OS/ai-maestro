@@ -16,7 +16,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import matter from 'gray-matter'
 import type { ServiceResult } from '@/services/marketplace-service'
 import type {
@@ -160,6 +160,20 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Prevent path traversal via marketplace/plugin names used in installPath construction
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.name}": Marketplace name is required`
+      }
+      if (skill.marketplace.includes('..') || path.isAbsolute(skill.marketplace) || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Invalid marketplace name "${skill.marketplace}"`
+      }
+      if (!skill.marketplaceSkillId || typeof skill.marketplaceSkillId !== 'string') {
+        return `Marketplace skill "${skill.name}": Plugin name is required`
+      }
+      if (skill.marketplaceSkillId.includes('..') || path.isAbsolute(skill.marketplaceSkillId) || !SAFE_PATH_SEGMENT_RE.test(skill.marketplaceSkillId)) {
+        return `Marketplace skill "${skill.name}": Invalid plugin name "${skill.marketplaceSkillId}"`
+      }
     }
   }
 
@@ -178,7 +192,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove build directory ${id}:`, err)
+      })
     }
   }
 
@@ -190,7 +206,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove build directory ${id} during eviction:`, err)
+      })
     }
   }
 }
@@ -232,17 +250,18 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     })
   }
 
-  // Marketplace skills — group by marketplace+plugin combo
-  const marketplaceGroups = new Map<string, { marketplace: string; plugin: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
+  // Marketplace skills — group by marketplace+marketplaceSkillId combo
+  const marketplaceGroups = new Map<string, { marketplace: string; marketplaceSkillId: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
   for (const skill of marketplaceSkills) {
-    const key = `${skill.marketplace}\0${skill.plugin}` // NUL separator avoids colon conflicts
-    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, plugin: skill.plugin, skills: [] }
+    const key = `${skill.marketplace}\0${skill.marketplaceSkillId}` // NUL separator avoids colon conflicts
+    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, marketplaceSkillId: skill.marketplaceSkillId, skills: [] }
     group.skills.push(skill)
     marketplaceGroups.set(key, group)
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Path must point to the specific plugin's directory within the marketplace, not the marketplace root
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.marketplaceSkillId)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -251,8 +270,8 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${group.plugin}-from-${group.marketplace}`,
-      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
+      name: `${group.marketplaceSkillId}-from-${group.marketplace}`,
+      description: `Skills from ${group.marketplaceSkillId} plugin (${group.marketplace} marketplace)`,
       type: 'local',
       path: installPath,
       map,
@@ -275,8 +294,10 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       // skillPath already validated against path traversal
       map[skill.skillPath] = `skills/${skill.name}`
     }
+    // Append a short hash of the full URL to guarantee uniqueness after sanitization/truncation
+    const urlHash = createHash('sha1').update(first.url).digest('hex').slice(0, 8)
     sources.push({
-      name: sanitizeSourceName(first.url),
+      name: `${sanitizeSourceName(first.url)}-${urlHash}`,
       description: `Skills from ${first.url}`,
       type: 'git',
       repo: first.url,
@@ -321,6 +342,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     evictStaleBuildResults()
 
     activeOps++
+    // Track whether runBuild has been dispatched so the catch block only decrements
+    // activeOps when the error occurs before runBuild is called. Once runBuild is
+    // dispatched it owns the decrement via its own finally block.
+    let buildDispatched = false
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -347,9 +372,16 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
+      } catch (symlinkErr) {
         // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
-        await copyDir(srcDir, linkTarget)
+        console.warn(`Failed to symlink core skills dir from ${srcDir} to ${linkTarget}, copying instead:`, symlinkErr)
+        try {
+          await copyDir(srcDir, linkTarget)
+        } catch (copyErr) {
+          // Log copy failure so it is visible in build logs — build may still fail downstream
+          console.error(`Failed to copy core skills dir from ${srcDir} to ${linkTarget}:`, copyErr)
+          throw copyErr
+        }
       }
     }
 
@@ -363,7 +395,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Dispatch build asynchronously — from this point activeOps is owned by runBuild's
+    // finally block, which unconditionally decrements it on success or failure.
+    buildDispatched = true
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -375,13 +409,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement activeOps if runBuild was never dispatched. Once dispatched,
+    // runBuild's finally block is solely responsible for decrementing activeOps.
+    if (!buildDispatched) {
+      activeOps--
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -449,14 +485,16 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
 
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
+    const stderr = (error as any)?.stderr
+    const fullMessage = stderr ? `${message}\nStderr: ${stderr}` : message
 
     if (exitCode === 128 || message.includes('not found')) {
-      return { error: `Repository not found or access denied: ${url}`, status: 404 }
+      return { error: `Repository not found or access denied: ${url}. ${fullMessage}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    activeOps--
   }
 }
 
@@ -542,10 +580,12 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
+    const stderr = (error as any)?.stderr
+    const fullMessage = stderr ? `${message}\nStderr: ${stderr}` : message
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
+    return { error: `Failed to push to GitHub: ${fullMessage}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    activeOps--
   }
 }
 
@@ -609,6 +649,9 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       status: 'failed',
       logs,
     })
+  } finally {
+    // Decrement here — covers both success and failure, whether called fire-and-forget or directly
+    activeOps--
   }
 }
 
@@ -706,7 +749,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — git clone and build script output can be large
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

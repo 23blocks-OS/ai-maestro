@@ -7,9 +7,9 @@ import { getDatabaseInfo, initializeDatabase } from '@/services/agents-graph-ser
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const result = await getDatabaseInfo(agentId)
 
   if (result.error) {
@@ -24,9 +24,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const result = await initializeDatabase(agentId)
 
   if (result.error) {

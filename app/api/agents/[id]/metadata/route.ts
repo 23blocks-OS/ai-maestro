@@ -10,10 +10,10 @@ import { getAgent, updateAgent } from '@/lib/agent-registry'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const agent = getAgent(agentId)
 
     if (!agent) {
@@ -33,10 +33,10 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const metadata = await request.json()
 
     const agent = updateAgent(agentId, { metadata })
@@ -59,10 +59,10 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const agent = updateAgent(agentId, { metadata: {} })
 
     if (!agent) {

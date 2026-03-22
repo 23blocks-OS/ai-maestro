@@ -10,9 +10,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const hostData = await request.json()
 
   const result = await updateExistingHost(id, hostData)
@@ -29,9 +29,9 @@ export async function PUT(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
 
   const result = await deleteExistingHost(id)
   if (result.error) {

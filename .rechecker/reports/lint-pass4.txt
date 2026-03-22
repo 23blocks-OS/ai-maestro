@@ -1,0 +1,3 @@
+ESLint: 0 errors on all TypeScript/TSX files
+shellcheck: 0 errors on scripts/remote-install.sh
+All checks passed.

@@ -7,9 +7,9 @@ import { listAMPAddresses, addAMPAddressToAgent } from '@/services/agents-messag
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
 
   const result = listAMPAddresses(id)
 
@@ -25,9 +25,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
 
   const result = addAMPAddressToAgent(id, body)

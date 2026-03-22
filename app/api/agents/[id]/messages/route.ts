@@ -7,9 +7,9 @@ import { listMessages, sendMessage } from '@/services/agents-messaging-service'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const { searchParams } = new URL(request.url)
 
   const result = await listMessages(id, {
@@ -32,9 +32,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
 
   const result = await sendMessage(id, body)

@@ -7,9 +7,9 @@ import { getExportJobStatus, deleteExportJob } from '@/services/config-service'
  */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: { jobId: string } }
 ) {
-  const { jobId } = await params
+  const { jobId } = params
 
   const result = getExportJobStatus(jobId)
 
@@ -29,9 +29,9 @@ export async function GET(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: { jobId: string } }
 ) {
-  const { jobId } = await params
+  const { jobId } = params
 
   const result = deleteExportJob(jobId)
 

@@ -4,9 +4,9 @@ import { getTeamDocument, updateTeamDocument, deleteTeamDocument } from '@/servi
 // GET /api/teams/[id]/documents/[docId] - Get a single document
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; docId: string }> }
+  { params }: { params: { id: string; docId: string } }
 ) {
-  const { id, docId } = await params
+  const { id, docId } = params
   const result = getTeamDocument(id, docId)
 
   if (result.error) {
@@ -18,9 +18,9 @@ export async function GET(
 // PUT /api/teams/[id]/documents/[docId] - Update a document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; docId: string }> }
+  { params }: { params: { id: string; docId: string } }
 ) {
-  const { id, docId } = await params
+  const { id, docId } = params
   const body = await request.json()
   const result = updateTeamDocument(id, docId, body)
 
@@ -33,9 +33,9 @@ export async function PUT(
 // DELETE /api/teams/[id]/documents/[docId] - Delete a document
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; docId: string }> }
+  { params }: { params: { id: string; docId: string } }
 ) {
-  const { id, docId } = await params
+  const { id, docId } = params
   const result = deleteTeamDocument(id, docId)
 
   if (result.error) {

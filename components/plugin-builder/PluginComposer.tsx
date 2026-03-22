@@ -111,6 +111,7 @@ export default function PluginComposer({
             {/* Core Skills Group */}
             {coreSkills.length > 0 && (
               <SkillGroup
+                key="core-skills"
                 title="Core (AI Maestro)"
                 icon={<Brain className="w-3.5 h-3.5" />}
                 color="cyan"
@@ -122,6 +123,7 @@ export default function PluginComposer({
             {/* Marketplace Skills Group */}
             {marketplaceSkills.length > 0 && (
               <SkillGroup
+                key="marketplace-skills"
                 title="Marketplace"
                 icon={<Package className="w-3.5 h-3.5" />}
                 color="amber"
@@ -133,6 +135,7 @@ export default function PluginComposer({
             {/* Repo Skills Group */}
             {repoSkills.length > 0 && (
               <SkillGroup
+                key="repo-skills"
                 title="External Repos"
                 icon={<GitBranch className="w-3.5 h-3.5" />}
                 color="emerald"
@@ -210,8 +213,11 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
   switch (skill.type) {
     case 'core':
       return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+    case 'marketplace': {
+      // Guard against IDs that don't have the expected publisher:plugin:skillName format
+      const parts = skill.id.split(':')
+      return parts.length > 2 ? parts[2] : skill.id
+    }
     case 'repo':
       return skill.name
   }
@@ -222,7 +228,7 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
     case 'core':
       return null
     case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
+      return `${skill.plugin ?? 'Unknown Plugin'} / ${skill.marketplace ?? 'Unknown Marketplace'}`
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
   }

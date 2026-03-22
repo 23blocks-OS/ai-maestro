@@ -12,10 +12,10 @@ import { getSubconsciousStatus, triggerSubconsciousAction } from '@/services/age
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const result = await getSubconsciousStatus(agentId)
     if (result.error) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status })
@@ -32,10 +32,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: agentId } = await params
+    const { id: agentId } = params
     const body = await request.json()
 
     const result = await triggerSubconsciousAction(agentId, body.action)

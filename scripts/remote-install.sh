@@ -22,8 +22,11 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+# shellcheck disable=SC2034  # palette variables kept for future use / completeness
 PURPLE='\033[0;35m'
+# shellcheck disable=SC2034
 CYAN='\033[0;36m'
+# shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
@@ -146,11 +149,11 @@ open_browser() {
         return
     fi
     if [ "$OS" = "macos" ]; then
-        open "$url" 2>/dev/null || true
+        open -- "$url" 2>/dev/null || true
     elif [ "$OS" = "wsl" ]; then
         cmd.exe /c start "" "$url" 2>/dev/null || true
     elif command -v xdg-open &>/dev/null; then
-        xdg-open "$url" 2>/dev/null || true
+        xdg-open -- "$url" 2>/dev/null || true
     fi
 }
 
@@ -202,7 +205,7 @@ fi
 
 parse_args() {
     while [ $# -gt 0 ]; do
-        case $1 in
+        case "$1" in
             -d|--dir)
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
@@ -234,6 +237,9 @@ parse_args() {
                 ;;
             -p|--port)
                 PORT="$2"
+                if ! echo "$PORT" | grep -qE '^[0-9]+$' || [ "$PORT" -gt 65535 ] || [ "$PORT" -lt 1 ]; then
+                    maestro_fail "PORT must be a number 1-65535"; exit 1
+                fi
                 shift 2
                 ;;
             --uninstall)
@@ -321,7 +327,7 @@ portable_sed() {
     if [ "$OS" = "macos" ]; then
         sed -i '' "$@"
     else
-        sed -i "$@"
+        sed -i -- "$@"
     fi
 }
 
@@ -426,6 +432,8 @@ uninstall() {
         echo ""
         maestro_ask_yn "Remove installation directory ($INSTALL_DIR)?" "n"
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
+            # Safety: only remove paths under $HOME to prevent path traversal
+            [[ "$INSTALL_DIR" == "$HOME"/* ]] || { maestro_warn "Unsafe path, skipping removal: $INSTALL_DIR"; return; }
             rm -rf "$INSTALL_DIR"
             maestro_info "Removed $INSTALL_DIR"
         fi
@@ -772,37 +780,45 @@ act2_install_prerequisites() {
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
+                    # shellcheck disable=SC2034  # tracks install state for this session
                     NEED_CLAUDE=false
-                } || {
+                else
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
-                }
+                fi
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
+                    # shellcheck disable=SC2034  # tracks install state for this session
                     HAS_CODEX=true
-                } || {
+                else
                     maestro_warn "Could not install Codex automatically"
-                }
+                fi
                 ;;
             3)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
+                    # shellcheck disable=SC2034  # tracks install state for this session
                     NEED_CLAUDE=false
-                } || maestro_warn "Could not install Claude Code"
+                else
+                    maestro_warn "Could not install Claude Code"
+                fi
 
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
+                    # shellcheck disable=SC2034  # tracks install state for this session
                     HAS_CODEX=true
-                } || maestro_warn "Could not install Codex"
+                else
+                    maestro_warn "Could not install Codex"
+                fi
                 ;;
             4)
                 maestro_info "Skipping AI tool installation"
@@ -823,6 +839,7 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
+            # shellcheck disable=SC2034  # tracks install state for this session
             HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
@@ -1058,7 +1075,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,7 +1119,7 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
@@ -1123,7 +1140,7 @@ act4_start_and_register() {
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1158,7 +1175,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1212,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1230,7 +1247,7 @@ act4_start_and_register() {
             portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1288,7 +1305,7 @@ act5_grand_finale() {
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" -- "$AI_TOOL" "$INITIAL_PROMPT"
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1299,7 +1316,7 @@ act5_grand_finale() {
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    -- "$AI_TOOL" "$INITIAL_PROMPT"
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"
@@ -1340,6 +1357,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
+        # shellcheck disable=SC2034  # reset full palette for completeness
         RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
     fi
 

@@ -14,14 +14,12 @@ function logDeprecation() {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   logDeprecation()
   try {
-    const [{ newName }, { id: oldName }] = await Promise.all([
-      request.json(),
-      params
-    ])
+    const { id: oldName } = params
+    const { newName } = await request.json()
 
     const result = await renameSession(oldName, newName)
 

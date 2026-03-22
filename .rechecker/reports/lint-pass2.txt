@@ -1,0 +1,5 @@
+=== ESLint (TypeScript/TSX) ===
+No ESLint errors
+
+=== ShellCheck ===
+scripts/remote-install.sh: OK

@@ -49,7 +49,7 @@ export default function PluginBuilderPage() {
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
     : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    ? 'Invalid plugin name (must start with a letter or number; letters, numbers, hyphens, underscores allowed)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

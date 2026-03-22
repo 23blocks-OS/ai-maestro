@@ -29,19 +29,24 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [])
-
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current)
       pollRef.current = null
     }
     pollFailures.current = 0
+  }, [])
+
+  // Clean up polling on unmount — directly clear the interval without calling clearPoll,
+  // since clearPoll resets pollFailures.current which is unnecessary when the component is going away.
+  // Empty dependency array ensures this runs only once (on unmount).
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }
   }, [])
 
   const handleBuild = async () => {

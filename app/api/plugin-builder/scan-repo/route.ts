@@ -19,20 +19,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await scanRepo(body.url, body.ref || 'main')
+    const result = await scanRepo(body.url, (typeof body.ref === 'string' ? body.ref : 'main'))
 
     if (result.error) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        { status: result.status ?? 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error scanning repo:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

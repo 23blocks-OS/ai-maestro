@@ -1,0 +1,22 @@
+=== LOOP 1 - PASS 1 - ESLint (TypeScript/TSX) ===
+Exit code: 0 — No errors found
+
+=== LOOP 1 - PASS 1 - shellcheck (scripts/remote-install.sh) ===
+Exit code: 0 — Info/warnings only (no errors)
+
+In scripts/remote-install.sh line 775: SC2015 (info): A && B || C is not if-then-else
+In scripts/remote-install.sh line 786: SC2015 (info)
+In scripts/remote-install.sh line 795: SC2015 (info)
+In scripts/remote-install.sh line 798: SC2034 (warning): NEED_CLAUDE appears unused
+In scripts/remote-install.sh line 802: SC2015 (info)
+In scripts/remote-install.sh line 804: SC2034 (warning): HAS_CODEX appears unused
+In scripts/remote-install.sh line 826: SC2034 (warning): HAS_TAILSCALE appears unused
+In scripts/remote-install.sh line 1061: SC2016 (info): Expressions don't expand in single quotes
+In scripts/remote-install.sh line 1105: SC2086 (info): Double quote to prevent globbing
+In scripts/remote-install.sh line 1126: SC2086 (info)
+In scripts/remote-install.sh line 1161: SC2086 (info)
+In scripts/remote-install.sh line 1198: SC2086 (info)
+In scripts/remote-install.sh line 1233: SC2086 (info)
+In scripts/remote-install.sh line 1343: SC2034 (warning): PURPLE/CYAN/BOLD appear unused
+
+RESULT: 0 errors (info/warning only — no blocking lint errors)

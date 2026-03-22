@@ -27,7 +27,7 @@ CURRENT_BRANCH=$(git branch --show-current)
 echo "Current branch: $CURRENT_BRANCH"
 
 # Check for uncommitted changes
-if ! git diff --quiet || ! git diff --cached --quiet; then
+if ! git diff --quiet --ignore-submodules || ! git diff --cached --quiet --ignore-submodules; then
   echo "ERROR: Uncommitted changes detected. Commit or stash first."
   echo "  git stash   OR   git add -A && git commit -m 'WIP'"
   exit 1

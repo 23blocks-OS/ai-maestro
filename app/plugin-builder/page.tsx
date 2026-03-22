@@ -40,9 +40,9 @@ export default function PluginBuilderPage() {
     includeHooks,
   }), [name, version, description, skills, includeHooks])
 
-  // Validation
+  // Validation: name must start and end with alphanumeric; hyphens/underscores are internal-only separators
   const isValid = name.trim().length > 0
-    && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
+    && /^[a-zA-Z0-9]+(?:[_-][a-zA-Z0-9]+)*$/.test(name)
     && version.trim().length > 0
     && skills.length > 0
 

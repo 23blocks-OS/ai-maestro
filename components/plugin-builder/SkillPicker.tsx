@@ -223,6 +223,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       } else {
                         onAddSkill({
                           type: 'marketplace',
+                          name: skill.name,
                           id: skill.id,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,

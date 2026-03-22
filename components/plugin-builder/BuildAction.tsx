@@ -63,6 +63,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }, [clearPoll])
 
   const handleBuild = async () => {
+    // Prevent multiple concurrent builds from being triggered
+    if (building) return
+
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
 
@@ -177,6 +180,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
     setPushing(true)
     setPushResult(null)
+    // Clear any stale error from a previous action so the UI shows a clean state
+    setError(null)
 
     // Client-side URL validation: require https://github.com/<owner>/<repo>[.git]
     // The .git suffix is optional but common; owner/repo segments must be non-empty.
@@ -210,6 +215,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const copyInstallCommand = () => {
     if (!result?.outputPath) return
+    // Clear any previous clipboard error before retrying
+    setError(null)
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)

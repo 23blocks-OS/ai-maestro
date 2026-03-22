@@ -86,7 +86,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      setError('Failed to connect to server')
+      if (!signal.aborted) setError('Failed to connect to server')
     } finally {
       // Always reset scanning state regardless of abort, to avoid stuck UI
       setScanning(false)

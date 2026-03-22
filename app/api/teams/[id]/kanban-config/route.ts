@@ -20,7 +20,7 @@ export async function GET(
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 })
   }
 
-  const result = getKanbanConfig(id, auth.agentId)
+  const result = await getKanbanConfig(id, auth.agentId)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }

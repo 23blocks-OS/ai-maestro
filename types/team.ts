@@ -34,6 +34,13 @@ export const DEFAULT_KANBAN_COLUMNS: KanbanColumnConfig[] = [
   { id: 'completed', label: 'Done', color: 'bg-emerald-400', icon: 'CheckCircle2' },
 ]
 
+/** GitHub Project link — when set, AI Maestro kanban is a live browser of the GitHub Project */
+export interface GitHubProjectLink {
+  owner: string          // Repository owner (user or org), e.g. "23blocks-OS"
+  repo: string           // Repository name, e.g. "ai-maestro"
+  number: number         // GitHub Project number (visible in project URL)
+}
+
 export interface Team {
   id: string              // UUID
   name: string            // "Backend Squad"
@@ -44,6 +51,7 @@ export interface Team {
                            // Always present at runtime — loadTeams() migration guarantees this field is populated
   chiefOfStaffId?: string | null // Agent UUID of this team's Chief-of-Staff (null/undefined for open teams)
   kanbanConfig?: KanbanColumnConfig[] // Per-team kanban columns (if undefined, use DEFAULT_KANBAN_COLUMNS)
+  githubProject?: GitHubProjectLink   // When set, kanban browses GitHub Project (source of truth)
   /**
    * @planned Layer 3 -- type stub only, not yet populated or consumed anywhere.
    * Will map agentId -> hostId for multi-host team membership tracking.

@@ -21,7 +21,16 @@ export async function GET(
   }
   const requestingAgentId = auth.agentId
 
-  const result = listTeamTasks(id, requestingAgentId)
+  // Extract optional query filters
+  const url = new URL(request.url)
+  const filters: { assignee?: string; status?: string; label?: string; taskType?: string } = {}
+  if (url.searchParams.has('assignee')) filters.assignee = url.searchParams.get('assignee')!
+  if (url.searchParams.has('status')) filters.status = url.searchParams.get('status')!
+  if (url.searchParams.has('label')) filters.label = url.searchParams.get('label')!
+  if (url.searchParams.has('taskType')) filters.taskType = url.searchParams.get('taskType')!
+
+  const hasFilters = Object.keys(filters).length > 0
+  const result = await listTeamTasks(id, requestingAgentId, hasFilters ? filters : undefined)
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -79,6 +88,14 @@ export async function POST(
     ...(body.assigneeAgentId !== undefined && { assigneeAgentId: body.assigneeAgentId === null ? null : String(body.assigneeAgentId) }),
     ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
     ...(body.priority !== undefined && { priority: Number(body.priority) }),
+    ...(body.status !== undefined && { status: String(body.status) }),
+    ...(body.labels !== undefined && { labels: body.labels as string[] }),
+    ...(body.taskType !== undefined && { taskType: String(body.taskType) }),
+    ...(body.externalRef !== undefined && { externalRef: String(body.externalRef) }),
+    ...(body.externalProjectRef !== undefined && { externalProjectRef: String(body.externalProjectRef) }),
+    ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria as string[] }),
+    ...(body.handoffDoc !== undefined && { handoffDoc: String(body.handoffDoc) }),
+    ...(body.prUrl !== undefined && { prUrl: String(body.prUrl) }),
     requestingAgentId,
   }
   const result = await createTeamTask(id, safeParams)

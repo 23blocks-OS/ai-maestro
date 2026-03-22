@@ -305,6 +305,16 @@ import {
 } from '@/services/plugin-builder-service'
 
 import {
+  generatePluginFromToml,
+  installPluginLocally,
+  uninstallPluginLocally,
+  listRolePlugins,
+  deleteRolePlugin,
+  createPersona,
+  syncDefaultRolePlugins,
+} from '@/services/role-plugin-service'
+
+import {
   getSystemConfig,
   getOrganization,
   setOrganizationName,
@@ -316,6 +326,8 @@ import {
   getExportJobStatus,
   deleteExportJob,
 } from '@/services/config-service'
+
+import { updateSystemSettings, type SystemSettings } from '@/lib/system-settings'
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -482,6 +494,21 @@ const routes: Route[] = [
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getSystemConfig())
+  }},
+  { method: 'PATCH', pattern: /^\/api\/config$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req) ?? {}
+    const patch: Partial<SystemSettings> = {}
+    if (typeof body.conversationIndexerEnabled === 'boolean') {
+      patch.conversationIndexerEnabled = body.conversationIndexerEnabled
+    }
+    if (Object.keys(patch).length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'No valid settings provided' }))
+      return
+    }
+    const updated = updateSystemSettings(patch)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ success: true, settings: updated }))
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getOrganization())
@@ -1539,13 +1566,15 @@ const routes: Route[] = [
     sendServiceResult(res, await notifyTeamAgents(body))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
-    // Implement GET single task by calling getTeamTask
     const auth = authenticateAgent(
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
     )
-    const requestingAgentId = auth.error ? undefined : auth.agentId
-    sendServiceResult(res, getTeamTask(params.id, params.taskId, requestingAgentId))
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, await getTeamTask(params.id, params.taskId, auth.agentId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1557,8 +1586,37 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    const requestingAgentId = auth.agentId
-    sendServiceResult(res, await updateTeamTask(params.id, params.taskId, { ...body, requestingAgentId }))
+    // Validate priority and blockedBy (mirrors Next.js route validation)
+    if (body.priority !== undefined && !Number.isFinite(Number(body.priority))) {
+      sendJson(res, 400, { error: 'priority must be a finite number' })
+      return
+    }
+    if (body.blockedBy !== undefined) {
+      if (!Array.isArray(body.blockedBy) || !body.blockedBy.every((v: unknown) => typeof v === 'string')) {
+        sendJson(res, 400, { error: 'blockedBy must be an array of strings' })
+        return
+      }
+    }
+    // Whitelist fields to prevent arbitrary data injection
+    const safeParams: Record<string, unknown> = {
+      ...(body.subject !== undefined && { subject: String(body.subject) }),
+      ...(body.description !== undefined && { description: String(body.description) }),
+      ...(body.status !== undefined && { status: body.status }),
+      ...(body.priority !== undefined && { priority: Number(body.priority) }),
+      ...(body.assigneeAgentId !== undefined && { assigneeAgentId: body.assigneeAgentId === null ? null : String(body.assigneeAgentId) }),
+      ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
+      ...(body.labels !== undefined && { labels: body.labels }),
+      ...(body.taskType !== undefined && { taskType: String(body.taskType) }),
+      ...(body.externalRef !== undefined && { externalRef: String(body.externalRef) }),
+      ...(body.externalProjectRef !== undefined && { externalProjectRef: String(body.externalProjectRef) }),
+      ...(body.previousStatus !== undefined && { previousStatus: String(body.previousStatus) }),
+      ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
+      ...(body.handoffDoc !== undefined && { handoffDoc: String(body.handoffDoc) }),
+      ...(body.prUrl !== undefined && { prUrl: String(body.prUrl) }),
+      ...(body.reviewResult !== undefined && { reviewResult: String(body.reviewResult) }),
+      requestingAgentId: auth.agentId,
+    }
+    sendServiceResult(res, await updateTeamTask(params.id, params.taskId, safeParams as any))
   }},
   { method: 'DELETE', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const auth = authenticateAgent(
@@ -1590,7 +1648,7 @@ const routes: Route[] = [
     if (url.searchParams.has('label')) filters.label = url.searchParams.get('label')!
     if (url.searchParams.has('taskType')) filters.taskType = url.searchParams.get('taskType')!
     const hasFilters = Object.keys(filters).length > 0
-    sendServiceResult(res, listTeamTasks(params.id, requestingAgentId, hasFilters ? filters : undefined))
+    sendServiceResult(res, await listTeamTasks(params.id, requestingAgentId, hasFilters ? filters : undefined))
   }},
   { method: 'POST', pattern: /^\/api\/teams\/([^/]+)\/tasks$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1602,8 +1660,35 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    const requestingAgentId = auth.agentId
-    sendServiceResult(res, await createTeamTask(params.id, { ...body, requestingAgentId }))
+    // Validate priority and blockedBy (mirrors Next.js route validation)
+    if (body.priority !== undefined && !Number.isFinite(Number(body.priority))) {
+      sendJson(res, 400, { error: 'priority must be a finite number' })
+      return
+    }
+    if (body.blockedBy !== undefined) {
+      if (!Array.isArray(body.blockedBy) || !body.blockedBy.every((v: unknown) => typeof v === 'string')) {
+        sendJson(res, 400, { error: 'blockedBy must be an array of strings' })
+        return
+      }
+    }
+    // Whitelist fields to prevent arbitrary data injection
+    const safeParams: Record<string, unknown> = {
+      subject: String(body.subject ?? ''),
+      ...(body.description !== undefined && { description: String(body.description) }),
+      ...(body.assigneeAgentId !== undefined && { assigneeAgentId: body.assigneeAgentId === null ? null : String(body.assigneeAgentId) }),
+      ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
+      ...(body.priority !== undefined && { priority: Number(body.priority) }),
+      ...(body.status !== undefined && { status: String(body.status) }),
+      ...(body.labels !== undefined && { labels: body.labels }),
+      ...(body.taskType !== undefined && { taskType: String(body.taskType) }),
+      ...(body.externalRef !== undefined && { externalRef: String(body.externalRef) }),
+      ...(body.externalProjectRef !== undefined && { externalProjectRef: String(body.externalProjectRef) }),
+      ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
+      ...(body.handoffDoc !== undefined && { handoffDoc: String(body.handoffDoc) }),
+      ...(body.prUrl !== undefined && { prUrl: String(body.prUrl) }),
+      requestingAgentId: auth.agentId,
+    }
+    sendServiceResult(res, await createTeamTask(params.id, safeParams as any))
   }},
   // Kanban config routes
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/kanban-config$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -1615,7 +1700,7 @@ const routes: Route[] = [
       sendJson(res, auth.status || 401, { error: auth.error })
       return
     }
-    sendServiceResult(res, getKanbanConfig(params.id, auth.agentId))
+    sendServiceResult(res, await getKanbanConfig(params.id, auth.agentId))
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/kanban-config$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1944,6 +2029,173 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/agents\/creation-helper\/response$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await captureCreationHelperResponse())
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/creation-helper\/raw-materials$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    const { writeFile, mkdir } = await import('fs/promises')
+    const { join } = await import('path')
+    const { homedir } = await import('os')
+    const stateDir = join(homedir(), 'agents', 'haephestos')
+    const stateFile = join(stateDir, 'raw-materials-state.json')
+    try {
+      const state = {
+        personaName: body?.personaName || '',
+        avatarUrl: body?.avatarUrl || '',
+        avatarIndex: body?.avatarIndex ?? -1,
+        uploadedFiles: body?.uploadedFiles || [],
+        updatedAt: new Date().toISOString(),
+      }
+      await mkdir(stateDir, { recursive: true })
+      await writeFile(stateFile, JSON.stringify(state, null, 2), 'utf-8')
+      sendJson(res, 200, { ok: true })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+  { method: 'GET', pattern: /^\/api\/agents\/creation-helper\/raw-materials$/, paramNames: [], handler: async (_req, res) => {
+    const { readFile } = await import('fs/promises')
+    const { join } = await import('path')
+    const { homedir } = await import('os')
+    const stateFile = join(homedir(), 'agents', 'haephestos', 'raw-materials-state.json')
+    try {
+      const content = await readFile(stateFile, 'utf-8')
+      sendJson(res, 200, JSON.parse(content))
+    } catch {
+      sendJson(res, 200, { personaName: '', avatarUrl: '', avatarIndex: -1, uploadedFiles: [], updatedAt: null })
+    }
+  }},
+
+  // =========================================================================
+  // Role Plugins
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/agents\/role-plugins$/, paramNames: [], handler: async (_req, res) => {
+    try {
+      const plugins = await listRolePlugins()
+      sendJson(res, 200, { plugins })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/role-plugins$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    if (!body.tomlContent || typeof body.tomlContent !== 'string') return sendJson(res, 400, { error: 'tomlContent is required and must be a string' })
+    try {
+      const result = await generatePluginFromToml(body.tomlContent, body.agentDescription)
+      sendJson(res, 200, { success: true, pluginName: result.pluginName, pluginDir: result.pluginDir, mainAgentName: result.mainAgentName })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/role-plugins$/, paramNames: [], handler: async (req, res) => {
+    const url = new URL(req.url || '', `http://${req.headers.host}`)
+    const name = url.searchParams.get('name')
+    if (!name) return sendJson(res, 400, { error: 'name query parameter is required' })
+    try {
+      await deleteRolePlugin(name)
+      sendJson(res, 200, { success: true })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+  { method: 'POST', pattern: /^\/api\/agents\/role-plugins\/install$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    if (!body.pluginName || !body.agentDir) return sendJson(res, 400, { error: 'pluginName and agentDir are required' })
+    try {
+      await installPluginLocally(body.pluginName, body.agentDir)
+      sendJson(res, 200, { success: true })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+  { method: 'DELETE', pattern: /^\/api\/agents\/role-plugins\/install$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    if (!body.pluginName || !body.agentDir) return sendJson(res, 400, { error: 'pluginName and agentDir are required' })
+    try {
+      await uninstallPluginLocally(body.pluginName, body.agentDir)
+      sendJson(res, 200, { success: true })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+
+  // Sync default role plugins from GitHub into local marketplace
+  { method: 'POST', pattern: /^\/api\/agents\/role-plugins\/sync-defaults$/, paramNames: [], handler: async (req, res) => {
+    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const force = url.searchParams.get('force') === 'true'
+    try {
+      const result = await syncDefaultRolePlugins(force)
+      sendJson(res, 200, { success: true, ...result })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+
+  // Browse directory (Folder browser in profile panel)
+  { method: 'GET', pattern: /^\/api\/agents\/browse-dir$/, paramNames: [], handler: async (req, res) => {
+    const { readdir, stat: fsStat, readFile: fsReadFile } = await import('fs/promises')
+    const { join, resolve: pathResolve, normalize: pathNormalize } = await import('path')
+    const { homedir } = await import('os')
+    const HOME = homedir()
+    const ALLOWED = [join(HOME, 'agents'), join(HOME, '.claude')]
+    const MAX_LINES = 500
+    const MAX_SIZE = 512 * 1024
+    const BINARY_EXT = new Set(['png','jpg','jpeg','gif','bmp','ico','webp','avif','tiff','tif','heic','heif','raw','cr2','nef','arw','dng','psd','ai','eps','xcf','sketch','fig','indd','mp4','mkv','avi','mov','wmv','flv','webm','m4v','mpg','mpeg','3gp','ogv','ts','vob','mp3','wav','flac','aac','ogg','wma','m4a','opus','aiff','mid','midi','zip','gz','tar','bz2','xz','7z','rar','zst','lz','lz4','lzma','cab','iso','dmg','pkg','deb','rpm','apk','msi','tgz','tbz2','txz','exe','dll','so','dylib','o','a','lib','obj','bin','elf','com','out','app','mach','wasm','pyc','pyo','class','jar','war','ear','db','sqlite','sqlite3','mdb','accdb','frm','ibd','dbf','woff','woff2','ttf','otf','eot','pfb','pfm','pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp','rtf','epub','mobi','azw','azw3','pem','der','p12','pfx','key','crt','cer','jks','keystore','token','tfstate','tsbuildinfo','lcov','dat','pak','bundle','nib','storyboardc','swp','swo'])
+
+    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const dirPath = url.searchParams.get('path')
+    const mode = url.searchParams.get('mode')
+    if (!dirPath) return sendJson(res, 400, { error: 'Missing path parameter' })
+
+    const norm = pathNormalize(pathResolve(dirPath))
+    const allowed = ALLOWED.some(p => norm.startsWith(p)) || norm.includes('/.claude/') || norm.endsWith('/.claude')
+    if (!allowed) return sendJson(res, 403, { error: 'Path not allowed' })
+
+    try {
+      const st = await fsStat(norm)
+      if (mode === 'file' || st.isFile()) {
+        if (!st.isFile()) return sendJson(res, 400, { error: 'Not a file' })
+        const ext = norm.split('.').pop()?.toLowerCase() || ''
+        if (BINARY_EXT.has(ext)) return sendJson(res, 200, { path: norm, content: `(Binary file: .${ext} — preview not supported)`, truncated: false })
+        if (st.size > MAX_SIZE) return sendJson(res, 200, { path: norm, content: `(File too large: ${(st.size/1024).toFixed(1)}KB)`, truncated: true })
+        const raw = await fsReadFile(norm, 'utf-8')
+        if (raw.slice(0, 8192).includes('\0')) return sendJson(res, 200, { path: norm, content: '(Binary file detected — preview not supported)', truncated: false })
+        const lines = raw.split('\n')
+        const truncated = lines.length > MAX_LINES
+        return sendJson(res, 200, { path: norm, content: truncated ? lines.slice(0, MAX_LINES).join('\n') + '\n…' : raw, truncated })
+      }
+      if (!st.isDirectory()) return sendJson(res, 400, { error: 'Not a directory' })
+      const names = await readdir(norm)
+      const entries: { name: string; type: string; size: number }[] = []
+      for (const name of names.sort()) {
+        if (name.startsWith('.') && name !== '.claude' && name !== '.claude-plugin') continue
+        try {
+          const ep = join(norm, name)
+          const es = await fsStat(ep)
+          entries.push({ name, type: es.isDirectory() ? 'dir' : 'file', size: es.isFile() ? es.size : 0 })
+        } catch { /* skip */ }
+      }
+      return sendJson(res, 200, { path: norm, entries })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+
+  // Create agent from TOML (single endpoint: generate + create folder + install)
+  // Unified persona creation — used by both wizard and Haephestos
+  { method: 'POST', pattern: /^\/api\/agents\/create-persona$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    if (!body.personaName || typeof body.personaName !== 'string') return sendJson(res, 400, { error: 'personaName is required' })
+    if (!body.tomlContent && !body.pluginName) return sendJson(res, 400, { error: 'Either tomlContent or pluginName is required' })
+    if (body.tomlContent && body.pluginName) return sendJson(res, 400, { error: 'Provide either tomlContent or pluginName, not both' })
+    try {
+      const result = await createPersona({
+        personaName: body.personaName,
+        tomlContent: body.tomlContent,
+        pluginName: body.pluginName,
+        marketplaceName: body.marketplaceName,
+        agentDescription: body.agentDescription,
+      })
+      sendJson(res, 200, { success: true, ...result })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
+  }},
+
+  // Legacy endpoint — delegates to createPersona
+  { method: 'POST', pattern: /^\/api\/agents\/create-from-toml$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    if (!body.tomlContent || typeof body.tomlContent !== 'string') return sendJson(res, 400, { error: 'tomlContent is required' })
+    if (!body.personaName || typeof body.personaName !== 'string') return sendJson(res, 400, { error: 'personaName is required' })
+    try {
+      const result = await createPersona({
+        personaName: body.personaName,
+        tomlContent: body.tomlContent,
+        agentDescription: body.agentDescription,
+      })
+      sendJson(res, 200, { success: true, personaName: result.personaName, agentDir: result.agentDir, pluginName: result.pluginName, pluginDir: result.agentDir, mainAgentName: result.mainAgentName })
+    } catch (e) { sendJson(res, 500, { error: String(e) }) }
   }},
 
   // =========================================================================

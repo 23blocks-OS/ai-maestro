@@ -12,15 +12,14 @@ import type { TeamType } from './team'
 export type { TeamType } from './team'
 
 /**
- * GovernanceRole is an alias for AgentRole — both define the same role taxonomy.
- * Canonical definition lives in types/agent.ts (AgentRole).
- * 'member' replaced 'normal' in v0.26.0 to align with upstream.
- *
- * NT-002 (P5): This alias is intentional -- it provides a governance-domain semantic
- * name that callers in the governance layer use, avoiding a direct dependency on the
- * agent type system. Kept for domain-driven design clarity.
+ * GovernanceTitle is the governance-level title: 'manager' | 'chief-of-staff' | 'member'.
+ * Canonical definition lives in types/agent.ts (AgentRole — the underlying type).
+ * This alias provides governance-domain semantics. "Title" distinguishes governance
+ * levels from "Role" which refers to role-plugins (specializations like ai-maestro-architect).
  */
-export type GovernanceRole = AgentRole
+export type GovernanceTitle = AgentRole
+/** @deprecated Use GovernanceTitle instead */
+export type GovernanceRole = GovernanceTitle
 
 /** Governance configuration stored at ~/.aimaestro/governance.json */
 export interface GovernanceConfig {

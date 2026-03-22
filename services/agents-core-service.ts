@@ -415,8 +415,8 @@ export async function listAgents(): Promise<ServiceResult<{
     const hostId = selfHost?.id || hostName
     const hostUrl = selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`
 
-    // 1. Load all registered agents from this host's registry
-    const agents = loadAgents()
+    // 1. Load all registered agents from this host's registry (exclude soft-deleted)
+    const agents = loadAgents().filter(a => !a.deletedAt)
 
     // 2. Discover local tmux sessions
     const discoveredSessions = await discoverLocalSessions()
@@ -791,7 +791,7 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
             name: sessionName,
             label: shortName !== sessionName ? shortName : undefined,
             program: 'claude-code',
-            model: 'claude-sonnet-4-5',
+            model: 'sonnet',
             taskDescription: `Agent for ${sessionName}`,
             tags,
             owner: os.userInfo().username,

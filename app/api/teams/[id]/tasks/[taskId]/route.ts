@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { updateTeamTask, deleteTeamTask, UpdateTaskParams } from '@/services/teams-service'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { isValidUuid } from '@/lib/validation'
-import type { TaskStatus } from '@/types/task'
-
-// SF-014: Allowed TaskStatus values for route-level validation
-const VALID_TASK_STATUSES: TaskStatus[] = ['backlog', 'pending', 'in_progress', 'review', 'completed']
 
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
@@ -13,8 +9,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
-  if (!isValidUuid(id) || !isValidUuid(taskId)) {
-    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+  }
+  // taskId can be a UUID (local storage) or a GitHub Project item node_id (PVTI_...)
+  if (!taskId || taskId.length > 200) {
+    return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
   }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),
@@ -32,10 +32,8 @@ export async function PUT(
     return NextResponse.json({ error: 'Malformed JSON in request body' }, { status: 400 })
   }
 
-  // SF-014: Validate body.status against allowed TaskStatus values before passing to service
-  if (body.status !== undefined && !VALID_TASK_STATUSES.includes(body.status as TaskStatus)) {
-    return NextResponse.json({ error: `Invalid status. Must be one of: ${VALID_TASK_STATUSES.join(', ')}` }, { status: 400 })
-  }
+  // SF-014: Status validation is now done in the service layer (teams-service.ts updateTeamTask)
+  // where it validates against the team's kanban config columns (or defaults)
   // SF-011: Validate priority is a finite number to prevent NaN from propagating
   if (body.priority !== undefined) {
     const priority = Number(body.priority)
@@ -62,6 +60,15 @@ export async function PUT(
     ...(body.priority !== undefined && { priority: Number(body.priority) }),
     ...(body.assigneeAgentId !== undefined && { assigneeAgentId: body.assigneeAgentId === null ? null : String(body.assigneeAgentId) }),
     ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
+    ...(body.labels !== undefined && { labels: body.labels as string[] }),
+    ...(body.taskType !== undefined && { taskType: String(body.taskType) }),
+    ...(body.externalRef !== undefined && { externalRef: String(body.externalRef) }),
+    ...(body.externalProjectRef !== undefined && { externalProjectRef: String(body.externalProjectRef) }),
+    ...(body.previousStatus !== undefined && { previousStatus: String(body.previousStatus) }),
+    ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria as string[] }),
+    ...(body.handoffDoc !== undefined && { handoffDoc: String(body.handoffDoc) }),
+    ...(body.prUrl !== undefined && { prUrl: String(body.prUrl) }),
+    ...(body.reviewResult !== undefined && { reviewResult: String(body.reviewResult) }),
     requestingAgentId,
   }
   const result = await updateTeamTask(id, taskId, safeParams)
@@ -78,8 +85,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; taskId: string }> }
 ) {
   const { id, taskId } = await params
-  if (!isValidUuid(id) || !isValidUuid(taskId)) {
-    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  if (!isValidUuid(id)) {
+    return NextResponse.json({ error: 'Invalid team ID format' }, { status: 400 })
+  }
+  // taskId can be a UUID (local storage) or a GitHub Project item node_id (PVTI_...)
+  if (!taskId || taskId.length > 200) {
+    return NextResponse.json({ error: 'Invalid task ID format' }, { status: 400 })
   }
   const auth = authenticateAgent(
     request.headers.get('Authorization'),

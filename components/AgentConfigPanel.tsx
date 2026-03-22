@@ -31,6 +31,7 @@ export interface AgentConfigDraft {
   programArgs?: string
   rules: string[]
   tags: string[]
+  teamId?: string
 }
 
 export function createEmptyDraft(): AgentConfigDraft {

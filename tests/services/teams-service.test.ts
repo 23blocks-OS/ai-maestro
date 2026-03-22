@@ -358,7 +358,7 @@ describe('deleteTeamById', () => {
 // ============================================================================
 
 describe('listTeamTasks', () => {
-  it('returns resolved tasks for existing team', () => {
+  it('returns resolved tasks for existing team', async () => {
     const team = makeTeam({ id: 'team-1' })
     const tasks = [makeTask({ teamId: 'team-1' })]
     const resolvedTasks = tasks.map(t => ({ ...t, blocks: [], isBlocked: false }))
@@ -367,28 +367,28 @@ describe('listTeamTasks', () => {
     mockTasks.loadTasks.mockReturnValue(tasks)
     mockTasks.resolveTaskDeps.mockReturnValue(resolvedTasks)
 
-    const result = listTeamTasks('team-1')
+    const result = await listTeamTasks('team-1')
 
     expect(result.status).toBe(200)
     expect(result.data?.tasks).toHaveLength(1)
     expect(mockTasks.resolveTaskDeps).toHaveBeenCalledWith(tasks)
   })
 
-  it('returns empty tasks array', () => {
+  it('returns empty tasks array', async () => {
     mockTeams.getTeam.mockReturnValue(makeTeam())
     mockTasks.loadTasks.mockReturnValue([])
     mockTasks.resolveTaskDeps.mockReturnValue([])
 
-    const result = listTeamTasks('team-1')
+    const result = await listTeamTasks('team-1')
 
     expect(result.status).toBe(200)
     expect(result.data?.tasks).toEqual([])
   })
 
-  it('returns 404 when team not found', () => {
+  it('returns 404 when team not found', async () => {
     mockTeams.getTeam.mockReturnValue(null)
 
-    const result = listTeamTasks('nope')
+    const result = await listTeamTasks('nope')
 
     expect(result.status).toBe(404)
     expect(mockTasks.loadTasks).not.toHaveBeenCalled()

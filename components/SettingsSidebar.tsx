@@ -1,10 +1,10 @@
 'use client'
 
-import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store } from 'lucide-react'
+import { Server, HelpCircle, Info, Compass, FlaskConical, Webhook, Globe, Store, Puzzle } from 'lucide-react'
 
 interface SettingsSidebarProps {
-  activeSection: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace'
-  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace') => void
+  activeSection: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements'
+  onSectionChange: (section: 'hosts' | 'domains' | 'webhooks' | 'help' | 'about' | 'onboarding' | 'experiments' | 'marketplace' | 'global-elements') => void
 }
 
 export default function SettingsSidebar({ activeSection, onSectionChange }: SettingsSidebarProps) {
@@ -32,6 +32,12 @@ export default function SettingsSidebar({ activeSection, onSectionChange }: Sett
       label: 'Marketplace',
       icon: Store,
       description: 'Browse skills',
+    },
+    {
+      id: 'global-elements' as const,
+      label: 'Global Elements',
+      icon: Puzzle,
+      description: 'User-level skills & plugins',
     },
     {
       id: 'experiments' as const,

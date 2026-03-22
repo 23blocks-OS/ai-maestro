@@ -155,7 +155,7 @@ export default function GovernancePasswordDialog({
         <div className="p-6 space-y-4">
           {mode === 'setup' && (
             <p className="text-sm text-gray-400">
-              A governance password protects sensitive operations like assigning the MANAGER role or Chief-of-Staff positions.
+              A governance password protects sensitive operations like assigning the MANAGER title or Chief-of-Staff positions.
             </p>
           )}
 

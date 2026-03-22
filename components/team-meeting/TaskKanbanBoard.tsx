@@ -21,7 +21,7 @@ interface TaskKanbanBoardProps {
   kanbanColumns?: KanbanColumnConfig[]
   onUpdateTask: (taskId: string, updates: { status?: TaskStatus; [key: string]: unknown }) => Promise<{ unblocked: TaskWithDeps[] }>
   onDeleteTask: (taskId: string) => Promise<void>
-  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
+  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number; status?: string }) => Promise<void>
   onClose?: () => void
   teamName: string
 }
@@ -64,15 +64,9 @@ export default function TaskKanbanBoard({
     setQuickAddStatus(status)
   }
 
-  const handleQuickCreate = async (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[] }) => {
-    // Create with the quick-add column's status
-    await onCreateTask(data)
-    // If backlog or non-pending, update the new task's status after creation
-    // Since createTask always creates as 'pending', we need to update if different
-    if (quickAddStatus && quickAddStatus !== 'pending') {
-      // We'll rely on the user changing status in detail view for non-pending
-      // Or we could do a two-step: create then update. For simplicity, just create as pending.
-    }
+  const handleQuickCreate = async (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => {
+    // Create with the quick-add column's status so the task lands in the correct column
+    await onCreateTask({ ...data, status: quickAddStatus || undefined })
     setQuickAddStatus(null)
   }
 
@@ -133,6 +127,7 @@ export default function TaskKanbanBoard({
               task={freshSelectedTask}
               agents={agents}
               allTasks={tasks}
+              kanbanColumns={columns}
               onUpdate={async (taskId, updates) => { await onUpdateTask(taskId, updates) }}
               onDelete={async (taskId) => { await onDeleteTask(taskId); setSelectedTask(null) }}
               onClose={() => setSelectedTask(null)}

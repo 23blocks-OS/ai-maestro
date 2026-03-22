@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Team } from '@/types/team'
-import type { TransferRequest, GovernanceRole } from '@/types/governance'
+import type { TransferRequest, GovernanceTitle } from '@/types/governance'
 import type { GovernanceRequest } from '@/types/governance-request'
 
 // Re-export so downstream consumers still work
+export type { GovernanceTitle } from '@/types/governance'
+/** @deprecated Use GovernanceTitle */
 export type { GovernanceRole } from '@/types/governance'
 
 export interface GovernanceState {
@@ -14,7 +16,7 @@ export interface GovernanceState {
   hasManager: boolean
   managerId: string | null
   managerName: string | null
-  agentRole: GovernanceRole
+  agentTitle: GovernanceTitle
   cosTeams: Team[]
   memberTeams: Team[]
   allTeams: Team[]
@@ -52,8 +54,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
   // so fire-and-forget refreshes don't update state after the component is gone
   const mutationAbortRef = useRef<AbortController | null>(null)
 
-  // Derive governance role from current state
-  const agentRole: GovernanceRole = useMemo(() => {
+  // Derive governance title from current state
+  const agentTitle: GovernanceTitle = useMemo(() => {
     if (!agentId) return 'member'
     if (managerId === agentId) return 'manager'
     // team.type is now required per types/team.ts
@@ -447,7 +449,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
     hasManager,
     managerId,
     managerName,
-    agentRole,
+    agentTitle,
     cosTeams,
     memberTeams,
     allTeams,

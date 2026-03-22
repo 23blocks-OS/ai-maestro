@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Building2, Lock, Unlock, Plus, X, ChevronDown, Clock, Check, XCircle } from 'lucide-react'
 import type { Team } from '@/types/team'
-import type { GovernanceRole } from '@/types/governance'
+import type { GovernanceTitle } from '@/types/governance'
 import type { TransferRequest } from '@/types/governance'
 
 interface TeamMembershipSectionProps {
   agentId: string
-  agentRole: GovernanceRole
+  agentTitle: GovernanceTitle
   memberTeams: Team[]   // teams this agent belongs to
   allTeams: Team[]      // all teams (for join dropdown)
   onJoinTeam: (teamId: string) => Promise<{ success: boolean; error?: string }>
@@ -20,7 +20,7 @@ interface TeamMembershipSectionProps {
 
 export default function TeamMembershipSection({
   agentId,
-  agentRole,
+  agentTitle,
   memberTeams,
   allTeams,
   onJoinTeam,
@@ -54,7 +54,7 @@ export default function TeamMembershipSection({
   // than directly adding the agent. Direct joining is only allowed for open teams.
   // Managers bypass the transfer requirement entirely (they have full authority).
   const memberTeamIds = new Set(memberTeams.map(t => t.id))
-  const canSeeClosedTeams = agentRole === 'manager' || agentRole === 'chief-of-staff'
+  const canSeeClosedTeams = agentTitle === 'manager' || agentTitle === 'chief-of-staff'
   const joinableTeams = allTeams.filter(t => {
     if (memberTeamIds.has(t.id)) return false
     if (canSeeClosedTeams) return true
@@ -80,7 +80,7 @@ export default function TeamMembershipSection({
       const targetTeam = allTeams.find(t => t.id === teamId)
 
       // Managers bypass all transfer requirements — they have full authority
-      if (agentRole === 'manager') {
+      if (agentTitle === 'manager') {
         const result = await onJoinTeam(teamId)
         if (result.success) {
           setShowJoinDropdown(false)

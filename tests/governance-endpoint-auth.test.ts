@@ -157,7 +157,7 @@ afterEach(() => {
 describe('SR-001: broadcastGovernanceSync signs outbound requests', () => {
   it('includes X-Host-Id, X-Host-Timestamp, and X-Host-Signature headers in fetch calls', async () => {
     /** Verifies that governance sync broadcasts include all 3 authentication headers */
-    await broadcastGovernanceSync('full-snapshot', {})
+    await broadcastGovernanceSync('team-updated', {})
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     const fetchCall = mockFetch.mock.calls[0]
@@ -170,7 +170,7 @@ describe('SR-001: broadcastGovernanceSync signs outbound requests', () => {
 
   it('signs data with format gov-sync|{hostId}|{timestamp}', async () => {
     /** Verifies the signed data string follows the correct format for governance sync */
-    await broadcastGovernanceSync('full-snapshot', {})
+    await broadcastGovernanceSync('team-updated', {})
 
     expect(mockSignHostAttestation).toHaveBeenCalledTimes(1)
     const signedData = mockSignHostAttestation.mock.calls[0][0] as string
@@ -183,7 +183,7 @@ describe('SR-001: broadcastGovernanceSync signs outbound requests', () => {
 
   it('uses the same timestamp in headers and signed data', async () => {
     /** Verifies consistency between X-Host-Timestamp header and the signed data string */
-    await broadcastGovernanceSync('full-snapshot', {})
+    await broadcastGovernanceSync('team-updated', {})
 
     const signedData = mockSignHostAttestation.mock.calls[0][0] as string
     const signedTimestamp = signedData.split('|')[2]
@@ -419,7 +419,7 @@ describe('SR-007: submitCrossHostRequest type whitelist', () => {
 describe('Signature header format', () => {
   it('X-Host-Timestamp is a valid ISO 8601 string', async () => {
     /** Verifies timestamp header is parseable as ISO 8601 datetime */
-    await broadcastGovernanceSync('full-snapshot', {})
+    await broadcastGovernanceSync('team-updated', {})
 
     const fetchCall = mockFetch.mock.calls[0]
     const timestamp = fetchCall[1].headers['X-Host-Timestamp']

@@ -2,17 +2,28 @@
 
 import { useState, useEffect } from 'react'
 
-export type DeviceType = 'phone' | 'tablet' | 'desktop'
+export type DeviceType = 'phone' | 'desktop'
 
 interface DeviceInfo {
   deviceType: DeviceType
   isTouch: boolean
 }
 
+// Query parameter override: ?touch=1 or ?mobile=1 forces touch/mobile mode
+function getQueryOverrides(): { forceTouch: boolean; forceMobile: boolean } {
+  if (typeof window === 'undefined') return { forceTouch: false, forceMobile: false }
+  const params = new URLSearchParams(window.location.search)
+  const forceTouch = params.get('touch') === '1'
+  const forceMobile = params.get('mobile') === '1'
+  return { forceTouch, forceMobile }
+}
+
 function detectTouch(): boolean {
   if (typeof window === 'undefined') return false
   // Primary check: CSS media query for coarse pointer (touch screens)
   if (window.matchMedia?.('(pointer: coarse)').matches) return true
+  // iPadOS with Magic Keyboard: primary pointer is fine, but touch is still available
+  if (window.matchMedia?.('(any-pointer: coarse)').matches) return true
   // Fallback: touch event support
   if ('ontouchstart' in window) return true
   // Fallback: navigator check
@@ -20,27 +31,26 @@ function detectTouch(): boolean {
   return false
 }
 
-function classify(width: number, isTouch: boolean): DeviceType {
+function classify(width: number): DeviceType {
   if (width < 768) return 'phone'
-  // Touch devices at any width >= 768 get tablet experience
-  // Non-touch devices between 768-1023 also get tablet (small laptop screens are fine with it)
-  if (isTouch) return 'tablet'
-  if (width < 1024) return 'tablet'
   return 'desktop'
 }
 
 export function useDeviceType(): DeviceInfo {
   const [info, setInfo] = useState<DeviceInfo>(() => {
     if (typeof window === 'undefined') return { deviceType: 'desktop', isTouch: false }
-    const isTouch = detectTouch()
-    const deviceType = classify(window.innerWidth, isTouch)
+    const { forceTouch, forceMobile } = getQueryOverrides()
+    const isTouch = forceTouch || detectTouch()
+    const deviceType = forceMobile ? 'phone' : classify(window.innerWidth)
     return { deviceType, isTouch }
   })
 
   useEffect(() => {
+    const { forceTouch, forceMobile } = getQueryOverrides()
+
     const update = () => {
-      const isTouch = detectTouch()
-      const deviceType = classify(window.innerWidth, isTouch)
+      const isTouch = forceTouch || detectTouch()
+      const deviceType = forceMobile ? 'phone' : classify(window.innerWidth)
       setInfo(prev => {
         if (prev.deviceType === deviceType && prev.isTouch === isTouch) return prev
         return { deviceType, isTouch }
@@ -52,8 +62,12 @@ export function useDeviceType(): DeviceInfo {
 
     // Listen for pointer capability changes (e.g. connecting/disconnecting mouse)
     const mql = window.matchMedia?.('(pointer: coarse)')
+    const mqlAny = window.matchMedia?.('(any-pointer: coarse)')
     if (mql?.addEventListener) {
       mql.addEventListener('change', update)
+    }
+    if (mqlAny?.addEventListener) {
+      mqlAny.addEventListener('change', update)
     }
 
     // Initial check
@@ -63,6 +77,9 @@ export function useDeviceType(): DeviceInfo {
       window.removeEventListener('resize', update)
       if (mql?.removeEventListener) {
         mql.removeEventListener('change', update)
+      }
+      if (mqlAny?.removeEventListener) {
+        mqlAny.removeEventListener('change', update)
       }
     }
   }, [])

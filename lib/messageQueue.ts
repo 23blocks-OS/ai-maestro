@@ -3,7 +3,7 @@ import * as fsSync from 'fs'
 import path from 'path'
 import os from 'os'
 import { getSelfHost, getSelfHostId, isSelf } from './hosts-config-server.mjs'
-import { getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgentByPartialName, getAgent } from './agent-registry'
+import { getAgentBySession, getAgentByName, getAgentByNameAnyHost, getAgentByAlias, getAgentByAliasAnyHost, getAgentByLabel, getAgentByLabelAnyHost, getAgentByPartialName, getAgent } from './agent-registry'
 import { parseSessionName, computeSessionName } from '@/types/agent'
 import type { Agent } from '@/types/agent'
 // SF-052: File locking for read-modify-write message operations
@@ -567,6 +567,11 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
     agent = getAgentByAlias(identifier) || null
   }
 
+  // 2.7. Try persona name (label) match on SELF HOST
+  if (!agent) {
+    agent = getAgentByLabel(identifier) || null
+  }
+
   // 3. Try exact name match on ANY HOST (for backward compat)
   if (!agent) {
     agent = getAgentByNameAnyHost(identifier)
@@ -575,6 +580,11 @@ function resolveAgent(identifier: string): ResolvedAgent | null {
   // 3.5. Try alias match on ANY HOST
   if (!agent) {
     agent = getAgentByAliasAnyHost(identifier)
+  }
+
+  // 3.7. Try persona name (label) match on ANY HOST
+  if (!agent) {
+    agent = getAgentByLabelAnyHost(identifier)
   }
 
   // 4. Try session name match (parse identifier as potential session name)

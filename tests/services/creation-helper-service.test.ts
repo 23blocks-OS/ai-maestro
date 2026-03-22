@@ -161,8 +161,8 @@ describe('createCreationHelper', () => {
     expect(cmd).toContain('claude')
     expect(cmd).toContain('--agent haephestos-creation-helper')
     expect(cmd).toContain('--model sonnet')
-    expect(cmd).toContain('--permission-mode bypassPermissions')
-    expect(cmd).toContain('--tools Read,Glob,Grep')
+    expect(cmd).toContain('--permission-mode default')
+    expect(cmd).toContain('--tools Read,Write,Bash,Glob,Grep,Agent')
   })
 })
 
@@ -203,12 +203,13 @@ describe('getCreationHelperStatus', () => {
   it('returns ready when input prompt detected', async () => {
     mockRuntime.sessionExists.mockResolvedValue(true)
     mockAgentRegistry.getAgentByName.mockReturnValue({ id: 'test-id' })
-    // Simulate Claude's terminal: top separator, response, bottom separator, input prompt
+    // Simulate Claude v2.x terminal: prevSep, response, topSep, prompt, bottomSep
     mockRuntime.capturePane.mockResolvedValue([
       '──────────────────────────────',
       'Some response text from Claude',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await getCreationHelperStatus()
@@ -311,8 +312,9 @@ describe('captureResponse', () => {
     mockRuntime.capturePane.mockResolvedValue([
       '──────────────────────────────',
       'Welcome to the Agent Forge! I am Haephestos.',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()
@@ -346,8 +348,9 @@ describe('captureResponse', () => {
     mockRuntime.capturePane.mockResolvedValue([
       '──────────────────────────────',
       '\x1B[1m\x1B[33mBold yellow text\x1B[0m normal text',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()
@@ -374,8 +377,9 @@ describe('config suggestion parsing', () => {
       '```',
       '',
       'How does that sound?',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n')
     mockRuntime.capturePane.mockResolvedValue(responseWithConfig)
 
@@ -407,8 +411,9 @@ describe('config suggestion parsing', () => {
       '  {"action": "add", "field": "skills", "value": {"name": "tdd", "description": "TDD workflow"}}',
       ']',
       '```',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()
@@ -433,8 +438,9 @@ describe('config suggestion parsing', () => {
       '```',
       '',
       'What do you think?',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()
@@ -450,8 +456,9 @@ describe('config suggestion parsing', () => {
     mockRuntime.capturePane.mockResolvedValue([
       '──────────────────────────────',
       'Sure, I can help with that! What kind of agent do you need?',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()
@@ -469,8 +476,9 @@ describe('config suggestion parsing', () => {
       '```json:config',
       '[{"action": "set"}, {"field": "name", "value": "test"}, {"action": "set", "field": "name", "value": "valid"}]',
       '```',
+      '────────────── agent-name ──────────────────',
+      '❯ ',
       '──────────────────────────────',
-      '> ',
     ].join('\n'))
 
     const result = await captureResponse()

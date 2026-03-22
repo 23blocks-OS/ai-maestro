@@ -31,6 +31,7 @@ import {
   isValidOrganizationName,
 } from '@/lib/hosts-config'
 import { escapeForCozo } from '@/lib/cozo-utils'
+import { getSystemSettings } from '@/lib/system-settings'
 import type {
   MemoryRunResult,
   MessageCheckResult,
@@ -50,6 +51,7 @@ import { ServiceResult } from '@/types/service'
 export interface SystemConfig {
   version: string
   loggingEnabled: boolean
+  conversationIndexerEnabled: boolean
   platform: string
   nodeVersion: string
   port: string
@@ -265,10 +267,14 @@ export function getSystemConfig(): ServiceResult<SystemConfig> {
 
   const globalLoggingEnabled = process.env.ENABLE_LOGGING === 'true'
 
+  // Read persistent server-side settings
+  const conversationIndexerEnabled = getSystemSettings().conversationIndexerEnabled
+
   return {
     data: {
       version,
       loggingEnabled: globalLoggingEnabled,
+      conversationIndexerEnabled,
       platform: os.platform(),
       nodeVersion: process.version,
       port: process.env.PORT || '23000',

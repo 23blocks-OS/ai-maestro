@@ -6,9 +6,9 @@ import { randomBytes } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
-// Uploaded files are saved to a temp directory under ~/.aimaestro/tmp/creation-helper/
-// and cleaned up when the session is destroyed.
-const UPLOAD_DIR = join(homedir(), '.aimaestro', 'tmp', 'creation-helper')
+// Uploaded files are saved inside the Haephestos working directory
+// and cleaned up when the session is destroyed (the entire folder is wiped).
+const UPLOAD_DIR = join(homedir(), 'agents', 'haephestos', 'uploads')
 
 // Max file size: 1MB (these are .md and .toml text files)
 const MAX_FILE_SIZE = 1_048_576

@@ -66,6 +66,7 @@
     "react-dom": "^18.3.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
+    "smol-toml": "^1.6.0",
     "source-map-support": "^0.5.21",
     "ts-morph": "^27.0.2",
     "tsx": "~4.21.0",

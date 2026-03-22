@@ -590,7 +590,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
     return { error: 'Session already exists', status: 409 }
   }
 
-  const cwd = workingDirectory || process.cwd()
+  const cwd = (workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory) || process.cwd()
   await runtime.createSession(actualSessionName, cwd)
 
   // Register agent
@@ -684,14 +684,16 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 }
 
 /**
- * Delete a session (kill tmux + remove agent).
+ * Delete a session (kill tmux + soft-delete agent).
+ * Uses soft-delete by default — agent data and project folder are preserved.
+ * The agent can be restored from the registry (deletedAt is set, not removed).
  */
 export async function deleteSession(sessionName: string): Promise<ServiceResult<{ success: boolean; name: string; type?: string }>> {
   const agent = getAgentBySession(sessionName)
   const isCloudAgent = agent?.deployment?.type === 'cloud'
 
   if (isCloudAgent) {
-    await deleteAgentBySession(sessionName, true)
+    await deleteAgentBySession(sessionName, false)
     return { data: { success: true, name: sessionName, type: 'cloud' }, status: 200 }
   }
 
@@ -703,7 +705,8 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
 
   await runtime.killSession(sessionName)
   unpersistSession(sessionName)
-  await deleteAgentBySession(sessionName, true)
+  // Soft-delete: preserves agent data, project folder, and backup
+  await deleteAgentBySession(sessionName, false)
 
   return { data: { success: true, name: sessionName }, status: 200 }
 }

@@ -9,7 +9,7 @@ import DependencyPicker from './DependencyPicker'
 interface TaskCreateFormProps {
   agents: Agent[]
   existingTasks: TaskWithDeps[]
-  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[] }) => Promise<void>
+  onCreateTask: (data: { subject: string; description?: string; assigneeAgentId?: string; blockedBy?: string[]; priority?: number }) => Promise<void>
 }
 
 export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: TaskCreateFormProps) {
@@ -18,6 +18,7 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
   const [description, setDescription] = useState('')
   const [assigneeAgentId, setAssigneeAgentId] = useState('')
   const [blockedBy, setBlockedBy] = useState<string[]>([])
+  const [priority, setPriority] = useState<number>(0)
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,11 +31,13 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
         description: description.trim() || undefined,
         assigneeAgentId: assigneeAgentId || undefined,
         blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
+        priority: priority > 0 ? priority : undefined,
       })
       setSubject('')
       setDescription('')
       setAssigneeAgentId('')
       setBlockedBy([])
+      setPriority(0)
       setExpanded(false)
     } finally {
       setSubmitting(false)
@@ -102,6 +105,21 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
               rows={2}
               className="w-full text-sm bg-gray-800/60 text-gray-300 placeholder-gray-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-emerald-600 border border-gray-700"
             />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
+            <select
+              value={priority}
+              onChange={e => setPriority(Number(e.target.value))}
+              className="w-full text-sm bg-gray-800/60 text-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-600 border border-gray-700 appearance-none cursor-pointer"
+            >
+              <option value={0}>None</option>
+              <option value={1}>P1 — Critical</option>
+              <option value={2}>P2 — High</option>
+              <option value={3}>P3 — Medium</option>
+              <option value={4}>P4 — Low</option>
+            </select>
           </div>
 
           <DependencyPicker

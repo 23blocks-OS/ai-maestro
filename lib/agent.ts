@@ -412,6 +412,14 @@ class AgentSubconscious {
     this.totalMemoryRuns++
     this.lastMemoryRun = Date.now()
 
+    // Check global kill-switch before doing any work
+    const { getSystemSettings } = await import('./system-settings')
+    if (!getSystemSettings().conversationIndexerEnabled) {
+      this.lastMemoryResult = { success: true, messagesProcessed: 0 }
+      this.writeStatusFile()
+      return
+    }
+
     try {
       // Direct function call — no HTTP round-trip, no TCP connection, no JSON serialization
       const { runIndexDelta } = await import('./index-delta')

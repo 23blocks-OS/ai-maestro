@@ -121,8 +121,8 @@ export default function AgentPlayback({
     return `${minutes}:${(seconds % 60).toString().padStart(2, '0')}`
   }
   
-  // Get role badge color
-  const getRoleBadgeColor = (role: string) => {
+  // Get message role color (LLM conversation roles: user/assistant/system — NOT governance titles)
+  const getMessageRoleColor = (role: string) => {
     const colors = {
       system: 'bg-purple-100 text-purple-600',
       assistant: 'bg-blue-100 text-blue-600',
@@ -186,7 +186,7 @@ export default function AgentPlayback({
         <div className="mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleBadgeColor(currentMessage.role)}`}>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${getMessageRoleColor(currentMessage.role)}`}>
                 {currentMessage.role}
               </span>
               {currentMessage.timestamp && (

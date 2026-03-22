@@ -7,6 +7,7 @@ import {
   Wand2, Bot, Terminal, Webhook, Server, FileCode,
   ScrollText, Palette,
 } from 'lucide-react'
+import MarketplaceManager from './MarketplaceManager'
 
 interface PluginInfo {
   name: string
@@ -67,6 +68,7 @@ const ELEMENT_SECTIONS: { key: keyof Omit<PluginElements, 'pluginName' | 'market
  * Shows elements (skills, agents, commands, hooks, MCP, LSP) from enabled plugins.
  */
 export default function GlobalElementsSection() {
+  const [activeTab, setActiveTab] = useState<'plugins' | 'marketplaces'>('plugins')
   const [groups, setGroups] = useState<MarketplaceGroup[]>([])
   const [enabledCount, setEnabledCount] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
@@ -177,13 +179,43 @@ export default function GlobalElementsSection() {
   return (
     <div className="p-6 max-w-4xl">
       <h2 className="text-xl font-bold text-white mb-2">Global Elements</h2>
-      <p className="text-sm text-gray-400 mb-1">
+      <p className="text-sm text-gray-400 mb-4">
         User-level plugins shared by <strong>all agents</strong> on this host.
-        Only elements from <strong>enabled</strong> plugins are active.
       </p>
-      <p className="text-xs text-gray-500 mb-6">
-        {enabledCount} of {totalCount} plugins enabled across {groups.length} marketplaces
-      </p>
+
+      {/* Tab bar: Plugins | Marketplaces */}
+      <div className="flex items-center gap-1 mb-6 bg-gray-800/30 rounded-lg p-1">
+        <button
+          onClick={() => setActiveTab('plugins')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'plugins'
+              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+              : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
+          }`}
+        >
+          <Puzzle className="w-3.5 h-3.5" />
+          Plugins
+          <span className="opacity-60">{enabledCount}/{totalCount}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('marketplaces')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'marketplaces'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
+          }`}
+        >
+          <Store className="w-3.5 h-3.5" />
+          Marketplaces
+          <span className="opacity-60">{groups.length}</span>
+        </button>
+      </div>
+
+      {/* Marketplaces tab */}
+      {activeTab === 'marketplaces' && <MarketplaceManager />}
+
+      {/* Plugins tab */}
+      {activeTab === 'plugins' && (<>
 
       {/* Plugin list grouped by marketplace */}
       <div className="space-y-3 mb-8">
@@ -342,6 +374,7 @@ export default function GlobalElementsSection() {
           </>
         )}
       </div>
+      </>)}
     </div>
   )
 }

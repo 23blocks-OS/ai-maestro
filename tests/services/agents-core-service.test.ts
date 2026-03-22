@@ -73,7 +73,7 @@ const {
     },
     mockAgentStartup: {
       initializeAllAgents: vi.fn().mockResolvedValue({ initialized: [], failed: [] }),
-      getStartupStatus: vi.fn().mockReturnValue({ initialized: true }),
+      getStartupStatus: vi.fn().mockReturnValue({ discoveredAgents: 5, activeAgents: 3, agents: [] }),
     },
     mockMessageQueue: {
       resolveAgentIdentifier: vi.fn(),
@@ -1001,12 +1001,13 @@ describe('initializeStartup', () => {
 
 describe('getStartupInfo', () => {
   it('returns startup status', () => {
-    mockAgentStartup.getStartupStatus.mockReturnValue({ initialized: true, agents: 5 })
+    mockAgentStartup.getStartupStatus.mockReturnValue({ discoveredAgents: 5, activeAgents: 3, agents: [] })
 
     const result = getStartupInfo()
 
     expect(result.status).toBe(200)
-    expect(result.data?.initialized).toBe(true)
+    expect(result.data?.success).toBe(true)
+    expect(result.data?.discoveredAgents).toBe(5)
   })
 
   it('returns 500 on error', () => {

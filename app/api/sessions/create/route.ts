@@ -14,8 +14,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Session name is required and must match ^[a-zA-Z0-9_-]+$' }, { status: 400 })
     }
 
-    // SF-004: Validate workingDirectory is an absolute path to prevent path traversal
-    if (body.workingDirectory && !path.isAbsolute(body.workingDirectory)) {
+    // SF-004: Validate workingDirectory is an absolute path (or ~/... for home-relative) to prevent path traversal
+    if (body.workingDirectory && !body.workingDirectory.startsWith('~') && !path.isAbsolute(body.workingDirectory)) {
       return NextResponse.json({ error: 'workingDirectory must be an absolute path' }, { status: 400 })
     }
 

@@ -47,7 +47,7 @@ type SessionState = 'starting' | 'ready' | 'error'
 
 // Haephestos is a TEMPORARY, EPHEMERAL agent backed by a real Claude Code session
 // running in tmux.  It is destroyed when this modal closes.
-const HAEPHESTOS_AVATAR_THUMB = '/avatars/haephestos_thumb.png'
+const HAEPHESTOS_AVATAR = '/avatars/haephestos.jpg?v=20260315'
 
 // Polling intervals (ms)
 const STATUS_POLL_INTERVAL = 1000
@@ -97,7 +97,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const [config, setConfig] = useState<AgentConfigDraft>({
     ...createEmptyDraft(),
     program: 'claude-code',
-    model: 'claude-sonnet-4-5',
+    model: 'sonnet',
     role: 'member',
   })
   const [agentDescPath, setAgentDescPath] = useState('')
@@ -506,7 +506,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2.5">
             <img
-              src={HAEPHESTOS_AVATAR_THUMB}
+              src={HAEPHESTOS_AVATAR}
               alt="Haephestos"
               className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-500/50"
             />
@@ -587,7 +587,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   >
                     {msg.role === 'assistant' && (
                       <div className="flex-shrink-0 mr-2 mt-1">
-                        <img src={HAEPHESTOS_AVATAR_THUMB} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
+                        <img src={HAEPHESTOS_AVATAR} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                       </div>
                     )}
                     <div className={msg.role === 'assistant' ? 'max-w-[90%]' : 'max-w-[85%]'}>
@@ -668,7 +668,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   className="flex justify-start"
                 >
                   <div className="flex-shrink-0 mr-2 mt-1">
-                    <img src={HAEPHESTOS_AVATAR_THUMB} alt="" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
+                    <img src={HAEPHESTOS_AVATAR} alt="" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                   </div>
                   <div className="bg-gray-800 rounded-xl rounded-tl-sm px-4 py-3">
                     <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />

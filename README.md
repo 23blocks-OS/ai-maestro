@@ -36,6 +36,49 @@ Within a week I was running 35 agents across terminals. They were productive, bu
 
 ---
 
+## Understanding AI Maestro Terms
+
+Each **agent** has four distinct attributes. Understanding their differences is essential for working with AI Maestro.
+
+| Attribute | Format | Purpose | Examples |
+|-----------|--------|---------|----------|
+| **AGENT-ID** | `<group>-<type>-<name>` kebab | Unique identifier across the system | `tooling-developer-bot1`, `backend-tester-tommy`, `graphics-2dartist-iconmaker`, `core-developer-reactui5` |
+| **PERSONA** | Capitalized kebab | The agent's personal name, tied to a specific Claude Code tmux session | `Sammy`, `Peter-Parker`, `Lucy-In-The-Sky`, `Jack-The-Bot`, `Frank-Potter` |
+| **TITLE** | ALL-CAPS kebab | Governance level — defines the scope of authority | `MANAGER`, `CHIEF-OF-STAFF`, `MEMBER` |
+| **ROLE** | lowercase kebab | The job specialization — associated with a Role Plugin containing all the skills needed | `chief-of-staff`, `architect-agent`, `orchestrator-agent`, `programmer-agent`, `assistant-manager-agent` |
+
+### AGENT-ID
+
+A 3-word combination that AI Maestro uses to uniquely identify each agent: `<group>-<type>-<name>`. The three segments have distinct meanings — group defines the domain, type defines the function, and name is the unique instance label.
+
+### PERSONA
+
+The display name of the agent instance. Associated with a specific Claude Code tmux session and a working directory at `~/agents/<persona-name>/`. Internally always handled as lowercase (so `Sammy` and `sammy` are the same persona when sending messages), but the UI always displays it capitalized. For non-Latin names without uppercase letters, it falls back to simple kebab formatting.
+
+### TITLE
+
+The governance title determines what an agent is authorized to do within the AI Maestro governance system. There are exactly three titles:
+
+- **MANAGER** — Global singleton. Full authority over all teams, agents, and governance operations. Only one per host.
+- **CHIEF-OF-STAFF** — Leads one or more closed teams. Can manage team membership and approve transfers within their teams.
+- **MEMBER** — Default title. Standard agent with no special governance privileges.
+
+Changing a title requires the governance password.
+
+### ROLE
+
+The role defines what job the agent does — its specialization. Each role is backed by a **Role Plugin**, a Claude Code plugin that bundles all the skills, rules, hooks, commands, and configurations the agent needs to perform its job.
+
+Role Plugins are installed with `--scope local` in the agent's project folder. Some Role Plugins have title requirements:
+
+- `assistant-manager-agent` — requires `MANAGER` title
+- `chief-of-staff` — requires `CHIEF-OF-STAFF` title
+- All other Role Plugins — available to any title (typically `MEMBER`)
+
+An agent can change its Role Plugin at any time through the Profile panel — the old plugin is uninstalled, the new one installed, and Claude Code is gracefully restarted in the same tmux session (preserving chat history).
+
+---
+
 ## Quick Start
 
 ```bash

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk } from 'next/font/google'
 import './globals.css'
+import { GlobalTouchScrollbars } from '@/components/GlobalTouchScrollbars'
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] })
 
@@ -30,7 +31,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={spaceGrotesk.className}>{children}</body>
+      <body className={spaceGrotesk.className}>
+        <GlobalTouchScrollbars />
+        {children}
+      </body>
     </html>
   )
 }

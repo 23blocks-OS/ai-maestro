@@ -1,19 +1,24 @@
 'use client'
 
-import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion } from 'lucide-react'
-import type { TaskWithDeps, TaskStatus } from '@/types/task'
+import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User } from 'lucide-react'
+import type { TaskWithDeps } from '@/types/task'
+
+// Map task status to a meaningful icon
+const STATUS_ICON_MAP: Record<string, typeof Circle> = {
+  backlog: Archive,
+  pending: Circle,
+  in_progress: PlayCircle,
+  review: Eye,
+  completed: CheckCircle2,
+}
 
 interface KanbanCardProps {
   task: TaskWithDeps
   onSelect: (task: TaskWithDeps) => void
 }
 
-const ICON_MAP: Record<string, typeof Circle> = {
-  Archive, Circle, PlayCircle, Eye, CheckCircle2, SearchCheck, UserCheck, GitMerge, Ban, Clock, TestTube, FileQuestion,
-}
-
 export default function KanbanCard({ task, onSelect }: KanbanCardProps) {
-  const Icon = Circle
+  const Icon = STATUS_ICON_MAP[task.status] || Circle
 
   const handleDragStart = (e: React.DragEvent) => {
     if (task.isBlocked) {

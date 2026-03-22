@@ -151,3 +151,6 @@ public/avatars/*_enhanced.png
 
 # Claude Code local data (chat history, cache, plugins, settings)
 .claude/
+
+# External backup files
+*.externbak

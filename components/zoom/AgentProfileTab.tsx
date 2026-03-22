@@ -19,8 +19,8 @@ import { AgentSkillEditor } from '@/components/marketplace'
 import AvatarPicker from '@/components/AvatarPicker'
 import EmailAddressesSection from '@/components/EmailAddressesSection'
 import { useGovernance } from '@/hooks/useGovernance'
-import RoleBadge from '@/components/governance/RoleBadge'
-import RoleAssignmentDialog from '@/components/governance/RoleAssignmentDialog'
+import TitleBadge from '@/components/governance/TitleBadge'
+import TitleAssignmentDialog from '@/components/governance/TitleAssignmentDialog'
 import TeamMembershipSection from '@/components/governance/TeamMembershipSection'
 
 interface AgentProfileTabProps {
@@ -40,7 +40,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
-  const [showRoleDialog, setShowRoleDialog] = useState(false)
+  const [showTitleDialog, setShowRoleDialog] = useState(false)
   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
 
   // Repository state
@@ -225,7 +225,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
       <div className="flex-shrink-0 px-6 py-4 border-b border-gray-700 bg-gray-800/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-white">Agent Profile</h3>
-          <RoleBadge role={governance.agentRole} size="sm" onClick={() => setShowRoleDialog(true)} />
+          <TitleBadge title={governance.agentTitle} size="sm" onClick={() => setShowRoleDialog(true)} />
         </div>
         <div className="flex items-center gap-2">
           {/* Export Button */}
@@ -353,17 +353,17 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                 </button>
                 <div className="flex-1 space-y-3">
                   <EditableField
-                    label="Agent Name"
+                    label="Agent ID"
                     value={agent.name || agent.alias || ''}
                     onChange={(value) => updateField('name', value)}
                     icon={<User className="w-4 h-4" />}
                   />
                   <EditableField
-                    label="Display Label"
+                    label="Persona Name"
                     value={agent.label || ''}
                     onChange={(value) => updateField('label', value)}
                     icon={<Tag className="w-4 h-4" />}
-                    placeholder={agent.name || agent.alias || 'Same as agent name'}
+                    placeholder={agent.name || agent.alias || 'Same as agent ID'}
                   />
                 </div>
               </div>
@@ -377,14 +377,14 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   placeholder="Owner name"
                 />
 
-                {/* Governance Role */}
+                {/* Governance Title */}
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2 text-sm text-gray-400">
                     <Shield className="w-4 h-4" />
-                    <span>Governance Role</span>
+                    <span>Governance Title</span>
                   </div>
-                  <RoleBadge
-                    role={governance.agentRole}
+                  <TitleBadge
+                    title={governance.agentTitle}
                     onClick={() => setShowRoleDialog(true)}
                   />
                 </div>
@@ -392,7 +392,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                 {/* Team Membership */}
                 <TeamMembershipSection
                   agentId={agent.id}
-                  agentRole={governance.agentRole}
+                  agentTitle={governance.agentTitle}
                   memberTeams={governance.memberTeams}
                   allTeams={governance.allTeams}
                   onJoinTeam={(teamId) => governance.addAgentToTeam(teamId, agent.id)}
@@ -937,14 +937,14 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
       />
 
       {/* Role Assignment Dialog */}
-      <RoleAssignmentDialog
-        isOpen={showRoleDialog}
+      <TitleAssignmentDialog
+        isOpen={showTitleDialog}
         onClose={() => setShowRoleDialog(false)}
         agentId={agent.id}
         agentName={agent.label || agent.name || ''}
-        currentRole={governance.agentRole}
+        currentTitle={governance.agentTitle}
         governance={governance}
-        onRoleChanged={() => governance.refresh()}
+        onTitleChanged={() => governance.refresh()}
       />
     </div>
   )

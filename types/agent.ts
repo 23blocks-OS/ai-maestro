@@ -436,10 +436,19 @@ export interface AgentMetrics {
 export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
 
 /**
- * Agent role for messaging policy and team hierarchy
+ * Agent governance title for messaging policy and team hierarchy.
+ *
+ * NOTE: This is the agent's TITLE (governance level), not their ROLE (specialization).
+ * - TITLE = manager | chief-of-staff | member (controls permissions)
+ * - ROLE = Role-Plugin name (e.g., "ai-maestro-architect") — stored separately
+ *
+ * Values:
  * - manager: Unrestricted messaging, one per host. Interface with the user.
  * - chief-of-staff: Gateway for a closed team. Routes messages in/out.
  * - member: Default. In closed teams, can only message teammates + COS + manager.
+ *
+ * Kept as "AgentRole" type name for backward compatibility with existing API/DB schema.
+ * The semantic meaning is "title" — a future migration may rename this.
  */
 export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
 

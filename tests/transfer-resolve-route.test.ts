@@ -35,10 +35,10 @@ vi.mock('@/lib/governance', () => ({
   isChiefOfStaffAnywhere: (...args: unknown[]) => mockIsChiefOfStaffAnywhere(...args),
 }))
 
-const mockIsValidUuid = vi.fn(() => true)
+const mockIsValidUuid = vi.fn<(id: string) => boolean>(() => true)
 
 vi.mock('@/lib/validation', () => ({
-  isValidUuid: (...args: unknown[]) => mockIsValidUuid(...args),
+  isValidUuid: (id: string) => mockIsValidUuid(id),
 }))
 
 vi.mock('@/lib/agent-registry', () => ({

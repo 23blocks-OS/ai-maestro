@@ -667,6 +667,43 @@ The AMP skill (`plugin/plugins/ai-maestro/skills/agent-messaging/SKILL.md`) prov
 - **Security**: Messages are signed with Ed25519; AI Maestro verifies signatures
 - **Relay queue**: Offline agents get messages via polling (`/api/v1/messages/pending`)
 
+## Plugin Abstraction Principle (CRITICAL)
+
+All AI Maestro functionality is exposed through two abstraction layers. External plugins MUST use these layers — never call the API directly. See [docs/PLUGIN-ABSTRACTION-PRINCIPLE.md](./docs/PLUGIN-ABSTRACTION-PRINCIPLE.md) for the full guide.
+
+### Layer 1: Skills (for agents)
+
+AI Maestro installs global skills that teach agents the canonical API syntax:
+
+| Skill | Covers |
+|-------|--------|
+| `team-governance` | Team CRUD, COS assignment, governance requests, transfers, auth headers |
+| `ai-maestro-agents-management` | Agent lifecycle via `aimaestro-agent.sh` CLI |
+| `agent-messaging` | Inter-agent messaging via `amp-*` scripts |
+
+These skills ARE the authoritative reference. When the API changes, only these skill files need updating. All plugins inherit automatically.
+
+### Layer 2: Scripts (for hooks)
+
+AI Maestro installs global scripts that wrap API calls:
+- `aimaestro-agent.sh` — Agent lifecycle CLI (delegates to `agent-*.sh` modules)
+- `amp-send.sh`, `amp-inbox.sh`, `amp-read.sh`, etc. — Messaging CLI
+
+When the API changes, only these scripts need updating.
+
+### Rules for External Plugins
+
+1. **Plugin skills/commands/agents MUST NOT embed API syntax** (no curl commands, no endpoint URLs, no header patterns). They describe functionality and reference the global AI Maestro skill by name.
+2. **Plugin hooks/scripts MUST NOT call the API directly.** They call globally-installed AI Maestro scripts (`aimaestro-agent.sh`, `amp-send.sh`, etc.).
+3. **Governance rules are discovered at runtime** by reading the `team-governance` skill. Plugins MUST NOT hardcode governance rules, permission matrices, or role restrictions.
+4. **AI Maestro's own plugin is the exception** — it IS the provider of these abstractions. Its skills contain the canonical syntax. Its scripts make the actual API calls.
+
+### Benefits
+- API change → update 1 skill/script → all plugins work
+- New feature → add to skill → all agents discover it
+- Governance rule change → update skill → all agents learn it automatically
+- No "update hundreds of plugins" problem as the ecosystem grows
+
 ## Critical Implementation Details
 
 ### Terminal Rendering Performance

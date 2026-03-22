@@ -27,6 +27,7 @@
 import { loadTeams, createTeam, getTeam, updateTeam, deleteTeam, TeamValidationException } from '@/lib/team-registry'
 import { loadTasks, resolveTaskDeps, createTask, getTask, updateTask, deleteTask, wouldCreateCycle } from '@/lib/task-registry'
 import { loadDocuments, createDocument, getDocument, updateDocument, deleteDocument } from '@/lib/document-registry'
+import * as ghProject from '@/lib/github-project'
 import type { TaskStatus, TaskWithDeps } from '@/types/task'
 import { DEFAULT_STATUSES } from '@/types/task'
 import type { Team, KanbanColumnConfig } from '@/types/team'
@@ -64,6 +65,7 @@ export interface UpdateTeamParams {
   lastActivityAt?: string
   type?: TeamType
   chiefOfStaffId?: string | null
+  githubProject?: { owner: string; repo: string; number: number } | null
   requestingAgentId?: string
 }
 
@@ -242,7 +244,7 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
     // Destructure requestingAgentId, type, and chiefOfStaffId out so they do not leak
     // into the lib update call. Governance type/COS changes must go through dedicated
     // endpoints, not the general update path (CC-007 defense-in-depth).
-    const { requestingAgentId, type: _type, chiefOfStaffId: _cos, ...updateFields } = params
+    const { requestingAgentId, type: _type, chiefOfStaffId: _cos, githubProject: ghProj, ...updateFields } = params
 
     // Governance ACL: closed teams restrict mutations to manager, COS, and members
     // Always call checkTeamAccess -- it handles undefined requestingAgentId (returns allowed: true)
@@ -251,10 +253,16 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
       return { error: access.reason || 'Access denied', status: 403 }
     }
 
+    // Convert null githubProject to undefined (null = unlink, undefined = no change)
+    const finalFields = {
+      ...updateFields,
+      ...(ghProj !== undefined && { githubProject: ghProj ?? undefined }),
+    }
+
     // Pass governance context (managerId + agent names for collision checks) to updateTeam
     const managerId = getManagerId()
     const agentNames = loadAgents().map(a => a.name).filter(Boolean)
-    const team = await updateTeam(id, updateFields, managerId, agentNames)
+    const team = await updateTeam(id, finalFields, managerId, agentNames)
     if (!team) {
       return { error: 'Team not found', status: 404 }
     }
@@ -336,7 +344,7 @@ export function getTeamsBulkStats(): ServiceResult<Record<string, { taskCount: n
  * List all tasks for a team, with resolved dependencies.
  * Governance: enforces team ACL for closed teams.
  */
-export function listTeamTasks(teamId: string, requestingAgentId?: string, filters?: { assignee?: string; status?: string; label?: string; taskType?: string }): ServiceResult<{ tasks: TaskWithDeps[] }> {
+export async function listTeamTasks(teamId: string, requestingAgentId?: string, filters?: { assignee?: string; status?: string; label?: string; taskType?: string }): Promise<ServiceResult<{ tasks: TaskWithDeps[] }>> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -349,8 +357,24 @@ export function listTeamTasks(teamId: string, requestingAgentId?: string, filter
     return { error: access.reason || 'Access denied', status: 403 }
   }
 
-  const tasks = loadTasks(teamId)
-  const resolved = resolveTaskDeps(tasks)
+  let resolved: TaskWithDeps[]
+
+  if (team.githubProject) {
+    // GitHub Project is source of truth — fetch from GitHub
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+    try {
+      const tasks = await ghProject.listTasks(team.githubProject, teamId)
+      resolved = ghProject.resolveTaskDeps(tasks)
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
+    }
+  } else {
+    // Local file storage (legacy/unlinked teams)
+    const tasks = loadTasks(teamId)
+    resolved = resolveTaskDeps(tasks)
+  }
+
   let filtered = resolved
   if (filters) {
     if (filters.assignee) filtered = filtered.filter(t => t.assigneeAgentId === filters.assignee)
@@ -366,7 +390,7 @@ export function listTeamTasks(teamId: string, requestingAgentId?: string, filter
  * Governance: enforces team ACL for closed teams.
  * SF-010: Added to support GET /api/teams/[id]/tasks/[taskId]
  */
-export function getTeamTask(teamId: string, taskId: string, requestingAgentId?: string): ServiceResult<{ task: any }> {
+export async function getTeamTask(teamId: string, taskId: string, requestingAgentId?: string): Promise<ServiceResult<{ task: any }>> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -375,6 +399,20 @@ export function getTeamTask(teamId: string, taskId: string, requestingAgentId?: 
   const access = checkTeamAccess({ teamId, requestingAgentId })
   if (!access.allowed) {
     return { error: access.reason || 'Access denied', status: 403 }
+  }
+
+  if (team.githubProject) {
+    // GitHub-backed: find task in the full list (cached 10s)
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+    try {
+      const tasks = await ghProject.listTasks(team.githubProject, teamId)
+      const task = tasks.find(t => t.id === taskId)
+      if (!task) return { error: 'Task not found', status: 404 }
+      return { data: { task }, status: 200 }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
+    }
   }
 
   const task = getTask(teamId, taskId)
@@ -417,22 +455,42 @@ export async function createTeamTask(teamId: string, params: CreateTaskParams): 
   }
 
   try {
-    const task = await createTask({
-      teamId,
-      subject: subject.trim(),
-      description,
-      assigneeAgentId,
-      blockedBy,
-      priority,
-      status: taskFields.status,
-      labels: taskFields.labels,
-      taskType: taskFields.taskType,
-      externalRef: taskFields.externalRef,
-      externalProjectRef: taskFields.externalProjectRef,
-      acceptanceCriteria: taskFields.acceptanceCriteria,
-      handoffDoc: taskFields.handoffDoc,
-      prUrl: taskFields.prUrl,
-    })
+    let task
+    if (team.githubProject) {
+      // Create issue + project item on GitHub (source of truth)
+      const ghAuth = ghProject.checkGhAuth()
+      if (ghAuth) return { error: ghAuth, status: 503 }
+      task = await ghProject.createTask(team.githubProject, teamId, {
+        subject: subject.trim(),
+        description,
+        status: taskFields.status,
+        priority,
+        labels: taskFields.labels,
+        assigneeLogin: assigneeAgentId || undefined, // For GitHub-backed teams, this is a GitHub login
+        taskType: taskFields.taskType,
+        blockedBy,
+        acceptanceCriteria: taskFields.acceptanceCriteria,
+        prUrl: taskFields.prUrl,
+      })
+    } else {
+      // Local file storage
+      task = await createTask({
+        teamId,
+        subject: subject.trim(),
+        description,
+        assigneeAgentId,
+        blockedBy,
+        priority,
+        status: taskFields.status,
+        labels: taskFields.labels,
+        taskType: taskFields.taskType,
+        externalRef: taskFields.externalRef,
+        externalProjectRef: taskFields.externalProjectRef,
+        acceptanceCriteria: taskFields.acceptanceCriteria,
+        handoffDoc: taskFields.handoffDoc,
+        prUrl: taskFields.prUrl,
+      })
+    }
     return { data: { task }, status: 201 }
   } catch (error) {
     console.error('Failed to create task:', error)
@@ -462,12 +520,54 @@ export async function updateTeamTask(
     return { error: access.reason || 'Access denied', status: 403 }
   }
 
+  const { subject, description, status, assigneeAgentId, blockedBy, priority } = taskFields
+
+  if (team.githubProject) {
+    // GitHub Project is source of truth — update project item fields
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+
+    // Basic blockedBy validation (no cycle check for GitHub — deps are issue-number references)
+    if (Array.isArray(blockedBy)) {
+      for (const depId of blockedBy) {
+        if (typeof depId !== 'string') {
+          return { error: 'blockedBy must contain only string task IDs', status: 400 }
+        }
+      }
+    }
+
+    try {
+      const task = await ghProject.updateTask(team.githubProject, teamId, taskId, {
+        subject,
+        description,
+        status,
+        priority,
+        labels: taskFields.labels,
+        assigneeLogin: assigneeAgentId !== undefined
+          ? (assigneeAgentId || undefined) // null → unassign
+          : undefined,
+        taskType: taskFields.taskType,
+        blockedBy,
+        acceptanceCriteria: taskFields.acceptanceCriteria,
+        prUrl: taskFields.prUrl,
+        previousStatus: taskFields.previousStatus,
+      })
+      if (!task) {
+        return { error: 'Task not found', status: 404 }
+      }
+      return { data: { task, unblocked: [] }, status: 200 }
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      return { error: error instanceof Error ? error.message : 'GitHub API error', status: 502 }
+    }
+  }
+
+  // ── Local file storage path ──
+
   const existing = getTask(teamId, taskId)
   if (!existing) {
     return { error: 'Task not found', status: 404 }
   }
-
-  const { subject, description, status, assigneeAgentId, blockedBy, priority } = taskFields
 
   // Validate blockedBy to prevent circular dependencies
   if (Array.isArray(blockedBy)) {
@@ -484,15 +584,16 @@ export async function updateTeamTask(
     }
   }
 
-  // Validate status against team's kanban config columns (or default statuses)
-  if (status !== undefined) {
-    const validStatuses = (team.kanbanConfig || DEFAULT_KANBAN_COLUMNS).map(c => c.id)
-    if (!validStatuses.includes(status)) {
-      return { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`, status: 400 }
-    }
-  }
-
   try {
+
+    // Local file storage — validate status against team's kanban config columns
+    if (status !== undefined) {
+      const validStatuses = (team.kanbanConfig || DEFAULT_KANBAN_COLUMNS).map(c => c.id)
+      if (!validStatuses.includes(status)) {
+        return { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`, status: 400 }
+      }
+    }
+
     const result = await updateTask(teamId, taskId, {
       subject,
       description,
@@ -539,7 +640,20 @@ export async function deleteTeamTask(teamId: string, taskId: string, requestingA
     return { error: access.reason || 'Access denied', status: 403 }
   }
 
-  const deleted = await deleteTask(teamId, taskId)
+  let deleted: boolean
+  if (team.githubProject) {
+    // GitHub Project is source of truth — remove item from project
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+    try {
+      deleted = await ghProject.deleteTask(team.githubProject, taskId, true)
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
+    }
+  } else {
+    deleted = await deleteTask(teamId, taskId)
+  }
+
   if (!deleted) {
     return { error: 'Task not found', status: 404 }
   }
@@ -765,7 +879,7 @@ export async function notifyTeamAgents(params: NotifyTeamParams): Promise<Servic
  * Get kanban column configuration for a team.
  * Returns team's custom config or DEFAULT_KANBAN_COLUMNS.
  */
-export function getKanbanConfig(teamId: string, requestingAgentId?: string): ServiceResult<{ columns: KanbanColumnConfig[] }> {
+export async function getKanbanConfig(teamId: string, requestingAgentId?: string): Promise<ServiceResult<{ columns: KanbanColumnConfig[] }>> {
   const team = getTeam(teamId)
   if (!team) {
     return { error: 'Team not found', status: 404 }
@@ -774,6 +888,19 @@ export function getKanbanConfig(teamId: string, requestingAgentId?: string): Ser
   if (!access.allowed) {
     return { error: access.reason || 'Access denied', status: 403 }
   }
+
+  if (team.githubProject) {
+    // Columns derived from GitHub Project Status field options
+    const ghAuth = ghProject.checkGhAuth()
+    if (ghAuth) return { error: ghAuth, status: 503 }
+    try {
+      const columns = await ghProject.getKanbanColumns(team.githubProject)
+      return { data: { columns }, status: 200 }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'GitHub API error', status: 502 }
+    }
+  }
+
   return { data: { columns: team.kanbanConfig || DEFAULT_KANBAN_COLUMNS }, status: 200 }
 }
 
@@ -798,6 +925,13 @@ export async function setKanbanConfig(teamId: string, columns: KanbanColumnConfi
     }
   }
   try {
+    if (team.githubProject) {
+      // Update GitHub Project Status field options directly
+      const ghAuth = ghProject.checkGhAuth()
+      if (ghAuth) return { error: ghAuth, status: 503 }
+      await ghProject.updateKanbanColumns(team.githubProject, columns)
+      return { data: { columns }, status: 200 }
+    }
     await updateTeam(teamId, { kanbanConfig: columns } as any)
     return { data: { columns }, status: 200 }
   } catch (error) {

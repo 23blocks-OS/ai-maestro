@@ -6,11 +6,14 @@
 
 :root {
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  /* Force dark scrollbars in Safari and all browsers */
+  color-scheme: dark;
 }
 
 html {
   /* Prevent ALL scroll navigation gestures at root level */
   overscroll-behavior: none;
+  color-scheme: dark;
 }
 
 body {
@@ -21,14 +24,16 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* Prevent viewport overflow on all devices */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  /* Use dvh where supported to handle iOS Safari dynamic toolbar */
+  height: 100dvh;
+}
+
 /* Mobile-specific improvements */
 @media (max-width: 768px) {
-  /* Ensure full height on mobile */
-  html, body {
-    height: 100%;
-    overflow: hidden;
-  }
-
   /* Better tap targets on mobile */
   button, a {
     min-height: 44px;
@@ -36,24 +41,52 @@ body {
   }
 }
 
-/* Custom scrollbar for terminal and sidebar */
+/* Global scrollbar — catch any unstyled scrollbar in the app */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: #1a1720 !important;
+}
+*::-webkit-scrollbar-thumb {
+  background: #3d3548 !important;
+  border-radius: 5px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #4e4460 !important;
+}
+*::-webkit-scrollbar-corner {
+  background: #1a1720 !important;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3d3548 #1a1720;
+}
+
+/* Custom scrollbar for terminal and sidebar — dark gray with violet undertones */
 .custom-scrollbar::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: #1a1720;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: #3d3548;
   border-radius: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+  background: #4e4460;
 }
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #1a1720;
+}
+
 
 /* xterm.js container styles */
 .xterm {
@@ -79,25 +112,32 @@ body {
 .xterm .xterm-viewport {
   overflow-y: scroll !important;
   scrollbar-width: thin;
-  scrollbar-color: #424242 #1e1e1e;
+  scrollbar-color: #3d3548 #1a1720;
+  background-color: #0d0b11 !important;
+  color-scheme: dark;
 }
 
-/* Custom scrollbar for xterm viewport */
+/* Custom scrollbar for xterm viewport — dark gray with violet undertones */
 .xterm .xterm-viewport::-webkit-scrollbar {
-  width: 10px;
+  width: 10px !important;
+  background: #1a1720 !important;
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: #1a1720 !important;
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: rgba(255, 255, 255, 0.2) !important;
   border-radius: 5px;
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-corner {
+  background: #1a1720 !important;
 }
 
 /* xterm.js selection styling */
@@ -148,7 +188,7 @@ body {
   animation: fadeIn 0.2s ease-out forwards;
 }
 
-/* Thin scrollbar for panels */
+/* Thin scrollbar for panels — dark gray with violet undertones */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }
@@ -158,10 +198,106 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #3d3548;
   border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #4e4460;
+}
+
+/* ============================================================
+   TOUCH / MOBILE: Hide native scrollbar — JS overlay provides
+   the always-visible scrollbar via GlobalTouchScrollbars.tsx.
+
+   Two selectors for coverage:
+   1. @media (pointer: coarse) — hardware touch detection (real iPads)
+   2. .is-touch — JS-detected touch (set by GlobalTouchScrollbars,
+      also covers ?touch=1 query parameter for testing)
+   ============================================================ */
+
+/* Mixin via both selectors — CSS media query for hardware,
+   .is-touch class for JS-detected (including ?touch=1) */
+@media (pointer: coarse), (any-pointer: coarse) {
+  *::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+  }
+  * {
+    scrollbar-width: none !important;
+  }
+  /* Keep xterm scrollbar visible — overlay can't replace xterm's internal scroll */
+  .xterm .xterm-viewport::-webkit-scrollbar {
+    width: 6px !important;
+    display: block !important;
+    background: transparent !important;
+  }
+  .xterm .xterm-viewport::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+  .xterm .xterm-viewport::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-radius: 3px !important;
+  }
+  .xterm .xterm-viewport {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
+  }
+  .overflow-y-auto,
+  .overflow-y-scroll {
+    overflow-y: scroll !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .overflow-x-auto,
+  .overflow-x-scroll {
+    overflow-x: scroll !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .overflow-auto {
+    overflow: scroll !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* JS-detected touch mode (covers ?touch=1 and all JS touch detection) */
+html.is-touch *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+html.is-touch * {
+  scrollbar-width: none !important;
+}
+/* Keep xterm scrollbar visible on touch — the overlay scrollbar can't replace
+   xterm's internal viewport scroll. Show a thin, semi-transparent scrollbar. */
+html.is-touch .xterm .xterm-viewport::-webkit-scrollbar {
+  width: 6px !important;
+  display: block !important;
+  background: transparent !important;
+}
+html.is-touch .xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+html.is-touch .xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border-radius: 3px !important;
+}
+html.is-touch .xterm .xterm-viewport {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
+}
+html.is-touch .overflow-y-auto,
+html.is-touch .overflow-y-scroll {
+  overflow-y: scroll !important;
+  -webkit-overflow-scrolling: touch;
+}
+html.is-touch .overflow-x-auto,
+html.is-touch .overflow-x-scroll {
+  overflow-x: scroll !important;
+  -webkit-overflow-scrolling: touch;
+}
+html.is-touch .overflow-auto {
+  overflow: scroll !important;
+  -webkit-overflow-scrolling: touch;
 }

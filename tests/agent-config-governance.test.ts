@@ -91,7 +91,7 @@ vi.mock('@/lib/agent-registry', () => ({
   getAgentBySession: vi.fn(() => null),
   updateAgent: (...args: [string, UpdateAgentRequest]) => mockUpdateAgent(...args),
   deleteAgent: (...args: [string, boolean]) => mockDeleteAgent(...args),
-  searchAgents: (...args: unknown[]) => mockSearchAgents(...args),
+  searchAgents: () => mockSearchAgents(),
   linkSession: vi.fn(),
   unlinkSession: vi.fn(),
 }))

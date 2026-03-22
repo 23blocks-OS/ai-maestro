@@ -144,28 +144,34 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     // Calculate proper size using FitAddon
     fitAddon.fit()
 
-    // Load WebGL renderer inline during initialization (not via separate effect).
-    // Loading WebGL via a separate useEffect caused a race condition on agent switch:
-    // the cached import resolved instantly, switching renderers before selection stabilized.
-    // By loading here, the terminal is fully set up (with WebGL) before being marked "ready".
-    try {
-      const { WebglAddon } = await import('@xterm/addon-webgl')
-      const webglAddon = new WebglAddon()
+    // Load WebGL renderer for desktop only. On touch/mobile devices (iPad, phones),
+    // WebGL reports wrong cell dimensions due to devicePixelRatio mismatch, causing
+    // garbled text, wrong cols/rows, and 1/4 area rendering. Canvas renderer handles
+    // DPI correctly on all platforms.
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    if (!isTouchDevice) {
+      try {
+        const { WebglAddon } = await import('@xterm/addon-webgl')
+        const webglAddon = new WebglAddon()
 
-      webglAddon.onContextLoss(() => {
-        console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
-        try { webglAddon.dispose() } catch { /* ignore */ }
-        webglAddonRef.current = null
-        if (terminalRef.current) {
-          terminalRef.current.refresh(0, terminalRef.current.rows - 1)
-        }
-      })
+        webglAddon.onContextLoss(() => {
+          console.warn(`[Terminal] WebGL context lost for session ${optionsRef.current.sessionId}, falling back to canvas`)
+          try { webglAddon.dispose() } catch { /* ignore */ }
+          webglAddonRef.current = null
+          if (terminalRef.current) {
+            terminalRef.current.refresh(0, terminalRef.current.rows - 1)
+          }
+        })
 
-      terminal.loadAddon(webglAddon)
-      webglAddonRef.current = webglAddon
-      console.log(`[Terminal] Initialized with WebGL renderer for session ${optionsRef.current.sessionId}`)
-    } catch (e) {
-      console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
+        terminal.loadAddon(webglAddon)
+        webglAddonRef.current = webglAddon
+        fitAddon.fit()
+        console.log(`[Terminal] Initialized with WebGL renderer for session ${optionsRef.current.sessionId}`)
+      } catch (e) {
+        console.log(`[Terminal] Initialized with canvas renderer for session ${optionsRef.current.sessionId}`)
+      }
+    } else {
+      console.log(`[Terminal] Touch device detected — using canvas renderer for session ${optionsRef.current.sessionId}`)
     }
 
     // Fix xterm.js helper textarea missing id/name (causes browser console warnings)
@@ -203,6 +209,21 @@ export function useTerminal(options: UseTerminalOptions = {}) {
     })
 
     resizeObserver.observe(container)
+
+    // Delayed safety refits: on iPad/touch devices, the flex layout may not be fully
+    // settled when initializeTerminal runs. These catch any late layout changes that
+    // the ResizeObserver might miss (e.g., CSS transitions, font loading, or the
+    // browser deferring layout calculations on high-DPI displays).
+    const safetyRefit1 = setTimeout(() => {
+      if (fitAddonRef.current) {
+        try { fitAddonRef.current.fit() } catch { /* ignore */ }
+      }
+    }, 500)
+    const safetyRefit2 = setTimeout(() => {
+      if (fitAddonRef.current) {
+        try { fitAddonRef.current.fit() } catch { /* ignore */ }
+      }
+    }, 2000)
 
     // Add keyboard shortcuts for scrolling, copy, and paste
     terminal.attachCustomKeyEventHandler((event) => {
@@ -297,6 +318,8 @@ export function useTerminal(options: UseTerminalOptions = {}) {
 
     // Cleanup function
     return () => {
+      clearTimeout(safetyRefit1)
+      clearTimeout(safetyRefit2)
       resizeObserver.disconnect()
       // Dispose WebGL addon before terminal to free GPU context cleanly
       if (webglAddonRef.current) {

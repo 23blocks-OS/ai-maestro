@@ -126,8 +126,8 @@ interface AgentCreationWizardProps {
 
 export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdvanced }: AgentCreationWizardProps) {
   const { hosts, loading: hostsLoading } = useHosts()
-  const [robotAvatarIndex] = useState(() => Math.floor(Math.random() * 45))
-  const robotAvatarUrl = `/avatars/robots_${robotAvatarIndex.toString().padStart(2, '0')}.png`
+  const [robotAvatarIndex] = useState(() => Math.floor(Math.random() * 55))
+  const robotAvatarUrl = `/avatars/robots_${robotAvatarIndex.toString().padStart(2, '0')}.jpg`
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -880,7 +880,7 @@ function SummaryCard({
 
   return (
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
-      <SummaryRow label="Name" value={agentName} />
+      <SummaryRow label="Persona Name" value={agentName} />
       <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || hostId || 'Local')} />
       <SummaryRow label="Runtime" value={runtime === 'docker' ? 'Docker container' : 'Direct (tmux)'} />
       <SummaryRow label="Program" value={programLabel} />

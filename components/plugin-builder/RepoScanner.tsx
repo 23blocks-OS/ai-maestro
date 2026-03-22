@@ -145,9 +145,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            // Use the same trimmed url that was stored when the skill was added so that
-            // the key always matches the one in selectedSkillKeys regardless of input whitespace.
-            const key = `repo:${lastScannedUrl ?? url.trim()}:${skill.path}`
+            // Use the exact url/ref captured at scan time so this key always
+            // matches the one produced by getSkillKey (repo:url:ref:skillPath).
+            const key = `repo:${lastScannedUrl ?? url.trim()}:${lastScannedRef ?? (ref || 'main')}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

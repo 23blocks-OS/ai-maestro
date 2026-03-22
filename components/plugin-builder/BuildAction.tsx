@@ -109,14 +109,17 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 }
               }
             } else {
+              // HTTP error (4xx/5xx): include status code in the error message
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
-                setError('Lost connection to build server')
+                const errorData = await statusRes.json().catch(() => null)
+                setError(errorData?.error || `Build status check failed: HTTP ${statusRes.status}`)
                 setBuilding(false)
               }
             }
           } catch {
+            // Network error: fetch itself threw (no response received)
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()

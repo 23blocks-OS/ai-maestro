@@ -56,7 +56,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     }
     load()
     return () => { abortRef.current?.abort() }
-  }, [])
+  // useState setters (setMarketplaceSkills, setLoadingMarketplace) are stable references
+  // and will never change, but are listed here for exhaustive-deps lint compliance.
+  }, [setMarketplaceSkills, setLoadingMarketplace])
 
   // Filter skills by search query
   const filteredCoreSkills = useMemo(() => {
@@ -208,6 +210,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                           id: skill.id,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
+                          name: skill.name,
+                          description: skill.description,
                         })
                       }
                     }}
@@ -215,7 +219,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name, description: skill.description })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -252,6 +256,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
+            onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />
@@ -271,6 +276,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so the same skill path at different branches/tags is treated as distinct
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

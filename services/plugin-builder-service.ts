@@ -163,6 +163,14 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names against path traversal — both are used in path.join in generateManifest
+      if (!skill.marketplace || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Invalid marketplace name — must match ${SAFE_PATH_SEGMENT_RE}`
+      }
+      if (!skill.plugin || !SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": Invalid plugin name — must match ${SAFE_PATH_SEGMENT_RE}`
+      }
     }
   }
 
@@ -300,13 +308,11 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   return {
-    name: config.name,
-    version: config.version,
-    description: config.description,
     output: `./plugins/${config.name}`,
     plugin: {
       name: config.name,
       version: config.version,
+      description: config.description,
       author: { name: 'Plugin Builder' },
       license: 'MIT',
     },
@@ -398,8 +404,6 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
 
     return { data: result, status: 202 }
@@ -642,6 +646,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       status: 'failed',
       logs,
     })
+  } finally {
+    // Decrement here — runBuild is fire-and-forget from buildPlugin, so the slot
+    // must be freed only when the actual build work completes (success or failure).
+    activeOps = Math.max(0, activeOps - 1)
   }
 }
 

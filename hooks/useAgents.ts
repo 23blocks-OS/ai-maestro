@@ -47,7 +47,7 @@ interface HostFetchResult {
  * Fetch agents from a specific host
  */
 async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
-  const isSelf = isLocalhostUrl(host.url)
+  const isSelf = host.isSelf || isLocalhostUrl(host.url)
   const baseUrl = isSelf ? '' : host.url
   const timeout = isSelf ? SELF_FETCH_TIMEOUT : PEER_FETCH_TIMEOUT
 
@@ -67,12 +67,13 @@ async function fetchHostAgents(host: Host): Promise<HostFetchResult> {
 
     const data: AgentsApiResponse = await response.json()
 
-    // Inject host info directly onto agents (for remote hosts, ensure correct hostId/hostName/hostUrl)
+    // Inject host info directly onto agents
+    // For self host: use '' (relative URL) so browser fetches stay same-origin
     const agents = data.agents.map(agent => ({
       ...agent,
       hostId: host.id,
       hostName: host.name,
-      hostUrl: host.url
+      hostUrl: isSelf ? '' : host.url
     }))
 
     // Cache peer host agents for offline access (not self host)
@@ -157,15 +158,12 @@ function aggregateResults(results: HostFetchResult[]): {
     }
   }
 
-  // Filter out system agents (prefixed with _aim-) from the public list
-  const publicAgents = allAgents.filter(a => {
-    const name = a.name || a.alias || ''
-    return !name.startsWith('_aim-')
-  })
+  // Show ALL agents — never hide any. Previously _aim- prefixed agents were
+  // hidden, which allowed zombie sessions to run undetected for days.
 
-  // OPTIMIZED: Use toSorted() for immutability instead of sort() which mutates
   // Sort: online first, then alphabetically by alias
-  const sortedAgents = publicAgents.toSorted((a, b) => {
+  // Use [...].sort() instead of toSorted() for Safari iOS 15 compatibility
+  const sortedAgents = [...allAgents].sort((a, b) => {
     // Online first
     if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
     if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
@@ -328,10 +326,10 @@ export function useAgents() {
       groups[group].push(agent)
     }
 
-    // OPTIMIZED: Use toSorted() for immutability instead of sort() which mutates
     // Sort agents within each group by status (online first), then by name
+    // Use [...].sort() instead of toSorted() for Safari iOS 15 compatibility
     for (const group in groups) {
-      groups[group] = groups[group].toSorted((a, b) => {
+      groups[group] = [...groups[group]].sort((a, b) => {
         if (a.session?.status === 'online' && b.session?.status !== 'online') return -1
         if (a.session?.status !== 'online' && b.session?.status === 'online') return 1
         const nameA = a.name || a.alias || ''

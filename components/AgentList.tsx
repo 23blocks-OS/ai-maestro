@@ -38,6 +38,8 @@ import {
   CheckCircle,
   Box,
   ChevronDown,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
@@ -70,6 +72,7 @@ interface AgentListProps {
   } | null
   subconsciousRefreshTrigger?: number  // Increment to force subconscious status refresh
   sidebarWidth?: number  // Current sidebar width for responsive grid
+  hostErrors?: Record<string, Error>  // Hosts that failed to respond (keyed by hostId)
 }
 
 /**
@@ -165,6 +168,7 @@ export default function AgentList({
   stats,
   subconsciousRefreshTrigger,
   sidebarWidth = 320,
+  hostErrors = {},
 }: AgentListProps) {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -190,6 +194,7 @@ export default function AgentList({
   const [dropTarget, setDropTarget] = useState<string | null>(null) // Format: "level1" or "level1-level2"
 
   // Host management
+  const [staleHostPopup, setStaleHostPopup] = useState<{ id: string; name: string; error: string } | null>(null)
   const { hosts } = useHosts()
   const [selectedHostFilter, setSelectedHostFilter] = useState<string>(() => {
     if (typeof window === 'undefined') return 'all'
@@ -210,6 +215,9 @@ export default function AgentList({
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Status filter tabs: 'active' (default) shows online sessions, 'hiber' shows offline, 'all' shows everything
+  const [statusFilter, setStatusFilter] = useState<'active' | 'hiber' | 'all'>('active')
 
   // Sidebar view state (agents / teams / meetings)
   const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
@@ -246,11 +254,18 @@ export default function AgentList({
     return new Set()
   })
 
-  // Filter agents by selected host and search query
+  // Filter agents by selected host, status tab, and search query
   const filteredAgents = useMemo(() => {
     let result = selectedHostFilter === 'all'
       ? agents
       : agents.filter((a) => a.hostId === selectedHostFilter)
+
+    // Apply status filter (active/hiber/all)
+    if (statusFilter === 'active') {
+      result = result.filter(a => a.session?.status === 'online')
+    } else if (statusFilter === 'hiber') {
+      result = result.filter(a => a.session?.status !== 'online')
+    }
 
     // Apply search filter (name, label, or host)
     if (searchQuery.trim()) {
@@ -264,7 +279,7 @@ export default function AgentList({
     }
 
     return result
-  }, [agents, selectedHostFilter, searchQuery])
+  }, [agents, selectedHostFilter, statusFilter, searchQuery])
 
   // Group agents by tags (level1 = first tag, level2 = second tag)
   const groupedAgents = useMemo(() => {
@@ -812,6 +827,30 @@ export default function AgentList({
           )}
         </div>
 
+        {/* Status Filter Tabs: ACTIVE / ALL / HIBER */}
+        <div className="mt-3 px-2 flex items-center gap-1 bg-gray-800/30 rounded-lg p-1">
+          {([
+            { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length },
+            { key: 'all' as const, label: 'ALL', count: agents.length },
+            { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`flex-1 py-1 px-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                statusFilter === tab.key
+                  ? tab.key === 'active' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : tab.key === 'hiber' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-1 opacity-60">{tab.count}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Host List - Collapsible */}
         <div className="mt-3">
           <button
@@ -847,31 +886,49 @@ export default function AgentList({
               {hosts.map((host) => {
                 const count = agents.filter((a) => a.hostId === host.id).length
                 const isSelected = selectedHostFilter === host.id
-                // Check if this is the self host by URL pattern (client-side detection)
-                const isSelf = !host.url || host.url.includes('localhost') || host.url.includes('127.0.0.1')
+                const hostIsSelf = host.isSelf || !host.url || host.url.includes('localhost') || host.url.includes('127.0.0.1')
+                const hasError = !hostIsSelf && !!hostErrors[host.id]
 
                 return (
-                  <button
+                  <div
                     key={host.id}
-                    onClick={() => setSelectedHostFilter(host.id)}
-                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-all ${
+                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-blue-500/20 text-blue-300'
-                        : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                        : hasError
+                          ? 'text-red-400/70 hover:bg-red-900/20 hover:text-red-300'
+                          : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                     }`}
+                    onClick={() => setSelectedHostFilter(host.id)}
+                    title={hasError ? `Unreachable: ${hostErrors[host.id]?.message || 'connection failed'}` : host.url}
                   >
-                    <span className="flex items-center gap-1.5">
-                      {isSelf ? (
-                        <Terminal className="w-3.5 h-3.5" />
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {hostIsSelf ? (
+                        <Terminal className="w-3.5 h-3.5 shrink-0" />
+                      ) : hasError ? (
+                        <XCircle
+                          className="w-3.5 h-3.5 shrink-0 text-red-500 hover:text-red-300"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setStaleHostPopup({
+                              id: host.id,
+                              name: host.name,
+                              error: hostErrors[host.id]?.message || 'Connection failed',
+                            })
+                          }}
+                        />
                       ) : (
-                        <Network className="w-3.5 h-3.5" />
+                        <Network className="w-3.5 h-3.5 shrink-0" />
                       )}
-                      {host.name}
+                      <span className="truncate">{host.name}</span>
+                      {hasError && (
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-red-900/40 text-red-400 shrink-0">offline</span>
+                      )}
                     </span>
-                    <span className={isSelected ? 'text-blue-400' : 'text-gray-500'}>
+                    <span className={isSelected ? 'text-blue-400' : hasError ? 'text-red-500/50' : 'text-gray-500'}>
                       {count}
                     </span>
-                  </button>
+                  </div>
                 )
               })}
 
@@ -1613,6 +1670,53 @@ export default function AgentList({
         agentName={wakeDialogAgent?.name || wakeDialogAgent?.id || ''}
         agentAlias={wakeDialogAgent?.alias}
       />
+
+      {/* Stale/unreachable host popup */}
+      {staleHostPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setStaleHostPopup(null)}>
+          <div
+            className="bg-gray-900 border border-red-800/60 rounded-xl shadow-2xl p-5 max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+              <h3 className="text-sm font-semibold text-red-300">Host Unreachable</h3>
+            </div>
+            <p className="text-xs text-gray-300 mb-1">
+              <span className="font-medium text-white">{staleHostPopup.name}</span>{' '}
+              <span className="text-gray-500">({staleHostPopup.id})</span>
+            </p>
+            <p className="text-xs text-red-400/80 mb-4 bg-red-950/30 rounded px-2 py-1.5 font-mono break-all">
+              {staleHostPopup.error}
+            </p>
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setStaleHostPopup(null)}
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/hosts/${encodeURIComponent(staleHostPopup.id)}`, { method: 'DELETE' })
+                    if (res.ok) {
+                      setStaleHostPopup(null)
+                      if (selectedHostFilter === staleHostPopup.id) {
+                        setSelectedHostFilter('all')
+                      }
+                      window.location.reload()
+                    }
+                  } catch { /* ignore */ }
+                }}
+                className="px-3 py-1.5 text-xs text-red-300 bg-red-900/40 hover:bg-red-800/60 rounded-lg border border-red-700/40 hover:border-red-600/60 transition-colors"
+              >
+                Remove Host
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

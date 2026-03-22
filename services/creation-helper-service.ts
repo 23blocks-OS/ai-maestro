@@ -35,9 +35,11 @@ const LOG_PREFIX = '[CreationHelper]'
 
 // Sonnet for intelligent config suggestions; haiku would be too limited
 const MODEL = 'sonnet'
-// Read-only tools — the helper can browse skills/plugins catalogs but never modify
-const TOOLS = 'Read,Glob,Grep,Agent'
-const PERMISSION_MODE = 'bypassPermissions'
+// Haephestos needs Bash (for PSS binary, jq, curl), Write (for TOML drafts), and Agent (for PSS subagent)
+const TOOLS = 'Read,Write,Bash,Glob,Grep,Agent'
+// Default mode: allow list auto-approves expected ops, anything not in allow/deny prompts.
+// This enforces "writes only inside haephestos" — Write outside workspace triggers a prompt.
+const PERMISSION_MODE = 'default'
 
 // ANSI escape code stripper — removes SGR, cursor movement, erase, and DEC Private Mode sequences
 const ANSI_RE = /\x1B(?:\[[?]?[0-9;]*[a-zA-Z]|\].*?(?:\x07|\x1B\\)|\(B)/g
@@ -54,6 +56,45 @@ function simpleHash(text: string): string {
 // Tracks the response visible when the last message was sent, to prevent
 // returning the same (stale) response before Claude starts its new reply.
 let staleResponseHash: string | null = null
+
+// ---------------------------------------------------------------------------
+// Watchdog: auto-kill session if browser disconnects
+// ---------------------------------------------------------------------------
+
+// The agent-creation page sends heartbeats every 30s.
+// If no heartbeat is received for WATCHDOG_TIMEOUT_MS, the session is killed.
+// This prevents zombie sessions from running indefinitely if the browser
+// tab closes without triggering beforeunload cleanup.
+const WATCHDOG_TIMEOUT_MS = 2 * 60 * 1000 // 2 minutes
+let lastHeartbeat: number = 0
+let watchdogTimer: ReturnType<typeof setInterval> | null = null
+
+/** Called by the heartbeat endpoint to keep the session alive. */
+export function heartbeatCreationHelper(): void {
+  lastHeartbeat = Date.now()
+}
+
+function startWatchdog(): void {
+  stopWatchdog()
+  lastHeartbeat = Date.now()
+  watchdogTimer = setInterval(async () => {
+    if (lastHeartbeat === 0) return
+    const elapsed = Date.now() - lastHeartbeat
+    if (elapsed > WATCHDOG_TIMEOUT_MS) {
+      console.warn(`${LOG_PREFIX} Watchdog: no heartbeat for ${Math.round(elapsed / 1000)}s — killing zombie session`)
+      stopWatchdog()
+      await deleteCreationHelper()
+    }
+  }, 30_000) // Check every 30s
+}
+
+function stopWatchdog(): void {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer)
+    watchdogTimer = null
+  }
+  lastHeartbeat = 0
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -468,6 +509,9 @@ export async function createCreationHelper(): Promise<ServiceResult<{
 
     await runtime.sendKeys(SESSION_NAME, launchCmd, { literal: true, enter: true })
 
+    // Start watchdog — auto-kills session if browser disconnects
+    startWatchdog()
+
     return {
       data: {
         success: true,
@@ -498,6 +542,8 @@ export async function createCreationHelper(): Promise<ServiceResult<{
  * Kill creation helper agent and clean up.
  */
 export async function deleteCreationHelper(): Promise<ServiceResult<{ success: boolean }>> {
+  // Stop watchdog timer — session is being intentionally destroyed
+  stopWatchdog()
   // Reset stale response tracking on session destruction
   staleResponseHash = null
   try {

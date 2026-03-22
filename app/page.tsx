@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import AgentList from '@/components/AgentList'
+import HaephestosEmbeddedView from '@/components/HaephestosEmbeddedView'
 import TerminalView from '@/components/TerminalView'
 import ChatView from '@/components/ChatView'
 import MessageCenter from '@/components/MessageCenter'
@@ -10,7 +11,6 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import WorkTree from '@/components/WorkTree'
 import Header from '@/components/Header'
 import MobileDashboard from '@/components/MobileDashboard'
-import TabletDashboard from '@/components/TabletDashboard'
 import { useDeviceType } from '@/hooks/useDeviceType'
 import { AgentSubconsciousIndicator } from '@/components/AgentSubconsciousIndicator'
 import MigrationBanner from '@/components/MigrationBanner'
@@ -51,9 +51,9 @@ const ImportAgentDialog = dynamic(
   { ssr: false }
 )
 
-// Only shown when profile is opened
-const AgentProfile = dynamic(
-  () => import('@/components/AgentProfile'),
+// Right panel — Profile (Overview + Config tabs)
+const AgentProfilePanel = dynamic(
+  () => import('@/components/AgentProfilePanel'),
   { ssr: false }
 )
 
@@ -83,10 +83,12 @@ const DocumentationPanel = dynamic(
 
 export default function DashboardPage() {
   // Agent-centric: Primary hook is useAgents
-  const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents } = useAgents()
+  const { agents, stats: agentStats, loading: agentsLoading, error: agentsError, refreshAgents, onlineAgents, hostErrors } = useAgents()
 
   // PRIMARY STATE: Agent ID (no longer session-driven)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  // Track whether we've already processed the ?agent=haephestos query param
+  const haephestosQueryHandled = useRef(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -97,11 +99,9 @@ export default function DashboardPage() {
   const [isResizing, setIsResizing] = useState(false)
   const { deviceType } = useDeviceType()
   const isMobile = deviceType === 'phone'
-  const isTablet = deviceType === 'tablet'
   const [activeTab, setActiveTab] = useState<'terminal' | 'chat' | 'messages' | 'worktree' | 'graph' | 'memory' | 'docs' | 'search' | 'export' | 'playback'>('terminal')
   const [unreadCount, setUnreadCount] = useState(0)
-  const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [profileAgent, setProfileAgent] = useState<Agent | null>(null)
+  // profileScrollToDangerZone — forwarded to AgentProfilePanel → AgentProfile (embedded)
   const [profileScrollToDangerZone, setProfileScrollToDangerZone] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showOrganizationSetup, setShowOrganizationSetup] = useState(false)
@@ -111,6 +111,10 @@ export default function DashboardPage() {
   const [subconsciousRefreshTrigger, setSubconsciousRefreshTrigger] = useState(0)
   const [showSearchPanel, setShowSearchPanel] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showProfilePanel, setShowProfilePanel] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('aimaestro-profile-panel') === 'true'
+  })
 
   // Derive active agent from state
   const activeAgent = agents.find(a => a.id === activeAgentId) || null
@@ -120,6 +124,19 @@ export default function DashboardPage() {
     () => agents.filter(a => a.session?.status === 'online' || (a.sessions && a.sessions.length > 0)),
     [agents]
   )
+
+  // Auto-hibernate Haephestos on browser/tab close — prevents zombie sessions
+  useEffect(() => {
+    const killHaephestos = () => {
+      // Only kill if haephestos is the currently active agent (= user was using it)
+      const haephestos = agents.find(a => a.name === '_aim-creation-helper')
+      if (haephestos?.session?.status === 'online') {
+        navigator.sendBeacon('/api/agents/creation-helper/kill')
+      }
+    }
+    window.addEventListener('beforeunload', killHaephestos)
+    return () => window.removeEventListener('beforeunload', killHaephestos)
+  }, [agents])
 
   // Check for organization and onboarding completion on mount
   useEffect(() => {
@@ -269,6 +286,24 @@ export default function DashboardPage() {
     }
   }, [hasOnlineAgents, activeAgentId, firstOnlineAgentId])
 
+  // Handle ?agent=haephestos query param (redirected from /agent-creation)
+  useEffect(() => {
+    if (haephestosQueryHandled.current) return
+    if (agents.length === 0) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const agentParam = params.get('agent')
+    if (agentParam === 'haephestos') {
+      haephestosQueryHandled.current = true
+      const haephestos = agents.find(a => a.name === '_aim-creation-helper')
+      if (haephestos) {
+        setActiveAgentId(haephestos.id)
+      }
+      // Clean up URL (remove query param) without navigation
+      window.history.replaceState({}, '', '/')
+    }
+  }, [agents])
+
   // Initialize agent memories for all agents on load
   useEffect(() => {
     if (agents.length === 0) return
@@ -361,31 +396,39 @@ export default function DashboardPage() {
 
   // Agent-centric handlers
   const handleAgentSelect = (agent: Agent) => {
-    // Can select any agent (online or offline)
+    // If switching AWAY from Haephestos, auto-hibernate it to prevent zombie sessions
+    if (activeAgent?.name === '_aim-creation-helper' && agent.name !== '_aim-creation-helper') {
+      // Fire-and-forget hibernate — kill the tmux session
+      fetch('/api/agents/creation-helper/kill', { method: 'POST' }).catch(() => {})
+    }
     setActiveAgentId(agent.id)
-    setIsProfileOpen(false)
   }
 
   const handleShowAgentProfile = (agent: Agent) => {
-    // Also set active agent so main view reflects the selection
+    // Set active agent and open the right profile panel
     setActiveAgentId(agent.id)
-    setProfileAgent(agent)
+    if (!showProfilePanel) {
+      setShowProfilePanel(true)
+      localStorage.setItem('aimaestro-profile-panel', 'true')
+    }
     setProfileScrollToDangerZone(false)
-    setIsProfileOpen(true)
   }
 
   const handleShowAgentProfileDangerZone = (agent: Agent) => {
-    // Also set active agent so main view reflects the selection
+    // Set active agent and open profile panel scrolled to danger zone
     setActiveAgentId(agent.id)
-    setProfileAgent(agent)
+    if (!showProfilePanel) {
+      setShowProfilePanel(true)
+      localStorage.setItem('aimaestro-profile-panel', 'true')
+    }
     setProfileScrollToDangerZone(true)
-    setIsProfileOpen(true)
   }
 
   const handleDeleteAgent = async (agentId: string) => {
     try {
-      // Use profileAgent's hostUrl to route to correct host for remote agents
-      const baseUrl = profileAgent?.hostUrl || ''
+      // Use the active agent's hostUrl to route to correct host for remote agents
+      const agent = agents.find(a => a.id === agentId)
+      const baseUrl = agent?.hostUrl || ''
       const response = await fetch(`${baseUrl}/api/agents/${agentId}`, {
         method: 'DELETE',
       })
@@ -396,8 +439,8 @@ export default function DashboardPage() {
       }
 
       // Close profile panel
-      setIsProfileOpen(false)
-      setProfileAgent(null)
+      setShowProfilePanel(false)
+      localStorage.setItem('aimaestro-profile-panel', 'false')
       setProfileScrollToDangerZone(false)
 
       // Clear active agent if it was the deleted one
@@ -436,8 +479,6 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to create session')
       }
 
-      setIsProfileOpen(false)
-      setProfileAgent(null)
       refreshAgents()
 
       // Select the agent after session starts
@@ -504,6 +545,19 @@ export default function DashboardPage() {
     }, 350)
   }
 
+  const toggleProfilePanel = () => {
+    setShowProfilePanel(prev => {
+      const next = !prev
+      localStorage.setItem('aimaestro-profile-panel', String(next))
+      // Trigger terminal refit after layout change
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+      resizeTimeoutRef.current = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 350)
+      return next
+    })
+  }
+
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
     refreshAgents()
@@ -559,24 +613,10 @@ export default function DashboardPage() {
     )
   }
 
-  // Render tablet dashboard for iPads and touch devices
-  if (isTablet) {
-    return (
-      <TerminalProvider key="tablet-dashboard">
-        <TabletDashboard
-          agents={agents}
-          loading={agentsLoading}
-          error={agentsError?.message || null}
-          onRefresh={refreshAgents}
-        />
-      </TerminalProvider>
-    )
-  }
-
   // Desktop dashboard - AGENT-CENTRIC
   return (
     <TerminalProvider key="desktop-dashboard">
-      <div className="flex flex-col h-screen bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
+      <div className="flex flex-col bg-gray-900" style={{ overflow: 'hidden', position: 'fixed', inset: 0 }}>
         {/* Header */}
         <Header
           onToggleSidebar={toggleSidebar}
@@ -613,6 +653,7 @@ export default function DashboardPage() {
                 stats={agentStats}
                 subconsciousRefreshTrigger={subconsciousRefreshTrigger}
                 sidebarWidth={sidebarWidth}
+                hostErrors={hostErrors}
               />
             </ErrorBoundary>
           </aside>
@@ -630,7 +671,7 @@ export default function DashboardPage() {
           )}
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col relative">
+          <main className="flex-1 flex flex-col relative overflow-hidden isolate">
             {/* Empty State - shown when no agents */}
             {agents.length === 0 && !agentsLoading && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -655,7 +696,8 @@ export default function DashboardPage() {
             )}
 
             {/* Truly offline agent (no session config) - show profile prompt */}
-            {activeAgent && activeAgent.session?.status === 'offline' && !(activeAgent.sessions && activeAgent.sessions.length > 0) && (
+            {/* Skip for Haephestos — it has its own embedded wake UI */}
+            {activeAgent && activeAgent.name !== '_aim-creation-helper' && activeAgent.session?.status === 'offline' && !(activeAgent.sessions && activeAgent.sessions.length > 0) && (
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center max-w-md">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
@@ -679,10 +721,30 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Haephestos creation helper — shows the forge UI instead of normal terminal */}
+            {/* When hibernated: shows "Ask Haephestos Help" wake button */}
+            {/* When online: shows the full forge layout (TOML + terminal + raw materials) */}
+            {activeAgent && activeAgent.name === '_aim-creation-helper' && (
+              <div className="absolute inset-0">
+                <HaephestosEmbeddedView
+                  agent={activeAgent}
+                  onAgentCreated={(newAgentId) => {
+                    // Switch to the newly created agent — this auto-hibernates haephestos
+                    setActiveAgentId(newAgentId)
+                    // Trigger agent list refresh to pick up the new agent
+                    refreshAgents()
+                  }}
+                />
+              </div>
+            )}
+
             {/* Only render the active agent - no need to mount all 40+ agents */}
             {(() => {
               const agent = selectableAgents.find(a => a.id === activeAgentId)
               if (!agent) return null
+
+              // Haephestos has its own embedded view above — skip normal rendering
+              if (agent.name === '_aim-creation-helper') return null
 
               const isActive = true  // We only render the active agent
               const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
@@ -817,12 +879,16 @@ export default function DashboardPage() {
                     <div className="flex items-center">
                       <AgentSubconsciousIndicator agentId={agent.id} hostUrl={agent.hostUrl} />
                       <button
-                        onClick={() => handleShowAgentProfile(agent)}
-                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
-                        title="View Agent Profile"
+                        onClick={toggleProfilePanel}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                          showProfilePanel
+                            ? 'text-amber-400 bg-amber-500/10'
+                            : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/30'
+                        }`}
+                        title="Toggle Profile Panel"
                       >
                         <User className="w-4 h-4" />
-                        Agent Profile
+                        Profile
                       </button>
                       <button
                         onClick={() => {
@@ -840,6 +906,8 @@ export default function DashboardPage() {
 
                   {/* Tab Content */}
                   <div className="flex-1 flex overflow-hidden min-h-0">
+                    {/* Content area — min-w-0 lets it shrink when profile panel is open */}
+                    <div className="flex-1 flex min-w-0 overflow-hidden">
                     {activeTab === 'terminal' ? (
                       isHibernated ? (
                         <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -983,6 +1051,26 @@ export default function DashboardPage() {
                         />
                       </div>
                     ) : null}
+                    </div>
+
+                    {/* Right Panel — Profile (Overview + Config tabs) */}
+                    {showProfilePanel && (
+                      <AgentProfilePanel
+                        agentId={agent.id}
+                        agentName={agent.label || agent.name || agent.alias}
+                        agentInfo={{
+                          name: agent.label || agent.name || agent.alias,
+                          title: agent.role as 'manager' | 'chief-of-staff' | 'member' | undefined,
+                          tags: agent.tags,
+                        }}
+                        onClose={toggleProfilePanel}
+                        sessionStatus={agent.session}
+                        onStartSession={() => handleStartSession(agent)}
+                        onDeleteAgent={handleDeleteAgent}
+                        scrollToDangerZone={profileScrollToDangerZone}
+                        hostUrl={agent.hostUrl}
+                      />
+                    )}
                   </div>
                 </div>
               )
@@ -1019,24 +1107,6 @@ export default function DashboardPage() {
             </p>
           </div>
         </footer>
-
-        {/* Agent Profile Panel */}
-        {profileAgent && (
-          <AgentProfile
-            isOpen={isProfileOpen}
-            onClose={() => {
-              setIsProfileOpen(false)
-              setProfileAgent(null)
-              setProfileScrollToDangerZone(false)
-            }}
-            agentId={profileAgent.id}
-            sessionStatus={profileAgent.session}
-            onStartSession={() => handleStartSession(profileAgent)}
-            onDeleteAgent={handleDeleteAgent}
-            scrollToDangerZone={profileScrollToDangerZone}
-            hostUrl={profileAgent.hostUrl}
-          />
-        )}
 
         {/* Import Agent Dialog */}
         <ImportAgentDialog

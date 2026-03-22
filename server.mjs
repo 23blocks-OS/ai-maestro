@@ -1100,8 +1100,10 @@ async function startServer(handleRequest) {
 
         if (ws.readyState === 1) {
           if (historyContent) {
-            // Send with proper line endings
-            const formattedHistory = historyContent.replace(/\n/g, '\r\n')
+            // Reset SGR attributes before sending plain-text history so stale
+            // reverse-video / color state from the live PTY stream doesn't bleed
+            // into the history rendering (history is captured without ANSI codes)
+            const formattedHistory = '\x1b[0m' + historyContent.replace(/\n/g, '\r\n')
             ws.send(formattedHistory)
           }
           ws.send(JSON.stringify({ type: 'history-complete' }))
@@ -1178,6 +1180,16 @@ async function startServer(handleRequest) {
     } catch (error) {
       console.error('[DB-SYNC] Failed to sync agent databases on startup:', error)
     }
+
+    // Kill any orphaned creation-helper sessions on startup.
+    // These zombie sessions can consume tokens indefinitely if not cleaned up.
+    try {
+      const { execFile } = await import('child_process')
+      const { promisify } = await import('util')
+      const execFileAsync = promisify(execFile)
+      await execFileAsync('tmux', ['kill-session', '-t', '_aim-creation-helper']).catch(() => {})
+      console.log('[Startup] Cleaned up orphaned _aim-creation-helper session (if any)')
+    } catch { /* ignore — session might not exist */ }
 
     // Normalize agent hostIds on startup (Phase 1: AMP Protocol Fix)
     // This ensures all agents have canonical hostIds for proper AMP addressing

@@ -381,7 +381,7 @@ describe('deleteSession', () => {
     expect(result.status).toBe(200)
     expect(result.data?.type).toBe('cloud')
     expect(mockRuntime.killSession).not.toHaveBeenCalled()
-    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('cloud-agent', true)
+    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('cloud-agent', false)
   })
 
   it('removes persisted session and agent registry entry', async () => {
@@ -391,7 +391,7 @@ describe('deleteSession', () => {
     await deleteSession('my-agent')
 
     expect(mockSessionPersistence.unpersistSession).toHaveBeenCalledWith('my-agent')
-    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('my-agent', true)
+    expect(mockAgentRegistry.deleteAgentBySession).toHaveBeenCalledWith('my-agent', false)
   })
 })
 

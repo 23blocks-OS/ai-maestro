@@ -55,6 +55,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     pollFailures.current = 0
   }, [])
 
+  // Clean up polling on unmount — use clearPoll() for consistent cleanup (resets failure counter too)
+  useEffect(() => {
+    return () => {
+      clearPoll()
+    }
+  }, [clearPoll])
+
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
@@ -63,8 +70,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     setResult(null)
     setError(null)
     setShowLogs(false)
-    // Reset push-related state on new build
-    setShowPush(false)
+    // Reset push result on new build, but keep the push panel open if it was already shown
+    // so the user can immediately push after a rebuild without re-opening the panel
     setPushResult(null)
 
     try {
@@ -133,6 +140,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 setResult(null)
                 setError(errorData?.error || `Build status check failed: HTTP ${statusRes.status}`)
                 setBuilding(false)
+                return // Prevent further processing in this tick after stopping the poll
               }
             }
           } catch {
@@ -145,6 +153,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               setResult(null)
               setError('Lost connection to build server')
               setBuilding(false)
+              return // Prevent further processing in this tick after stopping the poll
             }
           }
         }, 1000)
@@ -278,8 +287,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         )}
       </div>
 
-      {/* Push to GitHub section */}
-      {showPush && isComplete && (
+      {/* Push to GitHub section — visible whenever the user toggled it open and a manifest is available */}
+      {showPush && result?.manifest && (
         <div className="px-4 pb-4 border-t border-gray-800 pt-3">
           <div className="flex gap-2 items-end">
             <div className="flex-1">

@@ -63,7 +63,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
             title="Plugin Builder"
           >
             <Puzzle className="w-3.5 h-3.5" />
-            Plugins
+            Plugin Builder
           </a>
           <a
             href={zoomUrl}

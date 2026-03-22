@@ -74,6 +74,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        // Capture the exact url/ref used for this scan before storing results so
+        // subsequent input edits cannot corrupt skill keys or onAddSkill payloads.
+        setScannedUrl(url.trim())
+        setScannedRef(ref)
         setScanResult(data)
         // Store the exact values used so handleAddSkill is always consistent with this scan
         setLastScannedUrl(url.trim())

@@ -14,13 +14,25 @@ export async function GET(
 ) {
   const { id } = params
 
-  const result = await getBuildStatus(id)
+    const result = await getBuildStatus(id)
 
-  if (result.error) {
+    if (result.error) {
+      // Guard against service returning an invalid or missing HTTP status code
+      const statusCode =
+        typeof result.status === 'number' && result.status >= 100 && result.status < 600
+          ? result.status
+          : 500
+      return NextResponse.json(
+        { error: result.error },
+        { status: statusCode }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('Error getting build status:', error)
     return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
-  return NextResponse.json(result.data)
 }

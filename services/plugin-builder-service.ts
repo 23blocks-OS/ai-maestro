@@ -63,7 +63,10 @@ const buildResults = new Map<string, PluginBuildResult>()
 // ============================================================================
 
 const PLUGIN_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
-const GIT_REF_RE = /^[a-zA-Z0-9._\/-]+$/
+// Git ref character whitelist: letters, digits, dot, underscore, hyphen, forward-slash only.
+// All other characters (~ ^ : ? * [ \ space @{ etc.) are forbidden — they carry special
+// meaning in git ref syntax or in POSIX shells and must never appear in a validated ref.
+const GIT_REF_RE = /^[a-zA-Z0-9._/-]+$/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/
 const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9._-]+$/
 
@@ -104,8 +107,9 @@ function validateGitUrl(url: string): string | null {
       return 'Internal network URLs are not allowed'
     }
 
-    // Check against allowed hosts
-    if (!ALLOWED_GIT_HOSTS.some(allowed => host === allowed || host.endsWith(`.${allowed}`))) {
+    // Check against allowed hosts — exact match only; subdomains are not legitimate
+    // repo hosts for any of the listed providers and would open SSRF bypass vectors.
+    if (!ALLOWED_GIT_HOSTS.includes(host)) {
       return `Git host "${host}" is not in the allowed list (${ALLOWED_GIT_HOSTS.join(', ')})`
     }
 
@@ -117,9 +121,20 @@ function validateGitUrl(url: string): string | null {
 
 function validateGitRef(ref: string): string | null {
   if (!ref || typeof ref !== 'string') return 'Git ref is required'
+  // A leading dash could be misinterpreted as a git flag in shell invocations.
   if (ref.startsWith('-')) return 'Git ref must not start with a dash'
+  // Whitelist: only letters, digits, dot, underscore, hyphen, forward-slash.
   if (!GIT_REF_RE.test(ref)) return 'Git ref contains invalid characters'
+  // Git forbids ".." in ref names (used as range operator).
   if (ref.includes('..')) return 'Git ref must not contain ".."'
+  // Git forbids a ref ending with a slash.
+  if (ref.endsWith('/')) return 'Git ref must not end with a slash'
+  // Git forbids a ref starting with a slash (must be relative).
+  if (ref.startsWith('/')) return 'Git ref must not start with a slash'
+  // Git forbids consecutive slashes (would resolve to empty path component).
+  if (ref.includes('//')) return 'Git ref must not contain consecutive slashes'
+  // Git forbids a path component that starts with a dot (e.g. "refs/.hidden").
+  if (ref.startsWith('.') || ref.includes('/.')) return 'Git ref components must not start with a dot'
   return null
 }
 
@@ -136,10 +151,18 @@ function validateSkillPath(skillPath: string): string | null {
   if (!skillPath || typeof skillPath !== 'string') return 'Skill path is required'
   if (skillPath.includes('..')) return 'Skill path must not contain ".."'
   if (path.isAbsolute(skillPath)) return 'Skill path must be relative'
-  // Each segment must be safe
+  // Reject leading or trailing slashes, and double slashes — all produce empty
+  // segments after split('/'), which bypassed validation in the old `if (seg &&…)` guard.
+  if (skillPath.startsWith('/') || skillPath.endsWith('/')) {
+    return 'Skill path must not have leading or trailing slashes'
+  }
+  // Each segment must be non-empty and contain only safe characters.
   const segments = skillPath.split('/')
   for (const seg of segments) {
-    if (seg && !SAFE_PATH_SEGMENT_RE.test(seg)) {
+    if (!seg) {
+      return 'Skill path must not contain empty segments (e.g. from consecutive slashes)'
+    }
+    if (!SAFE_PATH_SEGMENT_RE.test(seg)) {
       return `Skill path segment "${seg}" contains invalid characters`
     }
   }
@@ -536,7 +559,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -628,7 +651,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     const execErr = error as ExecError
     if (execErr.stderr) message += `\nStderr: ${execErr.stderr}`
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
+    return { error: `Failed to push to GitHub: ${fullMessage}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -647,6 +670,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   if (!existing) return
 
   try {
+    if (!manifest.output) {
+      throw new Error('manifest.output is required but was not provided')
+    }
+
     const output = await execPromise(
       path.join(buildDir, 'build-plugin.sh'),
       ['--clean'],

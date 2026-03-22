@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
 
     if (result.error) {
       return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
+        { error: 'Invalid request body' },
+        { status: 400 }
       )
     }
     return NextResponse.json(result.data, { status: result.status })
@@ -177,4 +177,24 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+
+  const result = await buildPlugin(body)
+
+  if (result.error) {
+    // Guard against service returning an invalid or missing HTTP status code
+    const statusCode =
+      typeof result.status === 'number' && result.status >= 100 && result.status < 600
+        ? result.status
+        : 500
+    return NextResponse.json(
+      { error: result.error },
+      { status: statusCode }
+    )
+  }
+  // Guard against service returning an invalid or missing HTTP status code
+  const statusCode =
+    typeof result.status === 'number' && result.status >= 100 && result.status < 600
+      ? result.status
+      : 200
+  return NextResponse.json(result.data, { status: statusCode })
 }

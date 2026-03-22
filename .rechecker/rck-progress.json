@@ -1,0 +1,52 @@
+{
+  "uid": "17889e",
+  "status": "completed",
+  "created": "2026-03-22T18:28:23.573595",
+  "updated": "2026-03-22T19:05:14.851538",
+  "current_loop": 4,
+  "current_iter": 1,
+  "loops": {
+    "1": {
+      "status": "completed",
+      "files_done": [],
+      "files_clean": []
+    },
+    "2": {
+      "status": "completed",
+      "iter": 5,
+      "files_done": [
+        "FID00001",
+        "FID00002",
+        "1",
+        "2"
+      ],
+      "files_clean": [
+        "FID00001",
+        "2",
+        "FID00002",
+        "1"
+      ]
+    },
+    "3": {
+      "status": "completed",
+      "iter": 4,
+      "files_done": [
+        "FID00001",
+        "1",
+        "2"
+      ],
+      "files_clean": [
+        "FID00002",
+        "FID00001",
+        "1",
+        "2"
+      ]
+    },
+    "4": {
+      "status": "completed",
+      "files_done": [],
+      "files_clean": []
+    }
+  },
+  "committed": true
+}

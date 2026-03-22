@@ -13,7 +13,7 @@ import {
   Mail,
   Box,
 } from 'lucide-react'
-import { Agent, AgentSession } from '@/types/agent'
+import { Agent } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
 interface AgentBadgeProps {
@@ -98,11 +98,10 @@ function isEmoji(str: string): boolean {
 // pulseColor carries the hex value needed for the CSS boxShadow glow, keeping the
 // Tailwind class name and the shadow color in sync without fragile string matching.
 function getStatusInfo(
-  session: AgentSession | undefined,
+  isOnline: boolean,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus
 ): { color: string; bgColor: string; label: string; pulse?: boolean; pulseColor: string } {
-  const isOnline = session?.status === 'online'
 
   if (isOnline) {
     if (activityStatus === 'waiting') {
@@ -140,13 +139,12 @@ export default function AgentBadge({
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // Use agent.sessions[0] for status — consistent with AgentList compact view.
-  // agent.session (singular) is the live runtime field but may not always be populated.
-  const session = agent.sessions?.[0]
-  const isOnline = session?.status === 'online'
+  // agent.session (singular) = live runtime status from API (online/offline)
+  // agent.sessions[] = stored session config array (presence means hibernatable)
+  const isOnline = agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(session, isHibernated, activityStatus)
+  const statusInfo = getStatusInfo(isOnline, isHibernated, activityStatus)
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID
@@ -244,7 +242,7 @@ export default function AgentBadge({
             }}
             className={`p-1 rounded-md transition-colors ${
               variant === 'normal'
-                ? 'bg-black/40 hover:bg-black/60 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+                ? 'bg-black/20 hover:bg-black/40 shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                 : 'bg-slate-700/50 hover:bg-slate-600'
             }`}
           >
@@ -465,10 +463,8 @@ export default function AgentBadge({
           {/* When agent.label (persona name) is present, agent.name (the ID handle) is shown
               in the secondary row alongside the Docker container icon — this avoids duplicating
               the primary display name already in the h3.
-              When agent.label is absent, agent.name already fills the h3 as the primary name.
-              In that case, if the deployment is 'local-container', agent.name is shown again
-              in the secondary row next to the Box icon so the icon is never left floating
-              without its associated text label. */}
+              When agent.label is absent, agent.name already fills the h3 as the primary name,
+              so the secondary row shows ONLY the Box icon (no agent.name) to avoid duplication. */}
           <div className={`${(agent.label || agent.name) ? 'mt-1' : 'mt-3'} w-full`}>
             {agent.label ? (
               <p className={`
@@ -488,7 +484,6 @@ export default function AgentBadge({
                   text-[11px] leading-tight flex items-center justify-center gap-1
                   ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
                 `}>
-                  {agent.name}
                   <span className="flex-shrink-0" aria-label="Docker container">
                     <Box className="w-3 h-3 text-blue-400" />
                   </span>

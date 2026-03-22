@@ -1,8 +1,2 @@
-app/api/plugin-builder/build/route.ts
-components/plugin-builder/BuildAction.tsx
-components/plugin-builder/RepoScanner.tsx
-components/plugin-builder/SkillPicker.tsx
-scripts/remote-install.sh
-services/headless-router.ts
-services/plugin-builder-service.ts
-types/plugin-builder.ts
+components/AgentBadge.tsx
+components/AgentList.tsx

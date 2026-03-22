@@ -1,90 +1,33 @@
 {
-  "uid": "606726",
-  "created": "2026-03-22T16:45:54.105960",
-  "total_files": 8,
+  "uid": "17889e",
+  "created": "2026-03-22T18:28:20.081095",
+  "total_files": 2,
   "files": {
     "FID00001": {
-      "path": "app/api/plugin-builder/build/route.ts",
-      "lines": 147,
-      "bytes": 5010,
-      "category": "small"
+      "path": "components/AgentBadge.tsx",
+      "lines": 449,
+      "bytes": 16243,
+      "category": "big"
     },
     "FID00002": {
-      "path": "components/plugin-builder/BuildAction.tsx",
-      "lines": 332,
-      "bytes": 12457,
+      "path": "components/AgentList.tsx",
+      "lines": 2106,
+      "bytes": 90184,
       "category": "big"
-    },
-    "FID00003": {
-      "path": "components/plugin-builder/RepoScanner.tsx",
-      "lines": 202,
-      "bytes": 8044,
-      "category": "big"
-    },
-    "FID00004": {
-      "path": "components/plugin-builder/SkillPicker.tsx",
-      "lines": 286,
-      "bytes": 11861,
-      "category": "big"
-    },
-    "FID00005": {
-      "path": "scripts/remote-install.sh",
-      "lines": 1482,
-      "bytes": 57457,
-      "category": "big"
-    },
-    "FID00006": {
-      "path": "services/headless-router.ts",
-      "lines": 2344,
-      "bytes": 107696,
-      "category": "big"
-    },
-    "FID00007": {
-      "path": "services/plugin-builder-service.ts",
-      "lines": 831,
-      "bytes": 28758,
-      "category": "big"
-    },
-    "FID00008": {
-      "path": "types/plugin-builder.ts",
-      "lines": 143,
-      "bytes": 5191,
-      "category": "small"
     }
   },
   "groups": {
     "G001": [
-      "FID00002"
+      "FID00001"
     ],
     "G002": [
-      "FID00003"
-    ],
-    "G003": [
-      "FID00004"
-    ],
-    "G004": [
-      "FID00005"
-    ],
-    "G005": [
-      "FID00006"
-    ],
-    "G006": [
-      "FID00007"
-    ],
-    "G007": [
-      "FID00001",
-      "FID00008"
+      "FID00002"
     ]
   },
   "macro_groups": {
     "MG001": [
       "G001",
-      "G002",
-      "G003",
-      "G004",
-      "G005",
-      "G006",
-      "G007"
+      "G002"
     ]
   }
 }

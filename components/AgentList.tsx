@@ -44,7 +44,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import AgentCreationWizard from './AgentCreationWizard'
-import AgentCreationHelper from './AgentCreationHelper'
 import WakeAgentDialog from './WakeAgentDialog'
 import { useHosts } from '@/hooks/useHosts'
 import { useSessionActivity, type SessionActivityStatus } from '@/hooks/useSessionActivity'
@@ -171,7 +170,6 @@ export default function AgentList({
   hostErrors = {},
 }: AgentListProps) {
   const router = useRouter()
-  const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
   const [showWizardModal, setShowWizardModal] = useState(false)
   const [showCreateDropdown, setShowCreateDropdown] = useState(false)
   const createDropdownRef = useRef<HTMLDivElement>(null)
@@ -441,8 +439,8 @@ export default function AgentList({
   }
 
   const handleHibernate = async (agent: UnifiedAgent, e?: React.MouseEvent) => {
-    // stopPropagation only when an actual event is available (e.g. direct button click).
-    // When called from AgentBadge's onHibernate callback there is no event object.
+    // stopPropagation prevents the parent agent-select click from also firing.
+    // Event is optional to support programmatic calls that have no DOM event.
     e?.stopPropagation()
 
     if (hibernatingAgents.has(agent.id)) return
@@ -475,8 +473,8 @@ export default function AgentList({
     }
   }
 
-  const handleWake = (agent: UnifiedAgent, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleWake = (agent: UnifiedAgent, e?: React.MouseEvent) => {
+    e?.stopPropagation()
     if (wakingAgents.has(agent.id)) return
     // Open the dialog to select which CLI to use
     setWakeDialogAgent(agent)
@@ -620,7 +618,6 @@ export default function AgentList({
   }
 
   const handleCreateComplete = () => {
-    setShowAdvancedCreateModal(false)
     setShowWizardModal(false)
     onRefresh?.()
   }
@@ -1039,8 +1036,8 @@ export default function AgentList({
                                             onSelect={handleAgentClick}
                                             onRename={() => onShowAgentProfile(agent)}
                                             onDelete={() => onShowAgentProfileDangerZone?.(agent)}
-                                            onHibernate={isOnline ? () => handleHibernate(agent) : undefined}
-                                            onWake={isHibernated ? () => setWakeDialogAgent(agent) : undefined}
+                                            onHibernate={isOnline ? (a) => handleHibernate(a) : undefined}
+                                            onWake={isHibernated ? (a) => handleWake(a) : undefined}
                                             onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
                                             onSendMessage={() => {/* TODO: Implement send message dialog */}}
                                             onCopyId={() => navigator.clipboard.writeText(agent.id)}
@@ -1420,98 +1417,6 @@ export default function AgentList({
           onSwitchToAdvanced={() => {
             setShowWizardModal(false)
             router.push('/agent-creation')
-          }}
-        />
-      )}
-
-      {/* Create Agent Advanced Modal */}
-      {showAdvancedCreateModal && (
-        <AgentCreationHelper
-          onClose={() => setShowAdvancedCreateModal(false)}
-          onComplete={async (config) => {
-            if (!config.name) return
-            try {
-              // Build programArgs, appending --model if the config specifies one
-              const argParts: string[] = []
-              if (config.programArgs && config.programArgs.trim() !== '') argParts.push(config.programArgs)
-              if (config.model) argParts.push(`--model ${config.model}`)
-
-              const response = await fetch('/api/sessions/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  name: config.name,
-                  workingDirectory: config.workingDirectory || undefined,
-                  program: config.program || 'claude-code',
-                  programArgs: argParts.length > 0 ? argParts.join(' ') : undefined,
-                }),
-              })
-              if (!response.ok) {
-                const data = await response.json()
-                throw new Error(data.error || 'Failed to create agent')
-              }
-              const result = await response.json()
-              // Apply skills from the config draft to the newly created agent.
-              // Skills in config.skills are { name, description } objects -- the updateSkills
-              // API needs full marketplace IDs (marketplace:plugin:skill). Resolve by
-              // fetching the marketplace skill catalog and matching by name.
-              if (result.agentId && config.skills && config.skills.length > 0) {
-                try {
-                  const catalogRes = await fetch('/api/marketplace/skills')
-                  if (catalogRes.ok) {
-                    const catalog = await catalogRes.json()
-                    const allSkills: Array<{ id: string; name: string }> = catalog.skills || []
-                    const wantedNames = new Set(config.skills.map(s => s.name))
-                    const matchedIds = allSkills.filter(s => wantedNames.has(s.name)).map(s => s.id)
-                    if (matchedIds.length > 0) {
-                      await fetch(`/api/agents/${result.agentId}/skills`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ add: matchedIds }),
-                      })
-                    }
-                  }
-                } catch {
-                  // Skills application is best-effort -- agent is already created
-                  console.warn('Could not apply skills to new agent:', result.agentId)
-                }
-              }
-              // Apply tags to the newly created agent (best-effort)
-              if (result.agentId && config.tags && config.tags.length > 0) {
-                try {
-                  await fetch(`/api/agents/${result.agentId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tags: config.tags }),
-                  })
-                } catch {
-                  console.warn('Could not apply tags to new agent:', result.agentId)
-                }
-              }
-              // Assign agent to team if Haephestos suggested one (best-effort)
-              if (result.agentId && config.teamId) {
-                try {
-                  // Fetch team to get current agentIds, then append new agent
-                  const teamRes = await fetch(`/api/teams/${config.teamId}`)
-                  if (teamRes.ok) {
-                    const teamData = await teamRes.json()
-                    const currentAgentIds: string[] = teamData.team?.agentIds || []
-                    if (!currentAgentIds.includes(result.agentId)) {
-                      await fetch(`/api/teams/${config.teamId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agentIds: [...currentAgentIds, result.agentId] }),
-                      })
-                    }
-                  }
-                } catch {
-                  console.warn('Could not assign agent to team:', config.teamId)
-                }
-              }
-              handleCreateComplete()
-            } catch (error) {
-              alert(error instanceof Error ? error.message : 'Failed to create agent')
-            }
           }}
         />
       )}

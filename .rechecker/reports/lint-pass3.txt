@@ -1,0 +1,24 @@
+=== ESLint ===
+=== ShellCheck ===
+
+In scripts/remote-install.sh line 766:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 776:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 784:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 790:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...

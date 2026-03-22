@@ -195,8 +195,15 @@ function evictStaleBuildResults(): void {
   }
 }
 
-// Run eviction every 10 minutes
-const evictionInterval = setInterval(evictStaleBuildResults, 10 * 60 * 1000)
+// Run eviction every 10 minutes.
+// Wrap in try-catch so an unexpected throw does not silently kill the interval.
+const evictionInterval = setInterval(() => {
+  try {
+    evictStaleBuildResults()
+  } catch (err) {
+    console.error('Error during build result eviction:', err)
+  }
+}, 10 * 60 * 1000)
 evictionInterval.unref() // Don't prevent process exit
 
 // ============================================================================
@@ -242,7 +249,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -316,11 +323,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before the try block so the finally always decrements exactly once,
+  // even if an error occurs before runBuild is launched.
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -363,8 +373,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
-    runBuild(buildId, buildDir, manifest).catch(err => {
+    // Await the full build so activeOps correctly limits concurrent complete build
+    // operations (not just their launch). The finally block decrements activeOps
+    // only after runBuild resolves or rejects.
+    await runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
       const r = buildResults.get(buildId)
@@ -375,15 +387,20 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
 
-    return { data: result, status: 202 }
+    // Return the final build result now that the build has fully completed.
+    const finalResult = buildResults.get(buildId)
+    if (finalResult?.status === 'failed') {
+      return { error: 'Plugin build failed', status: 500 }
+    }
+    return { data: finalResult || result, status: 200 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Decrement exactly once, whether the try succeeded or threw.
+    activeOps = Math.max(0, activeOps - 1)
   }
 }
 
@@ -685,13 +702,15 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Guard against URLs whose entire content was stripped (e.g. "https://-.git")
+  return sanitized || 'unknown-source'
 }
 
 /**

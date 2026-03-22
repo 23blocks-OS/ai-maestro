@@ -1,0 +1,40 @@
+=== ESLint ===
+=== ShellCheck ===
+
+In scripts/remote-install.sh line 552:
+        NEED_CLAUDE=true
+        ^---------^ SC2034 (warning): NEED_CLAUDE appears unused. Verify use (or export if used externally).
+
+
+In scripts/remote-install.sh line 559:
+        HAS_CODEX=true
+        ^-------^ SC2034 (warning): HAS_CODEX appears unused. Verify use (or export if used externally).
+
+
+In scripts/remote-install.sh line 569:
+        HAS_TAILSCALE=true
+        ^-----------^ SC2034 (warning): HAS_TAILSCALE appears unused. Verify use (or export if used externally).
+
+
+In scripts/remote-install.sh line 772:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 782:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 790:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 796:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2034 -- HAS_CODEX appears unused. Verify ...
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...

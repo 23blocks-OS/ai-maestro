@@ -29,12 +29,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
 
-  // Clean up polling on unmount
+  // Clean up polling on unmount only — empty dependency array is correct here
+  // because clearPoll only uses refs (pollRef, pollFailures) which are stable
+  // across renders and do not need to be listed as dependencies.
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      clearPoll()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -183,7 +185,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || disabled}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -242,7 +244,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={pushing || !forkUrl.trim() || disabled}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
@@ -258,7 +260,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">

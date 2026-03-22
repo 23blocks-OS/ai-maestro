@@ -22,9 +22,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
@@ -37,7 +34,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
-    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
 fi
 
 # Auto-disable typing animation over SSH
@@ -543,7 +540,6 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +548,19 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -775,7 +766,6 @@ act2_install_prerequisites() {
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
                 } || {
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
@@ -785,7 +775,6 @@ act2_install_prerequisites() {
                 maestro_info "Installing OpenAI Codex"
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
                 } || {
                     maestro_warn "Could not install Codex automatically"
                 }
@@ -795,13 +784,11 @@ act2_install_prerequisites() {
                 _install_npm_global @anthropic-ai/claude-code && {
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
                 } || maestro_warn "Could not install Claude Code"
 
                 maestro_info "Installing OpenAI Codex"
                 _install_npm_global @openai/codex && {
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
                 } || maestro_warn "Could not install Codex"
                 ;;
             4)
@@ -823,7 +810,6 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -950,16 +936,11 @@ act3_clone_and_build() {
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
                 maestro_step 1 4 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
-                # Count stashes before so we only pop what we pushed (avoids race condition)
-                local stash_count_before
-                stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-                git stash --quiet 2>/dev/null || true
-                local stash_count_after
-                stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
+                # Use git stash exit status to detect whether a stash was created:
+                # exit 0 = stash created, exit 1 = nothing to stash (no local changes).
+                # This avoids the race condition of comparing stash counts before/after.
                 local had_stash=false
-                if [ "$stash_count_after" -gt "$stash_count_before" ]; then
-                    had_stash=true
-                fi
+                if git stash --quiet 2>/dev/null; then had_stash=true; else had_stash=false; fi
                 git pull origin main 2>/dev/null || git pull
                 if [ "$had_stash" = true ]; then
                     if ! git stash pop --quiet 2>/dev/null; then
@@ -995,7 +976,8 @@ act3_clone_and_build() {
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
                     for gw in "${GW_ARRAY[@]}"; do
                         if [ -d "${gw}-gateway" ]; then
-                            (cd "${gw}-gateway" && npm install --silent 2>/dev/null || npm install 2>/dev/null || true)
+                            # Run npm install with visible output so errors are not silently swallowed
+                            (cd "${gw}-gateway" && npm install || maestro_warn "npm install failed for ${gw}-gateway — continuing")
                         fi
                     done
                     cd "$INSTALL_DIR"
@@ -1058,7 +1040,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,7 +1084,7 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
@@ -1123,7 +1105,7 @@ act4_start_and_register() {
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1158,7 +1140,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1177,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1227,10 +1209,15 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape only the characters that are special in sed replacement strings
+            # when using | as delimiter: & (backreference) and | (the delimiter itself).
+            # Backslashes in \n sequences must NOT be escaped so sed expands them as newlines.
+            local safe_gw_list
+            safe_gw_list=$(printf '%s' "$gw_list" | sed 's/[&|]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${safe_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1294,14 +1281,15 @@ act5_grand_finale() {
             maestro_info "Switch to it: Ctrl+b then n (next window)"
             maestro_info "Dashboard: http://localhost:${PORT}"
         else
-            # Not in tmux — create session and attach (handle re-install collision)
+            # Not in tmux — create session only if it doesn't already exist, then attach.
+            # The sleep is only needed when a new session was just created to let it start.
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
                     "$AI_TOOL \"$INITIAL_PROMPT\""
+                sleep 2
             fi
-            sleep 2
             tmux attach-session -t "my-first-agent"
             echo ""
             maestro_ok "Welcome back! Your agent session is still running in tmux."
@@ -1340,7 +1328,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
-        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+        RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
     fi
 
     # M1: Warn if running as root (curl | sudo bash is dangerous)

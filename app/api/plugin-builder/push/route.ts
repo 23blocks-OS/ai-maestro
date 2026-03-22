@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!body.manifest || typeof body.manifest !== 'object') {
+    if (!body.manifest || typeof body.manifest !== 'object' || Array.isArray(body.manifest)) {
       return NextResponse.json(
-        { error: 'Manifest is required' },
+        { error: 'Manifest is required and must be a non-null object' },
         { status: 400 }
       )
     }
@@ -35,12 +35,19 @@ export async function POST(request: NextRequest) {
         { status: result.status }
       )
     }
-    return NextResponse.json(result.data)
+    return NextResponse.json(result.data, { status: result.status || 200 })
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

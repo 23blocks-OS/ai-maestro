@@ -312,11 +312,10 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
-  } else {
-    sendJson(res, result.status || 200, result.data, result.headers)
-  }
+  // Always honour result.status when provided — a service may return 201, 204, etc.
+  const statusCode = result.status || (result.error ? 500 : 200)
+  const body = result.error ? { error: result.error } : result.data
+  sendJson(res, statusCode, body, result.headers)
 }
 
 function getHeader(req: IncomingMessage, name: string): string | null {
@@ -393,10 +392,10 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSystemConfig())
+    sendServiceResult(res, await getSystemConfig())
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getOrganization())
+    sendServiceResult(res, await getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

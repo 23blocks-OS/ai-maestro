@@ -21,11 +21,13 @@ import type { SkillSearchParams } from '@/types/marketplace'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+// Discriminated union: a result always carries either `data` (success) or
+// `error` (failure) — never both, never neither.  This prevents route
+// handlers from accidentally calling NextResponse.json(undefined) when a
+// service function returns a bare `{ status }` object with no payload.
+export type ServiceResult<T> =
+  | { data: T; error?: never; status: number }
+  | { data?: never; error: string; status: number }
 
 // ===========================================================================
 // PUBLIC API -- called by API routes

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     if (!body.manifest || typeof body.manifest !== 'object') {
       return NextResponse.json(
-        { error: 'Manifest is required' },
+        { error: 'Manifest is required and must be an object' },
         { status: 400 }
       )
     }
@@ -35,12 +35,30 @@ export async function POST(request: NextRequest) {
         { status: result.status }
       )
     }
+
+    // Guard against a ServiceResult that carries neither error nor data,
+    // which would cause NextResponse.json(undefined) — an invalid response.
+    if (!result.data) {
+      return NextResponse.json(
+        { error: 'An unexpected response was received from the plugin builder service.' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // SyntaxError means request.json() could not parse the body
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    // Any other unexpected error from pushToGitHub or elsewhere is a server fault
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

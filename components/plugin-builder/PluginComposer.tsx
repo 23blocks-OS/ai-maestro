@@ -176,7 +176,6 @@ function SkillGroup({
       <div className="space-y-1">
         {skills.map(skill => {
           const key = getSkillKey(skill)
-          const displayName = getSkillDisplayName(skill)
           const subtitle = getSkillSubtitle(skill)
 
           return (
@@ -185,7 +184,7 @@ function SkillGroup({
               className="flex items-center justify-between p-2 bg-gray-800/30 rounded-lg group"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-gray-300 truncate">{displayName}</p>
+                <p className="text-sm text-gray-300 truncate">{skill.name}</p>
                 {subtitle && (
                   <p className="text-xs text-gray-600 truncate">{subtitle}</p>
                 )}
@@ -194,7 +193,7 @@ function SkillGroup({
                 onClick={() => onRemove(key)}
                 className="p-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all flex-shrink-0"
                 title="Remove skill"
-                aria-label={`Remove ${displayName}`}
+                aria-label={`Remove ${skill.name}`}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -204,17 +203,6 @@ function SkillGroup({
       </div>
     </div>
   )
-}
-
-function getSkillDisplayName(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
-    case 'repo':
-      return skill.name
-  }
 }
 
 function getSkillSubtitle(skill: PluginSkillSelection): string | null {

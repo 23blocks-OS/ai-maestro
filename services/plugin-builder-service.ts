@@ -49,6 +49,9 @@ const BUILD_TTL_MS = 60 * 60 * 1000 // 1 hour
 const MAX_CONCURRENT_OPS = 3
 let activeOps = 0
 
+/** Guard flag to prevent re-entrant calls to evictStaleBuildResults */
+let isEvicting = false
+
 // In-memory build status tracking (with TTL eviction)
 const buildResults = new Map<string, PluginBuildResult>()
 
@@ -160,6 +163,26 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal in generateManifest
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.name}": Marketplace name is required`
+      }
+      if (skill.marketplace.includes('..')) {
+        return `Marketplace skill "${skill.name}": Marketplace name must not contain ".."`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Marketplace name "${skill.marketplace}" contains invalid characters`
+      }
+      if (!skill.plugin || typeof skill.plugin !== 'string') {
+        return `Marketplace skill "${skill.name}": Plugin name is required`
+      }
+      if (skill.plugin.includes('..')) {
+        return `Marketplace skill "${skill.name}": Plugin name must not contain ".."`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": Plugin name "${skill.plugin}" contains invalid characters`
+      }
     }
   }
 
@@ -171,27 +194,43 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 // ============================================================================
 
 function evictStaleBuildResults(): void {
-  const now = Date.now()
-  for (const [id, result] of buildResults) {
-    const age = now - new Date(result.createdAt).getTime()
-    if (age > BUILD_TTL_MS) {
-      buildResults.delete(id)
-      // Best-effort cleanup of build directory
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
-    }
-  }
+  // Prevent re-entrant calls: setInterval and manual calls from buildPlugin can overlap
+  // in the same event-loop tick if a callback is already executing.
+  if (isEvicting) return
+  isEvicting = true
 
-  // If still over limit, evict oldest
-  if (buildResults.size > MAX_BUILD_RESULTS) {
-    const entries = [...buildResults.entries()]
-      .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
-    const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
-    for (const [id] of toRemove) {
-      buildResults.delete(id)
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+  try {
+    const now = Date.now()
+
+    // Pass 1: remove all TTL-expired entries and collect the survivors
+    const survivors: [string, PluginBuildResult][] = []
+    for (const [id, result] of buildResults) {
+      const age = now - new Date(result.createdAt).getTime()
+      if (age > BUILD_TTL_MS) {
+        buildResults.delete(id)
+        // Best-effort cleanup of build directory — log failures so disk-full conditions are visible
+        const buildDir = path.join(BUILDS_DIR, id)
+        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error(`Failed to remove stale build dir ${buildDir}:`, err))
+      } else {
+        survivors.push([id, result])
+      }
     }
+
+    // Pass 2: if still over the hard limit, evict oldest of the SURVIVING (non-stale) entries
+    // This avoids removing entries that were already removed in pass 1 from an out-of-date list.
+    if (buildResults.size > MAX_BUILD_RESULTS) {
+      const sorted = survivors
+        .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
+      const toRemoveCount = buildResults.size - MAX_BUILD_RESULTS
+      for (let i = 0; i < toRemoveCount; i++) {
+        const [id] = sorted[i]
+        buildResults.delete(id)
+        const buildDir = path.join(BUILDS_DIR, id)
+        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error(`Failed to remove evicted build dir ${buildDir}:`, err))
+      }
+    }
+  } finally {
+    isEvicting = false
   }
 }
 
@@ -242,7 +281,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Plugin skills live at <marketplace-dir>/plugins/<plugin-name>/, matching the
+    // structure used by marketplace-skills.ts (readMarketplaceSkills: pluginsDir + entry.name).
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, 'plugins', group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -347,8 +388,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkErr) {
+        // If symlink fails (e.g., cross-device or permissions), copy instead.
+        // Log the symlink failure so the cause is visible; let copyDir errors propagate
+        // so the build fails loudly rather than silently missing core skills.
+        console.warn(`Build ${buildId}: symlink of core skills dir failed, falling back to copy:`, symlinkErr)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -447,8 +491,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     // Clean up on error
     await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
 
-    const exitCode = (error as any)?.code
-    const message = error instanceof Error ? error.message : String(error)
+    const execError = error as ExecError
+    const exitCode = execError.code
+    let message = execError.message || String(error)
+    if (execError.stderr) message += `\nStderr: ${execError.stderr}`
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
@@ -541,7 +587,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     }
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
-    const message = error instanceof Error ? error.message : String(error)
+    // Include stderr from execPromise-thrown ExecError for actionable git failure messages
+    let message = error instanceof Error ? error.message : String(error)
+    const execErr = error as ExecError
+    if (execErr.stderr) message += `\nStderr: ${execErr.stderr}`
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
@@ -573,20 +622,28 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const stats = { skills: 0, scripts: 0, hooks: 0 }
 
     try {
-      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(() => [] as string[])
+      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(err => {
+        console.warn(`Failed to read skills directory for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.skills = skillEntries.length
 
-      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(() => [] as string[])
+      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(err => {
+        console.warn(`Failed to read scripts directory for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.scripts = scriptEntries.length
 
       try {
         await fs.access(path.join(outputPath, 'hooks', 'hooks.json'))
         stats.hooks = 1
-      } catch {
+      } catch (err) {
+        console.warn(`Failed to access hooks.json for build ${buildId}:`, err)
         stats.hooks = 0
       }
-    } catch {
-      // Stats collection failed — non-critical
+    } catch (err) {
+      // Stats collection failed — non-critical, but log for visibility
+      console.warn(`Stats collection failed for build ${buildId}:`, err)
     }
 
     // Atomic replacement: avoids torn reads from polling clients
@@ -598,10 +655,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       stats,
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
+    const execError = error as ExecError
+    const message = execError.message || String(error)
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    if (execError.stderr) logs.push(...execError.stderr.split('\n'))
 
     // Atomic replacement
     buildResults.set(buildId, {
@@ -685,13 +742,23 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Ensure the result is never empty (e.g. input was "https://---.git")
+  return sanitized || 'unknown-source'
+}
+
+/** Error type emitted by execPromise — carries stderr and exit code for callers. */
+interface ExecError extends Error {
+  /** Process exit code (128 = git "not found / access denied", etc.) */
+  code?: number
+  /** Content written to stderr by the child process */
+  stderr?: string
 }
 
 /**
@@ -709,7 +776,7 @@ function execPromise(
       maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
     }, (error, stdout, stderr) => {
       if (error) {
-        const err = error as any
+        const err = error as ExecError
         err.stderr = stderr
         reject(err)
       } else {

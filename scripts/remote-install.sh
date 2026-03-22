@@ -695,10 +695,10 @@ act2_install_prerequisites() {
         local npm_prefix
         npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
         if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
-            npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            npm install -g yarn || { maestro_fail "Failed to install Yarn. Aborting."; exit 1; }
         else
             maestro_info "System Node detected — using sudo for global npm install..."
-            sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            sudo npm install -g yarn || { maestro_fail "Failed to install Yarn with sudo. Please install Yarn manually or fix npm permissions. Aborting."; exit 1; }
         fi
         maestro_ok "Yarn installed"
     fi
@@ -759,14 +759,10 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package — always show errors for diagnosability
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
-            else
-                npm install -g "$pkg" 2>/dev/null
-            fi
+            npm install -g "$pkg"
         }
 
         case "$ai_choice" in
@@ -973,7 +969,8 @@ act3_clone_and_build() {
                 maestro_step 1 4 "Pulling latest changes..." "done"
 
                 maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+                # Failure to install core dependencies is fatal — a broken install must not proceed silently
+                yarn install --silent || yarn install || { maestro_fail "yarn install failed. Aborting."; exit 1; }
                 maestro_step 2 4 "Installing dependencies..." "done"
 
                 maestro_step 3 4 "Updating agent tools..." ""
@@ -1029,7 +1026,8 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+    # Failure to install core dependencies is fatal — a broken install must not proceed silently
+    yarn install --silent || yarn install || { maestro_fail "yarn install failed. Aborting."; exit 1; }
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
     maestro_step 3 "$total_steps" "Setting up agent tools..." ""
@@ -1058,7 +1056,8 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            # Double-quotes required so $PORT expands to its actual value
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1108,7 +1107,8 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                # Restart only the specific ai-maestro service — never restart all services
+                pm2 restart ai-maestro 2>/dev/null
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1137,14 +1137,19 @@ act4_start_and_register() {
         # Start the service
         cd "$INSTALL_DIR"
         if command -v pm2 &>/dev/null; then
+            # Try ecosystem config files first; fall back to direct yarn start command
+            local pm2_started=false
             if [ -f "ecosystem.config.cjs" ]; then
-                pm2 start ecosystem.config.cjs --env production 2>/dev/null || \
-                    pm2 start "yarn start" --name ai-maestro 2>/dev/null
+                if pm2 start ecosystem.config.cjs --env production; then
+                    pm2_started=true
+                fi
             elif [ -f "ecosystem.config.js" ]; then
-                pm2 start ecosystem.config.js --env production 2>/dev/null || \
-                    pm2 start "yarn start" --name ai-maestro 2>/dev/null
-            else
-                pm2 start "yarn start" --name ai-maestro 2>/dev/null
+                if pm2 start ecosystem.config.js --env production; then
+                    pm2_started=true
+                fi
+            fi
+            if [ "$pm2_started" = false ]; then
+                pm2 start "yarn start" --name ai-maestro
             fi
             pm2 save 2>/dev/null || true
         else
@@ -1181,17 +1186,17 @@ act4_start_and_register() {
     mkdir -p "$AGENT_DIR"
 
     # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escapes: \ & | [ ] . * ^ $ / @ (covers regex specials + our @ delimiter)
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/\@]/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
-        portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
-        portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s@{{VERSION}}@$VERSION@g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s@{{SELECTED_GATEWAYS}}@${SELECTED_GATEWAYS}@g" "$AGENT_DIR/CLAUDE.md"
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
@@ -1208,7 +1213,7 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
-            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
@@ -1227,7 +1232,7 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s@{{ACTIVE_GATEWAYS_LIST}}@${gw_list}@g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1286,25 +1291,36 @@ act5_grand_finale() {
 
         INITIAL_PROMPT="Hi! I just installed AI Maestro. Can you verify everything is working and help me get started?"
 
-        if [ -n "$TMUX" ]; then
-            # Already in tmux — create a new window and switch to it
+        if tmux has-session -t "my-first-agent" 2>/dev/null; then
+            # Session already exists — reattach regardless of whether we are inside tmux
+            maestro_info "Reattaching to existing 'my-first-agent' session..."
+            if [ -n "$TMUX" ]; then
+                # Already inside tmux — switch to the existing session
+                tmux switch-client -t "my-first-agent"
+            else
+                # Not inside tmux — attach to the existing session
+                tmux attach-session -t "my-first-agent"
+            fi
+            echo ""
+            maestro_ok "Welcome back! Your agent session is still running in tmux."
+            maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
+            maestro_info "Dashboard: http://localhost:${PORT}"
+        elif [ -n "$TMUX" ]; then
+            # Already in tmux and no existing session — create a new window
             tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
             maestro_info "Dashboard: http://localhost:${PORT}"
         else
-            # Not in tmux — create session and attach (handle re-install collision)
-            if tmux has-session -t "my-first-agent" 2>/dev/null; then
-                maestro_info "Reattaching to existing 'my-first-agent' session..."
-            else
-                tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
-            fi
+            # Not in tmux and no existing session — create session and attach
+            tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
+                "$AI_TOOL \"$INITIAL_PROMPT\""
             sleep 2
             tmux attach-session -t "my-first-agent"
             echo ""
-            maestro_ok "Welcome back! Your agent session is still running in tmux."
+            maestro_ok "Agent launched in a new tmux session!"
+            maestro_info "Detach anytime with Ctrl+b, release, then d"
             maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
             maestro_info "Dashboard: http://localhost:${PORT}"
         fi

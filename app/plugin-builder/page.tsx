@@ -31,11 +31,11 @@ export default function PluginBuilderPage() {
     setSkills(prev => prev.filter(s => getSkillKey(s) !== key))
   }, [])
 
-  // Build config
+  // Build config — description is passed as-is; empty string is a valid value for the optional field.
   const buildConfig: PluginBuildConfig = useMemo(() => ({
     name,
     version,
-    description: description || undefined,
+    description,
     skills,
     includeHooks,
   }), [name, version, description, skills, includeHooks])
@@ -49,7 +49,7 @@ export default function PluginBuilderPage() {
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
     : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    ? 'Invalid plugin name (must start with a letter or number; can contain letters, numbers, hyphens, underscores)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

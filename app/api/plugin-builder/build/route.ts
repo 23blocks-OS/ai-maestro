@@ -22,10 +22,23 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data, { status: result.status })
-  } catch {
+  } catch (error) {
+    // Log every unexpected error for server-side debugging
+    console.error('Error in POST /api/plugin-builder/build:', error)
+    // SyntaxError means request.json() could not parse the body.
+    // NOTE: buildPlugin always returns a ServiceResult and never throws; this
+    // catch block only handles request.json() parse failures and any truly
+    // unexpected runtime error in the route itself.
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    // Any other unexpected error is a route-level server fault (not from buildPlugin)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

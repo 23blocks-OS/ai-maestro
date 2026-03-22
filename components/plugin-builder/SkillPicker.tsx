@@ -208,6 +208,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                           id: skill.id,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
+                          name: skill.name,
                         })
                       }
                     }}
@@ -215,7 +216,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -255,6 +256,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
+            getSkillKey={getSkillKey}
           />
         )}
       </div>

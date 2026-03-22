@@ -1,0 +1,135 @@
+{
+  "uid": "03f7b4",
+  "created": "2026-03-22T16:39:45.495070",
+  "total_files": 14,
+  "files": {
+    "FID00001": {
+      "path": "app/api/plugin-builder/build/route.ts",
+      "lines": 31,
+      "bytes": 781,
+      "category": "small"
+    },
+    "FID00002": {
+      "path": "app/api/plugin-builder/builds/[id]/route.ts",
+      "lines": 26,
+      "bytes": 613,
+      "category": "small"
+    },
+    "FID00003": {
+      "path": "app/api/plugin-builder/push/route.ts",
+      "lines": 46,
+      "bytes": 1206,
+      "category": "small"
+    },
+    "FID00004": {
+      "path": "app/api/plugin-builder/scan-repo/route.ts",
+      "lines": 38,
+      "bytes": 957,
+      "category": "small"
+    },
+    "FID00005": {
+      "path": "app/plugin-builder/page.tsx",
+      "lines": 111,
+      "bytes": 3687,
+      "category": "small"
+    },
+    "FID00006": {
+      "path": "components/Header.tsx",
+      "lines": 93,
+      "bytes": 3576,
+      "category": "small"
+    },
+    "FID00007": {
+      "path": "components/plugin-builder/BuildAction.tsx",
+      "lines": 303,
+      "bytes": 10637,
+      "category": "big"
+    },
+    "FID00008": {
+      "path": "components/plugin-builder/PluginComposer.tsx",
+      "lines": 229,
+      "bytes": 7875,
+      "category": "big"
+    },
+    "FID00009": {
+      "path": "components/plugin-builder/RepoScanner.tsx",
+      "lines": 161,
+      "bytes": 5912,
+      "category": "small"
+    },
+    "FID00010": {
+      "path": "components/plugin-builder/SkillPicker.tsx",
+      "lines": 277,
+      "bytes": 11259,
+      "category": "big"
+    },
+    "FID00011": {
+      "path": "scripts/remote-install.sh",
+      "lines": 1391,
+      "bytes": 51472,
+      "category": "big"
+    },
+    "FID00012": {
+      "path": "services/headless-router.ts",
+      "lines": 1291,
+      "bytes": 57120,
+      "category": "big"
+    },
+    "FID00013": {
+      "path": "services/plugin-builder-service.ts",
+      "lines": 740,
+      "bytes": 24082,
+      "category": "big"
+    },
+    "FID00014": {
+      "path": "types/plugin-builder.ts",
+      "lines": 128,
+      "bytes": 4243,
+      "category": "small"
+    }
+  },
+  "groups": {
+    "G001": [
+      "FID00007"
+    ],
+    "G002": [
+      "FID00008"
+    ],
+    "G003": [
+      "FID00010"
+    ],
+    "G004": [
+      "FID00011"
+    ],
+    "G005": [
+      "FID00012"
+    ],
+    "G006": [
+      "FID00013"
+    ],
+    "G007": [
+      "FID00001",
+      "FID00002",
+      "FID00003",
+      "FID00004",
+      "FID00005",
+      "FID00006",
+      "FID00009"
+    ],
+    "G008": [
+      "FID00014"
+    ]
+  },
+  "macro_groups": {
+    "MG001": [
+      "G001",
+      "G002",
+      "G003",
+      "G004",
+      "G005",
+      "G006",
+      "G007",
+      "G008"
+    ]
+  }
+}

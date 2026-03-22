@@ -92,7 +92,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
-                setError('Lost connection to build server')
+                setError('Failed to connect to server')
                 setBuilding(false)
               }
             }
@@ -100,16 +100,20 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
-              setError('Lost connection to build server')
+              setError('Failed to connect to server')
               setBuilding(false)
             }
           }
         }, 1000)
       } else {
+        // Not entering polling state — ensure no stale interval reference remains
+        clearPoll()
         setBuilding(false)
         setShowLogs(true)
       }
     } catch {
+      // clearPoll() was already called at the top of handleBuild before the fetch;
+      // no interval can be running at this point, so no additional call is needed.
       setError('Failed to connect to server')
       setBuilding(false)
     }
@@ -154,8 +158,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {
-      // Clipboard API not available (insecure context or unfocused)
+    }).catch((err) => {
+      // Clipboard API may be unavailable in insecure contexts or when the page is unfocused
+      console.error('Failed to copy install command to clipboard:', err)
     })
   }
 
@@ -180,10 +185,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {building ? 'Building...' : 'Quick Build'}
         </button>
 
-        {/* Push to GitHub button */}
+        {/* Push to GitHub button — disabled while a build is in progress or not yet
+            complete, to prevent pre-arming showPush which would cause the push section
+            to appear automatically when the build finishes */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={building || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />

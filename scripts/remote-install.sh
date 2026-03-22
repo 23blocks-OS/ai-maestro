@@ -1359,7 +1359,8 @@ act5_grand_finale() {
             maestro_info "Switch to it: Ctrl+b then n (next window)"
             maestro_info "Dashboard: http://localhost:${PORT}"
         else
-            # Not in tmux — create session and attach (handle re-install collision)
+            # Not in tmux — create session only if it doesn't already exist, then attach.
+            # The sleep is only needed when a new session was just created to let it start.
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
                 # Attempt to attach; if the session exists but attach fails (e.g. the session

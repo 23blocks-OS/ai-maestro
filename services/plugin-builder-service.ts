@@ -470,6 +470,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   let buildId: string | undefined
   let buildDir: string | undefined
 
+  // Increment before the try block so the finally always decrements exactly once,
+  // even if an error occurs before runBuild is launched.
+  activeOps++
+
   try {
     // Increment before any operation that could throw so the outer catch always
     // sees a matching decrement (evictStaleBuildResults must not run before the
@@ -546,7 +550,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       }
     })
 
-    return { data: result, status: 202 }
+    // Return the final build result now that the build has fully completed.
+    const finalResult = buildResults.get(buildId)
+    if (finalResult?.status === 'failed') {
+      return { error: 'Plugin build failed', status: 500 }
+    }
+    return { data: finalResult || result, status: 200 }
   } catch (error) {
     // Only decrement if runBuild was never dispatched; otherwise its finally handles it
     if (!buildDispatched) {

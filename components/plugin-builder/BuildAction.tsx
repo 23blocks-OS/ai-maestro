@@ -39,7 +39,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       // SF-022: Abort any in-flight poll fetch on unmount
       pollAbortRef.current?.abort()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {

@@ -8,9 +8,9 @@ import type { UpdateAgentRequest } from '@/types/agent'
  */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = getAgentById(id)
 
   if (result.error) {
@@ -25,9 +25,9 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body: UpdateAgentRequest = await request.json()
   const result = updateAgentById(id, body)
 
@@ -44,9 +44,9 @@ export async function PATCH(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const url = new URL(request.url)
   const hardParam = url.searchParams.get('hard')?.toLowerCase()
   const hard = hardParam === 'true' || hardParam === '1' || hardParam === 'yes'

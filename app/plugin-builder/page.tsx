@@ -35,7 +35,7 @@ export default function PluginBuilderPage() {
   const buildConfig: PluginBuildConfig = useMemo(() => ({
     name,
     version,
-    description: description || undefined,
+    description: description.trim() || undefined,
     skills,
     includeHooks,
   }), [name, version, description, skills, includeHooks])
@@ -49,7 +49,7 @@ export default function PluginBuilderPage() {
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
     : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    ? 'Invalid plugin name (must start with letter/number, can contain letters, numbers, hyphens, underscores)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

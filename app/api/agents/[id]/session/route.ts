@@ -12,9 +12,9 @@ import {
  */
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
   const result = linkAgentSession(id, body)
 
@@ -30,9 +30,9 @@ export async function POST(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
 
   const result = await sendAgentSessionCommand(id, {
@@ -65,9 +65,9 @@ export async function PATCH(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = await getAgentSessionStatus(id)
 
   if (result.error) {
@@ -85,9 +85,9 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const searchParams = request.nextUrl.searchParams
 
   const result = await unlinkOrDeleteAgentSession(id, {

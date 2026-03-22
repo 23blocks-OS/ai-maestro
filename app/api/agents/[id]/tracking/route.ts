@@ -7,9 +7,9 @@ import { getTracking, initializeTracking } from '@/services/agents-memory-servic
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const result = await getTracking(agentId)
 
   if (result.error) {
@@ -24,9 +24,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const body = await request.json().catch(() => ({}))
 
   const result = await initializeTracking(agentId, {

@@ -7,9 +7,9 @@ import { getConversationMessages } from '@/services/config-service'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ file: string }> }
+  { params }: { params: { file: string } }
 ) {
-  const { file: encodedFile } = await params
+  const { file: encodedFile } = params
   const agentId = request.nextUrl.searchParams.get('agentId') || ''
 
   const result = await getConversationMessages(encodedFile, agentId)

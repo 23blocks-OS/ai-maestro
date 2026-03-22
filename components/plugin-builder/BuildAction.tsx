@@ -51,7 +51,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     setBuilding(true)
     setResult(null)
     setError(null)
-    setShowLogs(false)
     // Reset push-related state on new build
     setShowPush(false)
     setPushResult(null)
@@ -96,7 +95,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 setBuilding(false)
               }
             }
-          } catch {
+          } catch (err) {
+            console.error('[BuildAction] Poll status error:', err)
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
@@ -109,7 +109,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         setBuilding(false)
         setShowLogs(true)
       }
-    } catch {
+    } catch (err) {
+      console.error('[BuildAction] Build request error:', err)
       setError('Failed to connect to server')
       setBuilding(false)
     }
@@ -142,7 +143,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         ok: res.ok,
         message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),
       })
-    } catch {
+    } catch (err) {
+      console.error('[BuildAction] Push request error:', err)
       setPushResult({ ok: false, message: 'Failed to connect to server' })
     } finally {
       setPushing(false)

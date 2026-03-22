@@ -15,10 +15,10 @@ import { getSkillsConfig, updateSkills, addSkill, removeSkill } from '@/services
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const { id } = params
     const result = getSkillsConfig(id)
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -35,10 +35,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const { id } = params
     const body = await request.json()
     const result = await updateSkills(id, body)
     if (result.error) {
@@ -56,10 +56,10 @@ export async function PATCH(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const { id } = params
     const body = await request.json()
     const result = addSkill(id, body)
     if (result.error) {
@@ -77,10 +77,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const { id } = params
     const searchParams = request.nextUrl.searchParams
     const skill = searchParams.get('skill')
     const type = searchParams.get('type') || 'auto'

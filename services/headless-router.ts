@@ -312,7 +312,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // If an error is present, always send error status — even when result.data is also populated.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -337,16 +338,16 @@ function getQuery(url: string): Record<string, string> {
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
  */
-function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
+function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: Record<string, unknown> } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
-  if (!boundaryMatch) return { file: null, options: null }
+  if (!boundaryMatch) return { file: null, options: {} }
 
   const boundary = '--' + boundaryMatch[1]
   const bodyStr = body.toString('latin1')
   const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
 
   let file: Buffer | null = null
-  let options: string | null = null
+  let options: Record<string, unknown> = {}
 
   for (const part of parts) {
     const headerEnd = part.indexOf('\r\n\r\n')
@@ -359,7 +360,12 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
       // Convert back to buffer from latin1 encoding
       file = Buffer.from(content, 'latin1')
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Malformed JSON must not crash the request; fall back to empty options.
+      try {
+        options = JSON.parse(content)
+      } catch {
+        options = {}
+      }
     }
   }
 
@@ -530,14 +536,13 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
-      const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
+      const { file, options } = parseMultipart(rawBody, contentType)
 
       if (!file) {
         sendJson(res, 400, { error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {

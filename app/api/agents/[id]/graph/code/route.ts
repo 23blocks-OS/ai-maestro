@@ -7,9 +7,9 @@ import { queryCodeGraph, indexCodeGraph, deleteCodeGraph } from '@/services/agen
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const searchParams = request.nextUrl.searchParams
 
   const result = await queryCodeGraph(agentId, {
@@ -34,9 +34,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
 
   // Parse body - handle empty body gracefully
   let body: any = {}
@@ -63,9 +63,9 @@ export async function POST(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const projectPath = request.nextUrl.searchParams.get('project') || ''
 
   const result = await deleteCodeGraph(agentId, projectPath)

@@ -219,7 +219,7 @@ export default function AgentBadge({
             }}
             className={`p-1 rounded-md transition-colors ${
               variant === 'normal'
-                ? 'bg-black/20 hover:bg-black/40 shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                ? 'bg-white/10 hover:bg-white/20 shadow-[0_0_8px_rgba(255,255,255,0.15)]'
                 : 'bg-slate-700/50 hover:bg-slate-600'
             }`}
           >

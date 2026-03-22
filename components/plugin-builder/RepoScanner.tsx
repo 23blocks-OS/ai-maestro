@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
+import { getSkillKey } from './SkillPicker'
 
 interface RepoScannerProps {
   // NT-020: Made optional -- SkillPicker doesn't use the callback (passes no-op)
@@ -102,6 +103,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
 
+    // Apply the default branch name here, at request time, so the input field
+    // can remain empty (indicating "use default") without clobbering its display value.
+    const effectiveRef = ref.trim() || 'main'
+
     setScanning(true)
     setError(null)
     setScanResult(null)
@@ -184,7 +189,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
               type="text"
               placeholder="https://github.com/user/repo.git"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => { setUrl(e.target.value) }}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
               onKeyDown={(e) => e.key === 'Enter' && handleScan()}
             />

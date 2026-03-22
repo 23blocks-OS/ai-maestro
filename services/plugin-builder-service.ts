@@ -12,7 +12,7 @@
  *   POST /api/plugin-builder/push         -> pushToGitHub
  */
 
-import { promises as fs } from 'fs'
+import { promises as fs, type Dirent } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
@@ -388,6 +388,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   const repoSkills = config.skills.filter((s): s is Extract<PluginSkillSelection, { type: 'repo' }> => s.type === 'repo')
 
   // Core skills — local source from plugin/src/
+  // When core skills are selected, they share a single source entry with the hooks mapping
+  // (if hooks are enabled). When no core skills are selected but hooks are enabled, a
+  // dedicated hooks-only source is added so hooks are never silently omitted.
   if (coreSkills.length > 0) {
     const map: Record<string, string> = {}
     for (const skill of coreSkills) {
@@ -402,6 +405,16 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       type: 'local',
       path: './src',
       map,
+    })
+  } else if (config.includeHooks !== false) {
+    // No core skills selected but hooks are requested — add a hooks-only source so
+    // the hooks directory is still included in the built plugin.
+    sources.push({
+      name: 'core-hooks',
+      description: 'AI Maestro default hooks',
+      type: 'local',
+      path: './src',
+      map: { 'hooks/*': 'hooks/' },
     })
   }
 
@@ -465,6 +478,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
 
   return {
     output: `./plugins/${config.name}`,
+    // name and version are at the PluginManifest top level; PluginManifestMetadata does not repeat them
     plugin: {
       name: config.name,
       version: config.version,
@@ -510,6 +524,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // even if an error occurs before runBuild is launched.
   activeOps++
 
+  // Increment before the try block so the catch always decrements exactly once if runBuild
+  // was never started. If runBuild is successfully launched, it owns the decrement via its
+  // finally block, and the outer catch is never reached (we return 202 before any throw).
+  activeOps++
+
   try {
     // Increment before any operation that could throw so the outer catch always
     // sees a matching decrement (evictStaleBuildResults must not run before the
@@ -538,9 +557,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     await fs.copyFile(BUILD_SCRIPT, path.join(buildDir, 'build-plugin.sh'))
     await fs.chmod(path.join(buildDir, 'build-plugin.sh'), 0o755)
 
-    // If there are core skills, symlink the src directory
+    // Symlink the src directory if core skills are selected OR if hooks are included
+    // (the hooks-only source also references ./src so the directory must be present).
     const hasCoreSkills = config.skills.some(s => s.type === 'core')
-    if (hasCoreSkills) {
+    const needsSrcDir = hasCoreSkills || config.includeHooks !== false
+    if (needsSrcDir) {
       const srcDir = path.join(PLUGIN_DIR, 'src')
       const linkTarget = path.join(buildDir, 'src')
       try {
@@ -972,8 +993,9 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           await scan(fullPath, depth + 1)
         }
       }
-    } catch {
-      // Skip inaccessible directories
+    } catch (err) {
+      // Skip inaccessible directories, but log to aid troubleshooting
+      console.debug(`Skipping directory due to file system error in ${currentDir}: ${(err as Error).message}`)
     }
   }
 
@@ -1092,7 +1114,13 @@ function execPromise(
  */
 async function copyDir(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true })
-  const entries = await fs.readdir(src, { withFileTypes: true })
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(src, { withFileTypes: true })
+  } catch (err) {
+    // Permission denied, device error, etc. — propagate so buildPlugin fails clearly.
+    throw new Error(`copyDir: cannot read source directory "${src}": ${(err as Error).message}`)
+  }
   for (const entry of entries) {
     // Skip symlinks to prevent copying files outside the source tree
     if (entry.isSymbolicLink()) continue

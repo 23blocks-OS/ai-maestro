@@ -993,7 +993,7 @@ act3_clone_and_build() {
                 if git stash --quiet 2>/dev/null; then
                     had_stash=true
                 fi
-                git pull origin main 2>/dev/null || git pull
+                git pull origin main 2>/dev/null || git pull origin main
                 if [ "$had_stash" = true ]; then
                     if ! git stash pop --quiet; then
                         maestro_warn "Could not cleanly restore your local changes after update."
@@ -1031,7 +1031,7 @@ act3_clone_and_build() {
                 maestro_step 4 4 "Updating gateways..." ""
                 if [ -d "$INSTALL_DIR/services" ] && [ -n "$SELECTED_GATEWAYS" ]; then
                     cd "$INSTALL_DIR/services"
-                    git pull origin main 2>/dev/null || git pull 2>/dev/null || true
+                    git pull origin main 2>/dev/null || git pull origin main 2>/dev/null || true
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
                     for gw in "${GW_ARRAY[@]}"; do
                         if [ -d "${gw}-gateway" ]; then

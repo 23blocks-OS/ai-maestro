@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Monitor } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void

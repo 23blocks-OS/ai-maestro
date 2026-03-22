@@ -26,11 +26,11 @@ export default function PluginBuilderPage() {
       if (prev.some(s => getSkillKey(s) === key)) return prev
       return [...prev, skill]
     })
-  }, [])
+  }, [getSkillKey])
 
   const handleRemoveSkill = useCallback((key: string) => {
     setSkills(prev => prev.filter(s => getSkillKey(s) !== key))
-  }, [])
+  }, [getSkillKey])
 
   // Build config — description is passed as-is; empty string is a valid value for the optional field.
   const buildConfig: PluginBuildConfig = useMemo(() => ({

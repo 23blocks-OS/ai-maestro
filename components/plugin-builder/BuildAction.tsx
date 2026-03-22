@@ -10,10 +10,18 @@ interface BuildActionProps {
   disabledReason?: string
 }
 
-/** Strip ANSI escape codes from build output */
+/** Strip ANSI escape codes from build output.
+ *  Covers: CSI sequences (colour, cursor, erase), OSC sequences, and standalone
+ *  C1 control characters so that no stray escape bytes appear in the log display. */
 function stripAnsi(str: string): string {
   // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+  return str
+    // CSI sequences: ESC [ ... <final byte 0x40-0x7E>  (covers SGR, cursor, erase, etc.)
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, '')
+    // OSC sequences: ESC ] ... ST  (ST = BEL or ESC \)
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    // Single-char C1 escape sequences: ESC followed by a byte in 0x40–0x5F range
+    .replace(/\x1b[\x40-\x5f]/g, '')
 }
 
 export default function BuildAction({ config, disabled, disabledReason }: BuildActionProps) {
@@ -27,7 +35,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [forkUrl, setForkUrl] = useState('')
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollFailures = useRef(0)
   // SF-022: AbortController for in-flight polling fetch requests
   const pollAbortRef = useRef<AbortController | null>(null)
@@ -43,7 +51,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current)
+      clearTimeout(pollRef.current)
       pollRef.current = null
     }
     // SF-022: Abort any in-flight poll fetch when clearing.
@@ -181,7 +189,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               return // Prevent further processing in this tick after stopping the poll
             }
           }
-        }, 1000)
+        }
+        // Kick off the first poll
+        pollRef.current = setTimeout(pollStatus, 1000)
       } else {
         // Not entering polling state — ensure no stale interval reference remains
         clearPoll()
@@ -278,6 +288,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           onClick={() => setShowPush(!showPush)}
           disabled={disabled || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
+          aria-label={!isComplete ? 'Build must be complete to push to GitHub' : 'Push to GitHub'}
         >
           <GitBranch className="w-4 h-4" />
           Push to GitHub
@@ -386,9 +397,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </button>
           {showLogs && (
             <div className="bg-gray-950 rounded-lg p-3 max-h-48 overflow-y-auto border border-gray-800">
-              <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
-                {stripAnsi(result.logs.join('\n'))}
-              </pre>
+              {result.logs.length > 0 ? (
+                <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
+                  {stripAnsi(result.logs.join('\n'))}
+                </pre>
+              ) : (
+                <p className="text-xs text-gray-500 font-mono">No build logs available.</p>
+              )}
             </div>
           )}
         </div>

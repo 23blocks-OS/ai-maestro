@@ -138,7 +138,7 @@ export interface RepoScanResult {
 export interface RepoSkillInfo {
   name: string                         // Skill folder name
   path: string                         // Relative path within repo (e.g., "skills/deploy")
-  description: string                  // From SKILL.md frontmatter
+  description?: string                 // From SKILL.md frontmatter (may be absent)
 }
 
 export interface RepoScriptInfo {

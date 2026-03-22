@@ -202,14 +202,16 @@ export default function AgentBadge({
           </div>
         )}
 
-        {/* Status LED — solid colored dot, same style as original */}
+        {/* Status LED — double-circle style matching compact view:
+            outer ring = semi-transparent color, inner dot = solid color */}
         <div className="relative flex items-center justify-center" title={statusInfo.label}>
           {statusInfo.pulse && (
-            <span className={`absolute w-4 h-4 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
+            <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
           )}
           <span
-            className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-slate-800`}
+            className={`relative w-3 h-3 rounded-full ${statusInfo.color} ring-[3px]`}
             style={{
+              ['--tw-ring-color' as string]: `${statusInfo.pulseColor}4d`,
               boxShadow: statusInfo.pulse
                 ? `0 0 8px 2px ${statusInfo.pulseColor}`
                 : 'none'

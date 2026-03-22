@@ -89,9 +89,17 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 setShowLogs(true)
               }
             } else {
+              // Attempt to read the error body; treat a non-JSON response as a polling failure
+              try {
+                await statusRes.json()
+              } catch {
+                // Non-JSON body (e.g. HTML error page) — counts as a polling failure
+              }
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
+                // Clear stale 'building' result so {error && !result && ...} can render
+                setResult(null)
                 setError('Lost connection to build server')
                 setBuilding(false)
               }
@@ -100,6 +108,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              // Clear stale 'building' result so {error && !result && ...} can render
+              setResult(null)
               setError('Lost connection to build server')
               setBuilding(false)
             }
@@ -116,7 +126,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }
 
   const handlePush = async () => {
-    if (!forkUrl.trim() || !result?.manifest) return
+    if (!forkUrl.trim() || !result?.manifest) {
+      // Provide explicit feedback when manifest is absent (defensive against missing manifest)
+      setPushResult({ ok: false, message: 'No manifest available' })
+      return
+    }
 
     // Client-side URL validation
     if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
@@ -220,7 +234,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabledReason && !building && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -242,7 +256,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={pushing || !forkUrl.trim() || !result?.manifest}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}

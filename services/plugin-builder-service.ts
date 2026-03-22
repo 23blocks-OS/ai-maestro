@@ -59,7 +59,10 @@ const buildResults = new Map<string, PluginBuildResult>()
 const PLUGIN_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 const GIT_REF_RE = /^[a-zA-Z0-9._\/-]+$/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/
-const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9._-]+$/
+// Disallows '.' and '..' as full segments to prevent path traversal while still
+// permitting dots within names (e.g. "my.plugin"). A valid segment must start
+// with an alphanumeric character so it can never be '.' or '..'.
+const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
 
 /**
  * Allowed git hosting domains. Blocks SSRF against internal networks.
@@ -98,8 +101,9 @@ function validateGitUrl(url: string): string | null {
       return 'Internal network URLs are not allowed'
     }
 
-    // Check against allowed hosts
-    if (!ALLOWED_GIT_HOSTS.some(allowed => host === allowed || host.endsWith(`.${allowed}`))) {
+    // Check against allowed hosts — exact match only; subdomain wildcards would
+    // allow SSRF via arbitrary-depth subdomains (e.g., evil.attacker.github.com)
+    if (!ALLOWED_GIT_HOSTS.some(allowed => host === allowed)) {
       return `Git host "${host}" is not in the allowed list (${ALLOWED_GIT_HOSTS.join(', ')})`
     }
 
@@ -153,6 +157,11 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
   // Validate each skill selection
   for (const skill of config.skills) {
+    // skill.name is used directly in output paths (e.g. skills/${skill.name}) — must be safe
+    if (!skill.name || !SAFE_PATH_SEGMENT_RE.test(skill.name)) {
+      return `Skill "${skill.name}": name must contain only letters, numbers, dots, hyphens, and underscores, and must start with a letter or number`
+    }
+
     if (skill.type === 'repo') {
       const urlErr = validateGitUrl(skill.url)
       if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
@@ -160,6 +169,30 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // marketplace and plugin names are used directly in path.join — must be path-traversal-safe
+      if (!skill.marketplace || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.id}": marketplace name must contain only letters, numbers, dots, hyphens, and underscores, and must start with a letter or number`
+      }
+      if (!skill.plugin || !SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.id}": plugin name must contain only letters, numbers, dots, hyphens, and underscores, and must start with a letter or number`
+      }
+      // skill.id must be exactly "marketplace:plugin:skillName" — validated here so
+      // generateManifest never throws from bad input data
+      if (!skill.id || typeof skill.id !== 'string') {
+        return `Marketplace skill: id is required`
+      }
+      const idParts = skill.id.split(':')
+      if (idParts.length !== 3) {
+        return `Marketplace skill "${skill.id}": invalid ID format — expected "marketplace:plugin:skillName"`
+      }
+      if (idParts[0] !== skill.marketplace || idParts[1] !== skill.plugin) {
+        return `Marketplace skill "${skill.id}": ID prefixes must match the marketplace and plugin fields`
+      }
+      const skillName = idParts[2]
+      if (!skillName || !SAFE_PATH_SEGMENT_RE.test(skillName)) {
+        return `Marketplace skill "${skill.id}": skill name "${skillName}" must contain only letters, numbers, dots, hyphens, and underscores, and must start with a letter or number`
+      }
     }
   }
 
@@ -173,6 +206,8 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 function evictStaleBuildResults(): void {
   const now = Date.now()
   for (const [id, result] of buildResults) {
+    // Never evict an active build — it would lose status/logs and leak the activeOps counter
+    if (result.status === 'building') continue
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
@@ -182,11 +217,12 @@ function evictStaleBuildResults(): void {
     }
   }
 
-  // If still over limit, evict oldest
+  // If still over limit, evict oldest completed/failed entries only
   if (buildResults.size > MAX_BUILD_RESULTS) {
     const entries = [...buildResults.entries()]
+      .filter(([, result]) => result.status !== 'building')
       .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
-    const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
+    const toRemove = entries.slice(0, buildResults.size - MAX_BUILD_RESULTS)
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
@@ -242,12 +278,18 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Include plugin subdirectory so the path resolves to the correct plugin folder
+    // (e.g. ~/.claude/plugins/marketplaces/{marketplace}/{plugin}/skills/{skillName})
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
       const parts = skill.id.split(':')
-      const skillName = parts[parts.length - 1]
+      // Validate that the id has the expected three-part format before using it
+      if (parts.length < 3) {
+        throw new Error(`Invalid skill ID format: "${skill.id}" — expected "marketplace:plugin:skillName"`)
+      }
+      const skillName = parts[2]
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
@@ -363,19 +405,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
-    runBuild(buildId, buildDir, manifest).catch(err => {
-      console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
-      const r = buildResults.get(buildId)
-      if (r && r.status === 'building') {
-        buildResults.set(buildId, {
-          ...r,
-          status: 'failed',
-          logs: [err instanceof Error ? err.message : String(err)],
-        })
-      }
-    }).finally(() => {
+    // Run build asynchronously. runBuild handles all errors internally (never
+    // rejects) — only the .finally() is needed to release the concurrency slot.
+    runBuild(buildId, buildDir, manifest).finally(() => {
       activeOps = Math.max(0, activeOps - 1)
     })
 
@@ -506,9 +538,12 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     // Stage and commit
     await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir })
 
-    // Check if there are changes to commit
-    const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir })
-    if (!statusOutput.trim()) {
+    // Check whether the manifest was actually staged (not just whether the repo has unrelated dirty files).
+    // `git diff --cached --quiet` exits 0 when nothing is staged, non-zero when there are staged changes.
+    const hasStagedChanges = await execPromise('git', ['diff', '--cached', '--quiet'], { cwd: pushDir })
+      .then(() => false)   // exit 0 → nothing staged
+      .catch(() => true)   // exit non-0 → staged changes present
+    if (!hasStagedChanges) {
       await fs.rm(pushDir, { recursive: true, force: true })
       return {
         data: {
@@ -662,12 +697,26 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
  */
 async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
   const scripts: RepoScriptInfo[] = []
+
+  // Resolve the canonical root so symlink traversal out of the scan directory
+  // is detected even when the scripts/ subdir itself is a symlink.
+  const realRoot = await fs.realpath(dir)
   const scriptsDir = path.join(dir, 'scripts')
 
+  // Resolve scripts/ to its real path and verify it stays inside the root.
+  // If scripts/ is a symlink pointing outside the scan directory we skip it entirely.
+  const realScriptsDir = await fs.realpath(scriptsDir).catch(() => null)
+  // A valid scripts dir must be the root itself or a strict descendant of it.
+  if (!realScriptsDir || (!realScriptsDir.startsWith(realRoot + path.sep) && realScriptsDir !== realRoot)) {
+    return scripts
+  }
+
   try {
-    const entries = await fs.readdir(scriptsDir, { withFileTypes: true })
+    const entries = await fs.readdir(realScriptsDir, { withFileTypes: true })
     for (const entry of entries) {
-      if (entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith('.sh')) {
+      // Skip symlinks: even inside a safe scripts dir a file symlink could point outside.
+      if (entry.isSymbolicLink()) continue
+      if (entry.isFile() && entry.name.endsWith('.sh')) {
         scripts.push({
           name: entry.name,
           path: `scripts/${entry.name}`,
@@ -675,7 +724,7 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
       }
     }
   } catch {
-    // No scripts directory
+    // No scripts directory or inaccessible
   }
 
   return scripts
@@ -706,7 +755,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build logs and git diffs can exceed 2MB
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

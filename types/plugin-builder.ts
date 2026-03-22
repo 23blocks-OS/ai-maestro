@@ -26,7 +26,7 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
+  | { type: 'marketplace'; id: string; name: string; marketplace: string; plugin: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
 // ============================================================================
@@ -76,15 +76,22 @@ export interface PluginManifestMetadata {
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                       // Required for local sources
+      map: Record<string, string>        // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                       // Required for git sources
+      ref?: string                       // Git branch/tag
+      map: Record<string, string>        // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

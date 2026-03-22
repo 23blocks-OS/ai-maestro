@@ -1,0 +1,4 @@
+=== ESLint ===
+
+=== ShellCheck (errors only) ===
+=== DONE ===

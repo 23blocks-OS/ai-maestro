@@ -10,9 +10,18 @@ import { pushToGitHub } from '@/services/plugin-builder-service'
 import type { PluginPushConfig } from '@/types/plugin-builder'
 
 export async function POST(request: NextRequest) {
+  // Isolate JSON parse failures so they return 400, not 500
+  let body: PluginPushConfig
   try {
-    const body = await request.json() as PluginPushConfig
+    body = await request.json() as PluginPushConfig
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
+    )
+  }
 
+  try {
     if (!body.forkUrl || typeof body.forkUrl !== 'string') {
       return NextResponse.json(
         { error: 'Fork URL is required' },
@@ -32,15 +41,26 @@ export async function POST(request: NextRequest) {
     if (result.error) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        // Fall back to 500 when pushToGitHub sets error but omits status
+        { status: result.status ?? 500 }
       )
     }
+
+    // Guard against pushToGitHub returning a result with neither error nor data
+    if (result.data === undefined) {
+      console.error('pushToGitHub returned no data and no error:', result)
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

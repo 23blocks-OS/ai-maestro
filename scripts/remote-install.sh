@@ -54,7 +54,7 @@ maestro_say() {
         echo "[maestro] $msg"
         return
     fi
-    printf "%b" "$MAESTRO_PREFIX"
+    printf "%s" "$MAESTRO_PREFIX"
     local i=0
     while [ $i -lt ${#msg} ]; do
         printf "%s" "${msg:$i:1}"
@@ -115,7 +115,10 @@ maestro_ask_yn() {
         printf "   > [y/N] "
     fi
     read -r REPLY
-    REPLY="${REPLY:-$default}"
+    # Trim leading/trailing whitespace so " y " matches the same as "y"
+    REPLY="${REPLY#"${REPLY%%[![:space:]]*}"}"
+    REPLY="${REPLY%"${REPLY##*[![:space:]]*}"}"
+    REPLY="${REPLY:-"$default"}"
 }
 
 maestro_ask_choice() {
@@ -137,6 +140,9 @@ maestro_ask_choice() {
     done
     printf "   > "
     read -r REPLY
+    # Trim leading/trailing whitespace so " 1 " matches the same as "1"
+    REPLY="${REPLY#"${REPLY%%[![:space:]]*}"}"
+    REPLY="${REPLY%"${REPLY##*[![:space:]]*}"}"
     REPLY="${REPLY:-1}"
 }
 
@@ -170,7 +176,7 @@ cleanup() {
                 maestro_info "Removed partial installation at $INSTALL_DIR"
             else
                 maestro_warn "Partial installation detected at $INSTALL_DIR"
-                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+                maestro_info "You may want to remove it: rm -rf \"$INSTALL_DIR\""
             fi
         fi
         maestro_info "You can re-run the installer to try again"
@@ -204,6 +210,12 @@ parse_args() {
     while [ $# -gt 0 ]; do
         case $1 in
             -d|--dir)
+                # Require that an argument follows the flag
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Missing argument for $1"
+                    show_help
+                    exit 1
+                fi
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
                 ;;
@@ -233,7 +245,18 @@ parse_args() {
                 shift
                 ;;
             -p|--port)
+                # Require that an argument follows the flag
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Missing argument for $1"
+                    show_help
+                    exit 1
+                fi
                 PORT="$2"
+                # Validate: must be a positive integer within the valid TCP port range
+                if ! echo "$PORT" | grep -qE '^[0-9]+$' || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+                    maestro_fail "Invalid port '$PORT' (must be an integer between 1 and 65535)"
+                    exit 1
+                fi
                 shift 2
                 ;;
             --uninstall)
@@ -339,7 +362,7 @@ _install_pkg() {
     elif command -v apk &>/dev/null; then
         sudo apk add "$pkg"
     else
-        maestro_warn "No supported package manager found — install '$pkg' manually"
+        maestro_warn "No supported package manager found — install \"$pkg\" manually"
         return 1
     fi
 }
@@ -492,7 +515,8 @@ act1_hello_and_discovery() {
         node_ver=$(node --version)
         local node_major
         node_major=$(echo "$node_ver" | cut -d'.' -f1 | sed 's/v//')
-        if [ "$node_major" -ge 18 ]; then
+        # Guard against non-numeric output (corrupted install, shell aliases, etc.)
+        if echo "$node_major" | grep -qE '^[0-9]+$' && [ "$node_major" -ge 18 ]; then
             maestro_check "Node.js" "${node_ver} ${GREEN}✓${NC}"
         else
             maestro_check "Node.js" "${node_ver} ${YELLOW}too old${NC}"
@@ -683,7 +707,16 @@ act2_install_prerequisites() {
             nvm use 20
             nvm alias default 20
         fi
-        maestro_ok "Node.js installed"
+        # Verify the installed Node.js meets the minimum version requirement
+        local post_node_ver post_node_major
+        post_node_ver=$(node --version 2>/dev/null || echo "")
+        post_node_major=$(echo "$post_node_ver" | cut -d'.' -f1 | sed 's/v//')
+        if ! echo "$post_node_major" | grep -qE '^[0-9]+$' || [ "$post_node_major" -lt 18 ]; then
+            maestro_fail "Node.js installation failed — version ${post_node_ver:-unknown} does not meet minimum requirement (>=18)"
+            exit 1
+        fi
+        NEED_NODE=false
+        maestro_ok "Node.js ${post_node_ver} installed"
     fi
 
     # Yarn
@@ -694,13 +727,29 @@ act2_install_prerequisites() {
         # Detect if npm global dir is writable (system Node needs sudo)
         local npm_prefix
         npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+        local yarn_installed=false
         if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
-            npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            if npm install -g yarn; then
+                yarn_installed=true
+            else
+                maestro_warn "Could not install Yarn"
+            fi
         else
             maestro_info "System Node detected — using sudo for global npm install..."
-            sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            if sudo npm install -g yarn; then
+                yarn_installed=true
+            else
+                maestro_warn "Could not install Yarn"
+            fi
         fi
-        maestro_ok "Yarn installed"
+        # Verify yarn is actually available after installation
+        if [ "$yarn_installed" = true ]; then
+            if command -v yarn &>/dev/null; then
+                maestro_ok "Yarn installed"
+            else
+                maestro_warn "Yarn install command succeeded but yarn is still not on PATH"
+            fi
+        fi
     fi
 
     # System packages (Linux/WSL only)
@@ -759,14 +808,10 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package — always show errors so failures are diagnosable
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
-            else
-                npm install -g "$pkg" 2>/dev/null
-            fi
+            npm install -g "$pkg"
         }
 
         case "$ai_choice" in
@@ -883,7 +928,10 @@ act2b_gateway_selection() {
         echo "  Toggle: 1-4  |  a) All  n) None  Enter) Continue"
         printf "  > "
         read -r choice
-        case $choice in
+        # Trim leading/trailing whitespace so " 1 " matches the same as "1"
+        choice="${choice#"${choice%%[![:space:]]*}"}"
+        choice="${choice%"${choice##*[![:space:]]*}"}"
+        case "$choice" in
             1) if [ "$gw_slack" = true ]; then gw_slack=false; else gw_slack=true; fi ;;
             2) if [ "$gw_discord" = true ]; then gw_discord=false; else gw_discord=true; fi ;;
             3) if [ "$gw_email" = true ]; then gw_email=false; else gw_email=true; fi ;;
@@ -978,9 +1026,18 @@ act3_clone_and_build() {
 
                 maestro_step 3 4 "Updating agent tools..." ""
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
-                    # On update: only reinstall tools that are already present
+                    # On update: only reinstall tools that are already present on this
+                    # machine.  Check each tool's sentinel file independently so that
+                    # a missing tool never causes all others to be skipped.
                     local tool_flags=""
-                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                    [ ! -f "$HOME/.local/bin/memory-search.sh" ]   && tool_flags="$tool_flags --skip-memory"
+                    [ ! -f "$HOME/.local/bin/graph-describe.sh" ]   && tool_flags="$tool_flags --skip-graph"
+                    [ ! -f "$HOME/.local/bin/docs-search.sh" ]      && tool_flags="$tool_flags --skip-docs"
+                    [ ! -f "$HOME/.local/bin/aimaestro-agent.sh" ]  && tool_flags="$tool_flags --skip-agent-cli"
+                    # Hooks are installed into ~/.claude/settings.json; use the hook
+                    # script copy in ~/.local/bin as the sentinel (amp-inbox.sh is
+                    # written by the messaging installer, which also installs hooks).
+                    [ ! -f "$HOME/.local/bin/amp-inbox.sh" ]        && tool_flags="$tool_flags --skip-hooks"
                     chmod +x install.sh
                     # shellcheck disable=SC2086
                     ./install.sh --from-remote -y $tool_flags
@@ -1056,14 +1113,17 @@ act3_clone_and_build() {
                     # Copy .env.example to .env with defaults
                     if [ -f ".env.example" ] && [ ! -f ".env" ]; then
                         cp .env.example .env
-                        # Pre-set AI Maestro connection and default agent
-                        if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                        # Pre-set AI Maestro connection and default agent.
+                        # Anchor the grep pattern with ^ and = to avoid false matches on
+                        # longer names like AIMAESTRO_API_KEY or DEFAULT_AGENT_NAME.
+                        local api_url="http://127.0.0.1:${PORT}"
+                        if grep -qE '^AIMAESTRO_API=' .env 2>/dev/null; then
+                            portable_sed "s|^AIMAESTRO_API=.*|AIMAESTRO_API=${api_url}|" .env
                         else
-                            echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
+                            echo "AIMAESTRO_API=${api_url}" >> .env
                         fi
-                        if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
-                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+                        if grep -qE '^DEFAULT_AGENT=' .env 2>/dev/null; then
+                            portable_sed 's|^DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
                         else
                             echo "DEFAULT_AGENT=mailman" >> .env
                         fi
@@ -1108,13 +1168,17 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                pm2 restart ai-maestro 2>/dev/null || maestro_warn "Could not restart ai-maestro via PM2 — you may need to restart it manually"
             else
                 # Kill old nohup process and restart
                 local old_pid
                 old_pid=$(lsof -ti:"$PORT" 2>/dev/null || true)
                 if [ -n "$old_pid" ]; then
-                    kill "$old_pid" 2>/dev/null || true
+                    # $old_pid may contain multiple PIDs (one per line, normalized to
+                    # spaces by command substitution) — intentionally unquoted so each
+                    # PID is passed as a separate argument to kill
+                    # shellcheck disable=SC2086
+                    kill $old_pid 2>/dev/null || true
                     sleep 2
                 fi
                 mkdir -p "$INSTALL_DIR/logs"
@@ -1180,10 +1244,13 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
-    # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escape only the characters that are special in a sed *replacement* string when
+    # using | as the delimiter: backslash (introduces escape sequences) and ampersand
+    # (expands to the full matched text).  Characters like . * ^ $ / are literal in
+    # replacements and must NOT be escaped — doing so inserts spurious backslashes
+    # that corrupt paths such as /home/user.ai → /home/user\.ai.
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[\\&]/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
@@ -1194,10 +1261,13 @@ act4_start_and_register() {
         portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
-    # Register agent with AI Maestro (initializes AMP messaging)
+    # Register agent with AI Maestro (initializes AMP messaging).
+    # Use jq to build the JSON payload so paths with quotes or special characters
+    # never break the JSON syntax and cannot be used for injection.
     curl -s -X POST http://localhost:${PORT}/api/sessions/create \
         -H "Content-Type: application/json" \
-        -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
+        -d "$(jq -n --arg name "my-first-agent" --arg wd "$AGENT_DIR" \
+                '{name: $name, workingDirectory: $wd}')" \
         >/dev/null 2>&1 || true
 
     maestro_ok "Registered 'my-first-agent'"
@@ -1209,7 +1279,11 @@ act4_start_and_register() {
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
             portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
-            # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
+            # Format gateways as a real multiline bullet list.
+            # Build the list with actual newlines (not the literal two-character
+            # sequence \n) so that awk can substitute the placeholder correctly.
+            # sed cannot handle multiline replacement text portably across BSD/GNU,
+            # so awk is used instead.
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
             for gw_item in "${GW_ITEMS[@]}"; do
@@ -1222,17 +1296,29 @@ act4_start_and_register() {
                     *)        gw_display="$gw_item" ;;
                 esac
                 if [ -n "$gw_list" ]; then
-                    gw_list="${gw_list}\n- ${gw_display}"
+                    # Append a real newline followed by the next bullet item
+                    gw_list="${gw_list}
+- ${gw_display}"
                 else
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use awk for multiline-safe placeholder substitution.
+            # awk's gsub() handles newlines in the replacement value on all platforms.
+            local tmp_file
+            tmp_file=$(mktemp)
+            awk -v repl="$gw_list" '{gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, repl)}1' \
+                "$MAILMAN_DIR/CLAUDE.md" > "$tmp_file" \
+                && mv "$tmp_file" "$MAILMAN_DIR/CLAUDE.md" \
+                || rm -f "$tmp_file"
         fi
-        # Register mailman with AI Maestro
+        # Register mailman with AI Maestro.
+        # Use jq to build the JSON payload so paths with special characters
+        # never break the JSON syntax and cannot be used for injection.
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
             -H "Content-Type: application/json" \
-            -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
+            -d "$(jq -n --arg name "mailman" --arg wd "$MAILMAN_DIR" \
+                    '{name: $name, workingDirectory: $wd}')" \
             >/dev/null 2>&1 || true
         maestro_ok "Registered 'mailman' agent"
     fi
@@ -1288,7 +1374,9 @@ act5_grand_finale() {
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            # Pass AI_TOOL and INITIAL_PROMPT as separate arguments so tmux receives
+            # them as distinct argv elements (not concatenated into one command token).
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL" "$INITIAL_PROMPT"
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1298,8 +1386,10 @@ act5_grand_finale() {
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
+                # Pass AI_TOOL and INITIAL_PROMPT as separate arguments so tmux receives
+                # them as distinct argv elements (not concatenated into one command token).
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL" "$INITIAL_PROMPT"
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"
@@ -1337,6 +1427,13 @@ act5_grand_finale() {
 
 main() {
     parse_args "$@"
+
+    # Validate PORT value whether it came from the -p flag or the AIMAESTRO_PORT env var.
+    # The -p handler already validates explicit --port arguments; this catches AIMAESTRO_PORT.
+    if ! echo "$PORT" | grep -qE '^[0-9]+$' || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+        maestro_fail "Invalid port '$PORT' — AIMAESTRO_PORT must be an integer between 1 and 65535"
+        exit 1
+    fi
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then

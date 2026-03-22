@@ -270,10 +270,24 @@ import {
 // Utility helpers
 // ---------------------------------------------------------------------------
 
+// 4 MB matches Next.js default body limit for JSON API routes
+const MAX_JSON_BODY_SIZE = 4 * 1024 * 1024
+// 50 MB allows for large agent ZIP archives in the import endpoint
+const MAX_RAW_BODY_SIZE = 50 * 1024 * 1024
+
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_JSON_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('Payload too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
@@ -290,7 +304,16 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
 async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_RAW_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('Payload too large'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
@@ -311,11 +334,16 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
   res.end(buffer)
 }
 
-function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+async function sendServiceResult(res: ServerResponse, result: any) {
+  // Await the result so that a Promise returned by an async service function is
+  // resolved before we inspect its shape — without this, result.error / result.data
+  // would be undefined (properties of the Promise object, not the resolved value).
+  const resolved = await result
+  // Error always takes precedence regardless of whether data is also present
+  if (resolved.error) {
+    sendJson(res, resolved.status || 500, { error: resolved.error }, resolved.headers)
   } else {
-    sendJson(res, result.status || 200, result.data, result.headers)
+    sendJson(res, resolved.status || 200, resolved.data, resolved.headers)
   }
 }
 
@@ -336,30 +364,81 @@ function getQuery(url: string): Record<string, string> {
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
+ *
+ * Operates entirely on Buffer slices so that binary file content is never round-tripped
+ * through a string encoding (which would corrupt arbitrary byte sequences).  Headers are
+ * decoded as UTF-8 (they are always ASCII-safe per RFC 7578).  The text `options` field
+ * is decoded as UTF-8 to support JSON content.  The binary `file` field is kept as a raw
+ * Buffer with no string conversion at any point.
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
-  const bodyStr = body.toString('latin1')
-  const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
+  // RFC 2046: each part is preceded by "--<boundary>\r\n" and the body ends with
+  // "--<boundary>--".  We locate each boundary occurrence in the raw buffer and
+  // extract the slice between them without any encoding conversion.
+  const boundaryBuf = Buffer.from('--' + boundaryMatch[1])
+  const CRLF = Buffer.from('\r\n')
+  const CRLFCRLF = Buffer.from('\r\n\r\n')
+
+  /** Find the first occurrence of `needle` in `haystack` starting at `offset`. */
+  function indexOfBuf(haystack: Buffer, needle: Buffer, offset = 0): number {
+    for (let i = offset; i <= haystack.length - needle.length; i++) {
+      if (haystack.slice(i, i + needle.length).equals(needle)) return i
+    }
+    return -1
+  }
+
+  const partBuffers: Buffer[] = []
+  let searchFrom = 0
+
+  // Collect all slices that sit between consecutive boundary markers.
+  while (true) {
+    const boundaryPos = indexOfBuf(body, boundaryBuf, searchFrom)
+    if (boundaryPos === -1) break
+
+    const afterBoundary = boundaryPos + boundaryBuf.length
+
+    // Check for closing "--" suffix (final boundary) — stop here.
+    if (body[afterBoundary] === 0x2D && body[afterBoundary + 1] === 0x2D) break
+
+    // Each boundary is followed by \r\n before the part headers start.
+    const partStart = afterBoundary + CRLF.length
+
+    // The part ends just before the next boundary (preceded by \r\n).
+    const nextBoundary = indexOfBuf(body, boundaryBuf, partStart)
+    if (nextBoundary === -1) break
+
+    // Strip the mandatory \r\n that precedes the next boundary delimiter — it is part
+    // of the encapsulation boundary, not the part content (RFC 2046 §5.1).
+    const partEnd = nextBoundary - CRLF.length
+    if (partEnd > partStart) {
+      partBuffers.push(body.slice(partStart, partEnd))
+    }
+
+    searchFrom = nextBoundary
+  }
 
   let file: Buffer | null = null
   let options: string | null = null
 
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n')
+  for (const part of partBuffers) {
+    // Locate the blank line separating headers from body (\r\n\r\n).
+    const headerEnd = indexOfBuf(part, CRLFCRLF)
     if (headerEnd === -1) continue
 
-    const headers = part.substring(0, headerEnd)
-    const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
+    // Headers are always ASCII — safe to decode as UTF-8.
+    const headers = part.slice(0, headerEnd).toString('utf8')
+    // Content is everything after the \r\n\r\n separator — kept as a raw Buffer.
+    const content = part.slice(headerEnd + CRLFCRLF.length)
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
-      file = Buffer.from(content, 'latin1')
+      // Keep the file as a raw Buffer — no string conversion to avoid corruption.
+      file = content
     } else if (headers.includes('name="options"')) {
-      options = content
+      // The options field is a JSON text value — safe to decode as UTF-8.
+      options = content.toString('utf8').trim()
     }
   }
 
@@ -470,7 +549,12 @@ const routes: Route[] = [
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    // Require sessionId to prevent silent no-op or accidental broad deletion
+    if (!query.sessionId) {
+      sendJson(res, 400, { error: 'sessionId query param required' })
+      return
+    }
+    sendServiceResult(res, await deletePersistedSession(query.sessionId))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
@@ -493,7 +577,7 @@ const routes: Route[] = [
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: (() => { const v = parseInt(query.timeout); return Number.isNaN(v) ? undefined : v })(),
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -511,7 +595,8 @@ const routes: Route[] = [
     sendServiceResult(res, registerAgent(body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/by-name\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
-    sendServiceResult(res, lookupAgentByName(params.name))
+    // Decode percent-encoded names so lookups work for names with spaces or special chars
+    sendServiceResult(res, lookupAgentByName(decodeURIComponent(params.name)))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/email-index$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await queryEmailIndex({
@@ -537,7 +622,14 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options: Record<string, unknown>
+      try {
+        // A malformed options field is a client error (400), not a server error (500)
+        options = optionsStr ? JSON.parse(optionsStr) : {}
+      } catch {
+        sendJson(res, 400, { error: 'Invalid JSON in options field' })
+        return
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -549,7 +641,8 @@ const routes: Route[] = [
     sendServiceResult(res, getDirectory())
   }},
   { method: 'GET', pattern: /^\/api\/agents\/directory\/lookup\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
-    sendServiceResult(res, lookupAgentByDirectoryName(params.name))
+    // Decode percent-encoded names so lookups work for names with spaces or special chars
+    sendServiceResult(res, lookupAgentByDirectoryName(decodeURIComponent(params.name)))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/directory\/sync$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await syncDirectory())
@@ -564,7 +657,7 @@ const routes: Route[] = [
   // Agent list / create (must be AFTER static agent sub-paths)
   { method: 'GET', pattern: /^\/api\/agents$/, paramNames: [], handler: async (_req, res, _params, query) => {
     if (query.q) {
-      sendServiceResult(res, searchAgentsByQuery(query.q))
+      sendServiceResult(res, await searchAgentsByQuery(query.q))
     } else {
       sendServiceResult(res, await listAgents())
     }
@@ -584,7 +677,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, linkAgentSession(params.id, body))
+    sendServiceResult(res, await linkAgentSession(params.id, body))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/session$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -611,7 +704,7 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: (() => { const v = parseInt(query.limit); return Number.isNaN(v) ? undefined : v })(),
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -635,13 +728,13 @@ const routes: Route[] = [
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: (() => { const v = parseInt(query.limit); return Number.isNaN(v) ? undefined : v })(),
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: (() => { const v = parseFloat(query.minConfidence); return Number.isNaN(v) ? undefined : v })(),
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: (() => { const v = parseInt(query.maxTokens); return Number.isNaN(v) ? undefined : v })(),
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -664,15 +757,15 @@ const routes: Route[] = [
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: (() => { const v = parseInt(query.limit); return Number.isNaN(v) ? undefined : v })(),
+      minScore: (() => { const v = parseFloat(query.minScore); return Number.isNaN(v) ? undefined : v })(),
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: (() => { const v = parseInt(query.startTs); return Number.isNaN(v) ? undefined : v })(),
+      endTs: (() => { const v = parseInt(query.endTs); return Number.isNaN(v) ? undefined : v })(),
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: (() => { const v = parseFloat(query.bm25Weight); return Number.isNaN(v) ? undefined : v })(),
+      semanticWeight: (() => { const v = parseFloat(query.semanticWeight); return Number.isNaN(v) ? undefined : v })(),
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -807,7 +900,12 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        sendJson(res, result.status || 500, { error: result.error })
+        return
+      }
+      // Guard against service returning an unexpected shape before destructuring
+      if (!result.data.buffer || !result.data.filename) {
+        sendJson(res, 500, { error: 'Invalid export data: missing buffer or filename' })
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -897,7 +995,7 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
     }
@@ -906,7 +1004,7 @@ const routes: Route[] = [
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { metadata: result.data?.agent?.metadata })
     }
@@ -914,7 +1012,7 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { success: true })
     }
@@ -1024,7 +1122,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    sendServiceResult(res, listPendingMessages(authHeader, (() => { const v = parseInt(query.limit); return Number.isNaN(v) ? undefined : v })()))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1281,7 +1379,12 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // Surface payload-too-large as 413 so clients get actionable feedback
+          if (error instanceof Error && error.message === 'Payload too large') {
+            sendJson(res, 413, { error: 'Payload too large' })
+          } else {
+            sendJson(res, 500, { error: 'Internal server error' })
+          }
         }
       }
 

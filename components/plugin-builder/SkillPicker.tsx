@@ -46,7 +46,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
         if (res.ok) {
           const data = await res.json()
-          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+          if (!signal.aborted) setMarketplaceSkills(Array.isArray(data.skills) ? data.skills : [])
         }
       } catch {
         // Marketplace may not be available or request aborted
@@ -71,7 +71,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
     )
   }, [searchQuery, marketplaceSkills])
 
@@ -206,6 +206,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                         onAddSkill({
                           type: 'marketplace',
                           id: skill.id,
+                          name: skill.name,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
                         })
@@ -215,7 +216,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, name: skill.name, marketplace: skill.marketplace, plugin: skill.plugin })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -272,6 +273,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so that skills from the same repo path on different branches have distinct keys
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

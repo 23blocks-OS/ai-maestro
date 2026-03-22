@@ -469,6 +469,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   let buildDir: string | undefined
 
   try {
+    // Increment before any operation that could throw so the outer catch always
+    // sees a matching decrement (evictStaleBuildResults must not run before the
+    // increment, otherwise a throw there would cause the catch to decrement an
+    // already-zero counter).
+    activeOps++
+
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 

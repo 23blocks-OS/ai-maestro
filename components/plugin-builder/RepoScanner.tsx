@@ -78,6 +78,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     const trimmedUrl = url.trim()
     const trimmedRef = ref.trim() || 'main'
 
+    // Resolve the ref to use: fall back to 'main' when the field is blank,
+    // matching the input's onChange default so the API always receives a valid ref.
+    const actualRef = ref.trim() || 'main'
     try {
       // Apply the 'main' default only at the point of the network call so that
       // the input field can be truly empty (controlled by the user) while still

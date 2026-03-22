@@ -706,10 +706,10 @@ act2_install_prerequisites() {
         local npm_prefix
         npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
         if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
-            npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            npm install -g yarn || { maestro_fail "Failed to install Yarn. Aborting."; exit 1; }
         else
             maestro_info "System Node detected — using sudo for global npm install..."
-            sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+            sudo npm install -g yarn || { maestro_fail "Failed to install Yarn with sudo. Please install Yarn manually or fix npm permissions. Aborting."; exit 1; }
         fi
         maestro_ok "Yarn installed"
     fi
@@ -983,7 +983,8 @@ act3_clone_and_build() {
                 maestro_step 1 4 "Pulling latest changes..." "done"
 
                 maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+                # Failure to install core dependencies is fatal — a broken install must not proceed silently
+                yarn install --silent || yarn install || { maestro_fail "yarn install failed. Aborting."; exit 1; }
                 maestro_step 2 4 "Installing dependencies..." "done"
 
                 maestro_step 3 4 "Updating agent tools..." ""
@@ -1214,7 +1215,7 @@ act4_start_and_register() {
     mkdir -p "$AGENT_DIR"
 
     # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escapes: \ & | [ ] . * ^ $ / @ (covers regex specials + our @ delimiter)
     local safe_dir
     safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[][\.*^$|&\\/]/\\&/g')
 
@@ -1247,7 +1248,7 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
-            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"

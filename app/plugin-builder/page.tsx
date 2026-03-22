@@ -31,11 +31,11 @@ export default function PluginBuilderPage() {
     setSkills(prev => prev.filter(s => getSkillKey(s) !== key))
   }, [])
 
-  // Build config
+  // Build config — description is passed as-is; empty string is a valid value for the optional field.
   const buildConfig: PluginBuildConfig = useMemo(() => ({
     name,
     version,
-    description: description || undefined,
+    description,
     skills,
     includeHooks,
   }), [name, version, description, skills, includeHooks])

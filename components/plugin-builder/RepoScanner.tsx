@@ -9,15 +9,23 @@ interface RepoScannerProps {
   onSkillsFound?: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
   selectedSkillKeys: Set<string>
+  // Canonical key function from SkillPicker — ensures key format never diverges
+  getSkillKey: (skill: PluginSkillSelection) => string
 }
 
-export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys }: RepoScannerProps) {
+export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys, getSkillKey }: RepoScannerProps) {
   const [url, setUrl] = useState('')
   // Empty string means "use default"; the actual default 'main' is applied only at scan time
   const [ref, setRef] = useState('')
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // store the url/ref that produced the current scanResult so that handleAddSkill and
+  // the selectedSkillKeys lookup always use the values from the scan, not from current input state.
+  // Empty string means no scan has been performed yet; url.trim() is always non-empty before a scan.
+  const [scannedUrl, setScannedUrl] = useState<string>('')
+  // Always a string (empty string = use repo default branch); never null after a successful scan
+  const [scannedRef, setScannedRef] = useState<string>('')
   const abortRef = useRef<AbortController | null>(null)
   // Track the exact url/ref used for the last successful scan so that handleAddSkill
   // always stores the values that were actually used to discover each skill, even if
@@ -41,6 +49,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setScanning(true)
     setError(null)
     setScanResult(null)
+    // Reset scanned url/ref so handleAddSkill never uses stale data from a previous scan
+    setScannedUrl('')
+    setScannedRef('')
 
     try {
       // Apply the 'main' default only at the point of the network call so that
@@ -143,7 +154,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
         </div>
       )}
 
-      {scanResult && scanResult.skills.length > 0 && (
+      {scanResult && scanResult.skills.length > 0 && scannedUrl && (
         <div className="space-y-2">
           <p className="text-xs text-gray-500">
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}

@@ -534,7 +534,7 @@ const routes: Route[] = [
   // Config & System
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/config$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSystemConfig())
+    sendServiceResult(res, await getSystemConfig())
   }},
   { method: 'PATCH', pattern: /^\/api\/config$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req) ?? {}
@@ -550,14 +550,14 @@ const routes: Route[] = [
     sendServiceResult(res, { status: 200, data: { success: true, settings: updated } })
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getOrganization())
+    sendServiceResult(res, await getOrganization())
   }},
   { method: 'POST', pattern: /^\/api\/organization$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, setOrganizationName(body))
+    sendServiceResult(res, await setOrganizationName(body))
   }},
   { method: 'GET', pattern: /^\/api\/subconscious$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getSubconsciousStatus())
+    sendServiceResult(res, await getSubconsciousStatus())
   }},
   { method: 'GET', pattern: /^\/api\/debug\/pty$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await getPtyDebugInfo())
@@ -567,17 +567,17 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, parseConversationFile(body.filePath))
+    sendServiceResult(res, await parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
     const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getExportJobStatus(params.jobId))
+    sendServiceResult(res, await getExportJobStatus(params.jobId))
   }},
   { method: 'DELETE', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteExportJob(params.jobId))
+    sendServiceResult(res, await deleteExportJob(params.jobId))
   }},
 
   // =========================================================================
@@ -659,7 +659,7 @@ const routes: Route[] = [
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getStartupInfo())
+    sendServiceResult(res, await getStartupInfo())
   }},
   { method: 'POST', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await initializeStartup())
@@ -673,7 +673,7 @@ const routes: Route[] = [
     sendServiceResult(res, await registerAgent(body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/by-name\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
-    sendServiceResult(res, lookupAgentByName(params.name))
+    sendServiceResult(res, await lookupAgentByName(params.name))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/email-index$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await queryEmailIndex({
@@ -718,17 +718,17 @@ const routes: Route[] = [
   }},
   // Agent directory
   { method: 'GET', pattern: /^\/api\/agents\/directory$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getDirectory())
+    sendServiceResult(res, await getDirectory())
   }},
   { method: 'GET', pattern: /^\/api\/agents\/directory\/lookup\/([^/]+)$/, paramNames: ['name'], handler: async (_req, res, params) => {
-    sendServiceResult(res, lookupAgentByDirectoryName(params.name))
+    sendServiceResult(res, await lookupAgentByDirectoryName(params.name))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/directory\/sync$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await syncDirectory())
   }},
   // Normalize hosts
   { method: 'GET', pattern: /^\/api\/agents\/normalize-hosts$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, diagnoseHosts())
+    sendServiceResult(res, await diagnoseHosts())
   }},
   { method: 'POST', pattern: /^\/api\/agents\/normalize-hosts$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, await normalizeHosts())
@@ -736,7 +736,7 @@ const routes: Route[] = [
   // Agent list / create (must be AFTER static agent sub-paths)
   { method: 'GET', pattern: /^\/api\/agents$/, paramNames: [], handler: async (_req, res, _params, query) => {
     if (query.q) {
-      sendServiceResult(res, searchAgentsByQuery(query.q))
+      sendServiceResult(res, await searchAgentsByQuery(query.q))
     } else {
       sendServiceResult(res, await listAgents())
     }
@@ -894,7 +894,7 @@ const routes: Route[] = [
     sendServiceResult(res, await initializeTracking(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getMetrics(params.id))
+    sendServiceResult(res, await getMetrics(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metrics$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -994,7 +994,7 @@ const routes: Route[] = [
     sendServiceResult(res, await saveSkillSettings(params.id, body, auth.error ? null : auth.agentId))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getSkillsConfig(params.id))
+    sendServiceResult(res, await getSkillsConfig(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1040,23 +1040,23 @@ const routes: Route[] = [
 
   // Repos
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, listRepos(params.id))
+    sendServiceResult(res, await listRepos(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateRepos(params.id, body))
+    sendServiceResult(res, await updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    sendServiceResult(res, await removeRepo(params.id, query.url || ''))
   }},
 
   // Playback
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, getPlaybackState(params.id, query.sessionId))
+    sendServiceResult(res, await getPlaybackState(params.id, query.sessionId))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/playback$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, controlPlayback(params.id, body))
+    sendServiceResult(res, await controlPlayback(params.id, body))
   }},
 
   // Export / Transfer
@@ -1090,7 +1090,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createTranscriptExportJob(params.id, body))
+    sendServiceResult(res, await createTranscriptExportJob(params.id, body))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/transfer$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1099,7 +1099,7 @@ const routes: Route[] = [
 
   // AMP addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getAMPAddress(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, await getAMPAddress(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1109,7 +1109,7 @@ const routes: Route[] = [
     sendServiceResult(res, await removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, listAMPAddresses(params.id))
+    sendServiceResult(res, await listAMPAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1118,7 +1118,7 @@ const routes: Route[] = [
 
   // Email addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, await getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1128,7 +1128,7 @@ const routes: Route[] = [
     sendServiceResult(res, await removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, listEmailAddresses(params.id))
+    sendServiceResult(res, await listEmailAddresses(params.id))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1199,7 +1199,7 @@ const routes: Route[] = [
 
   // Agent CRUD (must be LAST among /api/agents/[id]/* routes)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getAgentById(params.id))
+    sendServiceResult(res, await getAgentById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1235,7 +1235,7 @@ const routes: Route[] = [
   // Hosts
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/hosts\/identity$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getHostIdentity())
+    sendServiceResult(res, await getHostIdentity())
   }},
   { method: 'GET', pattern: /^\/api\/hosts\/health$/, paramNames: [], handler: async (_req, res, _params, query) => {
     sendServiceResult(res, await checkRemoteHealth(query.url || ''))
@@ -1273,10 +1273,10 @@ const routes: Route[] = [
   // AMP v1
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/v1\/health$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getHealthStatus())
+    sendServiceResult(res, await getHealthStatus())
   }},
   { method: 'GET', pattern: /^\/api\/v1\/info$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, getProviderInfo())
+    sendServiceResult(res, await getProviderInfo())
   }},
   { method: 'POST', pattern: /^\/api\/v1\/register$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1302,7 +1302,7 @@ const routes: Route[] = [
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
-    sendServiceResult(res, getAgentSelf(getHeader(req, 'Authorization')))
+    sendServiceResult(res, await getAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'PATCH', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1312,11 +1312,11 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/resolve\/([^/]+)$/, paramNames: ['address'], handler: async (req, res, params) => {
-    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), decodeURIComponent(params.address)))
+    sendServiceResult(res, await resolveAgentAddress(getHeader(req, 'Authorization'), decodeURIComponent(params.address)))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listAMPAgents(authHeader, query.search || null))
+    sendServiceResult(res, await listAMPAgents(authHeader, query.search || null))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/([^/]+)\/read$/, paramNames: ['id'], handler: async (req, res, params) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1339,12 +1339,12 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || null))
+    sendServiceResult(res, await acknowledgePendingMessage(authHeader, query.id || null))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, batchAcknowledgeMessages(authHeader, body.ids))
+    sendServiceResult(res, await batchAcknowledgeMessages(authHeader, body.ids))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/auth\/revoke-key$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, await revokeKey(getHeader(req, 'Authorization')))
@@ -1410,21 +1410,21 @@ const routes: Route[] = [
   // Meetings
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getMeetingById(params.id))
+    sendServiceResult(res, await getMeetingById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateExistingMeeting(params.id, body))
+    sendServiceResult(res, await updateExistingMeeting(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/meetings\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteExistingMeeting(params.id))
+    sendServiceResult(res, await deleteExistingMeeting(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/meetings$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, listMeetings(query.status))
+    sendServiceResult(res, await listMeetings(query.status))
   }},
   { method: 'POST', pattern: /^\/api\/meetings$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createNewMeeting(body))
+    sendServiceResult(res, await createNewMeeting(body))
   }},
 
   // =========================================================================
@@ -2060,7 +2060,7 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteTeamById(params.id, requestingAgentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, listAllTeams())
+    sendServiceResult(res, await listAllTeams())
   }},
   { method: 'POST', pattern: /^\/api\/teams$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -2083,38 +2083,38 @@ const routes: Route[] = [
     sendServiceResult(res, await testWebhookById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/webhooks\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getWebhookById(params.id))
+    sendServiceResult(res, await getWebhookById(params.id))
   }},
   { method: 'DELETE', pattern: /^\/api\/webhooks\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteWebhookById(params.id))
+    sendServiceResult(res, await deleteWebhookById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/webhooks$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, listAllWebhooks())
+    sendServiceResult(res, await listAllWebhooks())
   }},
   { method: 'POST', pattern: /^\/api\/webhooks$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createNewWebhook(body))
+    sendServiceResult(res, await createNewWebhook(body))
   }},
 
   // =========================================================================
   // Domains
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/domains\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getDomainById(params.id))
+    sendServiceResult(res, await getDomainById(params.id))
   }},
   { method: 'PATCH', pattern: /^\/api\/domains\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateDomainById(params.id, body))
+    sendServiceResult(res, await updateDomainById(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/domains\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    sendServiceResult(res, deleteDomainById(params.id))
+    sendServiceResult(res, await deleteDomainById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/domains$/, paramNames: [], handler: async (_req, res) => {
-    sendServiceResult(res, listAllDomains())
+    sendServiceResult(res, await listAllDomains())
   }},
   { method: 'POST', pattern: /^\/api\/domains$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, createNewDomain(body))
+    sendServiceResult(res, await createNewDomain(body))
   }},
 
   // =========================================================================

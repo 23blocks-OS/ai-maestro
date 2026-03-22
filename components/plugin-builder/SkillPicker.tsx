@@ -270,6 +270,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
+            getSkillKey={getSkillKey}
           />
         )}
       </div>

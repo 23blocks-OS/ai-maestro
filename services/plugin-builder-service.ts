@@ -52,6 +52,9 @@ const BUILD_TTL_MS = 60 * 60 * 1000 // 1 hour
 const MAX_CONCURRENT_OPS = 3
 let activeOps = 0
 
+/** Guard flag to prevent re-entrant calls to evictStaleBuildResults */
+let isEvicting = false
+
 // In-memory build status tracking (with TTL eviction)
 const buildResults = new Map<string, PluginBuildResult>()
 
@@ -228,6 +231,22 @@ function evictStaleBuildResults(): void {
         console.warn(`plugin-builder: failed to remove oldest build directory ${buildDir}:`, err)
       })
     }
+
+    // Pass 2: if still over the hard limit, evict oldest of the SURVIVING (non-stale) entries
+    // This avoids removing entries that were already removed in pass 1 from an out-of-date list.
+    if (buildResults.size > MAX_BUILD_RESULTS) {
+      const sorted = survivors
+        .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
+      const toRemoveCount = buildResults.size - MAX_BUILD_RESULTS
+      for (let i = 0; i < toRemoveCount; i++) {
+        const [id] = sorted[i]
+        buildResults.delete(id)
+        const buildDir = path.join(BUILDS_DIR, id)
+        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error(`Failed to remove evicted build dir ${buildDir}:`, err))
+      }
+    }
+  } finally {
+    isEvicting = false
   }
 }
 
@@ -393,8 +412,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkErr) {
+        // If symlink fails (e.g., cross-device or permissions), copy instead.
+        // Log the symlink failure so the cause is visible; let copyDir errors propagate
+        // so the build fails loudly rather than silently missing core skills.
+        console.warn(`Build ${buildId}: symlink of core skills dir failed, falling back to copy:`, symlinkErr)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -505,8 +527,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     // Clean up on error
     await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
 
-    const exitCode = (error as any)?.code
-    const message = error instanceof Error ? error.message : String(error)
+    const execError = error as ExecError
+    const exitCode = execError.code
+    let message = execError.message || String(error)
+    if (execError.stderr) message += `\nStderr: ${execError.stderr}`
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
@@ -599,7 +623,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     }
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
-    const message = error instanceof Error ? error.message : String(error)
+    // Include stderr from execPromise-thrown ExecError for actionable git failure messages
+    let message = error instanceof Error ? error.message : String(error)
+    const execErr = error as ExecError
+    if (execErr.stderr) message += `\nStderr: ${execErr.stderr}`
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
@@ -631,20 +658,28 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const stats = { skills: 0, scripts: 0, hooks: 0 }
 
     try {
-      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(() => [] as string[])
+      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(err => {
+        console.warn(`Failed to read skills directory for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.skills = skillEntries.length
 
-      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(() => [] as string[])
+      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(err => {
+        console.warn(`Failed to read scripts directory for build ${buildId}:`, err)
+        return [] as string[]
+      })
       stats.scripts = scriptEntries.length
 
       try {
         await fs.access(path.join(outputPath, 'hooks', 'hooks.json'))
         stats.hooks = 1
-      } catch {
+      } catch (err) {
+        console.warn(`Failed to access hooks.json for build ${buildId}:`, err)
         stats.hooks = 0
       }
-    } catch {
-      // Stats collection failed — non-critical
+    } catch (err) {
+      // Stats collection failed — non-critical, but log for visibility
+      console.warn(`Stats collection failed for build ${buildId}:`, err)
     }
 
     // Re-read current entry so we don't overwrite any fields updated since
@@ -806,7 +841,7 @@ function execPromise(
       maxBuffer: 10 * 1024 * 1024, // 10MB — git clone and verbose build scripts can produce large output
     }, (error, stdout, stderr) => {
       if (error) {
-        const err = error as any
+        const err = error as ExecError
         err.stderr = stderr
         reject(err)
       } else {

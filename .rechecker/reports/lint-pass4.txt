@@ -1,0 +1,8 @@
+ESLint: No warnings or errors
+
+In scripts/remote-install.sh line 984:
+                            (cd "${gw}-gateway" && npm install || maestro_warn "npm install failed for ${gw}-gateway — skipping")
+                                                ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...

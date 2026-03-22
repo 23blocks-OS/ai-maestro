@@ -26,7 +26,7 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
+  | { type: 'marketplace'; id: string; marketplace: string; plugin: string; name: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
 // ============================================================================
@@ -71,7 +71,7 @@ export interface PluginManifest {
 export interface PluginManifestMetadata {
   name: string
   version: string
-  author?: { name: string }
+  author: { name: string }
   homepage?: string
   license?: string
 }

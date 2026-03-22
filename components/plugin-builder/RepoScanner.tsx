@@ -1,16 +1,17 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
+import { GitBranch, Search, Loader2, AlertCircle, Plus, Check } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
 interface RepoScannerProps {
   onSkillsFound: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
+  onRemoveSkill: (key: string) => void
   selectedSkillKeys: Set<string>
 }
 
-export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys }: RepoScannerProps) {
+export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, selectedSkillKeys }: RepoScannerProps) {
   const [url, setUrl] = useState('')
   const [ref, setRef] = useState('main')
   const [scanning, setScanning] = useState(false)
@@ -47,7 +48,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Normalize ref to 'main' when empty, consistent with handleAddSkill
+        onSkillsFound(data.skills, url.trim(), ref.trim() || 'main')
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -61,7 +63,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     onAddSkill({
       type: 'repo',
       url: url.trim(),
-      ref,
+      ref: ref.trim() || 'main', // Normalize: fall back to 'main' if user cleared the branch input
       skillPath: skill.path,
       name: skill.name,
     })
@@ -124,7 +126,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Key must match getSkillKey()'s repo format: include ref so different branches are distinct
+            const key = `repo:${url.trim()}:${ref.trim() || 'main'}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
@@ -138,12 +141,19 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
                   )}
                 </div>
                 <button
-                  onClick={() => handleAddSkill(skill)}
-                  disabled={isSelected}
-                  className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors flex-shrink-0"
-                  title={isSelected ? 'Already added' : 'Add skill'}
+                  onClick={() => {
+                    // Use the same fully-qualified key as getSkillKey() to guarantee correct removal
+                    const skillKeyToRemove = `repo:${url.trim()}:${ref.trim() || 'main'}:${skill.path}`
+                    isSelected ? onRemoveSkill(skillKeyToRemove) : handleAddSkill(skill)
+                  }}
+                  className={`ml-2 p-1.5 rounded-md transition-colors flex-shrink-0 ${
+                    isSelected
+                      ? 'text-cyan-400 hover:bg-red-500/10 hover:text-red-400'
+                      : 'text-cyan-400 hover:bg-cyan-500/10'
+                  }`}
+                  title={isSelected ? 'Remove skill' : 'Add skill'}
                 >
-                  <Plus className="w-4 h-4" />
+                  {isSelected ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 </button>
               </div>
             )

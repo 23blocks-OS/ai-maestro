@@ -254,6 +254,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
@@ -272,6 +273,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so skills from different branches/tags have distinct keys
+      return `repo:${skill.url}:${skill.ref || 'main'}:${skill.skillPath}`
   }
 }

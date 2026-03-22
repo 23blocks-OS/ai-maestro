@@ -178,7 +178,7 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.warn('Failed to clean up build dir:', buildDir, err))
     }
   }
 
@@ -190,7 +190,7 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.warn('Failed to clean up build dir:', buildDir, err))
     }
   }
 }
@@ -242,19 +242,29 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Sanitize with path.basename to strip any path traversal sequences (e.g. "../")
+    // that could escape the intended .claude/plugins/marketplaces directory.
+    const sanitizedMarketplace = path.basename(group.marketplace)
+    // Sanitize the plugin name the same way — plugin dir lives inside the marketplace dir.
+    const sanitizedPlugin = path.basename(group.plugin)
+    // The build script resolves `path` as "$SCRIPT_DIR/$path", so the manifest path must
+    // be relative. buildPlugin symlinks the actual plugin directory into the build dir at
+    // this relative location before running the build script.
+    const relativeStagingPath = `./marketplace-${sanitizedMarketplace}/${sanitizedPlugin}`
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
       const parts = skill.id.split(':')
       const skillName = parts[parts.length - 1]
+      // The skill directory lives at skills/<skillName>/ inside the plugin directory,
+      // which is what `relativeStagingPath` resolves to in the build dir.
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
       name: `${group.plugin}-from-${group.marketplace}`,
       description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
       type: 'local',
-      path: installPath,
+      path: relativeStagingPath,
       map,
     })
   }
@@ -316,6 +326,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Track whether activeOps++ was reached so the finally block only decrements
+  // when the counter was actually incremented (errors before activeOps++ must
+  // not decrement an already-correct counter).
+  // activeOps is decremented here (in the outer finally) when buildPlugin returns,
+  // covering both the success path (202) and the sync-error path (500).
+  // runBuild runs fire-and-forget with no .finally() — a second decrement there
+  // would double-count because the outer finally already handles it on return.
+  let opStarted = false
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
@@ -353,6 +372,38 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       }
     }
 
+    // Stage marketplace plugin directories into the build dir so the build script can
+    // resolve them via the relative paths written into the manifest by generateManifest.
+    // Each marketplace plugin is staged at buildDir/marketplace-<marketplace>/<plugin>/,
+    // matching the relativeStagingPath pattern used in generateManifest.
+    const marketplaceSkills = config.skills.filter(
+      (s): s is Extract<PluginSkillSelection, { type: 'marketplace' }> => s.type === 'marketplace'
+    )
+    // Collect unique marketplace+plugin pairs to avoid redundant symlinks.
+    const stagedMarketplaceKeys = new Set<string>()
+    for (const skill of marketplaceSkills) {
+      const sanitizedMarketplace = path.basename(skill.marketplace)
+      const sanitizedPlugin = path.basename(skill.plugin)
+      const stageKey = `${sanitizedMarketplace}/${sanitizedPlugin}`
+      if (stagedMarketplaceKeys.has(stageKey)) continue
+      stagedMarketplaceKeys.add(stageKey)
+
+      // The actual plugin directory on disk
+      const pluginSrcDir = path.join(
+        os.homedir(), '.claude', 'plugins', 'marketplaces', sanitizedMarketplace, sanitizedPlugin
+      )
+      // The staging location the build script will look for (must match manifest path)
+      const stageParent = path.join(buildDir, `marketplace-${sanitizedMarketplace}`)
+      const stageLinkTarget = path.join(stageParent, sanitizedPlugin)
+      await fs.mkdir(stageParent, { recursive: true })
+      try {
+        await fs.symlink(pluginSrcDir, stageLinkTarget, 'dir')
+      } catch {
+        // If symlink fails (e.g., permissions), copy instead
+        await copyDir(pluginSrcDir, stageLinkTarget)
+      }
+    }
+
     // Initialize build result
     const result: PluginBuildResult = {
       buildId,
@@ -363,27 +414,41 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
-    runBuild(buildId, buildDir, manifest).catch(err => {
-      console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
-      const r = buildResults.get(buildId)
-      if (r && r.status === 'building') {
-        buildResults.set(buildId, {
-          ...r,
-          status: 'failed',
-          logs: [err instanceof Error ? err.message : String(err)],
-        })
-      }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
-    })
+    // Fire-and-forget: runBuild owns the activeOps decrement via its own .finally()
+    // because buildPlugin returns immediately (202) while the build runs asynchronously.
+    // The outer finally below only decrements when opStarted is false (early error before
+    // runBuild was launched), preventing any double-decrement.
+    opStarted = true
+    runBuild(buildId, buildDir, manifest)
+      .finally(() => {
+        // Decrement when the build actually completes (success or failure).
+        activeOps = Math.max(0, activeOps - 1)
+      })
+      .catch(err => {
+        // Handle any rejection that surfaces after .finally() to avoid unhandled rejections.
+        console.error(`Build ${buildId} failed:`, err)
+        // Ensure status is updated even on unexpected errors not caught inside runBuild.
+        const r = buildResults.get(buildId)
+        if (r && r.status === 'building') {
+          buildResults.set(buildId, {
+            ...r,
+            status: 'failed',
+            logs: [err instanceof Error ? err.message : String(err)],
+          })
+        }
+      })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Only decrement here when opStarted is false — meaning an error occurred before
+    // runBuild was ever launched, so runBuild's own .finally() will never run.
+    // When opStarted is true, runBuild's .finally() handles the decrement.
+    if (!opStarted) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
   }
 }
 
@@ -603,11 +668,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
-    // Atomic replacement
+    // Atomic replacement — explicitly clear outputPath and stats so stale data
+    // from a previous attempt cannot persist in the failed state
     buildResults.set(buildId, {
       ...existing,
       status: 'failed',
       logs,
+      outputPath: undefined,
+      stats: undefined,
     })
   }
 }
@@ -706,7 +774,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — large enough for verbose git/build output
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

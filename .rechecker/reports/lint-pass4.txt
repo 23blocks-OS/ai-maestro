@@ -1,0 +1,4 @@
+=== ESLint on TS/TSX files ===
+ESLint exit: 0
+=== ShellCheck on remote-install.sh ===
+ShellCheck exit: 0

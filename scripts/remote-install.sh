@@ -947,14 +947,13 @@ act3_clone_and_build() {
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
                 maestro_step 1 4 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
-                # Count stashes before so we only pop what we pushed (avoids race condition)
-                local stash_count_before
-                stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-                git stash --quiet 2>/dev/null || true
-                local stash_count_after
-                stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
+                # Determine whether git stash actually created a new stash entry by
+                # checking its exit code: 0 means a stash was created, non-zero means
+                # there was nothing to stash (or stash failed for another reason).
+                # Comparing stash counts before/after is unreliable because another
+                # process could stash or pop concurrently between the two measurements.
                 local had_stash=false
-                if [ "$stash_count_after" -gt "$stash_count_before" ]; then
+                if git stash --quiet 2>/dev/null; then
                     had_stash=true
                 fi
                 git pull origin main 2>/dev/null || git pull
@@ -1059,14 +1058,15 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            # Use @ as delimiter to avoid conflict with '/' in the URL value
-                            portable_sed "s@AIMAESTRO_API=.*@AIMAESTRO_API=http://127.0.0.1:${PORT}@" .env
+                            # Use | as delimiter — URLs never contain | and it matches the
+                            # rest of the script's portable_sed convention
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
                         if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
-                            # Use @ as delimiter for consistency
-                            portable_sed "s@DEFAULT_AGENT=.*@DEFAULT_AGENT=mailman@" .env
+                            # Use | as delimiter for consistency
+                            portable_sed "s|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|" .env
                         else
                             echo "DEFAULT_AGENT=mailman" >> .env
                         fi
@@ -1111,23 +1111,13 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                # Only restart the specific ai-maestro process — never restart all PM2 processes
-                # as that would affect unrelated services running under pm2.
-                # Try each ecosystem config in order of preference (.cjs first, then .js),
-                # falling back to a name-based restart only when neither config file is present
-                # or both fail. This mirrors the fresh-install pm2 start logic so .js is always
-                # tried before the name-based fallback, regardless of whether .cjs exists.
-                local pm2_restarted=false
-                if [ -f "ecosystem.config.cjs" ]; then
-                    pm2 restart ecosystem.config.cjs --env production 2>/dev/null && pm2_restarted=true
-                fi
-                if [ "$pm2_restarted" = false ] && [ -f "ecosystem.config.js" ]; then
-                    pm2 restart ecosystem.config.js --env production 2>/dev/null && pm2_restarted=true
-                fi
-                if [ "$pm2_restarted" = false ]; then
-                    pm2 restart ai-maestro 2>/dev/null || \
-                        maestro_warn "Failed to restart 'ai-maestro' PM2 process — service may need manual restart"
-                fi
+                # Always restart by process name to target only the ai-maestro process.
+                # Using an ecosystem config file with `pm2 restart` would restart ALL
+                # applications defined in that file, potentially disrupting unrelated
+                # services. PM2 tracks the process name regardless of how it was
+                # originally started (ecosystem file or direct command).
+                pm2 restart ai-maestro 2>/dev/null || \
+                    maestro_warn "Failed to restart 'ai-maestro' PM2 process — service may need manual restart"
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1157,17 +1147,15 @@ act4_start_and_register() {
         cd "$INSTALL_DIR"
         if command -v pm2 &>/dev/null; then
             # Try each ecosystem config in order of preference (.cjs first, then .js),
-            # falling back to a plain yarn start only when neither config file is present
-            # or both fail to start. This ensures .js is always tried before yarn start,
-            # regardless of whether .cjs exists.
-            local pm2_started=false
+            # falling back to a plain yarn start only when neither config file is present.
+            # Each branch is mutually exclusive so the fallback is determined by file
+            # existence, not by whether pm2 itself returned a successful exit code
+            # (pm2 start can return 0 even if the managed process crashes immediately).
             if [ -f "ecosystem.config.cjs" ]; then
-                pm2 start ecosystem.config.cjs --env production 2>/dev/null && pm2_started=true
-            fi
-            if [ "$pm2_started" = false ] && [ -f "ecosystem.config.js" ]; then
-                pm2 start ecosystem.config.js --env production 2>/dev/null && pm2_started=true
-            fi
-            if [ "$pm2_started" = false ]; then
+                pm2 start ecosystem.config.cjs --only ai-maestro --env production 2>/dev/null
+            elif [ -f "ecosystem.config.js" ]; then
+                pm2 start ecosystem.config.js --only ai-maestro --env production 2>/dev/null
+            else
                 pm2 start "yarn start" --name ai-maestro 2>/dev/null
             fi
             pm2 save 2>/dev/null || true
@@ -1215,6 +1203,8 @@ act4_start_and_register() {
         # Substitute install-time variables (portable sed)
         portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
+        # {{SELECTED_GATEWAYS}} expects a raw comma-separated list (e.g. "slack,discord");
+        # do NOT escape it — gateway names contain only alphanumeric chars, no sed specials.
         portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
@@ -1341,8 +1331,10 @@ act5_grand_finale() {
                     maestro_warn "Existing 'my-first-agent' session could not be attached — recreating..."
                     tmux kill-session -t "my-first-agent" 2>/dev/null || true
                     maestro_info "Creating new 'my-first-agent' session..."
+                    # Use single quotes around INITIAL_PROMPT so tmux's shell receives it
+                    # as a single properly-quoted argument, consistent with new-window above.
                     tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                        "$AI_TOOL \"$INITIAL_PROMPT\"" || {
+                        "$AI_TOOL '$INITIAL_PROMPT'" || {
                         maestro_fail "Failed to create tmux session for 'my-first-agent'."
                         maestro_info "You can try manually: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL \"$INITIAL_PROMPT\"'"
                         exit 1
@@ -1360,8 +1352,10 @@ act5_grand_finale() {
                 fi
             else
                 maestro_info "Creating new 'my-first-agent' session..."
+                # Use single quotes around INITIAL_PROMPT so tmux's shell receives it
+                # as a single properly-quoted argument, consistent with new-window above.
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\"" || {
+                    "$AI_TOOL '$INITIAL_PROMPT'" || {
                     maestro_fail "Failed to create tmux session for 'my-first-agent'."
                     maestro_info "You can try manually: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL \"$INITIAL_PROMPT\"'"
                     exit 1

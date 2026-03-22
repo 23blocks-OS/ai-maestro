@@ -16,7 +16,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import matter from 'gray-matter'
 // ServiceResult imported directly from canonical source
 import type { ServiceResult } from '@/types/service'
@@ -190,9 +190,11 @@ function evictStaleBuildResults(): void {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
-      // Best-effort cleanup of build directory
+      // Best-effort cleanup of build directory — log failures so disk accumulation is visible
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`plugin-builder: failed to remove stale build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -205,7 +207,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`plugin-builder: failed to remove oldest build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -392,10 +396,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Mark dispatched before firing so the catch block won't double-decrement
     buildDispatched = true
 
-    // Run build asynchronously — its finally block owns the activeOps decrement
+    // Run build asynchronously — runBuild's own finally block owns the activeOps decrement.
+    // Do NOT attach a .finally() here: runBuild already decrements activeOps in its finally
+    // block unconditionally (success, failure, or eviction). A second decrement here would
+    // cause activeOps to go negative and break the concurrency guard.
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
+      // Ensure status is updated even on unexpected errors that escape runBuild's catch block
       const r = buildResults.get(buildId)
       if (r && r.status === 'building') {
         buildResults.set(buildId, {
@@ -404,10 +411,6 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      // This is the sole decrement for the launched-build path.
-      activeOps = Math.max(0, activeOps - 1)
-
     })
 
     return { data: result, status: 202 }
@@ -416,7 +419,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     if (!buildDispatched) {
       activeOps = Math.max(0, activeOps - 1)
       // Clean up the build directory if it was created before the error occurred
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`plugin-builder: failed to remove build directory ${buildDir} on early error:`, err)
+      })
     }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
@@ -743,15 +748,26 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 
 /**
  * Sanitize a URL into a valid source name.
+ * When the sanitized form exceeds 40 characters, a short hash suffix is appended
+ * to prevent two different URLs from producing the same truncated name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 40)
+
+  if (sanitized.length <= 40) {
+    return sanitized
+  }
+
+  // Append an 8-character hash of the original URL so that different URLs
+  // that share the same 40-character prefix remain distinguishable.
+  const hash = createHash('sha1').update(url).digest('hex').slice(0, 8)
+  const suffix = `-${hash}` // 9 chars
+  return sanitized.slice(0, 40 - suffix.length) + suffix
 }
 
 /**
@@ -794,7 +810,19 @@ async function copyDir(src: string, dest: string): Promise<void> {
     if (entry.isDirectory()) {
       await copyDir(srcPath, destPath)
     } else {
+      // Copy the file and then apply the source file's permissions so that
+      // executable scripts (e.g. *.sh) remain executable in the destination.
+      // fs.stat may fail if the file is removed between readdir and stat (TOCTOU),
+      // or due to permission errors — fall back to safe default permissions in that case.
+      let mode = 0o644
+      try {
+        const srcStat = await fs.stat(srcPath)
+        mode = srcStat.mode
+      } catch (statErr) {
+        console.warn(`plugin-builder: could not stat ${srcPath}, using default mode 0o644:`, statErr)
+      }
       await fs.copyFile(srcPath, destPath)
+      await fs.chmod(destPath, mode)
     }
   }
 }

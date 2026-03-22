@@ -1,180 +1,79 @@
 {
-  "uid": "ed5d09",
-  "created": "2026-03-22T14:57:41.177275",
-  "total_files": 21,
+  "uid": "606726",
+  "created": "2026-03-22T16:45:54.105960",
+  "total_files": 8,
   "files": {
     "FID00001": {
-      "path": "README.md",
-      "lines": 227,
-      "bytes": 9312,
-      "category": "big"
+      "path": "app/api/plugin-builder/build/route.ts",
+      "lines": 147,
+      "bytes": 5010,
+      "category": "small"
     },
     "FID00002": {
-      "path": "app/api/plugin-builder/build/route.ts",
-      "lines": 31,
-      "bytes": 781,
-      "category": "small"
+      "path": "components/plugin-builder/BuildAction.tsx",
+      "lines": 332,
+      "bytes": 12457,
+      "category": "big"
     },
     "FID00003": {
-      "path": "app/api/plugin-builder/builds/[id]/route.ts",
-      "lines": 26,
-      "bytes": 613,
-      "category": "small"
+      "path": "components/plugin-builder/RepoScanner.tsx",
+      "lines": 202,
+      "bytes": 8044,
+      "category": "big"
     },
     "FID00004": {
-      "path": "app/api/plugin-builder/push/route.ts",
-      "lines": 46,
-      "bytes": 1206,
-      "category": "small"
+      "path": "components/plugin-builder/SkillPicker.tsx",
+      "lines": 286,
+      "bytes": 11861,
+      "category": "big"
     },
     "FID00005": {
-      "path": "app/api/plugin-builder/scan-repo/route.ts",
-      "lines": 38,
-      "bytes": 957,
-      "category": "small"
+      "path": "scripts/remote-install.sh",
+      "lines": 1482,
+      "bytes": 57457,
+      "category": "big"
     },
     "FID00006": {
-      "path": "app/plugin-builder/page.tsx",
-      "lines": 111,
-      "bytes": 3687,
-      "category": "small"
+      "path": "services/headless-router.ts",
+      "lines": 2344,
+      "bytes": 107696,
+      "category": "big"
     },
     "FID00007": {
-      "path": "components/Header.tsx",
-      "lines": 93,
-      "bytes": 3576,
-      "category": "small"
+      "path": "services/plugin-builder-service.ts",
+      "lines": 831,
+      "bytes": 28758,
+      "category": "big"
     },
     "FID00008": {
-      "path": "components/plugin-builder/BuildAction.tsx",
-      "lines": 303,
-      "bytes": 10637,
-      "category": "big"
-    },
-    "FID00009": {
-      "path": "components/plugin-builder/PluginComposer.tsx",
-      "lines": 229,
-      "bytes": 7875,
-      "category": "big"
-    },
-    "FID00010": {
-      "path": "components/plugin-builder/RepoScanner.tsx",
-      "lines": 161,
-      "bytes": 5912,
-      "category": "small"
-    },
-    "FID00011": {
-      "path": "components/plugin-builder/SkillPicker.tsx",
-      "lines": 277,
-      "bytes": 11259,
-      "category": "big"
-    },
-    "FID00012": {
-      "path": "docs/BACKLOG.md",
-      "lines": 3084,
-      "bytes": 89168,
-      "category": "big"
-    },
-    "FID00013": {
-      "path": "docs/ai-index.html",
-      "lines": 423,
-      "bytes": 23279,
-      "category": "big"
-    },
-    "FID00014": {
-      "path": "docs/index.html",
-      "lines": 1346,
-      "bytes": 89026,
-      "category": "big"
-    },
-    "FID00015": {
-      "path": "package.json",
-      "lines": 89,
-      "bytes": 2694,
-      "category": "small"
-    },
-    "FID00016": {
-      "path": "plugin",
-      "lines": 0,
-      "bytes": 64,
-      "category": "small"
-    },
-    "FID00017": {
-      "path": "scripts/remote-install.sh",
-      "lines": 1391,
-      "bytes": 51472,
-      "category": "big"
-    },
-    "FID00018": {
-      "path": "services/headless-router.ts",
-      "lines": 1291,
-      "bytes": 57120,
-      "category": "big"
-    },
-    "FID00019": {
-      "path": "services/plugin-builder-service.ts",
-      "lines": 740,
-      "bytes": 24082,
-      "category": "big"
-    },
-    "FID00020": {
       "path": "types/plugin-builder.ts",
-      "lines": 128,
-      "bytes": 4243,
-      "category": "small"
-    },
-    "FID00021": {
-      "path": "version.json",
-      "lines": 6,
-      "bytes": 162,
+      "lines": 143,
+      "bytes": 5191,
       "category": "small"
     }
   },
   "groups": {
     "G001": [
-      "FID00001"
+      "FID00002"
     ],
     "G002": [
-      "FID00008"
+      "FID00003"
     ],
     "G003": [
-      "FID00009"
+      "FID00004"
     ],
     "G004": [
-      "FID00011"
+      "FID00005"
     ],
     "G005": [
-      "FID00012"
+      "FID00006"
     ],
     "G006": [
-      "FID00013"
+      "FID00007"
     ],
     "G007": [
-      "FID00014"
-    ],
-    "G008": [
-      "FID00017"
-    ],
-    "G009": [
-      "FID00018"
-    ],
-    "G010": [
-      "FID00019"
-    ],
-    "G011": [
-      "FID00002",
-      "FID00003",
-      "FID00004",
-      "FID00005",
-      "FID00006",
-      "FID00007",
-      "FID00010"
-    ],
-    "G012": [
-      "FID00015",
-      "FID00016",
-      "FID00020",
-      "FID00021"
+      "FID00001",
+      "FID00008"
     ]
   },
   "macro_groups": {
@@ -185,12 +84,7 @@
       "G004",
       "G005",
       "G006",
-      "G007",
-      "G008",
-      "G009",
-      "G010",
-      "G011",
-      "G012"
+      "G007"
     ]
   }
 }

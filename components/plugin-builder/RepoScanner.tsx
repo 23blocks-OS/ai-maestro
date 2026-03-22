@@ -80,10 +80,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const handleAddSkill = (skill: RepoSkillInfo) => {
     // Use the url/ref captured at scan time, not the current input values, so that
     // editing the fields after a scan does not corrupt the stored skill reference.
+    // lastScannedUrl and lastScannedRef are guaranteed non-null when scanResult is present,
+    // because handleScan sets them atomically with setScanResult on every successful scan.
     onAddSkill({
       type: 'repo',
-      url: lastScannedUrl ?? url.trim(),
-      ref: lastScannedRef ?? (ref.trim() || 'main'),
+      url: lastScannedUrl!,
+      ref: lastScannedRef!,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -148,7 +150,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
           {scanResult.skills.map((skill) => {
             // Use the exact url/ref captured at scan time so this key always
             // matches the one produced by getSkillKey (repo:url:ref:skillPath).
-            const key = `repo:${lastScannedUrl ?? url.trim()}:${lastScannedRef ?? (ref.trim() || 'main')}:${skill.path}`
+            // lastScannedUrl and lastScannedRef are guaranteed non-null here because
+            // scanResult is only set after a successful scan that also sets both values.
+            const key = `repo:${lastScannedUrl}:${lastScannedRef}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

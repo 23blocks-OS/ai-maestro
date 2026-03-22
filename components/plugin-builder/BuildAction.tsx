@@ -45,8 +45,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       clearInterval(pollRef.current)
       pollRef.current = null
     }
-    // SF-022: Abort any in-flight poll fetch when clearing
-    pollAbortRef.current?.abort()
+    // SF-022: Abort any in-flight poll fetch when clearing.
+    // Capture the ref in a local variable first, then abort, then null the ref.
+    // Nulling before abort() would allow a concurrent clearPoll call to clear
+    // the ref between our capture and the abort() call, leaving a fetch un-aborted.
+    const abortCtrl = pollAbortRef.current
+    abortCtrl?.abort()
     pollAbortRef.current = null
     pollFailures.current = 0
   }, [])
@@ -54,6 +58,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
+    // SF-022: Ensure the AbortController ref is clean before new polling starts,
+    // even if clearPoll() was somehow called without nulling it.
+    pollAbortRef.current = null
 
     setBuilding(true)
     setResult(null)
@@ -74,8 +81,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
-        // Show logs section consistently for all failure outcomes
-        setShowLogs(true)
         return
       }
 
@@ -86,9 +91,20 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       if (data.status === 'building') {
         pollRef.current = setInterval(async () => {
           try {
-            // SF-022: Create per-tick AbortController so cleanup can cancel in-flight requests
-            pollAbortRef.current = new AbortController()
-            const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`, { signal: pollAbortRef.current.signal })
+            // SF-022: Create a local AbortController per tick so that each fetch
+            // has its own signal. Assign it to pollAbortRef.current BEFORE the
+            // fetch so that clearPoll() / unmount cleanup can abort it at any time.
+            // If a new tick fires while this one is still awaiting, clearPoll() will
+            // abort the current fetch via pollAbortRef.current before the ref is
+            // replaced — preventing an un-abortable in-flight request.
+            const tickAbortCtrl = new AbortController()
+            pollAbortRef.current = tickAbortCtrl
+            const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`, { signal: tickAbortCtrl.signal })
+            // Clear the ref only if it still points to this tick's controller
+            // (clearPoll may have already nulled it if abort was requested).
+            if (pollAbortRef.current === tickAbortCtrl) {
+              pollAbortRef.current = null
+            }
             if (statusRes.ok) {
               pollFailures.current = 0
               // Wrap JSON parsing separately — a malformed response must not leave
@@ -121,7 +137,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               }
             }
           } catch {
-            // Network error: fetch itself threw (no response received)
+            // Network error or AbortError: fetch itself threw (no response received).
+            // Clear the ref if it still belongs to this tick.
+            pollAbortRef.current = null
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
@@ -137,13 +155,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
-      // Show logs section consistently for all failure outcomes
-      setShowLogs(true)
     }
   }
 
   const handlePush = async () => {
-    if (!forkUrl.trim() || !result?.manifest) return
+    // Guard: manifest must exist (forkUrl.trim() is already enforced by the button's disabled prop)
+    if (!result?.manifest) return
 
     setPushing(true)
     setPushResult(null)

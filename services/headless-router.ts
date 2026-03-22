@@ -531,13 +531,11 @@ const routes: Route[] = [
       patch.conversationIndexerEnabled = body.conversationIndexerEnabled
     }
     if (Object.keys(patch).length === 0) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'No valid settings provided' }))
+      sendServiceResult(res, { status: 400, error: 'No valid settings provided' })
       return
     }
     const updated = updateSystemSettings(patch)
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ success: true, settings: updated }))
+    sendServiceResult(res, { status: 200, data: { success: true, settings: updated } })
   }},
   { method: 'GET', pattern: /^\/api\/organization$/, paramNames: [], handler: async (_req, res) => {
     sendServiceResult(res, getOrganization())
@@ -584,7 +582,7 @@ const routes: Route[] = [
         sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: result.fromCache } })
       }
     } catch (error) {
-      sendServiceResult(res, { status: 500, error: 'Failed to fetch sessions', data: { sessions: [] } })
+      sendServiceResult(res, { status: 500, error: 'Failed to fetch sessions' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -611,7 +609,7 @@ const routes: Route[] = [
       // Use sendServiceResult for consistent error-response formatting across all routes
       sendServiceResult(res, { status: 200, data: { activity } })
     } catch (error) {
-      sendServiceResult(res, { status: 500, error: 'Failed to fetch activity', data: { activity: {} } })
+      sendServiceResult(res, { status: 500, error: 'Failed to fetch activity' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {

@@ -11,9 +11,10 @@ import type { PluginBuildConfig, PluginSkillSelection } from '@/types/plugin-bui
 
 /**
  * Validates that a skill selection has the correct tagged-union shape.
- * Returns a string describing the error, or null if valid.
+ * Returns the strongly-typed PluginSkillSelection on success, or a string
+ * describing the error on failure.
  */
-function validateSkillSelection(skill: unknown, index: number): string | null {
+function validateSkillSelection(skill: unknown, index: number): PluginSkillSelection | string {
   if (typeof skill !== 'object' || skill === null) {
     return `skills[${index}]: must be an object`
   }
@@ -25,6 +26,7 @@ function validateSkillSelection(skill: unknown, index: number): string | null {
     if (typeof s.name !== 'string' || s.name.trim() === '') {
       return `skills[${index}].name: required string for type 'core'`
     }
+    return { type: 'core', name: s.name }
   } else if (s.type === 'marketplace') {
     if (typeof s.id !== 'string' || s.id.trim() === '') {
       return `skills[${index}].id: required string for type 'marketplace'`
@@ -35,6 +37,20 @@ function validateSkillSelection(skill: unknown, index: number): string | null {
     if (typeof s.plugin !== 'string' || s.plugin.trim() === '') {
       return `skills[${index}].plugin: required string for type 'marketplace'`
     }
+    // name is a required field on the marketplace union member
+    if (typeof s.name !== 'string' || s.name.trim() === '') {
+      return `skills[${index}].name: required string for type 'marketplace'`
+    }
+    const validated: PluginSkillSelection = {
+      type: 'marketplace',
+      id: s.id,
+      marketplace: s.marketplace,
+      plugin: s.plugin,
+      name: s.name,
+      // description is optional — include it only when present and valid
+      ...(typeof s.description === 'string' ? { description: s.description } : {}),
+    }
+    return validated
   } else if (s.type === 'repo') {
     if (typeof s.url !== 'string' || s.url.trim() === '') {
       return `skills[${index}].url: required string for type 'repo'`
@@ -48,17 +64,18 @@ function validateSkillSelection(skill: unknown, index: number): string | null {
     if (typeof s.name !== 'string' || s.name.trim() === '') {
       return `skills[${index}].name: required string for type 'repo'`
     }
+    return { type: 'repo', url: s.url, ref: s.ref, skillPath: s.skillPath, name: s.name }
   } else {
     return `skills[${index}].type: unknown skill type '${s.type}'`
   }
-  return null
 }
 
 /**
  * Validates the request body against the PluginBuildConfig interface.
- * Returns a string describing the first validation error, or null if valid.
+ * Returns a fully-typed PluginBuildConfig on success, or a string describing
+ * the first validation error on failure.
  */
-function validateBuildConfig(body: unknown): string | null {
+function validateBuildConfig(body: unknown): PluginBuildConfig | string {
   if (typeof body !== 'object' || body === null) {
     return 'Request body must be a JSON object'
   }
@@ -73,9 +90,12 @@ function validateBuildConfig(body: unknown): string | null {
   if (!Array.isArray(b.skills)) {
     return 'skills: required array'
   }
+  const validatedSkills: PluginSkillSelection[] = []
   for (let i = 0; i < b.skills.length; i++) {
-    const err = validateSkillSelection(b.skills[i], i)
-    if (err !== null) return err
+    const result = validateSkillSelection(b.skills[i], i)
+    // validateSkillSelection returns a string on error, a typed object on success
+    if (typeof result === 'string') return result
+    validatedSkills.push(result)
   }
   if (b.description !== undefined && typeof b.description !== 'string') {
     return 'description: must be a string when provided'
@@ -83,7 +103,28 @@ function validateBuildConfig(body: unknown): string | null {
   if (b.includeHooks !== undefined && typeof b.includeHooks !== 'boolean') {
     return 'includeHooks: must be a boolean when provided'
   }
-  return null
+  // Validate author when provided — must be an object with a non-empty string name field
+  if (b.author !== undefined) {
+    if (typeof b.author !== 'object' || b.author === null || typeof (b.author as Record<string, unknown>).name !== 'string' || ((b.author as Record<string, unknown>).name as string).trim() === '') {
+      return 'author: must be an object with a non-empty string name field when provided'
+    }
+  }
+  if (b.homepage !== undefined && typeof b.homepage !== 'string') {
+    return 'homepage: must be a string when provided'
+  }
+
+  // Construct and return the fully-typed config — no unsafe cast needed at call site
+  const config: PluginBuildConfig = {
+    name: b.name,
+    version: b.version,
+    skills: validatedSkills,
+    ...(typeof b.description === 'string' ? { description: b.description } : {}),
+    ...(typeof b.includeHooks === 'boolean' ? { includeHooks: b.includeHooks } : {}),
+    // author and homepage are optional fields that must be forwarded when present
+    ...(b.author !== undefined ? { author: b.author as { name: string } } : {}),
+    ...(typeof b.homepage === 'string' ? { homepage: b.homepage } : {}),
+  }
+  return config
 }
 
 export async function POST(request: NextRequest) {
@@ -108,16 +149,18 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const validationError = validateBuildConfig(body)
-  if (validationError) {
+  const validationResult = validateBuildConfig(body)
+  if (typeof validationResult === 'string') {
     return NextResponse.json(
-      { error: validationError },
+      { error: validationResult },
       { status: 400 }
     )
   }
+  // validationResult is now a fully-typed PluginBuildConfig — no unsafe cast needed
+  const config = validationResult
 
   try {
-    const result = await buildPlugin(body as Parameters<typeof buildPlugin>[0])
+    const result = await buildPlugin(config)
 
     if (result.error) {
       return NextResponse.json(

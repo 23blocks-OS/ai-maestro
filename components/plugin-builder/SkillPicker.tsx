@@ -47,18 +47,29 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         if (res.ok) {
           const data = await res.json()
           if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+        } else {
+          // Server returned a non-OK status; log it so errors are not silently hidden
+          console.error('Failed to load marketplace skills:', res.status, res.statusText)
+          if (!signal.aborted) setMarketplaceSkills([])
         }
-      } catch {
-        // Marketplace may not be available or request aborted
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // Request was intentionally aborted on cleanup — not an error
+        } else {
+          // Genuine network or parse error
+          console.error('Error loading marketplace skills:', error)
+          if (!signal.aborted) setMarketplaceSkills([])
+        }
       } finally {
         if (!signal.aborted) setLoadingMarketplace(false)
       }
     }
     load()
     return () => { abortRef.current?.abort() }
-  // useState setters (setMarketplaceSkills, setLoadingMarketplace) are stable references
-  // and will never change, but are listed here for exhaustive-deps lint compliance.
-  }, [setMarketplaceSkills, setLoadingMarketplace])
+  // Empty dependency array: effect runs once on mount, cleans up on unmount.
+  // useState setters are guaranteed stable — they must NOT be in the deps array
+  // because their presence would allow a lint rule to trigger spurious re-runs.
+  }, [])
 
   // Filter skills by search query
   const filteredCoreSkills = useMemo(() => {
@@ -213,6 +224,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                           plugin: skill.plugin,
                           name: skill.name,
                           description: skill.description,
+                          url: skill.url,
                         })
                       }
                     }}
@@ -220,7 +232,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name, description: skill.description })
+                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name, description: skill.description, url: skill.url })
                       }
                     }}
                     aria-pressed={isSelected}
@@ -257,7 +269,6 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />

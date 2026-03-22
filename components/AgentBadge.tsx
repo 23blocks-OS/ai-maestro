@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
 import {
   MoreVertical,
   Terminal,
@@ -219,7 +220,7 @@ export default function AgentBadge({
             }}
             className={`p-1 rounded-md transition-colors ${
               variant === 'normal'
-                ? 'bg-white/10 hover:bg-white/20 shadow-[0_0_8px_rgba(255,255,255,0.15)]'
+                ? 'bg-white/10 hover:bg-white/20 shadow-[0_0_6px_rgba(0,0,0,0.4)]'
                 : 'bg-slate-700/50 hover:bg-slate-600'
             }`}
           >
@@ -345,11 +346,13 @@ export default function AgentBadge({
               </span>
             </div>
           ) : (
-            <img
-              src={avatarUrl}
-              alt={agent.label || agent.name}
-              className="absolute inset-0 w-full h-full object-cover"
+            <Image
+              src={avatarUrl || ''}
+              alt={agent.label || agent.name || ''}
+              fill
+              className="object-cover"
               onError={() => setImageError(true)}
+              unoptimized
             />
           )}
 
@@ -416,11 +419,13 @@ export default function AgentBadge({
                 </span>
               </div>
             ) : (
-              <img
-                src={avatarUrl}
-                alt={agent.label || agent.name}
-                className="w-full h-full object-cover"
+              <Image
+                src={avatarUrl || ''}
+                alt={agent.label || agent.name || ''}
+                fill
+                className="object-cover"
                 onError={() => setImageError(true)}
+                unoptimized
               />
             )}
           </div>

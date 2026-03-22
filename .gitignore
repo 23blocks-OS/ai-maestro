@@ -154,3 +154,7 @@ public/avatars/*_enhanced.png
 
 # External backup files
 *.externbak
+
+# TLDR CLI cache/stats
+.tldr/
+.tldrignore

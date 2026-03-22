@@ -816,9 +816,10 @@ describe('updateTeamDocument', () => {
     expect(mockDocs.updateDocument).toHaveBeenCalledWith('team-1', 'doc-1', { pinned: true, tags: ['api'] })
   })
 
-  it('returns 404 when document not found', async () => {
-    // Team must exist so the service reaches the document lookup
+  it('returns 404 when updateDocument returns null (document not found)', async () => {
+    // Team must exist so the service reaches the updateDocument call
     mockTeams.getTeam.mockReturnValue(makeTeam())
+    // updateDocument returns null to signal the document does not exist
     mockDocs.updateDocument.mockResolvedValue(null)
 
     const result = await updateTeamDocument('team-1', 'nope', { title: 'X' })

@@ -171,7 +171,8 @@ class AgentSubconscious {
     this.memoryCheckInterval = config.memoryCheckInterval || ACTIVITY_INTERVALS.disconnected
     this.messageCheckInterval = config.messageCheckInterval || 5 * 60 * 1000  // 5 minutes (deprecated)
     // Message polling is DISABLED by default - use push notifications instead (RFC: Message Delivery Notifications)
-    this.messagePollingEnabled = config.messagePollingEnabled === true  // Default: disabled
+    // Explicitly requires config.messagePollingEnabled === true to enable; any other value (undefined, false) keeps it disabled.
+    this.messagePollingEnabled = config.messagePollingEnabled === true
     // Long-term memory consolidation config
     this.consolidationEnabled = config.consolidationEnabled !== false  // Default: enabled
     this.consolidationHour = config.consolidationHour ?? 2  // Default: 2 AM
@@ -936,6 +937,8 @@ export class Agent {
  */
 class AgentRegistry {
   private agents = new Map<string, Agent>()
+  // Tracks agents currently being initialized to prevent duplicate concurrent initialization
+  private initializingAgents = new Map<string, Promise<Agent>>()
   private accessOrder: string[] = []  // Most recently accessed at the end
   private maxAgents: number
 
@@ -961,6 +964,14 @@ class AgentRegistry {
   private async evictIfNeeded(): Promise<void> {
     while (this.agents.size >= this.maxAgents && this.accessOrder.length > 0) {
       const lruAgentId = this.accessOrder.shift()!
+      // Do not evict an agent that is currently being initialized — it hasn't been
+      // added to this.agents yet, so evicting would leave us over capacity anyway.
+      if (this.initializingAgents.has(lruAgentId)) {
+        // Put it back so the next iteration can try a different candidate.
+        this.accessOrder.push(lruAgentId)
+        // If every entry is initializing we cannot evict; break to avoid an infinite loop.
+        break
+      }
       const agent = this.agents.get(lruAgentId)
       if (agent) {
         console.log(`[AgentRegistry] Evicting LRU agent ${lruAgentId.substring(0, 8)} (${this.agents.size}/${this.maxAgents})`)
@@ -977,29 +988,47 @@ class AgentRegistry {
   /**
    * Get or create an agent
    */
-  async getAgent(agentId: string, config?: AgentConfig): Promise<Agent> {
-    let agent = this.agents.get(agentId)
-
-    if (agent) {
+  async getAgent(agentId: string, config?: AgentConfig, subconsciousConfig?: SubconsciousConfig): Promise<Agent> {
+    const existing = this.agents.get(agentId)
+    if (existing) {
       // Update access order (touch = mark as recently used)
       this.touch(agentId)
-      return agent
+      return existing
+    }
+
+    // If initialization is already in progress for this agentId, wait for it instead
+    // of creating a second Agent instance — this prevents the race condition where
+    // concurrent callers each run agent.initialize() for the same logical agent.
+    const inFlight = this.initializingAgents.get(agentId)
+    if (inFlight) {
+      return inFlight
     }
 
     // Evict LRU agent if at capacity before creating new one
     await this.evictIfNeeded()
 
-    // Create new agent
+    // Create new agent and register the initialization promise immediately so that
+    // any concurrent callers arriving while we await initialize() get the same promise.
     console.log(`[AgentRegistry] Loading agent ${agentId.substring(0, 8)} (${this.agents.size + 1}/${this.maxAgents})`)
-    agent = new Agent({
+    const agent = new Agent({
       agentId,
       workingDirectory: config?.workingDirectory
     })
-    await agent.initialize()
-    this.agents.set(agentId, agent)
-    this.touch(agentId)
 
-    return agent
+    // Pass subconsciousConfig so callers can control memory/consolidation intervals
+    const initPromise: Promise<Agent> = agent.initialize(subconsciousConfig).then(() => {
+      this.agents.set(agentId, agent)
+      this.touch(agentId)
+      this.initializingAgents.delete(agentId)
+      return agent
+    }).catch(err => {
+      // Clean up so a subsequent call can retry cleanly
+      this.initializingAgents.delete(agentId)
+      throw err
+    })
+
+    this.initializingAgents.set(agentId, initPromise)
+    return initPromise
   }
 
   /**
@@ -1018,6 +1047,8 @@ class AgentRegistry {
    * Shutdown an agent
    */
   async shutdownAgent(agentId: string): Promise<void> {
+    // Cancel any in-flight initialization (callers awaiting it will get the rejection)
+    this.initializingAgents.delete(agentId)
     const agent = this.agents.get(agentId)
     if (agent) {
       await agent.shutdown()
@@ -1034,6 +1065,8 @@ class AgentRegistry {
    */
   async shutdownAll(): Promise<void> {
     console.log('[AgentRegistry] Shutting down all agents...')
+    // Cancel all pending initializations before shutting down initialized agents
+    this.initializingAgents.clear()
     const shutdownPromises = Array.from(this.agents.values()).map(agent => agent.shutdown())
     await Promise.all(shutdownPromises)
     this.agents.clear()
@@ -1082,11 +1115,12 @@ class AgentRegistry {
     let lastMessageResult: SubconsciousStatus['lastMessageResult'] = null
 
     for (const s of subconsciousStatuses) {
-      if (s.status?.lastMemoryRun && (!lastMemoryRun || s.status.lastMemoryRun > lastMemoryRun)) {
+      // Use !== null instead of truthiness so a zero timestamp (edge case) is not skipped
+      if (s.status?.lastMemoryRun !== null && s.status?.lastMemoryRun !== undefined && (lastMemoryRun === null || s.status.lastMemoryRun > lastMemoryRun)) {
         lastMemoryRun = s.status.lastMemoryRun
         lastMemoryResult = s.status.lastMemoryResult
       }
-      if (s.status?.lastMessageRun && (!lastMessageRun || s.status.lastMessageRun > lastMessageRun)) {
+      if (s.status?.lastMessageRun !== null && s.status?.lastMessageRun !== undefined && (lastMessageRun === null || s.status.lastMessageRun > lastMessageRun)) {
         lastMessageRun = s.status.lastMessageRun
         lastMessageResult = s.status.lastMessageResult
       }

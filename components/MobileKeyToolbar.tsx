@@ -112,6 +112,10 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
         if (metaState === 'once') setMetaState('off')
       }
     }
+    // Clear the ref on unmount only if it was provided, to avoid accessing undefined.current
+    return () => {
+      if (modifiersRef) modifiersRef.current = null
+    }
   }, [ctrlState, altState, shiftState, metaState, modifiersRef])
 
   // Send a key, applying all active modifiers simultaneously
@@ -138,9 +142,8 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
           if (altOn) data = '\x1b' + data // Ctrl+Alt → ESC + control char
         } else if (altOn) {
           data = altKey(ch)
-        } else if (shiftOn) {
-          data = ch
         }
+        // shiftOn alone: ch already holds the shifted character — no extra branch needed.
         // Meta on single chars: handled by TerminalView (clipboard shortcuts)
       }
     }
@@ -166,8 +169,17 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
     const isDoubleTap = now - lastTapRef.current < 350
     lastTapRef.current = now
 
-    // Count how many OTHER modifiers are already locked (current one is not locked yet)
-    const lockedCount = [ctrlState, altState, shiftState, metaState].filter(s => s === 'locked').length
+    // Count how many modifiers are currently locked (all modifiers, including the current one).
+    // The limit check `lockedCount < 2` prevents more than 2 locked modifiers at any time.
+    const allModifierStates = [
+      { state: ctrlState },
+      { state: altState },
+      { state: shiftState },
+      { state: metaState },
+    ]
+    const lockedCount = allModifierStates.filter(
+      (mod) => mod.state === 'locked'
+    ).length
 
     if (state === 'off') {
       // Double-tap → locked (if under limit), single tap → one-shot
@@ -232,7 +244,7 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
   // Button groups matching the reference image
   const groups: BtnDef[][] = [
     [
-      { label: 'Esc', action: () => sendKey(KEY_ESC, false) },
+      { label: 'Esc', action: () => sendKey(KEY_ESC) },
       { label: 'Tab', action: () => sendKey(KEY_TAB) },
     ],
     [
@@ -322,7 +334,7 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
         <button
           key={i}
           onTouchStart={(e) => { e.preventDefault(); touchFired = true; btn.action(); startRepeat(btn.onHold!) }}
-          onTouchEnd={() => { stopRepeat(); setTimeout(() => { touchFired = false }, 100) }}
+          onTouchEnd={() => { stopRepeat(); touchFired = false }}
           onTouchCancel={() => { stopRepeat(); touchFired = false }}
           onMouseDown={(e) => { if (touchFired) return; e.preventDefault(); btn.action(); startRepeat(btn.onHold!) }}
           onMouseUp={stopRepeat}
@@ -340,7 +352,7 @@ export default function MobileKeyToolbar({ onSendKey, visible, modifiersRef, for
     return (
       <button
         key={i}
-        onTouchStart={(e) => { e.preventDefault(); touched = true; btn.action(); setTimeout(() => { touched = false }, 100) }}
+        onTouchStart={(e) => { e.preventDefault(); touched = true; btn.action() }}
         onMouseDown={(e) => { if (touched) return; e.preventDefault(); btn.action() }}
         style={btnStyle}
         className={`${btnBase} ${btnClass}`}

@@ -469,7 +469,9 @@ export function getSubconsciousStatus(): ServiceResult<any> {
           agentId: s.agentId,
           hasStatusFile: s.hasStatusFile,
           lastUpdated: s.lastUpdated,
-          status: s.isRunning ? {
+          // Guard against s.status being null even when s.isRunning is true,
+          // since the type allows null and future changes could violate that assumption.
+          status: s.isRunning && s.status ? {
             isRunning: s.isRunning,
             ...s.status,
             cumulativeMessagesIndexed: s.cumulativeMessagesIndexed,
@@ -676,7 +678,9 @@ export function parseConversationFile(conversationFile: string): ServiceResult<P
                   uuid: message.uuid,
                   sessionId: message.sessionId,
                 })
-                metadata.totalMessages++
+                // Do NOT increment totalMessages here — thinking blocks are extracted
+                // from their parent assistant message and are not separate message entries.
+                // The parent message itself is counted below when it is pushed.
                 console.log('[Parse] Extracted thinking message from assistant content')
               }
             }
@@ -811,12 +815,15 @@ export async function getConversationMessages(
     `)
 
     if (!result.rows || result.rows.length === 0) {
+      // Error must be at the top level so callers using `if (result.error)` detect it.
+      // fallback_to_parse and conversation_file go in data so the route handler can
+      // spread them alongside the error in the JSON response (SF-024).
       return {
+        error: 'No messages found in RAG database. Conversation may not be indexed yet.',
         data: {
-          error: 'No messages found in RAG database. Conversation may not be indexed yet.',
           fallback_to_parse: true,
           conversation_file: conversationFile,
-        } as any,
+        },
         status: 404,
       }
     }

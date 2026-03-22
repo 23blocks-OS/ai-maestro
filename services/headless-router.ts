@@ -228,6 +228,7 @@ import {
   getKanbanConfig,
   setKanbanConfig,
 } from '@/services/teams-service'
+import type { KanbanColumnConfig } from '@/types/team'
 
 import {
   getGovernanceConfig,
@@ -398,7 +399,13 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
     })
     req.on('end', () => {
       if (rejected) return
-      resolve(Buffer.concat(chunks))
+      try {
+        resolve(Buffer.concat(chunks))
+      } catch (e) {
+        // Mark as rejected to prevent further processing if an error listener triggers later
+        rejected = true
+        reject(Object.assign(new Error('Failed to concatenate raw body'), { originalError: e }))
+      }
     })
     req.on('error', (err) => {
       if (rejected) return
@@ -1873,7 +1880,22 @@ const routes: Route[] = [
       sendJson(res, 400, { error: 'columns array is required' })
       return
     }
-    sendServiceResult(res, await setKanbanConfig(params.id, body.columns, auth.agentId))
+    // Validate that every element has the required KanbanColumnConfig fields with correct types
+    const isValidColumns = (body.columns as unknown[]).every(
+      (col) =>
+        col !== null &&
+        typeof col === 'object' &&
+        typeof (col as Record<string, unknown>).id === 'string' &&
+        typeof (col as Record<string, unknown>).label === 'string' &&
+        typeof (col as Record<string, unknown>).color === 'string' &&
+        ((col as Record<string, unknown>).icon === undefined ||
+          typeof (col as Record<string, unknown>).icon === 'string')
+    )
+    if (!isValidColumns) {
+      sendJson(res, 400, { error: 'Each column must have string fields: id, label, color (icon is optional string)' })
+      return
+    }
+    sendServiceResult(res, await setKanbanConfig(params.id, body.columns as KanbanColumnConfig[], auth.agentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
     const auth = authenticateAgent(
@@ -2258,7 +2280,8 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     if (!body.pluginName || !body.agentDir) return sendJson(res, 400, { error: 'pluginName and agentDir are required' })
     try {
-      await uninstallPluginLocally(body.pluginName, body.agentDir)
+      // marketplaceName is optional — defaults to the local role-plugins marketplace
+      await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
       sendJson(res, 200, { success: true })
     } catch (e) { sendJson(res, 500, { error: String(e) }) }
   }},

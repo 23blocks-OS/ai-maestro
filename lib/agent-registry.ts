@@ -1680,6 +1680,8 @@ export function getAMPAddressIndex(): Record<string, AMPAddressIndexEntry> {
         hostId: agent.hostId || getSelfHostId(),
         provider: addr.provider,
         type: addr.type,
+        // Preserve temporal registration metadata from the source AMPAddress
+        registeredAt: addr.registeredAt,
       }
     }
   }

@@ -8,7 +8,7 @@
  * Caching: Field IDs cached 1h, task lists cached 10s (configurable).
  */
 
-import { execSync } from 'child_process'
+import { execSync, spawnSync } from 'child_process'
 import type { Task, TaskWithDeps } from '@/types/task'
 import type { KanbanColumnConfig } from '@/types/team'
 
@@ -102,26 +102,36 @@ function invalidateTaskCache(cfg: GitHubProjectConfig): void {
 // ---------------------------------------------------------------------------
 
 function ghGraphQL(query: string, variables: Record<string, unknown> = {}): unknown {
-  const args = ['api', 'graphql']
-  args.push('-f', `query=${query}`)
+  // Build the argument list as an array so that no shell interpretation occurs.
+  // spawnSync passes each element directly to execve, avoiding any quoting or
+  // escaping issues — including JSON values that contain quotes, backslashes, or
+  // single quotes.
+  const args = ['api', 'graphql', '-f', `query=${query}`]
   for (const [key, val] of Object.entries(variables)) {
     if (typeof val === 'number' || typeof val === 'boolean') {
+      // -F tells gh to interpret the value as a typed field (number/boolean)
       args.push('-F', `${key}=${val}`)
     } else if (Array.isArray(val) || (typeof val === 'object' && val !== null)) {
-      // Arrays and objects must be passed as JSON via -F so gh parses them correctly
-      args.push('-F', `${key}=${JSON.stringify(val)}`)
+      // Arrays and objects must be serialised to JSON and passed as literal
+      // strings via -f (not -F), so gh does not attempt type coercion.
+      args.push('-f', `${key}=${JSON.stringify(val)}`)
     } else {
       args.push('-f', `${key}=${String(val)}`)
     }
   }
 
-  const result = execSync(`gh ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`, {
+  const proc = spawnSync('gh', args, {
     encoding: 'utf-8',
     timeout: 15000,
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 
-  return JSON.parse(result)
+  if (proc.error) throw proc.error
+  if (proc.status !== 0) {
+    throw new Error(`gh api graphql failed (exit ${proc.status}): ${proc.stderr}`)
+  }
+
+  return JSON.parse(proc.stdout)
 }
 
 /**
@@ -609,9 +619,9 @@ export async function createTask(
 
   // 3. Set Status field if specified
   if (data.status && meta.statusField.options) {
+    // Use the same normalization as mapProjectItemToTask: lowercase, replace non-alnum with _, trim underscores
     const option = meta.statusField.options.find(
-      o => o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') === data.status ||
-           o.name.toLowerCase() === data.status?.toLowerCase()
+      o => o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') === data.status
     )
     if (option) {
       await setFieldValue(meta.projectId, itemId, meta.statusField.id, option.id)
@@ -682,9 +692,9 @@ export async function updateTask(
 
   // Update Status field
   if (updates.status !== undefined && meta.statusField.options) {
+    // Use the same normalization as mapProjectItemToTask: lowercase, replace non-alnum with _, trim underscores
     const option = meta.statusField.options.find(
-      o => o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') === updates.status ||
-           o.name.toLowerCase() === updates.status?.toLowerCase()
+      o => o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') === updates.status
     )
     if (option) {
       await setFieldValue(meta.projectId, itemId, meta.statusField.id, option.id)
@@ -855,39 +865,99 @@ export async function updateKanbanColumns(
   const meta = await getProjectMeta(cfg)
   const existingOptions = meta.statusField.options || []
 
-  // Build new options list: preserve IDs for existing, add new ones
-  const newOptions = columns.map(col => {
+  // GitHub GraphQL does not support bulk-replacing single-select options via updateProjectV2Field.
+  // The correct approach is to use the dedicated per-option mutations:
+  //   - updateProjectV2SingleSelectFieldOption  (rename an existing option)
+  //   - createProjectV2SingleSelectFieldOption  (add a new option)
+  //   - deleteProjectV2SingleSelectFieldOption  (remove an option that is no longer present)
+
+  const mutations: Promise<unknown>[] = []
+
+  for (const col of columns) {
+    // Match existing option by normalized id or exact label
     const existing = existingOptions.find(
-      o => o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') === col.id ||
-           o.name === col.label
+      o =>
+        o.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') === col.id ||
+        o.name === col.label,
     )
-    return {
-      id: existing?.id || '', // Empty string = new option (GitHub assigns ID)
-      name: col.label,
-    }
-  })
 
-  const query = `
-    mutation($fieldId: ID!, $projectId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) {
-      updateProjectV2Field(input: {
-        fieldId: $fieldId
-        projectId: $projectId
-        singleSelectOptions: $options
-      }) {
-        projectV2Field { ... on ProjectV2SingleSelectField { id } }
+    if (existing) {
+      // Rename if the label changed
+      if (existing.name !== col.label) {
+        const updateOptionQuery = `
+          mutation($fieldId: ID!, $optionId: ID!, $name: String!) {
+            updateProjectV2SingleSelectFieldOption(input: {
+              fieldId: $fieldId
+              optionId: $optionId
+              name: $name
+            }) {
+              projectV2SingleSelectFieldOption { id name }
+            }
+          }
+        `
+        mutations.push(
+          Promise.resolve(ghGraphQL(updateOptionQuery, {
+            fieldId: meta.statusField.id,
+            optionId: existing.id,
+            name: col.label,
+          })),
+        )
       }
+    } else {
+      // Create a new option
+      const createOptionQuery = `
+        mutation($fieldId: ID!, $name: String!) {
+          createProjectV2SingleSelectFieldOption(input: {
+            fieldId: $fieldId
+            name: $name
+          }) {
+            projectV2SingleSelectFieldOption { id name }
+          }
+        }
+      `
+      mutations.push(
+        Promise.resolve(ghGraphQL(createOptionQuery, {
+          fieldId: meta.statusField.id,
+          name: col.label,
+        })),
+      )
     }
-  `
+  }
 
-  const options = newOptions.map(o =>
-    o.id ? { id: o.id, name: o.name } : { name: o.name }
-  )
+  // Delete options that are no longer present in the new column list
+  for (const existingOpt of existingOptions) {
+    const normalizedExistingId = existingOpt.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+    const isStillPresent =
+      columns.some(
+        c =>
+          c.id === normalizedExistingId ||
+          c.label === existingOpt.name,
+      )
 
-  ghGraphQL(query, {
-    fieldId: meta.statusField.id,
-    projectId: meta.projectId,
-    options,
-  })
+    if (!isStillPresent) {
+      const deleteOptionQuery = `
+        mutation($fieldId: ID!, $optionId: ID!) {
+          deleteProjectV2SingleSelectFieldOption(input: {
+            fieldId: $fieldId
+            optionId: $optionId
+          }) {
+            deletedOptionId
+          }
+        }
+      `
+      mutations.push(
+        ghGraphQL(deleteOptionQuery, {
+          fieldId: meta.statusField.id,
+          optionId: existingOpt.id,
+        }) as Promise<unknown>,
+      )
+    }
+  }
+
+  await Promise.all(mutations)
 
   // Invalidate meta cache so new options are picked up
   metaCache.delete(cacheKey(cfg))

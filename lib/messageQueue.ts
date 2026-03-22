@@ -14,11 +14,13 @@ import { withLock } from '@/lib/file-lock'
  * Uses the hostname (e.g., 'macbook-pro', 'mac-mini') for cross-host compatibility
  */
 export function getSelfHostName(): string {
+  // Call getSelfHostId() once to avoid duplicate calls across try/catch branches
+  const selfHostId = getSelfHostId()
   try {
     const selfHost = getSelfHost()
-    return selfHost.name || getSelfHostId() || 'unknown-host'
+    return selfHost.name || selfHostId || 'unknown-host'
   } catch {
-    return getSelfHostId() || 'unknown-host'
+    return selfHostId || 'unknown-host'
   }
 }
 
@@ -262,7 +264,8 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
 
   return {
     id,
-    from: fromName,
+    // Use the full AMP address as the unique identifier; alias holds the extracted name
+    from: envelope.from,
     fromAlias: fromName,
     fromLabel: fromAgent?.label || undefined,
     fromHost,
@@ -270,7 +273,8 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
     // when fromVerified is not explicitly set (AMP messages with valid signatures are verified)
     // NT-026: Removed trailing `?? false` — Boolean() always returns a boolean, making it dead code
     fromVerified: ampMsg.fromVerified ?? Boolean(envelope.signature || ampMsg.signature),
-    to: toName,
+    // Use the full AMP address as the unique identifier; alias holds the extracted name
+    to: envelope.to,
     toAlias: toName,
     toLabel: toAgent?.label || undefined,
     toHost,
@@ -383,7 +387,7 @@ async function collectMessagesFromAMPDir(
             type: msg.content.type,
             preview: msg.content.message.substring(0, maxPreview),
           }
-        } else if (ampMsg.id && ampMsg.subject && ampMsg.envelope === undefined) {
+        } else if (ampMsg.id && ampMsg.subject && !ampMsg.envelope) {
           // Old flat format — ignore files without explicit status
           // (migration duplicates often lack status, causing phantom unread counts)
           if (!ampMsg.status) continue
@@ -750,14 +754,13 @@ export async function getSentCount(agentIdentifier: string): Promise<number> {
   try {
     // MF-012: Recurse into subdirectories because writeToAMPSent() stores messages
     // in sent/{recipientDir}/{messageId}.json, not directly in sent/
+    // Files directly in sentDir are NOT counted — only files inside subdirectories are valid.
     let count = 0
-    const entries = fsSync.readdirSync(sentDir, { withFileTypes: true })
+    const entries = await fs.readdir(sentDir, { withFileTypes: true })
     for (const entry of entries) {
-      if (entry.isFile() && entry.name.endsWith('.json')) {
-        count++
-      } else if (entry.isDirectory()) {
+      if (entry.isDirectory()) {
         try {
-          const subEntries = fsSync.readdirSync(path.join(sentDir, entry.name))
+          const subEntries = await fs.readdir(path.join(sentDir, entry.name))
           count += subEntries.filter(e => e.endsWith('.json')).length
         } catch {
           // Skip inaccessible subdirectories

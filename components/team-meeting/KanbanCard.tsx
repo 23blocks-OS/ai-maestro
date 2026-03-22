@@ -3,8 +3,8 @@
 import { Archive, Circle, CheckCircle2, PlayCircle, Eye, Lock, User } from 'lucide-react'
 import type { TaskWithDeps } from '@/types/task'
 
-// Map task status to a meaningful icon
-const STATUS_ICON_MAP: Record<string, typeof Circle> = {
+// Map task status to a meaningful icon — React.ElementType covers all Lucide icon components
+const STATUS_ICON_MAP: Record<string, React.ElementType> = {
   backlog: Archive,
   pending: Circle,
   in_progress: PlayCircle,

@@ -64,11 +64,14 @@ export default function TeamMembershipSection({
 
   // Filter pending transfers to only those relevant to this agent:
   // - transfers where this agent is being transferred
-  // - transfers where this agent is the source team's COS (can approve/reject)
+  // - transfers where this agent is the COS of the source team (must approve departure)
+  // - transfers where this agent is the COS of the target team (must approve entry)
   const relevantTransfers = (pendingTransfers || []).filter(transfer => {
     if (transfer.agentId === agentId) return true
     const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
     if (fromTeam?.chiefOfStaffId === agentId) return true
+    const toTeam = allTeams.find(t => t.id === transfer.toTeamId)
+    if (toTeam?.chiefOfStaffId === agentId) return true
     return false
   })
 
@@ -113,8 +116,9 @@ export default function TeamMembershipSection({
           : memberTeams[0]        // Fallback: use first team as transfer source context
 
         if (!sourceTeam) {
-          // Agent has no teams yet — cannot create a transfer request, server must enforce
-          setError('Cannot join a closed team without an existing team membership. Contact the team\'s Chief-of-Staff.')
+          // Agent has no teams yet — a transfer request requires a fromTeamId as source context,
+          // so there is nothing to transfer from. The target team's COS must add them directly.
+          setError('To request a transfer to a closed team, you must already be a member of at least one team (used as the transfer source). Contact the team\'s Chief-of-Staff for direct entry.')
           return
         }
 
@@ -255,7 +259,8 @@ export default function TeamMembershipSection({
           {relevantTransfers.map(transfer => {
             const fromTeam = allTeams.find(t => t.id === transfer.fromTeamId)
             const toTeam = allTeams.find(t => t.id === transfer.toTeamId)
-            const canResolve = onResolveTransfer && fromTeam?.chiefOfStaffId === agentId
+            // A COS of either the source team (approves departure) or the target team (approves entry) can resolve
+            const canResolve = onResolveTransfer && (fromTeam?.chiefOfStaffId === agentId || toTeam?.chiefOfStaffId === agentId)
 
             return (
               <div key={transfer.id} className="flex items-center gap-2 px-1 py-1.5 rounded bg-amber-500/5 border border-amber-500/20">
@@ -271,7 +276,9 @@ export default function TeamMembershipSection({
                         setResolvingTransferId(transfer.id)
                         try {
                           const result = await onResolveTransfer(transfer.id, 'approve')
-                          if (!result.success) {
+                          if (result.success) {
+                            setError(null) // Clear any stale error on success
+                          } else {
                             setError(result.error || 'Failed to approve transfer')
                           }
                         } catch {
@@ -292,7 +299,9 @@ export default function TeamMembershipSection({
                         setResolvingTransferId(transfer.id)
                         try {
                           const result = await onResolveTransfer(transfer.id, 'reject')
-                          if (!result.success) {
+                          if (result.success) {
+                            setError(null) // Clear any stale error on success
+                          } else {
                             setError(result.error || 'Failed to reject transfer')
                           }
                         } catch {

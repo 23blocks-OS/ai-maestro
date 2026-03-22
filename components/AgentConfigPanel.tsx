@@ -266,9 +266,9 @@ export default function AgentConfigPanel({
         />
         <div className="space-y-1.5">
           <AnimatePresence mode="popLayout">
-            {config.rules.map((rule, i) => (
+            {config.rules.map((rule) => (
               <motion.div
-                key={`rule-${i}-${rule.slice(0, 20)}`}
+                key={`rule-${rule}`}
                 layout
                 variants={itemVariants}
                 initial="initial"

@@ -35,8 +35,9 @@ export async function POST(req: NextRequest) {
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
+      // Display in MB for readability (MAX_FILE_SIZE is exactly 1MB = 1024*1024 bytes)
       return NextResponse.json(
-        { error: `File too large (max ${MAX_FILE_SIZE / 1024}KB)` },
+        { error: `File too large (max ${MAX_FILE_SIZE / (1024 * 1024)}MB)` },
         { status: 400 }
       )
     }
@@ -51,19 +52,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Read file content as text
-    const content = await file.text()
+    // Read file content as ArrayBuffer and convert to Buffer for binary-safe, encoding-neutral writes
+    const arrayBuffer = await file.arrayBuffer()
+    const content = Buffer.from(arrayBuffer)
 
-    // Generate a safe filename: <random>-<sanitized-original>
-    const safeBase = originalName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+    // Generate a safe filename: <random>-<sanitized-base>.<ext>
+    // Extract base name (without extension) and sanitize it independently from the extension,
+    // so that truncation to 100 chars never cuts off the extension.
+    // Strip all non-alphanumeric chars (including path separators / and \) to prevent path traversal.
+    const baseName = ext ? originalName.slice(0, originalName.length - ext.length - 1) : originalName
+    const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/[/\\]/g, '_').slice(0, 100)
     const uniquePrefix = randomBytes(4).toString('hex')
-    const savedName = `${uniquePrefix}-${safeBase}`
+    const savedName = `${uniquePrefix}-${safeBase}${ext ? '.' + ext : ''}`
 
     // Ensure upload directory exists
     await mkdir(UPLOAD_DIR, { recursive: true })
 
     const savedPath = join(UPLOAD_DIR, savedName)
-    await writeFile(savedPath, content, 'utf-8')
+    // Write Buffer directly — no encoding argument needed (Buffer is already binary-safe)
+    await writeFile(savedPath, content)
 
     // Return the server path (for internal use) and the display filename
     return NextResponse.json({

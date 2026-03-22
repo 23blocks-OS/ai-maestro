@@ -554,13 +554,16 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       setIsReady(false)
       messageBufferRef.current = []
     }
-    // NT-021: Empty deps array is intentional and safe because session.id is stable
-    // for the lifetime of this component instance. In the tab-based architecture,
-    // each TerminalView is keyed by session.id, so a new session.id always means
-    // a new component instance (React unmounts/remounts). Therefore session.id
-    // never changes within a single mount cycle, and omitting it from deps is correct.
+    // NT-021: initializeTerminal is memoized via useCallback([]) in useTerminal and is
+    // therefore a stable reference for the lifetime of the hook instance. Including it
+    // in the dependency array is correct and removes the need to suppress the lint rule.
+    // In the tab-based architecture each TerminalView is keyed by session.id, so a new
+    // session.id always means a new component instance (React unmounts/remounts), and
+    // initializeTerminal never changes within a single mount cycle.
+    // session.id is intentionally omitted: the component is keyed by session.id, so any
+    // change produces a full remount — re-running this effect is never needed mid-lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [initializeTerminal])
 
   // Flush buffered messages when terminal becomes ready (skip during banner buffering)
   useEffect(() => {
@@ -1123,10 +1126,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
     }
   }, [isTouch, terminal])
 
-  // Load notes from localStorage ONCE on mount
-  // SF-047: storageId is stable for the lifetime of this component instance (keyed by session).
-  // Tab-based architecture: each TerminalView is mounted once per agent and never reused,
-  // so storageId never changes during the component lifecycle. Empty deps is intentional.
+  // Load notes from localStorage when storageId is known (runs once on mount since storageId is stable)
+  // SF-047: storageId is derived from session.agentId || session.id and is stable for the lifetime
+  // of this component instance. Including it as a dependency is correct — it ensures notes are
+  // reloaded if agentId becomes available after the initial render (e.g. registry hydration).
   useEffect(() => {
     // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
     try {
@@ -1141,9 +1144,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // localStorage unavailable (private browsing, storage full, etc.)
       setNotes('')
     }
-    // Only load once on mount — storageId is stable per component instance (see SF-047)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // SF-047: storageId is stable for the lifetime of this component instance (keyed by session).
+    // Including it in the dependency array is correct: if storageId ever changes (e.g. agentId
+    // becomes available after initial render), the notes will be reloaded for the correct key.
+  }, [storageId])
 
   useEffect(() => {
     // SF-003: Wrap localStorage access in try/catch — private browsing or full storage throws
@@ -1159,9 +1163,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       // localStorage unavailable (private browsing, storage full, etc.)
       setPromptDraft('')
     }
-    // Only load once on mount — storageId is stable per component instance (see SF-047)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // SF-047: storageId is stable for the lifetime of this component instance (keyed by session).
+    // Including it in the dependency array is correct: if storageId ever changes (e.g. agentId
+    // becomes available after initial render), the prompt draft will be reloaded for the correct key.
+  }, [storageId])
 
   // Save notes to localStorage when they change
   useEffect(() => {
@@ -1233,6 +1238,10 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
 
   const handlePromptSubmit = useCallback(
     (mode: 'insert' | 'send') => {
+      if (!isConnected) {
+        console.warn('[PromptBuilder] Not connected, cannot send prompt.')
+        return
+      }
       if (!promptDraft || promptDraft.trim().length === 0) {
         return
       }
@@ -1263,7 +1272,7 @@ export default function TerminalView({ session, isVisible = true, hideFooter = f
       }
       focusTerminal()
     },
-    [focusTerminal, promptDraft, sendMessage]
+    [focusTerminal, isConnected, promptDraft, sendMessage]
   )
 
   const handlePromptKeyDown = useCallback(

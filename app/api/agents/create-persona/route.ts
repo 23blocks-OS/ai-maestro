@@ -39,6 +39,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (body.tomlContent !== undefined && typeof body.tomlContent !== 'string') {
+      return NextResponse.json(
+        { error: 'tomlContent must be a string if provided' },
+        { status: 400 },
+      )
+    }
+
+    if (body.pluginName !== undefined && typeof body.pluginName !== 'string') {
+      return NextResponse.json(
+        { error: 'pluginName must be a string if provided' },
+        { status: 400 },
+      )
+    }
+
     if (!body.tomlContent && !body.pluginName) {
       return NextResponse.json(
         { error: 'Either tomlContent (Haephestos) or pluginName (wizard) is required' },
@@ -53,13 +67,36 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = await createPersona({
-      personaName: body.personaName,
-      tomlContent: body.tomlContent,
-      pluginName: body.pluginName,
-      marketplaceName: body.marketplaceName,
-      agentDescription: body.agentDescription,
-    })
+    if (body.marketplaceName !== undefined && typeof body.marketplaceName !== 'string') {
+      return NextResponse.json(
+        { error: 'marketplaceName must be a string if provided' },
+        { status: 400 },
+      )
+    }
+
+    if (body.agentDescription !== undefined && typeof body.agentDescription !== 'string') {
+      return NextResponse.json(
+        { error: 'agentDescription must be a string if provided' },
+        { status: 400 },
+      )
+    }
+
+    // Build args conditionally: tomlContent and agentDescription are only relevant
+    // to the Haephestos flow; pluginName and marketplaceName only to the wizard flow.
+    // Keeping them separate prevents silent no-ops and makes the contract explicit.
+    const personaArgs = body.tomlContent
+      ? {
+          personaName: body.personaName,
+          tomlContent: body.tomlContent,
+          agentDescription: body.agentDescription,
+        }
+      : {
+          personaName: body.personaName,
+          pluginName: body.pluginName,
+          marketplaceName: body.marketplaceName,
+        }
+
+    const result = await createPersona(personaArgs)
 
     return NextResponse.json({
       success: true,

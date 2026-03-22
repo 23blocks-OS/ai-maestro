@@ -51,6 +51,24 @@ export async function PUT(
       return NextResponse.json({ error: 'blockedBy array elements must all be strings' }, { status: 400 })
     }
   }
+  // Runtime validation for labels -- must be an array of strings if provided
+  if (body.labels !== undefined) {
+    if (!Array.isArray(body.labels)) {
+      return NextResponse.json({ error: 'labels must be an array of strings' }, { status: 400 })
+    }
+    if (!body.labels.every((v: unknown) => typeof v === 'string')) {
+      return NextResponse.json({ error: 'labels array elements must all be strings' }, { status: 400 })
+    }
+  }
+  // Runtime validation for acceptanceCriteria -- must be an array of strings if provided
+  if (body.acceptanceCriteria !== undefined) {
+    if (!Array.isArray(body.acceptanceCriteria)) {
+      return NextResponse.json({ error: 'acceptanceCriteria must be an array of strings' }, { status: 400 })
+    }
+    if (!body.acceptanceCriteria.every((v: unknown) => typeof v === 'string')) {
+      return NextResponse.json({ error: 'acceptanceCriteria array elements must all be strings' }, { status: 400 })
+    }
+  }
   // Whitelist only known UpdateTaskParams fields to avoid passing arbitrary data
   // SF-008: Handle null assigneeAgentId explicitly -- String(null) produces literal "null" string
   const safeParams: UpdateTaskParams = {

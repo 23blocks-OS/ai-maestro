@@ -163,7 +163,7 @@ export async function GET() {
       ...(settings as Record<string, unknown>).enabledPlugins as Record<string, boolean> | undefined || {},
     }
 
-    const extraKnown = (settings as Record<string, unknown>).extraKnownMarketplaces as Record<string, unknown> || {}
+    const extraKnown = (settings?.extraKnownMarketplaces as Record<string, unknown> | undefined) || {}
 
     const marketplaces = new Map<string, MarketplaceInfo>()
 

@@ -80,6 +80,24 @@ export async function POST(
       return NextResponse.json({ error: 'blockedBy array elements must all be strings' }, { status: 400 })
     }
   }
+  // Runtime validation for labels -- must be an array of strings if provided
+  if (body.labels !== undefined) {
+    if (!Array.isArray(body.labels)) {
+      return NextResponse.json({ error: 'labels must be an array of strings' }, { status: 400 })
+    }
+    if (!body.labels.every((v: unknown) => typeof v === 'string')) {
+      return NextResponse.json({ error: 'labels array elements must all be strings' }, { status: 400 })
+    }
+  }
+  // Runtime validation for acceptanceCriteria -- must be an array of strings if provided
+  if (body.acceptanceCriteria !== undefined) {
+    if (!Array.isArray(body.acceptanceCriteria)) {
+      return NextResponse.json({ error: 'acceptanceCriteria must be an array of strings' }, { status: 400 })
+    }
+    if (!body.acceptanceCriteria.every((v: unknown) => typeof v === 'string')) {
+      return NextResponse.json({ error: 'acceptanceCriteria array elements must all be strings' }, { status: 400 })
+    }
+  }
   // Whitelist only known CreateTaskParams fields to avoid passing arbitrary data
   // SF-007: Handle null assigneeAgentId explicitly -- String(null) produces literal "null" string
   const safeParams: CreateTaskParams = {
@@ -89,11 +107,11 @@ export async function POST(
     ...(body.blockedBy !== undefined && { blockedBy: body.blockedBy }),
     ...(body.priority !== undefined && { priority: Number(body.priority) }),
     ...(body.status !== undefined && { status: String(body.status) }),
-    ...(body.labels !== undefined && { labels: body.labels as string[] }),
+    ...(body.labels !== undefined && { labels: body.labels as string[] }), // Safe: validated as string[] above
     ...(body.taskType !== undefined && { taskType: String(body.taskType) }),
     ...(body.externalRef !== undefined && { externalRef: String(body.externalRef) }),
     ...(body.externalProjectRef !== undefined && { externalProjectRef: String(body.externalProjectRef) }),
-    ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria as string[] }),
+    ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria as string[] }), // Safe: validated as string[] above
     ...(body.handoffDoc !== undefined && { handoffDoc: String(body.handoffDoc) }),
     ...(body.prUrl !== undefined && { prUrl: String(body.prUrl) }),
     requestingAgentId,

@@ -29,6 +29,9 @@ function ensureDir() {
 
 /** Read current settings (merges with defaults for forward-compatibility) */
 export function getSystemSettings(): SystemSettings {
+  // Ensure the directory exists before any file operations so that
+  // getSystemSettings() is safe to call before updateSystemSettings() ever runs.
+  ensureDir()
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const raw = fs.readFileSync(SETTINGS_FILE, 'utf-8')

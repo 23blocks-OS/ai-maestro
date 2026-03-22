@@ -21,8 +21,9 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
   const [priority, setPriority] = useState<number>(0)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Core submission logic extracted so it can be called from both the form
+  // onSubmit handler and the keyboard shortcut handler without any unsafe casts.
+  const submitTask = async () => {
     if (!subject.trim() || submitting) return
     setSubmitting(true)
     try {
@@ -44,10 +45,15 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
     }
   }
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    submitTask()
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && !expanded) {
       e.preventDefault()
-      handleSubmit(e as unknown as React.FormEvent)
+      submitTask()
     }
   }
 
@@ -126,7 +132,6 @@ export default function TaskCreateForm({ agents, existingTasks, onCreateTask }: 
             tasks={existingTasks}
             selectedIds={blockedBy}
             onChange={setBlockedBy}
-            excludeTaskId={null}
           />
         </div>
       )}

@@ -7,7 +7,7 @@ interface DependencyPickerProps {
   tasks: TaskWithDeps[]
   selectedIds: string[]
   onChange: (ids: string[]) => void
-  excludeTaskId: string | null  // Task being edited (can't depend on itself)
+  excludeTaskId?: string  // Task being edited (can't depend on itself)
 }
 
 export default function DependencyPicker({ tasks, selectedIds, onChange, excludeTaskId }: DependencyPickerProps) {

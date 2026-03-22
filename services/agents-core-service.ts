@@ -150,6 +150,8 @@ export interface LinkSessionParams {
 export interface UnlinkSessionParams {
   kill?: boolean
   deleteAgent?: boolean
+  // Which session index to target when computing the tmux session name (defaults to 0)
+  sessionIndex?: number
 }
 
 export interface UnifiedAgentsParams {
@@ -439,7 +441,8 @@ export async function listAgents(): Promise<ServiceResult<{
     const processedAgentNames = new Set<string>()
 
     for (const agent of agents) {
-      const agentName = agent.name || agent.alias
+      // Use agent.id as last-resort fallback so agents without name/alias are never silently dropped
+      const agentName = agent.name || agent.alias || agent.id
       if (!agentName) continue
 
       const normalizedAgentName = agentName.toLowerCase()
@@ -489,22 +492,28 @@ export async function listAgents(): Promise<ServiceResult<{
             tmuxSessionName: onlineDiscoveredSession?.name || computeSessionName(agentName, onlineSession.index),
             workingDirectory: onlineSession.workingDirectory,
             lastActivity: onlineSession.lastActive,
+            windows: onlineDiscoveredSession?.windows,
             hostId,
             hostName,
           }
         : {
             status: 'offline',
             workingDirectory: agent.workingDirectory || primarySession?.workingDirectory,
+            windows: undefined,
             hostId,
             hostName,
           }
 
       const updatedAgent: Agent = {
         ...agent,
-        name: agentName,
+        // Preserve the canonical name/alias fields; do not promote alias to name
+        name: agent.name,
+        alias: agent.alias,
         sessions: updatedSessions,
         status: hasOnlineSession ? 'active' : 'offline',
-        lastActive: hasOnlineSession ? new Date().toISOString() : agent.lastActive,
+        // Use the actual lastActive from the online session rather than the current timestamp
+        // so the field reflects true last activity, not the polling time
+        lastActive: onlineSession ? onlineSession.lastActive : agent.lastActive,
       }
 
       resultAgents.push(mergeAgentWithSession(updatedAgent, sessionStatus, hostId, hostName, hostUrl, false))
@@ -767,20 +776,13 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
         return { error: 'Missing required field: sessionName', status: 400 }
       }
 
-      agentId = sessionName.replace(/[^a-zA-Z0-9_-]/g, '-')
-
-      agentConfig = {
-        id: agentId,
-        sessionName,
-        workingDirectory: workingDirectory || process.cwd(),
-        createdAt: Date.now(),
-      }
-
       // Check if agent already exists in registry by session name
       const existingAgent = getAgentBySession(sessionName)
       if (existingAgent) {
         await linkSession(existingAgent.id, sessionName, workingDirectory || process.cwd())
         registryAgent = existingAgent
+        // Use the existing registry agent's UUID as the canonical ID
+        agentId = existingAgent.id
       } else {
         const parts = sessionName.split('-')
         const shortName = parts[parts.length - 1] || sessionName
@@ -798,9 +800,20 @@ export async function registerAgent(body: RegisterAgentParams): Promise<ServiceR
             createSession: true,
             workingDirectory: workingDirectory || process.cwd()
           })
+          // createAgent always generates a UUID; use it as the canonical ID
+          agentId = registryAgent.id
         } catch (createError) {
           console.warn(`[Register] Could not create registry entry for ${sessionName}:`, createError)
+          // Fall back to a fresh UUID so agentConfig.id is always a valid UUID
+          agentId = uuidv4()
         }
+      }
+
+      agentConfig = {
+        id: agentId,
+        sessionName,
+        workingDirectory: workingDirectory || process.cwd(),
+        createdAt: Date.now(),
       }
     } else {
       // Full agent config format (cloud agents)
@@ -1041,9 +1054,10 @@ export async function getUnifiedAgents(params: UnifiedAgentsParams): Promise<Ser
       stats: aggregatedStats,
       hosts: hostResults,
       selfHost: {
-        id: selfHost.id,
-        name: selfHost.name,
-        url: selfHost.url,
+        // selfHost can be null; fall back to hostname-derived values (same pattern as listAgents)
+        id: selfHost?.id || os.hostname(),
+        name: selfHost?.name || os.hostname(),
+        url: selfHost?.url || `http://${os.hostname().toLowerCase()}:23000`,
       },
       totalHosts: hosts.length,
       successfulHosts: results.filter(r => r.success).length,
@@ -1073,8 +1087,8 @@ export async function getAgentSessionStatus(agentId: string): Promise<ServiceRes
       return { error: 'Agent not found', status: 404 }
     }
 
-    const sessionName = agent.name || agent.alias
-    if (!sessionName) {
+    const agentNameForSession = agent.name || agent.alias
+    if (!agentNameForSession) {
       return {
         data: {
           success: true,
@@ -1087,6 +1101,13 @@ export async function getAgentSessionStatus(agentId: string): Promise<ServiceRes
         status: 200,
       }
     }
+
+    // Use the primary session (index 0) if it exists; derive the real tmux session name
+    // via computeSessionName so it matches the name actually created by wakeAgent/createAgent
+    const primarySession = agent.sessions?.find(s => s.index === 0)
+    const sessionName = primarySession
+      ? computeSessionName(agentNameForSession, primarySession.index)
+      : computeSessionName(agentNameForSession, 0)
 
     const runtime = getRuntime()
     const exists = await runtime.sessionExists(sessionName)
@@ -1134,6 +1155,9 @@ export async function linkAgentSession(agentId: string, params: LinkSessionParam
       return { error: 'Agent not found', status: 404 }
     }
 
+    // Record initial activity timestamp so idle/status checks are accurate immediately after linking
+    sessionActivity.set(sessionName, Date.now())
+
     return { data: { success: true }, status: 200 }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to link session'
@@ -1172,10 +1196,17 @@ export async function sendAgentSessionCommand(
       return { error: 'Agent not found', status: 404 }
     }
 
-    const sessionName = agent.name || agent.alias
-    if (!sessionName) {
+    const agentNameForSession = agent.name || agent.alias
+    if (!agentNameForSession) {
       return { error: 'Agent has no name configured', status: 400 }
     }
+
+    // Use the primary session (index 0); derive the real tmux session name via
+    // computeSessionName so it matches the name used by wakeAgent/createAgent
+    const primarySession = agent.sessions?.find(s => s.index === 0)
+    const sessionName = primarySession
+      ? computeSessionName(agentNameForSession, primarySession.index)
+      : computeSessionName(agentNameForSession, 0)
 
     const runtime = getRuntime()
     const exists = await runtime.sessionExists(sessionName)
@@ -1232,19 +1263,25 @@ export async function unlinkOrDeleteAgentSession(
   sessionKilled?: boolean
 }>> {
   try {
-    const { kill: killSession = false, deleteAgent: shouldDeleteAgent = false } = params
+    const { kill: killSession = false, deleteAgent: shouldDeleteAgent = false, sessionIndex = 0 } = params
 
     const agent = getAgent(agentId)
     if (!agent) {
       return { error: 'Agent not found', status: 404 }
     }
 
+    const agentName = agent.name || agent.alias
+    if (!agentName) {
+      return { error: 'Agent has no name configured', status: 400 }
+    }
+
     const runtime = getRuntime()
-    const sessionName = agent.name || agent.alias
+    // Use computeSessionName to derive the correct tmux session name (same as wakeAgent/hibernateAgent)
+    const sessionName = computeSessionName(agentName, sessionIndex)
 
     if (shouldDeleteAgent) {
       // Kill tmux session if requested and exists
-      if (sessionName && killSession) {
+      if (killSession) {
         const exists = await runtime.sessionExists(sessionName)
         if (exists) {
           await runtime.killSession(sessionName)
@@ -1270,7 +1307,7 @@ export async function unlinkOrDeleteAgentSession(
     }
 
     // Just unlink the session
-    if (sessionName && killSession) {
+    if (killSession) {
       const exists = await runtime.sessionExists(sessionName)
       if (exists) {
         await runtime.killSession(sessionName)
@@ -1479,8 +1516,10 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
     // Check if session exists
     const exists = await runtime.sessionExists(sessionName)
     if (!exists) {
-      // Session doesn't exist, just update the status
+      // Session doesn't exist, just update the status and clean up any stale activity entry
       updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')
+      // Clear stale activity so that if this session name is reused, idle-checks start fresh
+      sessionActivity.delete(sessionName)
 
       return {
         data: {
@@ -1514,6 +1553,8 @@ export async function hibernateAgent(agentId: string, params: HibernateAgentPara
 
     // Remove from session persistence
     unpersistSession(sessionName)
+    // Clear activity entry so that if the session name is reused later, idle-checks start fresh
+    sessionActivity.delete(sessionName)
 
     // Update agent status in registry
     updateAgentSessionInRegistry(agentId, sessionIndex, 'offline')

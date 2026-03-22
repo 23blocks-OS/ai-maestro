@@ -461,7 +461,8 @@ describe('registerAgent', () => {
 
     expect(result.status).toBe(200)
     expect(result.data?.success).toBe(true)
-    expect(result.data?.agentId).toBe('my-agent')
+    // agentId comes from createAgent's returned agent.id, not from sessionName
+    expect(result.data?.agentId).toBe('new-id')
   })
 
   it('links existing agent when found by session', async () => {

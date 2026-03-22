@@ -50,7 +50,7 @@ interface ElementTotals {
   outputStyles: number
 }
 
-const ELEMENT_SECTIONS: { key: keyof Omit<PluginElements, 'pluginName' | 'marketplace'>; label: string; icon: typeof Wand2 }[] = [
+const ELEMENT_SECTIONS: { key: keyof ElementTotals; label: string; icon: typeof Wand2 }[] = [
   { key: 'skills', label: 'Skills', icon: Wand2 },
   { key: 'agents', label: 'Agents', icon: Bot },
   { key: 'commands', label: 'Commands', icon: Terminal },
@@ -91,7 +91,7 @@ export default function GlobalElementsSection() {
       setGroups(data.groups || [])
       setEnabledCount(data.enabledCount || 0)
       setTotalCount(data.totalCount || 0)
-    } catch { /* ignore */ }
+    } catch (err) { console.error('Error fetching plugins:', err) }
     finally { setLoading(false) }
   }, [])
 
@@ -103,7 +103,7 @@ export default function GlobalElementsSection() {
       const data = await res.json()
       setPluginElements(data.plugins || [])
       setElementTotals(data.totals || { skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcpServers: 0, lspServers: 0, outputStyles: 0 })
-    } catch { /* ignore */ }
+    } catch (err) { console.error('Error fetching elements:', err) }
     finally { setLoadingElements(false) }
   }, [])
 
@@ -147,10 +147,14 @@ export default function GlobalElementsSection() {
           plugins: g.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
         })))
         setEnabledCount(prev => currentEnabled ? prev - 1 : prev + 1)
-        // Re-fetch elements after toggle
-        setTimeout(() => fetchElements(), 300)
+        // Re-fetch elements immediately after successful toggle
+        fetchElements()
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Error toggling plugin:', err)
+      // Re-fetch to resync UI with actual backend state after failure
+      fetchPlugins()
+    }
     finally { setToggling(null) }
   }
 
@@ -300,7 +304,7 @@ export default function GlobalElementsSection() {
             {/* Summary row */}
             <div className="flex flex-wrap gap-3 mb-4">
               {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
-                const count = elementTotals[key as keyof ElementTotals] || 0
+                const count = elementTotals[key] || 0
                 if (count === 0) return null
                 return (
                   <div key={key} className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-lg px-2.5 py-1.5">
@@ -342,7 +346,7 @@ export default function GlobalElementsSection() {
                     {isExpanded && (
                       <div className="px-3 py-2 space-y-2 bg-gray-900/20">
                         {ELEMENT_SECTIONS.map(({ key, label, icon: Icon }) => {
-                          const items = plugin[key as keyof Omit<PluginElements, 'pluginName' | 'marketplace'>] as ElementInfo[]
+                          const items = plugin[key]
                           if (!items || items.length === 0) return null
                           return (
                             <div key={key}>
@@ -354,7 +358,7 @@ export default function GlobalElementsSection() {
                               <div className="flex flex-wrap gap-1.5">
                                 {items.map((item, idx) => (
                                   <span
-                                    key={`${item.name}-${idx}`}
+                                    key={`${plugin.pluginName}-${plugin.marketplace}-${key}-${item.name}-${idx}`}
                                     className="text-[11px] px-2 py-0.5 rounded-md bg-gray-800/60 text-gray-300 border border-gray-700/40"
                                     title={item.name}
                                   >

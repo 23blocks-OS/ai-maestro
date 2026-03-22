@@ -15,9 +15,9 @@ export interface UseTerminalOptions {
 }
 
 // Debounce utility for resize events
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
+function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): T {
   let timeoutId: ReturnType<typeof setTimeout> | null = null
-  return ((...args: unknown[]) => {
+  return ((...args: Parameters<T>) => {
     if (timeoutId) clearTimeout(timeoutId)
     timeoutId = setTimeout(() => fn(...args), ms)
   }) as T
@@ -321,11 +321,6 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       clearTimeout(safetyRefit1)
       clearTimeout(safetyRefit2)
       resizeObserver.disconnect()
-      // Dispose WebGL addon before terminal to free GPU context cleanly
-      if (webglAddonRef.current) {
-        try { webglAddonRef.current.dispose() } catch { /* ignore */ }
-        webglAddonRef.current = null
-      }
       if (optionsRef.current.onUnregister) {
         optionsRef.current.onUnregister()
       }
@@ -336,16 +331,35 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       sendDataRef.current = null
       // SF-010: Clear state so consumers re-render on disposal
       setTerminalInstance(null)
+      // Dispose WebGL addon after terminal to free GPU context cleanly.
+      // Terminal must be disposed first so its internal references to the addon
+      // are already cleaned up before we call dispose on the addon itself.
+      if (webglAddonRef.current) {
+        try { webglAddonRef.current.dispose() } catch { /* ignore */ }
+        webglAddonRef.current = null
+      }
     }
   }, [])
 
   const disposeTerminal = useCallback(() => {
     if (terminalRef.current) {
+      if (optionsRef.current.onUnregister) {
+        optionsRef.current.onUnregister()
+      }
       terminalRef.current.dispose()
       terminalRef.current = null
       fitAddonRef.current = null
+      // Clear send function reference to prevent stale callbacks
+      sendDataRef.current = null
       // SF-010: Clear state so consumers re-render on disposal
       setTerminalInstance(null)
+      // Dispose WebGL addon after terminal to free GPU context cleanly.
+      // Terminal must be disposed first so its internal references to the addon
+      // are already cleaned up before we call dispose on the addon itself.
+      if (webglAddonRef.current) {
+        try { webglAddonRef.current.dispose() } catch { /* ignore */ }
+        webglAddonRef.current = null
+      }
     }
   }, [])
 

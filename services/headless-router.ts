@@ -178,6 +178,7 @@ import {
   sendReadReceipt,
   listAMPAgents,
   getAgentSelf,
+  getAgentCard,
   updateAgentSelf,
   deleteAgentSelf,
   resolveAgentAddress,
@@ -1009,6 +1010,9 @@ const routes: Route[] = [
     )
     sendServiceResult(res, result)
   }},
+  { method: 'GET', pattern: /^\/api\/v1\/agents\/me\/card$/, paramNames: [], handler: async (req, res) => {
+    sendServiceResult(res, getAgentCard(getHeader(req, 'Authorization')))
+  }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/me$/, paramNames: [], handler: async (req, res) => {
     sendServiceResult(res, getAgentSelf(getHeader(req, 'Authorization')))
   }},
@@ -1035,6 +1039,10 @@ const routes: Route[] = [
     } catch { /* No body is fine */ }
     sendServiceResult(res, await sendReadReceipt(authHeader, params.id, originalSender))
   }},
+  { method: 'GET', pattern: /^\/api\/v1\/messages$/, paramNames: [], handler: async (req, res, _params, query) => {
+    const authHeader = getHeader(req, 'Authorization')
+    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+  }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
     sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
@@ -1046,6 +1054,11 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending\/([^/]+)$/, paramNames: ['id'], handler: async (req, res, params) => {
     const authHeader = getHeader(req, 'Authorization')
     sendServiceResult(res, acknowledgePendingMessage(authHeader, params.id))
+  }},
+  { method: 'POST', pattern: /^\/api\/v1\/messages\/pending\/ack$/, paramNames: [], handler: async (req, res) => {
+    const body = await readJsonBody(req)
+    const authHeader = getHeader(req, 'Authorization')
+    sendServiceResult(res, batchAcknowledgeMessages(authHeader, body.ids))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

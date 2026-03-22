@@ -1,12 +1,13 @@
 /**
  * Marketplaces API
  *
- * GET  /api/settings/marketplaces — List all registered marketplaces with their plugins and status
- * POST /api/settings/marketplaces — Plugin actions: uninstall, reinstall
+ * GET  /api/settings/marketplaces — List all installed marketplaces with ALL their plugins
+ * POST /api/settings/marketplaces — Actions: install, uninstall, update, enable, disable,
+ *                                    delete-marketplace, add-marketplace, security-check
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, readdir, stat, rm, writeFile } from 'fs/promises'
+import { readFile, readdir, stat, rm, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
@@ -19,13 +20,18 @@ const SETTINGS_LOCAL_PATH = join(HOME, '.claude', 'settings.local.json')
 const CACHE_DIR = join(HOME, '.claude', 'plugins', 'cache')
 const MARKETPLACES_DIR = join(HOME, '.claude', 'plugins', 'marketplaces')
 
+// Exclude this fake marketplace from listing
+const EXCLUDED_MARKETPLACES = ['ai-maestro-local-roles-marketplace']
+
 interface PluginStatus {
   name: string
-  key: string
-  installed: boolean
-  enabled: boolean
-  version: string | null
+  key: string // pluginName@marketplaceName
+  installed: boolean // present in user-scope cache
+  enabled: boolean // enabledPlugins[key] === true
+  version: string | null // installed version (from cache)
   description: string | null
+  sourceUrl: string | null // plugin-level source URL/path
+  errors: string[] // validation errors
   elementCounts: {
     skills: number
     agents: number
@@ -40,8 +46,11 @@ interface PluginStatus {
 
 interface MarketplaceInfo {
   name: string
-  sourceType: 'cache' | 'directory' | 'github' | 'unknown'
-  sourcePath: string | null
+  version: string | null
+  description: string | null
+  sourceType: 'github' | 'directory' | 'unknown'
+  sourceUrl: string | null // full GitHub URL or local path
+  sourceRepo: string | null // GitHub owner/repo format
   pluginCount: number
   enabledCount: number
   installedCount: number
@@ -74,7 +83,6 @@ async function getLatestVersion(pluginCacheDir: string): Promise<string | null> 
 async function countElements(pluginDir: string): Promise<PluginStatus['elementCounts']> {
   const counts = { skills: 0, agents: 0, commands: 0, hooks: 0, rules: 0, mcp: 0, lsp: 0, outputStyles: 0 }
 
-  // Skills: dirs with SKILL.md
   const skillsDir = join(pluginDir, 'skills')
   if (existsSync(skillsDir)) {
     try {
@@ -85,7 +93,6 @@ async function countElements(pluginDir: string): Promise<PluginStatus['elementCo
     } catch { /* ignore */ }
   }
 
-  // Agents: .md files
   const agentsDir = join(pluginDir, 'agents')
   if (existsSync(agentsDir)) {
     try {
@@ -94,7 +101,6 @@ async function countElements(pluginDir: string): Promise<PluginStatus['elementCo
     } catch { /* ignore */ }
   }
 
-  // Commands: .md files
   const commandsDir = join(pluginDir, 'commands')
   if (existsSync(commandsDir)) {
     try {
@@ -103,7 +109,6 @@ async function countElements(pluginDir: string): Promise<PluginStatus['elementCo
     } catch { /* ignore */ }
   }
 
-  // Rules: .md files
   const rulesDir = join(pluginDir, 'rules')
   if (existsSync(rulesDir)) {
     try {
@@ -112,27 +117,47 @@ async function countElements(pluginDir: string): Promise<PluginStatus['elementCo
     } catch { /* ignore */ }
   }
 
-  // Hooks: directory exists
   if (existsSync(join(pluginDir, 'hooks'))) counts.hooks = 1
-
-  // MCP: .mcp.json exists
   if (existsSync(join(pluginDir, '.mcp.json'))) counts.mcp = 1
-
-  // LSP: .lsp.json exists
   if (existsSync(join(pluginDir, '.lsp.json'))) counts.lsp = 1
-
-  // Output styles: directory exists
   if (existsSync(join(pluginDir, 'output-styles'))) counts.outputStyles = 1
 
   return counts
 }
 
+/** Detect plugin errors by checking manifest validity */
+function detectPluginErrors(pluginDir: string, pluginName: string): string[] {
+  const errors: string[] = []
+  const manifestPath = join(pluginDir, '.claude-plugin', 'plugin.json')
+  if (!existsSync(manifestPath)) {
+    errors.push('Missing .claude-plugin/plugin.json manifest')
+    return errors
+  }
+  try {
+    const raw = require('fs').readFileSync(manifestPath, 'utf-8')
+    const manifest = JSON.parse(raw)
+    if (!manifest.name) errors.push('plugin.json: missing "name" field')
+    if (!manifest.description) errors.push('plugin.json: missing "description" field')
+    if (manifest.name && manifest.name !== pluginName) {
+      errors.push(`plugin.json name "${manifest.name}" does not match directory name "${pluginName}"`)
+    }
+  } catch (e) {
+    errors.push(`plugin.json parse error: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  return errors
+}
+
+/** Build GitHub URL from repo string */
+function repoToUrl(repo: string): string {
+  return `https://github.com/${repo}`
+}
+
 export async function GET() {
   try {
-    // Load settings to get enabledPlugins and extraKnownMarketplaces
     const settings = await readJsonSafe(SETTINGS_PATH) || {}
     const settingsLocal = await readJsonSafe(SETTINGS_LOCAL_PATH) || {}
 
+    // enabledPlugins from settings (user-scope)
     const enabledPlugins = {
       ...(settingsLocal as Record<string, unknown>).enabledPlugins as Record<string, boolean> | undefined || {},
       ...(settings as Record<string, unknown>).enabledPlugins as Record<string, boolean> | undefined || {},
@@ -140,115 +165,130 @@ export async function GET() {
 
     const extraKnown = (settings as Record<string, unknown>).extraKnownMarketplaces as Record<string, unknown> || {}
 
-    // Build map: marketplace name → MarketplaceInfo
     const marketplaces = new Map<string, MarketplaceInfo>()
 
-    // 1. Scan cache dir for installed marketplaces + their plugins
-    if (existsSync(CACHE_DIR)) {
+    // Scan marketplace clone directories (these ARE the installed marketplaces)
+    if (existsSync(MARKETPLACES_DIR)) {
       try {
-        const cacheEntries = await readdir(CACHE_DIR)
-        for (const mktName of cacheEntries) {
+        const mpDirs = await readdir(MARKETPLACES_DIR)
+        for (const mktName of mpDirs) {
           if (mktName.startsWith('.')) continue
-          const mktPath = join(CACHE_DIR, mktName)
+          if (EXCLUDED_MARKETPLACES.includes(mktName)) continue
+
+          const mktPath = join(MARKETPLACES_DIR, mktName)
           const s = await stat(mktPath)
           if (!s.isDirectory()) continue
 
-          const info: MarketplaceInfo = marketplaces.get(mktName) || {
+          // Read marketplace.json for version/description
+          const mpManifest = await readJsonSafe(join(mktPath, 'marketplace.json'))
+
+          // Get source info from extraKnownMarketplaces
+          const ekm = extraKnown[mktName] as Record<string, unknown> | undefined
+          const srcInfo = ekm?.source as Record<string, string> | undefined
+          const sourceType = (srcInfo?.source === 'github' ? 'github' : srcInfo?.source === 'directory' ? 'directory' : 'unknown') as MarketplaceInfo['sourceType']
+          const sourceRepo = srcInfo?.repo || null
+          const sourceUrl = sourceRepo ? repoToUrl(sourceRepo) : srcInfo?.path || null
+
+          const info: MarketplaceInfo = {
             name: mktName,
-            sourceType: 'cache',
-            sourcePath: mktPath,
+            version: (mpManifest?.version as string) || null,
+            description: (mpManifest?.description as string) || null,
+            sourceType,
+            sourceUrl,
+            sourceRepo,
             pluginCount: 0,
             enabledCount: 0,
             installedCount: 0,
             plugins: [],
           }
 
-          // Scan plugins inside this marketplace cache
-          const pluginEntries = await readdir(mktPath)
-          for (const plugName of pluginEntries) {
-            if (plugName.startsWith('.')) continue
-            const plugDir = join(mktPath, plugName)
-            const ps = await stat(plugDir)
-            if (!ps.isDirectory()) continue
+          // Scan ALL plugins in the marketplace clone
+          const pluginsDirs = [
+            join(mktPath, 'plugins'),
+            mktPath, // some marketplaces have plugins at root level
+          ]
 
-            const key = `${plugName}@${mktName}`
-            const enabled = enabledPlugins[key] === true
-            const latestVersion = await getLatestVersion(plugDir)
-            let description: string | null = null
-            let elementCounts: PluginStatus['elementCounts'] = null
+          const seenPlugins = new Set<string>()
 
-            if (latestVersion) {
-              const versionDir = join(plugDir, latestVersion)
-              // Read plugin.json for description
-              const manifest = await readJsonSafe(join(versionDir, '.claude-plugin', 'plugin.json'))
-              if (manifest) {
-                description = (manifest.description as string) || null
+          for (const pluginsDir of pluginsDirs) {
+            if (!existsSync(pluginsDir)) continue
+            try {
+              const pluginEntries = await readdir(pluginsDir)
+              for (const plugName of pluginEntries) {
+                if (plugName.startsWith('.') || plugName === 'plugins' || seenPlugins.has(plugName)) continue
+                const plugDir = join(pluginsDir, plugName)
+                try {
+                  const ps = await stat(plugDir)
+                  if (!ps.isDirectory()) continue
+                } catch { continue }
+
+                // Check if it looks like a plugin (has .claude-plugin/ or skills/ or agents/ etc.)
+                const hasManifest = existsSync(join(plugDir, '.claude-plugin', 'plugin.json'))
+                const hasSkills = existsSync(join(plugDir, 'skills'))
+                const hasAgents = existsSync(join(plugDir, 'agents'))
+                const hasCommands = existsSync(join(plugDir, 'commands'))
+                if (!hasManifest && !hasSkills && !hasAgents && !hasCommands) continue
+
+                seenPlugins.add(plugName)
+
+                const key = `${plugName}@${mktName}`
+                const enabled = enabledPlugins[key] === true
+
+                // Check if installed in user-scope cache
+                const cacheDir = join(CACHE_DIR, mktName, plugName)
+                const installed = existsSync(cacheDir)
+                const latestVersion = installed ? await getLatestVersion(cacheDir) : null
+
+                let description: string | null = null
+                let elementCounts: PluginStatus['elementCounts'] = null
+                let errors: string[] = []
+                let sourceUrl: string | null = null
+
+                // Read metadata from cache (if installed) or from marketplace clone
+                const metadataDir = latestVersion ? join(cacheDir, latestVersion) : plugDir
+                const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
+                if (manifest) {
+                  description = (manifest.description as string) || null
+                  // Plugin-level source
+                  const plugSrc = manifest.source as Record<string, string> | undefined
+                  if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
+                  else if (plugSrc?.path) sourceUrl = plugSrc.path
+                }
+                elementCounts = await countElements(metadataDir)
+
+                // Detect errors for installed plugins
+                if (installed && latestVersion) {
+                  errors = detectPluginErrors(join(cacheDir, latestVersion), plugName)
+                }
+
+                info.plugins.push({
+                  name: plugName,
+                  key,
+                  installed,
+                  enabled: installed && enabled,
+                  version: latestVersion,
+                  description,
+                  sourceUrl,
+                  errors,
+                  elementCounts,
+                })
+
+                if (installed) info.installedCount++
+                if (installed && enabled) info.enabledCount++
               }
-              // Count elements
-              elementCounts = await countElements(versionDir)
-            }
-
-            info.plugins.push({
-              name: plugName,
-              key,
-              installed: true,
-              enabled,
-              version: latestVersion,
-              description,
-              elementCounts,
-            })
-            info.installedCount++
-            if (enabled) info.enabledCount++
+            } catch { /* ignore dir scan errors */ }
           }
 
           info.pluginCount = info.plugins.length
-          info.plugins.sort((a, b) => a.name.localeCompare(b.name))
+          info.plugins.sort((a, b) => {
+            // Installed first, then alphabetically
+            if (a.installed && !b.installed) return -1
+            if (!a.installed && b.installed) return 1
+            return a.name.localeCompare(b.name)
+          })
           marketplaces.set(mktName, info)
         }
-      } catch { /* ignore cache scan errors */ }
-    }
-
-    // 2. Add marketplaces from extraKnownMarketplaces that aren't in cache
-    for (const [mktName, mktInfo] of Object.entries(extraKnown)) {
-      if (marketplaces.has(mktName)) {
-        // Update source info if we have it
-        const existing = marketplaces.get(mktName)!
-        const src = (mktInfo as Record<string, unknown>)?.source as Record<string, string> | undefined
-        if (src) {
-          existing.sourceType = (src.source === 'directory' ? 'directory' : src.source === 'github' ? 'github' : 'unknown') as MarketplaceInfo['sourceType']
-          existing.sourcePath = src.path || src.url || null
-        }
-        continue
-      }
-
-      const src = (mktInfo as Record<string, unknown>)?.source as Record<string, string> | undefined
-      marketplaces.set(mktName, {
-        name: mktName,
-        sourceType: (src?.source === 'directory' ? 'directory' : src?.source === 'github' ? 'github' : 'unknown') as MarketplaceInfo['sourceType'],
-        sourcePath: src?.path || src?.url || null,
-        pluginCount: 0,
-        enabledCount: 0,
-        installedCount: 0,
-        plugins: [],
-      })
-    }
-
-    // 3. Check enabledPlugins for marketplaces not yet seen (plugins enabled but marketplace not in cache)
-    for (const key of Object.keys(enabledPlugins)) {
-      const atIdx = key.lastIndexOf('@')
-      if (atIdx <= 0) continue
-      const mktName = key.substring(atIdx + 1)
-      if (!marketplaces.has(mktName)) {
-        marketplaces.set(mktName, {
-          name: mktName,
-          sourceType: 'unknown',
-          sourcePath: null,
-          pluginCount: 0,
-          enabledCount: 0,
-          installedCount: 0,
-          plugins: [],
-        })
-      }
+      } catch { /* ignore */ }
     }
 
     // Sort marketplaces: those with installed plugins first, then alphabetically
@@ -264,6 +304,7 @@ export async function GET() {
         marketplaces: result.length,
         withPlugins: result.filter(m => m.installedCount > 0).length,
         totalPlugins: result.reduce((sum, m) => sum + m.pluginCount, 0),
+        installedPlugins: result.reduce((sum, m) => sum + m.installedCount, 0),
         enabledPlugins: result.reduce((sum, m) => sum + m.enabledCount, 0),
       },
     })
@@ -277,19 +318,40 @@ export async function GET() {
  * POST /api/settings/marketplaces
  *
  * Actions:
- *   uninstall  — Remove plugin from cache + set enabledPlugins[key]=false
- *   reinstall  — Remove from cache, then re-install from marketplace clone
+ *   install          — Copy plugin from marketplace clone to cache + enable
+ *   uninstall        — Remove plugin from cache + disable
+ *   update           — Re-copy from marketplace clone (reinstall)
+ *   enable           — Set enabledPlugins[key] = true
+ *   disable          — Set enabledPlugins[key] = false
+ *   delete-marketplace — Remove marketplace clone + settings entry + cached plugins
+ *   add-marketplace  — Clone GitHub repo into marketplaces dir + add to settings
+ *   security-check   — Placeholder for security scan
  *
- * Body: { action: string, pluginKey: string }
- * pluginKey format: "pluginName@marketplaceName"
+ * Body: { action: string, pluginKey?: string, url?: string }
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { action, pluginKey } = body as { action?: string; pluginKey?: string }
+    const { action, pluginKey, url } = body as { action?: string; pluginKey?: string; url?: string }
 
-    if (!action || !pluginKey) {
-      return NextResponse.json({ error: 'action and pluginKey are required' }, { status: 400 })
+    if (!action) {
+      return NextResponse.json({ error: 'action is required' }, { status: 400 })
+    }
+
+    // Marketplace-level actions
+    if (action === 'delete-marketplace') {
+      return await handleDeleteMarketplace(body.marketplaceName)
+    }
+    if (action === 'add-marketplace') {
+      return await handleAddMarketplace(url)
+    }
+    if (action === 'security-check') {
+      return NextResponse.json({ error: 'Security check not yet implemented' }, { status: 501 })
+    }
+
+    // Plugin-level actions require pluginKey
+    if (!pluginKey) {
+      return NextResponse.json({ error: 'pluginKey is required for plugin actions' }, { status: 400 })
     }
 
     const atIdx = pluginKey.lastIndexOf('@')
@@ -301,10 +363,18 @@ export async function POST(req: NextRequest) {
     const marketplaceName = pluginKey.substring(atIdx + 1)
 
     switch (action) {
+      case 'install':
+        return await handleInstall(pluginName, marketplaceName, pluginKey)
       case 'uninstall':
         return await handleUninstall(pluginName, marketplaceName, pluginKey)
-      case 'reinstall':
-        return await handleReinstall(pluginName, marketplaceName, pluginKey)
+      case 'update':
+        return await handleInstall(pluginName, marketplaceName, pluginKey) // same as install (overwrites)
+      case 'enable':
+        await setPluginEnabled(pluginKey, true)
+        return NextResponse.json({ success: true, action: 'enable', pluginKey })
+      case 'disable':
+        await setPluginEnabled(pluginKey, false)
+        return NextResponse.json({ success: true, action: 'disable', pluginKey })
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
@@ -314,58 +384,26 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Remove plugin from cache and disable in settings */
-async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
-  // 1. Remove from cache
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  if (existsSync(pluginCacheDir)) {
-    await rm(pluginCacheDir, { recursive: true, force: true })
-  }
-
-  // 2. Disable in settings
-  await setPluginEnabled(pluginKey, false)
-
-  return NextResponse.json({ success: true, action: 'uninstall', pluginKey })
-}
-
-/** Remove from cache, then re-install from the marketplace's local clone */
-async function handleReinstall(pluginName: string, marketplaceName: string, pluginKey: string) {
-  // 1. Remove existing cache
-  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  if (existsSync(pluginCacheDir)) {
-    await rm(pluginCacheDir, { recursive: true, force: true })
-  }
-
-  // 2. Find the plugin source in the marketplace clone
+/** Copy plugin from marketplace clone to cache + enable */
+async function handleInstall(pluginName: string, marketplaceName: string, pluginKey: string) {
   const marketplaceCloneDir = join(MARKETPLACES_DIR, marketplaceName)
   if (!existsSync(marketplaceCloneDir)) {
-    return NextResponse.json({
-      error: `Marketplace clone not found at ${marketplaceCloneDir}. Cannot reinstall.`,
-    }, { status: 404 })
+    return NextResponse.json({ error: `Marketplace clone not found` }, { status: 404 })
   }
 
-  // The marketplace clone typically has plugins/<pluginName>/ or just <pluginName>/
+  // Find plugin source in marketplace clone
   let sourceDir: string | null = null
-  const candidatePaths = [
-    join(marketplaceCloneDir, 'plugins', pluginName),
-    join(marketplaceCloneDir, pluginName),
-  ]
-  for (const p of candidatePaths) {
-    if (existsSync(p)) {
-      sourceDir = p
-      break
-    }
+  for (const p of [join(marketplaceCloneDir, 'plugins', pluginName), join(marketplaceCloneDir, pluginName)]) {
+    if (existsSync(p)) { sourceDir = p; break }
   }
-
   if (!sourceDir) {
-    return NextResponse.json({
-      error: `Plugin "${pluginName}" not found in marketplace clone. Looked in: ${candidatePaths.join(', ')}`,
-    }, { status: 404 })
+    return NextResponse.json({ error: `Plugin "${pluginName}" not found in marketplace clone` }, { status: 404 })
   }
 
-  // 3. Copy source to cache using cp -r (preserving structure)
+  // Copy to cache
   const { execSync } = await import('child_process')
-  const version = '0.0.0' // Default version for local installs
+  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
+  const version = '0.0.0'
   const destDir = join(pluginCacheDir, version)
 
   try {
@@ -374,10 +412,95 @@ async function handleReinstall(pluginName: string, marketplaceName: string, plug
     return NextResponse.json({ error: `Failed to copy plugin: ${err}` }, { status: 500 })
   }
 
-  // 4. Ensure plugin is enabled
   await setPluginEnabled(pluginKey, true)
+  return NextResponse.json({ success: true, action: 'install', pluginKey })
+}
 
-  return NextResponse.json({ success: true, action: 'reinstall', pluginKey })
+/** Remove plugin from cache and disable in settings */
+async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
+  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
+  if (existsSync(pluginCacheDir)) {
+    await rm(pluginCacheDir, { recursive: true, force: true })
+  }
+  await setPluginEnabled(pluginKey, false)
+  return NextResponse.json({ success: true, action: 'uninstall', pluginKey })
+}
+
+/** Remove marketplace: delete clone dir + remove from settings + clean cached plugins */
+async function handleDeleteMarketplace(marketplaceName?: string) {
+  if (!marketplaceName) {
+    return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
+  }
+
+  // Remove clone dir
+  const cloneDir = join(MARKETPLACES_DIR, marketplaceName)
+  if (existsSync(cloneDir)) {
+    await rm(cloneDir, { recursive: true, force: true })
+  }
+
+  // Remove cached plugins for this marketplace
+  const cacheDir = join(CACHE_DIR, marketplaceName)
+  if (existsSync(cacheDir)) {
+    await rm(cacheDir, { recursive: true, force: true })
+  }
+
+  // Remove from extraKnownMarketplaces in settings
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+  delete ekm[marketplaceName]
+  settings.extraKnownMarketplaces = ekm
+
+  // Remove any enabledPlugins entries for this marketplace
+  const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+  for (const key of Object.keys(ep)) {
+    if (key.endsWith(`@${marketplaceName}`)) {
+      delete ep[key]
+    }
+  }
+  settings.enabledPlugins = ep
+  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+
+  return NextResponse.json({ success: true, action: 'delete-marketplace', marketplaceName })
+}
+
+/** Clone a GitHub marketplace repo */
+async function handleAddMarketplace(url?: string) {
+  if (!url) {
+    return NextResponse.json({ error: 'url is required' }, { status: 400 })
+  }
+
+  // Extract owner/repo from GitHub URL
+  const match = url.match(/github\.com\/([^/]+\/[^/]+)/i)
+  if (!match) {
+    return NextResponse.json({ error: 'Invalid GitHub URL' }, { status: 400 })
+  }
+  const repo = match[1].replace(/\.git$/, '')
+  const marketplaceName = repo.split('/')[1] // Use repo name as marketplace name
+
+  if (existsSync(join(MARKETPLACES_DIR, marketplaceName))) {
+    return NextResponse.json({ error: `Marketplace "${marketplaceName}" already exists` }, { status: 409 })
+  }
+
+  // Clone the repo
+  const { execSync } = await import('child_process')
+  try {
+    await mkdir(MARKETPLACES_DIR, { recursive: true })
+    execSync(`git clone --depth 1 "${url}" "${join(MARKETPLACES_DIR, marketplaceName)}"`, {
+      timeout: 60000,
+      stdio: 'pipe',
+    })
+  } catch (err) {
+    return NextResponse.json({ error: `Failed to clone: ${err}` }, { status: 500 })
+  }
+
+  // Add to extraKnownMarketplaces
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+  ekm[marketplaceName] = { source: { source: 'github', repo } }
+  settings.extraKnownMarketplaces = ekm
+  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+
+  return NextResponse.json({ success: true, action: 'add-marketplace', marketplaceName, repo })
 }
 
 /** Update enabledPlugins[key] in settings.json */
@@ -387,7 +510,6 @@ async function setPluginEnabled(key: string, enabled: boolean) {
   if (enabled) {
     ep[key] = true
   } else {
-    // Remove the key entirely when disabling (Claude CLI convention)
     delete ep[key]
   }
   settings.enabledPlugins = ep

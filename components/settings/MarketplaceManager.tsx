@@ -6,7 +6,8 @@ import {
   ToggleLeft, ToggleRight,
   ExternalLink, Wand2, Bot, Terminal, Webhook,
   Server, FileCode, ScrollText, Palette,
-  Trash2, RefreshCw, Search, FolderOpen,
+  Trash2, RefreshCw, Search, Download,
+  AlertTriangle, Shield, Plus, Copy, X,
 } from 'lucide-react'
 
 interface PluginStatus {
@@ -16,22 +17,21 @@ interface PluginStatus {
   enabled: boolean
   version: string | null
   description: string | null
+  sourceUrl: string | null
+  errors: string[]
   elementCounts: {
-    skills: number
-    agents: number
-    commands: number
-    hooks: number
-    rules: number
-    mcp: number
-    lsp: number
-    outputStyles: number
+    skills: number; agents: number; commands: number; hooks: number
+    rules: number; mcp: number; lsp: number; outputStyles: number
   } | null
 }
 
 interface MarketplaceInfo {
   name: string
-  sourceType: 'cache' | 'directory' | 'github' | 'unknown'
-  sourcePath: string | null
+  version: string | null
+  description: string | null
+  sourceType: 'github' | 'directory' | 'unknown'
+  sourceUrl: string | null
+  sourceRepo: string | null
   pluginCount: number
   enabledCount: number
   installedCount: number
@@ -42,30 +42,24 @@ interface Totals {
   marketplaces: number
   withPlugins: number
   totalPlugins: number
+  installedPlugins: number
   enabledPlugins: number
 }
 
-const STATUS_COLORS = {
-  enabled: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  disabled: { bg: 'bg-gray-800/30', border: 'border-gray-700/30', text: 'text-gray-500', dot: 'bg-gray-500' },
-  notInstalled: { bg: 'bg-gray-900/20', border: 'border-gray-800/20', text: 'text-gray-600', dot: 'bg-gray-700' },
-}
-
-/**
- * Marketplace Manager — shows all registered marketplaces with their plugins.
- * Each marketplace is expandable to show its plugins with install/enable status.
- */
 export default function MarketplaceManager() {
   const [marketplaces, setMarketplaces] = useState<MarketplaceInfo[]>([])
-  const [totals, setTotals] = useState<Totals>({ marketplaces: 0, withPlugins: 0, totalPlugins: 0, enabledPlugins: 0 })
+  const [totals, setTotals] = useState<Totals>({ marketplaces: 0, withPlugins: 0, totalPlugins: 0, installedPlugins: 0, enabledPlugins: 0 })
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [filter, setFilter] = useState<'all' | 'installed' | 'empty'>('installed')
-  const [toggling, setToggling] = useState<string | null>(null)
+  const [expandedMkt, setExpandedMkt] = useState<string | null>(null)
+  const [loadingExpand, setLoadingExpand] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPlugin, setSelectedPlugin] = useState<string | null>(null)
+  const [pluginSearch, setPluginSearch] = useState('')
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
-  const [confirmAction, setConfirmAction] = useState<{ action: string; pluginKey: string; pluginName: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ action: string; target: string; label: string } | null>(null)
+  const [selectedPlugin, setSelectedPlugin] = useState<string | null>(null)
+  const [errorPopup, setErrorPopup] = useState<{ name: string; errors: string[] } | null>(null)
+  const [addUrl, setAddUrl] = useState('')
+  const [addingMkt, setAddingMkt] = useState(false)
 
   const fetchMarketplaces = useCallback(async () => {
     try {
@@ -73,89 +67,89 @@ export default function MarketplaceManager() {
       if (!res.ok) return
       const data = await res.json()
       setMarketplaces(data.marketplaces || [])
-      setTotals(data.totals || { marketplaces: 0, withPlugins: 0, totalPlugins: 0, enabledPlugins: 0 })
+      setTotals(data.totals || { marketplaces: 0, withPlugins: 0, totalPlugins: 0, installedPlugins: 0, enabledPlugins: 0 })
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { fetchMarketplaces() }, [fetchMarketplaces])
 
-  // Auto-expand marketplaces with enabled plugins
-  useEffect(() => {
-    const withEnabled = new Set<string>()
-    for (const m of marketplaces) {
-      if (m.plugins.some(p => p.enabled)) withEnabled.add(m.name)
-    }
-    setExpanded(prev => {
-      const next = new Set(prev)
-      for (const name of withEnabled) next.add(name)
-      return next
-    })
-  }, [marketplaces])
-
-  const toggleExpand = (name: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
-  }
-
-  const togglePlugin = async (key: string, currentEnabled: boolean) => {
-    setToggling(key)
-    try {
-      const res = await fetch('/api/settings/global-plugins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, enabled: !currentEnabled }),
-      })
-      if (res.ok) {
-        // Optimistic update
-        setMarketplaces(prev => prev.map(m => ({
-          ...m,
-          plugins: m.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
-          enabledCount: m.enabledCount + (m.plugins.some(p => p.key === key) ? (currentEnabled ? -1 : 1) : 0),
-        })))
-        setTotals(prev => ({ ...prev, enabledPlugins: prev.enabledPlugins + (currentEnabled ? -1 : 1) }))
-      }
-    } catch { /* ignore */ }
-    finally { setToggling(null) }
-  }
-
-  const executeAction = async (action: string, pluginKey: string) => {
-    setActionInProgress(pluginKey)
+  const executeAction = async (action: string, payload: Record<string, string>) => {
+    const key = payload.pluginKey || payload.marketplaceName || ''
+    setActionInProgress(key)
     setConfirmAction(null)
     try {
       const res = await fetch('/api/settings/marketplaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, pluginKey }),
+        body: JSON.stringify({ action, ...payload }),
       })
-      if (res.ok) {
-        // Refresh data after action
-        await fetchMarketplaces()
-        if (action === 'uninstall') setSelectedPlugin(null)
-      }
+      if (res.ok) await fetchMarketplaces()
     } catch { /* ignore */ }
     finally { setActionInProgress(null) }
   }
 
-  // Filter marketplaces
-  const filtered = marketplaces.filter(m => {
-    if (filter === 'installed' && m.installedCount === 0) return false
-    if (filter === 'empty' && m.installedCount > 0) return false
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      if (!m.name.toLowerCase().includes(q) && !m.plugins.some(p => p.name.toLowerCase().includes(q))) return false
+  const handleToggle = async (key: string, currentEnabled: boolean) => {
+    setActionInProgress(key)
+    try {
+      await fetch('/api/settings/marketplaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: currentEnabled ? 'disable' : 'enable', pluginKey: key }),
+      })
+      // Optimistic update
+      setMarketplaces(prev => prev.map(m => ({
+        ...m,
+        plugins: m.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
+        enabledCount: m.enabledCount + (m.plugins.some(p => p.key === key) ? (currentEnabled ? -1 : 1) : 0),
+      })))
+    } catch { /* ignore */ }
+    finally { setActionInProgress(null) }
+  }
+
+  const handleExpandMkt = (name: string) => {
+    if (expandedMkt === name) {
+      setExpandedMkt(null)
+      setPluginSearch('')
+    } else {
+      setLoadingExpand(true)
+      setExpandedMkt(name)
+      setPluginSearch('')
+      // Simulate loading for lazy-loaded feel
+      setTimeout(() => setLoadingExpand(false), 100)
     }
-    return true
-  })
+  }
+
+  const handleAddMarketplace = async () => {
+    if (!addUrl.trim()) return
+    setAddingMkt(true)
+    try {
+      const res = await fetch('/api/settings/marketplaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add-marketplace', url: addUrl.trim() }),
+      })
+      if (res.ok) {
+        setAddUrl('')
+        await fetchMarketplaces()
+      }
+    } catch { /* ignore */ }
+    finally { setAddingMkt(false) }
+  }
 
   const totalElements = (counts: PluginStatus['elementCounts']) => {
     if (!counts) return 0
     return counts.skills + counts.agents + counts.commands + counts.hooks + counts.rules + counts.mcp + counts.lsp + counts.outputStyles
   }
+
+  // Filter marketplaces by search
+  const filtered = marketplaces.filter(m => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.toLowerCase()
+    return m.name.toLowerCase().includes(q) ||
+      (m.description || '').toLowerCase().includes(q) ||
+      m.plugins.some(p => p.name.toLowerCase().includes(q))
+  })
 
   if (loading) {
     return (
@@ -169,204 +163,247 @@ export default function MarketplaceManager() {
   return (
     <div>
       {/* Summary */}
-      <p className="text-xs text-gray-500 mb-4">
-        {totals.withPlugins} marketplaces with plugins, {totals.totalPlugins} plugins installed, {totals.enabledPlugins} enabled
+      <p className="text-xs text-gray-500 mb-3">
+        {totals.marketplaces} marketplaces, {totals.totalPlugins} plugins ({totals.installedPlugins} installed, {totals.enabledPlugins} enabled)
       </p>
 
-      {/* Search */}
+      {/* Add marketplace */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="relative flex-1">
+          <Plus className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Add marketplace from GitHub URL..."
+            value={addUrl}
+            onChange={e => setAddUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddMarketplace()}
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        {addUrl.trim() && (
+          <button
+            onClick={handleAddMarketplace}
+            disabled={addingMkt}
+            className="px-2.5 py-1.5 text-[10px] font-medium rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+          >
+            {addingMkt ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+          </button>
+        )}
+      </div>
+
+      {/* Search marketplaces */}
       <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
         <input
           type="text"
-          placeholder="Search marketplaces or plugins..."
+          placeholder="Filter marketplaces..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 mb-4 bg-gray-800/30 rounded-lg p-1">
-        {([
-          { key: 'installed' as const, label: 'Installed', count: marketplaces.filter(m => m.installedCount > 0).length },
-          { key: 'all' as const, label: 'All', count: marketplaces.length },
-          { key: 'empty' as const, label: 'Empty', count: marketplaces.filter(m => m.installedCount === 0).length },
-        ]).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={`flex-1 py-1 px-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-              filter === tab.key
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
-            }`}
-          >
-            {tab.label} <span className="ml-1 opacity-60">{tab.count}</span>
-          </button>
-        ))}
-      </div>
-
       {/* Marketplace list */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {filtered.map(mkt => {
-          const isExpanded = expanded.has(mkt.name)
+          const isExpanded = expandedMkt === mkt.name
+          const isActioning = actionInProgress === mkt.name
+
+          // Filter plugins by plugin search
+          const filteredPlugins = isExpanded && pluginSearch.trim()
+            ? mkt.plugins.filter(p => p.name.toLowerCase().includes(pluginSearch.toLowerCase()) || (p.description || '').toLowerCase().includes(pluginSearch.toLowerCase()))
+            : mkt.plugins
+
           return (
             <div key={mkt.name} className="rounded-xl border border-gray-800 overflow-hidden">
               {/* Marketplace header */}
-              <button
-                onClick={() => toggleExpand(mkt.name)}
-                className="w-full flex items-center gap-2.5 px-4 py-3 bg-gray-800/50 hover:bg-gray-800/70 transition-colors text-left"
-              >
-                {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                <Store className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-200 flex-1 truncate">{mkt.name}</span>
-                {mkt.sourceType === 'github' && <ExternalLink className="w-3 h-3 text-gray-600 flex-shrink-0" />}
-                <span className="text-[10px] text-gray-600 flex-shrink-0">
-                  {mkt.sourceType}
-                </span>
-                <span className="text-xs text-gray-500 flex-shrink-0 tabular-nums">
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-800/50 hover:bg-gray-800/70 transition-colors">
+                <button onClick={() => handleExpandMkt(mkt.name)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+                  <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span className="text-xs font-medium text-gray-200 truncate">{mkt.name}</span>
+                  {mkt.version && <span className="text-[9px] text-gray-600 flex-shrink-0">v{mkt.version}</span>}
+                </button>
+
+                {/* Counts */}
+                <span className="text-[10px] text-gray-500 flex-shrink-0 tabular-nums">
                   {mkt.enabledCount > 0 && <span className="text-emerald-400">{mkt.enabledCount}</span>}
                   {mkt.enabledCount > 0 && '/'}
-                  {mkt.installedCount}
+                  {mkt.installedCount}/{mkt.pluginCount}
                 </span>
-              </button>
+
+                {/* Open source URL */}
+                {mkt.sourceUrl && mkt.sourceType === 'github' && (
+                  <a href={mkt.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-gray-700 transition-colors" title={mkt.sourceUrl}>
+                    <ExternalLink className="w-3 h-3 text-gray-500 hover:text-gray-300" />
+                  </a>
+                )}
+
+                {/* Delete marketplace */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'delete-marketplace', target: mkt.name, label: `Delete marketplace "${mkt.name}"? This removes the clone, all cached plugins, and settings entries.` }) }}
+                  disabled={isActioning}
+                  className="p-1 rounded hover:bg-red-500/20 transition-colors" title="Delete marketplace"
+                >
+                  <Trash2 className="w-3 h-3 text-gray-600 hover:text-red-400" />
+                </button>
+              </div>
+
+              {/* Source URL label */}
+              {isExpanded && mkt.sourceUrl && (
+                <div className="px-3 py-1 bg-gray-900/40 text-[9px] text-gray-600 truncate border-b border-gray-800/50">
+                  {mkt.sourceUrl}
+                </div>
+              )}
+
+              {/* Plugin search (inside expanded marketplace) */}
+              {isExpanded && mkt.plugins.length > 5 && (
+                <div className="px-3 py-1.5 bg-gray-900/30 border-b border-gray-800/50">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600" />
+                    <input
+                      type="text"
+                      placeholder="Filter plugins..."
+                      value={pluginSearch}
+                      onChange={e => setPluginSearch(e.target.value)}
+                      className="w-full pl-7 pr-3 py-1 text-[10px] bg-gray-800/50 border border-gray-700/50 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Loading spinner */}
+              {isExpanded && loadingExpand && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                </div>
+              )}
 
               {/* Plugin list */}
-              {isExpanded && mkt.plugins.length > 0 && (
-                <div className="divide-y divide-gray-800/50">
-                  {mkt.plugins.map(plugin => {
-                    const status = plugin.enabled ? STATUS_COLORS.enabled : plugin.installed ? STATUS_COLORS.disabled : STATUS_COLORS.notInstalled
-                    const isToggling = toggling === plugin.key
+              {isExpanded && !loadingExpand && filteredPlugins.length > 0 && (
+                <div className="divide-y divide-gray-800/30">
+                  {filteredPlugins.map(plugin => {
                     const elCount = totalElements(plugin.elementCounts)
+                    const isPluginActioning = actionInProgress === plugin.key
                     const isSelected = selectedPlugin === plugin.key
-                    const isActioning = actionInProgress === plugin.key
+                    const hasErrors = plugin.errors.length > 0
 
                     return (
                       <div key={plugin.key}>
                         <div
-                          className={`px-4 py-2.5 transition-colors cursor-pointer ${status.bg} ${isSelected ? 'ring-1 ring-inset ring-blue-500/40' : ''} hover:bg-gray-800/40`}
+                          className={`px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isSelected ? 'bg-gray-800/40' : ''}`}
                           onClick={() => setSelectedPlugin(isSelected ? null : plugin.key)}
                         >
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2">
                             {/* Status dot */}
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${plugin.installed ? (plugin.enabled ? 'bg-emerald-400' : 'bg-gray-500') : 'bg-gray-700'}`} />
 
-                            {/* Plugin info */}
+                            {/* Name + version + elements */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs font-medium truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-400'}`}>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200' : 'text-gray-500'}`}>
                                   {plugin.name}
                                 </span>
-                                {plugin.version && (
-                                  <span className="text-[10px] text-gray-600 tabular-nums">v{plugin.version}</span>
-                                )}
-                                {elCount > 0 && (
-                                  <span className="text-[10px] text-gray-600">{elCount} elem</span>
+                                {plugin.version && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.version}</span>}
+                                {elCount > 0 && <span className="text-[9px] text-gray-600">{elCount}el</span>}
+                                {hasErrors && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setErrorPopup({ name: plugin.name, errors: plugin.errors }) }}
+                                    className="flex items-center gap-0.5 text-[9px] text-red-400 bg-red-500/10 px-1 py-0.5 rounded hover:bg-red-500/20"
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    {plugin.errors.length}
+                                  </button>
                                 )}
                               </div>
-                              {plugin.description && !isSelected && (
-                                <p className="text-[10px] text-gray-600 truncate mt-0.5">{plugin.description}</p>
-                              )}
-                              {/* Element counts mini-row */}
-                              {plugin.elementCounts && elCount > 0 && !isSelected && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  {plugin.elementCounts.skills > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Wand2 className="w-2.5 h-2.5" />{plugin.elementCounts.skills}</span>}
-                                  {plugin.elementCounts.agents > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Bot className="w-2.5 h-2.5" />{plugin.elementCounts.agents}</span>}
-                                  {plugin.elementCounts.commands > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Terminal className="w-2.5 h-2.5" />{plugin.elementCounts.commands}</span>}
-                                  {plugin.elementCounts.hooks > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Webhook className="w-2.5 h-2.5" />{plugin.elementCounts.hooks}</span>}
-                                  {plugin.elementCounts.rules > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><ScrollText className="w-2.5 h-2.5" />{plugin.elementCounts.rules}</span>}
-                                  {plugin.elementCounts.mcp > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Server className="w-2.5 h-2.5" />{plugin.elementCounts.mcp}</span>}
-                                  {plugin.elementCounts.lsp > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><FileCode className="w-2.5 h-2.5" />{plugin.elementCounts.lsp}</span>}
-                                  {plugin.elementCounts.outputStyles > 0 && <span className="text-[9px] text-gray-600 flex items-center gap-0.5"><Palette className="w-2.5 h-2.5" />{plugin.elementCounts.outputStyles}</span>}
-                                </div>
-                              )}
                             </div>
 
-                            {/* Toggle */}
-                            {plugin.installed && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); togglePlugin(plugin.key, plugin.enabled) }}
-                                disabled={isToggling}
-                                className="flex-shrink-0"
-                                title={plugin.enabled ? 'Disable' : 'Enable'}
-                              >
-                                {isToggling ? (
-                                  <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-                                ) : plugin.enabled ? (
-                                  <ToggleRight className="w-6 h-6 text-emerald-400" />
-                                ) : (
-                                  <ToggleLeft className="w-6 h-6 text-gray-600" />
-                                )}
-                              </button>
-                            )}
-                            {!plugin.installed && (
-                              <span className="text-[10px] text-gray-600 italic flex-shrink-0">not installed</span>
-                            )}
+                            {/* Action buttons — mini style */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {plugin.installed ? (
+                                <>
+                                  {/* Enable/disable toggle */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleToggle(plugin.key, plugin.enabled) }}
+                                    disabled={isPluginActioning}
+                                    className="flex-shrink-0" title={plugin.enabled ? 'Disable' : 'Enable'}
+                                  >
+                                    {isPluginActioning ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                                      : plugin.enabled ? <ToggleRight className="w-5 h-5 text-emerald-400" />
+                                      : <ToggleLeft className="w-5 h-5 text-gray-600" />}
+                                  </button>
+                                  {/* Update */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'update', target: plugin.key, label: `Update "${plugin.name}"? This will re-copy from the marketplace.` }) }}
+                                    disabled={isPluginActioning}
+                                    className="p-0.5 rounded hover:bg-blue-500/20 transition-colors" title="Update"
+                                  >
+                                    <RefreshCw className="w-3 h-3 text-gray-500 hover:text-blue-400" />
+                                  </button>
+                                  {/* Uninstall */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'uninstall', target: plugin.key, label: `Uninstall "${plugin.name}"?` }) }}
+                                    disabled={isPluginActioning}
+                                    className="p-0.5 rounded hover:bg-red-500/20 transition-colors" title="Uninstall"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-400" />
+                                  </button>
+                                </>
+                              ) : (
+                                /* Install button for uninstalled plugins */
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); executeAction('install', { pluginKey: plugin.key }) }}
+                                  disabled={isPluginActioning}
+                                  className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                                >
+                                  {isPluginActioning ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Download className="w-2.5 h-2.5" />}
+                                  Install
+                                </button>
+                              )}
+
+                              {/* Security check (placeholder) */}
+                              {plugin.installed && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); /* TODO: security check */ }}
+                                  className="p-0.5 rounded hover:bg-amber-500/20 transition-colors" title="Security check"
+                                >
+                                  <Shield className="w-3 h-3 text-gray-600 hover:text-amber-400" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Detail panel — shown when plugin is selected */}
+                        {/* Detail panel */}
                         {isSelected && (
-                          <div className="px-4 py-3 bg-gray-900/60 border-t border-gray-800/50 space-y-3">
-                            {/* Description */}
-                            {plugin.description && (
-                              <p className="text-xs text-gray-400">{plugin.description}</p>
-                            )}
-
-                            {/* Metadata */}
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500">
+                          <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1.5">
+                            {plugin.description && <p className="text-[10px] text-gray-400">{plugin.description}</p>}
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
                               {plugin.version && <span>Version: <span className="text-gray-400">{plugin.version}</span></span>}
-                              <span>Status: <span className={plugin.enabled ? 'text-emerald-400' : 'text-gray-400'}>{plugin.enabled ? 'enabled' : 'disabled'}</span></span>
+                              <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
-
+                            {plugin.sourceUrl && (
+                              <div className="flex items-center gap-1 text-[9px] text-gray-600">
+                                <span className="truncate">{plugin.sourceUrl}</span>
+                                {plugin.sourceUrl.startsWith('http') && (
+                                  <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                                    <ExternalLink className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
                             {/* Element breakdown */}
                             {plugin.elementCounts && elCount > 0 && (
-                              <div className="flex flex-wrap items-center gap-3 text-[10px]">
-                                {plugin.elementCounts.skills > 0 && <span className="text-purple-400 flex items-center gap-1"><Wand2 className="w-3 h-3" />{plugin.elementCounts.skills} skills</span>}
-                                {plugin.elementCounts.agents > 0 && <span className="text-blue-400 flex items-center gap-1"><Bot className="w-3 h-3" />{plugin.elementCounts.agents} agents</span>}
-                                {plugin.elementCounts.commands > 0 && <span className="text-cyan-400 flex items-center gap-1"><Terminal className="w-3 h-3" />{plugin.elementCounts.commands} commands</span>}
-                                {plugin.elementCounts.hooks > 0 && <span className="text-amber-400 flex items-center gap-1"><Webhook className="w-3 h-3" />{plugin.elementCounts.hooks} hooks</span>}
-                                {plugin.elementCounts.rules > 0 && <span className="text-orange-400 flex items-center gap-1"><ScrollText className="w-3 h-3" />{plugin.elementCounts.rules} rules</span>}
-                                {plugin.elementCounts.mcp > 0 && <span className="text-green-400 flex items-center gap-1"><Server className="w-3 h-3" />{plugin.elementCounts.mcp} MCP</span>}
-                                {plugin.elementCounts.lsp > 0 && <span className="text-teal-400 flex items-center gap-1"><FileCode className="w-3 h-3" />{plugin.elementCounts.lsp} LSP</span>}
-                                {plugin.elementCounts.outputStyles > 0 && <span className="text-pink-400 flex items-center gap-1"><Palette className="w-3 h-3" />{plugin.elementCounts.outputStyles} styles</span>}
-                              </div>
-                            )}
-
-                            {/* Cache path */}
-                            {plugin.installed && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-gray-600">
-                                <FolderOpen className="w-3 h-3" />
-                                <span className="font-mono truncate">~/.claude/plugins/cache/{mkt.name}/{plugin.name}/{plugin.version || '?'}/</span>
-                              </div>
-                            )}
-
-                            {/* Action buttons */}
-                            {plugin.installed && (
-                              <div className="flex items-center gap-2 pt-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setConfirmAction({ action: 'reinstall', pluginKey: plugin.key, pluginName: plugin.name })
-                                  }}
-                                  disabled={isActioning}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
-                                >
-                                  {isActioning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                  Reinstall
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setConfirmAction({ action: 'uninstall', pluginKey: plugin.key, pluginName: plugin.name })
-                                  }}
-                                  disabled={isActioning}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  Uninstall
-                                </button>
+                              <div className="flex flex-wrap items-center gap-2 text-[9px]">
+                                {plugin.elementCounts.skills > 0 && <span className="text-purple-400 flex items-center gap-0.5"><Wand2 className="w-2.5 h-2.5" />{plugin.elementCounts.skills}</span>}
+                                {plugin.elementCounts.agents > 0 && <span className="text-blue-400 flex items-center gap-0.5"><Bot className="w-2.5 h-2.5" />{plugin.elementCounts.agents}</span>}
+                                {plugin.elementCounts.commands > 0 && <span className="text-cyan-400 flex items-center gap-0.5"><Terminal className="w-2.5 h-2.5" />{plugin.elementCounts.commands}</span>}
+                                {plugin.elementCounts.hooks > 0 && <span className="text-amber-400 flex items-center gap-0.5"><Webhook className="w-2.5 h-2.5" />{plugin.elementCounts.hooks}</span>}
+                                {plugin.elementCounts.rules > 0 && <span className="text-orange-400 flex items-center gap-0.5"><ScrollText className="w-2.5 h-2.5" />{plugin.elementCounts.rules}</span>}
+                                {plugin.elementCounts.mcp > 0 && <span className="text-green-400 flex items-center gap-0.5"><Server className="w-2.5 h-2.5" />{plugin.elementCounts.mcp}</span>}
+                                {plugin.elementCounts.lsp > 0 && <span className="text-teal-400 flex items-center gap-0.5"><FileCode className="w-2.5 h-2.5" />{plugin.elementCounts.lsp}</span>}
+                                {plugin.elementCounts.outputStyles > 0 && <span className="text-pink-400 flex items-center gap-0.5"><Palette className="w-2.5 h-2.5" />{plugin.elementCounts.outputStyles}</span>}
                               </div>
                             )}
                           </div>
@@ -377,10 +414,10 @@ export default function MarketplaceManager() {
                 </div>
               )}
 
-              {/* Empty marketplace */}
-              {isExpanded && mkt.plugins.length === 0 && (
-                <div className="px-4 py-3 text-xs text-gray-600 italic">
-                  No plugins installed from this marketplace
+              {/* Empty expanded state */}
+              {isExpanded && !loadingExpand && filteredPlugins.length === 0 && (
+                <div className="px-3 py-3 text-[10px] text-gray-600 italic">
+                  {pluginSearch ? 'No plugins match filter' : 'No plugins found in this marketplace'}
                 </div>
               )}
             </div>
@@ -388,8 +425,8 @@ export default function MarketplaceManager() {
         })}
 
         {filtered.length === 0 && (
-          <p className="text-sm text-gray-500 italic py-4 text-center">
-            {searchQuery ? 'No marketplaces match your search' : 'No marketplaces found'}
+          <p className="text-xs text-gray-500 italic py-4 text-center">
+            {searchQuery ? 'No marketplaces match your search' : 'No marketplaces installed'}
           </p>
         )}
       </div>
@@ -398,33 +435,53 @@ export default function MarketplaceManager() {
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setConfirmAction(null)}>
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 max-w-sm mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-gray-200 mb-2">
-              {confirmAction.action === 'uninstall' ? 'Uninstall Plugin' : 'Reinstall Plugin'}
-            </h3>
-            <p className="text-xs text-gray-400 mb-4">
-              {confirmAction.action === 'uninstall'
-                ? `Remove "${confirmAction.pluginName}" from cache and disable it? This will delete the cached plugin files.`
-                : `Reinstall "${confirmAction.pluginName}" from the marketplace clone? This will replace the cached version.`
-              }
-            </p>
+            <h3 className="text-sm font-semibold text-gray-200 mb-2">Confirm Action</h3>
+            <p className="text-xs text-gray-400 mb-4">{confirmAction.label}</p>
             <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmAction(null)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">Cancel</button>
               <button
-                onClick={() => setConfirmAction(null)}
-                className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => executeAction(confirmAction.action, confirmAction.pluginKey)}
+                onClick={() => {
+                  if (confirmAction.action === 'delete-marketplace') {
+                    executeAction('delete-marketplace', { marketplaceName: confirmAction.target })
+                  } else {
+                    executeAction(confirmAction.action, { pluginKey: confirmAction.target })
+                  }
+                }}
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                  confirmAction.action === 'uninstall'
+                  confirmAction.action === 'uninstall' || confirmAction.action === 'delete-marketplace'
                     ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
                     : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
                 }`}
               >
-                {confirmAction.action === 'uninstall' ? 'Uninstall' : 'Reinstall'}
+                {confirmAction.action === 'delete-marketplace' ? 'Delete' : confirmAction.action === 'uninstall' ? 'Uninstall' : 'Update'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error popup */}
+      {errorPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setErrorPopup(null)}>
+          <div className="bg-gray-900 border border-red-800/50 rounded-xl p-5 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Errors in {errorPopup.name}
+              </h3>
+              <button onClick={() => setErrorPopup(null)} className="p-1 rounded hover:bg-gray-800"><X className="w-3.5 h-3.5 text-gray-500" /></button>
+            </div>
+            <ul className="space-y-1.5 mb-3">
+              {errorPopup.errors.map((err, i) => (
+                <li key={i} className="text-xs text-gray-400 bg-red-900/10 px-2 py-1.5 rounded border border-red-800/20">{err}</li>
+              ))}
+            </ul>
+            <button
+              onClick={() => { navigator.clipboard.writeText(errorPopup.errors.join('\n')); setErrorPopup(null) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+            >
+              <Copy className="w-3 h-3" /> Copy errors
+            </button>
           </div>
         </div>
       )}

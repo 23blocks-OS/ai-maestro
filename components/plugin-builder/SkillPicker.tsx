@@ -158,6 +158,14 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               const key = `core:${skill.name}`
               const isSelected = selectedKeys.has(key)
               const Icon = skill.icon
+              // Single toggle handler reused by both onClick and onKeyDown
+              const handleCoreToggle = () => {
+                if (isSelected) {
+                  onRemoveSkill(key)
+                } else {
+                  onAddSkill({ type: 'core', name: skill.name })
+                }
+              }
               return (
                 <div
                   key={key}
@@ -168,18 +176,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       ? 'bg-cyan-500/10 border-cyan-500/30'
                       : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
                   }`}
-                  onClick={() => {
-                    if (isSelected) {
-                      onRemoveSkill(key)
-                    } else {
-                      onAddSkill({ type: 'core', name: skill.name })
-                    }
-                  }}
+                  onClick={handleCoreToggle}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
-                      if (isSelected) onRemoveSkill(key)
-                      else onAddSkill({ type: 'core', name: skill.name })
+                      handleCoreToggle()
                     }
                   }}
                   aria-pressed={isSelected}
@@ -222,6 +223,20 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               filteredMarketplaceSkills.map(skill => {
                 const key = `marketplace:${skill.id}`
                 const isSelected = selectedKeys.has(key)
+                // Single toggle handler reused by both onClick and onKeyDown
+                const handleMarketplaceToggle = () => {
+                  if (isSelected) {
+                    onRemoveSkill(key)
+                  } else {
+                    onAddSkill({
+                      type: 'marketplace',
+                      id: skill.id,
+                      marketplace: skill.marketplace,
+                      plugin: skill.plugin,
+                      name: skill.name,
+                    })
+                  }
+                }
                 return (
                   <div
                     key={key}

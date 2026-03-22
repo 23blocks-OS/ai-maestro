@@ -43,8 +43,24 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   // an unmounted component and to release network resources immediately.
   useEffect(() => () => { abortRef.current?.abort() }, [])
 
+  // Clear stale results whenever the user changes the url or ref inputs so that
+  // the displayed skill list can never belong to a different repository than what
+  // the current inputs describe.
+  useEffect(() => {
+    setScanResult(null)
+    setError(null)
+  }, [url, ref])
+
   const handleScan = async () => {
     if (!url.trim()) return
+
+    // Capture url/ref at scan initiation so that any user edits during the async
+    // fetch do not corrupt the values passed to onSkillsFound or stored as the
+    // "scanned" coordinates for handleAddSkill.
+    const currentUrl = url.trim()
+    // Apply the 'main' default here rather than in the onChange handler so the
+    // input field can remain empty while the user is typing, without snapping back.
+    const currentRef = ref || 'main'
 
     // Abort any in-flight scan
     abortRef.current?.abort()

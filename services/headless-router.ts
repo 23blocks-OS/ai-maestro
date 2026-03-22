@@ -333,6 +333,8 @@ import { updateSystemSettings, type SystemSettings } from '@/lib/system-settings
 // Utility helpers
 // ---------------------------------------------------------------------------
 
+const MAX_BODY_BYTES = 10 * 1024 * 1024 // 10 MB — reject requests larger than this
+
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   // Enforce 1MB size limit to prevent memory exhaustion
   const MAX_BODY_SIZE = 1_048_576

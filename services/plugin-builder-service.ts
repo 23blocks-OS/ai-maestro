@@ -183,6 +183,7 @@ function validatePluginName(name: string): string | null {
 function validateSkillPath(skillPath: string): string | null {
   if (!skillPath || typeof skillPath !== 'string') return 'Skill path is required'
   if (skillPath.includes('..')) return 'Skill path must not contain ".."'
+  if (skillPath.split('/').some(seg => seg === '.')) return 'Skill path must not contain "." as a path segment'
   if (path.isAbsolute(skillPath)) return 'Skill path must be relative'
   // Reject leading or trailing slashes, and double slashes — all produce empty
   // segments after split('/'), which bypassed validation in the old `if (seg &&…)` guard.

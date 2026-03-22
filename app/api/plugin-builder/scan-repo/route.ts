@@ -8,6 +8,9 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { scanRepo } from '@/services/plugin-builder-service'
 
+// Only GitHub HTTPS URLs are accepted to prevent SSRF attacks against internal hosts.
+const GITHUB_URL_RE = /^https:\/\/github\.com\/[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9._-]+$/
+
 export async function POST(request: NextRequest) {
   // SF-004: Separate JSON parsing from service call so service errors
   // are not misattributed as "Invalid request body" (400)

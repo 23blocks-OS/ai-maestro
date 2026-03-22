@@ -776,6 +776,7 @@ act2_install_prerequisites() {
         # show full output in interactive mode so users can see progress and errors
         _install_npm_global() {
             local pkg="$1"
+            # Use -- to prevent $pkg from being interpreted as an npm flag
             if [ "$NON_INTERACTIVE" = true ]; then
                 npm install -g "$pkg" >/dev/null 2>&1
             else
@@ -953,6 +954,8 @@ act3_clone_and_build() {
             if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
                 maestro_ok "AI Maestro v${VERSION} is already up to date"
                 maestro_info "Dashboard: http://localhost:${PORT}"
+                # Reset IS_UPDATE: no code was changed so act4 must not restart the service
+                IS_UPDATE=false
                 return
             fi
             maestro_warn "AI Maestro already installed at $INSTALL_DIR"
@@ -1413,7 +1416,7 @@ act5_grand_finale() {
         echo "[maestro] AI Maestro installed at $INSTALL_DIR"
         echo "[maestro] Dashboard: http://localhost:${PORT}"
         echo "[maestro] First agent: my-first-agent"
-        echo "[maestro] Attach: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL'"
+        echo "[maestro] Attach: tmux new-session -s my-first-agent -c \"$AGENT_DIR\" '$AI_TOOL'"
         echo ""
 
     else

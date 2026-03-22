@@ -108,13 +108,30 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const result = await buildPlugin(body as Parameters<typeof buildPlugin>[0])
-
-  if (result.error) {
+  const validationError = validateBuildConfig(body)
+  if (validationError) {
     return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
+      { error: validationError },
+      { status: 400 }
     )
   }
-  return NextResponse.json(result.data, { status: result.status })
+
+  try {
+    const result = await buildPlugin(body as Parameters<typeof buildPlugin>[0])
+
+    if (result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (error) {
+    // Unexpected error from the service layer — log and surface a safe 500
+    console.error('Error in POST /api/plugin-builder/build:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
 }

@@ -404,6 +404,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
+    }).finally(() => {
+      // This is the sole decrement for the launched-build path.
+      activeOps = Math.max(0, activeOps - 1)
+
     })
 
     return { data: result, status: 202 }
@@ -621,9 +625,18 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       // Stats collection failed — non-critical
     }
 
-    // Atomic replacement: avoids torn reads from polling clients
+    // Re-read current entry so we don't overwrite any fields updated since
+    // runBuild was launched (the async build takes up to 120s).
+    // Do NOT fall back to `existing` if the entry was evicted: re-adding an
+    // evicted entry would resurrect a build that eviction deliberately removed.
+    const current = buildResults.get(buildId)
+    if (!current) {
+      // Entry was evicted by evictStaleBuildResults while the build was
+      // running — do not re-add it.
+      return
+    }
     buildResults.set(buildId, {
-      ...existing,
+      ...current,
       status: 'complete',
       outputPath,
       logs: output.split('\n'),
@@ -640,9 +653,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       logs.push(...stderr.split('\n').filter(line => line.trim() !== ''))
     }
 
-    // Atomic replacement
+    // Re-read current entry so we don't overwrite any fields updated since
+    // runBuild was launched.  Same eviction guard as the success path above.
+    const current = buildResults.get(buildId)
+    if (!current) {
+      // Entry was evicted — do not re-add it.
+      return
+    }
     buildResults.set(buildId, {
-      ...existing,
+      ...current,
       status: 'failed',
       logs,
     })

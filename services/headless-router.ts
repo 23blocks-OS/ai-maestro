@@ -419,8 +419,7 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  // Check for error presence alone — a result carrying both error and data must
-  // still be treated as an error response, not a silent 200 OK.
+  // Prioritise error: if result.error is set, always treat as error regardless of result.data
   if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
@@ -691,11 +690,11 @@ const routes: Route[] = [
 
       let options = {}
       if (optionsStr) {
+        // Parse separately so malformed JSON yields 400 Bad Request, not 500
         try {
           options = JSON.parse(optionsStr)
-        } catch {
-          // Return 400 immediately — malformed JSON in the options field is a client error
-          sendServiceResult(res, { status: 400, error: 'Invalid JSON for options field' })
+        } catch (_e) {
+          sendJson(res, 400, { error: 'Invalid JSON for options field' })
           return
         }
       }
@@ -1002,8 +1001,10 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        // Use sendServiceResult for consistent error-response formatting across all routes
-        sendServiceResult(res, { status: result.status || 500, error: result.error || 'Failed to export agent' })
+        // Use sendServiceResult so error responses flow through the same helper as all other routes
+        if (!res.headersSent) {
+          sendServiceResult(res, result)
+        }
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -1018,7 +1019,10 @@ const routes: Route[] = [
         'X-Export-Version': '1.0.0',
       })
     } catch (error) {
-      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to export agent' })
+      // Guard against "headers already sent" when exportAgentZip throws after partial response write
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+      }
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -2308,9 +2312,11 @@ export function createHeadlessRouter() {
           const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
           sendJson(res, statusCode, { error: message })
         }
+        // Return false so callers know the request resulted in an error, not a clean dispatch
+        return false
       }
 
-      return true // Handled
+      return true // Handled without error
     },
   }
 }

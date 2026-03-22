@@ -32,7 +32,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   // Clean up polling on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
     }
   }, [])
 
@@ -110,6 +113,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         setShowLogs(true)
       }
     } catch {
+      clearPoll()
       setError('Failed to connect to server')
       setBuilding(false)
     }
@@ -258,7 +262,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result && result.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
@@ -280,7 +284,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

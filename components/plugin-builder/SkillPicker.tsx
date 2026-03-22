@@ -15,6 +15,20 @@ const CORE_SKILLS = [
   { name: 'ai-maestro-agents-management', description: 'Create, manage, and orchestrate AI agents', icon: Package },
 ]
 
+/**
+ * Generate a unique key for a skill selection (used for deduplication).
+ */
+export function getSkillKey(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return `core:${skill.name}`
+    case 'marketplace':
+      return `marketplace:${skill.id}`
+    case 'repo':
+      return `repo:${skill.url}:${skill.skillPath}`
+  }
+}
+
 interface SkillPickerProps {
   selectedSkills: PluginSkillSelection[]
   onAddSkill: (skill: PluginSkillSelection) => void
@@ -75,9 +89,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     )
   }, [searchQuery, marketplaceSkills])
 
+  // Use filtered counts so the badge reflects what is currently visible (respects search query)
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -219,7 +234,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}: ${skill.description ?? `${skill.plugin} / ${skill.marketplace}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -254,24 +269,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
       </div>
     </div>
   )
-}
-
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.id}`
-    case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
-  }
 }

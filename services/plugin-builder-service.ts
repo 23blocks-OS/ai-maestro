@@ -242,7 +242,15 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Sanitize marketplace name to prevent path traversal attacks.
+    // Use path.basename after stripping non-safe chars to eliminate any residual traversal segments.
+    // Fall back to a safe default if the result is empty (e.g. marketplace was all special chars).
+    let sanitizedMarketplace = group.marketplace.replace(/[^a-zA-Z0-9_-]/g, '')
+    if (!sanitizedMarketplace) {
+      sanitizedMarketplace = 'default-marketplace'
+    }
+    sanitizedMarketplace = path.basename(sanitizedMarketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', sanitizedMarketplace)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -562,11 +570,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   if (!existing) return
 
   try {
-    const output = await execPromise(
+    const { stdout, stderr } = await execPromise(
       path.join(buildDir, 'build-plugin.sh'),
       ['--clean'],
       { cwd: buildDir, timeout: 120000 }
     )
+
+    // Combine stdout and stderr so no build output is lost
+    const logs = [...stdout.split('\n'), ...stderr.split('\n')].filter(Boolean)
 
     // Parse output for stats
     const outputPath = path.join(buildDir, manifest.output)
@@ -594,20 +605,23 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       ...existing,
       status: 'complete',
       outputPath,
-      logs: output.split('\n'),
+      logs,
       stats,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
+    // execPromise attaches stdout and stderr to the error so no output is lost on failure
+    const stdoutOnError = (error as any)?.stdout
+    const stderrOnError = (error as any)?.stderr
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    if (stdoutOnError) logs.push(...String(stdoutOnError).split('\n'))
+    if (stderrOnError) logs.push(...String(stderrOnError).split('\n'))
 
     // Atomic replacement
     buildResults.set(buildId, {
       ...existing,
       status: 'failed',
-      logs,
+      logs: logs.filter(Boolean),
     })
   }
 }
@@ -695,13 +709,15 @@ function sanitizeSourceName(url: string): string {
 }
 
 /**
- * Promisified execFile with stdout capture.
+ * Promisified execFile with stdout and stderr capture.
+ * Resolves with both stdout and stderr so callers can log all build output.
+ * On error, attaches stdout and stderr to the error object for diagnosis.
  */
 function execPromise(
   command: string,
   args: string[],
   options: { cwd?: string; timeout?: number } = {}
-): Promise<string> {
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(command, args, {
       cwd: options.cwd,
@@ -710,10 +726,11 @@ function execPromise(
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any
+        err.stdout = stdout
         err.stderr = stderr
         reject(err)
       } else {
-        resolve(stdout)
+        resolve({ stdout, stderr })
       }
     })
   })

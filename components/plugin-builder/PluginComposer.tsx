@@ -147,6 +147,39 @@ export default function PluginComposer({
   )
 }
 
+// Utility functions are defined before SkillGroup so their resolution is unambiguous
+// at the point of use — no forward reference required.
+
+function getSkillDisplayName(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return skill.name
+    case 'marketplace': {
+      // skill.id is the skill identifier within the plugin; take the last colon-delimited
+      // segment as the display name to handle any sub-path, falling back to the full id.
+      const parts = skill.id.split(':')
+      return parts[parts.length - 1] || skill.id
+    }
+    case 'repo':
+      return skill.name
+  }
+}
+
+function getSkillSubtitle(skill: PluginSkillSelection): string | null {
+  switch (skill.type) {
+    case 'core':
+      return null
+    case 'marketplace': {
+      // skill.plugin and skill.marketplace are the correct fields on the marketplace variant
+      // per PluginSkillSelection. Guard against empty strings so we never render " / " alone.
+      const parts = [skill.plugin, skill.marketplace].filter(Boolean)
+      return parts.length > 0 ? parts.join(' / ') : null
+    }
+    case 'repo':
+      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+  }
+}
+
 function SkillGroup({
   title,
   icon,
@@ -204,26 +237,4 @@ function SkillGroup({
       </div>
     </div>
   )
-}
-
-function getSkillDisplayName(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
-    case 'repo':
-      return skill.name
-  }
-}
-
-function getSkillSubtitle(skill: PluginSkillSelection): string | null {
-  switch (skill.type) {
-    case 'core':
-      return null
-    case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
-    case 'repo':
-      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
-  }
 }

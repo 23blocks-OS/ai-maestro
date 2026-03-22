@@ -10,9 +10,9 @@ import { getBuildStatus } from '@/services/plugin-builder-service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
 
   const result = await getBuildStatus(id)
 
@@ -22,5 +22,5 @@ export async function GET(
       { status: result.status }
     )
   }
-  return NextResponse.json(result.data)
+  return NextResponse.json(result.data, { status: result.status || 200 })
 }

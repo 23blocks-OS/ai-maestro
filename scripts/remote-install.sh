@@ -115,7 +115,8 @@ maestro_ask_yn() {
         printf "   > [y/N] "
     fi
     read -r REPLY
-    REPLY="${REPLY:-$default}"
+    # Quote $default inside the expansion to prevent word splitting and globbing on user input
+    REPLY="${REPLY:-"$default"}"
 }
 
 maestro_ask_choice() {
@@ -137,7 +138,8 @@ maestro_ask_choice() {
     done
     printf "   > "
     read -r REPLY
-    REPLY="${REPLY:-1}"
+    # Quote the default value to be consistent with safe variable expansion
+    REPLY="${REPLY:-"1"}"
 }
 
 open_browser() {
@@ -164,7 +166,7 @@ cleanup() {
         # Remove partial clone if install dir was created but has no package.json
         # Safety: only auto-remove paths under $HOME (never system dirs)
         if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
-           && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+           && [[ "$INSTALL_DIR" == "${HOME}"/* ]]; then
             if [ "$NON_INTERACTIVE" = true ]; then
                 rm -rf "$INSTALL_DIR"
                 maestro_info "Removed partial installation at $INSTALL_DIR"
@@ -979,11 +981,11 @@ act3_clone_and_build() {
                 maestro_step 3 4 "Updating agent tools..." ""
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
                     # On update: only reinstall tools that are already present
-                    local tool_flags=""
-                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                    # Use an array so individual flags are passed as separate arguments when quoted
+                    local tool_flags=()
+                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags=(--skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli)
                     chmod +x install.sh
-                    # shellcheck disable=SC2086
-                    ./install.sh --from-remote -y $tool_flags
+                    ./install.sh --from-remote -y "${tool_flags[@]}"
                 fi
                 maestro_step 3 4 "Updating agent tools..." "done"
 
@@ -1227,7 +1229,10 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape sed metacharacters in gw_list before using it as a replacement string
+            local escaped_gw_list
+            escaped_gw_list=$(printf '%s' "$gw_list" | sed -e 's/[\/&]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${escaped_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1285,10 +1290,14 @@ act5_grand_finale() {
         echo ""
 
         INITIAL_PROMPT="Hi! I just installed AI Maestro. Can you verify everything is working and help me get started?"
+        # Escape the prompt so shell metacharacters cannot be injected into the tmux command
+        local escaped_prompt
+        escaped_prompt=$(printf %q "$INITIAL_PROMPT")
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            # Pass AI_TOOL and escaped_prompt as separate arguments to avoid shell re-parsing
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL" "$escaped_prompt"
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1298,8 +1307,9 @@ act5_grand_finale() {
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
+                # Pass AI_TOOL and escaped_prompt as separate arguments to avoid shell re-parsing
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL" "$escaped_prompt"
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"

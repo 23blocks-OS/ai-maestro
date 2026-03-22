@@ -71,20 +71,28 @@ export interface PluginManifest {
 export interface PluginManifestMetadata {
   name: string
   version: string
+  description?: string              // Human-readable description of the plugin
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required for local sources
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                     // Required for git sources
+      ref?: string                     // Git branch/tag (optional)
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

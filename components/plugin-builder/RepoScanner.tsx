@@ -16,6 +16,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Capture url/ref at scan time so that edits made after scanning don't corrupt added skills
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -46,8 +49,13 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        // Freeze the url/ref that produced these results so subsequent edits don't corrupt them
+        const frozenUrl = url.trim()
+        const frozenRef = ref
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        setScannedUrl(frozenUrl)
+        setScannedRef(frozenRef)
+        onSkillsFound(data.skills, frozenUrl, frozenRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -58,10 +66,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use scannedUrl/scannedRef (frozen at scan time) so that any edits the user
+    // has typed into the URL/ref inputs after scanning cannot corrupt the skill origin.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +103,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,7 +134,8 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Use scannedUrl (frozen at scan time) so the key stays stable while the user types
+            const key = `repo:${scannedUrl}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

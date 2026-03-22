@@ -10,23 +10,37 @@ import { pushToGitHub } from '@/services/plugin-builder-service'
 import type { PluginPushConfig } from '@/types/plugin-builder'
 
 export async function POST(request: NextRequest) {
+  // Parse request body in its own try/catch so JSON parse errors are reported
+  // separately from pushToGitHub errors — both were previously masked as 400
+  // "Invalid request body" which hid real GitHub push failures.
+  let body: PluginPushConfig
   try {
-    const body = await request.json() as PluginPushConfig
+    body = await request.json() as PluginPushConfig
+  } catch (error) {
+    console.error('Error parsing request body:', error)
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
+    )
+  }
 
-    if (!body.forkUrl || typeof body.forkUrl !== 'string') {
-      return NextResponse.json(
-        { error: 'Fork URL is required' },
-        { status: 400 }
-      )
-    }
+  if (!body.forkUrl || typeof body.forkUrl !== 'string') {
+    return NextResponse.json(
+      { error: 'Fork URL is required' },
+      { status: 400 }
+    )
+  }
 
-    if (!body.manifest || typeof body.manifest !== 'object') {
-      return NextResponse.json(
-        { error: 'Manifest is required' },
-        { status: 400 }
-      )
-    }
+  // typeof null === 'object', so an explicit null check is required in addition
+  // to the typeof guard to prevent null from passing as a valid manifest object.
+  if (!body.manifest || typeof body.manifest !== 'object' || body.manifest === null || Object.keys(body.manifest).length === 0) {
+    return NextResponse.json(
+      { error: 'Manifest is required and must be a non-empty object' },
+      { status: 400 }
+    )
+  }
 
+  try {
     const result = await pushToGitHub(body)
 
     if (result.error) {
@@ -39,8 +53,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Failed to push to GitHub' },
+      { status: 500 }
     )
   }
 }

@@ -319,9 +319,9 @@ detect_os() {
 # sed that works on both macOS and Linux
 portable_sed() {
     if [ "$OS" = "macos" ]; then
-        sed -i '' "$@"
+        sed -i '' "$@" || { maestro_fail "sed command failed on macOS"; exit 1; }
     else
-        sed -i "$@"
+        sed -i "$@" || { maestro_fail "sed command failed on Linux"; exit 1; }
     fi
 }
 
@@ -427,7 +427,7 @@ uninstall() {
         maestro_ask_yn "Remove installation directory ($INSTALL_DIR)?" "n"
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
             rm -rf "$INSTALL_DIR"
-            maestro_info "Removed $INSTALL_DIR"
+            maestro_info "Removed \"$INSTALL_DIR\""
         fi
     fi
 
@@ -1180,16 +1180,16 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
-    # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
-    local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    # Escape INSTALL_DIR for use as a sed replacement string (only \ and & are special
+    # in sed replacement syntax; / is also escaped conservatively for safety)
+    local safe_dir_repl
+    safe_dir_repl=$(printf '%s' "$INSTALL_DIR" | sed -e 's/[\/&]/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
         cp "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
         # Substitute install-time variables (portable sed)
-        portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$AGENT_DIR/CLAUDE.md"
+        portable_sed "s|{{INSTALL_DIR}}|${safe_dir_repl}|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{VERSION}}|$VERSION|g" "$AGENT_DIR/CLAUDE.md"
         portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
     fi
@@ -1208,7 +1208,7 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
-            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
+            portable_sed "s|{{INSTALL_DIR}}|${safe_dir_repl}|g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
@@ -1227,7 +1227,10 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape gw_list for sed replacement syntax (& and / are special in replacements)
+            local escaped_gw_list
+            escaped_gw_list=$(printf '%s' "$gw_list" | sed -e 's/[\/&]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${escaped_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \

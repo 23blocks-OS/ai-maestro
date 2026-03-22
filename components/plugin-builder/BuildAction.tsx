@@ -29,12 +29,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
 
-  // Clean up polling on unmount
+  // Clean up polling on unmount — clearPoll in deps prevents stale closure if it ever gains deps
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [])
+  }, [clearPoll])
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -133,6 +133,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           forkUrl: forkUrl.trim(),
+          // result.manifest is guaranteed non-null: guard at top of handlePush already checked it
           manifest: result.manifest,
         }),
       })
@@ -151,6 +152,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const copyInstallCommand = () => {
     if (!result?.outputPath) return
+    // result.outputPath is guaranteed non-null: guard above already checked it
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)

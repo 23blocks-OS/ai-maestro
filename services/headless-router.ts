@@ -273,8 +273,12 @@ import {
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
+    // Track whether the stream has already errored to prevent double-resolution
+    let errored = false
+
     req.on('data', (chunk: Buffer) => chunks.push(chunk))
     req.on('end', () => {
+      if (errored) return
       const body = Buffer.concat(chunks).toString('utf-8')
       if (!body) return resolve({})
       try {
@@ -283,7 +287,10 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
         reject(new Error('Invalid JSON body'))
       }
     })
-    req.on('error', reject)
+    req.on('error', (e: Error) => {
+      errored = true
+      reject(e)
+    })
   })
 }
 
@@ -312,7 +319,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always treat result.error as an error response, even when result.data is also present
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -337,7 +345,7 @@ function getQuery(url: string): Record<string, string> {
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
  */
-function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
+function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: any } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
@@ -346,7 +354,7 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
   const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
 
   let file: Buffer | null = null
-  let options: string | null = null
+  let options: any = null
 
   for (const part of parts) {
     const headerEnd = part.indexOf('\r\n\r\n')
@@ -359,7 +367,13 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
       // Convert back to buffer from latin1 encoding
       file = Buffer.from(content, 'latin1')
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Parse JSON options here so callers receive a ready-to-use object
+      try {
+        options = JSON.parse(content)
+      } catch (e) {
+        console.warn('parseMultipart: invalid JSON in options field, defaulting to {}', e)
+        options = {}
+      }
     }
   }
 
@@ -530,15 +544,16 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
-      const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
+      const { file, options } = parseMultipart(rawBody, contentType)
 
       if (!file) {
         sendJson(res, 400, { error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
-      const result = await importAgent(file, options)
+      // options is already parsed by parseMultipart; default to {} if absent
+      const parsedOptions = options ?? {}
+      const result = await importAgent(file, parsedOptions)
       sendServiceResult(res, result)
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })

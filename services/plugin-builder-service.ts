@@ -170,15 +170,17 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 // Build result lifecycle (TTL + eviction)
 // ============================================================================
 
-function evictStaleBuildResults(): void {
+async function evictStaleBuildResults(): Promise<void> {
   const now = Date.now()
+  // Collect all cleanup promises so they are tracked (not fire-and-forget)
+  const cleanupPromises: Promise<void>[] = []
+
   for (const [id, result] of buildResults) {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
-      // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      cleanupPromises.push(fs.rm(buildDir, { recursive: true, force: true }).catch(() => {}))
     }
   }
 
@@ -190,13 +192,22 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      cleanupPromises.push(fs.rm(buildDir, { recursive: true, force: true }).catch(() => {}))
     }
   }
+
+  // Execute all cleanup promises concurrently; errors are already handled per-promise above
+  await Promise.all(cleanupPromises).catch(err => {
+    console.error('Error during build result eviction cleanup:', err)
+  })
 }
 
-// Run eviction every 10 minutes
-const evictionInterval = setInterval(evictStaleBuildResults, 10 * 60 * 1000)
+// Run eviction every 10 minutes; wrap in .catch so unhandled rejections don't crash the process
+const evictionInterval = setInterval(() => {
+  evictStaleBuildResults().catch(err => {
+    console.error('Unhandled error during scheduled build result eviction:', err)
+  })
+}, 10 * 60 * 1000)
 evictionInterval.unref() // Don't prevent process exit
 
 // ============================================================================
@@ -316,13 +327,16 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Declare buildDir outside try so the catch block can clean it up if setup fails
+  let buildDir: string | undefined
   try {
-    // Evict stale builds before adding new ones
-    evictStaleBuildResults()
+    // Evict stale builds before adding new ones; await to ensure map is clean
+    // before the new entry is inserted (prevents stale entries from racing with the new build)
+    await evictStaleBuildResults()
 
     activeOps++
     const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
+    buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -347,7 +361,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
+      } catch (err) {
+        // Log symlink failure so the cause is visible; fall back to a full copy
+        console.warn(`Failed to symlink core skills src directory, falling back to copy: ${(err as Error).message}`)
         // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
         await copyDir(srcDir, linkTarget)
       }
@@ -382,6 +398,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { data: result, status: 202 }
   } catch (error) {
     activeOps = Math.max(0, activeOps - 1)
+    // Clean up the build directory if it was created before the error occurred
+    if (buildDir) {
+      await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -452,6 +472,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
+    }
+    // Detect process kill-on-timeout (execFile sets killed=true) or explicit timeout message
+    if ((error as any)?.killed || message.includes('timed out')) {
+      return { error: `Git clone timed out after 30 seconds for repository: ${url}`, status: 504 }
     }
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
@@ -543,6 +567,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
+    // Detect process kill-on-timeout (execFile sets killed=true) or explicit timeout message
+    if ((error as any)?.killed || message.includes('timed out')) {
+      return { error: `Git operation timed out after 30 seconds. Failed to push to GitHub: ${message}`, status: 504 }
+    }
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)

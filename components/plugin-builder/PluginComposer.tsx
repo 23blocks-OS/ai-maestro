@@ -211,7 +211,9 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      // marketplace union member has no 'name' field; use plugin as the human-readable label,
+      // falling back to the third segment of the colon-separated id, then the full id
+      return skill.plugin || skill.id.split(':')[2] || skill.id
     case 'repo':
       return skill.name
   }
@@ -221,8 +223,12 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
   switch (skill.type) {
     case 'core':
       return null
-    case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
+    case 'marketplace': {
+      // Guard against undefined/empty values that would produce "undefined / undefined"
+      const pluginLabel = skill.plugin || 'Unknown Plugin'
+      const marketplaceLabel = skill.marketplace || 'Unknown Marketplace'
+      return `${pluginLabel} / ${marketplaceLabel}`
+    }
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
   }

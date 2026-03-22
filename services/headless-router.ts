@@ -442,7 +442,7 @@ function sendServiceResult(res: ServerResponse, result: any) {
   if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
-    sendJson(res, result.status || 200, result.data, result.headers)
+    sendJson(res, resolved.status || 200, resolved.data, resolved.headers)
   }
 }
 

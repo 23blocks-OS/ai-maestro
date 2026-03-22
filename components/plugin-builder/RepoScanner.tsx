@@ -58,6 +58,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     }
   }, [])
 
+  // Invalidate stale scan results whenever the user changes either input field
+  // or the parent provides a new onSkillsFound callback. This prevents skills
+  // from a prior scan from being rendered (and potentially added) with
+  // mismatched url/ref values or a stale callback.
+  useEffect(() => {
+    setScanResult(null)
+  }, [url, ref, onSkillsFound])
+
   const handleScan = async () => {
     // Capture current state values before any async operations to avoid stale closures.
     // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.

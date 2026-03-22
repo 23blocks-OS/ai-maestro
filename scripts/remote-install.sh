@@ -174,7 +174,7 @@ cleanup() {
                 maestro_info "Removed partial installation at $INSTALL_DIR"
             else
                 maestro_warn "Partial installation detected at $INSTALL_DIR"
-                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+                maestro_info "You may want to remove it: rm -rf \"$INSTALL_DIR\""
             fi
         fi
         maestro_info "You can re-run the installer to try again"
@@ -359,7 +359,7 @@ _install_pkg() {
     elif command -v apk &>/dev/null; then
         sudo apk add "$pkg"
     else
-        maestro_warn "No supported package manager found — install '$pkg' manually"
+        maestro_warn "No supported package manager found — install \"$pkg\" manually"
         return 1
     fi
 }
@@ -514,7 +514,8 @@ act1_hello_and_discovery() {
         node_ver=$(node --version)
         local node_major
         node_major=$(echo "$node_ver" | cut -d'.' -f1 | sed 's/v//')
-        if [ "$node_major" -ge 18 ]; then
+        # Guard against non-numeric output (corrupted install, shell aliases, etc.)
+        if echo "$node_major" | grep -qE '^[0-9]+$' && [ "$node_major" -ge 18 ]; then
             maestro_check "Node.js" "${node_ver} ${GREEN}✓${NC}"
         else
             maestro_check "Node.js" "${node_ver} ${YELLOW}too old${NC}"
@@ -701,7 +702,16 @@ act2_install_prerequisites() {
             nvm use 20
             nvm alias default 20
         fi
-        maestro_ok "Node.js installed"
+        # Verify the installed Node.js meets the minimum version requirement
+        local post_node_ver post_node_major
+        post_node_ver=$(node --version 2>/dev/null || echo "")
+        post_node_major=$(echo "$post_node_ver" | cut -d'.' -f1 | sed 's/v//')
+        if ! echo "$post_node_major" | grep -qE '^[0-9]+$' || [ "$post_node_major" -lt 18 ]; then
+            maestro_fail "Node.js installation failed — version ${post_node_ver:-unknown} does not meet minimum requirement (>=18)"
+            exit 1
+        fi
+        NEED_NODE=false
+        maestro_ok "Node.js ${post_node_ver} installed"
     fi
 
     # Yarn
@@ -712,13 +722,13 @@ act2_install_prerequisites() {
         # Detect if npm global dir is writable (system Node needs sudo)
         local npm_prefix
         npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+        local yarn_installed=false
         if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
             npm install -g yarn || { maestro_fail "Failed to install Yarn. Aborting."; exit 1; }
         else
             maestro_info "System Node detected — using sudo for global npm install..."
             sudo npm install -g yarn || { maestro_fail "Failed to install Yarn with sudo. Please install Yarn manually or fix npm permissions. Aborting."; exit 1; }
         fi
-        maestro_ok "Yarn installed"
     fi
 
     # System packages (Linux/WSL only)
@@ -902,7 +912,10 @@ act2b_gateway_selection() {
         echo "  Toggle: 1-4  |  a) All  n) None  Enter) Continue"
         printf "  > "
         read -r choice
-        case $choice in
+        # Trim leading/trailing whitespace so " 1 " matches the same as "1"
+        choice="${choice#"${choice%%[![:space:]]*}"}"
+        choice="${choice%"${choice##*[![:space:]]*}"}"
+        case "$choice" in
             1) if [ "$gw_slack" = true ]; then gw_slack=false; else gw_slack=true; fi ;;
             2) if [ "$gw_discord" = true ]; then gw_discord=false; else gw_discord=true; fi ;;
             3) if [ "$gw_email" = true ]; then gw_email=false; else gw_email=true; fi ;;
@@ -1093,7 +1106,7 @@ act3_clone_and_build() {
                             # rest of the script's portable_sed convention
                             portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
-                            echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
+                            echo "AIMAESTRO_API=${api_url}" >> .env
                         fi
                         if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
                             # Use | as delimiter for consistency
@@ -1444,6 +1457,13 @@ act5_grand_finale() {
 
 main() {
     parse_args "$@"
+
+    # Validate PORT value whether it came from the -p flag or the AIMAESTRO_PORT env var.
+    # The -p handler already validates explicit --port arguments; this catches AIMAESTRO_PORT.
+    if ! echo "$PORT" | grep -qE '^[0-9]+$' || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+        maestro_fail "Invalid port '$PORT' — AIMAESTRO_PORT must be an integer between 1 and 65535"
+        exit 1
+    fi
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then

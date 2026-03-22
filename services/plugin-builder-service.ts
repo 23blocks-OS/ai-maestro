@@ -101,7 +101,10 @@ const PLUGIN_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 // meaning in git ref syntax or in POSIX shells and must never appear in a validated ref.
 const GIT_REF_RE = /^[a-zA-Z0-9._/-]+$/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/
-const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9._-]+$/
+// Disallows '.' and '..' as full segments to prevent path traversal while still
+// permitting dots within names (e.g. "my.plugin"). A valid segment must start
+// with an alphanumeric character so it can never be '.' or '..'.
+const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
 
 /**
  * Allowed git hosting domains. Blocks SSRF against internal networks.
@@ -710,9 +713,12 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     // Stage and commit
     await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir })
 
-    // Check if there are changes to commit
-    const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir })
-    if (!statusOutput.trim()) {
+    // Check whether the manifest was actually staged (not just whether the repo has unrelated dirty files).
+    // `git diff --cached --quiet` exits 0 when nothing is staged, non-zero when there are staged changes.
+    const hasStagedChanges = await execPromise('git', ['diff', '--cached', '--quiet'], { cwd: pushDir })
+      .then(() => false)   // exit 0 → nothing staged
+      .catch(() => true)   // exit non-0 → staged changes present
+    if (!hasStagedChanges) {
       await fs.rm(pushDir, { recursive: true, force: true })
       return {
         data: {
@@ -923,7 +929,19 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
  */
 async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
   const scripts: RepoScriptInfo[] = []
+
+  // Resolve the canonical root so symlink traversal out of the scan directory
+  // is detected even when the scripts/ subdir itself is a symlink.
+  const realRoot = await fs.realpath(dir)
   const scriptsDir = path.join(dir, 'scripts')
+
+  // Resolve scripts/ to its real path and verify it stays inside the root.
+  // If scripts/ is a symlink pointing outside the scan directory we skip it entirely.
+  const realScriptsDir = await fs.realpath(scriptsDir).catch(() => null)
+  // A valid scripts dir must be the root itself or a strict descendant of it.
+  if (!realScriptsDir || (!realScriptsDir.startsWith(realRoot + path.sep) && realScriptsDir !== realRoot)) {
+    return scripts
+  }
 
   try {
     // Resolve the real root of the repo to enforce containment of the scripts dir
@@ -955,7 +973,7 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
       }
     }
   } catch {
-    // No scripts directory
+    // No scripts directory or inaccessible
   }
 
   return scripts

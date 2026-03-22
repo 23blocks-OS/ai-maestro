@@ -16,10 +16,19 @@ export async function POST(request: NextRequest) {
   let body: unknown
   try {
     body = await request.json()
-  } catch {
+  } catch (error) {
+    // JSON parse failures from request.json() are a client error (malformed body)
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+    // All other unexpected errors are server-side failures
+    console.error('Unexpected error in POST /api/plugin-builder/build:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal Server Error' },
+      { status: 500 }
     )
   }
 

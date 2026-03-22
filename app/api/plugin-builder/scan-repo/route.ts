@@ -14,10 +14,17 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown>
   try {
     body = await request.json()
-  } catch {
+  } catch (error) {
+    // JSON parse errors from request.json() are SyntaxErrors — return 400
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'An unexpected server error occurred' },
+      { status: 500 }
     )
   }
 
@@ -36,13 +43,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const result = await scanRepo(body.url as string, (body.ref as string) || 'main')
+  try {
+    const result = await scanRepo(body.url as string, (body.ref as string) || 'main')
 
-  if (result.error) {
+    if (result.error) {
+      // Validate the status code is a proper HTTP status before using it
+      const statusCode =
+        typeof result.status === 'number' && result.status >= 100 && result.status < 600
+          ? result.status
+          : 500
+      return NextResponse.json(
+        { error: result.error },
+        { status: statusCode }
+      )
+    }
+    return NextResponse.json(result.data)
+  } catch (error) {
+    console.error('Error scanning repo:', error)
+    // All unexpected service errors are server-side failures — return 500
     return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
+      { error: 'An unexpected server error occurred' },
+      { status: 500 }
     )
   }
-  return NextResponse.json(result.data)
 }

@@ -1,0 +1,21 @@
+✔ No ESLint warnings or errors
+
+In scripts/remote-install.sh line 775:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 786:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 795:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In scripts/remote-install.sh line 798:
+                    NEED_CLAUDE=false
+                    ^---------^ SC2034 (warning): NEED_CLAUDE appears unused. Verify use (or export if used externally).
+

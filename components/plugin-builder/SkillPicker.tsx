@@ -76,8 +76,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 

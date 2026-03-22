@@ -54,7 +54,7 @@ maestro_say() {
         echo "[maestro] $msg"
         return
     fi
-    printf "%b" "$MAESTRO_PREFIX"
+    printf "%s" "$MAESTRO_PREFIX"
     local i=0
     while [ $i -lt ${#msg} ]; do
         printf "%s" "${msg:$i:1}"
@@ -86,7 +86,7 @@ maestro_check() {
     if [ "$NON_INTERACTIVE" = true ]; then
         echo "   [check] $label    $status"
     else
-        printf "   ${DIM}[checking]${NC} %-24s %s\n" "$label" "$status"
+        printf "   %s[checking]%s %s %s\n" "$DIM" "$NC" "$label" "$status"
     fi
 }
 
@@ -95,7 +95,7 @@ maestro_step() {
     local total="$2"
     local label="$3"
     local status="$4"
-    printf "   ${DIM}[%s/%s]${NC} %-32s %s\n" "$step" "$total" "$label" "$status"
+    printf "   %s[%s/%s]%s %s %s\n" "$DIM" "$step" "$total" "$NC" "$label" "$status"
 }
 
 maestro_ask_yn() {

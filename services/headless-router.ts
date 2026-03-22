@@ -419,8 +419,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  // Prioritize error -- if error is set, always send error response.
-  // Do not spread result.data into error responses to avoid leaking internal state.
+  // Check for error presence alone — a result carrying both error and data must
+  // still be treated as an error response, not a silent 200 OK.
   if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
@@ -436,31 +436,61 @@ function getHeader(req: IncomingMessage, name: string): string | null {
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
+ *
+ * Works entirely with Buffers to avoid encoding corruption. The boundary and
+ * the CRLFCRLF header separator are ASCII-safe and can be found via Buffer.indexOf.
+ * Part content is extracted as a raw Buffer slice so binary file data is never
+ * passed through a string encoding/decoding round-trip. Only the text-only
+ * `options` field is decoded as UTF-8, which is correct for JSON payloads.
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
-  const bodyStr = body.toString('latin1')
-  const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
+  // All boundary tokens and separators are ASCII — safe to use as Buffers.
+  const boundaryBuf = Buffer.from('--' + boundaryMatch[1])
+  const headerSepBuf = Buffer.from('\r\n\r\n')
+  const crlfBuf = Buffer.from('\r\n')
 
   let file: Buffer | null = null
   let options: string | null = null
 
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n')
-    if (headerEnd === -1) continue
+  let pos = 0
+  while (pos < body.length) {
+    const boundaryIdx = body.indexOf(boundaryBuf, pos)
+    if (boundaryIdx === -1) break
 
-    const headers = part.substring(0, headerEnd)
-    const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
+    // Skip past the boundary marker and the following CRLF.
+    const partStart = boundaryIdx + boundaryBuf.length + crlfBuf.length
+
+    // A trailing '--' after the boundary signals the closing delimiter — stop.
+    if (body[boundaryIdx + boundaryBuf.length] === 0x2d && body[boundaryIdx + boundaryBuf.length + 1] === 0x2d) break
+
+    // Find the blank line separating headers from content.
+    const headerEnd = body.indexOf(headerSepBuf, partStart)
+    if (headerEnd === -1) break
+
+    // Headers are always ASCII/UTF-8 — safe to decode as UTF-8.
+    const headers = body.subarray(partStart, headerEnd).toString('utf8')
+
+    const contentStart = headerEnd + headerSepBuf.length
+
+    // Find the start of the next boundary to determine where this part ends.
+    const nextBoundaryIdx = body.indexOf(boundaryBuf, contentStart)
+    // Content ends two bytes before the next boundary (the preceding CRLF).
+    const contentEnd = nextBoundaryIdx === -1 ? body.length : nextBoundaryIdx - crlfBuf.length
+
+    // Extract content as a raw Buffer — no encoding conversion.
+    const content = body.subarray(contentStart, contentEnd)
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
-      file = Buffer.from(content, 'latin1')
+      file = content
     } else if (headers.includes('name="options"')) {
-      options = content
+      // options is expected to be a UTF-8 JSON string.
+      options = content.toString('utf8')
     }
+
+    pos = contentStart + content.length
   }
 
   return { file, options }
@@ -770,7 +800,7 @@ const routes: Route[] = [
       minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
-      memoryId: query.id,
+      memoryId: query.id || undefined,
       maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
     }))
   }},

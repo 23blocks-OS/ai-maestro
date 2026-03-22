@@ -89,13 +89,24 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`, { signal: pollAbortRef.current.signal })
             if (statusRes.ok) {
               pollFailures.current = 0
-              const statusData: PluginBuildResult = await statusRes.json()
-              setResult(statusData)
+              // Wrap JSON parsing separately — a malformed response must not leave
+              // the component stuck in `building` state indefinitely.
+              try {
+                const statusData: PluginBuildResult = await statusRes.json()
+                setResult(statusData)
 
-              if (statusData.status !== 'building') {
-                clearPoll()
-                setBuilding(false)
-                setShowLogs(true)
+                if (statusData.status !== 'building') {
+                  clearPoll()
+                  setBuilding(false)
+                  // Do NOT force showLogs to true — let the user expand logs manually.
+                }
+              } catch {
+                pollFailures.current++
+                if (pollFailures.current >= 5) {
+                  clearPoll()
+                  setError('Lost connection to build server')
+                  setBuilding(false)
+                }
               }
             } else {
               pollFailures.current++
@@ -116,7 +127,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         }, 1000)
       } else {
         setBuilding(false)
-        setShowLogs(true)
+        // Do NOT force showLogs to true — let the user expand logs manually.
       }
     } catch {
       setError('Failed to connect to server')
@@ -127,14 +138,16 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const handlePush = async () => {
     if (!forkUrl.trim() || !result?.manifest) return
 
-    // Client-side URL validation
-    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
-      setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
-      return
-    }
-
     setPushing(true)
     setPushResult(null)
+
+    // Client-side URL validation: require https://github.com/<owner>/<repo>[.git]
+    // The .git suffix is optional but common; owner/repo segments must be non-empty.
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(\.git)?$/)) {
+      setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL (e.g. https://github.com/user/repo)' })
+      setPushing(false)
+      return
+    }
 
     try {
       const res = await fetch('/api/plugin-builder/push', {
@@ -192,7 +205,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={disabled || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -229,7 +242,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabledReason && disabled && !building && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -251,7 +264,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             </div>
             <button
               onClick={handlePush}
-              disabled={pushing || !forkUrl.trim()}
+              disabled={disabled || pushing || !forkUrl.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
@@ -267,7 +280,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">

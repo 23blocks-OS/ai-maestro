@@ -13,11 +13,17 @@ interface RepoScannerProps {
 
 export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys }: RepoScannerProps) {
   const [url, setUrl] = useState('')
-  const [ref, setRef] = useState('main')
+  // Empty string means "use default"; the actual default 'main' is applied only at scan time
+  const [ref, setRef] = useState('')
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Track the exact url/ref used for the last successful scan so that handleAddSkill
+  // always stores the values that were actually used to discover each skill, even if
+  // the user later edits the input fields without re-scanning.
+  const [lastScannedUrl, setLastScannedUrl] = useState<string | null>(null)
+  const [lastScannedRef, setLastScannedRef] = useState<string | null>(null)
 
   // NT-006: Abort any in-flight scan on unmount to prevent state updates on unmounted component
   useEffect(() => {
@@ -40,7 +46,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        // Apply the 'main' default only at the point of the network call so that
+        // the input field can be truly empty (controlled by the user) while still
+        // sending a valid ref to the API.
+        body: JSON.stringify({ url: url.trim(), ref: ref || 'main' }),
         signal,
       })
 
@@ -52,8 +61,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        const effectiveRef = ref || 'main'
         setScanResult(data)
-        onSkillsFound?.(data.skills, url.trim(), ref)
+        // Store the exact values used so handleAddSkill is always consistent with this scan
+        setLastScannedUrl(url.trim())
+        setLastScannedRef(effectiveRef)
+        onSkillsFound?.(data.skills, url.trim(), effectiveRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -64,10 +77,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use the url/ref captured at scan time, not the current input values, so that
+    // editing the fields after a scan does not corrupt the stored skill reference.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: lastScannedUrl ?? url.trim(),
+      ref: lastScannedRef ?? (ref || 'main'),
       skillPath: skill.path,
       name: skill.name,
     })
@@ -99,7 +114,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -130,11 +145,13 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Use the same trimmed url that was stored when the skill was added so that
+            // the key always matches the one in selectedSkillKeys regardless of input whitespace.
+            const key = `repo:${lastScannedUrl ?? url.trim()}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

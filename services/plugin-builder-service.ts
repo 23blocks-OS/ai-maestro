@@ -40,6 +40,8 @@ import type {
 const PLUGIN_DIR = path.join(process.cwd(), 'plugin')
 const BUILD_SCRIPT = path.join(PLUGIN_DIR, 'build-plugin.sh')
 const BUILDS_DIR = path.join(os.tmpdir(), 'ai-maestro-plugin-builds')
+/** Claude Code global config directory — where Claude installs plugins/marketplaces */
+const CLAUDE_DIR = path.join(os.homedir(), '.claude')
 
 /** Max builds to keep in memory before evicting oldest */
 const MAX_BUILD_RESULTS = 50
@@ -174,6 +176,9 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 function evictStaleBuildResults(): void {
   const now = Date.now()
   for (const [id, result] of buildResults) {
+    // Never evict a build that is still in progress — runBuild owns its directory lifecycle
+    if (result.status === 'building') continue
+
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
@@ -183,9 +188,10 @@ function evictStaleBuildResults(): void {
     }
   }
 
-  // If still over limit, evict oldest
+  // If still over limit, evict oldest completed/failed entries only
   if (buildResults.size > MAX_BUILD_RESULTS) {
     const entries = [...buildResults.entries()]
+      .filter(([, result]) => result.status !== 'building')
       .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
     const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
     for (const [id] of toRemove) {
@@ -249,7 +255,8 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Path to the specific plugin within the marketplace — includes both marketplace and plugin name
+    const installPath = path.join(CLAUDE_DIR, 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -323,13 +330,18 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Track whether runBuild has been dispatched so the catch block knows
+  // not to decrement activeOps a second time (runBuild's finally handles it).
+  let buildDispatched = false
+  // Declared before try so the catch block can clean up the directory on early errors
+  const buildId = randomUUID()
+  const buildDir = path.join(BUILDS_DIR, buildId)
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
     activeOps++
-    const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -371,7 +383,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     buildResults.set(buildId, result)
     ensureEvictionStarted()
 
-    // Run build asynchronously
+    // Mark dispatched before firing so the catch block won't double-decrement
+    buildDispatched = true
+
+    // Run build asynchronously — its finally block owns the activeOps decrement
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -389,7 +404,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement if runBuild was never dispatched; otherwise its finally handles it
+    if (!buildDispatched) {
+      activeOps = Math.max(0, activeOps - 1)
+      // Clean up the build directory if it was created before the error occurred
+      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -607,9 +627,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
+    // execFile attaches stderr to the error object. Only include it when it carries
+    // information that isn't already contained in error.message, to avoid duplicate
+    // log entries (execFile embeds stderr in the message for non-zero exit codes).
+    const stderr: string | undefined = (error as any)?.stderr
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    if (stderr && !message.includes(stderr.trimEnd())) {
+      logs.push(...stderr.split('\n').filter(line => line.trim() !== ''))
+    }
 
     // Atomic replacement
     buildResults.set(buildId, {
@@ -714,7 +739,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — git clone and verbose build scripts can produce large output
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

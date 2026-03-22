@@ -241,7 +241,7 @@ export default function MarketplaceManager() {
 
                 {/* Delete marketplace */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'delete-marketplace', target: mkt.name, label: `Delete marketplace "${mkt.name}"? This removes the clone, all cached plugins, and settings entries.` }) }}
+                  onClick={(e) => { e.stopPropagation(); setConfirmAction({ action: 'delete-marketplace', target: mkt.name, label: `Delete marketplace "${mkt.name}"? This will uninstall all its plugins and remove the marketplace.` }) }}
                   disabled={isActioning}
                   className="p-1 rounded hover:bg-red-500/20 transition-colors" title="Delete marketplace"
                 >

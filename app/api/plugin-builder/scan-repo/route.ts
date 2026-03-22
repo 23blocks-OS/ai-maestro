@@ -9,17 +9,38 @@ import type { NextRequest } from 'next/server'
 import { scanRepo } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  // Parse JSON separately so the catch block can give an accurate error message
+  let body: { url?: unknown; ref?: unknown }
   try {
-    const body = await request.json()
+    body = await request.json()
+  } catch (jsonError) {
+    console.error('Error parsing request body:', jsonError)
+    return NextResponse.json(
+      { error: 'Invalid JSON in request body' },
+      { status: 400 }
+    )
+  }
 
-    if (!body.url || typeof body.url !== 'string') {
-      return NextResponse.json(
-        { error: 'Repository URL is required' },
-        { status: 400 }
-      )
-    }
+  if (!body.url || typeof body.url !== 'string') {
+    return NextResponse.json(
+      { error: 'Repository URL is required' },
+      { status: 400 }
+    )
+  }
 
-    const result = await scanRepo(body.url, body.ref || 'main')
+  // Validate ref type when provided — passing a non-string to scanRepo would
+  // bypass the service's own validateGitRef check and cause unexpected behavior
+  if (body.ref !== undefined && typeof body.ref !== 'string') {
+    return NextResponse.json(
+      { error: 'Repository reference (ref) must be a string' },
+      { status: 400 }
+    )
+  }
+
+  const ref = typeof body.ref === 'string' ? body.ref : 'main'
+
+  try {
+    const result = await scanRepo(body.url, ref)
 
     if (result.error) {
       return NextResponse.json(
@@ -28,11 +49,12 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data)
-  } catch (error) {
-    console.error('Error scanning repo:', error)
+  } catch (scanError) {
+    // scanRepo is designed to return structured errors, but catch any unexpected throws
+    console.error('Unexpected error scanning repo:', scanError)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Failed to scan repository due to an internal server error' },
+      { status: 500 }
     )
   }
 }

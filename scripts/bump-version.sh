@@ -151,11 +151,23 @@ update_file "$PROJECT_ROOT/docs/index.html" \
     "<span>v$NEW_VERSION</span>" \
     "docs/index.html (display)"
 
-# 7. docs/ai-index.html
+# 7. docs/ai-index.html (schema version)
 update_file "$PROJECT_ROOT/docs/ai-index.html" \
     "\"softwareVersion\": \"$CURRENT_VERSION\"" \
     "\"softwareVersion\": \"$NEW_VERSION\"" \
-    "docs/ai-index.html"
+    "docs/ai-index.html (schema)"
+
+# 7b. docs/ai-index.html (prose "Version:" line)
+update_file "$PROJECT_ROOT/docs/ai-index.html" \
+    "<p><strong>Version:</strong> $CURRENT_VERSION" \
+    "<p><strong>Version:</strong> $NEW_VERSION" \
+    "docs/ai-index.html (prose version)"
+
+# 7c. docs/ai-index.html (Quick Facts "Current Version:" line)
+update_file "$PROJECT_ROOT/docs/ai-index.html" \
+    "<li><strong>Current Version:</strong> $CURRENT_VERSION" \
+    "<li><strong>Current Version:</strong> $NEW_VERSION" \
+    "docs/ai-index.html (quick facts)"
 
 # 8. docs/BACKLOG.md (current version header)
 if [ -f "$PROJECT_ROOT/docs/BACKLOG.md" ]; then

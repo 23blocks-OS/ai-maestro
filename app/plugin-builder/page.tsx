@@ -35,21 +35,21 @@ export default function PluginBuilderPage() {
   const buildConfig: PluginBuildConfig = useMemo(() => ({
     name,
     version,
-    description: description || undefined,
+    description,
     skills,
     includeHooks,
   }), [name, version, description, skills, includeHooks])
 
-  // Validation
+  // Validation: name must start and end with alphanumeric; hyphens/underscores are internal-only separators
   const isValid = name.trim().length > 0
-    && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
+    && /^[a-zA-Z0-9]+(?:[_-][a-zA-Z0-9]+)*$/.test(name)
     && version.trim().length > 0
     && skills.length > 0
 
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
-    : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    : !/^[a-zA-Z0-9]+(?:[_-][a-zA-Z0-9]+)*$/.test(name)
+    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only; no leading/trailing special characters)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

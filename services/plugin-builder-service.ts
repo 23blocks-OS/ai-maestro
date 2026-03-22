@@ -161,6 +161,21 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     }
+    if (skill.type === 'marketplace') {
+      // Reject path traversal and absolute paths — these values are used in path.join inside generateManifest
+      if (!skill.marketplace || skill.marketplace.includes('..') || path.isAbsolute(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Invalid marketplace name`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": Marketplace name contains invalid characters`
+      }
+      if (!skill.plugin || skill.plugin.includes('..') || path.isAbsolute(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": Invalid plugin name`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": Plugin name contains invalid characters`
+      }
+    }
   }
 
   return null
@@ -175,10 +190,13 @@ function evictStaleBuildResults(): void {
   for (const [id, result] of buildResults) {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
+      // Read buildDir before deleting the map entry so we can clean up the mkdtemp directory
+      const buildDir = result.buildDir
       buildResults.delete(id)
-      // Best-effort cleanup of build directory
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      // Best-effort cleanup of the actual temp directory created by mkdtemp
+      if (buildDir) {
+        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error('Failed to remove stale build dir:', err))
+      }
     }
   }
 
@@ -187,10 +205,14 @@ function evictStaleBuildResults(): void {
     const entries = [...buildResults.entries()]
       .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
     const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
-    for (const [id] of toRemove) {
+    for (const [id, result] of toRemove) {
+      // Read buildDir from the already-captured result entry (before deleting from the map)
+      const buildDir = result.buildDir
       buildResults.delete(id)
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      // Best-effort cleanup of the actual temp directory created by mkdtemp
+      if (buildDir) {
+        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error('Failed to remove stale build dir:', err))
+      }
     }
   }
 }
@@ -322,10 +344,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
 
     activeOps++
     const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
-
-    // Create build directory
-    await fs.mkdir(buildDir, { recursive: true })
+    // Use mkdtemp so the directory name is unpredictable and the dir is created atomically,
+    // eliminating the TOCTOU race condition that existed with a predictable path + mkdir.
+    const buildDir = await fs.mkdtemp(path.join(BUILDS_DIR, 'build-'))
 
     // Generate manifest
     const manifest = generateManifest(config)
@@ -353,13 +374,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       }
     }
 
-    // Initialize build result
+    // Initialize build result — store buildDir so eviction can clean up the mkdtemp path
     const result: PluginBuildResult = {
       buildId,
       status: 'building',
       logs: [],
       manifest,
       createdAt: new Date().toISOString(),
+      buildDir,
     }
     buildResults.set(buildId, result)
 
@@ -419,8 +441,8 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 
-  const scanId = randomUUID().slice(0, 8)
-  const scanDir = path.join(os.tmpdir(), `ai-maestro-scan-${scanId}`)
+  // Use mkdtemp for a secure unique directory — prevents race conditions and symlink attacks
+  const scanDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-maestro-scan-'))
 
   try {
     activeOps++
@@ -486,8 +508,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 
-  const pushId = randomUUID().slice(0, 8)
-  const pushDir = path.join(os.tmpdir(), `ai-maestro-push-${pushId}`)
+  // Use mkdtemp for a secure unique directory — prevents race conditions and symlink attacks
+  const pushDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-maestro-push-'))
 
   try {
     activeOps++
@@ -603,11 +625,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
-    // Atomic replacement
+    // Atomic replacement — clear outputPath/stats so consumers never see stale success data on failure.
+    // buildDir is explicitly preserved so evictStaleBuildResults can still clean up the temp directory.
     buildResults.set(buildId, {
       ...existing,
       status: 'failed',
       logs,
+      buildDir: existing.buildDir,
+      outputPath: undefined,
+      stats: undefined,
     })
   }
 }

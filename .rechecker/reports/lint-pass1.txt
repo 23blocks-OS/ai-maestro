@@ -1,0 +1,61 @@
+=== ESLint (TypeScript/TSX) ===
+No issues found (exit 0)
+
+=== ShellCheck (scripts/remote-install.sh) ===
+In scripts/remote-install.sh line 775:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else.
+
+In scripts/remote-install.sh line 786:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else.
+
+In scripts/remote-install.sh line 795:
+                _install_npm_global @anthropic-ai/claude-code && {
+                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else.
+
+In scripts/remote-install.sh line 798:
+                    NEED_CLAUDE=false
+                    ^---------^ SC2034 (warning): NEED_CLAUDE appears unused.
+
+In scripts/remote-install.sh line 802:
+                _install_npm_global @openai/codex && {
+                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else.
+
+In scripts/remote-install.sh line 804:
+                    HAS_CODEX=true
+                    ^-------^ SC2034 (warning): HAS_CODEX appears unused.
+
+In scripts/remote-install.sh line 826:
+            HAS_TAILSCALE=true
+            ^-----------^ SC2034 (warning): HAS_TAILSCALE appears unused.
+
+In scripts/remote-install.sh line 1061:
+                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                                         ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+In scripts/remote-install.sh line 1105:
+    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+                                ^-----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+In scripts/remote-install.sh line 1126:
+                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                                            ^-----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+In scripts/remote-install.sh line 1161:
+            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                                        ^-----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+In scripts/remote-install.sh line 1198:
+    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+                                     ^-----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+In scripts/remote-install.sh line 1233:
+        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+                                         ^-----^ SC2086 (info): Double quote to prevent globbing and word splitting.
+
+In scripts/remote-install.sh line 1343:
+        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+                                          ^----^ SC2034 (warning): PURPLE appears unused.
+                                                    ^--^ SC2034 (warning): CYAN appears unused.
+                                                            ^--^ SC2034 (warning): BOLD appears unused.

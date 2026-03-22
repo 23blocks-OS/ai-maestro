@@ -45,6 +45,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }, [])
 
   const handleBuild = async () => {
+    // Prevent multiple concurrent builds from being triggered
+    if (building) return
+
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
 
@@ -119,13 +122,15 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (!forkUrl.trim() || !result?.manifest) return
 
     // Client-side URL validation
-    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+(\.git)?$/)) {
       setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
       return
     }
 
     setPushing(true)
     setPushResult(null)
+    // Clear any stale error from a previous action so the UI shows a clean state
+    setError(null)
 
     try {
       const res = await fetch('/api/plugin-builder/push', {
@@ -151,11 +156,15 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const copyInstallCommand = () => {
     if (!result?.outputPath) return
+    // Clear any previous clipboard error before retrying
+    setError(null)
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
-      // Clipboard API not available (insecure context or unfocused)
+      // Clipboard API not available (insecure context or unfocused) — show temporary error
+      setError('Failed to copy command to clipboard')
+      setTimeout(() => setError(null), 3000)
     })
   }
 
@@ -220,7 +229,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {/* Show disabledReason whenever the button is actually disabled */}
+        {disabledReason && disabled && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>

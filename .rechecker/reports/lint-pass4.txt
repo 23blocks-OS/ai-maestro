@@ -1,0 +1,11 @@
+=== ESLint (changed TS/TSX files) ===
+ESLint exit: 0
+
+=== shellcheck (remote-install.sh) ===
+shellcheck exit: 0
+
+Note: TSC pre-existing errors (not introduced by rechecker):
+  app/api/plugin-builder/build/route.ts - TS2345 (unknown type in argument)
+  SkillPicker.tsx - TS2353 (name not in MarketplaceSkillSelection type)
+  plugin-builder-service.ts - TS2339 (same name issue)
+  All confirmed pre-existing in original commit.

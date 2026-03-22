@@ -1,0 +1,5 @@
+=== ESLint (TypeScript/TSX) ===
+No issues found (exit 0)
+
+=== ShellCheck (scripts/remote-install.sh) ===
+No issues found after fixes (exit 0)

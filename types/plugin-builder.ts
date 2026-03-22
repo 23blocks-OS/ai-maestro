@@ -44,6 +44,7 @@ export interface PluginBuildResult {
   manifest?: PluginManifest            // Generated manifest
   stats?: PluginBuildStats
   createdAt: string                    // ISO timestamp
+  buildDir?: string                    // Temp directory created by mkdtemp; used for cleanup
 }
 
 export interface PluginBuildStats {

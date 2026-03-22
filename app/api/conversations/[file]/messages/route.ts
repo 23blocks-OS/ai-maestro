@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ file: string }> }
 ) {
   const { file: encodedFile } = await params
-  const agentId = request.nextUrl.searchParams.get('agentId') || ''
+  const agentId = request.nextUrl.searchParams.get('agentId') || undefined
 
   const result = await getConversationMessages(encodedFile, agentId)
 

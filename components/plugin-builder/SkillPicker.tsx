@@ -56,7 +56,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     }
     load()
     return () => { abortRef.current?.abort() }
-  }, [])
+  }, [setMarketplaceSkills, setLoadingMarketplace])
 
   // Filter skills by search query
   const filteredCoreSkills = useMemo(() => {
@@ -205,6 +205,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       } else {
                         onAddSkill({
                           type: 'marketplace',
+                          name: skill.name,
                           id: skill.id,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
@@ -215,7 +216,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill({ type: 'marketplace', name: skill.name, id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
                       }
                     }}
                     aria-pressed={isSelected}

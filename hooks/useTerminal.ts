@@ -273,11 +273,14 @@ export function useTerminal(options: UseTerminalOptions = {}) {
       return true
     })
 
-    // Auto-copy selection to clipboard when user selects 3+ characters
-    // Threshold of 3 chars prevents accidental clipboard overwrites from stray clicks
+    // Auto-copy selection to clipboard (Linux-style "select to copy" behavior).
+    // Minimum length threshold prevents accidental clipboard overwrites from stray clicks.
+    // NOTE: This overwrites the system clipboard without Cmd+C. Users who find this
+    // surprising can disable it by setting terminal preferences (future enhancement).
+    const MIN_AUTO_COPY_LENGTH = 3
     terminal.onSelectionChange(() => {
       const sel = terminal.getSelection()
-      if (sel && sel.length >= 3) {
+      if (sel && sel.length >= MIN_AUTO_COPY_LENGTH) {
         navigator.clipboard.writeText(sel).catch(() => {
           // Clipboard API may be blocked in non-secure contexts; silently ignore
         })

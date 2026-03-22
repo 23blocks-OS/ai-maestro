@@ -40,6 +40,7 @@ import {
   ChevronDown,
   AlertTriangle,
   XCircle,
+  Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
@@ -178,9 +179,13 @@ export default function AgentList({
   const createDropdownRef = useRef<HTMLDivElement>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
-    if (typeof window === 'undefined') return 'list'
-    return (localStorage.getItem('agent-sidebar-view-mode') as 'list' | 'grid') || 'list'
+  const [viewMode, setViewMode] = useState<'normal' | 'compact'>(() => {
+    if (typeof window === 'undefined') return 'compact'
+    const saved = localStorage.getItem('agent-sidebar-view-mode')
+    // Migrate old values
+    if (saved === 'list') return 'compact'
+    if (saved === 'grid') return 'normal'
+    return (saved as 'normal' | 'compact') || 'compact'
   })
   // Track if user manually toggled view mode (don't auto-switch if true)
   const [userOverrodeViewMode, setUserOverrodeViewMode] = useState(false)
@@ -228,7 +233,19 @@ export default function AgentList({
   // Session activity tracking (for waiting/active/idle status)
   const { getSessionActivity } = useSessionActivity()
 
-  // State for accordion panels - load from localStorage
+  // Teams data for team-based grouping (closed teams only)
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; agentIds: string[]; type: string }>>([])
+  useEffect(() => {
+    fetch('/api/teams').then(r => r.ok ? r.json() : { teams: [] }).then(data => {
+      // Only use closed teams for sidebar grouping
+      setTeams((data.teams || []).filter((t: { type: string }) => t.type === 'closed'))
+    }).catch(() => {})
+  }, [])
+
+  // State for team accordion panels — all collapsed by default
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+
+  // Legacy accordion state (kept for compatibility but using expandedTeams now)
   const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
     const saved = localStorage.getItem('agent-sidebar-expanded-level1')
@@ -281,23 +298,35 @@ export default function AgentList({
     return result
   }, [agents, selectedHostFilter, statusFilter, searchQuery])
 
-  // Group agents by tags (level1 = first tag, level2 = second tag)
-  const groupedAgents = useMemo(() => {
-    const groups: Record<string, Record<string, UnifiedAgent[]>> = {}
+  // Group agents by closed team membership
+  const teamGroupedAgents = useMemo(() => {
+    const groups: Record<string, { teamName: string; agents: UnifiedAgent[] }> = {}
+    // Build a set of agent IDs that belong to closed teams
+    const agentTeamMap = new Map<string, string>() // agentId → teamName
+    for (const team of teams) {
+      for (const aid of team.agentIds) {
+        agentTeamMap.set(aid, team.name)
+      }
+    }
 
     filteredAgents.forEach((agent) => {
-      const tags = agent.tags || []
-      const level1 = tags[0] || 'ungrouped'
-      const level2 = tags[1] || 'default'
-
-      if (!groups[level1]) groups[level1] = {}
-      if (!groups[level1][level2]) groups[level1][level2] = []
-
-      groups[level1][level2].push(agent)
+      const teamName = agentTeamMap.get(agent.id) || 'NO-TEAM'
+      if (!groups[teamName]) groups[teamName] = { teamName, agents: [] }
+      groups[teamName].agents.push(agent)
     })
 
     return groups
-  }, [filteredAgents])
+  }, [filteredAgents, teams])
+
+  // Legacy groupedAgents for backward compat (unused now, but referenced by countAgentsInCategory etc.)
+  const groupedAgents = useMemo(() => {
+    const groups: Record<string, Record<string, UnifiedAgent[]>> = {}
+    // Map team groups into the old format (level1=team, level2='default')
+    for (const [teamName, group] of Object.entries(teamGroupedAgents)) {
+      groups[teamName] = { default: group.agents }
+    }
+    return groups
+  }, [teamGroupedAgents])
 
   // Calculate grid columns based on sidebar width
   // 320px = 1 col, 480px = 2 cols, 640px+ = 3 cols
@@ -324,10 +353,10 @@ export default function AgentList({
 
     // Auto-switch if user hasn't manually overridden
     if (!userOverrodeViewMode) {
-      if (sidebarWidth >= 480 && viewMode === 'list') {
-        setViewMode('grid')
-      } else if (sidebarWidth < 480 && viewMode === 'grid') {
-        setViewMode('list')
+      if (sidebarWidth >= 480 && viewMode === 'compact') {
+        setViewMode('normal')
+      } else if (sidebarWidth < 480 && viewMode === 'normal') {
+        setViewMode('compact')
       }
     }
   }, [sidebarWidth, viewMode, userOverrodeViewMode])
@@ -763,14 +792,14 @@ export default function AgentList({
             {/* View mode toggle */}
             <button
               onClick={() => {
-                setViewMode(viewMode === 'list' ? 'grid' : 'list')
+                setViewMode(viewMode === 'compact' ? 'normal' : 'compact')
                 setUserOverrodeViewMode(true) // User manually toggled, respect their choice
               }}
               className="p-1.5 rounded-lg hover:bg-sidebar-hover transition-all duration-200 text-gray-400 hover:text-gray-200 hover:scale-110"
-              aria-label={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
-              title={viewMode === 'list' ? 'Grid view' : 'List view'}
+              aria-label={viewMode === 'compact' ? 'Switch to normal view' : 'Switch to compact view'}
+              title={viewMode === 'compact' ? 'Normal view' : 'Compact view'}
             >
-              {viewMode === 'list' ? (
+              {viewMode === 'compact' ? (
                 <LayoutGrid className="w-4 h-4" />
               ) : (
                 <List className="w-4 h-4" />
@@ -825,30 +854,6 @@ export default function AgentList({
               {filteredAgents.length} result{filteredAgents.length !== 1 ? 's' : ''}
             </div>
           )}
-        </div>
-
-        {/* Status Filter Tabs: ACTIVE / ALL / HIBER */}
-        <div className="mt-3 px-2 flex items-center gap-1 bg-gray-800/30 rounded-lg p-1">
-          {([
-            { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length },
-            { key: 'all' as const, label: 'ALL', count: agents.length },
-            { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length },
-          ]).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={`flex-1 py-1 px-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                statusFilter === tab.key
-                  ? tab.key === 'active' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : tab.key === 'hiber' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                  : 'text-gray-500 hover:text-gray-400 hover:bg-gray-700/50 border border-transparent'
-              }`}
-            >
-              {tab.label}
-              <span className="ml-1 opacity-60">{tab.count}</span>
-            </button>
-          ))}
         </div>
 
         {/* Host List - Collapsible */}
@@ -944,6 +949,32 @@ export default function AgentList({
 
         {/* View Switcher */}
         <SidebarViewSwitcher activeView={sidebarView} onViewChange={setSidebarView} />
+
+        {/* Status Filter Tabs — only in agents view, below the view switcher */}
+        {sidebarView === 'agents' && (
+          <div className="mt-1 px-2 flex items-center gap-0">
+            {([
+              { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length },
+              { key: 'all' as const, label: 'ALL', count: agents.length },
+              { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`flex-1 py-1.5 px-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
+                  statusFilter === tab.key
+                    ? tab.key === 'active' ? 'text-emerald-300 border-emerald-400 bg-emerald-500/10 shadow-[inset_0_-1px_4px_rgba(16,185,129,0.15)]'
+                      : tab.key === 'hiber' ? 'text-amber-300 border-amber-400 bg-amber-500/10 shadow-[inset_0_-1px_4px_rgba(245,158,11,0.15)]'
+                      : 'text-blue-300 border-blue-400 bg-blue-500/10 shadow-[inset_0_-1px_4px_rgba(59,130,246,0.15)]'
+                    : 'text-gray-500 border-transparent hover:text-gray-400 hover:bg-gray-800/30'
+                }`}
+              >
+                {tab.label}
+                <span className="ml-1 opacity-60">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Error State */}
@@ -1021,21 +1052,30 @@ export default function AgentList({
               Create Your First Agent
             </button>
           </div>
-        ) : viewMode === 'grid' ? (
-          /* Grid View - Corporate Badge Layout with Collapsible Tag Groups */
+        ) : viewMode === 'normal' ? (
+          /* Normal View — Full card with avatar image, grouped by closed team */
           <div className="p-3 space-y-3">
-            {Object.entries(groupedAgents)
-              .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
-              .map(([level1, level2Groups]) => {
-                const colors = getCategoryColor(level1)
-                const agentCount = countAgentsInCategory(level1)
-                const isExpanded = expandedLevel1.has(level1)
+            {Object.entries(teamGroupedAgents)
+              .sort(([a], [b]) => {
+                // NO-TEAM always last
+                if (a === 'NO-TEAM') return 1
+                if (b === 'NO-TEAM') return -1
+                return a.toLowerCase().localeCompare(b.toLowerCase())
+              })
+              .map(([teamName, group]) => {
+                const colors = getCategoryColor(teamName)
+                const isExpanded = expandedTeams.has(teamName)
 
                 return (
-                  <div key={level1} className="rounded-lg overflow-hidden border border-slate-700/50">
-                    {/* Level 1 Header - Collapsible */}
+                  <div key={teamName} className="rounded-lg overflow-hidden border border-slate-700/50">
+                    {/* Team Header - Collapsible */}
                     <button
-                      onClick={() => toggleLevel1(level1)}
+                      onClick={() => setExpandedTeams(prev => {
+                        const next = new Set(prev)
+                        if (next.has(teamName)) next.delete(teamName)
+                        else next.add(teamName)
+                        return next
+                      })}
                       className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-700/30 transition-colors"
                       style={{ backgroundColor: colors.bg }}
                     >
@@ -1043,66 +1083,32 @@ export default function AgentList({
                         className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
                         style={{ color: colors.icon }}
                       />
+                      <Users className="w-3.5 h-3.5" style={{ color: colors.icon }} />
                       <span
                         className="font-bold uppercase text-xs tracking-wider flex-1 text-left"
                         style={{ color: colors.icon }}
                       >
-                        {level1}
+                        {teamName}
                       </span>
                       <span
                         className="text-xs px-2 py-0.5 rounded-full font-medium"
                         style={{ backgroundColor: colors.active, color: colors.activeText }}
                       >
-                        {agentCount}
+                        {group.agents.length}
                       </span>
                     </button>
 
-                    {/* Level 1 Content */}
+                    {/* Team Content */}
                     {isExpanded && (
-                      <div className="p-2 space-y-3 bg-slate-900/30">
-                        {Object.entries(level2Groups)
-                          .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
-                          .map(([level2, agentsList]) => {
-                            const level2Key = `${level1}-${level2}`
-                            const isLevel2Expanded = expandedLevel2.has(level2Key)
-
-                            return (
-                              <div key={level2Key}>
-                                {/* Level 2 Header - Collapsible (skip if "default") */}
-                                {level2 !== 'default' && (
-                                  <button
-                                    onClick={() => toggleLevel2(level1, level2)}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 mb-2 rounded-md hover:bg-slate-700/30 transition-colors"
-                                  >
-                                    <ChevronRight
-                                      className={`w-3 h-3 transition-transform duration-200 text-slate-400 ${isLevel2Expanded ? 'rotate-90' : ''}`}
-                                    />
-                                    <Folder className="w-3.5 h-3.5" style={{ color: colors.icon }} />
-                                    <span className="text-xs text-slate-300 capitalize flex-1 text-left">
-                                      {level2}
-                                    </span>
-                                    <span
-                                      className="text-[10px] px-1.5 py-0.5 rounded-full"
-                                      style={{ backgroundColor: colors.bg, color: colors.icon }}
-                                    >
-                                      {agentsList.length}
-                                    </span>
-                                  </button>
-                                )}
-
-                                {/* Agent Grid */}
-                                {(level2 === 'default' || isLevel2Expanded) && (
-                                  <div
+                      <div className="p-2 bg-slate-900/30">
+                                <div
                                     className="grid gap-2"
                                     style={{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }}
                                   >
-                                    {[...agentsList]
+                                    {[...group.agents]
                                       .sort((a, b) => {
-                                        // Sort by status first (online > hibernated > offline), then by alias
-                                        const aSession = a.sessions?.[0]
-                                        const bSession = b.sessions?.[0]
-                                        const aOnline = aSession?.status === 'online' ? 2 : (a.sessions?.length ? 1 : 0)
-                                        const bOnline = bSession?.status === 'online' ? 2 : (b.sessions?.length ? 1 : 0)
+                                        const aOnline = a.sessions?.[0]?.status === 'online' ? 2 : (a.sessions?.length ? 1 : 0)
+                                        const bOnline = b.sessions?.[0]?.status === 'online' ? 2 : (b.sessions?.length ? 1 : 0)
                                         if (aOnline !== bOnline) return bOnline - aOnline
                                         return (a.label || a.name || a.alias || '').toLowerCase().localeCompare((b.label || b.name || b.alias || '').toLowerCase())
                                       })
@@ -1134,10 +1140,6 @@ export default function AgentList({
                                         )
                                       })}
                                   </div>
-                                )}
-                              </div>
-                            )
-                          })}
                       </div>
                     )}
                   </div>
@@ -1145,29 +1147,31 @@ export default function AgentList({
               })}
           </div>
         ) : (
-          /* List View - Hierarchical Layout */
+          /* Compact View — grouped by closed team */
           <div className="py-2">
-            {Object.entries(groupedAgents)
-              .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
-              .map(([level1, level2Groups]) => {
-              const colors = getCategoryColor(level1)
-              const isExpanded = expandedLevel1.has(level1)
-              const CategoryIcon = DEFAULT_ICON
-              const agentCount = countAgentsInCategory(level1)
+            {Object.entries(teamGroupedAgents)
+              .sort(([a], [b]) => {
+                if (a === 'NO-TEAM') return 1
+                if (b === 'NO-TEAM') return -1
+                return a.toLowerCase().localeCompare(b.toLowerCase())
+              })
+              .map(([teamName, group]) => {
+              const colors = getCategoryColor(teamName)
+              const isExpanded = expandedTeams.has(teamName)
 
               return (
-                <div key={level1} className="mb-1">
-                  {/* Level 1 Header - Drop target */}
+                <div key={teamName} className="mb-1">
+                  {/* Team Header */}
                   <button
-                    onClick={() => toggleLevel1(level1)}
-                    onDragOver={(e) => handleDragOver(e, level1)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, level1)}
-                    className={`w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-sidebar-hover transition-all duration-200 group rounded-lg mx-1 ${
-                      dropTarget === level1 ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900' : ''
-                    }`}
+                    onClick={() => setExpandedTeams(prev => {
+                      const next = new Set(prev)
+                      if (next.has(teamName)) next.delete(teamName)
+                      else next.add(teamName)
+                      return next
+                    })}
+                    className={`w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-sidebar-hover transition-all duration-200 group rounded-lg mx-1`}
                     style={{
-                      backgroundColor: dropTarget === level1 ? colors.active : (isExpanded ? colors.bg : 'transparent'),
+                      backgroundColor: isExpanded ? colors.bg : 'transparent',
                     }}
                   >
                     <div
@@ -1177,7 +1181,7 @@ export default function AgentList({
                         border: `1px solid ${colors.border}40`,
                       }}
                     >
-                      <CategoryIcon className="w-4 h-4" style={{ color: colors.icon }} />
+                      <Users className="w-4 h-4" style={{ color: colors.icon }} />
                     </div>
 
                     <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -1185,7 +1189,7 @@ export default function AgentList({
                         className="font-semibold uppercase text-xs tracking-wider truncate"
                         style={{ color: isExpanded ? colors.activeText : colors.icon }}
                       >
-                        {level1}
+                        {teamName}
                       </span>
                       <span
                         className="text-xs font-medium px-2 py-0.5 rounded-full transition-all duration-200"
@@ -1195,7 +1199,7 @@ export default function AgentList({
                           border: `1px solid ${colors.border}30`,
                         }}
                       >
-                        {agentCount}
+                        {group.agents.length}
                       </span>
                     </div>
 
@@ -1207,63 +1211,11 @@ export default function AgentList({
                     />
                   </button>
 
-                  {/* Level 2 Groups */}
+                  {/* Team Agents */}
                   {isExpanded && (
                     <div className="ml-2 mt-1 space-y-0.5">
-                      {Object.entries(level2Groups)
-                        .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
-                        .map(([level2, agentsList]) => {
-                        const level2Key = `${level1}-${level2}`
-                        const isLevel2Expanded = expandedLevel2.has(level2Key)
-
-                        return (
-                          <div key={level2Key}>
-                            {/* Level 2 Header (hide if it's "default") - Drop target */}
-                            {level2 !== 'default' && (
-                              <button
-                                onClick={() => toggleLevel2(level1, level2)}
-                                onDragOver={(e) => handleDragOver(e, level2Key)}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, level1, level2)}
-                                className={`w-full px-3 py-2 pl-10 flex items-center gap-2 text-left hover:bg-sidebar-hover transition-all duration-200 rounded-lg group ${
-                                  dropTarget === level2Key ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-gray-900' : ''
-                                }`}
-                              >
-                                <div className="flex-shrink-0">
-                                  {isLevel2Expanded ? (
-                                    <FolderOpen className="w-3.5 h-3.5" style={{ color: colors.icon }} />
-                                  ) : (
-                                    <Folder className="w-3.5 h-3.5" style={{ color: colors.icon }} />
-                                  )}
-                                </div>
-
-                                <span className="text-sm text-gray-300 capitalize flex-1 truncate">
-                                  {level2}
-                                </span>
-
-                                <span
-                                  className="text-xs px-1.5 py-0.5 rounded-full"
-                                  style={{
-                                    backgroundColor: colors.bg,
-                                    color: colors.icon,
-                                  }}
-                                >
-                                  {agentsList.length}
-                                </span>
-
-                                <ChevronRight
-                                  className={`w-3 h-3 transition-transform duration-200 ${
-                                    isLevel2Expanded ? 'rotate-90' : ''
-                                  }`}
-                                  style={{ color: colors.icon }}
-                                />
-                              </button>
-                            )}
-
-                            {/* Agents */}
-                            {(level2 === 'default' || isLevel2Expanded) && (
                               <ul className="space-y-0.5">
-                                {[...agentsList]
+                                {[...group.agents]
                                   .sort((a, b) => {
                                     // Sort by status first (online > hibernated > offline), then by alias
                                     const aSession = a.sessions?.[0]
@@ -1278,7 +1230,7 @@ export default function AgentList({
                                   const session = agent.sessions?.[0]
                                   const isOnline = session?.status === 'online'
                                   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
-                                  const indentClass = level2 === 'default' ? 'pl-10' : 'pl-14'
+                                  const indentClass = 'pl-10'
 
                                   // Get activity status for online agents
                                   const sessionName = agent.name
@@ -1477,10 +1429,6 @@ export default function AgentList({
                                   )
                                 })}
                               </ul>
-                            )}
-                          </div>
-                        )
-                      })}
                     </div>
                   )}
 

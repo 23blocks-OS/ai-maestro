@@ -349,20 +349,20 @@ export default function AgentBadge({
           )}
         </div>
 
-        {/* Alias - Prominent display */}
+        {/* Alias - Prominent display, centered */}
         {(agent.label || agent.alias) && (
           <h3 className={`
-            mt-3 font-bold text-base leading-tight
+            mt-3 font-bold text-base leading-tight text-center
             ${isHibernated ? 'text-slate-500' : 'text-slate-100'}
           `}>
             {agent.label || agent.alias}
           </h3>
         )}
 
-        {/* Full name and host - Secondary info */}
+        {/* Full name and host - Secondary info, centered */}
         <div className={`${(agent.label || agent.alias) ? 'mt-1' : 'mt-3'} w-full`}>
           <p className={`
-            text-[11px] leading-tight flex items-center gap-1
+            text-[11px] leading-tight flex items-center justify-center gap-1
             ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
           `}>
             {agent.name}

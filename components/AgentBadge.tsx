@@ -139,9 +139,9 @@ export default function AgentBadge({
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // agent.session (singular) = live runtime status from API (online/offline)
-  // agent.sessions[] = stored session config array (presence means hibernatable)
-  const isOnline = agent.session?.status === 'online'
+  // Check both agent.session (live runtime) and agent.sessions[0] (stored config)
+  // because the API may populate one or the other depending on the endpoint
+  const isOnline = agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
   const statusInfo = getStatusInfo(isOnline, isHibernated, activityStatus)
@@ -220,12 +220,17 @@ export default function AgentBadge({
         ) : (
           <div className="relative flex items-center justify-center" title={statusInfo.label}>
             {statusInfo.pulse && (
-              <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
+              <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-40`} />
             )}
+            {/* Glass-like LED dot */}
             <span
-              className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-black/50`}
+              className="relative w-4 h-4 rounded-full"
               style={{
-                boxShadow: `0 0 ${statusInfo.pulse ? '12px 4px' : '6px 2px'} ${statusInfo.pulseColor}`,
+                background: `radial-gradient(circle at 35% 35%, ${statusInfo.pulseColor}cc, ${statusInfo.pulseColor}${statusInfo.pulse ? '99' : '55'})`,
+                boxShadow: statusInfo.pulse
+                  ? `0 0 10px 3px ${statusInfo.pulseColor}88, inset 0 -1px 2px ${statusInfo.pulseColor}40, inset 0 1px 2px rgba(255,255,255,0.3)`
+                  : `0 0 4px 1px ${statusInfo.pulseColor}44, inset 0 -1px 2px ${statusInfo.pulseColor}20, inset 0 1px 2px rgba(255,255,255,0.15)`,
+                border: `1px solid ${statusInfo.pulseColor}40`,
               }}
             />
           </div>

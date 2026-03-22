@@ -1132,8 +1132,7 @@ export default function AgentList({
                                   })
                                   .map((agent) => {
                                   const isActive = activeAgentId === agent.id
-                                  const session = agent.sessions?.[0]
-                                  const isOnline = session?.status === 'online'
+                                  const isOnline = agent.session?.status === 'online' || agent.sessions?.[0]?.status === 'online'
                                   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
                                   const indentClass = 'pl-10'
 
@@ -1520,8 +1519,9 @@ function AgentStatusIndicator({
 
   if (isHibernated) {
     return (
-      <div className="flex items-center flex-shrink-0" title="Hibernated - Click to wake">
-        <Power className="w-3.5 h-3.5 text-gray-500" />
+      <div className="flex items-center gap-1.5 flex-shrink-0" title="Hibernated">
+        <div className="w-2 h-2 rounded-full bg-slate-500 ring-2 ring-slate-500/30" />
+        <span className="text-xs text-gray-500 hidden lg:inline">Hiber</span>
       </div>
     )
   }

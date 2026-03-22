@@ -76,8 +76,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    // Use filtered lengths so the count always matches the visible list
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -129,7 +130,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               const Icon = skill.icon
               return (
                 <div
-                  key={skill.name}
+                  key={key}
                   role="button"
                   tabIndex={0}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -191,7 +192,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    key={key}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${

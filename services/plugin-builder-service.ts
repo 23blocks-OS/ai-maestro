@@ -316,6 +316,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Track whether the async build was successfully launched.  Declared
+  // outside the try block so the catch block can read it and decide whether
+  // it is responsible for decrementing activeOps (pre-launch error path) or
+  // whether runBuild's own .finally() handler is responsible (post-launch
+  // path).  This guarantees activeOps is decremented exactly once.
+  let buildLaunched = false
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
@@ -363,7 +370,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Set the flag immediately before launching so any post-launch path
+    // (including runBuild's rejection handler) owns the activeOps decrement.
+    buildLaunched = true
+
+    // Run build asynchronously (fire-and-forget from buildPlugin's perspective)
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -376,12 +387,18 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
         })
       }
     }).finally(() => {
+      // This is the sole decrement for the launched-build path.
       activeOps = Math.max(0, activeOps - 1)
     })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement here if runBuild was never launched.  If buildLaunched
+    // is true, runBuild's .finally() handler has already taken ownership of
+    // the decrement and doing it again here would corrupt the counter.
+    if (!buildLaunched) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -589,9 +606,18 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       // Stats collection failed — non-critical
     }
 
-    // Atomic replacement: avoids torn reads from polling clients
+    // Re-read current entry so we don't overwrite any fields updated since
+    // runBuild was launched (the async build takes up to 120s).
+    // Do NOT fall back to `existing` if the entry was evicted: re-adding an
+    // evicted entry would resurrect a build that eviction deliberately removed.
+    const current = buildResults.get(buildId)
+    if (!current) {
+      // Entry was evicted by evictStaleBuildResults while the build was
+      // running — do not re-add it.
+      return
+    }
     buildResults.set(buildId, {
-      ...existing,
+      ...current,
       status: 'complete',
       outputPath,
       logs: output.split('\n'),
@@ -603,9 +629,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
-    // Atomic replacement
+    // Re-read current entry so we don't overwrite any fields updated since
+    // runBuild was launched.  Same eviction guard as the success path above.
+    const current = buildResults.get(buildId)
+    if (!current) {
+      // Entry was evicted — do not re-add it.
+      return
+    }
     buildResults.set(buildId, {
-      ...existing,
+      ...current,
       status: 'failed',
       logs,
     })
@@ -706,7 +738,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build/git output can be verbose
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

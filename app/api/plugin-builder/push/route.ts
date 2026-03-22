@@ -38,9 +38,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // JSON parsing errors from request.json() are SyntaxErrors — report them as 400
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    // All other errors (e.g. exceptions thrown inside pushToGitHub) are internal failures
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Failed to push to GitHub due to an internal server error.' },
+      { status: 500 }
     )
   }
 }

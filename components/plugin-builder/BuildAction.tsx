@@ -67,6 +67,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        // Show logs section consistently for all failure outcomes
+        setShowLogs(true)
         return
       }
 
@@ -112,6 +114,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
+      // Show logs section consistently for all failure outcomes
+      setShowLogs(true)
     }
   }
 

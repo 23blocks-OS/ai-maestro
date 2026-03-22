@@ -759,13 +759,14 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package — suppress stdout in non-interactive (CI) mode,
+        # show full output in interactive mode so users can see progress and errors
         _install_npm_global() {
             local pkg="$1"
             if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
+                npm install -g "$pkg" >/dev/null 2>&1
             else
-                npm install -g "$pkg" 2>/dev/null
+                npm install -g "$pkg"
             fi
         }
 
@@ -1029,7 +1030,11 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+    # Fresh install: dependency failure is fatal — a broken node_modules cannot be started
+    yarn install --silent 2>/dev/null || yarn install || {
+        maestro_fail "yarn install failed — cannot continue with a broken dependency tree"
+        exit 1
+    }
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
     maestro_step 3 "$total_steps" "Setting up agent tools..." ""
@@ -1058,12 +1063,14 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            # Use @ as delimiter to avoid conflict with '/' in the URL value
+                            portable_sed "s@AIMAESTRO_API=.*@AIMAESTRO_API=http://127.0.0.1:${PORT}@" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
                         if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
-                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+                            # Use @ as delimiter for consistency
+                            portable_sed "s@DEFAULT_AGENT=.*@DEFAULT_AGENT=mailman@" .env
                         else
                             echo "DEFAULT_AGENT=mailman" >> .env
                         fi
@@ -1108,7 +1115,23 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                # Only restart the specific ai-maestro process — never restart all PM2 processes
+                # as that would affect unrelated services running under pm2.
+                # Try each ecosystem config in order of preference (.cjs first, then .js),
+                # falling back to a name-based restart only when neither config file is present
+                # or both fail. This mirrors the fresh-install pm2 start logic so .js is always
+                # tried before the name-based fallback, regardless of whether .cjs exists.
+                local pm2_restarted=false
+                if [ -f "ecosystem.config.cjs" ]; then
+                    pm2 restart ecosystem.config.cjs --env production 2>/dev/null && pm2_restarted=true
+                fi
+                if [ "$pm2_restarted" = false ] && [ -f "ecosystem.config.js" ]; then
+                    pm2 restart ecosystem.config.js --env production 2>/dev/null && pm2_restarted=true
+                fi
+                if [ "$pm2_restarted" = false ]; then
+                    pm2 restart ai-maestro 2>/dev/null || \
+                        maestro_warn "Failed to restart 'ai-maestro' PM2 process — service may need manual restart"
+                fi
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1137,13 +1160,18 @@ act4_start_and_register() {
         # Start the service
         cd "$INSTALL_DIR"
         if command -v pm2 &>/dev/null; then
+            # Try each ecosystem config in order of preference (.cjs first, then .js),
+            # falling back to a plain yarn start only when neither config file is present
+            # or both fail to start. This ensures .js is always tried before yarn start,
+            # regardless of whether .cjs exists.
+            local pm2_started=false
             if [ -f "ecosystem.config.cjs" ]; then
-                pm2 start ecosystem.config.cjs --env production 2>/dev/null || \
-                    pm2 start "yarn start" --name ai-maestro 2>/dev/null
-            elif [ -f "ecosystem.config.js" ]; then
-                pm2 start ecosystem.config.js --env production 2>/dev/null || \
-                    pm2 start "yarn start" --name ai-maestro 2>/dev/null
-            else
+                pm2 start ecosystem.config.cjs --env production 2>/dev/null && pm2_started=true
+            fi
+            if [ "$pm2_started" = false ] && [ -f "ecosystem.config.js" ]; then
+                pm2 start ecosystem.config.js --env production 2>/dev/null && pm2_started=true
+            fi
+            if [ "$pm2_started" = false ]; then
                 pm2 start "yarn start" --name ai-maestro 2>/dev/null
             fi
             pm2 save 2>/dev/null || true
@@ -1183,7 +1211,7 @@ act4_start_and_register() {
     # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
     # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\].*^$|&\\\/]/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
@@ -1227,7 +1255,11 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape sed replacement metacharacters (& means "matched text", \ starts escapes)
+            # in gw_list before substituting into the CLAUDE.md template
+            local safe_gw_list
+            safe_gw_list=$(printf '%s' "$gw_list" | sed 's/[&\\|]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${safe_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1297,16 +1329,53 @@ act5_grand_finale() {
             # Not in tmux — create session and attach (handle re-install collision)
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
+                # Attempt to attach; if the session exists but attach fails (e.g. the session
+                # exited between has-session and attach-session), kill the stale session and
+                # fall through to create a fresh one rather than failing hard.
+                if tmux attach-session -t "my-first-agent" 2>/dev/null; then
+                    # Attach succeeded and the user has now detached — show success messages
+                    # only on this path, not on the failure path that recreates the session.
+                    echo ""
+                    maestro_ok "Welcome back! Your agent session is still running in tmux."
+                    maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
+                    maestro_info "Dashboard: http://localhost:${PORT}"
+                else
+                    maestro_warn "Existing 'my-first-agent' session could not be attached — recreating..."
+                    tmux kill-session -t "my-first-agent" 2>/dev/null || true
+                    maestro_info "Creating new 'my-first-agent' session..."
+                    tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
+                        "$AI_TOOL \"$INITIAL_PROMPT\"" || {
+                        maestro_fail "Failed to create tmux session for 'my-first-agent'."
+                        maestro_info "You can try manually: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL \"$INITIAL_PROMPT\"'"
+                        exit 1
+                    }
+                    sleep 1
+                    tmux attach-session -t "my-first-agent" || {
+                        maestro_fail "Failed to attach to 'my-first-agent' session."
+                        maestro_info "Attach manually: tmux attach-session -t my-first-agent"
+                        exit 1
+                    }
+                    echo ""
+                    maestro_ok "Welcome back! Your agent session is still running in tmux."
+                    maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
+                    maestro_info "Dashboard: http://localhost:${PORT}"
+                fi
             else
+                maestro_info "Creating new 'my-first-agent' session..."
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL \"$INITIAL_PROMPT\"" || {
+                    maestro_fail "Failed to create tmux session for 'my-first-agent'."
+                    maestro_info "You can try manually: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL \"$INITIAL_PROMPT\"'"
+                    exit 1
+                }
+                # Give tmux a moment to start the session before attaching
+                sleep 1
+                tmux attach-session -t "my-first-agent" || {
+                    maestro_fail "Failed to attach to 'my-first-agent' session."
+                    maestro_info "Attach manually: tmux attach-session -t my-first-agent"
+                    exit 1
+                }
             fi
-            sleep 2
-            tmux attach-session -t "my-first-agent"
-            echo ""
-            maestro_ok "Welcome back! Your agent session is still running in tmux."
-            maestro_info "Reattach anytime: tmux attach-session -t my-first-agent"
-            maestro_info "Dashboard: http://localhost:${PORT}"
         fi
 
     elif [ -n "$AI_TOOL" ] && [ "$NON_INTERACTIVE" = true ]; then

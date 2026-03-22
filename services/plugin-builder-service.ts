@@ -317,10 +317,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   }
 
   try {
+    // Increment FIRST so the finally/catch always has a paired decrement
+    activeOps++
+
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
-
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -685,13 +686,15 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Guard: if every character was stripped (e.g. url was all punctuation), use a stable fallback
+  return sanitized || 'unknown-source'
 }
 
 /**

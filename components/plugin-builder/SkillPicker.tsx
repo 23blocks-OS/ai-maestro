@@ -71,7 +71,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
     )
   }, [searchQuery, marketplaceSkills])
 
@@ -219,7 +219,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin ?? ''} / ${skill.marketplace ?? ''}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -229,7 +229,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-200">{skill.name}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {skill.description || `${skill.plugin} / ${skill.marketplace}`}
+                        {skill.description || `${skill.plugin ?? ''} / ${skill.marketplace ?? ''}`}
                       </p>
                     </div>
                     <div className="flex-shrink-0">

@@ -1058,12 +1058,15 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            # Use ^ anchor to match only lines that start with AIMAESTRO_API=
+                            # Use double quotes so ${PORT} expands; escape & to prevent sed treating it as matched text
+                            portable_sed "s|^AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
                         if grep -q 'DEFAULT_AGENT' .env 2>/dev/null; then
-                            portable_sed 's|DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
+                            # Use ^ anchor to avoid matching lines where DEFAULT_AGENT= appears mid-line
+                            portable_sed 's|^DEFAULT_AGENT=.*|DEFAULT_AGENT=mailman|' .env
                         else
                             echo "DEFAULT_AGENT=mailman" >> .env
                         fi
@@ -1108,7 +1111,7 @@ act4_start_and_register() {
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                pm2 restart ai-maestro 2>/dev/null || true
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1227,6 +1230,10 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
+            # Convert literal \n sequences to actual newlines so sed receives real newlines
+            # in the replacement string (BSD sed on macOS treats \n literally, not as newline).
+            # printf '%b' interprets escape sequences portably on both macOS and Linux.
+            gw_list=$(printf '%b' "$gw_list")
             portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro

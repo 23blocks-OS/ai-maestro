@@ -30,17 +30,26 @@ export async function POST(request: NextRequest) {
     const result = await pushToGitHub(body)
 
     if (result.error) {
+      // Use nullish coalescing so a missing status never silently returns 200 with an error body
       return NextResponse.json(
         { error: result.error },
-        { status: result.status }
+        { status: result.status ?? 500 }
       )
     }
     return NextResponse.json(result.data)
   } catch (error) {
     console.error('Error pushing to GitHub:', error)
+    // SyntaxError is thrown by request.json() when the body is not valid JSON (client error)
+    // All other errors are unexpected server-side failures and must be reported as 500
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

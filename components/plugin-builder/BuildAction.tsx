@@ -92,6 +92,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               pollFailures.current++
               if (pollFailures.current >= 5) {
                 clearPoll()
+                // Clear stale 'building' result so the error condition {error && !result} renders
+                setResult(null)
                 setError('Lost connection to build server')
                 setBuilding(false)
               }
@@ -100,6 +102,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              // Clear stale 'building' result so the error condition {error && !result} renders
+              setResult(null)
               setError('Lost connection to build server')
               setBuilding(false)
             }
@@ -116,10 +120,16 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }
 
   const handlePush = async () => {
-    if (!forkUrl.trim() || !result?.manifest) return
+    if (!forkUrl.trim()) return
+    // Guard: manifest must be present (build complete). Show error instead of silent no-op.
+    if (!result?.manifest) {
+      setPushResult({ ok: false, message: 'Build manifest not available' })
+      return
+    }
 
     // Client-side URL validation
-    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
+    // Strictly match https://github.com/owner/repo with optional .git suffix and trailing slash
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+(\.git)?\/?$/i)) {
       setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
       return
     }
@@ -183,7 +193,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || !result?.manifest}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />

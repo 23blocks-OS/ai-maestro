@@ -328,7 +328,12 @@ function getQuery(url: string): Record<string, string> {
   const parsed = parse(url, true)
   const q: Record<string, string> = {}
   for (const [k, v] of Object.entries(parsed.query)) {
-    if (typeof v === 'string') q[k] = v
+    // url.parse yields string[] for duplicate keys (e.g. ?mode=foo&mode=bar); take first element
+    if (Array.isArray(v)) {
+      if (v[0] !== undefined) q[k] = v[0]
+    } else if (typeof v === 'string') {
+      q[k] = v
+    }
   }
   return q
 }
@@ -336,31 +341,63 @@ function getQuery(url: string): Record<string, string> {
 /**
  * Minimal multipart form-data parser.
  * Handles the single use case: one file field + one text field for /api/agents/import.
+ *
+ * Parts are split at the byte level using the raw body Buffer so that binary file
+ * content is never corrupted by string encoding. Text fields (options) are decoded
+ * as UTF-8, preserving international characters in JSON values (e.g. {"name":"café"}).
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
-  const bodyStr = body.toString('latin1')
-  const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
+  const boundaryBuf = Buffer.from('--' + boundaryMatch[1])
+  const CRLF = Buffer.from('\r\n')
+  const headerSep = Buffer.from('\r\n\r\n') // separates part headers from part body
 
   let file: Buffer | null = null
   let options: string | null = null
 
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n')
-    if (headerEnd === -1) continue
+  // Walk the raw body buffer to find each boundary and extract parts byte-accurately
+  let searchStart = 0
+  while (searchStart < body.length) {
+    const boundaryPos = body.indexOf(boundaryBuf, searchStart)
+    if (boundaryPos === -1) break
 
-    const headers = part.substring(0, headerEnd)
-    const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
+    // Skip past the boundary line (boundary + CRLF, or boundary + '--' for final delimiter)
+    const afterBoundary = boundaryPos + boundaryBuf.length
+    if (afterBoundary + 1 < body.length && body[afterBoundary] === 0x2d && body[afterBoundary + 1] === 0x2d) {
+      // Final delimiter '--boundary--'; no more parts
+      break
+    }
+    // Skip the CRLF after the boundary marker
+    const partStart = afterBoundary + CRLF.length
+
+    // Find the header/body separator within this part
+    const headerSepPos = body.indexOf(headerSep, partStart)
+    if (headerSepPos === -1) break
+
+    // Part headers decoded as ASCII/latin1 (headers are always 7-bit ASCII in multipart)
+    const headers = body.slice(partStart, headerSepPos).toString('latin1')
+
+    // Part content starts after the \r\n\r\n separator
+    const contentStart = headerSepPos + headerSep.length
+
+    // Find the next boundary to determine where this part's content ends
+    const nextBoundaryPos = body.indexOf(boundaryBuf, contentStart)
+    if (nextBoundaryPos === -1) break
+
+    // Content ends just before the \r\n that precedes the next boundary
+    const contentEnd = nextBoundaryPos - CRLF.length
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
-      file = Buffer.from(content, 'latin1')
+      // Extract file bytes directly from the raw buffer — no string encoding involved
+      file = body.slice(contentStart, contentEnd)
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Decode text field as UTF-8 so international characters in JSON are preserved
+      options = body.slice(contentStart, contentEnd).toString('utf8')
     }
+
+    searchStart = nextBoundaryPos
   }
 
   return { file, options }
@@ -416,7 +453,7 @@ const routes: Route[] = [
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
-    const result = await getConversationMessages(decodeURIComponent(params.file), query.agentId || '')
+    const result = await getConversationMessages(params.file, query.agentId || '')
     sendServiceResult(res, result)
   }},
   { method: 'GET', pattern: /^\/api\/export\/jobs\/([^/]+)$/, paramNames: ['jobId'], handler: async (_req, res, params) => {
@@ -490,10 +527,11 @@ const routes: Route[] = [
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    const timeout = query.timeout ? parseInt(query.timeout, 10) : NaN
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: isNaN(timeout) ? undefined : timeout,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -537,7 +575,16 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Invalid JSON in the options field is a client error (400), not a server error
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -609,9 +656,10 @@ const routes: Route[] = [
 
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit, 10) : NaN
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: isNaN(limit) ? undefined : limit,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -632,16 +680,19 @@ const routes: Route[] = [
     sendServiceResult(res, await manageConsolidation(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit, 10) : NaN
+    const minConfidence = query.minConfidence ? parseFloat(query.minConfidence) : NaN
+    const maxTokens = query.maxTokens ? parseInt(query.maxTokens, 10) : NaN
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: isNaN(limit) ? undefined : limit,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: isNaN(minConfidence) ? undefined : minConfidence,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: isNaN(maxTokens) ? undefined : maxTokens,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -661,18 +712,24 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const limit = query.limit ? parseInt(query.limit, 10) : NaN
+    const minScore = query.minScore ? parseFloat(query.minScore) : NaN
+    const startTs = query.startTs ? parseInt(query.startTs, 10) : NaN
+    const endTs = query.endTs ? parseInt(query.endTs, 10) : NaN
+    const bm25Weight = query.bm25Weight ? parseFloat(query.bm25Weight) : NaN
+    const semanticWeight = query.semanticWeight ? parseFloat(query.semanticWeight) : NaN
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: isNaN(limit) ? undefined : limit,
+      minScore: isNaN(minScore) ? undefined : minScore,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: isNaN(startTs) ? undefined : startTs,
+      endTs: isNaN(endTs) ? undefined : endTs,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: isNaN(bm25Weight) ? undefined : bm25Weight,
+      semanticWeight: isNaN(semanticWeight) ? undefined : semanticWeight,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -834,14 +891,14 @@ const routes: Route[] = [
 
   // AMP addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getAMPAddress(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, getAMPAddress(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateAMPAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, updateAMPAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeAMPAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, removeAMPAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/amp\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listAMPAddresses(params.id))
@@ -853,14 +910,14 @@ const routes: Route[] = [
 
   // Email addresses
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, getEmailAddressDetail(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, getEmailAddressDetail(params.id, params.address))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
-    sendServiceResult(res, updateEmailAddressOnAgent(params.id, decodeURIComponent(params.address), body))
+    sendServiceResult(res, updateEmailAddressOnAgent(params.id, params.address, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses\/([^/]+)$/, paramNames: ['id', 'address'], handler: async (_req, res, params) => {
-    sendServiceResult(res, removeEmailAddressFromAgent(params.id, decodeURIComponent(params.address)))
+    sendServiceResult(res, removeEmailAddressFromAgent(params.id, params.address))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/email\/addresses$/, paramNames: ['id'], handler: async (_req, res, params) => {
     sendServiceResult(res, listEmailAddresses(params.id))
@@ -1007,7 +1064,7 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentSelf(getHeader(req, 'Authorization')))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents\/resolve\/([^/]+)$/, paramNames: ['address'], handler: async (req, res, params) => {
-    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), decodeURIComponent(params.address)))
+    sendServiceResult(res, resolveAgentAddress(getHeader(req, 'Authorization'), params.address))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1024,7 +1081,8 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listPendingMessages(authHeader, query.limit ? parseInt(query.limit) : undefined))
+    const limit = query.limit ? parseInt(query.limit, 10) : NaN
+    sendServiceResult(res, listPendingMessages(authHeader, isNaN(limit) ? undefined : limit))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')

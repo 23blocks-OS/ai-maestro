@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
@@ -17,6 +17,21 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Clear stale results whenever the target repository or branch changes so the
+  // displayed skills always correspond to the current inputs.
+  useEffect(() => {
+    setScanResult(null)
+    setError(null)
+  }, [url, ref])
+
+  // Cancel any in-flight scan request when the component unmounts to avoid
+  // unnecessary network activity and state updates on an unmounted component.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
 
   const handleScan = async () => {
     if (!url.trim()) return
@@ -124,11 +139,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Include trimmed url and ref so the key matches exactly what
+            // handleAddSkill/onSkillsFound produce, and to distinguish the
+            // same skill path across different branches.
+            const key = `repo:${url.trim()}:${ref}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

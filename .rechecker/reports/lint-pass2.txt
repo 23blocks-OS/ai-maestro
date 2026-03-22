@@ -1,21 +1,10 @@
-✔ No ESLint warnings or errors
 
-In scripts/remote-install.sh line 775:
-                _install_npm_global @anthropic-ai/claude-code && {
-                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+/Users/emanuelesabetta/ai-maestro/components/AgentBadge.tsx
+  373:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  444:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
 
+/Users/emanuelesabetta/ai-maestro/components/AgentList.tsx
+  1181:47  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
 
-In scripts/remote-install.sh line 786:
-                _install_npm_global @openai/codex && {
-                                                  ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
-
-
-In scripts/remote-install.sh line 795:
-                _install_npm_global @anthropic-ai/claude-code && {
-                                                              ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
-
-
-In scripts/remote-install.sh line 798:
-                    NEED_CLAUDE=false
-                    ^---------^ SC2034 (warning): NEED_CLAUDE appears unused. Verify use (or export if used externally).
+✖ 3 problems (0 errors, 3 warnings)
 

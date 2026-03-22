@@ -1,8 +1,8 @@
 {
-  "uid": "17889e",
+  "uid": "8de052",
   "status": "completed",
-  "created": "2026-03-22T18:28:23.573595",
-  "updated": "2026-03-22T19:05:14.851538",
+  "created": "2026-03-22T20:55:46.155996",
+  "updated": "2026-03-22T21:02:25.288828",
   "current_loop": 4,
   "current_iter": 1,
   "loops": {
@@ -13,33 +13,18 @@
     },
     "2": {
       "status": "completed",
-      "iter": 5,
-      "files_done": [
-        "FID00001",
-        "FID00002",
-        "1",
-        "2"
-      ],
+      "iter": 1,
+      "files_done": [],
       "files_clean": [
-        "FID00001",
-        "2",
-        "FID00002",
-        "1"
+        "FID00001"
       ]
     },
     "3": {
       "status": "completed",
-      "iter": 4,
-      "files_done": [
-        "FID00001",
-        "1",
-        "2"
-      ],
+      "iter": 1,
+      "files_done": [],
       "files_clean": [
-        "FID00002",
-        "FID00001",
-        "1",
-        "2"
+        "FID00001"
       ]
     },
     "4": {

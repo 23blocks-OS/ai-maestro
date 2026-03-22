@@ -1,0 +1,19 @@
+=== Linting changed files ===
+Files: components/AgentBadge.tsx components/AgentList.tsx
+
+components/AgentList.tsx(621,5): error TS2304: Cannot find name 'setShowAdvancedCreateModal'.
+components/AgentList.tsx(1040,99): error TS2345: Argument of type 'Agent' is not assignable to parameter of type 'MouseEvent<Element, MouseEvent>'.
+  Type 'Agent' is missing the following properties from type 'MouseEvent<Element, MouseEvent>': altKey, button, buttons, clientX, and 29 more.
+components/AgentList.tsx(1041,93): error TS2345: Argument of type 'Agent' is not assignable to parameter of type 'MouseEvent<Element, MouseEvent>'.
+  Type 'Agent' is missing the following properties from type 'MouseEvent<Element, MouseEvent>': altKey, button, buttons, clientX, and 29 more.
+Exit: 0
+
+/Users/emanuelesabetta/ai-maestro/components/AgentBadge.tsx
+  371:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  442:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/emanuelesabetta/ai-maestro/components/AgentList.tsx
+  1176:47  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+✖ 3 problems (0 errors, 3 warnings)
+

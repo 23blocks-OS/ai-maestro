@@ -34,7 +34,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
       keys.add(getSkillKey(skill))
     }
     return keys
-  }, [selectedSkills])
+  }, [selectedSkills, getSkillKey])
 
   // Load marketplace skills with abort support
   const abortRef = useRef<AbortController | null>(null)

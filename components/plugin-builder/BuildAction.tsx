@@ -58,9 +58,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
     clearPoll()
-    // SF-022: Ensure the AbortController ref is clean before new polling starts,
-    // even if clearPoll() was somehow called without nulling it.
-    pollAbortRef.current = null
 
     setBuilding(true)
     setResult(null)
@@ -122,6 +119,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 pollFailures.current++
                 if (pollFailures.current >= 5) {
                   clearPoll()
+                  setResult(null)
                   setError('Lost connection to build server')
                   setBuilding(false)
                 }
@@ -132,6 +130,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               if (pollFailures.current >= 5) {
                 clearPoll()
                 const errorData = await statusRes.json().catch(() => null)
+                setResult(null)
                 setError(errorData?.error || `Build status check failed: HTTP ${statusRes.status}`)
                 setBuilding(false)
               }
@@ -143,6 +142,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             pollFailures.current++
             if (pollFailures.current >= 5) {
               clearPoll()
+              setResult(null)
               setError('Lost connection to build server')
               setBuilding(false)
             }

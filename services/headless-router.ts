@@ -404,7 +404,19 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 function sendJson(res: ServerResponse, statusCode: number, data: any, headers?: Record<string, string>) {
-  const body = JSON.stringify(data)
+  let body: string
+  try {
+    body = JSON.stringify(data)
+  } catch (e) {
+    // Guard against circular references or other non-serialisable values in result objects.
+    // If headers have not been sent yet, send a generic 500 instead of crashing.
+    console.error('[Headless] Failed to stringify JSON response:', e)
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Internal server error: failed to serialize response' }))
+    }
+    return
+  }
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
@@ -638,10 +650,12 @@ const routes: Route[] = [
   // Agents — core CRUD (static paths before parameterized)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/agents\/unified$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    // Guard timeout against NaN (parseInt returns NaN for non-numeric strings).
+    const timeoutVal = query.timeout ? parseInt(query.timeout) : undefined
     sendServiceResult(res, await getUnifiedAgents({
       query: query.q || null,
       includeOffline: query.includeOffline !== 'false',
-      timeout: query.timeout ? parseInt(query.timeout) : undefined,
+      timeout: timeoutVal !== undefined && !isNaN(timeoutVal) ? timeoutVal : undefined,
     }))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/startup$/, paramNames: [], handler: async (_req, res) => {
@@ -734,8 +748,13 @@ const routes: Route[] = [
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
     )
-    // auth.agentId is undefined when no auth header — governance not enforced (backward compat)
-    sendServiceResult(res, await createNewAgent(body, auth.error ? null : auth.agentId))
+    // If auth credentials were provided but invalid, reject immediately — consistent with other governed routes.
+    // When no auth headers are present, auth.error is undefined and governance is not enforced (backward compat).
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, await createNewAgent(body, auth.agentId))
   }},
 
   // =========================================================================
@@ -778,9 +797,11 @@ const routes: Route[] = [
 
   // Chat
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Guard limit against NaN (parseInt returns NaN for non-numeric strings).
+    const limitVal = query.limit ? parseInt(query.limit) : undefined
     sendServiceResult(res, await getChatMessages(params.id, {
       since: query.since || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/chat$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -801,16 +822,20 @@ const routes: Route[] = [
     sendServiceResult(res, await manageConsolidation(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Guard each numeric param against NaN (parseInt/parseFloat returns NaN for non-numeric strings).
+    const limitVal = query.limit ? parseInt(query.limit) : undefined
+    const minConfidenceVal = query.minConfidence ? parseFloat(query.minConfidence) : undefined
+    const maxTokensVal = query.maxTokens ? parseInt(query.maxTokens) : undefined
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
       category: (query.category as any) || undefined,
-      limit: query.limit ? parseInt(query.limit) : undefined,
+      limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
       includeRelated: query.includeRelated === 'true',
-      minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+      minConfidence: minConfidenceVal !== undefined && !isNaN(minConfidenceVal) ? minConfidenceVal : undefined,
       tier: (query.tier as any) || undefined,
       view: query.view,
       memoryId: query.id || undefined,
-      maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
+      maxTokens: maxTokensVal !== undefined && !isNaN(maxTokensVal) ? maxTokensVal : undefined,
     }))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -830,18 +855,25 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Guard each numeric param against NaN (parseInt/parseFloat returns NaN for non-numeric strings).
+    const limitVal = query.limit ? parseInt(query.limit) : undefined
+    const minScoreVal = query.minScore ? parseFloat(query.minScore) : undefined
+    const startTsVal = query.startTs ? parseInt(query.startTs) : undefined
+    const endTsVal = query.endTs ? parseInt(query.endTs) : undefined
+    const bm25WeightVal = query.bm25Weight ? parseFloat(query.bm25Weight) : undefined
+    const semanticWeightVal = query.semanticWeight ? parseFloat(query.semanticWeight) : undefined
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
+      minScore: minScoreVal !== undefined && !isNaN(minScoreVal) ? minScoreVal : undefined,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: startTsVal !== undefined && !isNaN(startTsVal) ? startTsVal : undefined,
+      endTs: endTsVal !== undefined && !isNaN(endTsVal) ? endTsVal : undefined,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: bm25WeightVal !== undefined && !isNaN(bm25WeightVal) ? bm25WeightVal : undefined,
+      semanticWeight: semanticWeightVal !== undefined && !isNaN(semanticWeightVal) ? semanticWeightVal : undefined,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -1146,7 +1178,9 @@ const routes: Route[] = [
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
-    const metadata = await readJsonBody(req)
+    // readJsonBody returns null for empty bodies; fall back to {} to avoid passing null as metadata,
+    // which would violate the service contract (consistent with DELETE which clears to {}).
+    const metadata = (await readJsonBody(req)) ?? {}
     const result = await updateAgentById(params.id, { metadata })
     if (result.error) {
       sendServiceResult(res, result)
@@ -1174,7 +1208,13 @@ const routes: Route[] = [
       getHeader(req, 'Authorization'),
       getHeader(req, 'X-Agent-Id')
     )
-    sendServiceResult(res, await updateAgentById(params.id, body, auth.error ? null : auth.agentId))
+    // If auth credentials were provided but invalid, reject immediately — consistent with other governed routes.
+    // When no auth headers are present, auth.error is undefined and governance is not enforced (backward compat).
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, await updateAgentById(params.id, body, auth.agentId))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
     // Layer 5: optional governance enforcement when agent identity is provided
@@ -1182,7 +1222,13 @@ const routes: Route[] = [
       getHeader(_req, 'Authorization'),
       getHeader(_req, 'X-Agent-Id')
     )
-    sendServiceResult(res, await deleteAgentById(params.id, query.hard === 'true', auth.error ? null : auth.agentId))
+    // If auth credentials were provided but invalid, reject immediately — consistent with other governed routes.
+    // When no auth headers are present, auth.error is undefined and governance is not enforced (backward compat).
+    if (auth.error) {
+      sendJson(res, auth.status || 401, { error: auth.error })
+      return
+    }
+    sendServiceResult(res, await deleteAgentById(params.id, query.hard === 'true', auth.agentId))
   }},
 
   // =========================================================================
@@ -1732,7 +1778,7 @@ const routes: Route[] = [
     }
     const requestingAgentId = auth.agentId
     // Extract optional query filters from URL
-    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const filters: { assignee?: string; status?: string; label?: string; taskType?: string } = {}
     if (url.searchParams.has('assignee')) filters.assignee = url.searchParams.get('assignee')!
     if (url.searchParams.has('status')) filters.status = url.searchParams.get('status')!
@@ -2172,7 +2218,7 @@ const routes: Route[] = [
     } catch (e) { sendJson(res, 500, { error: String(e) }) }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/role-plugins$/, paramNames: [], handler: async (req, res) => {
-    const url = new URL(req.url || '', `http://${req.headers.host}`)
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const name = url.searchParams.get('name')
     if (!name) return sendJson(res, 400, { error: 'name query parameter is required' })
     try {
@@ -2199,7 +2245,7 @@ const routes: Route[] = [
 
   // Sync default role plugins from GitHub into local marketplace
   { method: 'POST', pattern: /^\/api\/agents\/role-plugins\/sync-defaults$/, paramNames: [], handler: async (req, res) => {
-    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const force = url.searchParams.get('force') === 'true'
     try {
       const result = await syncDefaultRolePlugins(force)
@@ -2218,7 +2264,7 @@ const routes: Route[] = [
     const MAX_SIZE = 512 * 1024
     const BINARY_EXT = new Set(['png','jpg','jpeg','gif','bmp','ico','webp','avif','tiff','tif','heic','heif','raw','cr2','nef','arw','dng','psd','ai','eps','xcf','sketch','fig','indd','mp4','mkv','avi','mov','wmv','flv','webm','m4v','mpg','mpeg','3gp','ogv','ts','vob','mp3','wav','flac','aac','ogg','wma','m4a','opus','aiff','mid','midi','zip','gz','tar','bz2','xz','7z','rar','zst','lz','lz4','lzma','cab','iso','dmg','pkg','deb','rpm','apk','msi','tgz','tbz2','txz','exe','dll','so','dylib','o','a','lib','obj','bin','elf','com','out','app','mach','wasm','pyc','pyo','class','jar','war','ear','db','sqlite','sqlite3','mdb','accdb','frm','ibd','dbf','woff','woff2','ttf','otf','eot','pfb','pfm','pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp','rtf','epub','mobi','azw','azw3','pem','der','p12','pfx','key','crt','cer','jks','keystore','token','tfstate','tsbuildinfo','lcov','dat','pak','bundle','nib','storyboardc','swp','swo'])
 
-    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
+    const url = new URL(req.url || '/', `http://${getHeader(req, 'host') || 'localhost'}`)
     const dirPath = url.searchParams.get('path')
     const mode = url.searchParams.get('mode')
     if (!dirPath) return sendJson(res, 400, { error: 'Missing path parameter' })
@@ -2391,8 +2437,10 @@ export function createHeadlessRouter() {
           const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
           sendJson(res, statusCode, { error: message })
         }
-        // Return false so callers know the request resulted in an error, not a clean dispatch
-        return false
+        // Return true — the request was matched and handled (even if it resulted in an error).
+        // Returning false would cause the caller to send a 404, resulting in a double response
+        // when the error response was already sent above.
+        return true
       }
 
       return true // Handled without error

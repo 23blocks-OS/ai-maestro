@@ -206,6 +206,12 @@ parse_args() {
     while [ $# -gt 0 ]; do
         case $1 in
             -d|--dir)
+                # Validate that a non-option argument follows -d/--dir
+                if [ $# -lt 2 ] || [ -z "$2" ] || [[ "$2" =~ ^- ]]; then
+                    maestro_fail "$1 requires a path argument (e.g., $1 ~/my-install-dir)"
+                    show_help
+                    exit 1
+                fi
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
                 ;;
@@ -235,6 +241,12 @@ parse_args() {
                 shift
                 ;;
             -p|--port)
+                # Validate that a non-option argument follows -p/--port
+                if [ $# -lt 2 ] || [ -z "$2" ] || [[ "$2" =~ ^- ]]; then
+                    maestro_fail "$1 requires a port number argument (e.g., $1 23000)"
+                    show_help
+                    exit 1
+                fi
                 PORT="$2"
                 shift 2
                 ;;
@@ -524,13 +536,15 @@ act1_hello_and_discovery() {
         NEED_TMUX=true
     fi
 
-    # Git (on macOS, check Xcode CLI tools first to avoid blocking system dialog)
+    # Git — check whether the binary is available first (covers Homebrew-installed git,
+    # system git, etc.).  On macOS, if git is missing AND Xcode CLI tools are absent,
+    # give the Xcode-specific install advice; otherwise give the generic advice.
     NEED_GIT=false
-    if [ "$OS" = "macos" ] && ! xcode-select -p &>/dev/null; then
+    if command -v git &>/dev/null; then
+        maestro_check "Git" "$(git --version | cut -d' ' -f3) ${GREEN}✓${NC}"
+    elif [ "$OS" = "macos" ] && ! xcode-select -p &>/dev/null; then
         maestro_check "Git" "${RED}not found (Xcode CLI tools required)${NC}"
         NEED_GIT=true
-    elif command -v git &>/dev/null; then
-        maestro_check "Git" "$(git --version | cut -d' ' -f3) ${GREEN}✓${NC}"
     else
         maestro_check "Git" "${RED}not found${NC}"
         NEED_GIT=true
@@ -974,9 +988,16 @@ act3_clone_and_build() {
 
                 maestro_step 3 4 "Updating agent tools..." ""
                 if [ -f "install.sh" ] && [ "$SKIP_TOOLS" != true ]; then
-                    # On update: only reinstall tools that are already present
+                    # On update: only reinstall each tool category that is already present.
+                    # Check each category independently so partially-installed setups are
+                    # handled correctly rather than treating one missing file as a signal
+                    # to skip all other tool categories.
                     local tool_flags=""
-                    [ ! -f "$HOME/.local/bin/check-aimaestro-messages.sh" ] && tool_flags="$tool_flags --skip-memory --skip-graph --skip-docs --skip-hooks --skip-agent-cli"
+                    [ ! -f "$HOME/.local/bin/amp-send.sh" ] && tool_flags="$tool_flags --skip-messaging"
+                    [ ! -d "$HOME/.local/share/aimaestro/memory" ] && tool_flags="$tool_flags --skip-memory"
+                    [ ! -f "$HOME/.local/bin/graph-describe.sh" ] && tool_flags="$tool_flags --skip-graph"
+                    [ ! -f "$HOME/.local/bin/docs-search.sh" ] && tool_flags="$tool_flags --skip-docs"
+                    [ ! -f "$HOME/.local/bin/aimaestro-agent.sh" ] && tool_flags="$tool_flags --skip-agent-cli"
                     chmod +x install.sh
                     # shellcheck disable=SC2086
                     ./install.sh --from-remote -y $tool_flags
@@ -1208,10 +1229,14 @@ act4_start_and_register() {
         portable_sed "s|{{SELECTED_GATEWAYS}}|${SELECTED_GATEWAYS}|g" "$AGENT_DIR/CLAUDE.md"
     fi
 
-    # Register agent with AI Maestro (initializes AMP messaging)
+    # Register agent with AI Maestro (initializes AMP messaging).
+    # JSON-escape AGENT_DIR: escape backslashes first (to \\), then double-quotes (to \"),
+    # so that paths containing either character produce valid JSON.
+    local json_agent_dir
+    json_agent_dir=$(printf '%s' "$AGENT_DIR" | sed 's/\\/\\\\/g; s/"/\\"/g')
     curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
-        -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
+        -d '{"name":"my-first-agent","workingDirectory":"'"${json_agent_dir}"'"}' \
         >/dev/null 2>&1 || true
 
     maestro_ok "Registered 'my-first-agent'"
@@ -1241,16 +1266,22 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            # Use awk for substitution since sed cannot handle real newlines in replacement on macOS
-            GW_LIST="$gw_list" awk '{
-                gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, ENVIRON["GW_LIST"])
+            # Use awk for substitution since sed cannot handle real newlines in replacement on macOS.
+            # Pass gw_list via -v (POSIX, works on both BSD awk on macOS and GNU awk on Linux);
+            # ENVIRON["GW_LIST"] is gawk-only and fails silently on macOS's BSD awk.
+            # Gateway display names contain only letters/spaces — no awk metacharacters.
+            awk -v gwlist="$gw_list" '{
+                gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, gwlist)
                 print
             }' "$MAILMAN_DIR/CLAUDE.md" > "$MAILMAN_DIR/CLAUDE.md.tmp" && mv "$MAILMAN_DIR/CLAUDE.md.tmp" "$MAILMAN_DIR/CLAUDE.md"
         fi
-        # Register mailman with AI Maestro
+        # Register mailman with AI Maestro.
+        # JSON-escape MAILMAN_DIR: escape backslashes first (to \\), then double-quotes (to \").
+        local json_mailman_dir
+        json_mailman_dir=$(printf '%s' "$MAILMAN_DIR" | sed 's/\\/\\\\/g; s/"/\\"/g')
         curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
-            -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
+            -d '{"name":"mailman","workingDirectory":"'"${json_mailman_dir}"'"}' \
             >/dev/null 2>&1 || true
         maestro_ok "Registered 'mailman' agent"
     fi

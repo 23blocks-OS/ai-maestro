@@ -211,17 +211,18 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace': {
-      // id format is expected to be "source:plugin:skillname", but we parse
-      // defensively: prefer index [2], then last segment, then the full id.
+      // id format is expected to be "source:plugin:skillname" or "source:skillname".
+      // We want the last segment as the display name.
       const parts = skill.id.split(':')
-      return parts[2] || parts[parts.length - 1] || skill.id
+      return parts[parts.length - 1] || skill.id
     }
     case 'repo':
       return skill.name
     default: {
       // NT-030: Exhaustiveness check — if a new skill type is added, TypeScript will error here
       const _exhaustive: never = skill
-      return String((_exhaustive as PluginSkillSelection).type ?? 'unknown')
+      void _exhaustive
+      return 'unknown'
     }
   }
 }
@@ -237,7 +238,6 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
     default: {
       // Exhaustiveness check (consistent with getSkillDisplayName)
       const _exhaustive: never = skill
-      void _exhaustive
       return null
     }
   }

@@ -156,7 +156,16 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
   // Validate each skill selection
   for (const skill of config.skills) {
-    if (skill.type === 'repo') {
+    if (skill.type === 'core') {
+      // skill.name is used as a path segment in generateManifest: skills/${skill.name}
+      if (!skill.name || typeof skill.name !== 'string' || !SAFE_PATH_SEGMENT_RE.test(skill.name) || skill.name.length > 32) {
+        return `Core skill "${skill.name || 'unknown'}": name must be a non-empty safe path segment (letters, numbers, dots, hyphens, underscores; max 32 chars)`
+      }
+    } else if (skill.type === 'repo') {
+      // skill.name is used as a path segment in generateManifest: skills/${skill.name}
+      if (!skill.name || typeof skill.name !== 'string' || !SAFE_PATH_SEGMENT_RE.test(skill.name) || skill.name.length > 32) {
+        return `Repo skill "${skill.name || 'unknown'}": name must be a non-empty safe path segment (letters, numbers, dots, hyphens, underscores; max 32 chars)`
+      }
       const urlErr = validateGitUrl(skill.url)
       if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
       const refErr = validateGitRef(skill.ref)
@@ -164,6 +173,14 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     } else if (skill.type === 'marketplace') {
+      // Validate that skill.id is a non-empty string before generateManifest calls skill.id.split(':')
+      if (typeof skill.id !== 'string' || skill.id.length === 0) {
+        return `Marketplace skill "${skill.name || 'unknown'}": id must be a non-empty string`
+      }
+      const idParts = skill.id.split(':')
+      if (idParts.length !== 3) {
+        return `Marketplace skill "${skill.name || 'unknown'}": Invalid id format (expected marketplace:plugin:skill)`
+      }
       // Validate marketplace and plugin names against path traversal — both are used in path.join in generateManifest
       if (!skill.marketplace || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
         return `Marketplace skill "${skill.name}": Invalid marketplace name — must match ${SAFE_PATH_SEGMENT_RE}`
@@ -697,8 +714,12 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const content = await fs.readFile(fullPath, 'utf-8')
           const parsed = matter(content)
           const frontmatter = parsed.data as Record<string, unknown>
-          const skillFolder = path.basename(path.dirname(fullPath))
-          const relativePath = path.relative(dir, path.dirname(fullPath))
+          // Use the relative path from the scan root so that a SKILL.md located
+          // directly at the repo root does not inherit the temporary scan
+          // directory's name (e.g. 'ai-maestro-scan-abc123') as skillFolder.
+          const relativeSkillDir = path.relative(dir, path.dirname(fullPath))
+          const skillFolder = relativeSkillDir ? path.basename(relativeSkillDir) : 'root'
+          const relativePath = relativeSkillDir
 
           skills.push({
             name: (frontmatter.name as string) || skillFolder,
@@ -813,13 +834,14 @@ async function copyDir(src: string, dest: string): Promise<void> {
       // Copy the file and then apply the source file's permissions so that
       // executable scripts (e.g. *.sh) remain executable in the destination.
       // fs.stat may fail if the file is removed between readdir and stat (TOCTOU),
-      // or due to permission errors — fall back to safe default permissions in that case.
-      let mode = 0o644
+      // or due to permission errors — fall back to 0o755 so that executable scripts
+      // do not silently lose their execute bit on stat failure.
+      let mode = 0o755
       try {
         const srcStat = await fs.stat(srcPath)
         mode = srcStat.mode
       } catch (statErr) {
-        console.warn(`plugin-builder: could not stat ${srcPath}, using default mode 0o644:`, statErr)
+        console.warn(`plugin-builder: could not stat ${srcPath}, using default mode 0o755:`, statErr)
       }
       await fs.copyFile(srcPath, destPath)
       await fs.chmod(destPath, mode)

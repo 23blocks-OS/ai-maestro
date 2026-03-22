@@ -43,13 +43,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setScanResult(null)
 
     try {
+      // Apply the 'main' default only at the point of the network call so that
+      // the input field can be truly empty (controlled by the user) while still
+      // sending a valid ref to the API. Calculate once and reuse to avoid
+      // inconsistency between the fetch body, stored state, and the callback.
+      const effectiveRef = ref.trim() || 'main'
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Apply the 'main' default only at the point of the network call so that
-        // the input field can be truly empty (controlled by the user) while still
-        // sending a valid ref to the API.
-        body: JSON.stringify({ url: url.trim(), ref: ref.trim() || 'main' }),
+        body: JSON.stringify({ url: url.trim(), ref: effectiveRef }),
         signal,
       })
 
@@ -61,7 +63,6 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
-        const effectiveRef = ref.trim() || 'main'
         setScanResult(data)
         // Store the exact values used so handleAddSkill is always consistent with this scan
         setLastScannedUrl(url.trim())

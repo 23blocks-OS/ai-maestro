@@ -1,2 +1,1 @@
 components/AgentBadge.tsx
-components/AgentList.tsx

@@ -1,33 +1,23 @@
 {
-  "uid": "17889e",
-  "created": "2026-03-22T18:28:20.081095",
-  "total_files": 2,
+  "uid": "8de052",
+  "created": "2026-03-22T20:55:41.664008",
+  "total_files": 1,
   "files": {
     "FID00001": {
       "path": "components/AgentBadge.tsx",
-      "lines": 449,
-      "bytes": 16243,
-      "category": "big"
-    },
-    "FID00002": {
-      "path": "components/AgentList.tsx",
-      "lines": 2106,
-      "bytes": 90184,
+      "lines": 486,
+      "bytes": 18967,
       "category": "big"
     }
   },
   "groups": {
     "G001": [
       "FID00001"
-    ],
-    "G002": [
-      "FID00002"
     ]
   },
   "macro_groups": {
     "MG001": [
-      "G001",
-      "G002"
+      "G001"
     ]
   }
 }

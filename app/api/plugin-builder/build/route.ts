@@ -121,7 +121,7 @@ function validateBuildConfig(body: unknown): PluginBuildConfig | string {
     ...(typeof b.description === 'string' ? { description: b.description } : {}),
     ...(typeof b.includeHooks === 'boolean' ? { includeHooks: b.includeHooks } : {}),
     // author and homepage are optional fields that must be forwarded when present
-    ...(b.author !== undefined ? { author: b.author as { name: string } } : {}),
+    ...(b.author !== undefined ? { author: { name: ((b.author as Record<string, unknown>).name as string) } } : {}),
     ...(typeof b.homepage === 'string' ? { homepage: b.homepage } : {}),
   }
   return config

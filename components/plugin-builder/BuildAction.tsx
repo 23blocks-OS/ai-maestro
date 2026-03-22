@@ -206,7 +206,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         ok: res.ok,
         message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),
       })
-    } catch {
+    } catch (err) {
+      console.error('[BuildAction] Push request error:', err)
       setPushResult({ ok: false, message: 'Failed to connect to server' })
     } finally {
       setPushing(false)

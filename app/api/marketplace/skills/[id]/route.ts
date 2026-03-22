@@ -13,7 +13,7 @@ import { getMarketplaceSkillById } from '@/services/marketplace-service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const { id } = await params
   // Validate skill ID: reject excessively long or control-character-containing IDs

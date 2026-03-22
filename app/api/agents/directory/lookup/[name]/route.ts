@@ -13,7 +13,7 @@ import { lookupAgentByDirectoryName } from '@/services/agents-directory-service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
+  { params }: { params: { name: string } }
 ) {
   try {
     const { name } = await params

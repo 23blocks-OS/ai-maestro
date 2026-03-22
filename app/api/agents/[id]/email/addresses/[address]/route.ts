@@ -16,7 +16,7 @@ const ADDRESS_PATTERN = /^[a-zA-Z0-9._@+-]+$/
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
   try {
     const { id, address } = await params
@@ -48,7 +48,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
   try {
     const { id, address } = await params
@@ -84,7 +84,7 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
   try {
     const { id, address } = await params

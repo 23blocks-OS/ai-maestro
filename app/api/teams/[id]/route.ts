@@ -31,7 +31,7 @@ export async function GET(
 // PUT /api/teams/[id] - Update a team
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const { id } = await params
   if (!isValidUuid(id)) {

@@ -16,7 +16,7 @@ const VALID_BOX_VALUES: readonly string[] = ['inbox', 'sent']
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
   try {
     const { id, messageId } = await params
@@ -56,7 +56,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
   try {
     const { id, messageId } = await params
@@ -92,7 +92,7 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
   try {
     const { id, messageId } = await params
@@ -124,7 +124,7 @@ export async function DELETE(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; messageId: string }> }
+  { params }: { params: { id: string; messageId: string } }
 ) {
   try {
     const { id, messageId } = await params

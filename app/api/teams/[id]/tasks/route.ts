@@ -41,7 +41,7 @@ export async function GET(
 // POST /api/teams/[id]/tasks - Create a new task
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const { id } = await params
   if (!isValidUuid(id)) {

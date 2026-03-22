@@ -19,7 +19,7 @@ function logDeprecation() {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   logDeprecation()
   try {

@@ -454,9 +454,9 @@ function getHeader(req: IncomingMessage, name: string): string | null {
  * passed through a string encoding/decoding round-trip. Only the text-only
  * `options` field is decoded as UTF-8, which is correct for JSON payloads.
  */
-function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
+function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: Record<string, unknown> } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
-  if (!boundaryMatch) return { file: null, options: null }
+  if (!boundaryMatch) return { file: null, options: {} }
 
   // All boundary tokens and separators are ASCII — safe to use as Buffers.
   const boundaryBuf = Buffer.from('--' + boundaryMatch[1])
@@ -464,7 +464,7 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
   const crlfBuf = Buffer.from('\r\n')
 
   let file: Buffer | null = null
-  let options: string | null = null
+  let options: Record<string, unknown> = {}
 
   let pos = 0
   while (pos < body.length) {
@@ -692,7 +692,7 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
-      const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
+      const { file, options } = parseMultipart(rawBody, contentType)
 
       if (!file) {
         // Use sendServiceResult for consistent error-response formatting across all routes

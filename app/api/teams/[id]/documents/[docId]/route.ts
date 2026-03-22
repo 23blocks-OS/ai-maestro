@@ -32,7 +32,7 @@ export async function GET(
 // PUT /api/teams/[id]/documents/[docId] - Update a document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; docId: string }> }
+  { params }: { params: { id: string; docId: string } }
 ) {
   const { id, docId } = await params
   // MF-005: Validate UUID format for both path parameters to prevent path traversal

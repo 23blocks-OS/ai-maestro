@@ -39,7 +39,7 @@ function parseFloatParam(searchParams: URLSearchParams, key: string): number | u
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id: agentId } = await params
@@ -89,7 +89,7 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id: agentId } = await params

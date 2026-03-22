@@ -32,7 +32,7 @@ export async function GET(
 // SF-013: Authenticate agent for write operations (consistent with team-related routes)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const { id } = await params
   // MF-007: Validate UUID format for meeting ID

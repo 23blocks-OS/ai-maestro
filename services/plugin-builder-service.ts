@@ -507,6 +507,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Decrement exactly once when synchronous setup fails before the async
+    // build was launched.  If the async build was launched, the async chain's
+    // own finally block above handles the decrement instead.
+    if (!asyncBuildLaunched) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
   }
 }
 
@@ -785,6 +792,9 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
 async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
   const skills: RepoSkillInfo[] = []
   const realDir = await fs.realpath(dir)
+  // Path prefix used for containment checks — always ends with separator so that
+  // a directory like /foo/bar-evil does NOT falsely match prefix /foo/bar
+  const realDirPrefix = realDir + path.sep
 
   async function scan(currentDir: string, depth: number = 0) {
     if (depth > 5) return
@@ -796,6 +806,10 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
 
         const fullPath = path.join(currentDir, entry.name)
         if (entry.isFile() && entry.name === 'SKILL.md') {
+          // Verify the file resolves within the scan root (prevents symlink escape)
+          const realFilePath = await fs.realpath(fullPath)
+          // Accept only paths that are exactly realDir or strictly under it
+          if (realFilePath !== realDir && !realFilePath.startsWith(realDirPrefix)) continue
           const content = await fs.readFile(fullPath, 'utf-8')
           const parsed = matter(content)
           const frontmatter = parsed.data as Record<string, unknown>
@@ -812,11 +826,12 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
             description: (frontmatter.description as string) || '',
           })
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-          // Verify the directory is still within the scan root
-          const realPath = await fs.realpath(fullPath)
-          if (realPath.startsWith(realDir)) {
-            await scan(fullPath, depth + 1)
-          }
+          // Resolve subdirectory realpath and verify it is strictly within the scan
+          // root before recursing — prevents traversal via non-symlink bind mounts
+          // or other filesystem trickery
+          const realSubPath = await fs.realpath(fullPath)
+          if (realSubPath !== realDir && !realSubPath.startsWith(realDirPrefix)) continue
+          await scan(fullPath, depth + 1)
         }
       }
     } catch {
@@ -836,9 +851,28 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
   const scriptsDir = path.join(dir, 'scripts')
 
   try {
+    // Resolve the real root of the repo to enforce containment of the scripts dir
+    const realDir = await fs.realpath(dir)
+    const realDirPrefix = realDir + path.sep
+
+    // Resolve the real path of the scripts directory to use as a containment boundary
+    const realScriptsDir = await fs.realpath(scriptsDir)
+
+    // If the scripts/ directory itself is a symlink (or bind-mount) that resolves
+    // outside the repo root, reject it entirely before reading any entries
+    if (realScriptsDir !== realDir && !realScriptsDir.startsWith(realDirPrefix)) {
+      return scripts
+    }
+
+    const realScriptsDirPrefix = realScriptsDir + path.sep
     const entries = await fs.readdir(scriptsDir, { withFileTypes: true })
     for (const entry of entries) {
       if (entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith('.sh')) {
+        // Verify the file resolves within the scripts directory (prevents symlink escape)
+        const fullPath = path.join(scriptsDir, entry.name)
+        const realFilePath = await fs.realpath(fullPath)
+        // Accept only paths that are exactly realScriptsDir or strictly under it
+        if (realFilePath !== realScriptsDir && !realFilePath.startsWith(realScriptsDirPrefix)) continue
         scripts.push({
           name: entry.name,
           path: `scripts/${entry.name}`,

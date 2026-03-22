@@ -6,7 +6,7 @@ import { isValidUuid } from '@/lib/validation'
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; taskId: string }> }
+  { params }: { params: { id: string; taskId: string } }
 ) {
   const { id, taskId } = await params
   if (!isValidUuid(id)) {

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ file: string }> }
+  { params }: { params: { file: string } }
 ) {
   try {
     const { file: encodedFile } = await params

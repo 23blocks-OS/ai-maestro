@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
       return await handleAddMarketplace(url)
     }
     if (action === 'security-check') {
-      return NextResponse.json({ error: 'Security check not yet implemented' }, { status: 501 })
+      return await handleSecurityCheck(pluginKey)
     }
 
     // Plugin-level actions require pluginKey
@@ -501,6 +501,101 @@ async function handleAddMarketplace(url?: string) {
   await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
 
   return NextResponse.json({ success: true, action: 'add-marketplace', marketplaceName, repo })
+}
+
+/** Run CPV security check on a plugin */
+async function handleSecurityCheck(pluginKey?: string) {
+  if (!pluginKey) {
+    return NextResponse.json({ error: 'pluginKey is required for security-check' }, { status: 400 })
+  }
+
+  const atIdx = pluginKey.lastIndexOf('@')
+  if (atIdx <= 0) {
+    return NextResponse.json({ error: 'Invalid pluginKey format' }, { status: 400 })
+  }
+
+  const pluginName = pluginKey.substring(0, atIdx)
+  const marketplaceName = pluginKey.substring(atIdx + 1)
+
+  // Find plugin directory — check cache first, then marketplace clone
+  let pluginDir: string | null = null
+  const cacheDir = join(CACHE_DIR, marketplaceName, pluginName)
+  if (existsSync(cacheDir)) {
+    const version = await getLatestVersion(cacheDir)
+    if (version) pluginDir = join(cacheDir, version)
+  }
+  if (!pluginDir) {
+    // Fall back to marketplace clone
+    for (const p of [join(MARKETPLACES_DIR, marketplaceName, 'plugins', pluginName), join(MARKETPLACES_DIR, marketplaceName, pluginName)]) {
+      if (existsSync(p)) { pluginDir = p; break }
+    }
+  }
+  if (!pluginDir) {
+    return NextResponse.json({ error: `Plugin "${pluginName}" not found` }, { status: 404 })
+  }
+
+  // Find the CPV security script in the plugin cache
+  const cpvCacheBase = join(HOME, '.claude', 'plugins', 'cache', 'emasoft-plugins', 'claude-plugins-validation')
+  let scriptPath: string | null = null
+  if (existsSync(cpvCacheBase)) {
+    try {
+      const versions = await readdir(cpvCacheBase)
+      versions.sort()
+      const latestVer = versions.filter(v => !v.startsWith('.'))[versions.length - 1]
+      if (latestVer) {
+        const candidate = join(cpvCacheBase, latestVer, 'scripts', 'validate_security.py')
+        if (existsSync(candidate)) scriptPath = candidate
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (!scriptPath) {
+    return NextResponse.json({ error: 'CPV security scanner not found. Install claude-plugins-validation plugin.' }, { status: 503 })
+  }
+
+  // Run the security check — report goes to a temp file, terminal gets severity counts
+  const { execSync } = await import('child_process')
+  const reportPath = join(os.tmpdir(), `security-report-${pluginName}-${Date.now()}.md`)
+
+  try {
+    const output = execSync(
+      `uv run "${scriptPath}" "${pluginDir}" --report "${reportPath}"`,
+      { timeout: 60000, stdio: 'pipe', cwd: join(cpvCacheBase, '..', '..', '..') }
+    ).toString('utf8')
+
+    // Read the full report
+    let report = ''
+    if (existsSync(reportPath)) {
+      report = await readFile(reportPath, 'utf-8')
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: 'security-check',
+      pluginKey,
+      summary: output.trim(),
+      report,
+    })
+  } catch (err: unknown) {
+    const execErr = err as { stdout?: Buffer; stderr?: Buffer; message?: string }
+    const stdout = execErr.stdout?.toString('utf8') || ''
+    const stderr = execErr.stderr?.toString('utf8') || ''
+    // Script may exit non-zero when findings exist — still return the report
+    let report = ''
+    if (existsSync(reportPath)) {
+      report = await readFile(reportPath, 'utf-8')
+    }
+    if (report || stdout) {
+      return NextResponse.json({
+        success: true,
+        action: 'security-check',
+        pluginKey,
+        summary: stdout.trim() || stderr.trim(),
+        report,
+      })
+    }
+    return NextResponse.json({ error: `Security check failed: ${execErr.message || stderr}` }, { status: 500 })
+  }
 }
 
 /** Update enabledPlugins[key] in settings.json */

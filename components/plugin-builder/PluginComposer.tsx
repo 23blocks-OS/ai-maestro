@@ -2,7 +2,9 @@
 
 import { X, Package, GitBranch, Brain, Layers } from 'lucide-react'
 import type { PluginSkillSelection } from '@/types/plugin-builder'
-import { getSkillKey } from './SkillPicker'
+// getSkillKey is defined alongside PluginSkillSelection in the types file —
+// importing from the single source of truth prevents cross-component coupling.
+import { getSkillKey } from '@/types/plugin-builder'
 
 interface PluginComposerProps {
   name: string

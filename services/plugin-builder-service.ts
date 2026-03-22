@@ -88,6 +88,13 @@ function acquireSlot(): Promise<() => void> {
 /** Guard flag to prevent re-entrant calls to evictStaleBuildResults */
 let isEvicting = false
 
+// Promise-chain mutex: serialises the check+increment so no two concurrent
+// callers can both pass the guard when activeOps === MAX_CONCURRENT_OPS - 1.
+// Each caller appends to the chain, runs its critical section, then resolves
+// so the next caller can proceed.  The long-running work (builds, git ops)
+// happens OUTSIDE the lock — only the atomic check+increment is protected.
+let activeOpsLock: Promise<void> = Promise.resolve()
+
 // In-memory build status tracking (with TTL eviction)
 const buildResults = new Map<string, PluginBuildResult>()
 
@@ -265,6 +272,32 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       }
       if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
         return `Marketplace skill "${skill.name}": Plugin name contains invalid characters`
+      }
+    }
+
+    if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal when constructing
+      // the installPath via path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', ...)
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.id}": Marketplace name is required`
+      }
+      // Explicitly block '.' and '..' before the regex — SAFE_PATH_SEGMENT_RE allows dots
+      // but a bare '.' or '..' would cause path.join to traverse out of the intended directory.
+      if (skill.marketplace === '.' || skill.marketplace === '..') {
+        return `Marketplace skill "${skill.id}": Marketplace name must not be '.' or '..'`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.id}": Marketplace name contains invalid characters (only letters, numbers, dots, hyphens, underscores allowed)`
+      }
+      if (!skill.plugin || typeof skill.plugin !== 'string') {
+        return `Marketplace skill "${skill.id}": Plugin name is required`
+      }
+      // Explicitly block '.' and '..' before the regex — same path traversal risk via plugin name.
+      if (skill.plugin === '.' || skill.plugin === '..') {
+        return `Marketplace skill "${skill.id}": Plugin name must not be '.' or '..'`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.id}": Plugin name contains invalid characters (only letters, numbers, dots, hyphens, underscores allowed)`
       }
     }
   }
@@ -607,8 +640,19 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   const refErr = validateGitRef(ref)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
+  // Atomically check-and-increment inside the mutex (same pattern as buildPlugin)
+  let didIncrement = false
+  await new Promise<void>(resolve => {
+    activeOpsLock = activeOpsLock.then(() => {
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        didIncrement = true
+      }
+      resolve()
+    })
+  })
+
+  if (!didIncrement) {
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 
@@ -637,7 +681,9 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     }
   } catch (error: unknown) {
     // Clean up on error
-    await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(scanDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up temporary scan directory ${scanDir}:`, err)
+    })
 
     const execError = error as ExecError
     const exitCode = execError.code
@@ -675,8 +721,19 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const refErr = validateGitRef(branch)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
+  // Atomically check-and-increment inside the mutex (same pattern as buildPlugin)
+  let didIncrement = false
+  await new Promise<void>(resolve => {
+    activeOpsLock = activeOpsLock.then(() => {
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        didIncrement = true
+      }
+      resolve()
+    })
+  })
+
+  if (!didIncrement) {
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 

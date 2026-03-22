@@ -3,9 +3,10 @@
 import { useState, useCallback, useMemo } from 'react'
 import { ArrowLeft, Puzzle } from 'lucide-react'
 import Link from 'next/link'
-import SkillPicker, { getSkillKey } from '@/components/plugin-builder/SkillPicker'
+import SkillPicker from '@/components/plugin-builder/SkillPicker'
 import PluginComposer from '@/components/plugin-builder/PluginComposer'
 import BuildAction from '@/components/plugin-builder/BuildAction'
+import { getSkillKey } from '@/types/plugin-builder'
 import type { PluginSkillSelection, PluginBuildConfig } from '@/types/plugin-builder'
 
 export default function PluginBuilderPage() {

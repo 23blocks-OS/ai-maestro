@@ -5,6 +5,7 @@ import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
 import type { PluginSkillSelection } from '@/types/plugin-builder'
+import { getSkillKey } from '@/types/plugin-builder'
 
 // Core AI Maestro skills (from plugin/src/skills/)
 const CORE_SKILLS = [

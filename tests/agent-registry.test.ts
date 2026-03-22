@@ -342,7 +342,7 @@ describe('createAgent', () => {
 
   it('auto-generates avatar when not provided', async () => {
     const agent = await createAgent(makeCreateRequest({ name: 'auto-avatar' }))
-    expect(agent.avatar).toMatch(/^\/avatars\/(men|women)_\d{2}\.png$/)
+    expect(agent.avatar).toMatch(/^\/avatars\/(men|women)_\d{2}\.jpg$/)
   })
 
   it('uses provided avatar instead of auto-generating', async () => {

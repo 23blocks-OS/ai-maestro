@@ -69,7 +69,7 @@ function generateAvatarUrl(agentId: string): string {
   const hash = computeHash(agentId)
   const index = Math.abs(hash) % 100
   const gender = getGenderFromId(agentId) === 'male' ? 'men' : 'women'
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.jpg`
 }
 
 /**
@@ -132,7 +132,7 @@ function generateUniqueAvatarUrl(agentId: string, usedAvatars: Set<string>): str
   let attempts = 0
 
   while (attempts < 100) {
-    const url = `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
+    const url = `/avatars/${gender}_${index.toString().padStart(2, '0')}.jpg`
     if (!usedAvatars.has(url)) {
       return url
     }
@@ -141,7 +141,7 @@ function generateUniqueAvatarUrl(agentId: string, usedAvatars: Set<string>): str
   }
 
   // Fallback if all 100 are used (unlikely)
-  return `/avatars/${gender}_${(Math.abs(hash) % 100).toString().padStart(2, '0')}.png`
+  return `/avatars/${gender}_${(Math.abs(hash) % 100).toString().padStart(2, '0')}.jpg`
 }
 
 /**
@@ -317,6 +317,32 @@ export function getAgentByAliasAnyHost(alias: string): Agent | null {
     (a.name?.toLowerCase() === normalizedAlias ||
      a.alias?.toLowerCase() === normalizedAlias)
   ) || null
+}
+
+/**
+ * Get agent by label (Persona Name) on a specific host.
+ * Labels are the user-facing persona names (e.g. "Peter-Parker").
+ * Case-insensitive comparison since labels are stored capitalized but
+ * messaging addresses are lowercase.
+ */
+export function getAgentByLabel(label: string, hostId?: string): Agent | null {
+  const agents = loadAgents()
+  const normalizedLabel = label.toLowerCase()
+  const targetHostId = (hostId || getSelfHostId()).toLowerCase()
+  return agents.find(a =>
+    !a.deletedAt &&
+    a.label?.toLowerCase() === normalizedLabel &&
+    a.hostId?.toLowerCase() === targetHostId
+  ) || null
+}
+
+/**
+ * Get agent by label (Persona Name) from ANY host.
+ */
+export function getAgentByLabelAnyHost(label: string): Agent | null {
+  const agents = loadAgents()
+  const normalizedLabel = label.toLowerCase()
+  return agents.find(a => !a.deletedAt && a.label?.toLowerCase() === normalizedLabel) || null
 }
 
 /**

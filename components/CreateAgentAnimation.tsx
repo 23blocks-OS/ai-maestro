@@ -6,7 +6,7 @@ import { Sparkles, Star, Cpu, Terminal, Zap, Heart, Code, Folder, GitBranch, Fol
 interface CreateAgentAnimationProps {
   phase: 'naming' | 'preparing' | 'creating' | 'ready' | 'error'
   agentName: string
-  agentAlias?: string  // Fun AI-themed nickname (e.g., MarIA, LunAI)
+  agentAlias?: string  // Persona name — the agent's personal name (e.g., Peter-Parker, Lucy)
   avatarUrl?: string   // Preview avatar URL based on agent name
   progress?: number
   showNextSteps?: boolean  // Show next steps guide in ready phase
@@ -22,7 +22,7 @@ export function getPreviewAvatarUrl(agentName: string): string {
   }
   const index = Math.abs(hash) % 100
   const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.jpg`
 }
 
 const PHASE_CONFIG = {

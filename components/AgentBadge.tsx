@@ -49,7 +49,7 @@ function getAvatarUrl(agentId: string): string {
   // Alternate between men and women based on another bit of the hash
   const gender = (Math.abs(hash >> 8) % 2 === 0) ? 'men' : 'women'
 
-  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.png`
+  return `/avatars/${gender}_${index.toString().padStart(2, '0')}.jpg`
 }
 
 // Generate a consistent color from a string (for avatar ring/fallback)

@@ -158,3 +158,5 @@ public/avatars/*_enhanced.png
 # TLDR CLI cache/stats
 .tldr/
 .tldrignore
+# TLDR artifacts (added by rechecker)
+.tldr_session_*

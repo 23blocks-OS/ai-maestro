@@ -245,32 +245,6 @@ export default function AgentList({
   // State for team accordion panels — all collapsed by default
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
 
-  // Legacy accordion state (kept for compatibility but using expandedTeams now)
-  const [expandedLevel1, setExpandedLevel1] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
-    const saved = localStorage.getItem('agent-sidebar-expanded-level1')
-    if (saved) {
-      try {
-        return new Set(JSON.parse(saved))
-      } catch (e) {
-        return new Set()
-      }
-    }
-    return new Set()
-  })
-  const [expandedLevel2, setExpandedLevel2] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
-    const saved = localStorage.getItem('agent-sidebar-expanded-level2')
-    if (saved) {
-      try {
-        return new Set(JSON.parse(saved))
-      } catch (e) {
-        return new Set()
-      }
-    }
-    return new Set()
-  })
-
   // Filter agents by selected host, status tab, and search query
   const filteredAgents = useMemo(() => {
     let result = selectedHostFilter === 'all'
@@ -278,10 +252,14 @@ export default function AgentList({
       : agents.filter((a) => a.hostId === selectedHostFilter)
 
     // Apply status filter (active/hiber/all)
+    // Use sessions[0] (array form) consistently — a.session (singular) is legacy/may be null
     if (statusFilter === 'active') {
-      result = result.filter(a => a.session?.status === 'online')
+      result = result.filter(a => a.sessions?.[0]?.status === 'online')
     } else if (statusFilter === 'hiber') {
-      result = result.filter(a => a.session?.status !== 'online')
+      // An agent is hibernated when it has at least one session entry but none are online.
+      // This aligns with the isHibernated definition used in the rendering logic:
+      // !isOnline && agent.sessions && agent.sessions.length > 0
+      result = result.filter(a => a.sessions && a.sessions.length > 0 && a.sessions[0]?.status !== 'online')
     }
 
     // Apply search filter (name, label, or host)
@@ -317,16 +295,6 @@ export default function AgentList({
 
     return groups
   }, [filteredAgents, teams])
-
-  // Legacy groupedAgents for backward compat (unused now, but referenced by countAgentsInCategory etc.)
-  const groupedAgents = useMemo(() => {
-    const groups: Record<string, Record<string, UnifiedAgent[]>> = {}
-    // Map team groups into the old format (level1=team, level2='default')
-    for (const [teamName, group] of Object.entries(teamGroupedAgents)) {
-      groups[teamName] = { default: group.agents }
-    }
-    return groups
-  }, [teamGroupedAgents])
 
   // Calculate grid columns based on sidebar width
   // 320px = 1 col, 480px = 2 cols, 640px+ = 3 cols
@@ -372,49 +340,6 @@ export default function AgentList({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showCreateDropdown])
-
-  // Initialize NEW panels as open on first mount
-  const initializedRef = useRef(false)
-  useEffect(() => {
-    if (initializedRef.current) return
-    initializedRef.current = true
-
-    setExpandedLevel1((prev) => {
-      const newExpanded = new Set(prev)
-      Object.keys(groupedAgents).forEach((level1) => {
-        if (!prev.has(level1)) {
-          newExpanded.add(level1)
-        }
-      })
-      return newExpanded
-    })
-
-    setExpandedLevel2((prev) => {
-      const newExpanded = new Set(prev)
-      Object.entries(groupedAgents).forEach(([level1, level2Groups]) => {
-        Object.keys(level2Groups).forEach((level2) => {
-          const key = `${level1}-${level2}`
-          if (!prev.has(key)) {
-            newExpanded.add(key)
-          }
-        })
-      })
-      return newExpanded
-    })
-  }, [groupedAgents])
-
-  // Save expanded state to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('agent-sidebar-expanded-level1', JSON.stringify(Array.from(expandedLevel1)))
-    }
-  }, [expandedLevel1])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('agent-sidebar-expanded-level2', JSON.stringify(Array.from(expandedLevel2)))
-    }
-  }, [expandedLevel2])
 
   // Fetch unread message counts for all agents (using agent ID for storage)
   // OPTIMIZED: Use Promise.all for parallel fetching instead of sequential loop
@@ -477,31 +402,6 @@ export default function AgentList({
     localStorage.setItem('agent-sidebar-host-filter', selectedHostFilter)
   }, [selectedHostFilter])
 
-  const toggleLevel1 = (level1: string) => {
-    setExpandedLevel1((prev) => {
-      const next = new Set(prev)
-      if (next.has(level1)) {
-        next.delete(level1)
-      } else {
-        next.add(level1)
-      }
-      return next
-    })
-  }
-
-  const toggleLevel2 = (level1: string, level2: string) => {
-    const key = `${level1}-${level2}`
-    setExpandedLevel2((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
-
   const getCategoryColor = (category: string) => {
     const storageKey = `category-color-${category.toLowerCase()}`
     const savedColor = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null
@@ -521,16 +421,19 @@ export default function AgentList({
     return COLOR_PALETTE[colorIndex]
   }
 
-  const countAgentsInCategory = (level1: string) => {
-    const level2Groups = groupedAgents[level1]
-    return Object.values(level2Groups).reduce((sum, agents) => sum + agents.length, 0)
+  const countAgentsInCategory = (teamName: string) => {
+    // Use teamGroupedAgents directly — groupedAgents intermediate wrapper was dead code
+    return teamGroupedAgents[teamName]?.agents.length ?? 0
   }
 
   const handleAgentClick = (agent: UnifiedAgent) => {
     // Check if this is a hibernated agent (offline but has session config)
-    const isHibernated = agent.session?.status !== 'online' && (agent.sessions && agent.sessions.length > 0)
+    // Use sessions[0] (array form) consistently — agent.session (singular) is legacy
+    const sessionStatus = agent.sessions?.[0]?.status
+    const isOnline = sessionStatus === 'online'
+    const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-    if (agent.session?.status === 'online' || isHibernated) {
+    if (isOnline || isHibernated) {
       // Online or hibernated agent - select and show tabs
       onAgentSelect(agent)
     } else {
@@ -539,8 +442,10 @@ export default function AgentList({
     }
   }
 
-  const handleHibernate = async (agent: UnifiedAgent, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleHibernate = async (agent: UnifiedAgent, e?: React.MouseEvent) => {
+    // stopPropagation only when an actual event is available (e.g. direct button click).
+    // When called from AgentBadge's onHibernate callback there is no event object.
+    e?.stopPropagation()
 
     if (hibernatingAgents.has(agent.id)) return
 
@@ -977,9 +882,10 @@ export default function AgentList({
       {sidebarView === 'agents' && (
         <div className="flex-shrink-0 px-2 flex items-end gap-0 border-b border-gray-700/60 bg-sidebar">
           {([
-            { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length, color: 'emerald' },
+            { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.sessions?.[0]?.status === 'online').length, color: 'emerald' },
             { key: 'all' as const, label: 'ALL', count: agents.length, color: 'blue' },
-            { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length, color: 'amber' },
+            // Exclude agents with no sessions — only count agents with a session that is not online
+            { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.sessions && a.sessions.length > 0 && a.sessions[0]?.status !== 'online').length, color: 'amber' },
           ]).map(tab => {
             const isActive = statusFilter === tab.key
             return (
@@ -1136,10 +1042,8 @@ export default function AgentList({
                                             onSelect={handleAgentClick}
                                             onRename={() => onShowAgentProfile(agent)}
                                             onDelete={() => onShowAgentProfileDangerZone?.(agent)}
-                                            onHibernate={isOnline ? () => {
-                                              handleHibernate(agent, { stopPropagation: () => {} } as React.MouseEvent)
-                                            } : undefined}
-                                            onWake={isHibernated ? () => setWakeDialogAgent(agent) : undefined}
+                                            onHibernate={isOnline ? () => handleHibernate(agent) : undefined}
+                                            onWake={isHibernated ? (e) => handleWake(agent, e) : undefined}
                                             onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
                                             onSendMessage={() => {/* TODO: Implement send message dialog */}}
                                             onCopyId={() => navigator.clipboard.writeText(agent.id)}
@@ -1372,7 +1276,11 @@ export default function AgentList({
                                             {/* Hibernate button - show when agent is online */}
                                             {isOnline && (
                                               <button
-                                                onClick={(e) => handleHibernate(agent, e)}
+                                                onClick={(e) => {
+                                                  // Stop propagation first to prevent the parent onClick (handleAgentClick) from firing
+                                                  e.stopPropagation()
+                                                  handleHibernate(agent, e)
+                                                }}
                                                 disabled={hibernatingAgents.has(agent.id)}
                                                 className="p-1 rounded hover:bg-yellow-500/20 text-gray-400 hover:text-yellow-400 transition-all duration-200 disabled:opacity-50"
                                                 title="Hibernate agent (stop session)"
@@ -1387,7 +1295,11 @@ export default function AgentList({
                                             {/* Wake button - show when agent is hibernated */}
                                             {isHibernated && (
                                               <button
-                                                onClick={(e) => handleWake(agent, e)}
+                                                onClick={(e) => {
+                                                  // Stop propagation first to prevent the parent onClick (handleAgentClick) from firing
+                                                  e.stopPropagation()
+                                                  setWakeDialogAgent(agent)
+                                                }}
                                                 disabled={wakingAgents.has(agent.id)}
                                                 className="p-1 rounded hover:bg-green-500/20 text-gray-400 hover:text-green-400 transition-all duration-200 disabled:opacity-50"
                                                 title="Wake agent (start session)"
@@ -1534,7 +1446,7 @@ export default function AgentList({
             try {
               // Build programArgs, appending --model if the config specifies one
               const argParts: string[] = []
-              if (config.programArgs) argParts.push(config.programArgs)
+              if (config.programArgs && config.programArgs.trim() !== '') argParts.push(config.programArgs)
               if (config.model) argParts.push(`--model ${config.model}`)
 
               const response = await fetch('/api/sessions/create', {
@@ -1864,7 +1776,7 @@ function CreateAgentModal({
     for (let i = 0; i < agentName.length; i++) {
       const char = agentName.charCodeAt(i)
       hash = ((hash << 5) - hash) + char
-      hash = hash & hash
+      hash |= 0  // Coerce to 32-bit signed integer to prevent float overflow
     }
     // Same gender logic as avatar - ensures name matches photo gender
     const isMale = (Math.abs(hash >> 8) % 2 === 0)
@@ -2053,7 +1965,7 @@ function CreateAgentModal({
                     type="text"
                     value={workingDirectory}
                     onChange={(e) => setWorkingDirectory(e.target.value)}
-                    placeholder={typeof process !== 'undefined' ? process.env?.HOME || '/home/user' : '/home/user'}
+                    placeholder="/home/user"
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>

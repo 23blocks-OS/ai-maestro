@@ -312,7 +312,9 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always prioritize error over data: if result.error is set, it signals a failure
+  // regardless of whether result.data is also present, to avoid masking errors.
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -339,7 +341,9 @@ function getQuery(url: string): Record<string, string> {
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
-  if (!boundaryMatch) return { file: null, options: null }
+  // A missing boundary means the Content-Type header is malformed; throw so the caller
+  // can return a 400 instead of silently treating file and options as null.
+  if (!boundaryMatch) throw new Error('Missing boundary in Content-Type header for multipart/form-data')
 
   const boundary = '--' + boundaryMatch[1]
   const bodyStr = body.toString('latin1')
@@ -356,10 +360,14 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
     const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
+      // Convert back to buffer from latin1 encoding — the latin1 round-trip preserves
+      // every byte value, so binary file content is recovered correctly.
       file = Buffer.from(content, 'latin1')
     } else if (headers.includes('name="options"')) {
-      options = content
+      // Re-decode text parts as UTF-8: the entire body was converted to latin1 for
+      // binary-safe boundary splitting, so we must convert back to a buffer first
+      // and then interpret those bytes as UTF-8 to handle any non-ASCII JSON values.
+      options = Buffer.from(content, 'latin1').toString('utf-8')
     }
   }
 
@@ -530,14 +538,36 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
-      const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
+
+      let file: Buffer | null = null
+      let optionsStr: string | null = null
+      try {
+        // parseMultipart throws on a malformed Content-Type (e.g. missing boundary),
+        // which is a client error; catch it here to return 400 rather than 500.
+        const parsed = parseMultipart(rawBody, contentType)
+        file = parsed.file
+        optionsStr = parsed.options
+      } catch (e) {
+        sendJson(res, 400, { error: e instanceof Error ? e.message : 'Invalid multipart body' })
+        return
+      }
 
       if (!file) {
         sendJson(res, 400, { error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Return a specific 400 so the client knows the options field was malformed JSON,
+          // rather than letting it fall through to the generic 500 catch below.
+          sendJson(res, 400, { error: 'Invalid JSON for options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -702,7 +732,15 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      from: query.from || null,
+      to: query.to || null,
+      project: query.project || null,
+      nodeId: query.nodeId || null,
+      depth: query.depth ? parseInt(query.depth) : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -714,7 +752,12 @@ const routes: Route[] = [
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      column: query.column || null,
+      database: query.database || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -726,7 +769,13 @@ const routes: Route[] = [
 
   // Graph - query
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/query$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryGraph(params.id, query as any))
+    sendServiceResult(res, await queryGraph(params.id, {
+      queryType: query.queryType || null,
+      name: query.name || null,
+      type: query.type || null,
+      from: query.from || null,
+      to: query.to || null,
+    }))
   }},
 
   // Database
@@ -1019,7 +1068,16 @@ const routes: Route[] = [
     try {
       const body = await readJsonBody(req)
       originalSender = body.original_sender
-    } catch { /* No body is fine */ }
+    } catch (e) {
+      // readJsonBody throws Error('Invalid JSON body') when the body is present but not valid JSON.
+      // Distinguish that from a missing body (empty body resolves to {}) and return 400 for malformed JSON.
+      if (e instanceof Error && e.message === 'Invalid JSON body') {
+        sendJson(res, 400, { error: 'Invalid JSON body for original_sender' })
+        return
+      }
+      // Any other error (e.g. request stream error) is re-thrown to the outer handler.
+      throw e
+    }
     sendServiceResult(res, await sendReadReceipt(authHeader, params.id, originalSender))
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
@@ -1071,9 +1129,11 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    // Pass null for absent params to match service function signatures (string | null)
     sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
+    // Pass null for absent params to match service function signatures (string | null)
     sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
   }},
 
@@ -1281,7 +1341,13 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // readJsonBody rejects with this specific message when the body is present but
+          // not valid JSON. Propagating it as 500 would be wrong — it is a client error.
+          if (error instanceof Error && error.message === 'Invalid JSON body') {
+            sendJson(res, 400, { error: 'Invalid JSON body' })
+          } else {
+            sendJson(res, 500, { error: 'Internal server error' })
+          }
         }
       }
 

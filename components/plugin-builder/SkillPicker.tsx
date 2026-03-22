@@ -75,9 +75,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     )
   }, [searchQuery, marketplaceSkills])
 
+  // Use filtered counts so the badge reflects the current search, not the total
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -124,12 +125,13 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         {activeTab === 'core' && (
           <div className="space-y-2">
             {filteredCoreSkills.map(skill => {
-              const key = `core:${skill.name}`
+              const skillSelection: PluginSkillSelection = { type: 'core', name: skill.name }
+              const key = getSkillKey(skillSelection)
               const isSelected = selectedKeys.has(key)
               const Icon = skill.icon
               return (
                 <div
-                  key={skill.name}
+                  key={key}
                   role="button"
                   tabIndex={0}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -141,14 +143,14 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     if (isSelected) {
                       onRemoveSkill(key)
                     } else {
-                      onAddSkill({ type: 'core', name: skill.name })
+                      onAddSkill(skillSelection)
                     }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
                       if (isSelected) onRemoveSkill(key)
-                      else onAddSkill({ type: 'core', name: skill.name })
+                      else onAddSkill(skillSelection)
                     }
                   }}
                   aria-pressed={isSelected}
@@ -187,11 +189,12 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+                const skillSelection: PluginSkillSelection = { type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name }
+                const key = getSkillKey(skillSelection)
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    key={key}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -203,23 +206,18 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       if (isSelected) {
                         onRemoveSkill(key)
                       } else {
-                        onAddSkill({
-                          type: 'marketplace',
-                          id: skill.id,
-                          marketplace: skill.marketplace,
-                          plugin: skill.plugin,
-                        })
+                        onAddSkill(skillSelection)
                       }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        else onAddSkill(skillSelection)
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin || ''} / ${skill.marketplace || ''}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -229,7 +227,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-200">{skill.name}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {skill.description || `${skill.plugin} / ${skill.marketplace}`}
+                        {skill.description || `${skill.plugin || ''} / ${skill.marketplace || ''}`}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -254,6 +252,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
@@ -270,8 +269,10 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'core':
       return `core:${skill.name}`
     case 'marketplace':
-      return `marketplace:${skill.id}`
+      // Include marketplace and plugin to guarantee global uniqueness across sources
+      return `marketplace:${skill.marketplace}:${skill.plugin}:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so skills at the same path in different branches generate distinct keys
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

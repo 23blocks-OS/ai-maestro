@@ -10,17 +10,25 @@ import { getBuildStatus } from '@/services/plugin-builder-service'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
 
-  const result = await getBuildStatus(id)
+  try {
+    const result = await getBuildStatus(id)
 
-  if (result.error) {
+    if (result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      )
+    }
+    return NextResponse.json(result.data, { status: result.status })
+  } catch (error) {
+    console.error('Unhandled error in GET /api/plugin-builder/builds/[id]:', error)
     return NextResponse.json(
-      { error: result.error },
-      { status: result.status }
+      { error: 'Internal Server Error' },
+      { status: 500 }
     )
   }
-  return NextResponse.json(result.data)
 }

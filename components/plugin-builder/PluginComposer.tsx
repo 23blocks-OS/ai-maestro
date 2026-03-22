@@ -211,9 +211,15 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      return skill.name
     case 'repo':
       return skill.name
+    default: {
+      // Exhaustive check: if a new variant is added to PluginSkillSelection the
+      // compiler will flag this assignment as an error, forcing it to be handled.
+      const _exhaustive: never = skill
+      throw new Error(`Unhandled skill type: ${(_exhaustive as { type: string }).type}`)
+    }
   }
 }
 
@@ -225,5 +231,11 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
       return `${skill.plugin} / ${skill.marketplace}`
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+    default: {
+      // Exhaustive check: if a new variant is added to PluginSkillSelection the
+      // compiler will flag this assignment as an error, forcing it to be handled.
+      const _exhaustive: never = skill
+      throw new Error(`Unhandled skill type: ${(_exhaustive as { type: string }).type}`)
+    }
   }
 }

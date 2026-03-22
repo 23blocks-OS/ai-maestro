@@ -1,21 +1,36 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
+import { GitBranch, Search, Loader2, AlertCircle, Plus, Check } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
+import { getSkillKey } from './SkillPicker'
 
 interface RepoScannerProps {
-  onSkillsFound: (skills: RepoSkillInfo[], url: string, ref: string) => void
+  /** Called after a successful scan with the skills found, the repo URL, and the
+   *  effective ref (always resolved — never an empty string). Optional: the parent
+   *  may pass a no-op if it only relies on onAddSkill/onRemoveSkill to track
+   *  which skills are selected. */
+  onSkillsFound?: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
+  onRemoveSkill: (key: string) => void
   selectedSkillKeys: Set<string>
 }
 
-export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys }: RepoScannerProps) {
+export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, selectedSkillKeys }: RepoScannerProps) {
+  // onSkillsFound is optional — callers that only care about onAddSkill/onRemoveSkill
+  // may omit it or pass a no-op without causing any issues.
   const [url, setUrl] = useState('')
   const [ref, setRef] = useState('main')
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // scannedUrl/scannedRef capture the values actually used for the last successful scan,
+  // so that handleAddSkill and skill keys stay consistent even if the user edits the
+  // URL/ref inputs after the scan completes.
+  // scannedRef is initialised to 'main' (the same default as the ref input) so that
+  // getSkillKey always receives a non-empty, well-defined effective branch name.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('main')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -26,6 +41,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
 
+    // Apply the default branch name here, at request time, so the input field
+    // can remain empty (indicating "use default") without clobbering its display value.
+    const effectiveRef = ref.trim() || 'main'
+
     setScanning(true)
     setError(null)
     setScanResult(null)
@@ -34,7 +53,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: url.trim(), ref: effectiveRef }),
         signal,
       })
 
@@ -47,7 +66,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Capture the exact url/ref used for this scan so that handleAddSkill
+        // and key computation stay consistent if the user edits the inputs later.
+        const currentScannedUrl = url.trim()
+        const currentScannedRef = effectiveRef
+        setScannedUrl(currentScannedUrl)
+        setScannedRef(currentScannedRef)
+        // Notify the parent (if it provided the callback) with the same captured
+        // values so both sides always agree on which url/ref were used for the scan.
+        onSkillsFound?.(data.skills, currentScannedUrl, currentScannedRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -60,8 +87,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const handleAddSkill = (skill: RepoSkillInfo) => {
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      // Use scannedUrl/scannedRef (the values used at scan time) rather than the
+      // live url/ref state, which the user may have edited after the scan finished.
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -81,7 +110,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
               type="text"
               placeholder="https://github.com/user/repo.git"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => { setUrl(e.target.value) }}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
               onKeyDown={(e) => e.key === 'Enter' && handleScan()}
             />
@@ -93,7 +122,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,11 +153,20 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Build the canonical PluginSkillSelection shape so getSkillKey produces
+            // a key identical to the one stored when handleAddSkill is called.
+            const skillSelection: PluginSkillSelection = {
+              type: 'repo',
+              url: scannedUrl,
+              ref: scannedRef,
+              skillPath: skill.path,
+              name: skill.name,
+            }
+            const key = getSkillKey(skillSelection)
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">
@@ -138,12 +176,21 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
                   )}
                 </div>
                 <button
-                  onClick={() => handleAddSkill(skill)}
-                  disabled={isSelected}
-                  className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors flex-shrink-0"
-                  title={isSelected ? 'Already added' : 'Add skill'}
+                  onClick={() => {
+                    if (isSelected) {
+                      onRemoveSkill(key)
+                    } else {
+                      handleAddSkill(skill)
+                    }
+                  }}
+                  className={`ml-2 p-1.5 rounded-md transition-colors flex-shrink-0 ${
+                    isSelected
+                      ? 'text-emerald-400 hover:bg-red-500/10 hover:text-red-400'
+                      : 'text-cyan-400 hover:bg-cyan-500/10'
+                  }`}
+                  title={isSelected ? 'Remove skill' : 'Add skill'}
                 >
-                  <Plus className="w-4 h-4" />
+                  {isSelected ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 </button>
               </div>
             )

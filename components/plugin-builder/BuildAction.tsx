@@ -10,10 +10,18 @@ interface BuildActionProps {
   disabledReason?: string
 }
 
-/** Strip ANSI escape codes from build output */
+/** Strip ANSI escape codes from build output.
+ *  Covers: CSI sequences (colour, cursor, erase), OSC sequences, and standalone
+ *  C1 control characters so that no stray escape bytes appear in the log display. */
 function stripAnsi(str: string): string {
   // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+  return str
+    // CSI sequences: ESC [ ... <final byte 0x40-0x7E>  (covers SGR, cursor, erase, etc.)
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, '')
+    // OSC sequences: ESC ] ... ST  (ST = BEL or ESC \)
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    // Single-char C1 escape sequences: ESC followed by a byte in 0x40–0x5F range
+    .replace(/\x1b[\x40-\x5f]/g, '')
 }
 
 export default function BuildAction({ config, disabled, disabledReason }: BuildActionProps) {
@@ -26,19 +34,22 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [forkUrl, setForkUrl] = useState('')
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<{ ok: boolean; message: string } | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollFailures = useRef(0)
+  // Holds the timer that resets the "copied" indicator so it can be cancelled on unmount
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Clean up polling on unmount
+  // Clean up polling and the copied-reset timer on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      if (pollRef.current) clearTimeout(pollRef.current)
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
     }
   }, [])
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current)
+      clearTimeout(pollRef.current)
       pollRef.current = null
     }
     pollFailures.current = 0
@@ -51,8 +62,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     setBuilding(true)
     setResult(null)
     setError(null)
-    setShowLogs(false)
     // Reset push-related state on new build
+    // Note: showLogs is intentionally NOT reset — user-controlled visibility is preserved across builds;
     setShowPush(false)
     setPushResult(null)
 
@@ -73,9 +84,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       const data: PluginBuildResult = await res.json()
       setResult(data)
 
-      // Poll for completion
+      // Poll for completion using recursive setTimeout to prevent overlapping fetch calls
+      // (setInterval would fire again before a slow response returns, causing race conditions)
       if (data.status === 'building') {
-        pollRef.current = setInterval(async () => {
+        const pollStatus = async () => {
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
             if (statusRes.ok) {
@@ -84,9 +96,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               setResult(statusData)
 
               if (statusData.status !== 'building') {
+                // Build finished — stop polling and surface logs
                 clearPoll()
                 setBuilding(false)
                 setShowLogs(true)
+              } else {
+                // Still building — schedule the next check only after this one completes
+                pollRef.current = setTimeout(pollStatus, 1000)
               }
             } else {
               pollFailures.current++
@@ -94,6 +110,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setError('Lost connection to build server')
                 setBuilding(false)
+              } else {
+                // Soft failure — retry after delay
+                pollRef.current = setTimeout(pollStatus, 1000)
               }
             }
           } catch {
@@ -102,9 +121,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               clearPoll()
               setError('Lost connection to build server')
               setBuilding(false)
+            } else {
+              // Network error — retry after delay
+              pollRef.current = setTimeout(pollStatus, 1000)
             }
           }
-        }, 1000)
+        }
+        // Kick off the first poll
+        pollRef.current = setTimeout(pollStatus, 1000)
       } else {
         setBuilding(false)
         setShowLogs(true)
@@ -153,7 +177,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     if (!result?.outputPath) return
     navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Cancel any existing reset timer before scheduling a new one
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
+      copiedTimerRef.current = setTimeout(() => {
+        copiedTimerRef.current = null
+        setCopied(false)
+      }, 2000)
     }).catch(() => {
       // Clipboard API not available (insecure context or unfocused)
     })
@@ -185,6 +214,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           onClick={() => setShowPush(!showPush)}
           disabled={!isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
+          aria-label={!isComplete ? 'Build must be complete to push to GitHub' : 'Push to GitHub'}
         >
           <GitBranch className="w-4 h-4" />
           Push to GitHub
@@ -220,7 +250,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {/* Always show the disabled reason when the button is disabled so the user
+            knows why they cannot build, even while a build is in progress or a
+            previous result is displayed. */}
+        {disabled && disabledReason && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -279,8 +312,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         </div>
       )}
 
-      {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {/* Build logs (ANSI codes stripped) — shown whenever result.logs exists (even if empty),
+          so the toggle button is always available after a build completes or fails */}
+      {result && result.logs && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}
@@ -291,9 +325,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </button>
           {showLogs && (
             <div className="bg-gray-950 rounded-lg p-3 max-h-48 overflow-y-auto border border-gray-800">
-              <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
-                {stripAnsi(result.logs.join('\n'))}
-              </pre>
+              {result.logs.length > 0 ? (
+                <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
+                  {stripAnsi(result.logs.join('\n'))}
+                </pre>
+              ) : (
+                <p className="text-xs text-gray-500 font-mono">No build logs available.</p>
+              )}
             </div>
           )}
         </div>

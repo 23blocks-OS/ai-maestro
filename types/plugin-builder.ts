@@ -16,6 +16,8 @@ export interface PluginBuildConfig {
   name: string                         // Plugin name (e.g., "my-backend-agent")
   version: string                      // Semver (e.g., "1.0.0")
   description?: string                 // Human-readable description
+  author?: { name: string }            // Plugin author metadata
+  homepage?: string                    // Plugin homepage URL
   skills: PluginSkillSelection[]       // Selected skills from various sources
   includeHooks?: boolean               // Include default hooks (default: true)
 }
@@ -26,7 +28,7 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
+  | { type: 'marketplace'; id: string; marketplace: string; plugin: string; name: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
 // ============================================================================
@@ -69,22 +71,30 @@ export interface PluginManifest {
 }
 
 export interface PluginManifestMetadata {
-  name: string
-  version: string
+  // name and version are already at the PluginManifest top level; not repeated here
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+// Tagged union enforces that path is only valid for local sources and
+// repo/ref are only valid for git sources — no invalid combinations possible.
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required for local sources
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                     // Required for git sources
+      ref: string                      // Resolved Git branch or tag (e.g. 'main', 'v1.2.0') — must be non-empty; callers must resolve any default before constructing this object
+      map: Record<string, string>      // skillPath (relative path within repo) -> output pattern (e.g. 'skills/deploy')
+    }
 
 // ============================================================================
 // Repo Scanner
@@ -103,7 +113,7 @@ export interface RepoScanResult {
 export interface RepoSkillInfo {
   name: string                         // Skill folder name
   path: string                         // Relative path within repo (e.g., "skills/deploy")
-  description: string                  // From SKILL.md frontmatter
+  description?: string                 // From SKILL.md frontmatter (may be absent)
 }
 
 export interface RepoScriptInfo {

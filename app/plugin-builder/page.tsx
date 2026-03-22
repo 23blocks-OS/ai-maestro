@@ -25,11 +25,11 @@ export default function PluginBuilderPage() {
       if (prev.some(s => getSkillKey(s) === key)) return prev
       return [...prev, skill]
     })
-  }, [])
+  }, [getSkillKey])
 
   const handleRemoveSkill = useCallback((key: string) => {
     setSkills(prev => prev.filter(s => getSkillKey(s) !== key))
-  }, [])
+  }, [getSkillKey])
 
   // Build config
   const buildConfig: PluginBuildConfig = useMemo(() => ({
@@ -49,7 +49,7 @@ export default function PluginBuilderPage() {
   const disabledReason = !name.trim()
     ? 'Enter a plugin name'
     : !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name)
-    ? 'Invalid plugin name (letters, numbers, hyphens, underscores only)'
+    ? 'Invalid plugin name (must start with a letter or number, followed by letters, numbers, hyphens, or underscores)'
     : !version.trim()
     ? 'Enter a version'
     : skills.length === 0

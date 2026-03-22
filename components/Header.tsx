@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle } from 'lucide-react'
+import { Menu, HelpCircle, Grid3X3, Users, FolderKanban, UserCircle, Puzzle, Monitor } from 'lucide-react'
 
 interface HeaderProps {
   onToggleSidebar?: () => void
@@ -82,8 +82,10 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           </a>
           <a
             href={immersiveUrl}
-            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-1.5"
+            title="Immersive Experience"
           >
+            <Monitor className="w-3.5 h-3.5" />
             Immersive Experience
           </a>
         </div>

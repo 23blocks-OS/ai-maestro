@@ -12,7 +12,7 @@
  *   POST /api/plugin-builder/push         -> pushToGitHub
  */
 
-import { promises as fs } from 'fs'
+import { promises as fs, type Dirent } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
@@ -130,10 +130,12 @@ function validateSkillPath(skillPath: string): string | null {
   if (!skillPath || typeof skillPath !== 'string') return 'Skill path is required'
   if (skillPath.includes('..')) return 'Skill path must not contain ".."'
   if (path.isAbsolute(skillPath)) return 'Skill path must be relative'
-  // Each segment must be safe
+  // Each segment must be non-empty and safe.
+  // An empty segment (from a leading, trailing, or doubled '/') is explicitly rejected
+  // to prevent unexpected path canonicalization behavior.
   const segments = skillPath.split('/')
   for (const seg of segments) {
-    if (seg && !SAFE_PATH_SEGMENT_RE.test(seg)) {
+    if (!seg || !SAFE_PATH_SEGMENT_RE.test(seg)) {
       return `Skill path segment "${seg}" contains invalid characters`
     }
   }
@@ -176,9 +178,11 @@ function evictStaleBuildResults(): void {
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
-      // Best-effort cleanup of build directory
+      // Best-effort cleanup of build directory — log failures to aid disk-space debugging
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch((err: Error) => {
+        console.warn(`Failed to remove stale build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +194,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch((err: Error) => {
+        console.warn(`Failed to remove evicted build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -215,6 +221,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   const repoSkills = config.skills.filter((s): s is Extract<PluginSkillSelection, { type: 'repo' }> => s.type === 'repo')
 
   // Core skills — local source from plugin/src/
+  // When core skills are selected, they share a single source entry with the hooks mapping
+  // (if hooks are enabled). When no core skills are selected but hooks are enabled, a
+  // dedicated hooks-only source is added so hooks are never silently omitted.
   if (coreSkills.length > 0) {
     const map: Record<string, string> = {}
     for (const skill of coreSkills) {
@@ -230,6 +239,16 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       path: './src',
       map,
     })
+  } else if (config.includeHooks !== false) {
+    // No core skills selected but hooks are requested — add a hooks-only source so
+    // the hooks directory is still included in the built plugin.
+    sources.push({
+      name: 'core-hooks',
+      description: 'AI Maestro default hooks',
+      type: 'local',
+      path: './src',
+      map: { 'hooks/*': 'hooks/' },
+    })
   }
 
   // Marketplace skills — group by marketplace+plugin combo
@@ -242,7 +261,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Marketplace plugins are installed under <marketplace>/<plugin>/ — the path must
+    // point to the plugin root so that skills/<skillName> is resolvable within it.
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -290,10 +311,10 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     version: config.version,
     description: config.description,
     output: `./plugins/${config.name}`,
+    // name and version are at the PluginManifest top level; PluginManifestMetadata does not repeat them
     plugin: {
-      name: config.name,
-      version: config.version,
-      author: { name: 'Plugin Builder' },
+      author: config.author || { name: 'Plugin Builder' },
+      homepage: config.homepage,
       license: 'MIT',
     },
     sources,
@@ -316,11 +337,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before the try block so the catch always decrements exactly once if runBuild
+  // was never started. If runBuild is successfully launched, it owns the decrement via its
+  // finally block, and the outer catch is never reached (we return 202 before any throw).
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
-
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -340,9 +364,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     await fs.copyFile(BUILD_SCRIPT, path.join(buildDir, 'build-plugin.sh'))
     await fs.chmod(path.join(buildDir, 'build-plugin.sh'), 0o755)
 
-    // If there are core skills, symlink the src directory
+    // Symlink the src directory if core skills are selected OR if hooks are included
+    // (the hooks-only source also references ./src so the directory must be present).
     const hasCoreSkills = config.skills.some(s => s.type === 'core')
-    if (hasCoreSkills) {
+    const needsSrcDir = hasCoreSkills || config.includeHooks !== false
+    if (needsSrcDir) {
       const srcDir = path.join(PLUGIN_DIR, 'src')
       const linkTarget = path.join(buildDir, 'src')
       try {
@@ -363,7 +389,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously — activeOps is decremented inside runBuild's finally block
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -375,12 +401,11 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
 
     return { data: result, status: 202 }
   } catch (error) {
+    // activeOps was incremented before setup; decrement it since runBuild was never started
     activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
@@ -494,7 +519,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
 
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
-      timeout: 30000,
+      timeout: 60000, // 60s — cloning can be slow on large repos or slow networks
     })
 
     // Write the manifest
@@ -527,7 +552,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     ], { cwd: pushDir })
 
     // Push
-    await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
+    await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 60000 }) // 60s — push can be slow on large repos or slow networks
 
     // Clean up
     await fs.rm(pushDir, { recursive: true, force: true })
@@ -609,6 +634,9 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       status: 'failed',
       logs,
     })
+  } finally {
+    // Decrement activeOps exactly once after the entire async build completes or fails
+    activeOps = Math.max(0, activeOps - 1)
   }
 }
 
@@ -641,15 +669,24 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
             description: (frontmatter.description as string) || '',
           })
         } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-          // Verify the directory is still within the scan root
-          const realPath = await fs.realpath(fullPath)
+          // Verify the directory is still within the scan root.
+          // Wrap realpath in its own try-catch: a broken symlink or permission error here
+          // must skip only this one entry, not abort scanning the entire current directory.
+          let realPath: string | null = null
+          try {
+            realPath = await fs.realpath(fullPath)
+          } catch (realpathErr) {
+            console.debug(`Skipping directory ${fullPath} due to realpath error: ${(realpathErr as Error).message}`)
+            continue
+          }
           if (realPath.startsWith(realDir)) {
             await scan(fullPath, depth + 1)
           }
         }
       }
-    } catch {
-      // Skip inaccessible directories
+    } catch (err) {
+      // Skip inaccessible directories, but log to aid troubleshooting
+      console.debug(`Skipping directory due to file system error in ${currentDir}: ${(err as Error).message}`)
     }
   }
 
@@ -674,8 +711,11 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
         })
       }
     }
-  } catch {
-    // No scripts directory
+  } catch (err) {
+    // ENOENT means no scripts directory — that is expected; any other error is worth logging
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`Error reading scripts directory ${scriptsDir}: ${(err as Error).message}`)
+    }
   }
 
   return scripts
@@ -706,7 +746,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build/git output can be verbose
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any
@@ -724,7 +764,13 @@ function execPromise(
  */
 async function copyDir(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true })
-  const entries = await fs.readdir(src, { withFileTypes: true })
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(src, { withFileTypes: true })
+  } catch (err) {
+    // Permission denied, device error, etc. — propagate so buildPlugin fails clearly.
+    throw new Error(`copyDir: cannot read source directory "${src}": ${(err as Error).message}`)
+  }
   for (const entry of entries) {
     // Skip symlinks to prevent copying files outside the source tree
     if (entry.isSymbolicLink()) continue

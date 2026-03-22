@@ -32,7 +32,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   // SF-022: AbortController for in-flight polling fetch requests
   const pollAbortRef = useRef<AbortController | null>(null)
 
-  // Clean up polling on unmount
+  // Clean up polling and copy timeout on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
@@ -110,6 +110,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       const data: PluginBuildResult = await res.json()
       setResult(data)
+
+      // Clear any previous poll only after a new build has successfully started,
+      // preventing a rapid re-click from cancelling the new build's own interval
+      clearPoll()
 
       // Poll for completion
       if (data.status === 'building') {
@@ -216,7 +220,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           forkUrl: forkUrl.trim(),
-          manifest: result.manifest,
+          manifest: result?.manifest,
         }),
       })
 

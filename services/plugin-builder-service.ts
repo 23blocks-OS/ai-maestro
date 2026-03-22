@@ -369,11 +369,11 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     })
   }
 
-  // Marketplace skills — group by marketplace+plugin combo
-  const marketplaceGroups = new Map<string, { marketplace: string; plugin: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
+  // Marketplace skills — group by marketplace+marketplaceSkillId combo
+  const marketplaceGroups = new Map<string, { marketplace: string; marketplaceSkillId: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
   for (const skill of marketplaceSkills) {
-    const key = `${skill.marketplace}\0${skill.plugin}` // NUL separator avoids colon conflicts
-    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, plugin: skill.plugin, skills: [] }
+    const key = `${skill.marketplace}\0${skill.marketplaceSkillId}` // NUL separator avoids colon conflicts
+    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, marketplaceSkillId: skill.marketplaceSkillId, skills: [] }
     group.skills.push(skill)
     marketplaceGroups.set(key, group)
   }
@@ -391,8 +391,8 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${group.plugin}-from-${group.marketplace}`,
-      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
+      name: `${group.marketplaceSkillId}-from-${group.marketplace}`,
+      description: `Skills from ${group.marketplaceSkillId} plugin (${group.marketplace} marketplace)`,
       type: 'local',
       path: relativeStagingPath,
       map,
@@ -415,8 +415,10 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       // skillPath already validated against path traversal
       map[skill.skillPath] = `skills/${skill.name}`
     }
+    // Append a short hash of the full URL to guarantee uniqueness after sanitization/truncation
+    const urlHash = createHash('sha1').update(first.url).digest('hex').slice(0, 8)
     sources.push({
-      name: sanitizeSourceName(first.url),
+      name: `${sanitizeSourceName(first.url)}-${urlHash}`,
       description: `Skills from ${first.url}`,
       type: 'git',
       repo: first.url,
@@ -631,7 +633,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     if (execError.stderr) message += `\nStderr: ${execError.stderr}`
 
     if (exitCode === 128 || message.includes('not found')) {
-      return { error: `Repository not found or access denied: ${url}`, status: 404 }
+      return { error: `Repository not found or access denied: ${url}. ${fullMessage}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }

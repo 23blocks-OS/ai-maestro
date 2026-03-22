@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json()
   } catch (error) {
+    // Errors here come from pushToGitHub, not from request parsing — use 500
     console.error('Error pushing to GitHub:', error)
     // Differentiate JSON parsing failures from other unexpected errors
     if (error instanceof SyntaxError) {

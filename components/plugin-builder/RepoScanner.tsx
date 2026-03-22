@@ -59,7 +59,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }, [])
 
   const handleScan = async () => {
-    if (!url.trim()) return
+    // Capture current state values before any async operations to avoid stale closures.
+    // Default ref to 'main' here (single source of truth) rather than forcing it in onChange.
+    const currentUrl = url.trim()
+    const currentRef = ref.trim() || 'main'
+
+    if (!currentUrl) return
 
     // Capture url/ref at scan initiation so that any user edits during the async
     // fetch do not corrupt the values passed to onSkillsFound or stored as the

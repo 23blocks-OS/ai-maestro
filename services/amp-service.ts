@@ -10,12 +10,16 @@
  *   GET    /api/v1/info                      -> getProviderInfo
  *   POST   /api/v1/register                  -> registerAgent
  *   POST   /api/v1/route                     -> routeMessage
+ *   GET    /api/v1/messages                   -> listPendingMessages (alias)
  *   GET    /api/v1/messages/pending           -> listPendingMessages
  *   DELETE /api/v1/messages/pending           -> acknowledgePendingMessage
- *   POST   /api/v1/messages/pending           -> batchAcknowledgeMessages
+ *   DELETE /api/v1/messages/pending/:id       -> acknowledgePendingMessage
+ *   POST   /api/v1/messages/pending/ack       -> batchAcknowledgeMessages (spec path)
+ *   POST   /api/v1/messages/pending           -> batchAcknowledgeMessages (compat alias)
  *   POST   /api/v1/messages/:id/read          -> sendReadReceipt
  *   GET    /api/v1/agents                     -> listAMPAgents
  *   GET    /api/v1/agents/me                  -> getAgentSelf
+ *   GET    /api/v1/agents/me/card             -> getAgentCard
  *   PATCH  /api/v1/agents/me                  -> updateAgentSelf
  *   DELETE /api/v1/agents/me                  -> deleteAgentSelf
  *   GET    /api/v1/agents/resolve/:address    -> resolveAgentAddress
@@ -1324,6 +1328,68 @@ export function getAgentSelf(authHeader: string | null): ServiceResult<any> {
     },
     status: 200
   }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/agents/me/card
+// ---------------------------------------------------------------------------
+
+export function getAgentCard(authHeader: string | null): ServiceResult<any> {
+  const auth = authenticateRequest(authHeader)
+
+  if (!auth.authenticated) {
+    return {
+      data: { error: auth.error || 'unauthorized', message: auth.message || 'Authentication required' } as AMPError,
+      status: 401
+    }
+  }
+
+  const agent = getAgent(auth.agentId!)
+  if (!agent) {
+    return {
+      data: { error: 'not_found', message: 'Agent not found' } as AMPError,
+      status: 404
+    }
+  }
+
+  const keyPair = loadKeyPair(auth.agentId!)
+  if (!keyPair) {
+    return {
+      data: { error: 'not_found', message: 'Agent keypair not found' } as AMPError,
+      status: 404
+    }
+  }
+
+  const address = auth.address || `${agent.name}@${getAMPProviderDomain(getOrganization() || undefined)}`
+  const signedAt = new Date().toISOString()
+
+  // Build the card
+  const card: Record<string, unknown> = {
+    address,
+    name: agent.name,
+    alias: agent.alias || agent.label || null,
+    public_key: keyPair.publicPem,
+    fingerprint: keyPair.fingerprint,
+    provider: getAMPProviderDomain(getOrganization() || undefined),
+    capabilities: ['messaging', 'read_receipts'],
+    signed_at: signedAt,
+  }
+
+  // Sign: address|public_key_pem|signed_at
+  try {
+    const signable = `${address}|${keyPair.publicPem}|${signedAt}`
+    const privateKey = crypto.createPrivateKey(keyPair.privatePem)
+    const signature = crypto.sign(null, Buffer.from(signable), privateKey)
+    card.signature = signature.toString('base64')
+  } catch (err) {
+    console.error('[AMP] Failed to sign agent card:', err)
+    return {
+      data: { error: 'internal_error', message: 'Failed to sign card' } as AMPError,
+      status: 500
+    }
+  }
+
+  return { data: card, status: 200 }
 }
 
 // ---------------------------------------------------------------------------

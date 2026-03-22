@@ -3,6 +3,13 @@
 All notable changes to AI Maestro are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.14] - 2026-03-21
+
+### Added
+- **`POST /api/v1/messages/pending/ack`** — Spec-correct path for batch message acknowledgment. Accepts `{ "ids": [...] }` body. The old `POST /api/v1/messages/pending` path is kept as a backward-compatible alias.
+- **`GET /api/v1/agents/me/card`** — Returns a signed agent card containing the agent's address, public key, fingerprint, provider, and capabilities. The card is Ed25519-signed for verification by peers.
+- **`GET /api/v1/messages`** — Alias for `GET /api/v1/messages/pending`. Some AMP clients use the shorter path to fetch pending messages. Both routes now work identically.
+
 ## [0.25.12] - 2026-03-21
 
 ### Added

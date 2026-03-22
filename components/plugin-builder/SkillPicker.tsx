@@ -5,6 +5,7 @@ import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
 import type { PluginSkillSelection } from '@/types/plugin-builder'
+import { getSkillKey } from '@/types/plugin-builder'
 
 // Core AI Maestro skills (from plugin/src/skills/)
 const CORE_SKILLS = [
@@ -76,8 +77,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    // Use filtered counts so the badge reflects what is currently visible in the list
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -187,7 +189,9 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+                // Key must mirror getSkillKey({ type: 'marketplace', ... }) exactly so
+                // selectedKeys.has(key) correctly identifies already-selected skills.
+                const key = `marketplace:${skill.marketplace}:${skill.plugin}:${skill.id}`
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
@@ -219,7 +223,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}${skill.description ? `: ${skill.description}` : ` (Plugin: ${skill.plugin}, Marketplace: ${skill.marketplace})`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -254,24 +258,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           <RepoScanner
             onSkillsFound={() => {}}
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
           />
         )}
       </div>
     </div>
   )
-}
-
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.id}`
-    case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
-  }
 }

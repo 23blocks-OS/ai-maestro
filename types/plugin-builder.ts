@@ -29,6 +29,25 @@ export type PluginSkillSelection =
   | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
   | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
 
+/**
+ * Generate a unique key for a skill selection (used for deduplication and
+ * React list keys). Defined here alongside the type it operates on so both
+ * SkillPicker and PluginComposer can import it from a single source of truth
+ * without cross-component coupling.
+ */
+export function getSkillKey(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return `core:${skill.name}`
+    case 'marketplace':
+      // Include marketplace and plugin so skills with the same id from different
+      // marketplaces or plugins are never treated as the same skill.
+      return `marketplace:${skill.marketplace}:${skill.plugin}:${skill.id}`
+    case 'repo':
+      return `repo:${skill.url}:${skill.skillPath}`
+  }
+}
+
 // ============================================================================
 // Build Results
 // ============================================================================

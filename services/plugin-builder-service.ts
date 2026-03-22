@@ -49,6 +49,13 @@ const BUILD_TTL_MS = 60 * 60 * 1000 // 1 hour
 const MAX_CONCURRENT_OPS = 3
 let activeOps = 0
 
+// Promise-chain mutex: serialises the check+increment so no two concurrent
+// callers can both pass the guard when activeOps === MAX_CONCURRENT_OPS - 1.
+// Each caller appends to the chain, runs its critical section, then resolves
+// so the next caller can proceed.  The long-running work (builds, git ops)
+// happens OUTSIDE the lock — only the atomic check+increment is protected.
+let activeOpsLock: Promise<void> = Promise.resolve()
+
 // In-memory build status tracking (with TTL eviction)
 const buildResults = new Map<string, PluginBuildResult>()
 
@@ -161,6 +168,32 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     }
+
+    if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal when constructing
+      // the installPath via path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', ...)
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.id}": Marketplace name is required`
+      }
+      // Explicitly block '.' and '..' before the regex — SAFE_PATH_SEGMENT_RE allows dots
+      // but a bare '.' or '..' would cause path.join to traverse out of the intended directory.
+      if (skill.marketplace === '.' || skill.marketplace === '..') {
+        return `Marketplace skill "${skill.id}": Marketplace name must not be '.' or '..'`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.id}": Marketplace name contains invalid characters (only letters, numbers, dots, hyphens, underscores allowed)`
+      }
+      if (!skill.plugin || typeof skill.plugin !== 'string') {
+        return `Marketplace skill "${skill.id}": Plugin name is required`
+      }
+      // Explicitly block '.' and '..' before the regex — same path traversal risk via plugin name.
+      if (skill.plugin === '.' || skill.plugin === '..') {
+        return `Marketplace skill "${skill.id}": Plugin name must not be '.' or '..'`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.id}": Plugin name contains invalid characters (only letters, numbers, dots, hyphens, underscores allowed)`
+      }
+    }
   }
 
   return null
@@ -178,19 +211,26 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up expired build directory ${buildDir}:`, err)
+      })
     }
   }
 
-  // If still over limit, evict oldest
+  // If still over limit, evict oldest entries.
+  // Map preserves insertion order, so the first keys() entries are the oldest —
+  // no sort needed; O(k) walk instead of O(N log N).
   if (buildResults.size > MAX_BUILD_RESULTS) {
-    const entries = [...buildResults.entries()]
-      .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
-    const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
-    for (const [id] of toRemove) {
+    const toEvict = buildResults.size - MAX_BUILD_RESULTS
+    let evicted = 0
+    for (const id of buildResults.keys()) {
+      if (evicted >= toEvict) break
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up evicted build directory ${buildDir}:`, err)
+      })
+      evicted++
     }
   }
 }
@@ -311,8 +351,20 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: validationError, status: 400 }
   }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
+  // Atomically check-and-increment inside the mutex so concurrent callers
+  // cannot both pass the guard when activeOps === MAX_CONCURRENT_OPS - 1.
+  let didIncrement = false
+  await new Promise<void>(resolve => {
+    activeOpsLock = activeOpsLock.then(() => {
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        didIncrement = true
+      }
+      resolve()
+    })
+  })
+
+  if (!didIncrement) {
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
@@ -320,7 +372,6 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -376,12 +427,16 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
         })
       }
     }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
+      // Single decrement: activeOps is always incremented before runBuild fires,
+      // so a plain -- is correct and avoids the non-atomic Math.max read-modify-write.
+      activeOps--
     })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement if we actually incremented — if the mutex guard rejected
+    // (didIncrement === false) we must not touch activeOps or the counter goes negative.
+    if (didIncrement) { activeOps-- }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -414,8 +469,19 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   const refErr = validateGitRef(ref)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
+  // Atomically check-and-increment inside the mutex (same pattern as buildPlugin)
+  let didIncrement = false
+  await new Promise<void>(resolve => {
+    activeOpsLock = activeOpsLock.then(() => {
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        didIncrement = true
+      }
+      resolve()
+    })
+  })
+
+  if (!didIncrement) {
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 
@@ -423,8 +489,6 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   const scanDir = path.join(os.tmpdir(), `ai-maestro-scan-${scanId}`)
 
   try {
-    activeOps++
-
     // Shallow clone (use -- to prevent ref from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', ref, '--', url, scanDir], {
       timeout: 30000,
@@ -445,7 +509,9 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     }
   } catch (error: unknown) {
     // Clean up on error
-    await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(scanDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up temporary scan directory ${scanDir}:`, err)
+    })
 
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
@@ -456,7 +522,9 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement if we actually incremented — if the mutex guard rejected
+    // (didIncrement === false) we must not touch activeOps or the counter goes negative.
+    if (didIncrement) { activeOps-- }
   }
 }
 
@@ -481,8 +549,19 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const refErr = validateGitRef(branch)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
+  // Atomically check-and-increment inside the mutex (same pattern as buildPlugin)
+  let didIncrement = false
+  await new Promise<void>(resolve => {
+    activeOpsLock = activeOpsLock.then(() => {
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        didIncrement = true
+      }
+      resolve()
+    })
+  })
+
+  if (!didIncrement) {
     return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
   }
 
@@ -490,8 +569,6 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const pushDir = path.join(os.tmpdir(), `ai-maestro-push-${pushId}`)
 
   try {
-    activeOps++
-
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
       timeout: 30000,
@@ -540,12 +617,16 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       status: 200,
     }
   } catch (error: unknown) {
-    await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(pushDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up temporary push directory ${pushDir}:`, err)
+    })
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    // Only decrement if we actually incremented — if the mutex guard rejected
+    // (didIncrement === false) we must not touch activeOps or the counter goes negative.
+    if (didIncrement) { activeOps-- }
   }
 }
 
@@ -599,9 +680,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
+    // Include stderr if present and non-empty; execPromise attaches it to rejected errors.
+    // Convert to string to handle any non-string value the error object might carry.
+    const stderrRaw = (error as any)?.stderr
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    if (stderrRaw !== undefined && stderrRaw !== null) {
+      const stderrStr = String(stderrRaw)
+      if (stderrStr.length > 0) logs.push(...stderrStr.split('\n'))
+    }
 
     // Atomic replacement
     buildResults.set(buildId, {
@@ -683,15 +769,18 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 
 /**
  * Sanitize a URL into a valid source name.
+ * Falls back to 'git-source' if all characters are stripped, ensuring a non-empty name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Guard: ensure a non-empty name is always returned
+  return sanitized || 'git-source'
 }
 
 /**
@@ -706,7 +795,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — generous for large build/git outputs
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

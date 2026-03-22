@@ -67,6 +67,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        // Clear any poll that may have been started before this failure path
+        clearPoll()
         return
       }
 
@@ -106,17 +108,25 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           }
         }, 1000)
       } else {
+        // Build finished synchronously (not 'building') — ensure no stale poll remains
+        clearPoll()
         setBuilding(false)
         setShowLogs(true)
       }
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
+      // Clear any poll that may exist when the initial request itself throws
+      clearPoll()
     }
   }
 
   const handlePush = async () => {
-    if (!forkUrl.trim() || !result?.manifest) return
+    if (!forkUrl.trim()) return
+    if (!result?.manifest) {
+      setPushResult({ ok: false, message: 'Build result manifest is missing.' })
+      return
+    }
 
     // Client-side URL validation
     if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
@@ -258,7 +268,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
@@ -280,7 +290,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result?.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

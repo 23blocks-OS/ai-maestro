@@ -312,7 +312,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always prioritize result.error — a result with both error and data is still an error
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -328,7 +329,13 @@ function getQuery(url: string): Record<string, string> {
   const parsed = parse(url, true)
   const q: Record<string, string> = {}
   for (const [k, v] of Object.entries(parsed.query)) {
-    if (typeof v === 'string') q[k] = v
+    // When a key is repeated (e.g. ?id=a&id=b), node's url.parse returns an
+    // array. Take the first element so the value is never silently dropped.
+    if (typeof v === 'string') {
+      q[k] = v
+    } else if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'string') {
+      q[k] = v[0]
+    }
   }
   return q
 }
@@ -537,7 +544,16 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // optionsStr was present but contained malformed JSON — reject with 400
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -702,7 +718,16 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    // `depth` must be a number; parse it from the query string to satisfy the typed signature
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action,
+      name: query.name ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      project: query.project ?? null,
+      nodeId: query.nodeId ?? null,
+      depth: query.depth !== undefined ? parseInt(query.depth, 10) : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -714,7 +739,13 @@ const routes: Route[] = [
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    // Map query strings to the exact typed params shape (null for missing optional fields)
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action,
+      name: query.name ?? null,
+      column: query.column ?? null,
+      database: query.database ?? null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -726,7 +757,14 @@ const routes: Route[] = [
 
   // Graph - query
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/query$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryGraph(params.id, query as any))
+    // Map query strings to the exact typed params shape (null for missing fields per service signature)
+    sendServiceResult(res, await queryGraph(params.id, {
+      queryType: query.queryType ?? null,
+      name: query.name ?? null,
+      type: query.type ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+    }))
   }},
 
   // Database
@@ -739,7 +777,16 @@ const routes: Route[] = [
 
   // Docs
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDocs(params.id, query as any))
+    // `limit` must be a number per DocsQueryOptions; parse it from the query string
+    sendServiceResult(res, await queryDocs(params.id, {
+      action: query.action,
+      q: query.q ?? null,
+      keyword: query.keyword ?? null,
+      type: query.type ?? null,
+      docId: query.docId ?? null,
+      limit: query.limit !== undefined ? parseInt(query.limit, 10) : undefined,
+      project: query.project ?? null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -886,7 +933,14 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await listAgentMessages(params.id, query as any))
+    // Map query strings to the exact typed params shape (all string fields, safe to pass directly)
+    sendServiceResult(res, await listAgentMessages(params.id, {
+      box: query.box,
+      status: query.status,
+      priority: query.priority,
+      from: query.from,
+      to: query.to,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1057,14 +1111,30 @@ const routes: Route[] = [
   // Messages (global)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMeetingMessages(query as any))
+    // Map query strings to the exact GetMeetingMessagesParams shape (null for missing fields)
+    sendServiceResult(res, await getMeetingMessages({
+      meetingId: query.meetingId ?? null,
+      participants: query.participants ?? null,
+      since: query.since ?? null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/messages\/forward$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await forwardGlobalMessage(body))
   }},
   { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMessages(query as any))
+    // Map query strings to the exact GetMessagesParams shape (undefined for missing optional fields)
+    sendServiceResult(res, await getMessages({
+      agent: query.agent ?? null,
+      id: query.id ?? null,
+      action: query.action ?? null,
+      box: query.box ?? null,
+      limit: query.limit ?? null,
+      status: query.status ?? null,
+      priority: query.priority ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1206,7 +1276,14 @@ const routes: Route[] = [
     sendServiceResult(res, await getMarketplaceSkillById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/marketplace\/skills$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listMarketplaceSkills(query as any))
+    // `includeContent` must be a boolean per SkillSearchParams; parse it from the query string
+    sendServiceResult(res, await listMarketplaceSkills({
+      marketplace: query.marketplace,
+      plugin: query.plugin,
+      category: query.category,
+      search: query.search,
+      includeContent: query.includeContent === 'true',
+    }))
   }},
 
   // =========================================================================

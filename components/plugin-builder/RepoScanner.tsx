@@ -1,18 +1,25 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
+import { GitBranch, Search, Loader2, AlertCircle, Plus, Check } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
 interface RepoScannerProps {
-  onSkillsFound: (skills: RepoSkillInfo[], url: string, ref: string) => void
+  // Optional: notifies the parent when skills are found in a scan. RepoScanner
+  // manages its own scanned-skills list internally, so callers that only need
+  // add/remove control can omit this prop.
+  onSkillsFound?: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
+  onRemoveSkill: (key: string) => void
   selectedSkillKeys: Set<string>
 }
 
-export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys }: RepoScannerProps) {
+export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, selectedSkillKeys }: RepoScannerProps) {
   const [url, setUrl] = useState('')
   const [ref, setRef] = useState('main')
+  // Stores the ref actually used for the last successful scan so that
+  // handleAddSkill records the same ref that was sent to the API.
+  const [scannedRef, setScannedRef] = useState('main')
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
@@ -26,6 +33,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
 
+    // Resolve the effective ref: an empty input means the user cleared the field
+    // and wants the default branch. Use 'main' at the point of the API call rather
+    // than forcing the input to always show 'main', which prevents the user from
+    // clearing the field while typing.
+    const effectiveRef = ref.trim() || 'main'
+
     setScanning(true)
     setError(null)
     setScanResult(null)
@@ -34,7 +47,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: url.trim(), ref: effectiveRef }),
         signal,
       })
 
@@ -47,7 +60,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Record the resolved ref so handleAddSkill can tag each skill with the
+        // same ref value that was actually sent to the API (not the raw input,
+        // which may have been empty).
+        setScannedRef(effectiveRef)
+        // onSkillsFound is optional — only invoke when the caller provided it
+        onSkillsFound?.(data.skills, url.trim(), effectiveRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -61,7 +79,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     onAddSkill({
       type: 'repo',
       url: url.trim(),
-      ref,
+      // Use scannedRef (the ref actually sent to the API) so the stored skill
+      // entry matches the scan that discovered it, not whatever the user may
+      // have typed in the input field afterwards.
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +114,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,11 +145,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Use url.trim() so the key always matches the one stored via handleAddSkill
+            const key = `repo:${url.trim()}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">
@@ -138,12 +160,26 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
                   )}
                 </div>
                 <button
-                  onClick={() => handleAddSkill(skill)}
-                  disabled={isSelected}
-                  className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors flex-shrink-0"
-                  title={isSelected ? 'Already added' : 'Add skill'}
+                  onClick={() => {
+                    if (isSelected) {
+                      onRemoveSkill(key)
+                    } else {
+                      handleAddSkill(skill)
+                    }
+                  }}
+                  className={`ml-2 p-1.5 rounded-md transition-colors flex-shrink-0 ${
+                    isSelected
+                      ? 'text-cyan-400 hover:bg-cyan-500/10'
+                      : 'text-cyan-400 hover:bg-cyan-500/10'
+                  }`}
+                  title={isSelected ? 'Remove skill' : 'Add skill'}
+                  aria-pressed={isSelected}
                 >
-                  <Plus className="w-4 h-4" />
+                  {isSelected ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             )

@@ -45,9 +45,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }, [])
 
   const handleBuild = async () => {
-    // Clear any existing poll interval first (prevents leak on rapid re-clicks)
-    clearPoll()
-
     setBuilding(true)
     setResult(null)
     setError(null)
@@ -55,6 +52,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     // Reset push-related state on new build
     setShowPush(false)
     setPushResult(null)
+    // Clear any leftover interval from a previous build before starting a new one
+    clearPoll()
 
     try {
       const res = await fetch('/api/plugin-builder/build', {
@@ -67,6 +66,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        // clearPoll() was already called at the top of handleBuild; no interval
+        // has been started in this path, so calling it again would spuriously
+        // reset pollFailures.current and is misleading.
         return
       }
 
@@ -75,6 +77,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       // Poll for completion
       if (data.status === 'building') {
+        // clearPoll() already called at top of handleBuild; safe to start new interval
         pollRef.current = setInterval(async () => {
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
@@ -106,11 +109,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           }
         }, 1000)
       } else {
+        // Build resolved immediately (not async) — reset failure counter and finish
+        clearPoll()
         setBuilding(false)
         setShowLogs(true)
       }
     } catch {
       setError('Failed to connect to server')
+      clearPoll()
       setBuilding(false)
     }
   }
@@ -170,7 +176,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           onClick={handleBuild}
           disabled={disabled || building}
           className="flex items-center gap-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-medium rounded-lg transition-colors"
-          aria-label={disabledReason || 'Start plugin build'}
+          aria-label={building ? 'Building plugin' : (disabledReason || 'Start plugin build')}
         >
           {building ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -262,7 +268,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
-              claude plugin install {result.outputPath}
+              claude plugin install {result?.outputPath}
             </code>
             <button
               onClick={copyInstallCommand}
@@ -280,7 +286,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result?.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

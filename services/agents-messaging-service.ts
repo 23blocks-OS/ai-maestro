@@ -60,11 +60,7 @@ import type { AddAMPAddressRequest, AddEmailAddressRequest, EmailConflictError, 
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+export type { ServiceResult } from '@/types/service-result'
 
 // ---------------------------------------------------------------------------
 // Internal helpers

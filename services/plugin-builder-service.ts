@@ -178,7 +178,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +192,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to clean up build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -220,15 +224,26 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     for (const skill of coreSkills) {
       map[`skills/${skill.name}`] = `skills/${skill.name}`
     }
-    if (config.includeHooks !== false) {
-      map['hooks/*'] = 'hooks/'
-    }
     sources.push({
       name: 'core',
       description: 'AI Maestro core skills',
       type: 'local',
       path: './src',
       map,
+    })
+  }
+
+  // Default hooks — included whenever includeHooks is true (the default), regardless
+  // of which skill source types are present.  Previously this was only injected when
+  // coreSkills were present, which meant a marketplace-only or repo-only plugin would
+  // silently drop the hooks even when the caller explicitly requested them.
+  if (config.includeHooks !== false) {
+    sources.push({
+      name: 'default-hooks',
+      description: 'Default AI Maestro hooks',
+      type: 'local',
+      path: './src',
+      map: { 'hooks/*': 'hooks/' },
     })
   }
 
@@ -242,7 +257,11 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // installPath must point to the plugin's own subdirectory within the marketplace
+    // cache, not the marketplace root. Marketplace plugins are unpacked as
+    //   ~/.claude/plugins/marketplaces/<marketplace>/<plugin>/
+    // so skills live at <installPath>/skills/<skillName>.
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -366,13 +385,17 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Run build asynchronously
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
+      // Ensure status is updated even on unexpected errors.
+      // Explicitly reset outputPath and stats so a partially-completed runBuild
+      // cannot leave stale values alongside status: 'failed'.
       const r = buildResults.get(buildId)
       if (r && r.status === 'building') {
         buildResults.set(buildId, {
           ...r,
           status: 'failed',
           logs: [err instanceof Error ? err.message : String(err)],
+          outputPath: undefined,
+          stats: undefined,
         })
       }
     }).finally(() => {
@@ -445,7 +468,9 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     }
   } catch (error: unknown) {
     // Clean up on error
-    await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(scanDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up scan directory ${scanDir}:`, err)
+    })
 
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
@@ -504,10 +529,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     )
 
     // Stage and commit
-    await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir })
+    await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir, timeout: 10000 })
 
     // Check if there are changes to commit
-    const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir })
+    const statusOutput = await execPromise('git', ['status', '--porcelain'], { cwd: pushDir, timeout: 10000 })
     if (!statusOutput.trim()) {
       await fs.rm(pushDir, { recursive: true, force: true })
       return {
@@ -524,7 +549,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       '-c', 'user.name=Plugin Builder',
       '-c', 'user.email=plugin-builder@aimaestro.local',
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
-    ], { cwd: pushDir })
+    ], { cwd: pushDir, timeout: 10000 })
 
     // Push
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
@@ -540,7 +565,9 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       status: 200,
     }
   } catch (error: unknown) {
-    await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(pushDir, { recursive: true, force: true }).catch(err => {
+      console.warn(`Failed to clean up push directory ${pushDir}:`, err)
+    })
     const message = error instanceof Error ? error.message : String(error)
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
@@ -568,7 +595,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       { cwd: buildDir, timeout: 120000 }
     )
 
-    // Parse output for stats
+    // Parse output for stats.
+    // Derive the output path from manifest.output, which is the authoritative field
+    // set by generateManifest() (e.g. "./plugins/<name>"). Using this field ensures
+    // the path stays correct if the manifest output format ever changes.
     const outputPath = path.join(buildDir, manifest.output)
     const stats = { skills: 0, scripts: 0, hooks: 0 }
 
@@ -603,11 +633,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
-    // Atomic replacement
+    // Atomic replacement — explicitly reset outputPath and stats so that a
+    // partially-completed build cannot leave stale values alongside status: 'failed',
+    // which would mislead downstream consumers of getBuildStatus.
     buildResults.set(buildId, {
       ...existing,
       status: 'failed',
       logs,
+      outputPath: undefined,
+      stats: undefined,
     })
   }
 }
@@ -633,7 +667,9 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
           const parsed = matter(content)
           const frontmatter = parsed.data as Record<string, unknown>
           const skillFolder = path.basename(path.dirname(fullPath))
-          const relativePath = path.relative(dir, path.dirname(fullPath))
+          // path.relative returns '' when SKILL.md is directly in the root dir;
+          // normalise to '.' so callers always receive a non-empty path string.
+          const relativePath = path.relative(dir, path.dirname(fullPath)) || '.'
 
           skills.push({
             name: (frontmatter.name as string) || skillFolder,
@@ -665,8 +701,19 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
   const scriptsDir = path.join(dir, 'scripts')
 
   try {
+    // Resolve the real path of the scan root and the scripts directory before
+    // reading, so that a malicious repo that places a symlink at scripts/ pointing
+    // outside the clone cannot cause the server to list or read arbitrary paths.
+    const realScanDir = await fs.realpath(dir)
+    const realScriptsDir = await fs.realpath(scriptsDir)
+    if (!realScriptsDir.startsWith(realScanDir + path.sep) && realScriptsDir !== realScanDir) {
+      // scriptsDir resolved to somewhere outside the scan root — skip it entirely.
+      return scripts
+    }
+
     const entries = await fs.readdir(scriptsDir, { withFileTypes: true })
     for (const entry of entries) {
+      // Skip symlinks so individual script files cannot point outside the repo.
       if (entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith('.sh')) {
         scripts.push({
           name: entry.name,
@@ -675,7 +722,7 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
       }
     }
   } catch {
-    // No scripts directory
+    // No scripts directory, or realpath failed (dangling symlink) — treat as absent.
   }
 
   return scripts
@@ -685,13 +732,19 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  // After stripping the scheme, .git suffix, and collapsing non-alphanumeric
+  // characters the result can be an empty string (e.g. a URL that is nothing
+  // but special characters). Always return a non-empty name so callers never
+  // end up with a blank source identifier in the manifest.
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+
+  return sanitized || 'unnamed-source'
 }
 
 /**
@@ -706,7 +759,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build logs and git output can be large
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

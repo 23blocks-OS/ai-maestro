@@ -16,16 +16,9 @@ import {
   getSkillById,
 } from '@/lib/marketplace-skills'
 import type { SkillSearchParams } from '@/types/marketplace'
+import type { ServiceResult } from '@/types/service-result'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
-}
+export type { ServiceResult } from '@/types/service-result'
 
 // ===========================================================================
 // PUBLIC API -- called by API routes

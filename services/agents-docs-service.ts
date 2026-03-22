@@ -21,11 +21,7 @@ import {
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+export type { ServiceResult } from '@/types/service-result'
 
 export interface DocsQueryOptions {
   action: string

@@ -35,12 +35,19 @@ export async function POST(request: NextRequest) {
         { status: result.status }
       )
     }
-    return NextResponse.json(result.data)
+    return NextResponse.json(result.data, { status: result.status })
   } catch (error) {
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
     console.error('Error pushing to GitHub:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

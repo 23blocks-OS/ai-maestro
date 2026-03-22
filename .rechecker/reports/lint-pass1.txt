@@ -1,0 +1,2 @@
+=== ESLint: 0 errors ===
+=== shellcheck: 0 errors ===

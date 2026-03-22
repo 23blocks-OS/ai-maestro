@@ -14,11 +14,7 @@ const execAsync = promisify(exec)
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+export type { ServiceResult } from '@/types/service-result'
 
 export interface DockerCreateRequest {
   name: string

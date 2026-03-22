@@ -68,11 +68,7 @@ import type { Host } from '@/types/host'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
+export type { ServiceResult } from '@/types/service-result'
 
 interface DiscoveredSession {
   name: string

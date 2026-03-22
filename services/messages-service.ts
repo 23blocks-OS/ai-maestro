@@ -50,11 +50,7 @@ import type { SidebarMode } from '@/types/team'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
+export type { ServiceResult } from '@/types/service-result'
 
 // ---------------------------------------------------------------------------
 // Messages: GET /api/messages

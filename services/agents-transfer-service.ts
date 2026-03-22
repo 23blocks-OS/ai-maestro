@@ -28,11 +28,7 @@ const MESSAGES_DIR = path.join(AIMAESTRO_DIR, 'messages')
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number
-}
+export type { ServiceResult } from '@/types/service-result'
 
 export interface TransferRequest {
   targetHostId: string

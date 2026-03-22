@@ -42,11 +42,7 @@ const execAsync = promisify(exec)
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number // HTTP-like status code for the route to use
-}
+export type { ServiceResult } from '@/types/service-result'
 
 // -- Config types --
 

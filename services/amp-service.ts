@@ -59,10 +59,13 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ServiceResult<T> {
-  data?: T
-  error?: string
-  status: number  // HTTP-like status code for the route to use
+import type { ServiceResult as BaseServiceResult } from '@/types/service-result'
+
+/**
+ * AMP service result extends the base ServiceResult with optional HTTP headers
+ * that routes need to forward (e.g., WWW-Authenticate on 401 responses).
+ */
+export interface ServiceResult<T> extends BaseServiceResult<T> {
   headers?: Record<string, string>
 }
 

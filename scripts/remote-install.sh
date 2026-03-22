@@ -22,9 +22,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
@@ -37,7 +34,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
-    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
 fi
 
 # Auto-disable typing animation over SSH
@@ -361,7 +358,7 @@ uninstall() {
             pm2 stop "${gw}-gateway" 2>/dev/null || true
             pm2 delete "${gw}-gateway" 2>/dev/null || true
         done
-        pm2 save 2>/dev/null || true
+        pm2 save || true
         maestro_info "Stopped PM2 services"
     fi
 
@@ -543,7 +540,6 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +548,19 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -759,50 +750,53 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package globally, using sudo when the global prefix is not writable
+        # (mirrors the same writability check used for yarn installation above)
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
+            local npm_prefix_local
+            npm_prefix_local=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+            if [ -w "$npm_prefix_local/lib" ] 2>/dev/null; then
                 npm install -g "$pkg"
             else
-                npm install -g "$pkg" 2>/dev/null
+                sudo npm install -g "$pkg"
             fi
         }
 
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || {
+                else
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
-                }
+                fi
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || {
+                else
                     maestro_warn "Could not install Codex automatically"
-                }
+                fi
                 ;;
             3)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || maestro_warn "Could not install Claude Code"
+                else
+                    maestro_warn "Could not install Claude Code"
+                fi
 
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || maestro_warn "Could not install Codex"
+                else
+                    maestro_warn "Could not install Codex"
+                fi
                 ;;
             4)
                 maestro_info "Skipping AI tool installation"
@@ -823,7 +817,6 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -995,7 +988,9 @@ act3_clone_and_build() {
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
                     for gw in "${GW_ARRAY[@]}"; do
                         if [ -d "${gw}-gateway" ]; then
-                            (cd "${gw}-gateway" && npm install --silent 2>/dev/null || npm install 2>/dev/null || true)
+                            if ! (cd "${gw}-gateway" && npm install); then
+                                maestro_warn "npm install failed for ${gw}-gateway — skipping"
+                            fi
                         fi
                     done
                     cd "$INSTALL_DIR"
@@ -1048,7 +1043,7 @@ act3_clone_and_build() {
                 local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
                 if [ -d "$gw_dir" ]; then
                     cd "$gw_dir"
-                    npm install --silent 2>/dev/null || npm install || {
+                    npm install || {
                         maestro_warn "npm install failed for ${gw}-gateway — skipping"
                         cd "$INSTALL_DIR"
                         continue
@@ -1058,7 +1053,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,7 +1097,7 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
@@ -1123,7 +1118,7 @@ act4_start_and_register() {
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1158,7 +1153,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1190,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1208,8 +1203,10 @@ act4_start_and_register() {
         mkdir -p "$MAILMAN_DIR"
         if [ ! -f "$MAILMAN_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" ]; then
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
-            portable_sed "s|{{INSTALL_DIR}}|${safe_dir}|g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
+            # gw_list is built with real newlines. BSD sed (macOS) cannot embed literal newlines
+            # in the replacement part of an inline s command, so we use awk for this substitution
+            # which handles multiline replacement strings correctly on both macOS and Linux.
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
             for gw_item in "${GW_ITEMS[@]}"; do
@@ -1222,15 +1219,37 @@ act4_start_and_register() {
                     *)        gw_display="$gw_item" ;;
                 esac
                 if [ -n "$gw_list" ]; then
-                    gw_list="${gw_list}\n- ${gw_display}"
+                    gw_list="${gw_list}
+- ${gw_display}"
                 else
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use awk for both substitutions in a single atomic pass — portable across BSD
+            # (macOS) and GNU awk. Both replacement values are passed via environment variables
+            # to avoid shell quoting issues. The replacements are pre-escaped in the BEGIN
+            # block so that awk's gsub() does not misinterpret & (whole-match) or \ (escape)
+            # as metacharacters in the replacement string.
+            GW_LIST_VALUE="$gw_list" INSTALL_DIR_VALUE="$INSTALL_DIR" awk '
+                function escape_repl(s,    r) {
+                    r = s
+                    gsub(/\\/, "\\\\", r)
+                    gsub(/&/,  "\\&",  r)
+                    return r
+                }
+                BEGIN {
+                    install_dir = escape_repl(ENVIRON["INSTALL_DIR_VALUE"])
+                    gw_list     = escape_repl(ENVIRON["GW_LIST_VALUE"])
+                }
+                {
+                    gsub(/\{\{INSTALL_DIR\}\}/,          install_dir)
+                    gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, gw_list)
+                    print
+                }
+            ' "$MAILMAN_DIR/CLAUDE.md" > "$MAILMAN_DIR/CLAUDE.md.tmp" && mv "$MAILMAN_DIR/CLAUDE.md.tmp" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1300,8 +1319,9 @@ act5_grand_finale() {
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
                     "$AI_TOOL \"$INITIAL_PROMPT\""
+                # Wait for the new session to initialize before attaching
+                sleep 2
             fi
-            sleep 2
             tmux attach-session -t "my-first-agent"
             echo ""
             maestro_ok "Welcome back! Your agent session is still running in tmux."
@@ -1340,7 +1360,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
-        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+        RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
     fi
 
     # M1: Warn if running as root (curl | sudo bash is dangerous)

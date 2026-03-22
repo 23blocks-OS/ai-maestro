@@ -210,8 +210,13 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
   switch (skill.type) {
     case 'core':
       return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+    case 'marketplace': {
+      // Skill ID format is always marketplace:plugin:skillName (3 colon-separated segments).
+      // Fall back to the raw skill.id when the third segment is missing (malformed id) so
+      // the user sees something meaningful rather than the unrelated plugin name.
+      const parts = skill.id.split(':')
+      return parts[2] ?? skill.id
+    }
     case 'repo':
       return skill.name
   }
@@ -221,8 +226,13 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
   switch (skill.type) {
     case 'core':
       return null
-    case 'marketplace':
-      return `${skill.plugin} / ${skill.marketplace}`
+    case 'marketplace': {
+      // Guard against empty strings from runtime API data that may not conform
+      // to the type. Build the subtitle only from the parts that are non-empty
+      // so we never show a bare " / " or trailing slash.
+      const parts = [skill.plugin, skill.marketplace].filter(Boolean)
+      return parts.length > 0 ? parts.join(' / ') : null
+    }
     case 'repo':
       return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
   }

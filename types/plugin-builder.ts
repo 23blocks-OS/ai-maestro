@@ -16,6 +16,8 @@ export interface PluginBuildConfig {
   name: string                         // Plugin name (e.g., "my-backend-agent")
   version: string                      // Semver (e.g., "1.0.0")
   description?: string                 // Human-readable description
+  author?: { name: string }            // Author metadata — maps to PluginManifestMetadata.author
+  homepage?: string                    // Project homepage URL — maps to PluginManifestMetadata.homepage
   skills: PluginSkillSelection[]       // Selected skills from various sources
   includeHooks?: boolean               // Include default hooks (default: true)
 }
@@ -26,8 +28,8 @@ export interface PluginBuildConfig {
  */
 export type PluginSkillSelection =
   | { type: 'core'; name: string }
-  | { type: 'marketplace'; id: string; marketplace: string; plugin: string }
-  | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }
+  | { type: 'marketplace'; id: string; marketplace: string; plugin: string; name: string; description: string }
+  | { type: 'repo'; url: string; ref: string; skillPath: string; name: string }  // name = skill folder name (from RepoSkillInfo.name), used as the output directory name in the manifest (skills/<name>)
 
 // ============================================================================
 // Build Results
@@ -57,12 +59,12 @@ export interface PluginBuildStats {
 // ============================================================================
 
 /**
- * The plugin.manifest.json format used by build-plugin.sh
+ * The plugin.manifest.json format used by build-plugin.sh.
+ * All plugin identity fields (name, version, description) live inside
+ * the `plugin` object (PluginManifestMetadata) — there is no duplication
+ * at the top level.
  */
 export interface PluginManifest {
-  name: string
-  version: string
-  description?: string
   output: string                       // Output directory (relative)
   plugin: PluginManifestMetadata
   sources: PluginManifestSource[]
@@ -71,20 +73,33 @@ export interface PluginManifest {
 export interface PluginManifestMetadata {
   name: string
   version: string
+  description?: string                 // Human-readable description
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+/**
+ * Discriminated union — enforces that `path` is only present for local
+ * sources and `repo` is only present for git sources, eliminating the
+ * invalid state where both (or neither) could be set simultaneously.
+ */
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required for local sources
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                     // Required for git sources
+      ref?: string                     // Git branch/tag
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

@@ -312,7 +312,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Only check result.error — a successful response may have no data (e.g. 204 No Content)
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -433,13 +434,14 @@ const routes: Route[] = [
     try {
       if (query.local === 'true') {
         const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
+        // Use sendServiceResult for consistent error-response formatting across all routes
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: false } })
       } else {
         const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: result.fromCache } })
       }
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+      sendServiceResult(res, { status: 500, error: 'Failed to fetch sessions', data: { sessions: [] } })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -475,9 +477,10 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
       const activity = await getActivity()
-      sendJson(res, 200, { activity })
+      // Use sendServiceResult for consistent error-response formatting across all routes
+      sendServiceResult(res, { status: 200, data: { activity } })
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
+      sendServiceResult(res, { status: 500, error: 'Failed to fetch activity', data: { activity: {} } })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
@@ -533,15 +536,25 @@ const routes: Route[] = [
       const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
 
       if (!file) {
-        sendJson(res, 400, { error: 'No file provided' })
+        // Use sendServiceResult for consistent error-response formatting across all routes
+        sendServiceResult(res, { status: 400, error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Return 400 immediately — malformed JSON in the options field is a client error
+          sendServiceResult(res, { status: 400, error: 'Invalid JSON for options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Unknown error' })
     }
   }},
   // Agent directory
@@ -807,7 +820,8 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        // Use sendServiceResult for consistent error-response formatting across all routes
+        sendServiceResult(res, { status: result.status || 500, error: result.error || 'Failed to export agent' })
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -820,7 +834,7 @@ const routes: Route[] = [
         'X-Export-Version': '1.0.0',
       })
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to export agent' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -896,27 +910,30 @@ const routes: Route[] = [
   // Metadata (uses agents-core-service getAgentById/updateAgentById)
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
+    // Use sendServiceResult for consistent error-response formatting across all routes
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata || {} } })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
+    // Use sendServiceResult for consistent error-response formatting across all routes
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata } })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
+    // Use sendServiceResult for consistent error-response formatting across all routes
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { success: true })
+      sendServiceResult(res, { status: 200, data: { success: true } })
     }
   }},
 
@@ -1071,10 +1088,10 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
   }},
 
   // =========================================================================

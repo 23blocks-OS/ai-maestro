@@ -1,11 +1,12 @@
 /**
  * Marketplaces API
  *
- * GET /api/settings/marketplaces — List all registered marketplaces with their plugins and status
+ * GET  /api/settings/marketplaces — List all registered marketplaces with their plugins and status
+ * POST /api/settings/marketplaces — Plugin actions: uninstall, reinstall
  */
 
-import { NextResponse } from 'next/server'
-import { readFile, readdir, stat } from 'fs/promises'
+import { NextRequest, NextResponse } from 'next/server'
+import { readFile, readdir, stat, rm, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
@@ -270,4 +271,125 @@ export async function GET() {
     console.error('[marketplaces] GET failed:', error)
     return NextResponse.json({ error: 'Failed to scan marketplaces' }, { status: 500 })
   }
+}
+
+/**
+ * POST /api/settings/marketplaces
+ *
+ * Actions:
+ *   uninstall  — Remove plugin from cache + set enabledPlugins[key]=false
+ *   reinstall  — Remove from cache, then re-install from marketplace clone
+ *
+ * Body: { action: string, pluginKey: string }
+ * pluginKey format: "pluginName@marketplaceName"
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { action, pluginKey } = body as { action?: string; pluginKey?: string }
+
+    if (!action || !pluginKey) {
+      return NextResponse.json({ error: 'action and pluginKey are required' }, { status: 400 })
+    }
+
+    const atIdx = pluginKey.lastIndexOf('@')
+    if (atIdx <= 0) {
+      return NextResponse.json({ error: 'Invalid pluginKey format — expected name@marketplace' }, { status: 400 })
+    }
+
+    const pluginName = pluginKey.substring(0, atIdx)
+    const marketplaceName = pluginKey.substring(atIdx + 1)
+
+    switch (action) {
+      case 'uninstall':
+        return await handleUninstall(pluginName, marketplaceName, pluginKey)
+      case 'reinstall':
+        return await handleReinstall(pluginName, marketplaceName, pluginKey)
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+    }
+  } catch (error) {
+    console.error('[marketplaces] POST failed:', error)
+    return NextResponse.json({ error: 'Action failed' }, { status: 500 })
+  }
+}
+
+/** Remove plugin from cache and disable in settings */
+async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
+  // 1. Remove from cache
+  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
+  if (existsSync(pluginCacheDir)) {
+    await rm(pluginCacheDir, { recursive: true, force: true })
+  }
+
+  // 2. Disable in settings
+  await setPluginEnabled(pluginKey, false)
+
+  return NextResponse.json({ success: true, action: 'uninstall', pluginKey })
+}
+
+/** Remove from cache, then re-install from the marketplace's local clone */
+async function handleReinstall(pluginName: string, marketplaceName: string, pluginKey: string) {
+  // 1. Remove existing cache
+  const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
+  if (existsSync(pluginCacheDir)) {
+    await rm(pluginCacheDir, { recursive: true, force: true })
+  }
+
+  // 2. Find the plugin source in the marketplace clone
+  const marketplaceCloneDir = join(MARKETPLACES_DIR, marketplaceName)
+  if (!existsSync(marketplaceCloneDir)) {
+    return NextResponse.json({
+      error: `Marketplace clone not found at ${marketplaceCloneDir}. Cannot reinstall.`,
+    }, { status: 404 })
+  }
+
+  // The marketplace clone typically has plugins/<pluginName>/ or just <pluginName>/
+  let sourceDir: string | null = null
+  const candidatePaths = [
+    join(marketplaceCloneDir, 'plugins', pluginName),
+    join(marketplaceCloneDir, pluginName),
+  ]
+  for (const p of candidatePaths) {
+    if (existsSync(p)) {
+      sourceDir = p
+      break
+    }
+  }
+
+  if (!sourceDir) {
+    return NextResponse.json({
+      error: `Plugin "${pluginName}" not found in marketplace clone. Looked in: ${candidatePaths.join(', ')}`,
+    }, { status: 404 })
+  }
+
+  // 3. Copy source to cache using cp -r (preserving structure)
+  const { execSync } = await import('child_process')
+  const version = '0.0.0' // Default version for local installs
+  const destDir = join(pluginCacheDir, version)
+
+  try {
+    execSync(`mkdir -p "${destDir}" && cp -R "${sourceDir}/." "${destDir}/"`, { timeout: 30000 })
+  } catch (err) {
+    return NextResponse.json({ error: `Failed to copy plugin: ${err}` }, { status: 500 })
+  }
+
+  // 4. Ensure plugin is enabled
+  await setPluginEnabled(pluginKey, true)
+
+  return NextResponse.json({ success: true, action: 'reinstall', pluginKey })
+}
+
+/** Update enabledPlugins[key] in settings.json */
+async function setPluginEnabled(key: string, enabled: boolean) {
+  const settings = await readJsonSafe(SETTINGS_PATH) || {}
+  const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+  if (enabled) {
+    ep[key] = true
+  } else {
+    // Remove the key entirely when disabling (Claude CLI convention)
+    delete ep[key]
+  }
+  settings.enabledPlugins = ep
+  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
 }

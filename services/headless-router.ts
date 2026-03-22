@@ -2309,6 +2309,42 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     sendServiceResult(res, await pushToGitHub(body))
   }},
+
+  // =========================================================================
+  // Settings: Marketplaces (proxied to Next.js API in full mode, handled here in headless)
+  // =========================================================================
+  { method: 'GET', pattern: /^\/api\/settings\/marketplaces$/, paramNames: [], handler: async (_req, res) => {
+    // Delegate to the Next.js route handler — in headless mode, import dynamically
+    try {
+      const mod = await import('@/app/api/settings/marketplaces/route')
+      const response = await mod.GET()
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle marketplaces GET' }))
+    }
+  }},
+  { method: 'POST', pattern: /^\/api\/settings\/marketplaces$/, paramNames: [], handler: async (req, res) => {
+    try {
+      const body = await readJsonBody(req)
+      const { NextRequest } = await import('next/server')
+      const mod = await import('@/app/api/settings/marketplaces/route')
+      const fakeReq = new NextRequest('http://localhost/api/settings/marketplaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const response = await mod.POST(fakeReq)
+      const data = await response.json()
+      res.writeHead(response.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(data))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to handle marketplaces POST' }))
+    }
+  }},
 ]
 
 // ---------------------------------------------------------------------------

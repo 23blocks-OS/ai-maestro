@@ -112,7 +112,8 @@ maestro_ask_yn() {
         printf "   > [y/N] "
     fi
     read -r REPLY
-    REPLY="${REPLY:-$default}"
+    # Quote $default inside the expansion to prevent word splitting and globbing on user input
+    REPLY="${REPLY:-"$default"}"
 }
 
 maestro_ask_choice() {
@@ -134,7 +135,8 @@ maestro_ask_choice() {
     done
     printf "   > "
     read -r REPLY
-    REPLY="${REPLY:-1}"
+    # Quote the default value to be consistent with safe variable expansion
+    REPLY="${REPLY:-"1"}"
 }
 
 open_browser() {
@@ -166,7 +168,7 @@ cleanup() {
         # Remove partial clone if install dir was created but has no package.json
         # Safety: only auto-remove paths under $HOME (never system dirs)
         if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
-           && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+           && [[ "$INSTALL_DIR" == "${HOME}"/* ]]; then
             if [ "$NON_INTERACTIVE" = true ]; then
                 rm -rf "$INSTALL_DIR"
                 maestro_info "Removed partial installation at $INSTALL_DIR"
@@ -1000,8 +1002,7 @@ act3_clone_and_build() {
                     [ ! -f "$HOME/.local/bin/docs-search.sh" ] && tool_flags="$tool_flags --skip-docs"
                     [ ! -f "$HOME/.local/bin/aimaestro-agent.sh" ] && tool_flags="$tool_flags --skip-agent-cli"
                     chmod +x install.sh
-                    # shellcheck disable=SC2086
-                    ./install.sh --from-remote -y $tool_flags
+                    ./install.sh --from-remote -y "${tool_flags[@]}"
                 fi
                 maestro_step 3 4 "Updating agent tools..." "done"
 

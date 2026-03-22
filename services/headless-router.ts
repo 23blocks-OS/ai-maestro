@@ -426,6 +426,8 @@ function sendJson(res: ServerResponse, statusCode: number, data: any, headers?: 
 }
 
 function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Uint8Array, headers: Record<string, string>) {
+  // Guard against double-send if a previous handler already wrote headers
+  if (res.headersSent) return
   res.writeHead(statusCode, headers)
   res.end(buffer)
 }
@@ -1400,10 +1402,10 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
   }},
 
   // =========================================================================

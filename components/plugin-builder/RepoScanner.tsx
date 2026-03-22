@@ -8,6 +8,7 @@ interface RepoScannerProps {
   // NT-020: Made optional -- SkillPicker doesn't use the callback (passes no-op)
   onSkillsFound?: (skills: RepoSkillInfo[], url: string, ref: string) => void
   onAddSkill: (skill: PluginSkillSelection) => void
+  onRemoveSkill: (key: string) => void
   selectedSkillKeys: Set<string>
   // Canonical key function from SkillPicker — ensures key format never diverges
   getSkillKey: (skill: PluginSkillSelection) => string
@@ -182,12 +183,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
                   )}
                 </div>
                 <button
-                  onClick={() => handleAddSkill(skill)}
-                  disabled={isSelected}
-                  className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors flex-shrink-0"
-                  title={isSelected ? 'Already added' : 'Add skill'}
+                  onClick={() => isSelected ? onRemoveSkill(key) : handleAddSkill(skill)}
+                  className="ml-2 p-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 transition-colors flex-shrink-0"
+                  title={isSelected ? 'Remove skill' : 'Add skill'}
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className={`w-4 h-4 transition-transform ${isSelected ? 'rotate-45' : ''}`} />
                 </button>
               </div>
             )

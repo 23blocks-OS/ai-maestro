@@ -707,6 +707,9 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       { cwd: buildDir, timeout: 120000 }
     )
 
+    // Combine stdout and stderr so no build output is lost
+    const logs = [...stdout.split('\n'), ...stderr.split('\n')].filter(Boolean)
+
     // Parse output for stats
     const outputPath = path.join(buildDir, manifest.output)
     const stats = { skills: 0, scripts: 0, hooks: 0 }
@@ -750,7 +753,7 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       ...current,
       status: 'complete',
       outputPath,
-      logs: output.split('\n'),
+      logs,
       stats,
     })
   } catch (error: unknown) {
@@ -911,13 +914,15 @@ function sanitizeSourceName(url: string): string {
 }
 
 /**
- * Promisified execFile with stdout capture.
+ * Promisified execFile with stdout and stderr capture.
+ * Resolves with both stdout and stderr so callers can log all build output.
+ * On error, attaches stdout and stderr to the error object for diagnosis.
  */
 function execPromise(
   command: string,
   args: string[],
   options: { cwd?: string; timeout?: number } = {}
-): Promise<string> {
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(command, args, {
       cwd: options.cwd,
@@ -929,7 +934,7 @@ function execPromise(
         err.stderr = stderr
         reject(err)
       } else {
-        resolve(stdout)
+        resolve({ stdout, stderr })
       }
     })
   })

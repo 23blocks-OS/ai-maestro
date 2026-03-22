@@ -15,6 +15,20 @@ const CORE_SKILLS = [
   { name: 'ai-maestro-agents-management', description: 'Create, manage, and orchestrate AI agents', icon: Package },
 ]
 
+/**
+ * Generate a unique key for a skill selection (used for deduplication).
+ */
+export function getSkillKey(skill: PluginSkillSelection): string {
+  switch (skill.type) {
+    case 'core':
+      return `core:${skill.name}`
+    case 'marketplace':
+      return `marketplace:${skill.id}`
+    case 'repo':
+      return `repo:${skill.url}:${skill.skillPath}`
+  }
+}
+
 interface SkillPickerProps {
   selectedSkills: PluginSkillSelection[]
   onAddSkill: (skill: PluginSkillSelection) => void
@@ -90,6 +104,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     )
   }, [searchQuery, marketplaceSkills])
 
+  // Use filtered counts so the badge reflects what is currently visible (respects search query)
   const tabs = [
     // Use filtered lengths so the count always matches the visible list
     { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
@@ -274,6 +289,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         {activeTab === 'repo' && (
           <RepoScanner
             onAddSkill={onAddSkill}
+            onRemoveSkill={onRemoveSkill}
             selectedSkillKeys={selectedKeys}
             getSkillKey={getSkillKey}
           />

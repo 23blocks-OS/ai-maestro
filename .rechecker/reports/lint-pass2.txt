@@ -1,0 +1,30 @@
+=== LINT PASS 2 (Loop 4 — Final) ===
+Timestamp: 20260322_203213
+
+--- TypeScript (tsc --noEmit --skipLibCheck) ---
+TypeScript: CLEAN
+
+--- ESLint ---
+
+/Users/emanuelesabetta/ai-maestro/.claude/worktrees/rck-63bdc1/components/team-meeting/SelectedAgentsBar.tsx
+  52:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/emanuelesabetta/ai-maestro/.claude/worktrees/rck-63bdc1/components/zoom/AgentCard.tsx
+  129:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/emanuelesabetta/ai-maestro/.claude/worktrees/rck-63bdc1/components/zoom/AgentProfileTab.tsx
+  322:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/emanuelesabetta/ai-maestro/.claude/worktrees/rck-63bdc1/hooks/useMeetingMessages.ts
+   92:6  warning  React Hook useCallback has an unnecessary dependency: 'participantKey'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  167:6  warning  React Hook useCallback has an unnecessary dependency: 'participantKey'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  203:6  warning  React Hook useCallback has an unnecessary dependency: 'participantKey'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/emanuelesabetta/ai-maestro/.claude/worktrees/rck-63bdc1/hooks/useTranscriptExport.ts
+  111:6  warning  React Hook useCallback has a missing dependency: 'startPolling'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 61 problems (0 errors, 61 warnings)
+
+
+--- ShellCheck (info/warning only — no errors) ---
+ShellCheck: CLEAN (no errors)

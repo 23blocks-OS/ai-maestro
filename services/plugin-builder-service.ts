@@ -129,11 +129,14 @@ function validatePluginName(name: string): string | null {
 function validateSkillPath(skillPath: string): string | null {
   if (!skillPath || typeof skillPath !== 'string') return 'Skill path is required'
   if (skillPath.includes('..')) return 'Skill path must not contain ".."'
+  if (skillPath.split('/').some(seg => seg === '.')) return 'Skill path must not contain "." as a path segment'
   if (path.isAbsolute(skillPath)) return 'Skill path must be relative'
   // Each segment must be safe
   const segments = skillPath.split('/')
   for (const seg of segments) {
-    if (seg && !SAFE_PATH_SEGMENT_RE.test(seg)) {
+    // Reject empty segments (e.g. from consecutive slashes like "a//b")
+    if (seg === '') return 'Skill path must not contain empty segments (e.g. consecutive slashes)'
+    if (!SAFE_PATH_SEGMENT_RE.test(seg)) {
       return `Skill path segment "${seg}" contains invalid characters`
     }
   }
@@ -153,6 +156,11 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
   // Validate each skill selection
   for (const skill of config.skills) {
+    // skill.name is used as a path segment in map targets like `skills/${skill.name}` for all
+    // skill types — validate it for every type before any type-specific checks.
+    const skillNameErr = validatePluginName(skill.name)
+    if (skillNameErr) return `Skill "${skill.name}": name is invalid — ${skillNameErr}`
+
     if (skill.type === 'repo') {
       const urlErr = validateGitUrl(skill.url)
       if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
@@ -160,6 +168,35 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // skill.marketplace and skill.plugin are used in path.join to build installPath —
+      // each must be a single safe path segment with no slashes or `..`.
+      if (!skill.marketplace || typeof skill.marketplace !== 'string') {
+        return `Marketplace skill "${skill.name}": marketplace name is required`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": marketplace name contains invalid characters (no slashes or "..")`
+      }
+      if (!skill.plugin || typeof skill.plugin !== 'string') {
+        return `Marketplace skill "${skill.name}": plugin name is required`
+      }
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": plugin name contains invalid characters (no slashes or "..")`
+      }
+      // skill.id must be exactly "marketplace:plugin:skillName" — the skillName segment is
+      // extracted via split(':') and used as a path segment in map targets.
+      if (!skill.id || typeof skill.id !== 'string') {
+        return `Marketplace skill "${skill.name}": id is required`
+      }
+      if (!/^[^:]+:[^:]+:[^:]+$/.test(skill.id)) {
+        return `Marketplace skill "${skill.name}": id must be exactly "marketplace:plugin:skillName"`
+      }
+      const idParts = skill.id.split(':')
+      // idParts.length is guaranteed to be 3 by the regex above
+      const extractedSkillName = idParts[2]
+      if (!SAFE_PATH_SEGMENT_RE.test(extractedSkillName)) {
+        return `Marketplace skill "${skill.name}": skill name segment in id "${extractedSkillName}" contains invalid characters`
+      }
     }
   }
 
@@ -242,7 +279,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)

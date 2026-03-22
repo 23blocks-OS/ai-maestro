@@ -22,6 +22,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const [error, setError] = useState<string | null>(null)
   const [showLogs, setShowLogs] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
   const [showPush, setShowPush] = useState(false)
   const [forkUrl, setForkUrl] = useState('')
   const [pushing, setPushing] = useState(false)
@@ -56,6 +57,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     setShowPush(false)
     setPushResult(null)
 
+    // Track whether we handed off building-state management to the poll loop.
+    // When polling is active, setBuilding(false) is called inside the interval
+    // callback once the build reaches a terminal status. In all other paths
+    // (early error return, immediate completion, or unexpected throw) the
+    // finally block below resets the state reliably.
+    let pollingStarted = false
+
     try {
       const res = await fetch('/api/plugin-builder/build', {
         method: 'POST',
@@ -66,7 +74,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       if (!res.ok) {
         const data = await res.json()
         setError(data.error || 'Build failed')
-        setBuilding(false)
+        // Auto-expand logs so the user can see the error details immediately
+        setShowLogs(true)
         return
       }
 
@@ -75,6 +84,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       // Poll for completion
       if (data.status === 'building') {
+        pollingStarted = true
         pollRef.current = setInterval(async () => {
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
@@ -106,20 +116,25 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           }
         }, 1000)
       } else {
-        setBuilding(false)
+        // Build completed synchronously (no polling needed)
         setShowLogs(true)
       }
     } catch {
       setError('Failed to connect to server')
-      setBuilding(false)
+    } finally {
+      // Reset building state for every path that does not use the poll loop.
+      // When pollingStarted is true the interval callback owns setBuilding(false).
+      if (!pollingStarted) {
+        setBuilding(false)
+      }
     }
   }
 
   const handlePush = async () => {
     if (!forkUrl.trim() || !result?.manifest) return
 
-    // Client-side URL validation
-    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
+    // Client-side URL validation — allow optional .git suffix (e.g. https://github.com/user/repo.git)
+    if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+(\.git)?$/)) {
       setPushResult({ ok: false, message: 'URL must be an HTTPS GitHub repository URL' })
       return
     }
@@ -155,7 +170,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
-      // Clipboard API not available (insecure context or unfocused)
+      // Clipboard API not available (insecure context or unfocused window) — show transient error feedback
+      setCopyFailed(true)
+      setTimeout(() => setCopyFailed(false), 2000)
     })
   }
 
@@ -267,10 +284,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             <button
               onClick={copyInstallCommand}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors flex-shrink-0"
-              aria-label="Copy install command"
+              aria-label={copyFailed ? 'Copy failed — clipboard unavailable' : copied ? 'Copied!' : 'Copy install command'}
             >
               {copied ? (
                 <Check className="w-4 h-4 text-emerald-400" />
+              ) : copyFailed ? (
+                <X className="w-4 h-4 text-red-400" />
               ) : (
                 <Copy className="w-4 h-4" />
               )}
@@ -280,7 +299,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result?.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

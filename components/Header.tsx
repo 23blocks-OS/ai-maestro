@@ -83,6 +83,7 @@ export default function Header({ onToggleSidebar, sidebarCollapsed, activeAgentI
           <a
             href={immersiveUrl}
             className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            title="Immersive Experience"
           >
             Immersive Experience
           </a>

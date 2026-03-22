@@ -46,7 +46,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
         if (res.ok) {
           const data = await res.json()
-          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+          if (!signal.aborted) setMarketplaceSkills(Array.isArray(data.skills) ? data.skills : [])
         }
       } catch {
         // Marketplace may not be available or request aborted
@@ -71,13 +71,13 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description?.toLowerCase()?.includes(q) ?? false)
     )
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
     { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
   ]
 
@@ -127,6 +127,14 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               const key = `core:${skill.name}`
               const isSelected = selectedKeys.has(key)
               const Icon = skill.icon
+              // Single toggle handler reused by both onClick and onKeyDown
+              const handleCoreToggle = () => {
+                if (isSelected) {
+                  onRemoveSkill(key)
+                } else {
+                  onAddSkill({ type: 'core', name: skill.name })
+                }
+              }
               return (
                 <div
                   key={skill.name}
@@ -137,18 +145,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       ? 'bg-cyan-500/10 border-cyan-500/30'
                       : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
                   }`}
-                  onClick={() => {
-                    if (isSelected) {
-                      onRemoveSkill(key)
-                    } else {
-                      onAddSkill({ type: 'core', name: skill.name })
-                    }
-                  }}
+                  onClick={handleCoreToggle}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
-                      if (isSelected) onRemoveSkill(key)
-                      else onAddSkill({ type: 'core', name: skill.name })
+                      handleCoreToggle()
                     }
                   }}
                   aria-pressed={isSelected}
@@ -189,6 +190,20 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               filteredMarketplaceSkills.map(skill => {
                 const key = `marketplace:${skill.id}`
                 const isSelected = selectedKeys.has(key)
+                // Single toggle handler reused by both onClick and onKeyDown
+                const handleMarketplaceToggle = () => {
+                  if (isSelected) {
+                    onRemoveSkill(key)
+                  } else {
+                    onAddSkill({
+                      type: 'marketplace',
+                      id: skill.id,
+                      marketplace: skill.marketplace,
+                      plugin: skill.plugin,
+                      name: skill.name,
+                    })
+                  }
+                }
                 return (
                   <div
                     key={skill.id}
@@ -199,23 +214,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                         ? 'bg-cyan-500/10 border-cyan-500/30'
                         : 'bg-gray-800/50 border-gray-700/50 hover:border-gray-600'
                     }`}
-                    onClick={() => {
-                      if (isSelected) {
-                        onRemoveSkill(key)
-                      } else {
-                        onAddSkill({
-                          type: 'marketplace',
-                          id: skill.id,
-                          marketplace: skill.marketplace,
-                          plugin: skill.plugin,
-                        })
-                      }
-                    }}
+                    onClick={handleMarketplaceToggle}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        if (isSelected) onRemoveSkill(key)
-                        else onAddSkill({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                        handleMarketplaceToggle()
                       }
                     }}
                     aria-pressed={isSelected}
@@ -252,7 +255,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
+            onSkillsFound={(_skills, _url, _ref) => {}}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />
@@ -272,6 +275,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so keys from the same URL on different branches never collide
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

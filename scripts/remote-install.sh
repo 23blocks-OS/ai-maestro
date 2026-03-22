@@ -204,6 +204,11 @@ parse_args() {
     while [ $# -gt 0 ]; do
         case $1 in
             -d|--dir)
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Option $1 requires a non-empty argument"
+                    show_help
+                    exit 1
+                fi
                 INSTALL_DIR="${2/#\~/$HOME}"
                 shift 2
                 ;;
@@ -233,6 +238,11 @@ parse_args() {
                 shift
                 ;;
             -p|--port)
+                if [ $# -lt 2 ] || [ -z "$2" ]; then
+                    maestro_fail "Option $1 requires a non-empty argument"
+                    show_help
+                    exit 1
+                fi
                 PORT="$2"
                 shift 2
                 ;;
@@ -762,10 +772,11 @@ act2_install_prerequisites() {
         # Helper: install npm package with visible errors in CI
         _install_npm_global() {
             local pkg="$1"
+            # Use -- to prevent $pkg from being interpreted as an npm flag
             if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
+                npm install -g -- "$pkg"
             else
-                npm install -g "$pkg" 2>/dev/null
+                npm install -g -- "$pkg" 2>/dev/null
             fi
         }
 
@@ -940,6 +951,8 @@ act3_clone_and_build() {
             if [ -n "$old_version" ] && [ "$old_version" = "$VERSION" ]; then
                 maestro_ok "AI Maestro v${VERSION} is already up to date"
                 maestro_info "Dashboard: http://localhost:${PORT}"
+                # Reset IS_UPDATE: no code was changed so act4 must not restart the service
+                IS_UPDATE=false
                 return
             fi
             maestro_warn "AI Maestro already installed at $INSTALL_DIR"
@@ -1058,7 +1071,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1180,10 +1193,10 @@ act4_start_and_register() {
     AGENT_DIR="$HOME/my-first-agent"
     mkdir -p "$AGENT_DIR"
 
-    # Escape all sed metacharacters in INSTALL_DIR — used by both agent templates
-    # Escapes: \ & | [ ] . * ^ $ / (covers regex specials + our | delimiter)
+    # Escape characters special in sed replacement strings: \, &, and the chosen
+    # delimiter | (used in all portable_sed calls below as the s|...|...|g delimiter)
     local safe_dir
-    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+    safe_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[\\&|]/\\&/g')
 
     # Copy CLAUDE.md for first agent (only on fresh install, never overwrite)
     if [ ! -f "$AGENT_DIR/CLAUDE.md" ] && [ -f "$INSTALL_DIR/scripts/FIRST-RUN-CLAUDE.md" ]; then
@@ -1222,7 +1235,7 @@ act4_start_and_register() {
                     *)        gw_display="$gw_item" ;;
                 esac
                 if [ -n "$gw_list" ]; then
-                    gw_list="${gw_list}\n- ${gw_display}"
+                    gw_list="${gw_list}"$'\n'"- ${gw_display}"
                 else
                     gw_list="- ${gw_display}"
                 fi
@@ -1288,7 +1301,8 @@ act5_grand_finale() {
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            # Pass AI_TOOL and INITIAL_PROMPT as separate arguments to avoid shell re-quoting issues
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL" "$INITIAL_PROMPT"
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1298,8 +1312,9 @@ act5_grand_finale() {
             if tmux has-session -t "my-first-agent" 2>/dev/null; then
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
+                # Pass AI_TOOL and INITIAL_PROMPT as separate arguments to avoid shell re-quoting issues
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL" "$INITIAL_PROMPT"
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"
@@ -1315,7 +1330,7 @@ act5_grand_finale() {
         echo "[maestro] AI Maestro installed at $INSTALL_DIR"
         echo "[maestro] Dashboard: http://localhost:${PORT}"
         echo "[maestro] First agent: my-first-agent"
-        echo "[maestro] Attach: tmux new-session -s my-first-agent -c $AGENT_DIR '$AI_TOOL'"
+        echo "[maestro] Attach: tmux new-session -s my-first-agent -c \"$AGENT_DIR\" '$AI_TOOL'"
         echo ""
 
     else

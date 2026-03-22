@@ -10,6 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http'
 import { parse } from 'url'
+import type { MemoryCategory, MemoryTier } from '@/lib/cozo-schema-memory'
 
 // ---------------------------------------------------------------------------
 // Service imports (all 24 service files)
@@ -312,7 +313,8 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
+  // Always prioritize error over data — a result with both fields is still an error
+  if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
@@ -356,10 +358,12 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
     const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
 
     if (headers.includes('name="file"')) {
-      // Convert back to buffer from latin1 encoding
+      // Convert back to buffer from latin1 encoding — latin1 is a 1:1 byte map so this recovers the original bytes
       file = Buffer.from(content, 'latin1')
     } else if (headers.includes('name="options"')) {
-      options = content
+      // The body was decoded as latin1 (byte-preserving), so re-encode to bytes then decode as UTF-8
+      // to correctly handle any non-ASCII characters (e.g. Unicode in JSON values)
+      options = Buffer.from(content, 'latin1').toString('utf8')
     }
   }
 
@@ -413,6 +417,10 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
+    if (!body.filePath) {
+      sendJson(res, 400, { error: 'Missing filePath in request body' })
+      return
+    }
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
@@ -439,7 +447,8 @@ const routes: Route[] = [
         sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
       }
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+      // Only send { error } — no spurious extra fields — to match sendServiceResult's error format
+      sendJson(res, 500, { error: 'Failed to fetch sessions' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -477,7 +486,8 @@ const routes: Route[] = [
       const activity = await getActivity()
       sendJson(res, 200, { activity })
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
+      // Only send { error } — no spurious extra fields — to match sendServiceResult's error format
+      sendJson(res, 500, { error: 'Failed to fetch activity' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
@@ -632,13 +642,17 @@ const routes: Route[] = [
     sendServiceResult(res, await manageConsolidation(params.id, body))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/memory\/long-term$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const validCategories: MemoryCategory[] = ['fact', 'decision', 'preference', 'pattern', 'insight', 'reasoning']
+    const validTiers: MemoryTier[] = ['warm', 'long']
+    const category = validCategories.includes(query.category as MemoryCategory) ? query.category as MemoryCategory : undefined
+    const tier = validTiers.includes(query.tier as MemoryTier) ? query.tier as MemoryTier : undefined
     sendServiceResult(res, await queryLongTermMemories(params.id, {
       query: query.query || query.q,
-      category: (query.category as any) || undefined,
+      category: category || null,
       limit: query.limit ? parseInt(query.limit) : undefined,
       includeRelated: query.includeRelated === 'true',
       minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
-      tier: (query.tier as any) || undefined,
+      tier: tier || null,
       view: query.view,
       memoryId: query.id,
       maxTokens: query.maxTokens ? parseInt(query.maxTokens) : undefined,
@@ -661,12 +675,15 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    const validRoles = ['user', 'assistant', 'system'] as const
+    type RoleFilter = 'user' | 'assistant' | 'system'
+    const roleFilter = validRoles.includes(query.roleFilter as RoleFilter) ? query.roleFilter as RoleFilter : undefined
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
       limit: query.limit ? parseInt(query.limit) : undefined,
       minScore: query.minScore ? parseFloat(query.minScore) : undefined,
-      roleFilter: (query.roleFilter as any) || undefined,
+      roleFilter: roleFilter || null,
       conversationFile: query.conversationFile,
       startTs: query.startTs ? parseInt(query.startTs) : undefined,
       endTs: query.endTs ? parseInt(query.endTs) : undefined,
@@ -702,7 +719,16 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      from: query.from || null,
+      to: query.to || null,
+      project: query.project || null,
+      nodeId: query.nodeId || null,
+      // depth is a numeric param — parse it from the query string
+      depth: query.depth ? parseInt(query.depth) : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -714,7 +740,12 @@ const routes: Route[] = [
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      column: query.column || null,
+      database: query.database || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -726,7 +757,13 @@ const routes: Route[] = [
 
   // Graph - query
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/query$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryGraph(params.id, query as any))
+    sendServiceResult(res, await queryGraph(params.id, {
+      queryType: query.queryType || null,
+      name: query.name || null,
+      type: query.type || null,
+      from: query.from || null,
+      to: query.to || null,
+    }))
   }},
 
   // Database
@@ -739,7 +776,16 @@ const routes: Route[] = [
 
   // Docs
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDocs(params.id, query as any))
+    sendServiceResult(res, await queryDocs(params.id, {
+      action: query.action,
+      q: query.q || null,
+      keyword: query.keyword || null,
+      type: query.type || null,
+      docId: query.docId || null,
+      // limit is a numeric param — parse it from the query string
+      limit: query.limit ? parseInt(query.limit) : undefined,
+      project: query.project || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -872,7 +918,9 @@ const routes: Route[] = [
 
   // Agent messages
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, (query.box as any) || 'inbox'))
+    // Validate box against the accepted values; default to 'inbox' for unknown values
+    const box: 'inbox' | 'sent' = query.box === 'sent' ? 'sent' : 'inbox'
+    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, box))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -886,7 +934,13 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await listAgentMessages(params.id, query as any))
+    sendServiceResult(res, await listAgentMessages(params.id, {
+      box: query.box,
+      status: query.status,
+      priority: query.priority,
+      from: query.from,
+      to: query.to,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -897,7 +951,8 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      // Use || 500 fallback to match sendServiceResult's error-path contract
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
     }
@@ -906,7 +961,8 @@ const routes: Route[] = [
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      // Use || 500 fallback to match sendServiceResult's error-path contract
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { metadata: result.data?.agent?.metadata })
     }
@@ -914,7 +970,8 @@ const routes: Route[] = [
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      // Use || 500 fallback to match sendServiceResult's error-path contract
+      sendJson(res, result.status || 500, { error: result.error })
     } else {
       sendJson(res, 200, { success: true })
     }
@@ -1057,14 +1114,28 @@ const routes: Route[] = [
   // Messages (global)
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/messages\/meeting$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMeetingMessages(query as any))
+    sendServiceResult(res, await getMeetingMessages({
+      meetingId: query.meetingId || null,
+      participants: query.participants || null,
+      since: query.since || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/messages\/forward$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await forwardGlobalMessage(body))
   }},
   { method: 'GET', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await getMessages(query as any))
+    sendServiceResult(res, await getMessages({
+      agent: query.agent || null,
+      id: query.id || null,
+      action: query.action || null,
+      box: query.box || null,
+      limit: query.limit || null,
+      status: query.status || null,
+      priority: query.priority || null,
+      from: query.from || null,
+      to: query.to || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/messages$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1206,7 +1277,14 @@ const routes: Route[] = [
     sendServiceResult(res, await getMarketplaceSkillById(params.id))
   }},
   { method: 'GET', pattern: /^\/api\/marketplace\/skills$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await listMarketplaceSkills(query as any))
+    sendServiceResult(res, await listMarketplaceSkills({
+      marketplace: query.marketplace,
+      plugin: query.plugin,
+      category: query.category,
+      search: query.search,
+      // includeContent is a boolean flag — parse it from the query string
+      includeContent: query.includeContent === 'true' ? true : query.includeContent === 'false' ? false : undefined,
+    }))
   }},
 
   // =========================================================================

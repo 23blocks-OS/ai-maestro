@@ -16,7 +16,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import matter from 'gray-matter'
 import type { ServiceResult } from '@/services/marketplace-service'
 import type {
@@ -57,7 +57,10 @@ const buildResults = new Map<string, PluginBuildResult>()
 // ============================================================================
 
 const PLUGIN_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
-const GIT_REF_RE = /^[a-zA-Z0-9._\/-]+$/
+// Git ref character whitelist: letters, digits, dot, underscore, hyphen, forward-slash only.
+// All other characters (~ ^ : ? * [ \ space @{ etc.) are forbidden — they carry special
+// meaning in git ref syntax or in POSIX shells and must never appear in a validated ref.
+const GIT_REF_RE = /^[a-zA-Z0-9._/-]+$/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/
 const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9._-]+$/
 
@@ -98,8 +101,9 @@ function validateGitUrl(url: string): string | null {
       return 'Internal network URLs are not allowed'
     }
 
-    // Check against allowed hosts
-    if (!ALLOWED_GIT_HOSTS.some(allowed => host === allowed || host.endsWith(`.${allowed}`))) {
+    // Check against allowed hosts — exact match only; subdomains are not legitimate
+    // repo hosts for any of the listed providers and would open SSRF bypass vectors.
+    if (!ALLOWED_GIT_HOSTS.includes(host)) {
       return `Git host "${host}" is not in the allowed list (${ALLOWED_GIT_HOSTS.join(', ')})`
     }
 
@@ -111,9 +115,20 @@ function validateGitUrl(url: string): string | null {
 
 function validateGitRef(ref: string): string | null {
   if (!ref || typeof ref !== 'string') return 'Git ref is required'
+  // A leading dash could be misinterpreted as a git flag in shell invocations.
   if (ref.startsWith('-')) return 'Git ref must not start with a dash'
+  // Whitelist: only letters, digits, dot, underscore, hyphen, forward-slash.
   if (!GIT_REF_RE.test(ref)) return 'Git ref contains invalid characters'
+  // Git forbids ".." in ref names (used as range operator).
   if (ref.includes('..')) return 'Git ref must not contain ".."'
+  // Git forbids a ref ending with a slash.
+  if (ref.endsWith('/')) return 'Git ref must not end with a slash'
+  // Git forbids a ref starting with a slash (must be relative).
+  if (ref.startsWith('/')) return 'Git ref must not start with a slash'
+  // Git forbids consecutive slashes (would resolve to empty path component).
+  if (ref.includes('//')) return 'Git ref must not contain consecutive slashes'
+  // Git forbids a path component that starts with a dot (e.g. "refs/.hidden").
+  if (ref.startsWith('.') || ref.includes('/.')) return 'Git ref components must not start with a dot'
   return null
 }
 
@@ -130,10 +145,18 @@ function validateSkillPath(skillPath: string): string | null {
   if (!skillPath || typeof skillPath !== 'string') return 'Skill path is required'
   if (skillPath.includes('..')) return 'Skill path must not contain ".."'
   if (path.isAbsolute(skillPath)) return 'Skill path must be relative'
-  // Each segment must be safe
+  // Reject leading or trailing slashes, and double slashes — all produce empty
+  // segments after split('/'), which bypassed validation in the old `if (seg &&…)` guard.
+  if (skillPath.startsWith('/') || skillPath.endsWith('/')) {
+    return 'Skill path must not have leading or trailing slashes'
+  }
+  // Each segment must be non-empty and contain only safe characters.
   const segments = skillPath.split('/')
   for (const seg of segments) {
-    if (seg && !SAFE_PATH_SEGMENT_RE.test(seg)) {
+    if (!seg) {
+      return 'Skill path must not contain empty segments (e.g. from consecutive slashes)'
+    }
+    if (!SAFE_PATH_SEGMENT_RE.test(seg)) {
       return `Skill path segment "${seg}" contains invalid characters`
     }
   }
@@ -178,7 +201,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to remove build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +215,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.warn(`Failed to remove build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -242,7 +269,15 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Validate marketplace and plugin names before using them in path.join to prevent path traversal
+    if (!SAFE_PATH_SEGMENT_RE.test(group.marketplace)) {
+      throw new Error(`Invalid marketplace name: "${group.marketplace}"`)
+    }
+    if (!SAFE_PATH_SEGMENT_RE.test(group.plugin)) {
+      throw new Error(`Invalid plugin name: "${group.plugin}"`)
+    }
+    // Marketplace skills are installed under <marketplace>/<plugin>/ — include the plugin subdirectory
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -347,8 +382,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (err) {
+        // If symlink fails (e.g., permissions), log and copy instead (skipping symlinks in source)
+        console.warn(`Failed to create symlink from ${srcDir} to ${linkTarget}, falling back to copy:`, err)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -449,12 +485,15 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
 
     const exitCode = (error as any)?.code
     const message = error instanceof Error ? error.message : String(error)
+    // Include stderr from execPromise for richer diagnostics (git errors appear there)
+    const stderr = (error as any)?.stderr
+    const fullMessage = stderr ? `${message}\nStderr: ${stderr}` : message
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${message}`, status: 500 }
+    return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -542,8 +581,11 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
+    // Include stderr from execPromise for richer diagnostics (git auth/permission errors appear there)
+    const stderr = (error as any)?.stderr
+    const fullMessage = stderr ? `${message}\nStderr: ${stderr}` : message
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
+    return { error: `Failed to push to GitHub: ${fullMessage}`, status: 500 }
   } finally {
     activeOps = Math.max(0, activeOps - 1)
   }
@@ -562,6 +604,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   if (!existing) return
 
   try {
+    if (!manifest.output) {
+      throw new Error('manifest.output is required but was not provided')
+    }
+
     const output = await execPromise(
       path.join(buildDir, 'build-plugin.sh'),
       ['--clean'],
@@ -572,22 +618,15 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const outputPath = path.join(buildDir, manifest.output)
     const stats = { skills: 0, scripts: 0, hooks: 0 }
 
-    try {
-      const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(() => [] as string[])
-      stats.skills = skillEntries.length
+    // Collect stats — each directory check is independent; missing dirs return 0 counts
+    const skillEntries = await fs.readdir(path.join(outputPath, 'skills')).catch(() => [] as string[])
+    stats.skills = skillEntries.length
 
-      const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(() => [] as string[])
-      stats.scripts = scriptEntries.length
+    const scriptEntries = await fs.readdir(path.join(outputPath, 'scripts')).catch(() => [] as string[])
+    stats.scripts = scriptEntries.length
 
-      try {
-        await fs.access(path.join(outputPath, 'hooks', 'hooks.json'))
-        stats.hooks = 1
-      } catch {
-        stats.hooks = 0
-      }
-    } catch {
-      // Stats collection failed — non-critical
-    }
+    const hooksAccessible = await fs.access(path.join(outputPath, 'hooks', 'hooks.json')).then(() => true).catch(() => false)
+    stats.hooks = hooksAccessible ? 1 : 0
 
     // Atomic replacement: avoids torn reads from polling clients
     buildResults.set(buildId, {
@@ -682,16 +721,30 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 }
 
 /**
- * Sanitize a URL into a valid source name.
+ * Sanitize a URL into a valid, filesystem-friendly, and unique source name.
+ *
+ * A 6-character hash of the full original URL is always appended so that two
+ * URLs whose sanitized prefixes are identical (e.g. very long names that both
+ * truncate to the same 34 characters) never collide.  The hash is derived from
+ * the complete original URL before any sanitization, making it stable across
+ * calls for the same URL.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  // Compute a 6-character deterministic suffix from the full URL.
+  const suffix = createHash('sha256').update(url).digest('hex').slice(0, 6)
+
+  const base = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 40)
+    // Reserve 7 characters for the hyphen separator + 6-char hash suffix.
+    .slice(0, 33)
+
+  // Ensure the base is never empty (e.g., URL consisting entirely of invalid chars).
+  const baseName = base || 'unnamed-source'
+  return `${baseName}-${suffix}`
 }
 
 /**
@@ -706,7 +759,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — git clone/status on large repos can exceed 2MB
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

@@ -25,6 +25,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const [searchQuery, setSearchQuery] = useState('')
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
   const [loadingMarketplace, setLoadingMarketplace] = useState(true)
+  // null = no error; string = error message to display in the marketplace tab
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
 
   // Build a set of selected skill keys for fast lookup
@@ -44,12 +46,20 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     async function load() {
       try {
         const res = await fetch('/api/marketplace/skills?includeContent=false', { signal })
-        if (res.ok) {
-          const data = await res.json()
-          if (!signal.aborted) setMarketplaceSkills(data.skills || [])
+        if (!signal.aborted) {
+          if (res.ok) {
+            const data = await res.json()
+            setMarketplaceSkills(data.skills || [])
+          } else {
+            // Server responded with an error status — surface it to the user
+            setMarketplaceError(`Failed to load marketplace skills (HTTP ${res.status})`)
+          }
         }
-      } catch {
-        // Marketplace may not be available or request aborted
+      } catch (err) {
+        // Ignore intentional abort on component unmount; surface all other errors
+        if (!signal.aborted) {
+          setMarketplaceError('Could not reach marketplace. Check your connection and try again.')
+        }
       } finally {
         if (!signal.aborted) setLoadingMarketplace(false)
       }
@@ -185,6 +195,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
               </div>
+            ) : marketplaceError ? (
+              <p className="text-sm text-red-400 text-center py-4">{marketplaceError}</p>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
                 const key = `marketplace:${skill.id}`
@@ -219,7 +231,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}: ${skill.description && skill.description.trim() !== '' ? skill.description : `${skill.plugin} / ${skill.marketplace}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'
@@ -229,7 +241,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-200">{skill.name}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {skill.description || `${skill.plugin} / ${skill.marketplace}`}
+                        {skill.description && skill.description.trim() !== '' ? skill.description : `${skill.plugin} / ${skill.marketplace}`}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -272,6 +284,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref (branch/tag/commit) so skills from different refs of the same path are distinct
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

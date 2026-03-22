@@ -211,7 +211,10 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      // Use the last colon-separated segment as the display name so that IDs with
+      // any number of parts (e.g. "provider:plugin:skill" or "provider:skill") all
+      // return the most-specific segment rather than hardcoding index 2.
+      return skill.id.split(':').pop() || skill.id
     case 'repo':
       return skill.name
   }

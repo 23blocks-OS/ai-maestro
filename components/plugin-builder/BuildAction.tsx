@@ -29,13 +29,6 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [])
-
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current)
@@ -43,6 +36,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     }
     pollFailures.current = 0
   }, [])
+
+  // Clean up polling on unmount — use clearPoll() for consistent cleanup (resets failure counter too)
+  useEffect(() => {
+    return () => {
+      clearPoll()
+    }
+  }, [clearPoll])
 
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
@@ -52,8 +52,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     setResult(null)
     setError(null)
     setShowLogs(false)
-    // Reset push-related state on new build
-    setShowPush(false)
+    // Reset push result on new build, but keep the push panel open if it was already shown
+    // so the user can immediately push after a rebuild without re-opening the panel
     setPushResult(null)
 
     try {
@@ -94,6 +94,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setError('Lost connection to build server')
                 setBuilding(false)
+                return // Prevent further processing in this tick after stopping the poll
               }
             }
           } catch {
@@ -102,6 +103,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               clearPoll()
               setError('Lost connection to build server')
               setBuilding(false)
+              return // Prevent further processing in this tick after stopping the poll
             }
           }
         }, 1000)
@@ -180,10 +182,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {building ? 'Building...' : 'Quick Build'}
         </button>
 
-        {/* Push to GitHub button */}
+        {/* Push to GitHub button — enabled whenever a manifest is available, not only when status is 'complete' */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!result?.manifest}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -220,13 +222,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabledReason && disabled && !building && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
 
-      {/* Push to GitHub section */}
-      {showPush && isComplete && (
+      {/* Push to GitHub section — visible whenever the user toggled it open and a manifest is available */}
+      {showPush && result?.manifest && (
         <div className="px-4 pb-4 border-t border-gray-800 pt-3">
           <div className="flex gap-2 items-end">
             <div className="flex-1">

@@ -16,6 +16,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Track the url/ref values that were actually used for the successful scan so
+  // that changing the input fields after scanning does not corrupt the skill keys
+  // or the metadata passed to onAddSkill.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('main')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -46,6 +51,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        // Capture the exact url/ref used for this scan before storing results so
+        // subsequent input edits cannot corrupt skill keys or onAddSkill payloads.
+        setScannedUrl(url.trim())
+        setScannedRef(ref)
         setScanResult(data)
         onSkillsFound(data.skills, url.trim(), ref)
       }
@@ -58,10 +67,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use scannedUrl/scannedRef (the values used for the actual scan) rather than
+    // the live url/ref state, which may have been edited since the scan completed.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +104,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,11 +135,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Key must match getSkillKey formula: repo:<url>:<ref>:<skillPath>
+            // Use scannedUrl/scannedRef, not the live input state, to guarantee
+            // the key matches what onAddSkill will produce even after the user
+            // edits the input fields following a completed scan.
+            const key = `repo:${scannedUrl}:${scannedRef}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

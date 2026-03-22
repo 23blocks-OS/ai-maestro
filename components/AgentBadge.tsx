@@ -209,16 +209,16 @@ export default function AgentBadge({
           )}
           {/* Outer circle: semi-transparent glow ring */}
           <span
-            className="relative w-5 h-5 rounded-full flex items-center justify-center"
+            className="relative w-7 h-7 rounded-full flex items-center justify-center"
             style={{
               backgroundColor: `${statusInfo.pulseColor}30`,
-              boxShadow: statusInfo.pulse ? `0 0 8px 2px ${statusInfo.pulseColor}` : 'none',
+              boxShadow: statusInfo.pulse ? `0 0 10px 3px ${statusInfo.pulseColor}` : 'none',
             }}
           >
             {/* Inner circle: solid color dot */}
             <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: statusInfo.pulseColor }}
+              className="w-4.5 h-4.5 rounded-full"
+              style={{ backgroundColor: statusInfo.pulseColor, width: '18px', height: '18px' }}
             />
           </span>
         </div>

@@ -950,36 +950,6 @@ export default function AgentList({
         {/* View Switcher */}
         <SidebarViewSwitcher activeView={sidebarView} onViewChange={setSidebarView} />
 
-        {/* Status Filter Tabs — only in agents view, 3D relief tab bar */}
-        {sidebarView === 'agents' && (
-          <div className="px-2 flex items-end gap-0 border-b border-gray-700/60 mt-0">
-            {([
-              { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length, color: 'emerald' },
-              { key: 'all' as const, label: 'ALL', count: agents.length, color: 'blue' },
-              { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length, color: 'amber' },
-            ]).map(tab => {
-              const isActive = statusFilter === tab.key
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setStatusFilter(tab.key)}
-                  className={`flex-1 text-[10px] font-bold uppercase tracking-wider transition-all rounded-t-lg ${
-                    isActive
-                      ? `py-2 px-2 -mb-px border border-b-0 shadow-[0_-2px_6px_rgba(0,0,0,0.3)] ${
-                          tab.color === 'emerald' ? 'text-emerald-300 border-emerald-500/40 bg-gray-900'
-                          : tab.color === 'amber' ? 'text-amber-300 border-amber-500/40 bg-gray-900'
-                          : 'text-blue-300 border-blue-500/40 bg-gray-900'
-                        }`
-                      : 'py-1.5 px-2 mb-0 text-gray-500 hover:text-gray-400 bg-gray-800/40 border border-b-0 border-transparent hover:bg-gray-800/60'
-                  }`}
-                >
-                  {tab.label}
-                  <span className="ml-1 opacity-60">{tab.count}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* Error State */}
@@ -1003,7 +973,38 @@ export default function AgentList({
         </div>
       )}
 
-      {/* Agent List */}
+      {/* Status Filter Tabs — sits directly on top of the agent scroll area */}
+      {sidebarView === 'agents' && (
+        <div className="flex-shrink-0 px-2 flex items-end gap-0 border-b border-gray-700/60 bg-sidebar">
+          {([
+            { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length, color: 'emerald' },
+            { key: 'all' as const, label: 'ALL', count: agents.length, color: 'blue' },
+            { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length, color: 'amber' },
+          ]).map(tab => {
+            const isActive = statusFilter === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`flex-1 text-[10px] font-bold uppercase tracking-wider transition-all rounded-t-lg ${
+                  isActive
+                    ? `py-2 px-2 -mb-px border border-b-0 shadow-[0_-2px_6px_rgba(0,0,0,0.3)] ${
+                        tab.color === 'emerald' ? 'text-emerald-300 border-emerald-500/40 bg-gray-900'
+                        : tab.color === 'amber' ? 'text-amber-300 border-amber-500/40 bg-gray-900'
+                        : 'text-blue-300 border-blue-500/40 bg-gray-900'
+                      }`
+                    : 'py-1.5 px-2 mb-0 text-gray-500 hover:text-gray-400 bg-gray-800/40 border border-b-0 border-transparent hover:bg-gray-800/60'
+                }`}
+              >
+                {tab.label}
+                <span className="ml-1 opacity-60">{tab.count}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Agent List — immediately below the tab bar */}
       {sidebarView === 'agents' && (
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {loading && agents.length === 0 ? (

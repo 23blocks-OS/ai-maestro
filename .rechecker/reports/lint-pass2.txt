@@ -1,0 +1,10 @@
+=== ESLint Pass ===
+ESLint: 0 errors
+
+=== ShellCheck Pass ===
+--- scripts/remote-install.sh ---
+CLEAN
+ShellCheck errors: 0
+
+=== TypeScript tsc Pass ===
+tsc done.

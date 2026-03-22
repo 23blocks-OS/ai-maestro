@@ -145,11 +145,11 @@ open_browser() {
         return
     fi
     if [ "$OS" = "macos" ]; then
-        open "$url" 2>/dev/null || true
+        open -- "$url" 2>/dev/null || true
     elif [ "$OS" = "wsl" ]; then
         cmd.exe /c start "" "$url" 2>/dev/null || true
     elif command -v xdg-open &>/dev/null; then
-        xdg-open "$url" 2>/dev/null || true
+        xdg-open -- "$url" 2>/dev/null || true
     fi
 }
 
@@ -206,7 +206,7 @@ fi
 
 parse_args() {
     while [ $# -gt 0 ]; do
-        case $1 in
+        case "$1" in
             -d|--dir)
                 # Validate that a non-option argument follows -d/--dir
                 if [ $# -lt 2 ] || [ -z "$2" ] || [[ "$2" =~ ^- ]]; then
@@ -250,6 +250,9 @@ parse_args() {
                     exit 1
                 fi
                 PORT="$2"
+                if ! echo "$PORT" | grep -qE '^[0-9]+$' || [ "$PORT" -gt 65535 ] || [ "$PORT" -lt 1 ]; then
+                    maestro_fail "PORT must be a number 1-65535"; exit 1
+                fi
                 shift 2
                 ;;
             --uninstall)
@@ -443,6 +446,8 @@ uninstall() {
         echo ""
         maestro_ask_yn "Remove installation directory ($INSTALL_DIR)?" "n"
         if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
+            # Safety: only remove paths under $HOME to prevent path traversal
+            [[ "$INSTALL_DIR" == "$HOME"/* ]] || { maestro_warn "Unsafe path, skipping removal: $INSTALL_DIR"; return; }
             rm -rf "$INSTALL_DIR"
             maestro_info "Removed $INSTALL_DIR"
         fi

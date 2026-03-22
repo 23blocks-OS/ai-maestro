@@ -446,9 +446,12 @@ function sendServiceResult(res: ServerResponse, result: any) {
   }
 }
 
-function getHeader(req: IncomingMessage, name: string): string | null {
+function getHeader(req: IncomingMessage, name: string): string | undefined {
   const val = req.headers[name.toLowerCase()]
-  return typeof val === 'string' ? val : null
+  // Node.js headers can be string[] when the same header is sent multiple times.
+  // Return the first element in that case so callers always get a usable string.
+  // Return undefined (not null) to align with TypeScript idiomatic optional types.
+  return Array.isArray(val) ? val[0] : typeof val === 'string' ? val : undefined
 }
 
 /**

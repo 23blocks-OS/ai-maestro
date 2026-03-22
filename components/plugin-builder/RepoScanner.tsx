@@ -51,6 +51,13 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setError(null)
   }, [url, ref])
 
+  // Abort any in-flight scan when the component unmounts to prevent resource leaks.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
   const handleScan = async () => {
     if (!url.trim()) return
 

@@ -7,7 +7,7 @@ import { isValidUuid } from '@/lib/validation'
 // SF-014 (P8): Authenticate agent for read operations, consistent with PATCH/DELETE
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const { id } = await params
   // MF-007: Validate UUID format for meeting ID

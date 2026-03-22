@@ -618,7 +618,8 @@ const routes: Route[] = [
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    if (!query.sessionId) { sendJson(res, 400, { error: 'sessionId query param required' }); return }
+    sendServiceResult(res, deletePersistedSession(query.sessionId))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
@@ -631,7 +632,7 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
+    const result = await broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
     sendServiceResult(res, result)
   }},
   // Parameterized session routes AFTER all static sub-paths

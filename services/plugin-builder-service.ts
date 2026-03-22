@@ -463,6 +463,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   const buildId = randomUUID()
   const buildDir = path.join(BUILDS_DIR, buildId)
 
+  // Declared before try so they are accessible in the catch block for cleanup.
+  let buildId: string | undefined
+  let buildDir: string | undefined
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
@@ -661,8 +665,21 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const release = await acquireSlot()
   try {
 
+    // Build clone URL. If a token is provided, embed it for auth so private forks can be read.
+    // Using URL parsing avoids string-replace pitfalls (e.g. double-auth when forkUrl already
+    // contains credentials, or when the URL has unusual structure).
+    let cloneUrl = config.forkUrl
+    if (config.token) {
+      try {
+        const u = new URL(config.forkUrl)
+        u.username = config.token
+        u.password = ''
+        cloneUrl = u.toString()
+      } catch { /* use original URL if parsing fails */ }
+    }
+
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
-    await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
+    await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', cloneUrl, pushDir], {
       timeout: 30000,
     })
 
@@ -695,7 +712,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
     ], { cwd: pushDir })
 
-    // Push
+    // Push (the remote origin URL already carries auth from the clone URL built above)
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
 
     // Clean up

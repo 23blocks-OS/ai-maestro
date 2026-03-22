@@ -76,6 +76,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     // Reset push result on new build, but keep the push panel open if it was already shown
     // so the user can immediately push after a rebuild without re-opening the panel
     setPushResult(null)
+    // Clear stale fork URL so it does not carry over from a previous build cycle
+    setForkUrl('')
 
     try {
       const res = await fetch('/api/plugin-builder/build', {
@@ -294,7 +296,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </div>
         )}
 
-        {error && !result && (
+        {error && (
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 

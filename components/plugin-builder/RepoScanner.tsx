@@ -39,6 +39,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     return () => { abortRef.current?.abort() }
   }, [])
 
+  // Abort any in-flight fetch when the component unmounts to prevent state updates on
+  // an unmounted component and to release network resources immediately.
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
   const handleScan = async () => {
     if (!url.trim()) return
 
@@ -53,6 +57,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     // Reset scanned url/ref so handleAddSkill never uses stale data from a previous scan
     setScannedUrl('')
     setScannedRef('')
+
+    // Normalise ref: trim whitespace and fall back to 'main' if empty.
+    const trimmedUrl = url.trim()
+    const trimmedRef = ref.trim() || 'main'
 
     try {
       // Apply the 'main' default only at the point of the network call so that

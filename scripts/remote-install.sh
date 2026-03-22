@@ -1145,14 +1145,17 @@ act4_start_and_register() {
                 # Kill old nohup process and restart
                 local old_pid
                 old_pid=$(lsof -ti:"$PORT" 2>/dev/null || true)
+                # Unquoted so the shell splits multiple PIDs (one per line) into separate args
                 if [ -n "$old_pid" ]; then
-                    kill "$old_pid" 2>/dev/null || true
+                    # shellcheck disable=SC2086
+                    kill $old_pid 2>/dev/null || true
                     sleep 2
                 fi
                 mkdir -p "$INSTALL_DIR/logs"
                 nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
             fi
             # Wait for service to come back up
+            # Grep for '"sessions"' to confirm it's actually AI Maestro (not a stray 404)
             local attempts=0
             while [ $attempts -lt 15 ]; do
                 if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
@@ -1190,6 +1193,7 @@ act4_start_and_register() {
         fi
 
         # Wait for service to come up
+        # Grep for '"sessions"' to confirm it's actually AI Maestro (not a stray 404)
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do

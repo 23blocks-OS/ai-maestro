@@ -163,8 +163,10 @@ cleanup() {
         maestro_info "Check the output above for details"
         # Remove partial clone if install dir was created but has no package.json
         # Safety: only auto-remove paths under $HOME (never system dirs)
+        local resolved
+        resolved=$(cd -P "$INSTALL_DIR" 2>/dev/null && pwd 2>/dev/null)
         if [ -n "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/package.json" ] \
-           && [[ "$INSTALL_DIR" == "$HOME"/* ]]; then
+           && [[ -n "$resolved" && "$resolved" == "$HOME"/* ]]; then
             if [ "$NON_INTERACTIVE" = true ]; then
                 rm -rf "$INSTALL_DIR"
                 maestro_info "Removed partial installation at $INSTALL_DIR"
@@ -700,7 +702,12 @@ act2_install_prerequisites() {
             maestro_info "System Node detected — using sudo for global npm install..."
             sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
         fi
-        maestro_ok "Yarn installed"
+        if command -v yarn &>/dev/null; then
+            maestro_ok "Yarn installed"
+        else
+            maestro_fail "Yarn install failed — cannot continue"
+            exit 1
+        fi
     fi
 
     # System packages (Linux/WSL only)
@@ -759,13 +766,25 @@ act2_install_prerequisites() {
 
         local ai_choice="${REPLY:-1}"
 
-        # Helper: install npm package with visible errors in CI
+        # Helper: install npm package globally, falling back to sudo when the
+        # global npm prefix directory is not writable (e.g. system Node install).
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
+            local npm_global_prefix
+            npm_global_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+            if [ -w "$npm_global_prefix/lib" ] 2>/dev/null; then
+                if [ "$NON_INTERACTIVE" = true ]; then
+                    npm install -g "$pkg"
+                else
+                    npm install -g "$pkg" 2>/dev/null
+                fi
             else
-                npm install -g "$pkg" 2>/dev/null
+                maestro_info "System Node detected — using sudo for global npm install of $pkg..."
+                if [ "$NON_INTERACTIVE" = true ]; then
+                    sudo npm install -g "$pkg"
+                else
+                    sudo npm install -g "$pkg" 2>/dev/null
+                fi
             fi
         }
 
@@ -1058,7 +1077,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1111,12 +1130,9 @@ act4_start_and_register() {
                 pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
             else
                 # Kill old nohup process and restart
-                local old_pid
-                old_pid=$(lsof -ti:"$PORT" 2>/dev/null || true)
-                if [ -n "$old_pid" ]; then
-                    kill "$old_pid" 2>/dev/null || true
-                    sleep 2
-                fi
+                # Kill all processes on PORT (handles multiple PIDs) and tolerate failure
+                lsof -ti:"$PORT" 2>/dev/null | xargs -r kill || true
+                sleep 2
                 mkdir -p "$INSTALL_DIR/logs"
                 nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
             fi
@@ -1227,7 +1243,10 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Use awk instead of sed — sed cannot handle newlines in the replacement string
+            awk -v gateways="$gw_list" '{gsub(/\{\{ACTIVE_GATEWAYS_LIST\}\}/, gateways)}1' \
+                "$MAILMAN_DIR/CLAUDE.md" > "$MAILMAN_DIR/CLAUDE.md.tmp" \
+                && mv "$MAILMAN_DIR/CLAUDE.md.tmp" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
         curl -s -X POST http://localhost:${PORT}/api/sessions/create \
@@ -1288,7 +1307,8 @@ act5_grand_finale() {
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            # Escape any double-quotes inside the prompt before passing to tmux
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"${INITIAL_PROMPT//\"/\\\"}\""
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1299,7 +1319,7 @@ act5_grand_finale() {
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "$AI_TOOL \"${INITIAL_PROMPT//\"/\\\"}\""
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"
@@ -1337,6 +1357,12 @@ act5_grand_finale() {
 
 main() {
     parse_args "$@"
+
+    # Validate PORT is a number in the allowed non-privileged range
+    if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+        maestro_fail "PORT must be a number between 1024 and 65535"
+        exit 1
+    fi
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then

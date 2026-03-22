@@ -82,6 +82,12 @@ function validateGitUrl(url: string): string | null {
 
   try {
     const parsed = new URL(url)
+
+    // Reject URLs with embedded credentials — they would be stored in config files and logs
+    if (parsed.username || parsed.password) {
+      return 'Git URL must not contain embedded credentials'
+    }
+
     const host = parsed.hostname.toLowerCase()
 
     // Block internal network addresses
@@ -153,6 +159,12 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 
   // Validate each skill selection
   for (const skill of config.skills) {
+    // skill.name is used as the manifest output path segment (skills/${skill.name}),
+    // so it must be safe to use as a path component — block traversal and special chars.
+    if (!skill.name || !SAFE_PATH_SEGMENT_RE.test(skill.name)) {
+      return `Invalid skill name: "${skill.name ?? ''}" — must match [a-zA-Z0-9._-]+`
+    }
+
     if (skill.type === 'repo') {
       const urlErr = validateGitUrl(skill.url)
       if (urlErr) return `Repo skill "${skill.name}": ${urlErr}`
@@ -160,6 +172,34 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    }
+
+    if (skill.type === 'core' && skill.skillPath) {
+      // Reject path traversal sequences and absolute paths in core skill paths.
+      // Split on '/' so multi-segment paths like "skills/my-skill" validate each segment independently.
+      if (skill.skillPath.includes('..') || path.isAbsolute(skill.skillPath)) {
+        return `Path traversal not allowed: ${skill.skillPath}`
+      }
+      const segments = skill.skillPath.split('/')
+      if (segments.some(seg => !SAFE_PATH_SEGMENT_RE.test(seg))) {
+        return `Invalid skillPath: ${skill.skillPath}`
+      }
+    }
+
+    if (skill.type === 'marketplace') {
+      // Require presence of marketplace and plugin fields before validating format —
+      // without them the installPath constructed in generateManifest would be incomplete.
+      if (!skill.id) return `Skill "${skill.id ?? ''}" missing id field`
+      if (!skill.marketplace) return `Skill "${skill.id ?? ''}" missing marketplace field`
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) return `Invalid marketplace: ${skill.marketplace}`
+      if (!skill.plugin) return `Skill "${skill.id ?? ''}" missing plugin field`
+      if (!SAFE_PATH_SEGMENT_RE.test(skill.plugin)) return `Invalid plugin: ${skill.plugin}`
+      // Validate the skill name component extracted from the id (format: marketplace:plugin:skillName).
+      // Use .at(-1) (last part) — consistent with generateManifest which also takes parts[parts.length - 1].
+      const skillName = skill.id.split(':').at(-1)
+      if (skillName && !SAFE_PATH_SEGMENT_RE.test(skillName)) {
+        return `Invalid skill name in id: ${skillName}`
+      }
     }
   }
 
@@ -218,7 +258,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   if (coreSkills.length > 0) {
     const map: Record<string, string> = {}
     for (const skill of coreSkills) {
-      map[`skills/${skill.name}`] = `skills/${skill.name}`
+      // Use skillPath as source key so a custom path within ./src is respected;
+      // fall back to skills/${skill.name} when skillPath is not set.
+      map[skill.skillPath || `skills/${skill.name}`] = `skills/${skill.name}`
     }
     if (config.includeHooks !== false) {
       map['hooks/*'] = 'hooks/'
@@ -242,7 +284,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -363,19 +405,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
-    runBuild(buildId, buildDir, manifest).catch(err => {
-      console.error(`Build ${buildId} failed:`, err)
-      // Ensure status is updated even on unexpected errors
-      const r = buildResults.get(buildId)
-      if (r && r.status === 'building') {
-        buildResults.set(buildId, {
-          ...r,
-          status: 'failed',
-          logs: [err instanceof Error ? err.message : String(err)],
-        })
-      }
-    }).finally(() => {
+    // Run build asynchronously — errors are handled inside runBuild (updates status to 'failed')
+    runBuild(buildId, buildDir, manifest).finally(() => {
       activeOps = Math.max(0, activeOps - 1)
     })
 

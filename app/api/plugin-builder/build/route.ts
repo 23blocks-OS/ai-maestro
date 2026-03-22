@@ -11,21 +11,24 @@ import type { NextRequest } from 'next/server'
 import { buildPlugin } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  // Only catch JSON parse errors here — service errors must not be masked as 400
+  let body: unknown
   try {
-    const body = await request.json()
-    const result = await buildPlugin(body)
-
-    if (result.error) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      )
-    }
-    return NextResponse.json(result.data, { status: result.status })
+    body = await request.json()
   } catch {
     return NextResponse.json(
       { error: 'Invalid request body' },
       { status: 400 }
     )
   }
+
+  const result = await buildPlugin(body)
+
+  if (result.error) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status }
+    )
+  }
+  return NextResponse.json(result.data, { status: result.status })
 }

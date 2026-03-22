@@ -216,7 +216,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </div>
         )}
 
-        {error && !result && (
+        {error && (
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 

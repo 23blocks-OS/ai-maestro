@@ -258,10 +258,6 @@ function convertAMPToMessage(ampMsg: AMPEnvelopeMsg): Message | null {
   const fromAgent = getAgentByName(fromName) || getAgentByNameAnyHost(fromName)
   const toAgent = getAgentByName(toName) || getAgentByNameAnyHost(toName)
 
-  // Resolve display labels from agent registry (best-effort, non-blocking)
-  const fromAgent = getAgentByName(fromName) || getAgentByNameAnyHost(fromName)
-  const toAgent = getAgentByName(toName) || getAgentByNameAnyHost(toName)
-
   return {
     id,
     // Use the full AMP address as the unique identifier; alias holds the extracted name

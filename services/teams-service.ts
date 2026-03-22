@@ -253,10 +253,10 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
       return { error: access.reason || 'Access denied', status: 403 }
     }
 
-    // Preserve null to explicitly unlink githubProject; undefined means no change
+    // Convert null to undefined to unlink githubProject; omit entirely if unchanged
     const finalFields = {
       ...updateFields,
-      ...(ghProj !== undefined && { githubProject: ghProj }),
+      ...(ghProj !== undefined && { githubProject: ghProj ?? undefined }),
     }
 
     // Pass governance context (managerId + agent names for collision checks) to updateTeam

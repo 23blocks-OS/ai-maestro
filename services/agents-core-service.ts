@@ -513,7 +513,7 @@ export async function listAgents(): Promise<ServiceResult<{
         status: hasOnlineSession ? 'active' : 'offline',
         // Use the actual lastActive from the online session rather than the current timestamp
         // so the field reflects true last activity, not the polling time
-        lastActive: onlineSession ? onlineSession.lastActive : agent.lastActive,
+        lastActive: (onlineSession?.lastActive ?? agent.lastActive) || new Date().toISOString(),
       }
 
       resultAgents.push(mergeAgentWithSession(updatedAgent, sessionStatus, hostId, hostName, hostUrl, false))

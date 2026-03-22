@@ -16,20 +16,6 @@ const CORE_SKILLS = [
   { name: 'ai-maestro-agents-management', description: 'Create, manage, and orchestrate AI agents', icon: Package },
 ]
 
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.id}`
-    case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
-  }
-}
-
 interface SkillPickerProps {
   selectedSkills: PluginSkillSelection[]
   onAddSkill: (skill: PluginSkillSelection) => void
@@ -106,12 +92,12 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   }, [searchQuery, marketplaceSkills])
 
   // Use filtered counts so the badge reflects what is currently visible (respects search query)
-  const tabs = [
+  const tabs = useMemo(() => [
     // Use filtered lengths so the count always matches the visible list
     { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
     { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
-  ], [marketplaceSkills.length])
+  ], [filteredCoreSkills.length, filteredMarketplaceSkills.length])
 
   return (
     <div className="flex flex-col h-full">
@@ -224,7 +210,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
                 // Use getSkillKey so the React list key matches the identifier used in selectedKeys
-                const key = getSkillKey({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
+                const key = getSkillKey({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin, name: skill.name })
                 const isSelected = selectedKeys.has(key)
                 // Single toggle handler reused by both onClick and onKeyDown
                 const handleMarketplaceToggle = () => {
@@ -256,12 +242,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       } else {
                         onAddSkill({
                           type: 'marketplace',
-                          name: skill.name,
                           id: skill.id,
                           name: skill.name,
                           marketplace: skill.marketplace,
                           plugin: skill.plugin,
-                          name: skill.name,
                           description: skill.description,
                         })
                       }
@@ -316,19 +300,4 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
       </div>
     </div>
   )
-}
-
-/**
- * Generate a unique key for a skill selection (used for deduplication).
- */
-export function getSkillKey(skill: PluginSkillSelection): string {
-  switch (skill.type) {
-    case 'core':
-      return `core:${skill.name}`
-    case 'marketplace':
-      return `marketplace:${skill.marketplace}:${skill.plugin}:${skill.id}`
-    case 'repo':
-      // Include ref so the same skill path at different branches/tags is treated as distinct
-      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
-  }
 }

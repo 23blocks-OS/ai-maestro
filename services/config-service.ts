@@ -821,6 +821,7 @@ export async function getConversationMessages(
       return {
         error: 'No messages found in RAG database. Conversation may not be indexed yet.',
         data: {
+          error: 'No messages found in RAG database. Conversation may not be indexed yet.',
           fallback_to_parse: true,
           conversation_file: conversationFile,
         },

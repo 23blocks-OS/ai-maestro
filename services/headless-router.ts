@@ -449,16 +449,15 @@ function sendServiceResult(res: ServerResponse, result: any) {
   if (result.error) {
     sendJson(res, result.status || 500, { error: result.error }, result.headers)
   } else {
-    sendJson(res, resolved.status || 200, resolved.data, resolved.headers)
+    sendJson(res, result.status || 200, result.data, result.headers)
   }
 }
 
-function getHeader(req: IncomingMessage, name: string): string | undefined {
+function getHeader(req: IncomingMessage, name: string): string | null {
   const val = req.headers[name.toLowerCase()]
   // Node.js headers can be string[] when the same header is sent multiple times.
   // Return the first element in that case so callers always get a usable string.
-  // Return undefined (not null) to align with TypeScript idiomatic optional types.
-  return Array.isArray(val) ? val[0] : typeof val === 'string' ? val : undefined
+  return Array.isArray(val) ? val[0] : typeof val === 'string' ? val : null
 }
 
 /**
@@ -515,7 +514,7 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
       file = content
     } else if (headers.includes('name="options"')) {
       // options is expected to be a UTF-8 JSON string.
-      options = content.toString('utf8')
+      options = JSON.parse(content.toString('utf8'))
     }
 
     pos = contentStart + content.length
@@ -713,21 +712,10 @@ const routes: Route[] = [
       const { file, options } = parseMultipart(rawBody, contentType)
 
       if (!file) {
-        // Use sendServiceResult for consistent error-response formatting across all routes
         sendServiceResult(res, { status: 400, error: 'No file provided' })
         return
       }
 
-      let options = {}
-      if (optionsStr) {
-        // Parse separately so malformed JSON yields 400 Bad Request, not 500
-        try {
-          options = JSON.parse(optionsStr)
-        } catch (_e) {
-          sendJson(res, 400, { error: 'Invalid JSON for options field' })
-          return
-        }
-      }
       const result = await importAgent(file, options)
       await sendServiceResult(res, result)
     } catch (error) {
@@ -1105,15 +1093,6 @@ const routes: Route[] = [
         sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
       }
     }
-    const { buffer, filename, agentId, agentName } = result.data
-    sendBinary(res, 200, new Uint8Array(buffer), {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': buffer.length.toString(),
-      'X-Agent-Id': agentId,
-      'X-Agent-Name': agentName,
-      'X-Export-Version': '1.0.0',
-    })
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1427,10 +1406,10 @@ const routes: Route[] = [
     await sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
+    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
+    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
   }},
 
   // =========================================================================

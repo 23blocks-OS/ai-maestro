@@ -11,6 +11,9 @@ import { scanRepo } from '@/services/plugin-builder-service'
 // Only GitHub HTTPS URLs are accepted to prevent SSRF attacks against internal hosts.
 const GITHUB_URL_RE = /^https:\/\/github\.com\/[a-zA-Z0-9][a-zA-Z0-9._-]*\/[a-zA-Z0-9._-]+$/
 
+// Allowed repository hosts — restricts scan-repo to prevent SSRF
+const ALLOWED_REPO_HOSTS = ['github.com', 'gitlab.com']
+
 export async function POST(request: NextRequest) {
   // SF-004: Separate JSON parsing from service call so service errors
   // are not misattributed as "Invalid request body" (400)
@@ -114,7 +117,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await scanRepo(repoUrl, ref)
+    const result = await scanRepo(repoUrl, ref ?? undefined)
 
     if (result.error) {
       return NextResponse.json(

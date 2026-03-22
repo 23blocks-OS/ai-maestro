@@ -16,14 +16,7 @@ import {
   getSkillById,
 } from '@/lib/marketplace-skills'
 import type { SkillSearchParams } from '@/types/marketplace'
-import type { ServiceResult } from '@/types/service-result'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-import { ServiceResult } from '@/types/service'
-// NT-006: ServiceResult re-export removed — import directly from @/types/service
+import type { ServiceResult } from '@/types/service'
 
 // ===========================================================================
 // PUBLIC API -- called by API routes

@@ -43,7 +43,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   // Clean up polling and copy timeout on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+      if (pollRef.current) clearTimeout(pollRef.current)
       // SF-022: Abort any in-flight poll fetch on unmount
       pollAbortRef.current?.abort()
     }
@@ -126,7 +126,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       // Poll for completion
       if (data.status === 'building') {
         pollingStarted = true
-        pollRef.current = setInterval(async () => {
+        const pollStatus = async () => {
           try {
             // SF-022: Create a local AbortController per tick so that each fetch
             // has its own signal. Assign it to pollAbortRef.current BEFORE the
@@ -188,6 +188,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               setBuilding(false)
               return // Prevent further processing in this tick after stopping the poll
             }
+          }
+          // Reschedule the next poll tick if polling was not stopped
+          if (pollRef.current !== null) {
+            pollRef.current = setTimeout(pollStatus, 3000)
           }
         }
         // Kick off the first poll

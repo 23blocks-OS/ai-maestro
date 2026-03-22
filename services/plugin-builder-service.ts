@@ -310,51 +310,61 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 // ============================================================================
 
 function evictStaleBuildResults(): void {
-  const now = Date.now()
-  for (const [id, result] of buildResults) {
-    // Never evict a build that is still in progress — runBuild owns its directory lifecycle
-    if (result.status === 'building') continue
+  // Re-entrancy guard — eviction can be triggered by interval and by manual calls
+  if (isEvicting) return
+  isEvicting = true
+  try {
+    const now = Date.now()
+    // Pass 1: remove entries older than the TTL
+    for (const [id, result] of buildResults) {
+      // Never evict a build that is still in progress — runBuild owns its directory lifecycle
+      if (result.status === 'building') continue
 
-    const age = now - new Date(result.createdAt).getTime()
-    if (age > BUILD_TTL_MS) {
-      // Read buildDir before deleting the map entry so we can clean up the mkdtemp directory
-      const buildDir = result.buildDir
-      buildResults.delete(id)
-      // Best-effort cleanup of build directory — log failures so disk accumulation is visible
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
-        console.warn(`plugin-builder: failed to remove stale build directory ${buildDir}:`, err)
-      })
-    }
-  }
-
-  // If still over limit, evict oldest completed/failed entries only
-  if (buildResults.size > MAX_BUILD_RESULTS) {
-    const entries = [...buildResults.entries()]
-      .filter(([, result]) => result.status !== 'building')
-      .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
-    const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
-    for (const [id, result] of toRemove) {
-      // Read buildDir from the already-captured result entry (before deleting from the map)
-      const buildDir = result.buildDir
-      buildResults.delete(id)
-      const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
-        console.warn(`plugin-builder: failed to remove oldest build directory ${buildDir}:`, err)
-      })
+      const age = now - new Date(result.createdAt).getTime()
+      if (age > BUILD_TTL_MS) {
+        // Read buildDir before deleting the map entry so we can clean up the mkdtemp directory
+        const buildDir = result.buildDir
+        buildResults.delete(id)
+        // Best-effort cleanup of build directory — log failures so disk accumulation is visible
+        if (buildDir) {
+          fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+            console.warn(`plugin-builder: failed to remove stale build directory ${buildDir}:`, err)
+          })
+        }
+      }
     }
 
-    // Pass 2: if still over the hard limit, evict oldest of the SURVIVING (non-stale) entries
-    // This avoids removing entries that were already removed in pass 1 from an out-of-date list.
+    // Pass 2: if still over limit, evict oldest completed/failed entries only
     if (buildResults.size > MAX_BUILD_RESULTS) {
-      const sorted = survivors
+      const entries = [...buildResults.entries()]
+        .filter(([, result]) => result.status !== 'building')
+        .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
+      const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
+      for (const [id, result] of toRemove) {
+        // Read buildDir from the already-captured result entry (before deleting from the map)
+        const buildDir = result.buildDir
+        buildResults.delete(id)
+        if (buildDir) {
+          fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+            console.warn(`plugin-builder: failed to remove oldest build directory ${buildDir}:`, err)
+          })
+        }
+      }
+    }
+
+    // Pass 3: if still over the hard limit, evict oldest of the SURVIVING (non-building) entries
+    if (buildResults.size > MAX_BUILD_RESULTS) {
+      const survivors = [...buildResults.entries()]
+        .filter(([, result]) => result.status !== 'building')
         .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
       const toRemoveCount = buildResults.size - MAX_BUILD_RESULTS
-      for (let i = 0; i < toRemoveCount; i++) {
-        const [id] = sorted[i]
+      for (let i = 0; i < toRemoveCount && i < survivors.length; i++) {
+        const [id, result] = survivors[i]
         buildResults.delete(id)
-        const buildDir = path.join(BUILDS_DIR, id)
-        fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error(`Failed to remove evicted build dir ${buildDir}:`, err))
+        const buildDir = result.buildDir
+        if (buildDir) {
+          fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error(`Failed to remove evicted build dir ${buildDir}:`, err))
+        }
       }
     }
   } finally {
@@ -415,11 +425,11 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     })
   }
 
-  // Marketplace skills — group by marketplace+marketplaceSkillId combo
-  const marketplaceGroups = new Map<string, { marketplace: string; marketplaceSkillId: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
+  // Marketplace skills — group by marketplace+plugin combo
+  const marketplaceGroups = new Map<string, { marketplace: string; plugin: string; skills: Extract<PluginSkillSelection, { type: 'marketplace' }>[] }>()
   for (const skill of marketplaceSkills) {
-    const key = `${skill.marketplace}\0${skill.marketplaceSkillId}` // NUL separator avoids colon conflicts
-    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, marketplaceSkillId: skill.marketplaceSkillId, skills: [] }
+    const key = `${skill.marketplace}\0${skill.plugin}` // NUL separator avoids colon conflicts
+    const group = marketplaceGroups.get(key) || { marketplace: skill.marketplace, plugin: skill.plugin, skills: [] }
     group.skills.push(skill)
     marketplaceGroups.set(key, group)
   }
@@ -437,10 +447,10 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${group.marketplaceSkillId}-from-${group.marketplace}`,
-      description: `Skills from ${group.marketplaceSkillId} plugin (${group.marketplace} marketplace)`,
+      name: `${group.plugin}-from-${group.marketplace}`,
+      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
       type: 'local',
-      path: relativeStagingPath,
+      path: installPath,
       map,
     })
   }
@@ -503,9 +513,6 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // buildPlugin returns 202 immediately and the slot is held until runBuild
   // completes asynchronously, so the release is attached to that async chain.
   const release = await acquireSlot()
-  // Declared outside the try block so the catch block can reference it for cleanup
-  let buildDir: string | undefined
-
   // Track whether runBuild has been dispatched so the catch block knows
   // not to decrement activeOps a second time (runBuild's finally handles it).
   let buildDispatched = false
@@ -513,30 +520,14 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   const buildId = randomUUID()
   const buildDir = path.join(BUILDS_DIR, buildId)
 
-  // Declared before try so they are accessible in the catch block for cleanup.
-  let buildId: string | undefined
-  let buildDir: string | undefined
-
-  // Increment before the try block so the finally always decrements exactly once,
-  // even if an error occurs before runBuild is launched.
-  activeOps++
-
   // Increment before the try block so the catch always decrements exactly once if runBuild
   // was never started. If runBuild is successfully launched, it owns the decrement via its
   // finally block, and the outer catch is never reached (we return 202 before any throw).
   activeOps++
 
   try {
-    // Increment before any operation that could throw so the outer catch always
-    // sees a matching decrement (evictStaleBuildResults must not run before the
-    // increment, otherwise a throw there would cause the catch to decrement an
-    // already-zero counter).
-    activeOps++
-
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
-
-    activeOps++
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -613,10 +604,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     return { data: finalResult || result, status: 200 }
   } catch (error) {
-    // Only decrement if runBuild was never dispatched; otherwise its finally handles it
+    // Clean up the build directory if it was created before the error occurred
     if (!buildDispatched) {
-      activeOps = Math.max(0, activeOps - 1)
-      // Clean up the build directory if it was created before the error occurred
       fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
         console.warn(`plugin-builder: failed to remove build directory ${buildDir} on early error:`, err)
       })
@@ -627,7 +616,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     // Decrement exactly once when synchronous setup fails before the async
     // build was launched.  If the async build was launched, the async chain's
     // own finally block above handles the decrement instead.
-    if (!asyncBuildLaunched) {
+    if (!buildDispatched) {
       activeOps = Math.max(0, activeOps - 1)
     }
   }
@@ -705,16 +694,16 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
       console.warn(`Failed to clean up temporary scan directory ${scanDir}:`, err)
     })
 
-    const execError = error as ExecError
+    const execError = error as { code?: number; message?: string; stderr?: string }
     const exitCode = execError.code
     let message = execError.message || String(error)
     if (execError.stderr) message += `\nStderr: ${execError.stderr}`
 
     if (exitCode === 128 || message.includes('not found')) {
-      return { error: `Repository not found or access denied: ${url}. ${fullMessage}`, status: 404 }
+      return { error: `Repository not found or access denied: ${url}. ${message}`, status: 404 }
     }
     console.error('Error scanning repo:', error)
-    return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }
+    return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
     release()
   }
@@ -830,10 +819,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
     // Include stderr from execPromise-thrown ExecError for actionable git failure messages
     let message = error instanceof Error ? error.message : String(error)
-    const execErr = error as ExecError
+    const execErr = error as { code?: number; message?: string; stderr?: string }
     if (execErr.stderr) message += `\nStderr: ${execErr.stderr}`
     console.error('Error pushing to GitHub:', error)
-    return { error: `Failed to push to GitHub: ${fullMessage}`, status: 500 }
+    return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
     release()
   }
@@ -863,7 +852,7 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     )
 
     // Combine stdout and stderr so no build output is lost
-    const logs = [...stdout.split('\n'), ...stderr.split('\n')].filter(Boolean)
+    const logs = [...(output.stdout || '').split('\n'), ...(output.stderr || '').split('\n')].filter(Boolean)
 
     // Parse output for stats
     const outputPath = path.join(buildDir, manifest.output)
@@ -933,7 +922,7 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       ...current,
       status: 'failed',
       logs,
-      buildDir: existing.buildDir,
+      buildDir: current.buildDir,
       outputPath: undefined,
       stats: undefined,
     })
@@ -1099,7 +1088,7 @@ function execPromise(
       maxBuffer: 10 * 1024 * 1024, // 10MB — git clone and verbose build scripts can produce large output
     }, (error, stdout, stderr) => {
       if (error) {
-        const err = error as ExecError
+        const err = error as { code?: number; message?: string; stderr?: string }
         err.stderr = stderr
         reject(err)
       } else {

@@ -556,6 +556,8 @@ export interface LiveAgentSessionStatus {
   workingDirectory?: string       // Current working directory
   lastActivity?: string           // Last activity timestamp (ISO)
   windows?: number                // Number of tmux windows
+  hostId?: string                 // Host context for distributed agents
+  hostName?: string               // Host display name for distributed agents
 }
 
 /** @deprecated Use LiveAgentSessionStatus instead. */

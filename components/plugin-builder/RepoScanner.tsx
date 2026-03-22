@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
-import { getSkillKey } from './SkillPicker'
+import { getSkillKey } from '@/types/plugin-builder'
 
 interface RepoScannerProps {
   // NT-020: Made optional -- SkillPicker doesn't use the callback (passes no-op)
@@ -15,7 +15,7 @@ interface RepoScannerProps {
   getSkillKey: (skill: PluginSkillSelection) => string
 }
 
-export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKeys, getSkillKey }: RepoScannerProps) {
+export default function RepoScanner({ onSkillsFound, onAddSkill, onRemoveSkill, selectedSkillKeys, getSkillKey }: RepoScannerProps) {
   const [url, setUrl] = useState('')
   // Empty string means "use default"; the actual default 'main' is applied only at scan time
   const [ref, setRef] = useState('')
@@ -89,14 +89,6 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     const currentRef = ref.trim() || 'main'
 
     if (!currentUrl) return
-
-    // Capture url/ref at scan initiation so that any user edits during the async
-    // fetch do not corrupt the values passed to onSkillsFound or stored as the
-    // "scanned" coordinates for handleAddSkill.
-    const currentUrl = url.trim()
-    // Apply the 'main' default here rather than in the onChange handler so the
-    // input field can remain empty while the user is typing, without snapping back.
-    const currentRef = ref || 'main'
 
     // Abort any in-flight scan
     abortRef.current?.abort()

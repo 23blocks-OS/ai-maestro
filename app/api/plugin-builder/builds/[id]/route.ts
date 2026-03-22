@@ -14,6 +14,7 @@ export async function GET(
 ) {
   const { id } = params
 
+  try {
     const result = await getBuildStatus(id)
 
     if (result.error) {

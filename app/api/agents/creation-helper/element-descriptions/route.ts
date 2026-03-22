@@ -26,8 +26,13 @@ function findPssBinary(): string | null {
 
   if (versions.length === 0) return null
 
-  const platform = process.platform === 'darwin' ? 'darwin' : 'linux'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x86_64'
+  // Map Node.js platform values to binary naming convention; return null for unsupported platforms
+  const platform = process.platform === 'darwin' ? 'darwin' : (process.platform === 'linux' ? 'linux' : null)
+  if (!platform) return null
+
+  // Node.js reports x86_64 as 'x64'; map to binary naming convention; return null for unsupported archs
+  const arch = process.arch === 'arm64' ? 'arm64' : (process.arch === 'x64' ? 'x86_64' : null)
+  if (!arch) return null
 
   for (const ver of versions) {
     // Try platform-specific binary first
@@ -48,6 +53,10 @@ function findPssBinary(): string | null {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+    // Guard against non-object bodies (null, primitives) before accessing properties
+    if (typeof body !== 'object' || body === null || !('names' in body)) {
+      return NextResponse.json({ descriptions: {}, error: 'Invalid request body: "names" array is missing' }, { status: 400 })
+    }
     const names: string[] = body.names
     if (!Array.isArray(names) || names.length === 0) {
       return NextResponse.json({ descriptions: {} })
@@ -55,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     const pssBin = findPssBinary()
     if (!pssBin) {
-      return NextResponse.json({ descriptions: {}, error: 'PSS binary not found' })
+      return NextResponse.json({ descriptions: {}, error: 'PSS binary not found' }, { status: 500 })
     }
 
     // Batch query — comma-separated names
@@ -64,7 +73,19 @@ export async function POST(req: NextRequest) {
       timeout: 10000,
     })
 
-    const results: Array<{ name: string; description: string; type: string; plugin: string | null } | null> = JSON.parse(stdout)
+    // Guard against empty output before attempting JSON parse
+    if (!stdout.trim()) {
+      console.warn('PSS binary returned empty stdout for query:', query)
+      return NextResponse.json({ descriptions: {}, error: 'PSS binary returned no data' }, { status: 500 })
+    }
+
+    let results: Array<{ name: string; description: string; type: string; plugin: string | null } | null>
+    try {
+      results = JSON.parse(stdout)
+    } catch (jsonError) {
+      console.error('Failed to parse JSON from PSS binary output:', jsonError, 'Stdout:', stdout)
+      return NextResponse.json({ descriptions: {}, error: 'Failed to parse PSS binary output' }, { status: 500 })
+    }
 
     // Build lookup map
     const descriptions: Record<string, { description: string; type: string; plugin: string | null }> = {}
@@ -79,7 +100,11 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ descriptions })
-  } catch {
-    return NextResponse.json({ descriptions: {} })
+  } catch (error: unknown) {
+    console.error('Error in POST /api/agents/creation-helper/element-descriptions:', error)
+    return NextResponse.json(
+      { descriptions: {}, error: error instanceof Error ? error.message : 'An unknown error occurred' },
+      { status: 500 }
+    )
   }
 }

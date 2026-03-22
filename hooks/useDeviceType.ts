@@ -37,16 +37,25 @@ function classify(width: number): DeviceType {
 }
 
 export function useDeviceType(): DeviceInfo {
+  // Resolve query overrides once per render so that both the useState lazy
+  // initializer and the useEffect closure always see the same values.
+  // Calling getQueryOverrides() twice (once in useState and once in useEffect)
+  // could produce inconsistent forceTouch/forceMobile values if window.location
+  // changes between those two calls (e.g. client-side navigation that does not
+  // remount this component).
+  const queryOverrides = getQueryOverrides()
+
   const [info, setInfo] = useState<DeviceInfo>(() => {
     if (typeof window === 'undefined') return { deviceType: 'desktop', isTouch: false }
-    const { forceTouch, forceMobile } = getQueryOverrides()
+    const { forceTouch, forceMobile } = queryOverrides
     const isTouch = forceTouch || detectTouch()
     const deviceType = forceMobile ? 'phone' : classify(window.innerWidth)
     return { deviceType, isTouch }
   })
 
   useEffect(() => {
-    const { forceTouch, forceMobile } = getQueryOverrides()
+    // Use the overrides captured at hook-call time (same as the useState initializer).
+    const { forceTouch, forceMobile } = queryOverrides
 
     const update = () => {
       const isTouch = forceTouch || detectTouch()
@@ -82,6 +91,10 @@ export function useDeviceType(): DeviceInfo {
         mqlAny.removeEventListener('change', update)
       }
     }
+  // queryOverrides is intentionally excluded: getQueryOverrides() returns a new object each call,
+  // so including it would re-run the effect on every render and re-register all listeners.
+  // The value is captured at mount time matching the useState initializer (see comment above useState).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return info

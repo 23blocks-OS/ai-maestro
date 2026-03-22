@@ -142,8 +142,9 @@ export function useGovernance(agentId: string | null): GovernanceState {
       })
       .finally(() => {
         // CC-001: Prevent setting state on aborted/stale requests (e.g. unmount or rapid agentId change)
+        // The abort() in the useEffect cleanup is called before isMountedRef.current = false,
+        // so signal?.aborted already covers the unmount case — no redundant isMountedRef check needed.
         if (signal?.aborted) return
-        if (!isMountedRef.current) return // SF-023: Don't update state after unmount
         setLoading(false)
       })
   // CC-009: Empty deps is intentional — refresh only uses fetch (global) + setState (stable),
@@ -162,8 +163,7 @@ export function useGovernance(agentId: string | null): GovernanceState {
       mutationAbortRef.current?.abort()
       isMountedRef.current = false // SF-023: Prevent state updates after unmount
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (empty deps), only agentId triggers re-fetch
-  }, [agentId])
+  }, [agentId, refresh])
 
   const setPassword = useCallback(
     async (pw: string, currentPw?: string): Promise<{ success: boolean; error?: string }> => {
@@ -348,7 +348,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         if (!res.ok) {
           const data = await res.json().catch((parseErr: unknown) => {
             console.warn('[useGovernance] Failed to parse response JSON:', parseErr)
-            return {}
+            // Preserve the parse error so callers get a meaningful message instead of a bare HTTP status
+            return { error: `Failed to parse server response: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` }
           })
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }
@@ -381,7 +382,8 @@ export function useGovernance(agentId: string | null): GovernanceState {
         if (!res.ok) {
           const data = await res.json().catch((parseErr: unknown) => {
             console.warn('[useGovernance] Failed to parse response JSON:', parseErr)
-            return {}
+            // Preserve the parse error so callers get a meaningful message instead of a bare HTTP status
+            return { error: `Failed to parse server response: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` }
           })
           return { success: false, error: data.error || `HTTP ${res.status}` }
         }

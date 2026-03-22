@@ -1,0 +1,588 @@
+{
+  "uid": "de4e83",
+  "created": "2026-03-22T16:37:07.082314",
+  "total_files": 74,
+  "files": {
+    "FID00001": {
+      "path": ".gitignore",
+      "lines": 156,
+      "bytes": 2233,
+      "category": "small"
+    },
+    "FID00002": {
+      "path": "CLAUDE.md",
+      "lines": 1011,
+      "bytes": 40705,
+      "category": "big"
+    },
+    "FID00003": {
+      "path": "README.md",
+      "lines": 270,
+      "bytes": 12269,
+      "category": "big"
+    },
+    "FID00004": {
+      "path": "app/agent-creation/layout.tsx",
+      "lines": 12,
+      "bytes": 345,
+      "category": "small"
+    },
+    "FID00005": {
+      "path": "app/api/agents/[id]/local-config/route.ts",
+      "lines": 34,
+      "bytes": 1114,
+      "category": "small"
+    },
+    "FID00006": {
+      "path": "app/api/agents/browse-dir/route.ts",
+      "lines": 169,
+      "bytes": 5918,
+      "category": "small"
+    },
+    "FID00007": {
+      "path": "app/api/agents/create-from-toml/route.ts",
+      "lines": 65,
+      "bytes": 2059,
+      "category": "small"
+    },
+    "FID00008": {
+      "path": "app/api/agents/create-persona/route.ts",
+      "lines": 73,
+      "bytes": 2192,
+      "category": "small"
+    },
+    "FID00009": {
+      "path": "app/api/agents/creation-helper/cleanup/route.ts",
+      "lines": 56,
+      "bytes": 1984,
+      "category": "small"
+    },
+    "FID00010": {
+      "path": "app/api/agents/creation-helper/clear-banner/route.ts",
+      "lines": 28,
+      "bytes": 890,
+      "category": "small"
+    },
+    "FID00011": {
+      "path": "app/api/agents/creation-helper/element-descriptions/route.ts",
+      "lines": 85,
+      "bytes": 2897,
+      "category": "small"
+    },
+    "FID00012": {
+      "path": "app/api/agents/creation-helper/file-picker/route.ts",
+      "lines": 80,
+      "bytes": 2679,
+      "category": "small"
+    },
+    "FID00013": {
+      "path": "app/api/agents/creation-helper/raw-materials/route.ts",
+      "lines": 57,
+      "bytes": 1730,
+      "category": "small"
+    },
+    "FID00014": {
+      "path": "app/api/agents/creation-helper/toml-preview/route.ts",
+      "lines": 55,
+      "bytes": 1759,
+      "category": "small"
+    },
+    "FID00015": {
+      "path": "app/api/agents/role-plugins/install/route.ts",
+      "lines": 76,
+      "bytes": 2353,
+      "category": "small"
+    },
+    "FID00016": {
+      "path": "app/api/agents/role-plugins/route.ts",
+      "lines": 71,
+      "bytes": 2213,
+      "category": "small"
+    },
+    "FID00017": {
+      "path": "app/api/agents/role-plugins/sync-defaults/route.ts",
+      "lines": 31,
+      "bytes": 964,
+      "category": "small"
+    },
+    "FID00018": {
+      "path": "app/api/config/route.ts",
+      "lines": 37,
+      "bytes": 1302,
+      "category": "small"
+    },
+    "FID00019": {
+      "path": "app/api/sessions/create/route.ts",
+      "lines": 42,
+      "bytes": 1606,
+      "category": "small"
+    },
+    "FID00020": {
+      "path": "app/api/settings/marketplaces/route.ts",
+      "lines": 273,
+      "bytes": 9208,
+      "category": "big"
+    },
+    "FID00021": {
+      "path": "app/api/teams/[id]/kanban-config/route.ts",
+      "lines": 63,
+      "bytes": 2103,
+      "category": "small"
+    },
+    "FID00022": {
+      "path": "app/api/teams/[id]/tasks/[taskId]/route.ts",
+      "lines": 110,
+      "bytes": 5081,
+      "category": "small"
+    },
+    "FID00023": {
+      "path": "app/api/teams/[id]/tasks/route.ts",
+      "lines": 107,
+      "bytes": 4818,
+      "category": "small"
+    },
+    "FID00024": {
+      "path": "app/api/teams/stats/route.ts",
+      "lines": 19,
+      "bytes": 709,
+      "category": "small"
+    },
+    "FID00025": {
+      "path": "app/globals.css",
+      "lines": 303,
+      "bytes": 8069,
+      "category": "big"
+    },
+    "FID00026": {
+      "path": "app/layout.tsx",
+      "lines": 40,
+      "bytes": 965,
+      "category": "small"
+    },
+    "FID00027": {
+      "path": "components/AgentConfigPanel.tsx",
+      "lines": 350,
+      "bytes": 11374,
+      "category": "big"
+    },
+    "FID00028": {
+      "path": "components/AgentCreationHelper.tsx",
+      "lines": 931,
+      "bytes": 42500,
+      "category": "big"
+    },
+    "FID00029": {
+      "path": "components/AgentCreationWizard.tsx",
+      "lines": 906,
+      "bytes": 32482,
+      "category": "big"
+    },
+    "FID00030": {
+      "path": "components/AgentPlayback.tsx",
+      "lines": 334,
+      "bytes": 11300,
+      "category": "big"
+    },
+    "FID00031": {
+      "path": "components/AgentProfilePanel.tsx",
+      "lines": 1205,
+      "bytes": 48034,
+      "category": "big"
+    },
+    "FID00032": {
+      "path": "components/GlobalTouchScrollbars.tsx",
+      "lines": 260,
+      "bytes": 8239,
+      "category": "big"
+    },
+    "FID00033": {
+      "path": "components/HaephestosLeftPanel.tsx",
+      "lines": 319,
+      "bytes": 12330,
+      "category": "big"
+    },
+    "FID00034": {
+      "path": "components/MobileKeyToolbar.tsx",
+      "lines": 382,
+      "bytes": 14666,
+      "category": "big"
+    },
+    "FID00035": {
+      "path": "components/SettingsSidebar.tsx",
+      "lines": 103,
+      "bytes": 3193,
+      "category": "small"
+    },
+    "FID00036": {
+      "path": "components/TerminalView.tsx",
+      "lines": 2059,
+      "bytes": 87276,
+      "category": "big"
+    },
+    "FID00037": {
+      "path": "components/TouchScrollbar.tsx",
+      "lines": 98,
+      "bytes": 2751,
+      "category": "small"
+    },
+    "FID00038": {
+      "path": "components/governance/GovernancePasswordDialog.tsx",
+      "lines": 240,
+      "bytes": 9408,
+      "category": "big"
+    },
+    "FID00039": {
+      "path": "components/governance/TeamMembershipSection.tsx",
+      "lines": 338,
+      "bytes": 14835,
+      "category": "big"
+    },
+    "FID00040": {
+      "path": "components/marketplace/AgentSkillEditor.tsx",
+      "lines": 622,
+      "bytes": 25529,
+      "category": "big"
+    },
+    "FID00041": {
+      "path": "components/settings/ExperimentsSection.tsx",
+      "lines": 255,
+      "bytes": 10342,
+      "category": "big"
+    },
+    "FID00042": {
+      "path": "components/settings/GlobalElementsSection.tsx",
+      "lines": 380,
+      "bytes": 15854,
+      "category": "big"
+    },
+    "FID00043": {
+      "path": "components/settings/MarketplaceManager.tsx",
+      "lines": 301,
+      "bytes": 13678,
+      "category": "big"
+    },
+    "FID00044": {
+      "path": "components/team-meeting/KanbanCard.tsx",
+      "lines": 92,
+      "bytes": 2872,
+      "category": "small"
+    },
+    "FID00045": {
+      "path": "components/team-meeting/TaskCreateForm.tsx",
+      "lines": 148,
+      "bytes": 5578,
+      "category": "small"
+    },
+    "FID00046": {
+      "path": "components/team-meeting/TaskKanbanBoard.tsx",
+      "lines": 164,
+      "bytes": 6476,
+      "category": "small"
+    },
+    "FID00047": {
+      "path": "components/zoom/AgentProfileTab.tsx",
+      "lines": 1053,
+      "bytes": 42421,
+      "category": "big"
+    },
+    "FID00048": {
+      "path": "docs/PLUGIN-ABSTRACTION-PRINCIPLE.md",
+      "lines": 217,
+      "bytes": 8181,
+      "category": "big"
+    },
+    "FID00049": {
+      "path": "hooks/useDeviceType.ts",
+      "lines": 88,
+      "bytes": 2874,
+      "category": "small"
+    },
+    "FID00050": {
+      "path": "hooks/useGovernance.ts",
+      "lines": 469,
+      "bytes": 21740,
+      "category": "big"
+    },
+    "FID00051": {
+      "path": "hooks/useTerminal.ts",
+      "lines": 388,
+      "bytes": 15223,
+      "category": "big"
+    },
+    "FID00052": {
+      "path": "lib/agent.ts",
+      "lines": 1120,
+      "bytes": 38669,
+      "category": "big"
+    },
+    "FID00053": {
+      "path": "lib/github-project.ts",
+      "lines": 1007,
+      "bytes": 32822,
+      "category": "big"
+    },
+    "FID00054": {
+      "path": "lib/messageQueue.ts",
+      "lines": 985,
+      "bytes": 34715,
+      "category": "big"
+    },
+    "FID00055": {
+      "path": "lib/system-settings.ts",
+      "lines": 51,
+      "bytes": 1540,
+      "category": "small"
+    },
+    "FID00056": {
+      "path": "lib/team-registry.ts",
+      "lines": 415,
+      "bytes": 17821,
+      "category": "big"
+    },
+    "FID00057": {
+      "path": "package.json",
+      "lines": 98,
+      "bytes": 2949,
+      "category": "small"
+    },
+    "FID00058": {
+      "path": "plugin",
+      "lines": 0,
+      "bytes": 64,
+      "category": "small"
+    },
+    "FID00059": {
+      "path": "public/images",
+      "lines": 86447,
+      "bytes": 3251273,
+      "category": "big"
+    },
+    "FID00060": {
+      "path": "services/agents-core-service.ts",
+      "lines": 1693,
+      "bytes": 54161,
+      "category": "big"
+    },
+    "FID00061": {
+      "path": "services/config-service.ts",
+      "lines": 928,
+      "bytes": 27484,
+      "category": "big"
+    },
+    "FID00062": {
+      "path": "services/headless-router.ts",
+      "lines": 2272,
+      "bytes": 104078,
+      "category": "big"
+    },
+    "FID00063": {
+      "path": "services/sessions-service.ts",
+      "lines": 897,
+      "bytes": 34457,
+      "category": "big"
+    },
+    "FID00064": {
+      "path": "services/teams-service.ts",
+      "lines": 940,
+      "bytes": 33803,
+      "category": "big"
+    },
+    "FID00065": {
+      "path": "tests/agent-config-governance.test.ts",
+      "lines": 461,
+      "bytes": 17943,
+      "category": "big"
+    },
+    "FID00066": {
+      "path": "tests/governance-endpoint-auth.test.ts",
+      "lines": 430,
+      "bytes": 17291,
+      "category": "big"
+    },
+    "FID00067": {
+      "path": "tests/services/agents-core-service.test.ts",
+      "lines": 1038,
+      "bytes": 36244,
+      "category": "big"
+    },
+    "FID00068": {
+      "path": "tests/services/creation-helper-service.test.ts",
+      "lines": 517,
+      "bytes": 19500,
+      "category": "big"
+    },
+    "FID00069": {
+      "path": "tests/services/teams-service.test.ts",
+      "lines": 961,
+      "bytes": 31587,
+      "category": "big"
+    },
+    "FID00070": {
+      "path": "tests/transfer-resolve-route.test.ts",
+      "lines": 455,
+      "bytes": 18586,
+      "category": "big"
+    },
+    "FID00071": {
+      "path": "types/agent.ts",
+      "lines": 798,
+      "bytes": 26518,
+      "category": "big"
+    },
+    "FID00072": {
+      "path": "types/governance.ts",
+      "lines": 111,
+      "bytes": 4492,
+      "category": "small"
+    },
+    "FID00073": {
+      "path": "types/team.ts",
+      "lines": 140,
+      "bytes": 5717,
+      "category": "small"
+    },
+    "FID00074": {
+      "path": "yarn.lock",
+      "lines": 6687,
+      "bytes": 287522,
+      "category": "big"
+    }
+  },
+  "groups": {
+    "G001": [
+      "FID00002",
+      "FID00003",
+      "FID00020"
+    ],
+    "G002": [
+      "FID00025",
+      "FID00027",
+      "FID00028"
+    ],
+    "G003": [
+      "FID00029",
+      "FID00030",
+      "FID00031"
+    ],
+    "G004": [
+      "FID00032",
+      "FID00033",
+      "FID00034"
+    ],
+    "G005": [
+      "FID00036",
+      "FID00038",
+      "FID00039"
+    ],
+    "G006": [
+      "FID00040",
+      "FID00041",
+      "FID00042"
+    ],
+    "G007": [
+      "FID00043",
+      "FID00047",
+      "FID00048"
+    ],
+    "G008": [
+      "FID00050",
+      "FID00051",
+      "FID00052"
+    ],
+    "G009": [
+      "FID00053",
+      "FID00054",
+      "FID00056"
+    ],
+    "G010": [
+      "FID00059",
+      "FID00060",
+      "FID00061"
+    ],
+    "G011": [
+      "FID00062",
+      "FID00063",
+      "FID00064"
+    ],
+    "G012": [
+      "FID00065",
+      "FID00066",
+      "FID00067"
+    ],
+    "G013": [
+      "FID00068",
+      "FID00069",
+      "FID00070"
+    ],
+    "G014": [
+      "FID00071",
+      "FID00074"
+    ],
+    "G015": [
+      "FID00001",
+      "FID00004",
+      "FID00005",
+      "FID00006",
+      "FID00007",
+      "FID00008",
+      "FID00009"
+    ],
+    "G016": [
+      "FID00010",
+      "FID00011",
+      "FID00012",
+      "FID00013",
+      "FID00014",
+      "FID00015",
+      "FID00016"
+    ],
+    "G017": [
+      "FID00017",
+      "FID00018",
+      "FID00019",
+      "FID00021",
+      "FID00022",
+      "FID00023",
+      "FID00024"
+    ],
+    "G018": [
+      "FID00026",
+      "FID00035",
+      "FID00037",
+      "FID00044",
+      "FID00045",
+      "FID00046",
+      "FID00049"
+    ],
+    "G019": [
+      "FID00055",
+      "FID00057",
+      "FID00058",
+      "FID00072",
+      "FID00073"
+    ]
+  },
+  "macro_groups": {
+    "MG001": [
+      "G001",
+      "G002",
+      "G003",
+      "G004",
+      "G005",
+      "G006",
+      "G007",
+      "G008",
+      "G009",
+      "G010",
+      "G011",
+      "G012",
+      "G013",
+      "G014",
+      "G015",
+      "G016",
+      "G017",
+      "G018",
+      "G019"
+    ]
+  }
+}

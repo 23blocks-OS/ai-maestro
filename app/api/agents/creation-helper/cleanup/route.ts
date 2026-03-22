@@ -41,15 +41,18 @@ export async function POST() {
 
   // Wipe working directory (contains draft TOML, uploads, and conversation context)
   if (existsSync(workDir)) {
-    await rm(workDir, { recursive: true }).catch(() => {})
+    // existsSync guard ensures the path exists; any error here is real (permissions, I/O) and must propagate
+    await rm(workDir, { recursive: true })
     cleaned.push('~/agents/haephestos/')
   }
-  await mkdir(workDir, { recursive: true }).catch(() => {})
+  // recursive: true already handles the case where workDir already exists; real errors must propagate
+  await mkdir(workDir, { recursive: true })
 
   // Wipe Claude's conversation cache for this project path
   if (existsSync(claudeCacheDir)) {
-    await rm(claudeCacheDir, { recursive: true }).catch(() => {})
-    cleaned.push('.claude/projects/haephestos-cache/')
+    // existsSync guard ensures the path exists; any error here is real (permissions, I/O) and must propagate
+    await rm(claudeCacheDir, { recursive: true })
+    cleaned.push(`.claude/projects/${workDir.replace(/\//g, '-')}/`)
   }
 
   return NextResponse.json({ cleaned: true, files: cleaned })

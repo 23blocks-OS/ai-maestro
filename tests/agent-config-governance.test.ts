@@ -39,14 +39,6 @@ import type { Team } from '@/types/team'
 
 // --- fs: prevent any real filesystem access ---
 vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(() => false),
-    mkdirSync: vi.fn(),
-    readFileSync: vi.fn(() => '{}'),
-    writeFileSync: vi.fn(),
-    renameSync: vi.fn(),
-    copyFileSync: vi.fn(),
-  },
   existsSync: vi.fn(() => false),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(() => '{}'),
@@ -229,7 +221,8 @@ beforeEach(() => {
 
   // Default: CRUD operations succeed
   mockCreateAgent.mockImplementation((body) => makeAgent({ name: body.name }))
-  mockUpdateAgent.mockImplementation((id, body) => makeAgent({ id, ...body }))
+  // Place id after ...body so the explicit id parameter always wins over any id field in body
+  mockUpdateAgent.mockImplementation((id, body) => makeAgent({ ...body, id }))
   mockDeleteAgent.mockReturnValue(true)
 })
 

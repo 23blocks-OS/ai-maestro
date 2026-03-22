@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    let body: { pluginName?: string; agentDir?: string }
+    let body: { pluginName?: string; agentDir?: string; marketplaceName?: string }
     try {
       body = await req.json()
     } catch {
@@ -66,7 +66,8 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    await uninstallPluginLocally(body.pluginName, body.agentDir)
+    // marketplaceName is optional — defaults to the local role-plugins marketplace
+    await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[role-plugins/install] Uninstall failed:', error)

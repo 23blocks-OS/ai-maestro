@@ -132,12 +132,14 @@ export async function GET() {
     const settings = await readJsonSafe(SETTINGS_PATH) || {}
     const settingsLocal = await readJsonSafe(SETTINGS_LOCAL_PATH) || {}
 
-    const enabledPlugins = {
-      ...(settingsLocal as Record<string, unknown>).enabledPlugins as Record<string, boolean> | undefined || {},
-      ...(settings as Record<string, unknown>).enabledPlugins as Record<string, boolean> | undefined || {},
+    // Use optional chaining to safely access properties — readJsonSafe can return null
+    // before the || {} fallback is applied, so we guard property access explicitly
+    const enabledPlugins: Record<string, boolean> = {
+      ...(settingsLocal?.enabledPlugins as Record<string, boolean> | undefined || {}),
+      ...(settings?.enabledPlugins as Record<string, boolean> | undefined || {}),
     }
 
-    const extraKnown = (settings as Record<string, unknown>).extraKnownMarketplaces as Record<string, unknown> || {}
+    const extraKnown = (settings?.extraKnownMarketplaces as Record<string, unknown> | undefined) || {}
 
     // Build map: marketplace name → MarketplaceInfo
     const marketplaces = new Map<string, MarketplaceInfo>()
@@ -210,11 +212,11 @@ export async function GET() {
     // 2. Add marketplaces from extraKnownMarketplaces that aren't in cache
     for (const [mktName, mktInfo] of Object.entries(extraKnown)) {
       if (marketplaces.has(mktName)) {
-        // Update source info if we have it
-        const existing = marketplaces.get(mktName)!
+        // Update source info if we have it — use get() without ! and guard with if-check
+        const existing = marketplaces.get(mktName)
         const src = (mktInfo as Record<string, unknown>)?.source as Record<string, string> | undefined
-        if (src) {
-          existing.sourceType = (src.source === 'directory' ? 'directory' : src.source === 'github' ? 'github' : 'unknown') as MarketplaceInfo['sourceType']
+        if (existing && src) {
+          existing.sourceType = (src.source === 'directory' ? 'directory' : src.source === 'github' ? 'github' : src.source === 'cache' ? 'cache' : 'unknown') as MarketplaceInfo['sourceType']
           existing.sourcePath = src.path || src.url || null
         }
         continue
@@ -223,7 +225,8 @@ export async function GET() {
       const src = (mktInfo as Record<string, unknown>)?.source as Record<string, string> | undefined
       marketplaces.set(mktName, {
         name: mktName,
-        sourceType: (src?.source === 'directory' ? 'directory' : src?.source === 'github' ? 'github' : 'unknown') as MarketplaceInfo['sourceType'],
+        // Map all known sourceType values; fallback to 'unknown' for unrecognised strings
+        sourceType: (src?.source === 'directory' ? 'directory' : src?.source === 'github' ? 'github' : src?.source === 'cache' ? 'cache' : 'unknown') as MarketplaceInfo['sourceType'],
         sourcePath: src?.path || src?.url || null,
         pluginCount: 0,
         enabledCount: 0,
@@ -236,9 +239,12 @@ export async function GET() {
     for (const key of Object.keys(enabledPlugins)) {
       const atIdx = key.lastIndexOf('@')
       if (atIdx <= 0) continue
+      const plugName = key.substring(0, atIdx)
       const mktName = key.substring(atIdx + 1)
-      if (!marketplaces.has(mktName)) {
-        marketplaces.set(mktName, {
+
+      let marketplace = marketplaces.get(mktName)
+      if (!marketplace) {
+        marketplace = {
           name: mktName,
           sourceType: 'unknown',
           sourcePath: null,
@@ -246,7 +252,32 @@ export async function GET() {
           enabledCount: 0,
           installedCount: 0,
           plugins: [],
+        }
+        marketplaces.set(mktName, marketplace)
+      }
+
+      // Add the enabled plugin if it is not already tracked (e.g. not found in cache)
+      const alreadyTracked = marketplace.plugins.some(p => p.key === key)
+      if (!alreadyTracked) {
+        marketplace.plugins.push({
+          name: plugName,
+          key,
+          installed: false,
+          enabled: true,
+          version: null,
+          description: null,
+          elementCounts: null,
         })
+        marketplace.enabledCount++
+        marketplace.pluginCount++
+      } else {
+        // Plugin found in cache but not yet marked enabled — fix up counts
+        // alreadyTracked is true so find() will return a value, but we guard explicitly to avoid !
+        const existing = marketplace.plugins.find(p => p.key === key)
+        if (existing && !existing.enabled) {
+          existing.enabled = true
+          marketplace.enabledCount++
+        }
       }
     }
 

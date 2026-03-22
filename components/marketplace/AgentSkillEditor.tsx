@@ -117,7 +117,8 @@ export default function AgentSkillEditor({
       const res = await fetch(`${hostUrl}/api/agents/${agentId}/skills`)
       if (!res.ok) {
         if (res.status === 404) {
-          // No skills configured yet, use defaults
+          // No skills configured yet, use defaults: populate all AI Maestro skill IDs
+          // so that enabled:true and skills array are consistent (all skills on by default)
           setSkills({
             marketplace: [],
             aiMaestro: { enabled: true, skills: AI_MAESTRO_SKILLS.map(s => s.id) },
@@ -194,7 +195,7 @@ export default function AgentSkillEditor({
 
   // Toggle AI Maestro skill
   const handleToggleAiMaestroSkill = async (skillId: string, enabled: boolean) => {
-    if (!skills) return
+    if (!skills || !skills.aiMaestro) return
 
     const currentSkills = skills.aiMaestro.skills
     const newSkills = enabled
@@ -227,7 +228,7 @@ export default function AgentSkillEditor({
 
   // Toggle all AI Maestro skills
   const handleToggleAllAiMaestro = async (enabled: boolean) => {
-    if (!skills) return
+    if (!skills || !skills.aiMaestro) return
 
     setSaving(true)
     setError(null)
@@ -442,7 +443,7 @@ export default function AgentSkillEditor({
                 <Brain className="w-4 h-4 text-purple-400" />
                 <span className="text-sm font-medium text-gray-300">AI Maestro Skills</span>
                 <span className="text-xs text-gray-500">
-                  ({skills?.aiMaestro.enabled ? skills.aiMaestro.skills.length : 0} of {AI_MAESTRO_SKILLS.length})
+                  ({skills?.aiMaestro?.enabled ? skills.aiMaestro.skills.length : 0} of {AI_MAESTRO_SKILLS.length})
                 </span>
               </div>
               <div
@@ -452,7 +453,7 @@ export default function AgentSkillEditor({
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={skills?.aiMaestro.enabled ?? false}
+                    checked={skills?.aiMaestro?.enabled ?? false}
                     onChange={e => handleToggleAllAiMaestro(e.target.checked)}
                     className="sr-only peer"
                     disabled={saving}
@@ -462,7 +463,7 @@ export default function AgentSkillEditor({
               </div>
             </button>
 
-            {expandedSections.aiMaestro && skills?.aiMaestro.enabled && (
+            {expandedSections.aiMaestro && skills?.aiMaestro?.enabled && (
               <div className="px-4 pb-4">
                 <div className="space-y-2 pl-6">
                   {AI_MAESTRO_SKILLS.map(skill => {
@@ -546,7 +547,7 @@ export default function AgentSkillEditor({
                           </div>
                         </div>
                         <button
-                          onClick={() => handleRemoveSkill(`custom:${skill.name}`)}
+                          onClick={() => handleRemoveSkill(skill.path)}
                           disabled={saving}
                           className="p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                           title="Remove skill"
@@ -596,7 +597,9 @@ export default function AgentSkillEditor({
                 onSkillsChange={async () => {
                   // SF-024: Await loadSkills so errors propagate instead of being swallowed
                   await loadSkills()
-                  onSkillsChange?.()
+                  // Do not call onSkillsChange here: handleAddSkill (the caller via onSkillInstall)
+                  // already calls onSkillsChange after loadSkills completes. Calling it here too
+                  // would trigger a redundant double-call on every skill install.
                 }}
                 hostUrl={hostUrl}
                 mode="select"

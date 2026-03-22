@@ -72,8 +72,8 @@ export function validateTeamMutation(
   },
   managerId: string | null,
   reservedNames?: string[]
-): { valid: true; sanitized: Record<string, unknown> } | { valid: false; error: string; code: number } {
-  const sanitized: Record<string, unknown> = {}
+): { valid: true; sanitized: { name?: string; type?: TeamType; chiefOfStaffId?: string | null; agentIds?: string[] } } | { valid: false; error: string; code: number } {
+  const sanitized: { name?: string; type?: TeamType; chiefOfStaffId?: string | null; agentIds?: string[] } = {}
 
   // --- Team Name Validation (R2.1, R2.2, R2.3) ---
   if (data.name !== undefined) {
@@ -189,6 +189,18 @@ export function validateTeamMutation(
     }
   }
 
+  // --- Propagate chiefOfStaffId into sanitized output ---
+  // SF-034: If chiefOfStaffId was explicitly provided in data, carry it through to sanitized
+  // so callers can rely on result.sanitized.chiefOfStaffId being the authoritative value.
+  // Also reflect implicit nullification: when a closed team auto-downgrades to open (G5),
+  // its COS is implicitly cleared — propagate that as null.
+  if (data.chiefOfStaffId !== undefined) {
+    sanitized.chiefOfStaffId = data.chiefOfStaffId
+  } else if (effectiveType === 'open' && existingTeam?.chiefOfStaffId) {
+    // G5 auto-downgrade: team changed from closed to open, COS role is implicitly removed
+    sanitized.chiefOfStaffId = null
+  }
+
   return { valid: true, sanitized }
 }
 
@@ -271,16 +283,15 @@ export async function createTeam(
     const now = new Date().toISOString()
     const newTeam: Team = {
       id: uuidv4(),
-      // CC-011: Type assertion needed because sanitized is Record<string, unknown> from validateTeamMutation
-      name: (result.sanitized.name as string) ?? data.name,
+      name: result.sanitized.name ?? data.name,
       description: data.description,
-      agentIds: (result.sanitized.agentIds as string[]) ?? data.agentIds,
-      type: (result.sanitized.type as TeamType) ?? data.type ?? 'open',
+      agentIds: result.sanitized.agentIds ?? data.agentIds,
+      type: result.sanitized.type ?? data.type ?? 'open',
       // SF-034: Prefer sanitized COS ID if present; fall back to raw input; default to null.
       // Three-way chain: sanitized value (if validation set it) -> raw data -> null (no COS).
       // Uses !== undefined because sanitized.chiefOfStaffId can legitimately be null (explicit unset).
       chiefOfStaffId: (result.sanitized.chiefOfStaffId !== undefined
-        ? result.sanitized.chiefOfStaffId as string | null
+        ? result.sanitized.chiefOfStaffId
         : data.chiefOfStaffId) ?? null,
       createdAt: now,
       updatedAt: now,
@@ -290,9 +301,11 @@ export async function createTeam(
 
     // G4 (v2 Rule 22): When a normal agent joins a closed team, revoke their open team memberships
     if (newTeam.type === 'closed') {
+      // Normalize managerId to null so undefined is treated identically to null in the comparison below
+      const currentManagerId = managerId ?? null
       for (const agentId of newTeam.agentIds) {
         // MANAGER is exempt from membership restrictions (v2 Rule 20)
-        if (agentId === managerId) continue
+        if (agentId === currentManagerId) continue
         // COS keeps open team memberships (v2 Rule 21)
         if (agentId === newTeam.chiefOfStaffId) continue
         // Remove agent from all open teams
@@ -312,13 +325,15 @@ export async function createTeam(
     return newTeam
   })
   // Fire-and-forget: broadcast team creation to mesh peers after lock is released
-  broadcastGovernanceSync('team-updated', { teamId: team.id }).catch(() => {})
+  broadcastGovernanceSync('team-updated', { teamId: team.id }).catch((err: unknown) => {
+    console.error(`Failed to broadcast team creation for team ${team.id}:`, err)
+  })
   return team
 }
 
 export async function updateTeam(
   id: string,
-  updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId' | 'githubProject'>>,
+  updates: Partial<Pick<Team, 'name' | 'description' | 'agentIds' | 'lastMeetingAt' | 'instructions' | 'lastActivityAt' | 'type' | 'chiefOfStaffId' | 'githubProject' | 'kanbanConfig'>>,
   managerId?: string | null,
   reservedNames?: string[]
 ): Promise<Team | null> {
@@ -385,7 +400,9 @@ export async function updateTeam(
   })
   // Fire-and-forget: broadcast team update to mesh peers after lock is released
   if (updatedTeam) {
-    broadcastGovernanceSync('team-updated', { teamId: updatedTeam.id }).catch(() => {})
+    broadcastGovernanceSync('team-updated', { teamId: updatedTeam.id }).catch((err: unknown) => {
+      console.error(`Failed to broadcast team update for team ${updatedTeam.id}:`, err)
+    })
   }
   return updatedTeam
 }
@@ -409,7 +426,9 @@ export async function deleteTeam(id: string): Promise<boolean> {
   })
   // Fire-and-forget: broadcast team deletion to mesh peers after lock is released
   if (deleted) {
-    broadcastGovernanceSync('team-deleted', { teamId: id }).catch(() => {})
+    broadcastGovernanceSync('team-deleted', { teamId: id }).catch((err: unknown) => {
+      console.error(`Failed to broadcast team deletion for team ${id}:`, err)
+    })
   }
   return deleted
 }

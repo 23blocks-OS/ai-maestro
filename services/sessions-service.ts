@@ -134,13 +134,14 @@ async function httpPost(url: string, body: any, timeout = 10000): Promise<any> {
   if (response.ok) {
     try { return JSON.parse(data) } catch { throw new Error(`Invalid JSON: ${data.substring(0, 100)}`) }
   } else {
+    let errorDetail = data.substring(0, 100)
     try {
       const errorData = JSON.parse(data)
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    } catch (e) {
-      if (e instanceof Error && e.message.includes('HTTP')) throw e
-      throw new Error(`HTTP ${response.status}: ${data.substring(0, 100)}`)
+      errorDetail = errorData.error || errorData.message || data.substring(0, 100)
+    } catch {
+      // If error body is not JSON, use the raw data snippet
     }
+    throw new Error(`HTTP ${response.status} from ${url}: ${errorDetail}`)
   }
 }
 
@@ -445,8 +446,13 @@ export async function listSessions(): Promise<{ sessions: Session[]; fromCache: 
   }
 
   if (pendingRequest) {
-    const sessions = await pendingRequest
-    return { sessions, fromCache: false }
+    try {
+      const sessions = await pendingRequest
+      return { sessions, fromCache: false }
+    } catch {
+      // If the pending request failed, fall through to create a new one
+      pendingRequest = null
+    }
   }
 
   pendingRequest = fetchAllSessions()
@@ -522,11 +528,16 @@ export function broadcastActivityUpdate(
   notificationType?: string
 ): ServiceResult<{ success: boolean }> {
   if (!sessionName) {
-    return { error: 'sessionName is required', status: 400 }
+    return { error: 'sessionName is required', status: 400, data: undefined }
   }
 
-  broadcastStatusUpdate(sessionName, status, hookStatus, notificationType)
-  return { data: { success: true }, status: 200 }
+  try {
+    broadcastStatusUpdate(sessionName, status, hookStatus, notificationType)
+    return { data: { success: true }, status: 200 }
+  } catch (error) {
+    console.error(`[Sessions] Error broadcasting activity update for ${sessionName}:`, error)
+    return { error: 'Failed to broadcast activity update', status: 500, data: undefined }
+  }
 }
 
 /**
@@ -536,11 +547,11 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
   const { name, workingDirectory, agentId, hostId, label, avatar, programArgs, program } = params
 
   if (!name || typeof name !== 'string') {
-    return { error: 'Session name is required', status: 400 }
+    return { error: 'Session name is required', status: 400, data: undefined }
   }
 
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400 }
+    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400, data: undefined }
   }
 
   // Determine target host
@@ -566,15 +577,15 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
       console.error(`[Sessions] Failed to connect to ${targetHost.name} (${targetHost.url}):`, { message: errorMessage, causeCode, causeMessage })
 
       if (errorMessage.includes('aborted') || causeCode === 'ABORT_ERR') {
-        return { error: `Timeout connecting to ${targetHost.name}. Is the remote AI Maestro running?`, status: 504 }
+        return { error: `Timeout connecting to ${targetHost.name}. Is the remote AI Maestro running?`, status: 504, data: undefined }
       } else if (fullErrorText.includes('ECONNREFUSED') || causeCode === 'ECONNREFUSED') {
-        return { error: `Connection refused by ${targetHost.name}. Verify the remote AI Maestro is running on ${targetHost.url}`, status: 503 }
+        return { error: `Connection refused by ${targetHost.name}. Verify the remote AI Maestro is running on ${targetHost.url}`, status: 503, data: undefined }
       } else if (fullErrorText.includes('EHOSTUNREACH') || causeCode === 'EHOSTUNREACH') {
-        return { error: `Cannot reach ${targetHost.name} at ${targetHost.url}. Try again or check network.`, status: 503 }
+        return { error: `Cannot reach ${targetHost.name} at ${targetHost.url}. Try again or check network.`, status: 503, data: undefined }
       } else if (fullErrorText.includes('ENETUNREACH') || causeCode === 'ENETUNREACH') {
-        return { error: `Network unreachable to ${targetHost.name}. Are you on the same network/VPN?`, status: 503 }
+        return { error: `Network unreachable to ${targetHost.name}. Are you on the same network/VPN?`, status: 503, data: undefined }
       } else {
-        return { error: `Failed to connect to ${targetHost.name}: ${errorMessage} (${causeCode})`, status: 500 }
+        return { error: `Failed to connect to ${targetHost.name}: ${errorMessage} (${causeCode})`, status: 500, data: undefined }
       }
     }
   }
@@ -587,7 +598,7 @@ export async function createSession(params: CreateSessionParams): Promise<Servic
 
   const alreadyExists = await runtime.sessionExists(actualSessionName)
   if (alreadyExists) {
-    return { error: 'Session already exists', status: 409 }
+    return { error: 'Session already exists', status: 409, data: undefined }
   }
 
   const cwd = (workingDirectory?.startsWith('~') ? workingDirectory.replace('~', os.homedir()) : workingDirectory) || process.cwd()
@@ -693,14 +704,17 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
   const isCloudAgent = agent?.deployment?.type === 'cloud'
 
   if (isCloudAgent) {
-    await deleteAgentBySession(sessionName, false)
+    if (!agent?.id) {
+      return { error: 'Cloud agent ID not found for session', status: 404, data: undefined }
+    }
+    await deleteAgentBySession(agent.id, false)
     return { data: { success: true, name: sessionName, type: 'cloud' }, status: 200 }
   }
 
   const runtime = getRuntime()
   const exists = await runtime.sessionExists(sessionName)
   if (!exists) {
-    return { error: 'Session not found', status: 404 }
+    return { error: 'Session not found', status: 404, data: undefined }
   }
 
   await runtime.killSession(sessionName)
@@ -716,10 +730,10 @@ export async function deleteSession(sessionName: string): Promise<ServiceResult<
  */
 export async function renameSession(oldName: string, newName: string): Promise<ServiceResult<{ success: boolean; oldName: string; newName: string; type?: string }>> {
   if (!newName || typeof newName !== 'string') {
-    return { error: 'New session name is required', status: 400 }
+    return { error: 'New session name is required', status: 400, data: undefined }
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
-    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400 }
+    return { error: 'Session name can only contain letters, numbers, dashes, and underscores', status: 400, data: undefined }
   }
 
   // Check if cloud agent
@@ -730,7 +744,7 @@ export async function renameSession(oldName: string, newName: string): Promise<S
 
   if (isCloudAgent) {
     if (fs.existsSync(newAgentFilePath)) {
-      return { error: 'Agent name already exists', status: 409 }
+      return { error: 'Agent name already exists', status: 409, data: undefined }
     }
     // Atomic rename -- write to temp file, rename to final, then delete old
     const agentConfig = JSON.parse(fs.readFileSync(oldAgentFilePath, 'utf8'))
@@ -749,12 +763,12 @@ export async function renameSession(oldName: string, newName: string): Promise<S
   const runtime = getRuntime()
   const oldExists = await runtime.sessionExists(oldName)
   if (!oldExists) {
-    return { error: 'Session not found', status: 404 }
+    return { error: 'Session not found', status: 404, data: undefined }
   }
 
   const newExists = await runtime.sessionExists(newName)
   if (newExists) {
-    return { error: 'Session name already exists', status: 409 }
+    return { error: 'Session name already exists', status: 409, data: undefined }
   }
 
   await runtime.renameSession(oldName, newName)
@@ -775,27 +789,28 @@ export async function sendCommand(
   const addNewline = options.addNewline !== false
 
   if (!command || typeof command !== 'string') {
-    return { error: 'Command is required', status: 400 }
+    return { error: 'Command is required', status: 400, data: undefined }
   }
 
   const runtime = getRuntime()
   const exists = await runtime.sessionExists(sessionName)
   if (!exists) {
-    return { error: 'Tmux session not found', status: 404 }
+    return { error: 'Tmux session not found', status: 404, data: undefined }
   }
 
+  // Update activity before idle check: any interaction attempt counts as activity
+  sessionActivity.set(sessionName, Date.now())
+
   if (requireIdle && !isSessionIdle(sessionName)) {
-    // Return ONLY error without data field to avoid ambiguous response
     return {
       error: 'Session is not idle',
-      status: 409
+      status: 409,
+      data: undefined
     }
   }
 
   await runtime.cancelCopyMode(sessionName)
   await runtime.sendKeys(sessionName, command, { literal: true, enter: addNewline })
-
-  sessionActivity.set(sessionName, Date.now())
 
   return { data: { success: true, sessionName, commandSent: command, method: 'tmux-send-keys', wasIdle: true }, status: 200 }
 }
@@ -848,7 +863,7 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
     : persistedSessions.filter(s => s.id === params.sessionId)
 
   if (sessionsToRestore.length === 0) {
-    return { error: 'No sessions to restore', status: 404 }
+    return { error: 'No sessions to restore', status: 404, data: undefined }
   }
 
   const runtime = getRuntime()
@@ -887,11 +902,11 @@ export async function restoreSessions(params: { sessionId?: string; all?: boolea
  */
 export function deletePersistedSession(sessionId: string): ServiceResult<{ success: boolean }> {
   if (!sessionId) {
-    return { error: 'Session ID is required', status: 400 }
+    return { error: 'Session ID is required', status: 400, data: undefined }
   }
   const success = unpersistSession(sessionId)
   if (!success) {
-    return { error: 'Failed to delete session', status: 500 }
+    return { error: 'Failed to delete session', status: 500, data: undefined }
   }
   return { data: { success: true }, status: 200 }
 }

@@ -56,8 +56,10 @@ export default function TaskKanbanBoard({
 
   const handleDrop = async (taskId: string, newStatus: string) => {
     const task = tasks.find(t => t.id === taskId)
-    if (!task || task.status === newStatus || task.isBlocked) return
-    await onUpdateTask(taskId, { status: newStatus as TaskStatus })
+    // Validate newStatus against known column IDs (TaskStatus is string, so any col.id is valid)
+    const isValidStatus = columns.some(col => col.id === newStatus)
+    if (!task || task.status === newStatus || task.isBlocked || !isValidStatus) return
+    await onUpdateTask(taskId, { status: newStatus })
   }
 
   const handleQuickAdd = (status: string) => {
@@ -145,7 +147,7 @@ export default function TaskKanbanBoard({
           >
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-medium text-gray-200">
-                New task in {columns.find(c => c.id === quickAddStatus)?.label}
+                New task in {columns.find(c => c.id === quickAddStatus)?.label || 'Unknown Status'}
               </h4>
               <button onClick={() => setQuickAddStatus(null)} className="p-1 hover:bg-gray-800 rounded">
                 <X className="w-4 h-4 text-gray-500" />

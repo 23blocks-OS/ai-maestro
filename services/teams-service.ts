@@ -253,10 +253,10 @@ export async function updateTeamById(id: string, params: UpdateTeamParams): Prom
       return { error: access.reason || 'Access denied', status: 403 }
     }
 
-    // Convert null githubProject to undefined (null = unlink, undefined = no change)
+    // Preserve null to explicitly unlink githubProject; undefined means no change
     const finalFields = {
       ...updateFields,
-      ...(ghProj !== undefined && { githubProject: ghProj ?? undefined }),
+      ...(ghProj !== undefined && { githubProject: ghProj }),
     }
 
     // Pass governance context (managerId + agent names for collision checks) to updateTeam
@@ -466,7 +466,7 @@ export async function createTeamTask(teamId: string, params: CreateTaskParams): 
         status: taskFields.status,
         priority,
         labels: taskFields.labels,
-        assigneeLogin: assigneeAgentId || undefined, // For GitHub-backed teams, this is a GitHub login
+        assigneeLogin: assigneeAgentId === null ? undefined : assigneeAgentId, // For GitHub-backed teams, this is a GitHub login
         taskType: taskFields.taskType,
         blockedBy,
         acceptanceCriteria: taskFields.acceptanceCriteria,
@@ -774,13 +774,15 @@ export async function updateTeamDocument(
   }
 
   try {
-    const updates: Record<string, unknown> = {}
+    // Build a Partial<Pick<TeamDocument, 'title' | 'content' | 'pinned' | 'tags'>> that
+    // matches updateDocument's parameter type exactly — no type assertion needed.
+    const updates: Partial<Pick<TeamDocument, 'title' | 'content' | 'pinned' | 'tags'>> = {}
     if (docFields.title !== undefined) updates.title = docFields.title
     if (docFields.content !== undefined) updates.content = docFields.content
     if (docFields.pinned !== undefined) updates.pinned = docFields.pinned
     if (docFields.tags !== undefined) updates.tags = docFields.tags
 
-    const document = await updateDocument(teamId, docId, updates as any)
+    const document = await updateDocument(teamId, docId, updates)
     if (!document) {
       return { error: 'Document not found', status: 404 }
     }
@@ -932,7 +934,7 @@ export async function setKanbanConfig(teamId: string, columns: KanbanColumnConfi
       await ghProject.updateKanbanColumns(team.githubProject, columns)
       return { data: { columns }, status: 200 }
     }
-    await updateTeam(teamId, { kanbanConfig: columns } as any)
+    await updateTeam(teamId, { kanbanConfig: columns })
     return { data: { columns }, status: 200 }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Failed to update kanban config', status: 500 }

@@ -70,7 +70,7 @@ export default function MarketplaceManager() {
       const data = await res.json()
       setMarketplaces(data.marketplaces || [])
       setTotals(data.totals || { marketplaces: 0, withPlugins: 0, totalPlugins: 0, enabledPlugins: 0 })
-    } catch { /* ignore */ }
+    } catch (err) { console.error('Failed to fetch marketplaces:', err) }
     finally { setLoading(false) }
   }, [])
 
@@ -107,15 +107,25 @@ export default function MarketplaceManager() {
         body: JSON.stringify({ key, enabled: !currentEnabled }),
       })
       if (res.ok) {
-        // Optimistic update
-        setMarketplaces(prev => prev.map(m => ({
-          ...m,
-          plugins: m.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p),
-          enabledCount: m.enabledCount + (m.plugins.some(p => p.key === key) ? (currentEnabled ? -1 : 1) : 0),
-        })))
-        setTotals(prev => ({ ...prev, enabledPlugins: prev.enabledPlugins + (currentEnabled ? -1 : 1) }))
+        // Optimistic update — recompute enabledCount from the updated plugins array
+        // so it stays consistent and never compounds errors from prior stale values.
+        // Recompute totals.enabledPlugins by summing across all marketplaces after the
+        // update, instead of ±1 arithmetic which can drift out of sync.
+        setMarketplaces(prev => {
+          const updatedMarketplaces = prev.map(m => {
+            const updatedPlugins = m.plugins.map(p => p.key === key ? { ...p, enabled: !currentEnabled } : p)
+            return {
+              ...m,
+              plugins: updatedPlugins,
+              enabledCount: updatedPlugins.filter(p => p.enabled).length,
+            }
+          })
+          const newTotalEnabled = updatedMarketplaces.reduce((acc, m) => acc + m.enabledCount, 0)
+          setTotals(prev => ({ ...prev, enabledPlugins: newTotalEnabled }))
+          return updatedMarketplaces
+        })
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('Failed to toggle plugin:', err) }
     finally { setToggling(null) }
   }
 
@@ -172,16 +182,14 @@ export default function MarketplaceManager() {
         ))}
       </div>
 
-      {/* Search */}
-      {filter === 'all' && (
-        <input
-          type="text"
-          placeholder="Search marketplaces or plugins..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full mb-4 px-3 py-1.5 text-sm bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-        />
-      )}
+      {/* Search — always visible so users can search within any filter tab */}
+      <input
+        type="text"
+        placeholder="Search marketplaces or plugins..."
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        className="w-full mb-4 px-3 py-1.5 text-sm bg-gray-800/50 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+      />
 
       {/* Marketplace list */}
       <div className="space-y-2">

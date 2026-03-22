@@ -57,6 +57,16 @@ function simpleHash(text: string): string {
 // returning the same (stale) response before Claude starts its new reply.
 let staleResponseHash: string | null = null
 
+// Deduplication promise: if createCreationHelper is called concurrently, all
+// callers share the same in-flight promise so only one session is ever created.
+let creationHelperPromise: Promise<ServiceResult<{
+  success: boolean
+  agentId: string
+  name: string
+  status: string
+  created: boolean
+}>> | null = null
+
 // ---------------------------------------------------------------------------
 // Watchdog: auto-kill session if browser disconnects
 // ---------------------------------------------------------------------------
@@ -436,13 +446,20 @@ function detectResponseState(capturedLines: string[]): {
 /**
  * Create or return existing creation helper agent.
  */
-export async function createCreationHelper(): Promise<ServiceResult<{
+export function createCreationHelper(): Promise<ServiceResult<{
   success: boolean
   agentId: string
   name: string
   status: string
   created: boolean
 }>> {
+  // If a creation is already in flight, return the same promise so that
+  // concurrent callers never race to spawn duplicate sessions/agents.
+  if (creationHelperPromise) {
+    return creationHelperPromise
+  }
+
+  const promise = (async () => {
   try {
     let agent = getAgentByName(SESSION_NAME)
     const exists = await sessionExists()
@@ -535,7 +552,16 @@ export async function createCreationHelper(): Promise<ServiceResult<{
       error: error instanceof Error ? error.message : 'Failed to create creation helper',
       status: 500,
     }
+  } finally {
+    // Clear the deduplication promise so future (non-concurrent) calls can
+    // trigger a fresh creation if needed (e.g. after a failed attempt).
+    creationHelperPromise = null
   }
+  })()
+
+  // Store and return the same promise so concurrent callers share it.
+  creationHelperPromise = promise
+  return promise
 }
 
 /**

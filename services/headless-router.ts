@@ -228,6 +228,7 @@ import {
   getKanbanConfig,
   setKanbanConfig,
 } from '@/services/teams-service'
+import type { KanbanColumnConfig } from '@/types/team'
 
 import {
   getGovernanceConfig,
@@ -393,7 +394,13 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
     })
     req.on('end', () => {
       if (rejected) return
-      resolve(Buffer.concat(chunks))
+      try {
+        resolve(Buffer.concat(chunks))
+      } catch (e) {
+        // Mark as rejected to prevent further processing if an error listener triggers later
+        rejected = true
+        reject(Object.assign(new Error('Failed to concatenate raw body'), { originalError: e }))
+      }
     })
     req.on('error', (err) => {
       if (rejected) return
@@ -791,18 +798,25 @@ const routes: Route[] = [
 
   // Search / Index
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
+    // Parse numeric query params and discard NaN values (non-numeric strings)
+    const limitParsed = query.limit ? parseInt(query.limit) : NaN
+    const minScoreParsed = query.minScore ? parseFloat(query.minScore) : NaN
+    const startTsParsed = query.startTs ? parseInt(query.startTs) : NaN
+    const endTsParsed = query.endTs ? parseInt(query.endTs) : NaN
+    const bm25WeightParsed = query.bm25Weight ? parseFloat(query.bm25Weight) : NaN
+    const semanticWeightParsed = query.semanticWeight ? parseFloat(query.semanticWeight) : NaN
     sendServiceResult(res, await searchConversations(params.id, {
       query: query.q || query.query || '',
       mode: query.mode,
-      limit: query.limit ? parseInt(query.limit) : undefined,
-      minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+      limit: isNaN(limitParsed) ? undefined : limitParsed,
+      minScore: isNaN(minScoreParsed) ? undefined : minScoreParsed,
       roleFilter: (query.roleFilter as any) || undefined,
       conversationFile: query.conversationFile,
-      startTs: query.startTs ? parseInt(query.startTs) : undefined,
-      endTs: query.endTs ? parseInt(query.endTs) : undefined,
+      startTs: isNaN(startTsParsed) ? undefined : startTsParsed,
+      endTs: isNaN(endTsParsed) ? undefined : endTsParsed,
       useRrf: query.useRrf === 'true' ? true : query.useRrf === 'false' ? false : undefined,
-      bm25Weight: query.bm25Weight ? parseFloat(query.bm25Weight) : undefined,
-      semanticWeight: query.semanticWeight ? parseFloat(query.semanticWeight) : undefined,
+      bm25Weight: isNaN(bm25WeightParsed) ? undefined : bm25WeightParsed,
+      semanticWeight: isNaN(semanticWeightParsed) ? undefined : semanticWeightParsed,
     }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/search$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -1716,7 +1730,22 @@ const routes: Route[] = [
       sendJson(res, 400, { error: 'columns array is required' })
       return
     }
-    sendServiceResult(res, await setKanbanConfig(params.id, body.columns, auth.agentId))
+    // Validate that every element has the required KanbanColumnConfig fields with correct types
+    const isValidColumns = (body.columns as unknown[]).every(
+      (col) =>
+        col !== null &&
+        typeof col === 'object' &&
+        typeof (col as Record<string, unknown>).id === 'string' &&
+        typeof (col as Record<string, unknown>).label === 'string' &&
+        typeof (col as Record<string, unknown>).color === 'string' &&
+        ((col as Record<string, unknown>).icon === undefined ||
+          typeof (col as Record<string, unknown>).icon === 'string')
+    )
+    if (!isValidColumns) {
+      sendJson(res, 400, { error: 'Each column must have string fields: id, label, color (icon is optional string)' })
+      return
+    }
+    sendServiceResult(res, await setKanbanConfig(params.id, body.columns as KanbanColumnConfig[], auth.agentId))
   }},
   { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/documents\/([^/]+)$/, paramNames: ['id', 'docId'], handler: async (req, res, params) => {
     const auth = authenticateAgent(
@@ -2101,7 +2130,8 @@ const routes: Route[] = [
     const body = await readJsonBody(req)
     if (!body.pluginName || !body.agentDir) return sendJson(res, 400, { error: 'pluginName and agentDir are required' })
     try {
-      await uninstallPluginLocally(body.pluginName, body.agentDir)
+      // marketplaceName is optional — defaults to the local role-plugins marketplace
+      await uninstallPluginLocally(body.pluginName, body.agentDir, body.marketplaceName)
       sendJson(res, 200, { success: true })
     } catch (e) { sendJson(res, 500, { error: String(e) }) }
   }},
@@ -2259,9 +2289,16 @@ export function createHeadlessRouter() {
       } catch (error: any) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          // Only honor 413 from readJsonBody; all other errors default to 500
-          const statusCode = error?.statusCode === 413 ? 413 : 500
-          const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
+          let statusCode = 500
+          let message = 'Internal server error'
+          if (error?.statusCode === 413) {
+            statusCode = 413
+            message = 'Request body too large'
+          } else if (error instanceof Error && error.message === 'Invalid JSON body') {
+            // Invalid JSON is a client error — return 400 instead of masking it as 500
+            statusCode = 400
+            message = 'Invalid JSON body'
+          }
           sendJson(res, statusCode, { error: message })
         }
       }

@@ -151,7 +151,7 @@ export default function AgentProfilePanel({
       .then(data => {
         if (!cancelled && data.plugins) setAvailablePlugins(data.plugins)
       })
-      .catch(() => {})
+      .catch((err) => { console.error('[AgentProfilePanel] Failed to load role plugins:', err) })
     return () => { cancelled = true }
   }, [pluginDropdownOpen])
 
@@ -188,34 +188,41 @@ export default function AgentProfilePanel({
 
       // 3. Update agent registry with new programArgs
       const mainAgentName = `${newPluginName}-main-agent`
-      const newArgs = `--agent ${mainAgentName} --name ${agentName || agentId}`
-      await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
+      // Use a single consistent name for both the registry update and the claude
+      // process start command so both operations reference the same agent identity.
+      const sessionName = sessionStatus?.tmuxSessionName
+      const effectiveAgentName = agentName || agentId
+      const newArgs = `--agent ${mainAgentName} --name ${effectiveAgentName}`
+      const registryRes = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programArgs: newArgs }),
-      }).catch(() => {})
+      })
+      if (!registryRes.ok) {
+        const err = await registryRes.json().catch(() => ({ error: 'Registry update failed' }))
+        throw new Error(err.error || 'Failed to update agent registry')
+      }
 
       // 4. Gracefully restart Claude Code inside the SAME tmux session
       //    This preserves the tmux session, scrollback, and chat history
-      const sessionName = sessionStatus?.tmuxSessionName
       if (sessionName) {
         // Send /exit to Claude Code (graceful shutdown)
         await fetch(`/api/sessions/${encodeURIComponent(sessionName)}/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ command: '/exit', requireIdle: false }),
-        }).catch(() => {})
+        }).catch((err) => { console.error('[RolePluginSelector] Failed to send /exit command:', err) })
 
         // Wait for Claude Code to exit and shell prompt to appear
         await new Promise(r => setTimeout(r, 3000))
 
         // Start new Claude Code process in the same tmux session with new --agent
-        const startCmd = `claude --agent ${mainAgentName} --name ${agentName || sessionName}`
+        const startCmd = `claude --agent ${mainAgentName} --name ${effectiveAgentName}`
         await fetch(`/api/sessions/${encodeURIComponent(sessionName)}/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ command: startCmd, requireIdle: false }),
-        }).catch(() => {})
+        }).catch((err) => { console.error('[RolePluginSelector] Failed to send start command:', err) })
       }
     } catch (err) {
       console.error('[RolePluginSelector] Switch failed:', err)
@@ -611,9 +618,11 @@ function RoleTab({
     fetch('/api/agents/role-plugins')
       .then(r => r.ok ? r.json() : { plugins: [] })
       .then(d => setAvailablePlugins(d.plugins || []))
-      .catch(() => {})
+      .catch((err) => { console.error('[RoleTab] Failed to load plugins:', err) })
   }, [])
 
+  // loadPlugins is memoized with useCallback([]) so its reference is stable;
+  // including it in the dependency array satisfies the linter without causing re-runs.
   useEffect(() => { loadPlugins() }, [loadPlugins])
 
   // Close dropdown on outside click or Escape
@@ -652,8 +661,8 @@ function RoleTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pluginName, agentDir: config.workingDirectory }),
       })
-    } catch {
-      // Next scan will reflect actual state
+    } catch (err) {
+      console.error('[RoleTab] Failed to switch role plugin:', err)
     }
     setSwitching(false)
     setShowDropdown(false)
@@ -1031,16 +1040,25 @@ function PluginsTab({ config }: { config: AgentLocalConfig }) {
   const handleUninstall = async (plugin: LocalPlugin) => {
     setUninstalling(true)
     try {
-      await fetch('/api/agents/role-plugins/install', {
+      // Extract the marketplace name from the plugin key ("name@marketplace") so that
+      // the correct pluginKey is removed from settings — without this, plugins installed
+      // from a non-default marketplace would not be uninstalled correctly.
+      const marketplaceName = plugin.key?.includes('@') ? plugin.key.split('@').slice(1).join('@') : undefined
+      const res = await fetch('/api/agents/role-plugins/install', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pluginName: plugin.name,
           agentDir: config.workingDirectory,
+          ...(marketplaceName !== undefined && { marketplaceName }),
         }),
       })
-    } catch {
-      // Swallow — next scan will show if it persisted
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Uninstall failed' }))
+        console.error('[PluginsTab] Uninstall failed:', err.error)
+      }
+    } catch (err) {
+      console.error('[PluginsTab] Uninstall request failed:', err)
     }
     setUninstalling(false)
     setConfirmUninstall(null)

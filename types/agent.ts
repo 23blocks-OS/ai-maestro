@@ -250,7 +250,7 @@ export interface Agent {
   runtime?: 'tmux' | 'docker' | 'api' | 'direct'
 
   // Runtime state (set by API, not persisted)
-  session?: AgentSessionStatus   // Live tmux session status
+  session?: LiveAgentSessionStatus   // Live tmux session status
   isOrphan?: boolean             // True if session exists but agent was auto-registered
   _cached?: boolean              // True if loaded from cache (remote host unreachable)
 
@@ -358,7 +358,7 @@ export interface EmailTool {
   // 3. Target removal: Phase 2 (next breaking schema change)
   /** @deprecated Use addresses[] instead. Removal: Phase 2. */
   address?: string
-  /** @deprecated Gateway concern, not identity. Removal: Phase 2. */
+  /** @deprecated No direct replacement. Provider information should be stored in EmailAddress.metadata if needed by a gateway. Removal: Phase 2. */
   provider?: 'local' | 'smtp'
 }
 
@@ -453,19 +453,6 @@ export type AgentStatus = 'active' | 'idle' | 'offline' | 'deleted'
 export type AgentRole = 'manager' | 'chief-of-staff' | 'member'
 
 /**
- * @deprecated Dead type -- never imported or referenced anywhere in the codebase.
- * The actual governance configuration uses `ConfigurationPayload` from `types/governance-request.ts`.
- * TODO: Remove in next breaking schema change (Phase 2).
- */
-export interface AgentConfiguration {
-  skills?: string[]                    // Skill names to enable
-  mcpServers?: Record<string, unknown> // MCP server configs
-  hooks?: Record<string, unknown>      // Hook configs
-  model?: string                       // Preferred model
-  programArgs?: string                 // CLI arguments
-}
-
-/**
  * Simplified agent for listings
  */
 export interface AgentSummary {
@@ -513,7 +500,9 @@ export interface CreateAgentRequest {
   documentation?: AgentDocumentation
   metadata?: AgentMetadata
   // DEPRECATED: for backward compatibility
+  /** @deprecated Use 'name' instead. */
   alias?: string
+  /** @deprecated Use 'label' instead. */
   displayName?: string
 }
 
@@ -536,7 +525,9 @@ export interface UpdateAgentRequest {
   metadata?: AgentMetadata
   preferences?: Partial<AgentPreferences>
   // DEPRECATED: for backward compatibility
+  /** @deprecated Use 'name' instead. */
   alias?: string
+  /** @deprecated Use 'label' instead. */
   displayName?: string
 }
 
@@ -557,18 +548,18 @@ export interface UpdateAgentMetricsRequest {
 
 /**
  * Live session status (runtime tmux state)
- * Note: hostId/hostName/hostUrl are now on Agent directly
+ * Note: hostId/hostName/hostUrl are already on Agent directly — not repeated here.
  */
-export interface AgentSessionStatus {
+export interface LiveAgentSessionStatus {
   status: 'online' | 'offline'
   tmuxSessionName?: string        // Actual tmux session name if online
   workingDirectory?: string       // Current working directory
   lastActivity?: string           // Last activity timestamp (ISO)
   windows?: number                // Number of tmux windows
-  // GAP6 FIX: Include host context for distributed agents
-  hostId?: string                 // Host ID where session runs (e.g., 'local', 'mac-mini')
-  hostName?: string               // Human-readable host name
 }
+
+/** @deprecated Use LiveAgentSessionStatus instead. */
+export type AgentSessionStatus = LiveAgentSessionStatus
 
 /**
  * @deprecated Use Agent instead. UnifiedAgent is now just an alias.
@@ -698,6 +689,8 @@ export interface AMPAddressIndexEntry {
   hostId: string
   provider: string
   type: 'local' | 'cloud'
+  /** When the AMP address was registered (ISO timestamp) — mirrors AMPAddress.registeredAt */
+  registeredAt?: string
 }
 
 // ============================================================================

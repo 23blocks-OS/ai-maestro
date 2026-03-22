@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowLeft, ExternalLink, ChevronRight } from 'lucide-react'
+import Image from 'next/image'
 import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import { useHosts } from '@/hooks/useHosts'
 import type { Host } from '@/types/host'
@@ -60,7 +61,8 @@ const STEP_ORDER: WizardStep[] = ['host', 'runtime', 'program', 'name', 'directo
 
 function getVisibleStepCount(hosts: Host[], hostId: string): number {
   let count = STEP_ORDER.length
-  if (hosts.length <= 1) count--
+  // Only skip the 'host' step when there is exactly one host (auto-selected); 0 hosts means uninitialized
+  if (hosts.length === 1) count--
   const selectedHost = hosts.find(h => h.id === hostId)
   if (!selectedHost?.capabilities?.docker) count--
   return count
@@ -69,7 +71,8 @@ function getVisibleStepCount(hosts: Host[], hostId: string): number {
 function getStepNumber(step: WizardStep, hosts: Host[], hostId: string): number {
   let n = 0
   for (const s of STEP_ORDER) {
-    if (s === 'host' && hosts.length <= 1) continue
+    // Only skip the 'host' step when there is exactly one host (auto-selected); 0 hosts means uninitialized
+    if (s === 'host' && hosts.length === 1) continue
     if (s === 'runtime') {
       const selectedHost = hosts.find(h => h.id === hostId)
       if (!selectedHost?.capabilities?.docker) continue
@@ -146,6 +149,8 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
   const [creationSuccess, setCreationSuccess] = useState(false)
   const [showLetsGo, setShowLetsGo] = useState(false)
   const [creationError, setCreationError] = useState('')
+  // Store the persona name computed in handleCreate so the animation displays the same alias sent to the API
+  const [personaName, setPersonaName] = useState('')
 
   // Input state
   const [nameInput, setNameInput] = useState('')
@@ -175,12 +180,13 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     let initHostId = ''
 
     if (hosts.length <= 1) {
-      const selfHost = hosts.find(h => h.isSelf) || hosts[0]
+      // Guard: only access hosts[0] when the array is non-empty to avoid undefined
+      const selfHost = hosts.length > 0 ? (hosts.find(h => h.isSelf) || hosts[0]) : undefined
       if (selfHost) initHostId = selfHost.id
       setHostId(initHostId)
 
-      const selectedHost = hosts.find(h => h.id === initHostId)
-      if (!selectedHost?.capabilities?.docker) {
+      // Use the already-resolved selfHost directly instead of a second find()
+      if (!selfHost?.capabilities?.docker) {
         firstStep = 'program'
         setRuntime('tmux')
       } else {
@@ -236,7 +242,8 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     let prevStep: WizardStep | null = null
     for (let i = idx - 1; i >= 0; i--) {
       const s = STEP_ORDER[i]
-      if (s === 'host' && hosts.length <= 1) continue
+      // Only skip the 'host' step when there is exactly one host (auto-selected)
+      if (s === 'host' && hosts.length === 1) continue
       if (s === 'runtime') {
         const selectedHost = hosts.find(h => h.id === hostId)
         if (!selectedHost?.capabilities?.docker) continue
@@ -257,9 +264,11 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
   // --- Handlers ---
 
   const handleHostLocal = useCallback(() => {
-    const selfHost = hosts.find(h => h.isSelf) || hosts[0]
+    // Guard: only access hosts[0] when the array is non-empty to avoid undefined
+    const selfHost = hosts.length > 0 ? (hosts.find(h => h.isSelf) || hosts[0]) : undefined
     if (selfHost) setHostId(selfHost.id)
-    const hasDocker = selfHost ? (hosts.find(h => h.id === selfHost.id)?.capabilities?.docker ?? false) : false
+    // Use selfHost directly; no need to re-find the same object from the array
+    const hasDocker = selfHost?.capabilities?.docker ?? false
     if (!hasDocker) {
       setRuntime('tmux')
       advance('This computer', 'program')
@@ -323,8 +332,11 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     setStep('creating')
     setMessages(prev => [...prev, makeMsg('user', "Let's do it!", 'summary')])
 
-    const personaName = getRandomAlias(agentName)
+    const computedPersonaName = getRandomAlias(agentName)
+    setPersonaName(computedPersonaName)
     const avatarUrl = getPreviewAvatarUrl(agentName)
+    // Normalise 'claude-code' → 'claude' consistently for all runtimes
+    const finalProgram = program === 'claude-code' ? 'claude' : program
 
     try {
       if (runtime === 'docker') {
@@ -334,9 +346,10 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
           body: JSON.stringify({
             name: agentName,
             workingDirectory: workingDirectory || undefined,
-            hostId: hostId || undefined,
-            program: program === 'claude-code' ? 'claude' : program,
-            label: personaName,
+            // Send undefined instead of empty string so the backend treats it as "no host specified"
+            hostId: hostId === '' ? undefined : hostId,
+            program: finalProgram,
+            label: computedPersonaName,
             avatar: avatarUrl,
           }),
         })
@@ -351,10 +364,11 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
           body: JSON.stringify({
             name: agentName,
             workingDirectory: workingDirectory || undefined,
-            hostId: hostId || undefined,
-            label: personaName,
+            // Send undefined instead of empty string so the backend treats it as "no host specified"
+            hostId: hostId === '' ? undefined : hostId,
+            label: computedPersonaName,
             avatar: avatarUrl,
-            program,
+            program: finalProgram,
           }),
         })
         if (!response.ok) {
@@ -407,7 +421,8 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
     if (idx <= 0) return false
     for (let i = idx - 1; i >= 0; i--) {
       const s = STEP_ORDER[i]
-      if (s === 'host' && hosts.length <= 1) continue
+      // Only skip the 'host' step when there is exactly one host (auto-selected)
+      if (s === 'host' && hosts.length === 1) continue
       if (s === 'runtime') {
         const selectedHost = hosts.find(h => h.id === hostId)
         if (!selectedHost?.capabilities?.docker) continue
@@ -460,9 +475,11 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
                 animate={{ opacity: [0.4, 0.7, 0.4], scale: [0.98, 1.02, 0.98] }}
                 transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               />
-              <img
+              <Image
                 src={robotAvatarUrl}
                 alt="Robot assistant"
+                width={176}
+                height={176}
                 className="w-44 h-44 rounded-full object-cover ring-2 ring-blue-500/40 relative z-10"
               />
             </div>
@@ -488,7 +505,7 @@ export default function AgentCreationWizard({ onClose, onComplete, onSwitchToAdv
                 <CreateAgentAnimation
                   phase={animationPhase}
                   agentName={agentName}
-                  agentAlias={getRandomAlias(agentName)}
+                  agentAlias={personaName}
                   avatarUrl={getPreviewAvatarUrl(agentName)}
                   progress={animationProgress}
                   showNextSteps={showLetsGo}
@@ -650,7 +667,7 @@ function ChatBubble({
     >
       {isRobot && (
         <div className="flex-shrink-0 mr-2 mt-1">
-          <img src={robotAvatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-700" />
+          <Image src={robotAvatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-700" />
         </div>
       )}
       <div className="max-w-[85%]">
@@ -881,7 +898,7 @@ function SummaryCard({
   return (
     <div className="rounded-xl bg-gray-800/60 border border-gray-700 p-4 space-y-2.5">
       <SummaryRow label="Persona Name" value={agentName} />
-      <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || hostId || 'Local')} />
+      <SummaryRow label="Host" value={host?.isSelf ? 'This computer' : (host?.name || (hostId !== '' ? hostId : 'Local'))} />
       <SummaryRow label="Runtime" value={runtime === 'docker' ? 'Docker container' : 'Direct (tmux)'} />
       <SummaryRow label="Program" value={programLabel} />
       <SummaryRow label="Directory" value={workingDirectory || '(default home)'} />

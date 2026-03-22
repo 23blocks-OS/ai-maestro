@@ -48,6 +48,8 @@ export default function ExperimentsSection() {
   }, [])
 
   const toggleIndexer = useCallback(async () => {
+    // Guard against concurrent requests (e.g. rapid clicks before React re-renders the disabled button)
+    if (indexerSaving) return
     const newValue = !indexerEnabled
     setIndexerSaving(true)
     try {
@@ -60,13 +62,19 @@ export default function ExperimentsSection() {
         setIndexerEnabled(newValue)
       }
     } catch { /* network error — no change */ }
-    setIndexerSaving(false)
-  }, [indexerEnabled])
+    finally {
+      // Always clear saving state, even if fetch throws
+      setIndexerSaving(false)
+    }
+  }, [indexerEnabled, indexerSaving])
 
   const toggleFlag = (flag: FeatureFlag) => {
-    const newValue = !flags[flag.id]
-    setFlags((prev) => ({ ...prev, [flag.id]: newValue }))
-    try { localStorage.setItem(flag.storageKey, String(newValue)) } catch { /* storage unavailable */ }
+    // Derive newValue from the previous state inside the updater to avoid stale-closure reads
+    setFlags((prev) => {
+      const newValue = !prev[flag.id]
+      try { localStorage.setItem(flag.storageKey, String(newValue)) } catch { /* storage unavailable */ }
+      return { ...prev, [flag.id]: newValue }
+    })
   }
 
   return (

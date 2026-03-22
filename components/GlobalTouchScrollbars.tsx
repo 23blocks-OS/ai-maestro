@@ -57,7 +57,9 @@ function shouldTrack(el: HTMLElement): boolean {
 
 function positionOverlay(el: HTMLElement, overlay: HTMLDivElement, thumb: HTMLDivElement) {
   const { scrollTop, scrollHeight, clientHeight } = el
-  if (scrollHeight <= clientHeight + 1) {
+  /* Hide when there is nothing to scroll — no arbitrary +1 fudge that would
+     incorrectly suppress the overlay for 1-pixel-scrollable containers */
+  if (scrollHeight <= clientHeight) {
     overlay.style.display = 'none'
     return
   }
@@ -182,12 +184,12 @@ export function GlobalTouchScrollbars() {
       }, { passive: false })
 
       const cleanupDrag = () => {
-        if (dragState) {
-          dragState = null
-          document.removeEventListener('touchmove', onTouchMove)
-          document.removeEventListener('touchend', onTouchEnd)
-          document.removeEventListener('touchcancel', onTouchEnd)
-        }
+        /* Unconditionally remove document listeners so removeOverlay never leaks
+           them regardless of whether a drag was active at cleanup time */
+        dragState = null
+        document.removeEventListener('touchmove', onTouchMove)
+        document.removeEventListener('touchend', onTouchEnd)
+        document.removeEventListener('touchcancel', onTouchEnd)
       }
 
       const scrollHandler = () => positionOverlay(el, overlay, thumb)

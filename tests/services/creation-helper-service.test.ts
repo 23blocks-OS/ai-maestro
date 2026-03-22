@@ -141,9 +141,13 @@ describe('createCreationHelper', () => {
   })
 
   it('creates .claude/agents/ directory if missing', async () => {
-    // existsSync returns true for source file, false for destination dir
+    // existsSync returns false only for the destination directory (.claude/agents),
+    // and true for everything else (source file, etc.).
+    // We must NOT rely on the absence of '.claude' in the source path because the
+    // working directory itself may contain '.claude' (e.g. inside a worktree).
     mockFs.existsSync.mockImplementation((path: string) => {
-      return typeof path === 'string' && path.includes('agents/haephestos-creation-helper.md') && !path.includes('.claude')
+      // Destination directory ends with '/.claude/agents' — simulate it missing
+      return !(typeof path === 'string' && /[/\\]\.claude[/\\]agents$/.test(path))
     })
 
     await createCreationHelper()

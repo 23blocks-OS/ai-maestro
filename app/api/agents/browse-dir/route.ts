@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readdir, stat, readFile } from 'fs/promises'
-import { join, resolve, normalize } from 'path'
+import { join, resolve, normalize, extname } from 'path'
 import { homedir } from 'os'
 
 export const dynamic = 'force-dynamic'
@@ -75,8 +75,10 @@ const BINARY_EXTENSIONS = new Set([
 function isAllowedPath(normalizedPath: string): boolean {
   // Explicitly allowed prefixes (~/agents/, ~/.claude/)
   if (ALLOWED_PREFIXES.some(prefix => normalizedPath.startsWith(prefix))) return true
-  // Also allow any path that contains /.claude/ (project-local .claude dirs)
-  if (normalizedPath.includes('/.claude/') || normalizedPath.endsWith('/.claude')) return true
+  // Also allow project-local .claude dirs (e.g. ~/myproject/.claude/), but ONLY
+  // when the path is within the user's home directory to prevent traversal via
+  // arbitrary paths like /tmp/evil/.claude/ or /tmp/evil/.claude
+  if (normalizedPath.startsWith(HOME + '/') && (normalizedPath.includes('/.claude/') || normalizedPath.endsWith('/.claude'))) return true
   return false
 }
 
@@ -106,7 +108,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Path is not a file' }, { status: 400 })
       }
       // Refuse binary files
-      const ext = normalized.split('.').pop()?.toLowerCase() || ''
+      // extname returns '.ext' or '' — strip leading dot to match BINARY_EXTENSIONS keys
+      const ext = extname(normalized).slice(1).toLowerCase()
       if (BINARY_EXTENSIONS.has(ext)) {
         return NextResponse.json({
           path: normalized,
@@ -156,13 +159,23 @@ export async function GET(req: NextRequest) {
           type: entryStat.isDirectory() ? 'dir' : 'file',
           size: entryStat.isFile() ? entryStat.size : 0,
         })
-      } catch {
-        // Skip entries we can't stat (broken symlinks, permission issues)
+      } catch (err) {
+        // Log for debugging but skip the entry in the response (broken symlinks, permission issues)
+        console.warn(`Could not stat entry ${join(normalized, name)}:`, err)
       }
     }
 
     return NextResponse.json({ path: normalized, entries })
   } catch (error) {
+    // Map filesystem error codes to appropriate HTTP status codes
+    if (error != null && typeof error === 'object' && 'code' in error) {
+      if (error.code === 'ENOENT') {
+        return NextResponse.json({ error: 'Path not found' }, { status: 404 })
+      }
+      if (error.code === 'EACCES') {
+        return NextResponse.json({ error: 'Permission denied to access path' }, { status: 403 })
+      }
+    }
     const message = error instanceof Error ? error.message : 'Failed to read path'
     return NextResponse.json({ error: message }, { status: 500 })
   }

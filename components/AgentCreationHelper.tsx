@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Check, Loader2, AlertCircle, Paperclip, FileText, Wand2, Upload } from 'lucide-react'
+import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 import { Prism as _SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -88,6 +89,9 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stable ref so startSession can always call the latest captureInitialGreeting
+  // without needing it as a useCallback dependency (which would trigger infinite re-creation).
+  const captureInitialGreetingRef = useRef<() => void>(() => {})
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState('')
@@ -107,7 +111,6 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   const [existingProfilePath, setExistingProfilePath] = useState('')
   const [existingProfileDisplay, setExistingProfileDisplay] = useState('')
   const [showAttachments, setShowAttachments] = useState(false)
-  const [isProfileGenerating, setIsProfileGenerating] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
   // Hidden file input refs for the 3 attachment fields
@@ -232,8 +235,9 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
             }
             if (!mountedRef.current) return
             setSessionState('ready')
-            // Capture Claude's initial greeting
-            captureInitialGreeting()
+            // Capture Claude's initial greeting — invoke via ref so startSession
+            // doesn't need captureInitialGreeting as a useCallback dependency.
+            captureInitialGreetingRef.current()
           }
         } catch {
           // Ignore transient polling errors
@@ -255,6 +259,10 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
       setSessionState('error')
       setSessionError(error instanceof Error ? error.message : 'Failed to start Haephestos')
     }
+  // captureInitialGreetingRef is a stable ref object (useRef) — always the same reference,
+  // so it must NOT be listed as a dependency (it never changes, but listing mutable refs
+  // in deps is misleading and violates the intended ref-based indirection pattern).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Capture the initial greeting that Claude produces on startup
@@ -262,8 +270,8 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     if (!mountedRef.current) return
     setWaitingForResponse(true)
 
-    // Clear any existing poll before starting a new one (prevent interval leak)
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    // Clear any existing poll/timeout before starting new ones (prevent leaks and races)
+    clearPolling()
 
     // Timeout: show fallback if no greeting arrives within RESPONSE_TIMEOUT_MS
     timeoutRef.current = setTimeout(() => {
@@ -307,7 +315,12 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         // Ignore transient errors
       }
     }, RESPONSE_POLL_INTERVAL)
-  }, [applySuggestions])
+  }, [applySuggestions, clearPolling])
+
+  // Keep the ref in sync so startSession always calls the latest version.
+  // This runs synchronously in the render phase (before effects), which is the
+  // standard React pattern for keeping a stable ref up to date.
+  captureInitialGreetingRef.current = captureInitialGreeting
 
   // ----- Message sending -----
 
@@ -427,13 +440,13 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
   }, [applySuggestions])
 
   const handleGenerateProfile = useCallback((mode: 'create' | 'edit' | 'align') => {
-    if (sessionState !== 'ready' || waitingForResponse || isProfileGenerating) return
+    // waitingForResponse already covers the "disable during agent response" guard
+    if (sessionState !== 'ready' || waitingForResponse) return
     // Validate required fields per mode
     if (mode === 'create' && !agentDescPath.trim()) return
     if (mode === 'edit' && !existingProfilePath.trim()) return
     if (mode === 'align' && (!existingProfilePath.trim() || !designDocPath.trim())) return
 
-    setIsProfileGenerating(true)
     const parts = [`[PROFILE REQUEST] mode: ${mode}`]
     if (mode === 'create') {
       parts.push(`Agent description: ${agentDescPath.trim()}`)
@@ -444,9 +457,9 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
     if (designDocPath.trim()) {
       parts.push(`Design document: ${designDocPath.trim()}`)
     }
+    // sendUserMessage sets waitingForResponse=true for the full duration of the response
     sendUserMessage(parts.join(' | '))
-    setTimeout(() => setIsProfileGenerating(false), 2000)
-  }, [agentDescPath, designDocPath, existingProfilePath, sessionState, waitingForResponse, isProfileGenerating, sendUserMessage])
+  }, [agentDescPath, designDocPath, existingProfilePath, sessionState, waitingForResponse, sendUserMessage])
 
   // Upload a file to the server and store the server-side path
   const uploadFile = useCallback(async (
@@ -463,9 +476,9 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         body: formData,
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        console.error('Upload failed:', data.error)
-        return
+        // Let json() parse failure propagate to the outer catch for consistent error logging.
+        const data = await res.json()
+        throw new Error(data.error || `Upload failed with status ${res.status}`)
       }
       const data = await res.json()
       if (data.path) {
@@ -505,9 +518,11 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2.5">
-            <img
+            <Image
               src={HAEPHESTOS_AVATAR}
               alt="Haephestos"
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-500/50"
             />
             <div>
@@ -587,7 +602,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   >
                     {msg.role === 'assistant' && (
                       <div className="flex-shrink-0 mr-2 mt-1">
-                        <img src={HAEPHESTOS_AVATAR} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
+                        <Image src={HAEPHESTOS_AVATAR} alt="Haephestos" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                       </div>
                     )}
                     <div className={msg.role === 'assistant' ? 'max-w-[90%]' : 'max-w-[85%]'}>
@@ -668,7 +683,7 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                   className="flex justify-start"
                 >
                   <div className="flex-shrink-0 mr-2 mt-1">
-                    <img src={HAEPHESTOS_AVATAR} alt="" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
+                    <Image src={HAEPHESTOS_AVATAR} alt="" width={64} height={64} className="w-8 h-8 rounded-full object-cover ring-1 ring-amber-500/40" />
                   </div>
                   <div className="bg-gray-800 rounded-xl rounded-tl-sm px-4 py-3">
                     <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
@@ -786,31 +801,31 @@ export default function AgentCreationHelper({ onClose, onComplete }: AgentCreati
                         {agentDescPath.trim() && (
                           <button
                             onClick={() => handleGenerateProfile('create')}
-                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            disabled={sessionState !== 'ready' || waitingForResponse}
                             className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Wand2 className="w-3 h-3" />
-                            {isProfileGenerating ? 'Generating...' : 'New Profile'}
+                            {waitingForResponse ? 'Generating...' : 'New Profile'}
                           </button>
                         )}
                         {existingProfilePath.trim() && (
                           <button
                             onClick={() => handleGenerateProfile('edit')}
-                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            disabled={sessionState !== 'ready' || waitingForResponse}
                             className="flex items-center gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Wand2 className="w-3 h-3" />
-                            {isProfileGenerating ? 'Updating...' : 'Edit Profile'}
+                            {waitingForResponse ? 'Updating...' : 'Edit Profile'}
                           </button>
                         )}
                         {existingProfilePath.trim() && designDocPath.trim() && (
                           <button
                             onClick={() => handleGenerateProfile('align')}
-                            disabled={sessionState !== 'ready' || waitingForResponse || isProfileGenerating}
+                            disabled={sessionState !== 'ready' || waitingForResponse}
                             className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Wand2 className="w-3 h-3" />
-                            {isProfileGenerating ? 'Aligning...' : 'Align to Design'}
+                            {waitingForResponse ? 'Aligning...' : 'Align to Design'}
                           </button>
                         )}
                       </div>

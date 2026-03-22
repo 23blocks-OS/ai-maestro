@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, FastForward, MessageSquare, Clock, AlertCircle } from 'lucide-react'
+import { useCallback, useEffect, useRef } from 'react'
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, RotateCcw, FastForward, MessageSquare, Clock, AlertCircle } from 'lucide-react'
 import { useAgentPlayback, PLAYBACK_SPEEDS } from '@/hooks/useAgentPlayback'
 import type { PlaybackState } from '@/types/playback'
 
@@ -11,17 +11,19 @@ interface AgentPlaybackProps {
   agentName?: string
   className?: string
   showTimeline?: boolean
+  autoPlay?: boolean
 }
 
-export default function AgentPlayback({ 
-  agentId, 
+export default function AgentPlayback({
+  agentId,
   sessionId,
-  agentName, 
+  agentName,
   className = '',
-  showTimeline = true
+  showTimeline = true,
+  autoPlay = false
 }: AgentPlaybackProps) {
-  const [isPlayingState, setIsPlayingState] = useState(false)
-  const autoPlayRef = useRef(false)
+  // Initialize with the prop value so auto-play is actually configurable
+  const autoPlayRef = useRef(autoPlay)
   
   const {
     state,
@@ -56,9 +58,8 @@ export default function AgentPlayback({
     }
   }, [loading, isPlaying, messages.length, start])
   
-  // Handle play/pause toggle
+  // Handle play/pause toggle — delegate entirely to the hook's toggle
   const handleToggle = useCallback(() => {
-    setIsPlayingState(prev => !prev)
     toggle()
   }, [toggle])
   
@@ -107,14 +108,15 @@ export default function AgentPlayback({
     
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [handleToggle, previous, next, jumpToStart, jumpToEnd, totalMessages])
+  }, [handleToggle, previous, next, jumpToStart, jumpToEnd])
   
-  // Format time
+  // Format time — clamp to zero so Math.floor on negative ms never produces wrong negative values
   const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000)
+    const nonNegativeMs = Math.max(0, ms)
+    const seconds = Math.floor(nonNegativeMs / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
-    
+
     if (hours > 0) {
       return `${hours}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
     }
@@ -122,13 +124,14 @@ export default function AgentPlayback({
   }
   
   // Get message role color (LLM conversation roles: user/assistant/system — NOT governance titles)
+  // Unknown roles use a neutral gray so they are visually distinct and do not masquerade as 'user'
   const getMessageRoleColor = (role: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       system: 'bg-purple-100 text-purple-600',
       assistant: 'bg-blue-100 text-blue-600',
       user: 'bg-green-100 text-green-600'
     }
-    return colors[role as keyof typeof colors] || colors.user
+    return colors[role] ?? 'bg-gray-100 text-gray-600'
   }
   
   // Render loading state
@@ -245,7 +248,8 @@ export default function AgentPlayback({
             className="p-2 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Previous message (←)"
           >
-            <SkipBack className="w-5 h-5" />
+            {/* ChevronLeft = one step back; SkipBack is reserved for jump-to-start */}
+            <ChevronLeft className="w-5 h-5" />
           </button>
           
           {/* Play/Pause */}
@@ -268,7 +272,8 @@ export default function AgentPlayback({
             className="p-2 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Next message (→)"
           >
-            <SkipForward className="w-5 h-5" />
+            {/* ChevronRight = one step forward; SkipForward is reserved for jump-to-end */}
+            <ChevronRight className="w-5 h-5" />
           </button>
           
           {/* Jump to End */}

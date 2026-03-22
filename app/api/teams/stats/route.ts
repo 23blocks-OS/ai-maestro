@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 // GET /api/teams/stats - Returns { [teamId]: { taskCount, docCount } }
 export async function GET() {
   try {
-    const result = getTeamsBulkStats()
+    const result = await getTeamsBulkStats()
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }

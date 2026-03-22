@@ -1,0 +1,1 @@
+feat: marketplace manager, agent profile panel, role-plugin service, kanban config

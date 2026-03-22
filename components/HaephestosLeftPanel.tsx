@@ -151,7 +151,7 @@ export default function HaephestosLeftPanel({
                     ref={animationVideoRef}
                     src="/avatars/haephestos-animation.mp4"
                     playsInline
-                    muted
+                    muted={videoMuted}
                     className="w-full h-auto"
                     style={{ display: 'block' }}
                   />
@@ -270,10 +270,10 @@ export default function HaephestosLeftPanel({
         )}
 
         {collapsed ? (
-          /* Collapsed: show all files as icons */
-          files.length > 0 && (
+          /* Collapsed: show only generic (non-slot) files as icons — same scope as expanded branch */
+          genericFiles.length > 0 && (
             <ul className="space-y-2">
-              {files.map((file) => (
+              {genericFiles.map((file) => (
                 <li
                   key={file.path}
                   className="flex justify-center p-1.5 rounded hover:bg-gray-800 transition-colors"

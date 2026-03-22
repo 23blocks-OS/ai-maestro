@@ -42,7 +42,7 @@ export default function GovernancePasswordDialog({
     setPassword('')
     setConfirmPassword('')
     setError(null)
-  }, [submitting, onClose])
+  }, [submitting, onClose, setPassword, setConfirmPassword, setError])
 
   // Close dialog on Escape key press, with handleClose and submitting in deps to avoid stale captures
   useEffect(() => {
@@ -101,6 +101,8 @@ export default function GovernancePasswordDialog({
       try {
         await onPasswordConfirmed?.(password)
         setPassword('')
+        // Close the dialog after successful confirmation so it does not stay open
+        onClose()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Confirmation failed')
       } finally {

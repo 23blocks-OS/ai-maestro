@@ -10,6 +10,7 @@ import {
   GitBranch, FolderGit2, RefreshCw, AlertTriangle,
   FolderTree, X, Terminal, Crown, Shield
 } from 'lucide-react'
+import Image from 'next/image'
 import type { Agent, AgentDocumentation, Repository } from '@/types/agent'
 import TransferAgentDialog from '@/components/TransferAgentDialog'
 import ExportAgentDialog from '@/components/ExportAgentDialog'
@@ -40,7 +41,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
-  const [showTitleDialog, setShowRoleDialog] = useState(false)
+  const [showTitleDialog, setShowTitleDialog] = useState(false)
   const [usedAvatars, setUsedAvatars] = useState<string[]>([])
 
   // Repository state
@@ -152,7 +153,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: agent.name || agent.alias,
+          name: agent.name,
           label: agent.label,
           avatar: agent.avatar,
           owner: agent.owner,
@@ -189,7 +190,8 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
     setAgent({
       ...agent,
       documentation: {
-        ...agent.documentation,
+        // Guard against agent.documentation being undefined; spreading undefined throws a TypeError
+        ...(agent.documentation || {}),
         [field]: value
       }
     })
@@ -225,7 +227,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
       <div className="flex-shrink-0 px-6 py-4 border-b border-gray-700 bg-gray-800/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-white">Agent Profile</h3>
-          <TitleBadge title={governance.agentTitle} size="sm" onClick={() => setShowRoleDialog(true)} />
+          <TitleBadge title={governance.agentTitle} size="sm" onClick={() => setShowTitleDialog(true)} />
         </div>
         <div className="flex items-center gap-2">
           {/* Export Button */}
@@ -341,7 +343,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   title="Click to change avatar"
                 >
                   {isAvatarUrl ? (
-                    <img src={agent.avatar} alt={displayName} className="w-full h-full object-cover" />
+                    <Image src={agent.avatar!} alt={displayName} fill sizes="96px" className="object-cover" />
                   ) : agent.avatar ? (
                     agent.avatar
                   ) : (
@@ -385,7 +387,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
                   </div>
                   <TitleBadge
                     title={governance.agentTitle}
-                    onClick={() => setShowRoleDialog(true)}
+                    onClick={() => setShowTitleDialog(true)}
                   />
                 </div>
 
@@ -882,7 +884,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         <TransferAgentDialog
           agentId={agent.id}
           agentAlias={agent.name || agent.alias || ''}
-          agentDisplayName={agent.label}
+          agentDisplayName={displayName}
           currentHostId={agent.hostId}
           onClose={() => setShowTransferDialog(false)}
           onTransferComplete={(result) => {
@@ -901,7 +903,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         onClose={() => setShowExportDialog(false)}
         agentId={agent.id}
         agentAlias={agent.name || agent.alias || ''}
-        agentDisplayName={agent.label}
+        agentDisplayName={displayName}
         hostUrl={hostUrl}
       />
 
@@ -922,7 +924,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
         }}
         agentId={agent.id}
         agentAlias={agent.name || agent.alias || ''}
-        agentDisplayName={agent.label}
+        agentDisplayName={displayName}
       />
 
       {/* Avatar Picker */}
@@ -939,7 +941,7 @@ export default function AgentProfileTab({ agent: initialAgent, hostUrl, onClose 
       {/* Role Assignment Dialog */}
       <TitleAssignmentDialog
         isOpen={showTitleDialog}
-        onClose={() => setShowRoleDialog(false)}
+        onClose={() => setShowTitleDialog(false)}
         agentId={agent.id}
         agentName={agent.label || agent.name || ''}
         currentTitle={governance.agentTitle}

@@ -160,6 +160,15 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Validate marketplace and plugin names to prevent path traversal in generateManifest,
+      // which uses these values directly in path.join() to build the installPath.
+      if (!skill.marketplace || !SAFE_PATH_SEGMENT_RE.test(skill.marketplace)) {
+        return `Marketplace skill (id: "${skill.id}"): marketplace name contains invalid characters or is empty`
+      }
+      if (!skill.plugin || !SAFE_PATH_SEGMENT_RE.test(skill.plugin)) {
+        return `Marketplace skill (id: "${skill.id}"): plugin name contains invalid characters or is empty`
+      }
     }
   }
 
@@ -317,10 +326,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   }
 
   try {
+    // Increment before any operation that could throw so the outer catch always
+    // sees a matching decrement (evictStaleBuildResults must not run before the
+    // increment, otherwise a throw there would cause the catch to decrement an
+    // already-zero counter).
+    activeOps++
+
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -685,13 +699,19 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+    // Re-strip leading/trailing dashes that may have been exposed by the slice
+    .replace(/^-|-$/g, '')
+
+  // If the URL had no safe characters at all, fall back to a deterministic short ID
+  // to prevent downstream consumers from receiving an empty source name.
+  return sanitized || `repo-${randomUUID().slice(0, 8)}`
 }
 
 /**

@@ -272,6 +272,6 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

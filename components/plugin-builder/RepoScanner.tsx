@@ -16,6 +16,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Store the url and ref that were actually used for the last successful scan,
+  // so that handleAddSkill always uses the values matching the displayed results
+  // even if the user edits the input fields after scanning.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -30,11 +35,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setError(null)
     setScanResult(null)
 
+    // Resolve the ref to use: fall back to 'main' when the field is blank,
+    // matching the input's onChange default so the API always receives a valid ref.
+    const actualRef = ref.trim() || 'main'
     try {
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: url.trim(), ref: actualRef }),
         signal,
       })
 
@@ -47,7 +55,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        // Persist the exact url+ref used for this scan so that handleAddSkill
+        // and the skill-key computation always reference the correct values.
+        setScannedUrl(url.trim())
+        setScannedRef(actualRef)
+        onSkillsFound(data.skills, url.trim(), actualRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -58,10 +70,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use the url and ref that were used for the scan, not the current input
+    // values, which the user may have changed after the scan completed.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -124,11 +138,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Key must match getSkillKey's output for 'repo' type, which includes
+            // url, ref, and skillPath — use scannedUrl/scannedRef (the values from
+            // the actual scan) so the isSelected check is always accurate.
+            const key = `repo:${scannedUrl}:${scannedRef}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={key}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

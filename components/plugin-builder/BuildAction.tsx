@@ -29,13 +29,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollFailures = useRef(0)
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [])
-
+  // Declared before useEffect so it can be listed as a stable dependency
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current)
@@ -43,6 +37,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     }
     pollFailures.current = 0
   }, [])
+
+  // Clean up polling on unmount — clearPoll is a useCallback and must be listed as a dependency
+  useEffect(() => {
+    return () => {
+      clearPoll()
+    }
+  }, [clearPoll])
 
   const handleBuild = async () => {
     // Clear any existing poll interval first (prevents leak on rapid re-clicks)
@@ -79,11 +80,13 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
             if (statusRes.ok) {
-              pollFailures.current = 0
               const statusData: PluginBuildResult = await statusRes.json()
               setResult(statusData)
 
               if (statusData.status !== 'building') {
+                // Only reset failure counter when the build reaches a terminal state,
+                // not on every successful response — intermittent failures must still accumulate
+                pollFailures.current = 0
                 clearPoll()
                 setBuilding(false)
                 setShowLogs(true)
@@ -183,7 +186,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={disabled || !isComplete}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />

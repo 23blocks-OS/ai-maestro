@@ -950,14 +950,13 @@ act3_clone_and_build() {
             if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ] || [ "$REPLY" = "" ]; then
                 maestro_step 1 4 "Pulling latest changes..." ""
                 cd "$INSTALL_DIR"
-                # Count stashes before so we only pop what we pushed (avoids race condition)
-                local stash_count_before
-                stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-                git stash --quiet 2>/dev/null || true
-                local stash_count_after
-                stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
+                # Capture git stash output to detect whether changes were actually stashed.
+                # "No local changes to save" means nothing was stashed; any other output
+                # (including the empty string on success) means a new stash entry was created.
+                local stash_output
+                stash_output=$(git stash --quiet 2>&1 || true)
                 local had_stash=false
-                if [ "$stash_count_after" -gt "$stash_count_before" ]; then
+                if ! echo "$stash_output" | grep -q "No local changes to save"; then
                     had_stash=true
                 fi
                 git pull origin main 2>/dev/null || git pull
@@ -1058,7 +1057,8 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            # Double quotes required so ${PORT} expands to the actual port number
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi

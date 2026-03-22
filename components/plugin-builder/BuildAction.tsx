@@ -85,8 +85,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Build failed')
+        let errorMessage = 'Build failed'
+        try {
+          const data = await res.json()
+          errorMessage = data.error || errorMessage
+        } catch {
+          // Response body is not valid JSON — keep the generic message
+        }
+        setError(errorMessage)
         setBuilding(false)
         clearPoll()
         return

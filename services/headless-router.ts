@@ -360,7 +360,10 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       try {
         resolve(JSON.parse(body))
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        // Attach 400 status so the global catch block can respond with the correct HTTP status code
+        const err = new Error('Invalid JSON body') as any
+        err.status = 400
+        reject(err)
       }
     })
     req.on('error', (err) => {
@@ -608,7 +611,7 @@ const routes: Route[] = [
   // swallowed by /api/sessions/([^/]+) (first-match-wins routing)
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
     const result = await listRestorableSessions()
-    sendJson(res, 200, result)
+    sendServiceResult(res, { status: 200, data: result })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)

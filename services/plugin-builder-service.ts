@@ -51,6 +51,39 @@ const BUILD_TTL_MS = 60 * 60 * 1000 // 1 hour
 /** Max concurrent build/scan operations */
 const MAX_CONCURRENT_OPS = 3
 let activeOps = 0
+const operationQueue: Array<() => void> = []
+
+/**
+ * Acquire a concurrency slot.
+ * Returns a release function that MUST be called in a finally block.
+ * If MAX_CONCURRENT_OPS slots are already taken, queues the caller and
+ * resolves only when a slot becomes available — no busy-waiting, no race.
+ *
+ * The check-and-increment is synchronous (no await between them), so two
+ * concurrent callers cannot both slip through the MAX_CONCURRENT_OPS guard.
+ */
+function acquireSlot(): Promise<() => void> {
+  return new Promise<() => void>((resolve) => {
+    const tryAcquire = () => {
+      // Synchronous check-and-increment: no await between them, so this is
+      // the only place activeOps grows and it is always paired with a release.
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        resolve(() => {
+          activeOps--
+          // Wake the next queued operation, if any.
+          if (operationQueue.length > 0) {
+            const next = operationQueue.shift()!
+            next()
+          }
+        })
+      } else {
+        operationQueue.push(tryAcquire)
+      }
+    }
+    tryAcquire()
+  })
+}
 
 /** Guard flag to prevent re-entrant calls to evictStaleBuildResults */
 let isEvicting = false
@@ -415,10 +448,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: validationError, status: 400 }
   }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
-  }
+  // Concurrency guard: acquireSlot() serialises the check-and-increment so
+  // concurrent callers cannot both slip through the MAX_CONCURRENT_OPS guard.
+  // buildPlugin returns 202 immediately and the slot is held until runBuild
+  // completes asynchronously, so the release is attached to that async chain.
+  const release = await acquireSlot()
+  // Declared outside the try block so the catch block can reference it for cleanup
+  let buildDir: string | undefined
 
   // Track whether runBuild has been dispatched so the catch block knows
   // not to decrement activeOps a second time (runBuild's finally handles it).
@@ -554,9 +590,8 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   // Use mkdtemp for a secure unique directory — prevents race conditions and symlink attacks
   const scanDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-maestro-scan-'))
 
+  const release = await acquireSlot()
   try {
-    activeOps++
-
     // Shallow clone (use -- to prevent ref from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', ref, '--', url, scanDir], {
       timeout: 30000,
@@ -590,7 +625,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${fullMessage}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    release()
   }
 }
 
@@ -623,8 +658,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   // Use mkdtemp for a secure unique directory — prevents race conditions and symlink attacks
   const pushDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-maestro-push-'))
 
+  const release = await acquireSlot()
   try {
-    activeOps++
 
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
@@ -682,7 +717,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${fullMessage}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    release()
   }
 }
 

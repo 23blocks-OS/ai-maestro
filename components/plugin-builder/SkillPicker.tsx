@@ -110,7 +110,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
     { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
-  ]
+  ], [marketplaceSkills.length])
 
   return (
     <div className="flex flex-col h-full">

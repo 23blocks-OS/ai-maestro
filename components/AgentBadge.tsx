@@ -13,7 +13,7 @@ import {
   Mail,
   Box,
 } from 'lucide-react'
-import { Agent, AgentSessionStatus } from '@/types/agent'
+import { Agent, AgentSession } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
 interface AgentBadgeProps {
@@ -98,7 +98,7 @@ function isEmoji(str: string): boolean {
 // pulseColor carries the hex value needed for the CSS boxShadow glow, keeping the
 // Tailwind class name and the shadow color in sync without fragile string matching.
 function getStatusInfo(
-  session: AgentSessionStatus | undefined,
+  session: AgentSession | undefined,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus
 ): { color: string; bgColor: string; label: string; pulse?: boolean; pulseColor: string } {
@@ -140,13 +140,13 @@ export default function AgentBadge({
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // Use agent.session (runtime AgentSessionStatus, set by API) for live online/offline status.
-  // agent.sessions[] is the stored session config array — present means the agent is hibernatable.
-  // This matches the convention used throughout app/page.tsx, AgentList.tsx, app/zoom/page.tsx.
-  const isOnline = agent.session?.status === 'online'
+  // Use agent.sessions[0] for status — consistent with AgentList compact view.
+  // agent.session (singular) is the live runtime field but may not always be populated.
+  const session = agent.sessions?.[0]
+  const isOnline = session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(agent.session, isHibernated, activityStatus)
+  const statusInfo = getStatusInfo(session, isHibernated, activityStatus)
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID
@@ -222,16 +222,12 @@ export default function AgentBadge({
         ) : (
           <div className="relative flex items-center justify-center" title={statusInfo.label}>
             {statusInfo.pulse && (
-              <span className={`absolute w-4 h-4 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
+              <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
             )}
             <span
-              className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-slate-800`}
+              className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-black/50`}
               style={{
-                // Use the pulseColor carried by statusInfo to avoid coupling Tailwind
-                // class names to hardcoded hex values here at the call site.
-                boxShadow: statusInfo.pulse
-                  ? `0 0 8px 2px ${statusInfo.pulseColor}`
-                  : 'none'
+                boxShadow: `0 0 ${statusInfo.pulse ? '12px 4px' : '6px 2px'} ${statusInfo.pulseColor}`,
               }}
             />
           </div>
@@ -246,9 +242,13 @@ export default function AgentBadge({
               e.stopPropagation()
               setShowMenu(!showMenu)
             }}
-            className="p-1 rounded-md bg-slate-700/50 hover:bg-slate-600 transition-colors"
+            className={`p-1 rounded-md transition-colors ${
+              variant === 'normal'
+                ? 'bg-black/40 hover:bg-black/60 shadow-[0_0_8px_rgba(255,255,255,0.2)]'
+                : 'bg-slate-700/50 hover:bg-slate-600'
+            }`}
           >
-            <MoreVertical className="w-3.5 h-3.5 text-slate-400" />
+            <MoreVertical className={`w-3.5 h-3.5 ${variant === 'normal' ? 'text-white/80' : 'text-slate-400'}`} />
           </button>
 
           {/* Dropdown menu — opens upward in compact (button at bottom), downward in normal */}
@@ -462,10 +462,13 @@ export default function AgentBadge({
           )}
 
           {/* Full name and host - Secondary info, centered */}
-          {/* agent.name is shown as the ID handle only when agent.label (persona name) is also
-              present — otherwise agent.name already occupies the h3 as the primary display
-              name and showing it again here would be a redundant duplicate. The Docker
-              container icon is rendered independently so it is never suppressed. */}
+          {/* When agent.label (persona name) is present, agent.name (the ID handle) is shown
+              in the secondary row alongside the Docker container icon — this avoids duplicating
+              the primary display name already in the h3.
+              When agent.label is absent, agent.name already fills the h3 as the primary name.
+              In that case, if the deployment is 'local-container', agent.name is shown again
+              in the secondary row next to the Box icon so the icon is never left floating
+              without its associated text label. */}
           <div className={`${(agent.label || agent.name) ? 'mt-1' : 'mt-3'} w-full`}>
             {agent.label ? (
               <p className={`
@@ -485,6 +488,7 @@ export default function AgentBadge({
                   text-[11px] leading-tight flex items-center justify-center gap-1
                   ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
                 `}>
+                  {agent.name}
                   <span className="flex-shrink-0" aria-label="Docker container">
                     <Box className="w-3 h-3 text-blue-400" />
                   </span>

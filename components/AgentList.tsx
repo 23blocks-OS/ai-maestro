@@ -43,7 +43,6 @@ import {
   Users,
 } from 'lucide-react'
 import Link from 'next/link'
-import CreateAgentAnimation, { getPreviewAvatarUrl } from './CreateAgentAnimation'
 import AgentCreationWizard from './AgentCreationWizard'
 import AgentCreationHelper from './AgentCreationHelper'
 import WakeAgentDialog from './WakeAgentDialog'
@@ -172,7 +171,6 @@ export default function AgentList({
   hostErrors = {},
 }: AgentListProps) {
   const router = useRouter()
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAdvancedCreateModal, setShowAdvancedCreateModal] = useState(false)
   const [showWizardModal, setShowWizardModal] = useState(false)
   const [showCreateDropdown, setShowCreateDropdown] = useState(false)
@@ -622,7 +620,6 @@ export default function AgentList({
   }
 
   const handleCreateComplete = () => {
-    setShowCreateModal(false)
     setShowAdvancedCreateModal(false)
     setShowWizardModal(false)
     onRefresh?.()
@@ -1043,7 +1040,7 @@ export default function AgentList({
                                             onRename={() => onShowAgentProfile(agent)}
                                             onDelete={() => onShowAgentProfileDangerZone?.(agent)}
                                             onHibernate={isOnline ? () => handleHibernate(agent) : undefined}
-                                            onWake={isHibernated ? (e) => handleWake(agent, e) : undefined}
+                                            onWake={isHibernated ? () => setWakeDialogAgent(agent) : undefined}
                                             onOpenTerminal={isOnline ? () => handleAgentClick(agent) : undefined}
                                             onSendMessage={() => {/* TODO: Implement send message dialog */}}
                                             onCopyId={() => navigator.clipboard.writeText(agent.id)}
@@ -1187,7 +1184,7 @@ export default function AgentList({
                                               <span className="text-3xl flex-shrink-0">{agent.avatar}</span>
                                             ) : (
                                               <User
-                                                className="w-10 h-10 flex-shrink-0"
+                                                className="w-12 h-12 flex-shrink-0"
                                                 style={{ color: isActive ? colors.activeText : colors.icon }}
                                               />
                                             )}
@@ -1424,16 +1421,6 @@ export default function AgentList({
             setShowWizardModal(false)
             router.push('/agent-creation')
           }}
-        />
-      )}
-
-      {/* Create Agent Modal (legacy) */}
-      {showCreateModal && (
-        <CreateAgentModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateAgent}
-          onComplete={handleCreateComplete}
-          loading={actionLoading}
         />
       )}
 
@@ -1726,294 +1713,4 @@ function HostSelector({
   )
 }
 
-// Animated Create Modal
-function CreateAgentModal({
-  onClose,
-  onCreate,
-  onComplete,
-  loading,
-}: {
-  onClose: () => void
-  onCreate: (name: string, workingDirectory?: string, hostId?: string, label?: string, avatar?: string, programArgs?: string) => Promise<boolean>
-  onComplete: () => void
-  loading: boolean
-}) {
-  const { hosts } = useHosts()
-  const [name, setName] = useState('')
-  const [workingDirectory, setWorkingDirectory] = useState('')
-  const [programArgs, setProgramArgs] = useState('')
-  const [selectedHostId, setSelectedHostId] = useState<string>('')
-  const [animationPhase, setAnimationPhase] = useState<'naming' | 'preparing' | 'creating' | 'ready' | 'error'>('creating')
-
-  // Set default host to self/local host on mount
-  useEffect(() => {
-    if (hosts.length > 0 && !selectedHostId) {
-      const selfHost = hosts.find(h => h.isSelf) || hosts[0]
-      setSelectedHostId(selfHost.id)
-    }
-  }, [hosts, selectedHostId])
-  const [animationProgress, setAnimationProgress] = useState(0)
-  const [isCreating, setIsCreating] = useState(false)  // Animation in progress
-  const [creationSuccess, setCreationSuccess] = useState(false)  // Agent created successfully
-  const [showButton, setShowButton] = useState(false)  // Show "Let's Go!" button
-
-  // Fun AI-themed aliases - split by gender to match avatar photos
-  // IA names are feminine (Spanish style), AI names are masculine
-  const FEMALE_ALIASES = [
-    'MarIA', 'SofIA', 'LucIA', 'JulIA', 'NatalIA', 'OlivIA', 'VictorIA', 'ValerIA',
-    'NovaIA', 'StellaIA', 'AuroraIA', 'CelestIA', 'HarmonIA', 'SerenIA', 'DataIA',
-  ]
-  const MALE_ALIASES = [
-    'LunAI', 'NovAI', 'AriAI', 'ZarAI', 'KAI', 'SkyAI', 'MaxAI', 'LeoAI',
-    'MirAI', 'EchoAI', 'ZenAI', 'NeoAI', 'PixAI', 'BytAI', 'CodeAI',
-    'AtlAI', 'OrionAI', 'PhoenixAI', 'TitanAI', 'VegAI', 'CosmAI',
-  ]
-
-  // Get a gender-matched alias based on the agent name
-  // Uses same hash logic as AgentBadge avatar selection for consistency
-  const getRandomAlias = (agentName: string): string => {
-    let hash = 0
-    for (let i = 0; i < agentName.length; i++) {
-      const char = agentName.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash |= 0  // Coerce to 32-bit signed integer to prevent float overflow
-    }
-    // Same gender logic as avatar - ensures name matches photo gender
-    const isMale = (Math.abs(hash >> 8) % 2 === 0)
-    const aliases = isMale ? MALE_ALIASES : FEMALE_ALIASES
-    return aliases[Math.abs(hash) % aliases.length]
-  }
-
-  // Animate through phases when creating - spread over 10 seconds for a delightful experience
-  useEffect(() => {
-    if (isCreating) {
-      // Reset and start animation sequence
-      setAnimationPhase('preparing')
-      setAnimationProgress(5)
-
-      // Progress updates for preparing phase (0-2.5s)
-      const timer1 = setTimeout(() => {
-        setAnimationProgress(12)
-      }, 500)
-
-      const timer2 = setTimeout(() => {
-        setAnimationProgress(20)
-      }, 1000)
-
-      const timer3 = setTimeout(() => {
-        setAnimationProgress(28)
-      }, 1800)
-
-      // Transition to creating phase (2.5s)
-      const timer4 = setTimeout(() => {
-        setAnimationPhase('creating')
-        setAnimationProgress(35)
-      }, 2500)
-
-      // Progress updates for creating phase (2.5-6s)
-      const timer5 = setTimeout(() => {
-        setAnimationProgress(45)
-      }, 3200)
-
-      const timer6 = setTimeout(() => {
-        setAnimationProgress(55)
-      }, 3900)
-
-      const timer7 = setTimeout(() => {
-        setAnimationProgress(65)
-      }, 4600)
-
-      const timer8 = setTimeout(() => {
-        setAnimationProgress(78)
-      }, 5300)
-
-      const timer9 = setTimeout(() => {
-        setAnimationProgress(90)
-      }, 6000)
-
-      // Transition to ready/celebration phase (6.5s)
-      const timer10 = setTimeout(() => {
-        setAnimationPhase('ready')
-        setAnimationProgress(100)
-      }, 6500)
-
-      // Show the "Let's Go!" button after celebration animations complete (8s)
-      const timer11 = setTimeout(() => {
-        if (creationSuccess) {
-          setShowButton(true)
-        }
-      }, 8000)
-
-      return () => {
-        clearTimeout(timer1)
-        clearTimeout(timer2)
-        clearTimeout(timer3)
-        clearTimeout(timer4)
-        clearTimeout(timer5)
-        clearTimeout(timer6)
-        clearTimeout(timer7)
-        clearTimeout(timer8)
-        clearTimeout(timer9)
-        clearTimeout(timer10)
-        clearTimeout(timer11)
-      }
-    }
-  }, [isCreating, creationSuccess])
-
-  // Show button when API completes successfully and we're in ready phase
-  useEffect(() => {
-    if (creationSuccess && animationPhase === 'ready') {
-      // Small delay after reaching ready phase to let animations settle
-      const timer = setTimeout(() => {
-        setShowButton(true)
-      }, 1500)
-      return () => clearTimeout(timer)
-    }
-  }, [creationSuccess, animationPhase])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (name.trim()) {
-      setIsCreating(true)
-      // Generate persona name (like "NatalIA") and avatar URL to be saved
-      // These must match what's shown in the preview animation
-      const personaName = getRandomAlias(name.trim())
-      const avatarUrl = getPreviewAvatarUrl(name.trim())
-      // Pass selectedHostId to create agent on the chosen host
-      const success = await onCreate(name.trim(), workingDirectory.trim() || undefined, selectedHostId || undefined, personaName, avatarUrl, programArgs.trim() || undefined)
-      if (success) {
-        setCreationSuccess(true)
-        // Animation continues, user will click "Let's Go!" to close
-      } else {
-        // Error occurred, close modal
-        setIsCreating(false)
-      }
-    }
-  }
-
-  const handleLetsGo = () => {
-    onComplete()
-  }
-
-  // Show animation when creating or when celebration is showing
-  const showAnimation = isCreating || creationSuccess
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={showAnimation ? undefined : onClose}>
-      <div className="bg-gray-900 rounded-xl w-full max-w-lg shadow-2xl border border-gray-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {showAnimation ? (
-          // Animated creation view
-          <div className="p-6">
-            <div className="text-center mb-2">
-              <h3 className="text-lg font-semibold text-gray-100">
-                {animationPhase === 'ready' ? 'Your Agent is Ready!' : 'Creating Your Agent'}
-              </h3>
-              {animationPhase !== 'ready' && <p className="text-sm text-gray-400">{name}</p>}
-            </div>
-            <CreateAgentAnimation
-              phase={animationPhase}
-              agentName={name}
-              agentAlias={getRandomAlias(name)}
-              avatarUrl={getPreviewAvatarUrl(name)}
-              progress={animationProgress}
-              showNextSteps={showButton}
-            />
-            {/* Let's Go button - appears after celebration */}
-            {showButton && (
-              <div className="mt-6 flex justify-center">
-                <button
-                  onClick={handleLetsGo}
-                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
-                >
-                  <span>Let&apos;s Go!</span>
-                  <span className="text-lg">🚀</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          // Form view
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Agent</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="agent-name" className="block text-sm font-medium text-gray-300 mb-1">
-                    Agent Name *
-                  </label>
-                  <input
-                    id="agent-name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="23blocks-api-myagent"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    autoFocus
-                    pattern="[a-zA-Z0-9_\-]+"
-                    title="Only letters, numbers, dashes, and underscores allowed"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Format: group-subgroup-name (e.g., 23blocks-api-auth)
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="working-dir" className="block text-sm font-medium text-gray-300 mb-1">
-                    Working Directory (optional)
-                  </label>
-                  <input
-                    id="working-dir"
-                    type="text"
-                    value={workingDirectory}
-                    onChange={(e) => setWorkingDirectory(e.target.value)}
-                    placeholder="/home/user"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="program-args" className="block text-sm font-medium text-gray-300 mb-1">
-                    Program Arguments (optional)
-                  </label>
-                  <input
-                    id="program-args"
-                    type="text"
-                    value={programArgs}
-                    onChange={(e) => setProgramArgs(e.target.value)}
-                    placeholder="--continue --chrome"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    CLI flags passed to the program on launch (e.g. --continue --chrome)
-                  </p>
-                </div>
-                {hosts.length > 1 && (
-                  <HostSelector
-                    hosts={hosts}
-                    selectedHostId={selectedHostId}
-                    onSelect={setSelectedHostId}
-                  />
-                )}
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!name.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
-                >
-                  Create Agent
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 

@@ -178,7 +178,7 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.warn('[plugin-builder] Failed to clean build dir:', err))
     }
   }
 
@@ -190,7 +190,7 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.warn('[plugin-builder] Failed to clean build dir:', err))
     }
   }
 }
@@ -242,7 +242,18 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Include group.plugin so the path points to the specific plugin within the marketplace,
+    // not the marketplace root (which would conflict when multiple plugins share the same marketplace).
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
+
+    // Bounds check: ensure the resolved path stays within the marketplaces directory.
+    // path.join does not prevent traversal via '..' segments in user-controlled inputs.
+    const marketplaceBase = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces')
+    const resolvedInstallPath = path.resolve(installPath)
+    if (!resolvedInstallPath.startsWith(marketplaceBase + path.sep) && resolvedInstallPath !== marketplaceBase) {
+      throw new Error(`Invalid marketplace path: ${resolvedInstallPath}`)
+    }
+
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -316,13 +327,17 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Declared before try so they are accessible in the catch block for cleanup.
+  let buildId: string | undefined
+  let buildDir: string | undefined
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
     activeOps++
-    const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
+    buildId = randomUUID()
+    buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -382,6 +397,10 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { data: result, status: 202 }
   } catch (error) {
     activeOps = Math.max(0, activeOps - 1)
+    // Clean up any partially created build directory to avoid leaking disk space.
+    if (buildDir) {
+      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    }
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -492,8 +511,21 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   try {
     activeOps++
 
+    // Build clone URL. If a token is provided, embed it for auth so private forks can be read.
+    // Using URL parsing avoids string-replace pitfalls (e.g. double-auth when forkUrl already
+    // contains credentials, or when the URL has unusual structure).
+    let cloneUrl = config.forkUrl
+    if (config.token) {
+      try {
+        const u = new URL(config.forkUrl)
+        u.username = config.token
+        u.password = ''
+        cloneUrl = u.toString()
+      } catch { /* use original URL if parsing fails */ }
+    }
+
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
-    await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
+    await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', cloneUrl, pushDir], {
       timeout: 30000,
     })
 
@@ -526,7 +558,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
     ], { cwd: pushDir })
 
-    // Push
+    // Push (the remote origin URL already carries auth from the clone URL built above)
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
 
     // Clean up
@@ -685,13 +717,16 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
  * Sanitize a URL into a valid source name.
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  // After stripping protocol, extension, illegal chars and trimming hyphens, the result
+  // could be empty for pathological URLs like "https://---.git". Fall back to 'unknown-source'.
+  const sanitized = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  return sanitized || 'unknown-source'
 }
 
 /**

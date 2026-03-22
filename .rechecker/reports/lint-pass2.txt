@@ -1,0 +1,3 @@
+=== ESLint (TypeScript/TSX files) ===
+=== ShellCheck (shell scripts) ===
+shellcheck: CLEAN

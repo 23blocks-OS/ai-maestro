@@ -55,6 +55,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     // Reset push-related state on new build
     setShowPush(false)
     setPushResult(null)
+    // Clear stale fork URL so it does not carry over from a previous build cycle
+    setForkUrl('')
 
     try {
       const res = await fetch('/api/plugin-builder/build', {
@@ -94,6 +96,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setError('Lost connection to build server')
                 setBuilding(false)
+                setShowLogs(true)
               }
             }
           } catch {
@@ -102,6 +105,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               clearPoll()
               setError('Lost connection to build server')
               setBuilding(false)
+              setShowLogs(true)
             }
           }
         }, 1000)
@@ -116,7 +120,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
   }
 
   const handlePush = async () => {
-    if (!forkUrl.trim() || !result?.manifest) return
+    if (!forkUrl.trim()) return
+    // Manifest may be absent if the build completed without generating one — surface this to the user
+    if (!result?.manifest) {
+      setPushResult({ ok: false, message: 'No build manifest available. Please build first.' })
+      return
+    }
 
     // Client-side URL validation
     if (!forkUrl.trim().match(/^https:\/\/github\.com\/.+\/.+/)) {
@@ -183,7 +192,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || building || disabled}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
@@ -216,7 +225,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           </div>
         )}
 
-        {error && !result && (
+        {error && (
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 

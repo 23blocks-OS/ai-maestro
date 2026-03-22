@@ -1,0 +1,19 @@
+=== ESLint (TypeScript/TSX files) ===
+=== ShellCheck (shell scripts) ===
+
+In scripts/remote-install.sh line 552:
+        NEED_CLAUDE=true
+        ^---------^ SC2034 (warning): NEED_CLAUDE appears unused. Verify use (or export if used externally).
+
+
+In scripts/remote-install.sh line 569:
+        HAS_TAILSCALE=true
+        ^-----------^ SC2034 (warning): HAS_TAILSCALE appears unused. Verify use (or export if used externally).
+
+
+In scripts/remote-install.sh line 784:
+                    HAS_CODEX=true
+                    ^-------^ SC2034 (warning): HAS_CODEX appears unused. Verify use (or export if used externally).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2034 -- HAS_CODEX appears unused. Verify ...

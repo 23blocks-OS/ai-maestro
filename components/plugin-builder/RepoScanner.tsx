@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { GitBranch, Search, Loader2, AlertCircle, Plus } from 'lucide-react'
 import type { RepoScanResult, RepoSkillInfo, PluginSkillSelection } from '@/types/plugin-builder'
 
@@ -16,7 +16,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Track the url/ref that were actually scanned so that skill addition and key computation
+  // always use the values from the moment the scan completed, not the current input state.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('main')
   const abortRef = useRef<AbortController | null>(null)
+
+  // Abort any in-flight fetch when the component unmounts to prevent state updates on
+  // an unmounted component and to release network resources immediately.
+  useEffect(() => () => { abortRef.current?.abort() }, [])
 
   const handleScan = async () => {
     if (!url.trim()) return
@@ -30,11 +38,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     setError(null)
     setScanResult(null)
 
+    // Normalise ref: trim whitespace and fall back to 'main' if empty.
+    const trimmedUrl = url.trim()
+    const trimmedRef = ref.trim() || 'main'
+
     try {
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: trimmedUrl, ref: trimmedRef }),
         signal,
       })
 
@@ -46,22 +58,30 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        // Capture the exact url/ref that produced this result so that skill keys and
+        // handleAddSkill always refer to the scanned values, not the current input state.
+        setScannedUrl(trimmedUrl)
+        setScannedRef(trimmedRef)
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        onSkillsFound(data.skills, trimmedUrl, trimmedRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       setError('Failed to connect to server')
     } finally {
-      if (!signal.aborted) setScanning(false)
+      // Always clear the scanning flag regardless of abort status so the UI never
+      // gets stuck in a perpetual loading state after the user aborts.
+      setScanning(false)
     }
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use the url/ref captured at scan time, not the current input values which may have
+    // been edited by the user since the scan completed.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -124,11 +144,14 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Build the key from the scanned url (not the current input) so it matches the
+            // key format used when the skill was originally added, and use scannedUrl in the
+            // React key as well to guarantee uniqueness across different scans.
+            const key = `repo:${scannedUrl}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div
-                key={skill.path}
+                key={`${scannedUrl}:${skill.path}`}
                 className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg border border-gray-700/50"
               >
                 <div className="min-w-0 flex-1">

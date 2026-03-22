@@ -63,7 +63,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return CORE_SKILLS
     const q = searchQuery.toLowerCase()
     return CORE_SKILLS.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
     )
   }, [searchQuery])
 
@@ -71,7 +71,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     if (!searchQuery) return marketplaceSkills
     const q = searchQuery.toLowerCase()
     return marketplaceSkills.filter(
-      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
     )
   }, [searchQuery, marketplaceSkills])
 
@@ -272,6 +272,6 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      return `repo:${skill.url}:${skill.skillId}`
   }
 }

@@ -67,6 +67,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        // Clear logs so stale output from a prior build is not left visible on failure
+        setShowLogs(false)
         return
       }
 
@@ -94,6 +96,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setError('Lost connection to build server')
                 setBuilding(false)
+                // Clear logs so stale output from a prior build is not left visible on error
+                setShowLogs(false)
               }
             }
           } catch {
@@ -102,6 +106,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
               clearPoll()
               setError('Lost connection to build server')
               setBuilding(false)
+              // Clear logs so stale output from a prior build is not left visible on error
+              setShowLogs(false)
             }
           }
         }, 1000)
@@ -112,6 +118,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
+      // Clear logs so stale output from a prior build is not left visible on error
+      setShowLogs(false)
     }
   }
 
@@ -133,7 +141,9 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           forkUrl: forkUrl.trim(),
-          manifest: result.manifest,
+          // Use optional chaining: the early-exit guard above ensures result?.manifest is
+          // defined here, but optional chaining prevents a type error if narrowing is lost.
+          manifest: result?.manifest,
         }),
       })
 

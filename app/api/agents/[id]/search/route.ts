@@ -20,9 +20,9 @@ import { searchConversations, ingestConversations } from '@/services/agents-memo
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const searchParams = request.nextUrl.searchParams
 
   const result = await searchConversations(agentId, {
@@ -55,9 +55,9 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const body = await request.json()
 
   const result = await ingestConversations(agentId, {

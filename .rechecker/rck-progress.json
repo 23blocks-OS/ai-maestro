@@ -1,0 +1,91 @@
+{
+  "uid": "eead5d",
+  "status": "running",
+  "created": "2026-03-22T23:32:43.317500",
+  "updated": "2026-03-23T00:09:05.675619",
+  "current_loop": 4,
+  "current_iter": 1,
+  "loops": {
+    "1": {
+      "status": "completed",
+      "files_done": [],
+      "files_clean": []
+    },
+    "2": {
+      "status": "completed",
+      "iter": 4,
+      "files_done": [
+        "FID00005",
+        "FID00002",
+        "FID00004",
+        "FID00006",
+        "FID00007",
+        "FID00009",
+        "FID00008",
+        "FID00011",
+        "FID00010",
+        "FID00017",
+        "FID00019",
+        "FID00018",
+        "FID00003"
+      ],
+      "files_clean": [
+        "FID00020",
+        "FID00001",
+        "FID00012",
+        "FID00013",
+        "FID00014",
+        "FID00015",
+        "FID00016",
+        "FID00021",
+        "FID00005",
+        "FID00007",
+        "FID00008",
+        "FID00009",
+        "FID00010",
+        "FID00019",
+        "FID00002",
+        "FID00003",
+        "FID00011",
+        "FID00017",
+        "FID00018",
+        "FID00004",
+        "FID00006"
+      ]
+    },
+    "3": {
+      "status": "completed",
+      "iter": 1,
+      "files_done": [],
+      "files_clean": [
+        "FID00001",
+        "FID00002",
+        "FID00003",
+        "FID00004",
+        "FID00005",
+        "FID00006",
+        "FID00007",
+        "FID00008",
+        "FID00009",
+        "FID00010",
+        "FID00011",
+        "FID00012",
+        "FID00013",
+        "FID00014",
+        "FID00015",
+        "FID00016",
+        "FID00017",
+        "FID00018",
+        "FID00019",
+        "FID00020",
+        "FID00021"
+      ]
+    },
+    "4": {
+      "status": "completed",
+      "files_done": [],
+      "files_clean": []
+    }
+  },
+  "committed": false
+}

@@ -11,9 +11,9 @@ import { runDeltaIndex } from '@/services/agents-memory-service'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id: agentId } = await params
+  const { id: agentId } = params
   const searchParams = request.nextUrl.searchParams
 
   const result = await runDeltaIndex(agentId, {

@@ -1,0 +1,18 @@
+=== ESLint pass ===
+--- app/api/plugin-builder/build/route.ts ---
+--- app/api/plugin-builder/builds/[id]/route.ts ---
+--- app/api/plugin-builder/push/route.ts ---
+--- app/api/plugin-builder/scan-repo/route.ts ---
+--- app/plugin-builder/page.tsx ---
+--- components/Header.tsx ---
+--- components/plugin-builder/BuildAction.tsx ---
+--- components/plugin-builder/PluginComposer.tsx ---
+--- components/plugin-builder/RepoScanner.tsx ---
+--- components/plugin-builder/SkillPicker.tsx ---
+--- services/headless-router.ts ---
+--- services/plugin-builder-service.ts ---
+--- types/plugin-builder.ts ---
+
+=== Shellcheck pass ===
+--- scripts/remote-install.sh ---
+=== Done ===

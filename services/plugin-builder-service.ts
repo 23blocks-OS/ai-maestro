@@ -140,6 +140,18 @@ function validateSkillPath(skillPath: string): string | null {
   return null
 }
 
+/**
+ * Validate a marketplace name to prevent path traversal.
+ * Must contain only safe characters (letters, digits, dots, hyphens, underscores).
+ */
+function validateMarketplaceName(name: string): string | null {
+  if (!name || typeof name !== 'string') return 'Marketplace name is required'
+  if (!SAFE_PATH_SEGMENT_RE.test(name)) {
+    return 'Marketplace name contains invalid characters (allowed: letters, digits, dots, hyphens, underscores)'
+  }
+  return null
+}
+
 function validateBuildConfig(config: PluginBuildConfig): string | null {
   const nameErr = validatePluginName(config.name)
   if (nameErr) return nameErr
@@ -160,6 +172,10 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       if (refErr) return `Repo skill "${skill.name}": ${refErr}`
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
+    } else if (skill.type === 'marketplace') {
+      // Prevent path traversal through the marketplace name which is used in path.join
+      const marketplaceErr = validateMarketplaceName(skill.marketplace)
+      if (marketplaceErr) return `Marketplace skill "${skill.name}": ${marketplaceErr}`
     }
   }
 
@@ -173,6 +189,8 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
 function evictStaleBuildResults(): void {
   const now = Date.now()
   for (const [id, result] of buildResults) {
+    // Never evict an actively building entry — runBuild still holds a reference to it
+    if (result.status === 'building') continue
     const age = now - new Date(result.createdAt).getTime()
     if (age > BUILD_TTL_MS) {
       buildResults.delete(id)
@@ -182,9 +200,10 @@ function evictStaleBuildResults(): void {
     }
   }
 
-  // If still over limit, evict oldest
+  // If still over limit, evict oldest completed/failed entries first
   if (buildResults.size > MAX_BUILD_RESULTS) {
     const entries = [...buildResults.entries()]
+      .filter(([, result]) => result.status !== 'building') // Never remove active builds
       .sort((a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime())
     const toRemove = entries.slice(0, entries.length - MAX_BUILD_RESULTS)
     for (const [id] of toRemove) {
@@ -316,6 +335,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Track whether the async runBuild was successfully launched so the finally
+  // block only decrements activeOps when runBuild won't do it itself.
+  let buildStartedSuccessfully = false
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
@@ -347,8 +369,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       const linkTarget = path.join(buildDir, 'src')
       try {
         await fs.symlink(srcDir, linkTarget, 'dir')
-      } catch {
-        // If symlink fails (e.g., permissions), copy instead (skipping symlinks in source)
+      } catch (symlinkErr) {
+        // If symlink fails (e.g., cross-device or permissions), copy instead (skipping symlinks in source)
+        console.warn(`Symlink creation failed for build ${buildDir}, falling back to copy:`, symlinkErr)
         await copyDir(srcDir, linkTarget)
       }
     }
@@ -363,7 +386,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously — its finally block owns the activeOps decrement
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -379,11 +402,18 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       activeOps = Math.max(0, activeOps - 1)
     })
 
+    // Mark as successfully started so the outer finally does NOT also decrement
+    buildStartedSuccessfully = true
+
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Only decrement if runBuild was never launched (it owns its own decrement otherwise)
+    if (!buildStartedSuccessfully) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
   }
 }
 
@@ -448,7 +478,10 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     await fs.rm(scanDir, { recursive: true, force: true }).catch(() => {})
 
     const exitCode = (error as any)?.code
-    const message = error instanceof Error ? error.message : String(error)
+    let message = error instanceof Error ? error.message : String(error)
+    const stderr = (error as any)?.stderr
+    // Include stderr in the message so callers get the full git error detail
+    if (stderr) message += `\nDetails: ${stderr}`
 
     if (exitCode === 128 || message.includes('not found')) {
       return { error: `Repository not found or access denied: ${url}`, status: 404 }
@@ -541,7 +574,10 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     }
   } catch (error: unknown) {
     await fs.rm(pushDir, { recursive: true, force: true }).catch(() => {})
-    const message = error instanceof Error ? error.message : String(error)
+    let message = error instanceof Error ? error.message : String(error)
+    const stderr = (error as any)?.stderr
+    // Include stderr in the message so callers get the full git error detail
+    if (stderr) message += `\nDetails: ${stderr}`
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {

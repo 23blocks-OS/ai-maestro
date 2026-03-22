@@ -7,9 +7,9 @@ import { getDomainById, updateDomainById, deleteDomainById } from '@/services/do
  */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = getDomainById(id)
 
   if (result.error) {
@@ -24,9 +24,9 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const body = await request.json()
   const result = updateDomainById(id, body)
 
@@ -42,9 +42,9 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = deleteDomainById(id)
 
   if (result.error) {

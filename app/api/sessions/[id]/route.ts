@@ -14,11 +14,11 @@ function logDeprecation() {
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   logDeprecation()
   try {
-    const { id: sessionName } = await params
+    const { id: sessionName } = params
     const result = await deleteSession(sessionName)
 
     if (result.error) {

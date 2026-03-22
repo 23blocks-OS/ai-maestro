@@ -11,10 +11,10 @@ import { sendReadReceipt } from '@/services/amp-service'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const authHeader = request.headers.get('Authorization')
-  const { id: messageId } = await params
+  const { id: messageId } = params
 
   let originalSender: string | undefined
   try {

@@ -267,6 +267,18 @@ import {
 } from '@/services/config-service'
 
 // ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
+
+/** Thrown for client-caused errors (malformed request). The router maps this to HTTP 400. */
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BadRequestError'
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
 
@@ -280,7 +292,8 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       try {
         resolve(JSON.parse(body))
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        // Reject with BadRequestError so the router maps this to HTTP 400 instead of 500
+        reject(new BadRequestError('Invalid JSON body'))
       }
     })
     req.on('error', reject)
@@ -312,8 +325,11 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+  // Check only for error presence — result.data can be null/undefined on legitimate success
+  if (result.error) {
+    // Ensure the error is a serializable string — Error objects serialize to {} via JSON.stringify
+    const errorMessage = result.error instanceof Error ? result.error.message : result.error
+    sendJson(res, result.status || 500, { error: errorMessage }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
   }
@@ -339,7 +355,8 @@ function getQuery(url: string): Record<string, string> {
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
-  if (!boundaryMatch) return { file: null, options: null }
+  // Throw so the caller's catch block can report a meaningful 400 error rather than silently returning nulls
+  if (!boundaryMatch) throw new BadRequestError('Invalid or missing boundary in Content-Type header for multipart/form-data')
 
   const boundary = '--' + boundaryMatch[1]
   const bodyStr = body.toString('latin1')
@@ -430,16 +447,13 @@ const routes: Route[] = [
   // Sessions
   // =========================================================================
   { method: 'GET', pattern: /^\/api\/sessions$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    try {
-      if (query.local === 'true') {
-        const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
-      } else {
-        const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
-      }
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+    // Wrap raw service results in ServiceResult shape so sendServiceResult handles errors uniformly
+    if (query.local === 'true') {
+      const raw = await listLocalSessions()
+      sendServiceResult(res, { data: { sessions: raw.sessions, fromCache: false }, status: 200 })
+    } else {
+      const raw = await listSessions()
+      sendServiceResult(res, { data: { sessions: raw.sessions, fromCache: raw.fromCache }, status: 200 })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -473,16 +487,13 @@ const routes: Route[] = [
     sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
-    try {
-      const activity = await getActivity()
-      sendJson(res, 200, { activity })
-    } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
-    }
+    // Wrap raw service result in ServiceResult shape so sendServiceResult handles errors uniformly
+    const activity = await getActivity()
+    sendServiceResult(res, { data: { activity }, status: 200 })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
-    const result = broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
+    const result = await broadcastActivityUpdate(body.sessionName, body.status, body.hookStatus, body.notificationType)
     sendServiceResult(res, result)
   }},
 
@@ -530,18 +541,33 @@ const routes: Route[] = [
     try {
       const contentType = getHeader(req, 'content-type') || ''
       const rawBody = await readRawBody(req)
+      // parseMultipart throws BadRequestError on invalid/missing boundary
       const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
 
       if (!file) {
-        sendJson(res, 400, { error: 'No file provided' })
+        sendJson(res, 400, { error: 'No file provided in multipart form data' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Invalid JSON in the options field is a client error — return 400
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
+
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      if (error instanceof BadRequestError) {
+        sendJson(res, 400, { error: error.message })
+      } else {
+        sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      }
     }
   }},
   // Agent directory
@@ -804,24 +830,21 @@ const routes: Route[] = [
 
   // Export / Transfer
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (_req, res, params) => {
-    try {
-      const result = await exportAgentZip(params.id)
-      if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
-        return
-      }
-      const { buffer, filename, agentId, agentName } = result.data
-      sendBinary(res, 200, new Uint8Array(buffer), {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length.toString(),
-        'X-Agent-Id': agentId,
-        'X-Agent-Name': agentName,
-        'X-Export-Version': '1.0.0',
-      })
-    } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+    const result = await exportAgentZip(params.id)
+    // Use sendServiceResult for the error path — it applies uniform error formatting and status codes
+    if (result.error || !result.data) {
+      sendServiceResult(res, result)
+      return
     }
+    const { buffer, filename, agentId, agentName } = result.data
+    sendBinary(res, 200, new Uint8Array(buffer), {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length.toString(),
+      'X-Agent-Id': agentId,
+      'X-Agent-Name': agentName,
+      'X-Export-Version': '1.0.0',
+    })
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1011,7 +1034,8 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/agents$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, listAMPAgents(authHeader, query.search || null))
+    // Use undefined (not null) for absent query param — listAMPAgents treats undefined as "no filter"
+    sendServiceResult(res, listAMPAgents(authHeader, query.search || undefined))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/([^/]+)\/read$/, paramNames: ['id'], handler: async (req, res, params) => {
     const authHeader = getHeader(req, 'Authorization')
@@ -1028,7 +1052,8 @@ const routes: Route[] = [
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || null))
+    // Use undefined (not null) for absent query param — acknowledgePendingMessage treats undefined as "acknowledge all"
+    sendServiceResult(res, acknowledgePendingMessage(authHeader, query.id || undefined))
   }},
   { method: 'POST', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -1071,10 +1096,12 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
+    // Use undefined (not null) for absent query params — service functions treat undefined as "not provided"
+    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
+    // Use undefined (not null) for absent query params — service functions treat undefined as "not provided"
+    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
   }},
 
   // =========================================================================
@@ -1104,10 +1131,6 @@ const routes: Route[] = [
   { method: 'POST', pattern: /^\/api\/teams\/notify$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
     sendServiceResult(res, await notifyTeamAgents(body))
-  }},
-  { method: 'GET', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (_req, res, _params) => {
-    // GET single task not implemented in route — taskId routes only have PUT/DELETE
-    sendJson(res, 405, { error: 'Method not allowed' })
   }},
   { method: 'PUT', pattern: /^\/api\/teams\/([^/]+)\/tasks\/([^/]+)$/, paramNames: ['id', 'taskId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1280,7 +1303,13 @@ export function createHeadlessRouter() {
         await matched.handler(req, res, matched.params, query)
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
-        if (!res.headersSent) {
+        if (res.headersSent) {
+          // Headers already sent — cannot change status code. End the response to prevent a hanging connection.
+          console.warn(`[Headless] Headers already sent for ${method} ${pathname}, cannot send proper error response.`)
+          res.end()
+        } else if (error instanceof BadRequestError) {
+          sendJson(res, 400, { error: error.message })
+        } else {
           sendJson(res, 500, { error: 'Internal server error' })
         }
       }

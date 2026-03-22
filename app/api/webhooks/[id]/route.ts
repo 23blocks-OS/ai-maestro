@@ -7,9 +7,9 @@ import { getWebhookById, deleteWebhookById } from '@/services/webhooks-service'
  */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = getWebhookById(id)
 
   if (result.error) {
@@ -24,9 +24,9 @@ export async function GET(
  */
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = deleteWebhookById(id)
 
   if (result.error) {

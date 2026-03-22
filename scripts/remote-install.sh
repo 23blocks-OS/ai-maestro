@@ -22,9 +22,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
@@ -37,7 +34,7 @@ TYPE_SPEED=0.03  # seconds per character (0 in non-interactive)
 
 # Disable ANSI colors in non-interactive/dumb terminal environments (CI logs)
 if [ "$TERM" = "dumb" ] || [ -n "$NO_COLOR" ]; then
-    RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+    RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
 fi
 
 # Auto-disable typing animation over SSH
@@ -86,7 +83,7 @@ maestro_check() {
     if [ "$NON_INTERACTIVE" = true ]; then
         echo "   [check] $label    $status"
     else
-        printf "   ${DIM}[checking]${NC} %-24s %s\n" "$label" "$status"
+        printf "   ${DIM}[checking]${NC} %-24s %b\n" "$label" "$status"
     fi
 }
 
@@ -95,7 +92,7 @@ maestro_step() {
     local total="$2"
     local label="$3"
     local status="$4"
-    printf "   ${DIM}[%s/%s]${NC} %-32s %s\n" "$step" "$total" "$label" "$status"
+    printf "   ${DIM}[%s/%s]${NC} %-32s %b\n" "$step" "$total" "$label" "$status"
 }
 
 maestro_ask_yn() {
@@ -170,7 +167,7 @@ cleanup() {
                 maestro_info "Removed partial installation at $INSTALL_DIR"
             else
                 maestro_warn "Partial installation detected at $INSTALL_DIR"
-                maestro_info "You may want to remove it: rm -rf $INSTALL_DIR"
+                maestro_info "You may want to remove it: rm -rf \"$INSTALL_DIR\""
             fi
         fi
         maestro_info "You can re-run the installer to try again"
@@ -352,6 +349,17 @@ uninstall() {
     maestro_say "Removing AI Maestro..."
     echo ""
 
+    # Stop nohup process if running (when pm2 was not used)
+    if [ -f "$INSTALL_DIR/logs/aimaestro.pid" ]; then
+        local pid_to_kill
+        pid_to_kill=$(cat "$INSTALL_DIR/logs/aimaestro.pid" 2>/dev/null)
+        if [ -n "$pid_to_kill" ] && ps -p "$pid_to_kill" > /dev/null 2>&1; then
+            kill "$pid_to_kill" 2>/dev/null || true
+            maestro_info "Stopped nohup AI Maestro process (PID: $pid_to_kill)"
+        fi
+        rm -f "$INSTALL_DIR/logs/aimaestro.pid" 2>/dev/null || true
+    fi
+
     # Stop PM2 services if running
     if command -v pm2 &>/dev/null; then
         pm2 stop ai-maestro 2>/dev/null || true
@@ -361,7 +369,7 @@ uninstall() {
             pm2 stop "${gw}-gateway" 2>/dev/null || true
             pm2 delete "${gw}-gateway" 2>/dev/null || true
         done
-        pm2 save 2>/dev/null || true
+        pm2 save || true
         maestro_info "Stopped PM2 services"
     fi
 
@@ -543,7 +551,6 @@ act1_hello_and_discovery() {
     fi
 
     # Claude Code
-    NEED_CLAUDE=false
     HAS_CLAUDE=false
     if command -v claude &>/dev/null; then
         local claude_ver
@@ -552,24 +559,19 @@ act1_hello_and_discovery() {
         HAS_CLAUDE=true
     else
         maestro_check "Claude Code" "${YELLOW}not found${NC}"
-        NEED_CLAUDE=true
     fi
 
     # Codex
-    HAS_CODEX=false
     if command -v codex &>/dev/null; then
         maestro_check "OpenAI Codex" "${GREEN}✓${NC}"
-        HAS_CODEX=true
     else
         maestro_check "OpenAI Codex" "${DIM}not found${NC}"
     fi
 
     # Tailscale
     NEED_TAILSCALE=false
-    HAS_TAILSCALE=false
     if command -v tailscale &>/dev/null; then
         maestro_check "Tailscale" "${GREEN}✓${NC}"
-        HAS_TAILSCALE=true
     else
         maestro_check "Tailscale" "${DIM}not found${NC}"
         NEED_TAILSCALE=true
@@ -691,16 +693,31 @@ act2_install_prerequisites() {
         echo ""
         maestro_say "Setting up Yarn..."
         maestro_info "Installing Yarn"
-        # Detect if npm global dir is writable (system Node needs sudo)
-        local npm_prefix
-        npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
-        if [ -w "$npm_prefix/lib" ] 2>/dev/null; then
-            npm install -g yarn || { maestro_warn "Could not install Yarn"; }
-        else
-            maestro_info "System Node detected — using sudo for global npm install..."
-            sudo npm install -g yarn || { maestro_warn "Could not install Yarn"; }
+        # If nvm is present, ensure it is sourced so the nvm-managed npm prefix is active
+        # (nvm directories are always user-writable — sudo must NOT be used there)
+        if [ -s "$HOME/.nvm/nvm.sh" ]; then
+            export NVM_DIR="$HOME/.nvm"
+            # shellcheck disable=SC1091
+            \. "$NVM_DIR/nvm.sh"
+            nvm use 20 >/dev/null 2>&1
         fi
-        maestro_ok "Yarn installed"
+        # Try installing without sudo first; only fall back to sudo for system-Node setups
+        if npm install -g yarn; then
+            maestro_ok "Yarn installed"
+        else
+            local npm_prefix
+            npm_prefix=$(npm config get prefix 2>/dev/null || echo "/usr/local")
+            if [ ! -w "$npm_prefix/lib" ] 2>/dev/null; then
+                maestro_info "System Node detected — using sudo for global npm install..."
+                if sudo npm install -g yarn; then
+                    maestro_ok "Yarn installed"
+                else
+                    maestro_warn "Could not install Yarn"
+                fi
+            else
+                maestro_warn "Could not install Yarn"
+            fi
+        fi
     fi
 
     # System packages (Linux/WSL only)
@@ -762,47 +779,44 @@ act2_install_prerequisites() {
         # Helper: install npm package with visible errors in CI
         _install_npm_global() {
             local pkg="$1"
-            if [ "$NON_INTERACTIVE" = true ]; then
-                npm install -g "$pkg"
-            else
-                npm install -g "$pkg" 2>/dev/null
-            fi
+            # Always show npm errors (interactive or not) to allow diagnosing failures
+            npm install -g "$pkg"
         }
 
         case "$ai_choice" in
             1)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || {
+                else
                     maestro_warn "Could not install Claude Code automatically"
                     echo "   Visit https://claude.ai/download to install manually"
-                }
+                fi
                 ;;
             2)
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || {
+                else
                     maestro_warn "Could not install Codex automatically"
-                }
+                fi
                 ;;
             3)
                 maestro_info "Installing Claude Code"
-                _install_npm_global @anthropic-ai/claude-code && {
+                if _install_npm_global @anthropic-ai/claude-code; then
                     maestro_ok "Claude Code installed"
                     HAS_CLAUDE=true
-                    NEED_CLAUDE=false
-                } || maestro_warn "Could not install Claude Code"
+                else
+                    maestro_warn "Could not install Claude Code"
+                fi
 
                 maestro_info "Installing OpenAI Codex"
-                _install_npm_global @openai/codex && {
+                if _install_npm_global @openai/codex; then
                     maestro_ok "OpenAI Codex installed"
-                    HAS_CODEX=true
-                } || maestro_warn "Could not install Codex"
+                else
+                    maestro_warn "Could not install Codex"
+                fi
                 ;;
             4)
                 maestro_info "Skipping AI tool installation"
@@ -823,7 +837,6 @@ act2_install_prerequisites() {
             fi
             maestro_ok "Tailscale installed"
             maestro_info "To activate: tailscale up"
-            HAS_TAILSCALE=true
         else
             maestro_info "Skipping Tailscale — you can add it later"
         fi
@@ -960,9 +973,9 @@ act3_clone_and_build() {
                 if [ "$stash_count_after" -gt "$stash_count_before" ]; then
                     had_stash=true
                 fi
-                git pull origin main 2>/dev/null || git pull
+                git pull origin main 2>/dev/null || git pull origin main
                 if [ "$had_stash" = true ]; then
-                    if ! git stash pop --quiet 2>/dev/null; then
+                    if ! git stash pop --quiet; then
                         maestro_warn "Could not cleanly restore your local changes after update."
                         maestro_info "Your changes are saved in git stash. To recover:"
                         echo "   cd $INSTALL_DIR && git stash list"
@@ -973,7 +986,7 @@ act3_clone_and_build() {
                 maestro_step 1 4 "Pulling latest changes..." "done"
 
                 maestro_step 2 4 "Installing dependencies..." ""
-                yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+                yarn install --silent || yarn install || maestro_warn "yarn install had errors — continuing"
                 maestro_step 2 4 "Installing dependencies..." "done"
 
                 maestro_step 3 4 "Updating agent tools..." ""
@@ -995,7 +1008,7 @@ act3_clone_and_build() {
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
                     for gw in "${GW_ARRAY[@]}"; do
                         if [ -d "${gw}-gateway" ]; then
-                            (cd "${gw}-gateway" && npm install --silent 2>/dev/null || npm install 2>/dev/null || true)
+                            (cd "${gw}-gateway" && npm install --silent || npm install || true)
                         fi
                     done
                     cd "$INSTALL_DIR"
@@ -1029,7 +1042,7 @@ act3_clone_and_build() {
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
-    yarn install --silent 2>/dev/null || yarn install || maestro_warn "yarn install had errors — continuing"
+    yarn install --silent || yarn install || maestro_warn "yarn install had errors — continuing"
     maestro_step 2 "$total_steps" "Installing dependencies..." "done"
 
     maestro_step 3 "$total_steps" "Setting up agent tools..." ""
@@ -1048,7 +1061,7 @@ act3_clone_and_build() {
                 local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
                 if [ -d "$gw_dir" ]; then
                     cd "$gw_dir"
-                    npm install --silent 2>/dev/null || npm install || {
+                    npm install --silent || npm install || {
                         maestro_warn "npm install failed for ${gw}-gateway — skipping"
                         cd "$INSTALL_DIR"
                         continue
@@ -1058,7 +1071,7 @@ act3_clone_and_build() {
                         cp .env.example .env
                         # Pre-set AI Maestro connection and default agent
                         if grep -q 'AIMAESTRO_API' .env 2>/dev/null; then
-                            portable_sed 's|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|' .env
+                            portable_sed "s|AIMAESTRO_API=.*|AIMAESTRO_API=http://127.0.0.1:${PORT}|" .env
                         else
                             echo "AIMAESTRO_API=http://127.0.0.1:${PORT}" >> .env
                         fi
@@ -1102,13 +1115,27 @@ act4_start_and_register() {
 
     # Check if AI Maestro is already running
     # Verify it's actually AI Maestro by checking for known API response
-    if curl -s http://localhost:${PORT}/api/sessions 2>/dev/null | grep -q '"sessions"'; then
+    if curl -s "http://localhost:${PORT}/api/sessions" 2>/dev/null | grep -q '"sessions"'; then
         if [ "$IS_UPDATE" = true ]; then
             # Restart service after update so it picks up new code
             maestro_info "Restarting service with updated code..."
             cd "$INSTALL_DIR"
             if command -v pm2 &>/dev/null; then
-                pm2 restart ai-maestro 2>/dev/null || pm2 restart all 2>/dev/null || true
+                # Only restart the specific ai-maestro process; never restart all PM2 processes
+                if pm2 list 2>/dev/null | grep -q "ai-maestro"; then
+                    pm2 restart ai-maestro 2>/dev/null || maestro_warn "Failed to restart AI Maestro via PM2 — check: pm2 logs ai-maestro"
+                else
+                    # ai-maestro is not managed by PM2; fall through to nohup restart
+                    local old_pid
+                    old_pid=$(lsof -ti:"$PORT" 2>/dev/null || true)
+                    if [ -n "$old_pid" ]; then
+                        kill "$old_pid" 2>/dev/null || true
+                        sleep 2
+                    fi
+                    mkdir -p "$INSTALL_DIR/logs"
+                    nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
+                    echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
+                fi
             else
                 # Kill old nohup process and restart
                 local old_pid
@@ -1119,11 +1146,12 @@ act4_start_and_register() {
                 fi
                 mkdir -p "$INSTALL_DIR/logs"
                 nohup yarn start > "$INSTALL_DIR/logs/startup.log" 2>&1 &
+                echo $! > "$INSTALL_DIR/logs/aimaestro.pid"
             fi
             # Wait for service to come back up
             local attempts=0
             while [ $attempts -lt 15 ]; do
-                if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+                if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                     break
                 fi
                 sleep 1
@@ -1146,7 +1174,7 @@ act4_start_and_register() {
             else
                 pm2 start "yarn start" --name ai-maestro 2>/dev/null
             fi
-            pm2 save 2>/dev/null || true
+            pm2 save || true
         else
             # No pm2 — start in background
             mkdir -p "$INSTALL_DIR/logs"
@@ -1158,7 +1186,7 @@ act4_start_and_register() {
         local attempts=0
         local max_attempts=30
         while [ $attempts -lt $max_attempts ]; do
-            if curl -s http://localhost:${PORT}/api/sessions >/dev/null 2>&1; then
+            if curl -s "http://localhost:${PORT}/api/sessions" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -1195,7 +1223,7 @@ act4_start_and_register() {
     fi
 
     # Register agent with AI Maestro (initializes AMP messaging)
-    curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+    curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
         -H "Content-Type: application/json" \
         -d '{"name":"my-first-agent","workingDirectory":"'"$AGENT_DIR"'"}' \
         >/dev/null 2>&1 || true
@@ -1227,10 +1255,13 @@ act4_start_and_register() {
                     gw_list="- ${gw_display}"
                 fi
             done
-            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
+            # Escape sed metacharacters in gw_list so special chars are treated as literals
+            local safe_gw_list
+            safe_gw_list=$(printf '%s' "$gw_list" | sed 's/[[\.*^$|&\\\/]/\\&/g')
+            portable_sed "s|{{ACTIVE_GATEWAYS_LIST}}|${safe_gw_list}|g" "$MAILMAN_DIR/CLAUDE.md"
         fi
         # Register mailman with AI Maestro
-        curl -s -X POST http://localhost:${PORT}/api/sessions/create \
+        curl -s -X POST "http://localhost:${PORT}/api/sessions/create" \
             -H "Content-Type: application/json" \
             -d '{"name":"mailman","workingDirectory":"'"$MAILMAN_DIR"'"}' \
             >/dev/null 2>&1 || true
@@ -1288,7 +1319,7 @@ act5_grand_finale() {
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it
-            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "$AI_TOOL \"$INITIAL_PROMPT\""
+            tmux new-window -n "my-first-agent" -c "$AGENT_DIR" "\"$AI_TOOL\" \"$INITIAL_PROMPT\""
             echo ""
             maestro_ok "Agent launched in a new tmux window!"
             maestro_info "Switch to it: Ctrl+b then n (next window)"
@@ -1299,7 +1330,7 @@ act5_grand_finale() {
                 maestro_info "Reattaching to existing 'my-first-agent' session..."
             else
                 tmux new-session -d -s "my-first-agent" -c "$AGENT_DIR" \
-                    "$AI_TOOL \"$INITIAL_PROMPT\""
+                    "\"$AI_TOOL\" \"$INITIAL_PROMPT\""
             fi
             sleep 2
             tmux attach-session -t "my-first-agent"
@@ -1340,7 +1371,7 @@ main() {
 
     # Strip ANSI after arg parsing (NON_INTERACTIVE may have been set via -y flag)
     if [ "$NON_INTERACTIVE" = true ]; then
-        RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' BOLD='' DIM='' NC=''
+        RED='' GREEN='' YELLOW='' BLUE='' DIM='' NC=''
     fi
 
     # M1: Warn if running as root (curl | sudo bash is dangerous)

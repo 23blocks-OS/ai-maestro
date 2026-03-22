@@ -7,9 +7,9 @@ import { testWebhookById } from '@/services/webhooks-service'
  */
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params
+  const { id } = params
   const result = await testWebhookById(id)
 
   if (result.error) {

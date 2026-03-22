@@ -4,9 +4,9 @@ import { updateTeamTask, deleteTeamTask } from '@/services/teams-service'
 // PUT /api/teams/[id]/tasks/[taskId] - Update a task
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; taskId: string }> }
+  { params }: { params: { id: string; taskId: string } }
 ) {
-  const { id, taskId } = await params
+  const { id, taskId } = params
   const body = await request.json()
   const result = updateTeamTask(id, taskId, body)
 
@@ -19,9 +19,9 @@ export async function PUT(
 // DELETE /api/teams/[id]/tasks/[taskId] - Delete a task
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; taskId: string }> }
+  { params }: { params: { id: string; taskId: string } }
 ) {
-  const { id, taskId } = await params
+  const { id, taskId } = params
   const result = deleteTeamTask(id, taskId)
 
   if (result.error) {

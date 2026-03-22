@@ -11,9 +11,9 @@ import {
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
-  const { id, address } = await params
+  const { id, address } = params
 
   const result = getEmailAddressDetail(id, address)
 
@@ -29,9 +29,9 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
-  const { id, address } = await params
+  const { id, address } = params
   const body = await request.json()
 
   const result = updateEmailAddressOnAgent(id, address, body)
@@ -48,9 +48,9 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; address: string }> }
+  { params }: { params: { id: string; address: string } }
 ) {
-  const { id, address } = await params
+  const { id, address } = params
 
   const result = removeEmailAddressFromAgent(id, address)
 

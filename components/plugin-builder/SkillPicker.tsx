@@ -26,6 +26,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
   const [loadingMarketplace, setLoadingMarketplace] = useState(true)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
+  // Track the count of skills found by the repo scanner so the tab badge stays accurate
+  const [repoSkillsCount, setRepoSkillsCount] = useState<number | null>(null)
 
   // Build a set of selected skill keys for fast lookup
   const selectedKeys = useMemo(() => {
@@ -76,9 +78,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   }, [searchQuery, marketplaceSkills])
 
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
-    { id: 'repo' as const, label: 'GitHub Repo', count: null },
+    // Use filtered lengths so counts reflect the current search query, not totals
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: filteredMarketplaceSkills.length },
+    // Show null until the user scans a repo; after scanning, show the found skill count
+    { id: 'repo' as const, label: 'GitHub Repo', count: repoSkillsCount },
   ]
 
   return (
@@ -252,7 +256,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
+            // Update the repo tab badge with the count of skills found in the scanned repo
+            onSkillsFound={(skills, _url, _ref) => setRepoSkillsCount(skills.length)}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />
@@ -272,6 +277,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include `ref` (branch/tag/commit) so two skills at the same path in different refs are not conflated
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

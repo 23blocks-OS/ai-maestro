@@ -316,11 +316,12 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before try so the single finally always decrements exactly once
+  activeOps++
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -363,7 +364,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously — no .finally() here; activeOps is managed by the
+    // outer finally block which fires as soon as buildPlugin returns (202 path).
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -375,15 +377,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
     })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
+  } finally {
+    // Single decrement point — runs on both success (202) and error (500) paths
+    activeOps = Math.max(0, activeOps - 1)
   }
 }
 
@@ -558,8 +560,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
  * Uses atomic replacement of the map entry to avoid torn reads.
  */
 async function runBuild(buildId: string, buildDir: string, manifest: PluginManifest): Promise<void> {
-  const existing = buildResults.get(buildId)
-  if (!existing) return
+  // Early guard: if the entry was evicted before we even start, abort immediately
+  if (!buildResults.get(buildId)) return
 
   try {
     const output = await execPromise(
@@ -589,6 +591,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       // Stats collection failed — non-critical
     }
 
+    // Re-fetch right before set: the entry may have been evicted while the
+    // build was running (evictStaleBuildResults is called on every new build).
+    const existing = buildResults.get(buildId)
+    if (!existing) {
+      console.warn(`Build ${buildId} was evicted before completion could be recorded.`)
+      return
+    }
+
     // Atomic replacement: avoids torn reads from polling clients
     buildResults.set(buildId, {
       ...existing,
@@ -602,6 +612,13 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const stderr = (error as any)?.stderr
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
+
+    // Re-fetch right before set: same eviction race applies in the error path
+    const existing = buildResults.get(buildId)
+    if (!existing) {
+      console.warn(`Build ${buildId} was evicted before failure could be recorded.`)
+      return
+    }
 
     // Atomic replacement
     buildResults.set(buildId, {

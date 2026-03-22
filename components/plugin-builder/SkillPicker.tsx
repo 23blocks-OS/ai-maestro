@@ -129,7 +129,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               const Icon = skill.icon
               return (
                 <div
-                  key={skill.name}
+                  key={key}
                   role="button"
                   tabIndex={0}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
@@ -191,7 +191,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
-                    key={skill.id}
+                    key={key}
                     role="button"
                     tabIndex={0}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${

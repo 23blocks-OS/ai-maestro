@@ -124,7 +124,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            const key = `repo:${url.trim()}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

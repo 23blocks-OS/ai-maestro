@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!body.manifest || typeof body.manifest !== 'object') {
+    if (!body.manifest || typeof body.manifest !== 'object' || body.manifest === null) {
       return NextResponse.json(
         { error: 'Manifest is required' },
         { status: 400 }

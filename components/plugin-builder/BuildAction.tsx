@@ -67,6 +67,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        clearPoll()
         return
       }
 
@@ -87,6 +88,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
                 clearPoll()
                 setBuilding(false)
                 setShowLogs(true)
+                setError(null)
               }
             } else {
               pollFailures.current++
@@ -108,10 +110,12 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       } else {
         setBuilding(false)
         setShowLogs(true)
+        setError(null)
       }
     } catch {
       setError('Failed to connect to server')
       setBuilding(false)
+      clearPoll()
     }
   }
 
@@ -280,7 +284,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result.logs && result.logs.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

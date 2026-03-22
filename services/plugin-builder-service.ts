@@ -396,9 +396,6 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     for (const skill of coreSkills) {
       map[`skills/${skill.name}`] = `skills/${skill.name}`
     }
-    if (config.includeHooks !== false) {
-      map['hooks/*'] = 'hooks/'
-    }
     sources.push({
       name: 'core',
       description: 'AI Maestro core skills',
@@ -603,6 +600,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           ...r,
           status: 'failed',
           logs: [err instanceof Error ? err.message : String(err)],
+          outputPath: undefined,
+          stats: undefined,
         })
       }
     })
@@ -789,7 +788,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     )
 
     // Stage and commit
-    await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir })
+    await execPromise('git', ['add', 'plugin.manifest.json'], { cwd: pushDir, timeout: 10000 })
 
     // Check whether the manifest was actually staged (not just whether the repo has unrelated dirty files).
     // `git diff --cached --quiet` exits 0 when nothing is staged, non-zero when there are staged changes.
@@ -812,7 +811,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
       '-c', 'user.name=Plugin Builder',
       '-c', 'user.email=plugin-builder@aimaestro.local',
       'commit', '-m', 'build: update plugin manifest from Plugin Builder',
-    ], { cwd: pushDir })
+    ], { cwd: pushDir, timeout: 10000 })
 
     // Push (the remote origin URL already carries auth from the clone URL built above)
     await execPromise('git', ['push', 'origin', branch], { cwd: pushDir, timeout: 30000 })
@@ -1039,6 +1038,7 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
     const realScriptsDirPrefix = realScriptsDir + path.sep
     const entries = await fs.readdir(scriptsDir, { withFileTypes: true })
     for (const entry of entries) {
+      // Skip symlinks so individual script files cannot point outside the repo.
       if (entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith('.sh')) {
         // Verify the file resolves within the scripts directory (prevents symlink escape)
         const fullPath = path.join(scriptsDir, entry.name)

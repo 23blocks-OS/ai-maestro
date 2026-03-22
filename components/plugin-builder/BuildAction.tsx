@@ -202,6 +202,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       // clearPoll() was already called at the top of handleBuild before the fetch;
       // no interval can be running at this point, so no additional call is needed.
       setError('Failed to connect to server')
+      clearPoll()
       setBuilding(false)
       clearPoll()
     }
@@ -271,7 +272,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           onClick={handleBuild}
           disabled={disabled || building}
           className="flex items-center gap-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-medium rounded-lg transition-colors"
-          aria-label={disabledReason || 'Start plugin build'}
+          aria-label={building ? 'Building plugin' : (disabledReason || 'Start plugin build')}
         >
           {building ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -366,7 +367,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
-              claude plugin install {result.outputPath}
+              claude plugin install {result?.outputPath}
             </code>
             <button
               onClick={copyInstallCommand}

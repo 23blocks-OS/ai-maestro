@@ -60,9 +60,9 @@ export function getSkillKey(skill: PluginSkillSelection): string {
 export interface PluginBuildResult {
   buildId: string
   status: 'building' | 'complete' | 'failed'
-  outputPath?: string                  // Where the built plugin lives
+  outputPath?: string                  // Where the built plugin lives (set on completion)
   logs: string[]                       // Build output lines
-  manifest?: PluginManifest            // Generated manifest
+  manifest: PluginManifest             // Generated manifest — always present (set at creation)
   stats?: PluginBuildStats
   createdAt: string                    // ISO timestamp
   buildDir?: string                    // Temp directory created by mkdtemp; used for cleanup

@@ -381,7 +381,7 @@ uninstall() {
             pm2 stop "${gw}-gateway" 2>/dev/null || true
             pm2 delete "${gw}-gateway" 2>/dev/null || true
         done
-        pm2 save 2>/dev/null || true
+        pm2 save || true
         maestro_info "Stopped PM2 services"
     fi
 
@@ -1276,6 +1276,9 @@ act4_start_and_register() {
             cp "$INSTALL_DIR/scripts/MAILMAN-CLAUDE.md" "$MAILMAN_DIR/CLAUDE.md"
             portable_sed "s@{{INSTALL_DIR}}@${safe_dir}@g" "$MAILMAN_DIR/CLAUDE.md"
             # Format gateways as a bullet list (e.g., "slack,discord" -> "- Slack\n- Discord")
+            # gw_list is built with real newlines. BSD sed (macOS) cannot embed literal newlines
+            # in the replacement part of an inline s command, so we use awk for this substitution
+            # which handles multiline replacement strings correctly on both macOS and Linux.
             local gw_list=""
             IFS=',' read -ra GW_ITEMS <<< "$SELECTED_GATEWAYS"
             for gw_item in "${GW_ITEMS[@]}"; do

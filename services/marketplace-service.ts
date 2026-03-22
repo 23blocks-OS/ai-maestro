@@ -16,6 +16,7 @@ import {
   getSkillById,
 } from '@/lib/marketplace-skills'
 import type { SkillSearchParams } from '@/types/marketplace'
+import type { ServiceResult } from '@/types/service-result'
 
 // ---------------------------------------------------------------------------
 // Types

@@ -195,8 +195,8 @@ export default function AgentBadge({
         }
       `}
     >
-      {/* Status indicator - top right corner (z-20 to stay above image in normal variant) */}
-      <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20">
+      {/* Status indicator — top-right in normal, bottom-right in compact */}
+      <div className={`absolute ${variant === 'normal' ? 'top-2' : 'bottom-2'} right-2 flex items-center gap-1.5 z-20`}>
         {/* Unread messages counter */}
         {unreadCount && unreadCount > 0 && (
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-600/50" title={`${unreadCount} unread message${unreadCount > 1 ? 's' : ''}`}>
@@ -238,9 +238,9 @@ export default function AgentBadge({
         )}
       </div>
 
-      {/* Actions menu - top left (z-20 to stay above image in normal variant) */}
+      {/* Actions menu — top-left in normal, bottom-left in compact, always visible */}
       {showActions && (
-        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-20" ref={menuRef}>
+        <div className={`absolute ${variant === 'normal' ? 'top-2' : 'bottom-2'} left-2 z-20`} ref={menuRef}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -251,9 +251,11 @@ export default function AgentBadge({
             <MoreVertical className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
-          {/* Dropdown menu */}
+          {/* Dropdown menu — opens upward in compact (button at bottom), downward in normal */}
           {showMenu && (
-            <div className="absolute left-0 top-full mt-1 w-40 py-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50">
+            <div className={`absolute left-0 w-40 py-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 ${
+              variant === 'normal' ? 'top-full mt-1' : 'bottom-full mb-1'
+            }`}>
               {isOnline && onOpenTerminal && (
                 <button
                   onClick={(e) => {
@@ -392,14 +394,19 @@ export default function AgentBadge({
                 {agent.label || agent.name}
               </h3>
             )}
-            <p
-              className="text-[10px] leading-tight text-slate-300 mt-0.5"
-              style={{
-                textShadow: '0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.8)',
-              }}
-            >
-              {agent.name}
-            </p>
+            {/* agent.name is shown as secondary ID handle only when agent.label (persona name)
+                is present — otherwise agent.name already appears in the h3 as the primary
+                display name and showing it again here would be a redundant duplicate. */}
+            {agent.label && (
+              <p
+                className="text-[10px] leading-tight text-slate-300 mt-0.5"
+                style={{
+                  textShadow: '0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.8)',
+                }}
+              >
+                {agent.name}
+              </p>
+            )}
             {agent.hostId && (
               <p
                 className="text-[9px] text-slate-400 mt-0.5"
@@ -455,18 +462,35 @@ export default function AgentBadge({
           )}
 
           {/* Full name and host - Secondary info, centered */}
+          {/* agent.name is shown as the ID handle only when agent.label (persona name) is also
+              present — otherwise agent.name already occupies the h3 as the primary display
+              name and showing it again here would be a redundant duplicate. The Docker
+              container icon is rendered independently so it is never suppressed. */}
           <div className={`${(agent.label || agent.name) ? 'mt-1' : 'mt-3'} w-full`}>
-            <p className={`
-              text-[11px] leading-tight flex items-center justify-center gap-1
-              ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
-            `}>
-              {agent.name}
-              {agent.deployment?.cloud?.provider === 'local-container' && (
-                <span className="flex-shrink-0" aria-label="Docker container">
-                  <Box className="w-3 h-3 text-blue-400" />
-                </span>
-              )}
-            </p>
+            {agent.label ? (
+              <p className={`
+                text-[11px] leading-tight flex items-center justify-center gap-1
+                ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
+              `}>
+                {agent.name}
+                {agent.deployment?.cloud?.provider === 'local-container' && (
+                  <span className="flex-shrink-0" aria-label="Docker container">
+                    <Box className="w-3 h-3 text-blue-400" />
+                  </span>
+                )}
+              </p>
+            ) : (
+              agent.deployment?.cloud?.provider === 'local-container' && (
+                <p className={`
+                  text-[11px] leading-tight flex items-center justify-center gap-1
+                  ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
+                `}>
+                  <span className="flex-shrink-0" aria-label="Docker container">
+                    <Box className="w-3 h-3 text-blue-400" />
+                  </span>
+                </p>
+              )
+            )}
 
             {agent.hostId && (
               <p className="text-[10px] text-slate-500 mt-0.5">

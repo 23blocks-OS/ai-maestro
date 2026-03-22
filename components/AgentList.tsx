@@ -950,29 +950,34 @@ export default function AgentList({
         {/* View Switcher */}
         <SidebarViewSwitcher activeView={sidebarView} onViewChange={setSidebarView} />
 
-        {/* Status Filter Tabs — only in agents view, below the view switcher */}
+        {/* Status Filter Tabs — only in agents view, 3D relief tab bar */}
         {sidebarView === 'agents' && (
-          <div className="mt-1 px-2 flex items-center gap-0">
+          <div className="px-2 flex items-end gap-0 border-b border-gray-700/60 mt-0">
             {([
-              { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length },
-              { key: 'all' as const, label: 'ALL', count: agents.length },
-              { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length },
-            ]).map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`flex-1 py-1.5 px-2 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
-                  statusFilter === tab.key
-                    ? tab.key === 'active' ? 'text-emerald-300 border-emerald-400 bg-emerald-500/10 shadow-[inset_0_-1px_4px_rgba(16,185,129,0.15)]'
-                      : tab.key === 'hiber' ? 'text-amber-300 border-amber-400 bg-amber-500/10 shadow-[inset_0_-1px_4px_rgba(245,158,11,0.15)]'
-                      : 'text-blue-300 border-blue-400 bg-blue-500/10 shadow-[inset_0_-1px_4px_rgba(59,130,246,0.15)]'
-                    : 'text-gray-500 border-transparent hover:text-gray-400 hover:bg-gray-800/30'
-                }`}
-              >
-                {tab.label}
-                <span className="ml-1 opacity-60">{tab.count}</span>
-              </button>
-            ))}
+              { key: 'active' as const, label: 'ACTIVE', count: agents.filter(a => a.session?.status === 'online').length, color: 'emerald' },
+              { key: 'all' as const, label: 'ALL', count: agents.length, color: 'blue' },
+              { key: 'hiber' as const, label: 'HIBER', count: agents.filter(a => a.session?.status !== 'online').length, color: 'amber' },
+            ]).map(tab => {
+              const isActive = statusFilter === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`flex-1 text-[10px] font-bold uppercase tracking-wider transition-all rounded-t-lg ${
+                    isActive
+                      ? `py-2 px-2 -mb-px border border-b-0 shadow-[0_-2px_6px_rgba(0,0,0,0.3)] ${
+                          tab.color === 'emerald' ? 'text-emerald-300 border-emerald-500/40 bg-gray-900'
+                          : tab.color === 'amber' ? 'text-amber-300 border-amber-500/40 bg-gray-900'
+                          : 'text-blue-300 border-blue-500/40 bg-gray-900'
+                        }`
+                      : 'py-1.5 px-2 mb-0 text-gray-500 hover:text-gray-400 bg-gray-800/40 border border-b-0 border-transparent hover:bg-gray-800/60'
+                  }`}
+                >
+                  {tab.label}
+                  <span className="ml-1 opacity-60">{tab.count}</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1123,6 +1128,7 @@ export default function AgentList({
                                           <AgentBadge
                                             key={agent.id}
                                             agent={agent}
+                                            variant="normal"
                                             isSelected={activeAgentId === agent.id}
                                             activityStatus={activityInfo?.status}
                                             unreadCount={unreadCounts[agent.id]}

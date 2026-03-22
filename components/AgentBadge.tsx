@@ -30,6 +30,8 @@ interface AgentBadgeProps {
   onSendMessage?: (agent: Agent) => void
   onCopyId?: (agent: Agent) => void
   showActions?: boolean
+  /** 'normal' = full-image card, 'compact' = circle avatar card (default) */
+  variant?: 'normal' | 'compact'
 }
 
 // Generate a consistent unique avatar URL from agent ID using RandomUser.me
@@ -123,6 +125,7 @@ export default function AgentBadge({
   onSendMessage,
   onCopyId,
   showActions = true,
+  variant = 'compact',
 }: AgentBadgeProps) {
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
@@ -319,23 +322,18 @@ export default function AgentBadge({
         </div>
       )}
 
-      {/* Badge content */}
-      <div className="p-3 pt-10 flex flex-col items-center text-center">
-        {/* Avatar - Photo or Emoji */}
-        <div
-          className={`
-            relative w-20 h-20 rounded-full overflow-hidden
-            ring-4 ${ringColor} shadow-lg
-            ${isHibernated ? 'opacity-50 grayscale' : ''}
-          `}
-        >
+      {/* Badge content — two variants */}
+      {variant === 'normal' ? (
+        /* Normal variant: full background image with overlaid text */
+        <div className={`relative w-full aspect-square overflow-hidden rounded-[10px] ${isHibernated ? 'grayscale opacity-70' : ''}`}>
+          {/* Background image */}
           {hasEmojiAvatar ? (
-            <div className="w-full h-full bg-slate-700 flex items-center justify-center">
-              <span className="text-4xl">{agent.avatar}</span>
+            <div className="absolute inset-0 bg-slate-700 flex items-center justify-center">
+              <span className="text-6xl">{agent.avatar}</span>
             </div>
           ) : imageError ? (
-            <div className="w-full h-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
-              <span className="text-2xl font-bold text-white/70">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
+              <span className="text-4xl font-bold text-white/40">
                 {(agent.label || agent.name || '??').slice(0, 2).toUpperCase()}
               </span>
             </div>
@@ -343,43 +341,109 @@ export default function AgentBadge({
             <img
               src={avatarUrl}
               alt={agent.label || agent.name}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
               onError={() => setImageError(true)}
             />
           )}
-        </div>
 
-        {/* Alias - Prominent display, centered */}
-        {(agent.label || agent.alias) && (
-          <h3 className={`
-            mt-3 font-bold text-base leading-tight text-center
-            ${isHibernated ? 'text-slate-500' : 'text-slate-100'}
-          `}>
-            {agent.label || agent.alias}
-          </h3>
-        )}
+          {/* Gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-        {/* Full name and host - Secondary info, centered */}
-        <div className={`${(agent.label || agent.alias) ? 'mt-1' : 'mt-3'} w-full`}>
-          <p className={`
-            text-[11px] leading-tight flex items-center justify-center gap-1
-            ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
-          `}>
-            {agent.name}
-            {agent.deployment?.cloud?.provider === 'local-container' && (
-              <span className="flex-shrink-0" aria-label="Docker container">
-                <Box className="w-3 h-3 text-blue-400" />
-              </span>
+          {/* Text overlay — bottom of card */}
+          <div className="absolute bottom-0 left-0 right-0 p-2.5 text-center">
+            {(agent.label || agent.alias) && (
+              <h3
+                className="font-bold text-sm leading-tight text-white"
+                style={{
+                  textShadow: '0 0 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8)',
+                }}
+              >
+                {agent.label || agent.alias}
+              </h3>
             )}
-          </p>
-
-          {agent.hostId && (
-            <p className="text-[10px] text-slate-500 mt-0.5">
-              @{agent.hostId}
+            <p
+              className="text-[10px] leading-tight text-slate-300 mt-0.5"
+              style={{
+                textShadow: '0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.8)',
+              }}
+            >
+              {agent.name}
             </p>
-          )}
+            {agent.hostId && (
+              <p
+                className="text-[9px] text-slate-400 mt-0.5"
+                style={{
+                  textShadow: '0 0 6px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.8)',
+                }}
+              >
+                @{agent.hostId}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Compact variant: circle avatar with text below */
+        <div className="p-3 pt-10 flex flex-col items-center text-center">
+          {/* Avatar - Photo or Emoji */}
+          <div
+            className={`
+              relative w-20 h-20 rounded-full overflow-hidden
+              ring-4 ${ringColor} shadow-lg
+              ${isHibernated ? 'opacity-50 grayscale' : ''}
+            `}
+          >
+            {hasEmojiAvatar ? (
+              <div className="w-full h-full bg-slate-700 flex items-center justify-center">
+                <span className="text-4xl">{agent.avatar}</span>
+              </div>
+            ) : imageError ? (
+              <div className="w-full h-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
+                <span className="text-2xl font-bold text-white/70">
+                  {(agent.label || agent.name || '??').slice(0, 2).toUpperCase()}
+                </span>
+              </div>
+            ) : (
+              <img
+                src={avatarUrl}
+                alt={agent.label || agent.name}
+                className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
+              />
+            )}
+          </div>
+
+          {/* Alias - Prominent display, centered */}
+          {(agent.label || agent.alias) && (
+            <h3 className={`
+              mt-3 font-bold text-base leading-tight text-center
+              ${isHibernated ? 'text-slate-500' : 'text-slate-100'}
+            `}>
+              {agent.label || agent.alias}
+            </h3>
+          )}
+
+          {/* Full name and host - Secondary info, centered */}
+          <div className={`${(agent.label || agent.alias) ? 'mt-1' : 'mt-3'} w-full`}>
+            <p className={`
+              text-[11px] leading-tight flex items-center justify-center gap-1
+              ${isHibernated ? 'text-slate-600' : 'text-slate-400'}
+            `}>
+              {agent.name}
+              {agent.deployment?.cloud?.provider === 'local-container' && (
+                <span className="flex-shrink-0" aria-label="Docker container">
+                  <Box className="w-3 h-3 text-blue-400" />
+                </span>
+              )}
+            </p>
+
+            {agent.hostId && (
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                @{agent.hostId}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

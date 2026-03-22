@@ -873,7 +873,17 @@ const routes: Route[] = [
 
   // Graph - code
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryCodeGraph(params.id, query as any))
+    // Explicitly extract and coerce query params to match queryCodeGraph's expected types
+    const depthVal = query.depth ? parseInt(query.depth, 10) : undefined
+    sendServiceResult(res, await queryCodeGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      from: query.from || null,
+      to: query.to || null,
+      project: query.project || null,
+      nodeId: query.nodeId || null,
+      depth: depthVal !== undefined && !isNaN(depthVal) ? depthVal : undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/code$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -885,7 +895,13 @@ const routes: Route[] = [
 
   // Graph - db
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDbGraph(params.id, query as any))
+    // Explicitly extract and coerce query params to match queryDbGraph's expected types
+    sendServiceResult(res, await queryDbGraph(params.id, {
+      action: query.action,
+      name: query.name || null,
+      column: query.column || null,
+      database: query.database || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/graph\/db$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -897,7 +913,14 @@ const routes: Route[] = [
 
   // Graph - query
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/graph\/query$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryGraph(params.id, query as any))
+    // Explicitly extract and coerce query params to match queryGraph's expected types
+    sendServiceResult(res, await queryGraph(params.id, {
+      queryType: query.queryType || null,
+      name: query.name || null,
+      type: query.type || null,
+      from: query.from || null,
+      to: query.to || null,
+    }))
   }},
 
   // Database
@@ -910,7 +933,17 @@ const routes: Route[] = [
 
   // Docs
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await queryDocs(params.id, query as any))
+    // Explicitly extract and coerce query params to match DocsQueryOptions types
+    const limitVal = query.limit ? parseInt(query.limit, 10) : undefined
+    sendServiceResult(res, await queryDocs(params.id, {
+      action: query.action,
+      q: query.q || null,
+      keyword: query.keyword || null,
+      type: query.type || null,
+      docId: query.docId || null,
+      limit: limitVal !== undefined && !isNaN(limitVal) ? limitVal : undefined,
+      project: query.project || null,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/docs$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1074,7 +1107,9 @@ const routes: Route[] = [
 
   // Agent messages
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, (query.box as any) || 'inbox'))
+    // Validate box against the two allowed values; default to 'inbox' for any unrecognised value
+    const box: 'inbox' | 'sent' = query.box === 'sent' ? 'sent' : 'inbox'
+    sendServiceResult(res, await getAgentMessage(params.id, params.messageId, box))
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/messages\/([^/]+)$/, paramNames: ['id', 'messageId'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1088,7 +1123,14 @@ const routes: Route[] = [
     sendServiceResult(res, await deleteAgentMessage(params.id, params.messageId))
   }},
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, await listAgentMessages(params.id, query as any))
+    // Explicitly extract query params to match listMessages expected types
+    sendServiceResult(res, await listAgentMessages(params.id, {
+      box: query.box || undefined,
+      status: query.status || undefined,
+      priority: query.priority || undefined,
+      from: query.from || undefined,
+      to: query.to || undefined,
+    }))
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/messages$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -1243,9 +1285,12 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
     const authHeader = getHeader(req, 'Authorization')
-    // Validate parseInt result to avoid passing NaN
-    let limit: number | undefined = query.limit ? parseInt(query.limit, 10) : undefined
-    if (limit !== undefined && isNaN(limit)) limit = 50
+    // Only pass limit when query.limit is a valid integer; invalid strings yield undefined (no limit)
+    let limit: number | undefined
+    if (query.limit) {
+      const parsed = parseInt(query.limit, 10)
+      if (!isNaN(parsed)) limit = parsed
+    }
     sendServiceResult(res, listPendingMessages(authHeader, limit))
   }},
   { method: 'DELETE', pattern: /^\/api\/v1\/messages\/pending$/, paramNames: [], handler: async (req, res, _params, query) => {
@@ -1311,10 +1356,10 @@ const routes: Route[] = [
     sendServiceResult(res, await sendGlobalMessage(body))
   }},
   { method: 'PATCH', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await updateGlobalMessage(query.agent || undefined, query.id || undefined, query.action || undefined))
+    sendServiceResult(res, await updateGlobalMessage(query.agent || null, query.id || null, query.action || null))
   }},
   { method: 'DELETE', pattern: /^\/api\/messages$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, await removeMessage(query.agent || undefined, query.id || undefined))
+    sendServiceResult(res, await removeMessage(query.agent || null, query.id || null))
   }},
 
   // =========================================================================
@@ -2307,7 +2352,7 @@ export function createHeadlessRouter() {
       } catch (error: any) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          // Only honor 413 from readJsonBody; all other errors default to 500
+          // Honor 413 from readJsonBody and readRawBody (both attach statusCode: 413); all other errors default to 500
           const statusCode = error?.statusCode === 413 ? 413 : 500
           const message = statusCode === 413 ? 'Request body too large' : 'Internal server error'
           sendJson(res, statusCode, { error: message })

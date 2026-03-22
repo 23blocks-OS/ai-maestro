@@ -13,7 +13,7 @@ import {
   Mail,
   Box,
 } from 'lucide-react'
-import { Agent, AgentSession } from '@/types/agent'
+import { Agent, AgentSessionStatus } from '@/types/agent'
 import { SessionActivityStatus } from '@/hooks/useSessionActivity'
 
 interface AgentBadgeProps {
@@ -37,6 +37,10 @@ interface AgentBadgeProps {
 // Generate a consistent unique avatar URL from agent ID using RandomUser.me
 // RandomUser.me has 100 men + 100 women = 200 unique portraits
 function getAvatarUrl(agentId: string): string {
+  // Guard against empty IDs — fallback to a deterministic default rather than
+  // mapping every empty-id agent to the same hash-0 avatar.
+  if (!agentId) return '/avatars/men_00.jpg'
+
   // Hash the agent ID to get a consistent number
   let hash = 0
   for (let i = 0; i < agentId.length; i++) {
@@ -78,37 +82,43 @@ function stringToRingColor(str: string): string {
 }
 
 // Check if string is an emoji (not a URL or other text)
-// Note: \p{Emoji} matches digits, so we need a stricter check
+// Note: \p{Emoji} and \p{Extended_Pictographic} both match digit characters (0-9),
+// so we need an explicit guard to prevent single digits from being treated as emojis.
 function isEmoji(str: string): boolean {
   // Emojis are short (1-8 chars with modifiers) and don't start with http or /
   if (!str || str.length > 8 || str.startsWith('http') || str.startsWith('/')) return false
+  // Explicitly exclude lone digit characters — \p{Extended_Pictographic} covers keycap
+  // sequences like "1️⃣" which are multi-char, so a single digit is never a real emoji.
+  if (str.length === 1 && /\d/.test(str)) return false
   // Match actual emoji presentations, not just emoji components like digits
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
-// Get status info from agent state
+// Get status info from agent state.
+// pulseColor carries the hex value needed for the CSS boxShadow glow, keeping the
+// Tailwind class name and the shadow color in sync without fragile string matching.
 function getStatusInfo(
-  session: AgentSession | undefined,
+  session: AgentSessionStatus | undefined,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus
-): { color: string; bgColor: string; label: string; pulse?: boolean } {
+): { color: string; bgColor: string; label: string; pulse?: boolean; pulseColor: string } {
   const isOnline = session?.status === 'online'
 
   if (isOnline) {
     if (activityStatus === 'waiting') {
-      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true }
+      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true, pulseColor: '#fbbf24' }
     }
     if (activityStatus === 'active') {
-      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: true }
+      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: true, pulseColor: '#4ade80' }
     }
-    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle' }
+    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle', pulse: false, pulseColor: '#4ade80' }
   }
 
   if (isHibernated) {
-    return { color: 'bg-yellow-400', bgColor: 'bg-yellow-400/20', label: 'Hibernated' }
+    return { color: 'bg-yellow-400', bgColor: 'bg-yellow-400/20', label: 'Hibernated', pulse: false, pulseColor: '#facc15' }
   }
 
-  return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline' }
+  return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline', pulse: false, pulseColor: '#64748b' }
 }
 
 export default function AgentBadge({
@@ -130,12 +140,13 @@ export default function AgentBadge({
   const [showMenu, setShowMenu] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // Get the primary session
-  const session = agent.sessions?.[0]
-  const isOnline = session?.status === 'online'
+  // Use agent.session (runtime AgentSessionStatus, set by API) for live online/offline status.
+  // agent.sessions[] is the stored session config array — present means the agent is hibernatable.
+  // This matches the convention used throughout app/page.tsx, AgentList.tsx, app/zoom/page.tsx.
+  const isOnline = agent.session?.status === 'online'
   const isHibernated = !isOnline && agent.sessions && agent.sessions.length > 0
 
-  const statusInfo = getStatusInfo(session, isHibernated, activityStatus)
+  const statusInfo = getStatusInfo(agent.session, isHibernated, activityStatus)
   const ringColor = stringToRingColor(agent.name)
 
   // Avatar priority: stored URL > stored emoji > computed from ID
@@ -143,6 +154,14 @@ export default function AgentBadge({
   const hasStoredAvatarUrl = agent.avatar && !hasEmojiAvatar && (agent.avatar.startsWith('http') || agent.avatar.startsWith('/'))
   const avatarUrl = hasStoredAvatarUrl ? agent.avatar : getAvatarUrl(agent.id)
   const [imageError, setImageError] = React.useState(false)
+
+  // Reset imageError whenever avatarUrl changes so a new image is always attempted.
+  // Without this, a previous load failure keeps imageError true across re-renders
+  // (e.g. when agent.avatar is updated dynamically), causing the fallback to show
+  // indefinitely without ever trying the updated URL.
+  React.useEffect(() => {
+    setImageError(false)
+  }, [avatarUrl])
 
   // Close menu when clicking outside
   React.useEffect(() => {
@@ -176,8 +195,8 @@ export default function AgentBadge({
         }
       `}
     >
-      {/* Status indicator - top right corner */}
-      <div className="absolute top-2 right-2 flex items-center gap-1.5">
+      {/* Status indicator - top right corner (z-20 to stay above image in normal variant) */}
+      <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20">
         {/* Unread messages counter */}
         {unreadCount && unreadCount > 0 && (
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-600/50" title={`${unreadCount} unread message${unreadCount > 1 ? 's' : ''}`}>
@@ -188,7 +207,16 @@ export default function AgentBadge({
 
         {/* Status indicator - dot for online/offline, Power icon for hibernated */}
         {isHibernated ? (
-          <div className="flex items-center" title="Hibernated - Click to wake">
+          // cursor-pointer signals that this element is interactive (wake action).
+          // e.stopPropagation() prevents the parent onClick (onSelect) from firing.
+          <div
+            className="flex items-center cursor-pointer"
+            title="Hibernated - Click to wake"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (onWake) onWake(agent)
+            }}
+          >
             <Power className="w-4 h-4 text-slate-500" />
           </div>
         ) : (
@@ -199,8 +227,10 @@ export default function AgentBadge({
             <span
               className={`relative w-3.5 h-3.5 rounded-full ${statusInfo.color} ring-2 ring-slate-800`}
               style={{
+                // Use the pulseColor carried by statusInfo to avoid coupling Tailwind
+                // class names to hardcoded hex values here at the call site.
                 boxShadow: statusInfo.pulse
-                  ? `0 0 8px 2px ${statusInfo.color === 'bg-green-400' ? '#4ade80' : statusInfo.color === 'bg-amber-400' ? '#fbbf24' : '#64748b'}`
+                  ? `0 0 8px 2px ${statusInfo.pulseColor}`
                   : 'none'
               }}
             />
@@ -208,9 +238,9 @@ export default function AgentBadge({
         )}
       </div>
 
-      {/* Actions menu - top left */}
+      {/* Actions menu - top left (z-20 to stay above image in normal variant) */}
       {showActions && (
-        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity" ref={menuRef}>
+        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-20" ref={menuRef}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -325,7 +355,7 @@ export default function AgentBadge({
       {/* Badge content — two variants */}
       {variant === 'normal' ? (
         /* Normal variant: full background image with overlaid text */
-        <div className={`relative w-full aspect-square overflow-hidden rounded-[10px] ${isHibernated ? 'grayscale opacity-70' : ''}`}>
+        <div className={`relative z-0 w-full aspect-square overflow-hidden rounded-[10px] ${isHibernated ? 'grayscale opacity-70' : ''}`}>
           {/* Background image */}
           {hasEmojiAvatar ? (
             <div className="absolute inset-0 bg-slate-700 flex items-center justify-center">
@@ -351,14 +381,15 @@ export default function AgentBadge({
 
           {/* Text overlay — bottom of card */}
           <div className="absolute bottom-0 left-0 right-0 p-2.5 text-center">
-            {(agent.label || agent.alias) && (
+            {/* Prioritize agent.label (persona name); fall back to agent.name (agent ID) */}
+            {(agent.label || agent.name) && (
               <h3
                 className="font-bold text-sm leading-tight text-white"
                 style={{
                   textShadow: '0 0 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.8)',
                 }}
               >
-                {agent.label || agent.alias}
+                {agent.label || agent.name}
               </h3>
             )}
             <p
@@ -412,18 +443,19 @@ export default function AgentBadge({
             )}
           </div>
 
-          {/* Alias - Prominent display, centered */}
-          {(agent.label || agent.alias) && (
+          {/* Persona name — Prominent display, centered */}
+          {/* Prioritize agent.label (persona name); fall back to agent.name (agent ID) */}
+          {(agent.label || agent.name) && (
             <h3 className={`
               mt-3 font-bold text-base leading-tight text-center
               ${isHibernated ? 'text-slate-500' : 'text-slate-100'}
             `}>
-              {agent.label || agent.alias}
+              {agent.label || agent.name}
             </h3>
           )}
 
           {/* Full name and host - Secondary info, centered */}
-          <div className={`${(agent.label || agent.alias) ? 'mt-1' : 'mt-3'} w-full`}>
+          <div className={`${(agent.label || agent.name) ? 'mt-1' : 'mt-3'} w-full`}>
             <p className={`
               text-[11px] leading-tight flex items-center justify-center gap-1
               ${isHibernated ? 'text-slate-600' : 'text-slate-400'}

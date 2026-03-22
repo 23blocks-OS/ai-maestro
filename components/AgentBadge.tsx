@@ -94,29 +94,30 @@ function isEmoji(str: string): boolean {
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
-// Status info — matches the original AgentBadge style.
-// color = Tailwind bg class for the dot, pulse = animate-ping + boxShadow glow
+// Status info — matches compact view AgentStatusIndicator exactly.
+// pulse = animate-pulse (opacity throb), matching compact view behavior:
+//   waiting = amber + pulse, active = green + pulse, idle = green (no anim)
 function getStatusInfo(
   isOnline: boolean,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus
-): { color: string; bgColor: string; label: string; pulse: boolean; pulseColor: string } {
+): { color: string; ringColor: string; label: string; pulse: boolean } {
 
   if (isOnline) {
     if (activityStatus === 'waiting') {
-      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true, pulseColor: '#fbbf24' }
+      return { color: 'bg-amber-500', ringColor: 'ring-amber-500/30', label: 'Waiting', pulse: true }
     }
     if (activityStatus === 'active') {
-      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: true, pulseColor: '#4ade80' }
+      return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Active', pulse: true }
     }
-    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle', pulse: false, pulseColor: '#4ade80' }
+    return { color: 'bg-green-500', ringColor: 'ring-green-500/30', label: 'Idle', pulse: false }
   }
 
   if (isHibernated) {
-    return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Hibernated', pulse: false, pulseColor: '#64748b' }
+    return { color: 'bg-slate-500', ringColor: 'ring-slate-500/30', label: 'Hibernated', pulse: false }
   }
 
-  return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline', pulse: false, pulseColor: '#64748b' }
+  return { color: 'bg-gray-500', ringColor: 'ring-gray-500/30', label: 'Offline', pulse: false }
 }
 
 export default function AgentBadge({
@@ -202,16 +203,9 @@ export default function AgentBadge({
           </div>
         )}
 
-        {/* Status LED — same style as compact view, slightly bigger */}
-        <div className="relative flex items-center justify-center" title={statusInfo.label}>
-          {statusInfo.pulse && (
-            <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-50`} />
-          )}
-          <div className={`w-3 h-3 rounded-full ${statusInfo.color} ring-[3px] ${
-            statusInfo.color === 'bg-green-400' ? 'ring-green-400/30'
-            : statusInfo.color === 'bg-amber-400' ? 'ring-amber-400/30'
-            : 'ring-slate-500/30'
-          } ${statusInfo.pulse ? 'animate-pulse' : ''}`} />
+        {/* Status LED — exact same style as compact view, scaled up */}
+        <div className="flex items-center justify-center" title={statusInfo.label}>
+          <div className={`w-3 h-3 rounded-full ${statusInfo.color} ring-[3px] ${statusInfo.ringColor} ${statusInfo.pulse ? 'animate-pulse' : ''}`} />
         </div>
       </div>
 

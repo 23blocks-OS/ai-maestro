@@ -94,30 +94,35 @@ function isEmoji(str: string): boolean {
   return /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(str)
 }
 
-// Get status info from agent state.
-// pulseColor carries the hex value needed for the CSS boxShadow glow, keeping the
-// Tailwind class name and the shadow color in sync without fragile string matching.
+// Status info for the LED indicator.
+// ledOn = LED is lit (active/waiting), ledOff = LED is dark (idle/hibernated/offline)
+// pulse = animate-ping ring around LED (waiting state only)
 function getStatusInfo(
   isOnline: boolean,
   isHibernated: boolean,
   activityStatus?: SessionActivityStatus
-): { color: string; bgColor: string; label: string; pulse?: boolean; pulseColor: string } {
+): { color: string; bgColor: string; label: string; pulse: boolean; ledOn: boolean; pulseColor: string } {
 
   if (isOnline) {
     if (activityStatus === 'waiting') {
-      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true, pulseColor: '#fbbf24' }
+      // Amber pulsing LED — agent wrote output, user hasn't seen it
+      return { color: 'bg-amber-400', bgColor: 'bg-amber-400/20', label: 'Waiting', pulse: true, ledOn: true, pulseColor: '#fbbf24' }
     }
     if (activityStatus === 'active') {
-      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: true, pulseColor: '#4ade80' }
+      // Bright green LED — agent is actively processing
+      return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Active', pulse: false, ledOn: true, pulseColor: '#4ade80' }
     }
-    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle', pulse: false, pulseColor: '#4ade80' }
+    // Dim LED off — agent is online but idle
+    return { color: 'bg-green-400', bgColor: 'bg-green-400/20', label: 'Idle', pulse: false, ledOn: false, pulseColor: '#4ade80' }
   }
 
   if (isHibernated) {
-    return { color: 'bg-yellow-400', bgColor: 'bg-yellow-400/20', label: 'Hibernated', pulse: false, pulseColor: '#facc15' }
+    // Dim LED off — agent session exists but not running
+    return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Hibernated', pulse: false, ledOn: false, pulseColor: '#64748b' }
   }
 
-  return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline', pulse: false, pulseColor: '#64748b' }
+  // Dim LED off — fully offline
+  return { color: 'bg-slate-500', bgColor: 'bg-slate-500/20', label: 'Offline', pulse: false, ledOn: false, pulseColor: '#64748b' }
 }
 
 export default function AgentBadge({
@@ -203,38 +208,30 @@ export default function AgentBadge({
           </div>
         )}
 
-        {/* Status indicator - dot for online/offline, Power icon for hibernated */}
-        {isHibernated ? (
-          // cursor-pointer signals that this element is interactive (wake action).
-          // e.stopPropagation() prevents the parent onClick (onSelect) from firing.
-          <div
-            className="flex items-center cursor-pointer"
-            title="Hibernated - Click to wake"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (onWake) onWake(agent)
-            }}
-          >
-            <Power className="w-4 h-4 text-slate-500" />
-          </div>
-        ) : (
-          <div className="relative flex items-center justify-center" title={statusInfo.label}>
-            {statusInfo.pulse && (
-              <span className={`absolute w-5 h-5 rounded-full ${statusInfo.color} animate-ping opacity-40`} />
-            )}
-            {/* Glass-like LED dot */}
+        {/* Status LED — always a glass dot, never a Power icon.
+            Active = bright green glow, Waiting = pulsing amber, Idle/Hibernated/Offline = dim (LED off) */}
+        <div className="relative flex items-center justify-center" title={statusInfo.label}>
+          {statusInfo.pulse && (
             <span
-              className="relative w-4 h-4 rounded-full"
-              style={{
-                background: `radial-gradient(circle at 35% 35%, ${statusInfo.pulseColor}cc, ${statusInfo.pulseColor}${statusInfo.pulse ? '99' : '55'})`,
-                boxShadow: statusInfo.pulse
-                  ? `0 0 10px 3px ${statusInfo.pulseColor}88, inset 0 -1px 2px ${statusInfo.pulseColor}40, inset 0 1px 2px rgba(255,255,255,0.3)`
-                  : `0 0 4px 1px ${statusInfo.pulseColor}44, inset 0 -1px 2px ${statusInfo.pulseColor}20, inset 0 1px 2px rgba(255,255,255,0.15)`,
-                border: `1px solid ${statusInfo.pulseColor}40`,
-              }}
+              className="absolute w-5 h-5 rounded-full animate-ping opacity-40"
+              style={{ backgroundColor: statusInfo.pulseColor }}
             />
-          </div>
-        )}
+          )}
+          <span
+            className="relative w-4 h-4 rounded-full"
+            style={{
+              background: statusInfo.ledOn
+                ? `radial-gradient(circle at 35% 35%, ${statusInfo.pulseColor}ee, ${statusInfo.pulseColor}aa)`
+                : `radial-gradient(circle at 35% 35%, #64748b66, #47556144)`,
+              boxShadow: statusInfo.ledOn
+                ? `0 0 10px 3px ${statusInfo.pulseColor}88, inset 0 -1px 2px ${statusInfo.pulseColor}40, inset 0 1px 2px rgba(255,255,255,0.35)`
+                : `inset 0 -1px 2px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.08)`,
+              border: statusInfo.ledOn
+                ? `1px solid ${statusInfo.pulseColor}50`
+                : '1px solid rgba(100,116,139,0.3)',
+            }}
+          />
+        </div>
       </div>
 
       {/* Actions menu — top-left in normal, bottom-left in compact, always visible */}

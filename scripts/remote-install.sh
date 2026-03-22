@@ -974,7 +974,7 @@ act3_clone_and_build() {
                 fi
                 git pull origin main 2>/dev/null || git pull
                 if [ "$had_stash" = true ]; then
-                    if ! git stash pop --quiet 2>/dev/null; then
+                    if ! git stash pop --quiet; then
                         maestro_warn "Could not cleanly restore your local changes after update."
                         maestro_info "Your changes are saved in git stash. To recover:"
                         echo "   cd $INSTALL_DIR && git stash list"
@@ -1014,7 +1014,7 @@ act3_clone_and_build() {
                     IFS=',' read -ra GW_ARRAY <<< "$SELECTED_GATEWAYS"
                     for gw in "${GW_ARRAY[@]}"; do
                         if [ -d "${gw}-gateway" ]; then
-                            (cd "${gw}-gateway" && npm install --silent 2>/dev/null || npm install 2>/dev/null || true)
+                            (cd "${gw}-gateway" && npm install || maestro_warn "npm install failed for ${gw}-gateway — skipping")
                         fi
                     done
                     cd "$INSTALL_DIR"
@@ -1071,7 +1071,7 @@ act3_clone_and_build() {
                 local gw_dir="$INSTALL_DIR/services/${gw}-gateway"
                 if [ -d "$gw_dir" ]; then
                     cd "$gw_dir"
-                    npm install --silent 2>/dev/null || npm install || {
+                    npm install || {
                         maestro_warn "npm install failed for ${gw}-gateway — skipping"
                         cd "$INSTALL_DIR"
                         continue
@@ -1179,7 +1179,7 @@ act4_start_and_register() {
             elif [ -f "ecosystem.config.js" ]; then
                 pm2 start ecosystem.config.js --only ai-maestro --env production 2>/dev/null
             else
-                pm2 start "yarn start" --name ai-maestro 2>/dev/null
+                pm2 start "yarn start" --name ai-maestro
             fi
             pm2 save 2>/dev/null || true
         else

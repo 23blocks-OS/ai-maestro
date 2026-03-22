@@ -352,13 +352,15 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       // Extract skill name from the id (marketplace:plugin:skillName)
       const parts = skill.id.split(':')
       const skillName = parts[parts.length - 1]
+      // The skill directory lives at skills/<skillName>/ inside the plugin directory,
+      // which is what `relativeStagingPath` resolves to in the build dir.
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
       name: `${group.plugin}-from-${group.marketplace}`,
       description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
       type: 'local',
-      path: installPath,
+      path: relativeStagingPath,
       map,
     })
   }

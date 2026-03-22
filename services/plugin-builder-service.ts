@@ -48,6 +48,39 @@ const BUILD_TTL_MS = 60 * 60 * 1000 // 1 hour
 /** Max concurrent build/scan operations */
 const MAX_CONCURRENT_OPS = 3
 let activeOps = 0
+const operationQueue: Array<() => void> = []
+
+/**
+ * Acquire a concurrency slot.
+ * Returns a release function that MUST be called in a finally block.
+ * If MAX_CONCURRENT_OPS slots are already taken, queues the caller and
+ * resolves only when a slot becomes available — no busy-waiting, no race.
+ *
+ * The check-and-increment is synchronous (no await between them), so two
+ * concurrent callers cannot both slip through the MAX_CONCURRENT_OPS guard.
+ */
+function acquireSlot(): Promise<() => void> {
+  return new Promise<() => void>((resolve) => {
+    const tryAcquire = () => {
+      // Synchronous check-and-increment: no await between them, so this is
+      // the only place activeOps grows and it is always paired with a release.
+      if (activeOps < MAX_CONCURRENT_OPS) {
+        activeOps++
+        resolve(() => {
+          activeOps--
+          // Wake the next queued operation, if any.
+          if (operationQueue.length > 0) {
+            const next = operationQueue.shift()!
+            next()
+          }
+        })
+      } else {
+        operationQueue.push(tryAcquire)
+      }
+    }
+    tryAcquire()
+  })
+}
 
 // In-memory build status tracking (with TTL eviction)
 const buildResults = new Map<string, PluginBuildResult>()
@@ -242,7 +275,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -311,18 +344,20 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: validationError, status: 400 }
   }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
-  }
+  // Concurrency guard: acquireSlot() serialises the check-and-increment so
+  // concurrent callers cannot both slip through the MAX_CONCURRENT_OPS guard.
+  // buildPlugin returns 202 immediately and the slot is held until runBuild
+  // completes asynchronously, so the release is attached to that async chain.
+  const release = await acquireSlot()
+  // Declared outside the try block so the catch block can reference it for cleanup
+  let buildDir: string | undefined
 
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
-    const buildDir = path.join(BUILDS_DIR, buildId)
+    buildDir = path.join(BUILDS_DIR, buildId)
 
     // Create build directory
     await fs.mkdir(buildDir, { recursive: true })
@@ -363,7 +398,7 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     }
     buildResults.set(buildId, result)
 
-    // Run build asynchronously
+    // Run build asynchronously; the slot is held until runBuild finishes.
     runBuild(buildId, buildDir, manifest).catch(err => {
       console.error(`Build ${buildId} failed:`, err)
       // Ensure status is updated even on unexpected errors
@@ -375,13 +410,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
           logs: [err instanceof Error ? err.message : String(err)],
         })
       }
-    }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
-    })
+    }).finally(release)
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Setup failed before runBuild was launched — clean up the directory and release the slot.
+    if (buildDir) await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    release()
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -414,17 +449,12 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   const refErr = validateGitRef(ref)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
-  }
-
+  // Concurrency guard: acquireSlot() serialises the check-and-increment.
   const scanId = randomUUID().slice(0, 8)
   const scanDir = path.join(os.tmpdir(), `ai-maestro-scan-${scanId}`)
 
+  const release = await acquireSlot()
   try {
-    activeOps++
-
     // Shallow clone (use -- to prevent ref from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', ref, '--', url, scanDir], {
       timeout: 30000,
@@ -456,7 +486,7 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    release()
   }
 }
 
@@ -481,16 +511,12 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const refErr = validateGitRef(branch)
   if (refErr) return { error: refErr, status: 400 }
 
-  // Concurrency guard
-  if (activeOps >= MAX_CONCURRENT_OPS) {
-    return { error: 'Too many concurrent operations. Please wait and try again.', status: 429 }
-  }
-
+  // Concurrency guard: acquireSlot() serialises the check-and-increment.
   const pushId = randomUUID().slice(0, 8)
   const pushDir = path.join(os.tmpdir(), `ai-maestro-push-${pushId}`)
 
+  const release = await acquireSlot()
   try {
-    activeOps++
 
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
@@ -545,7 +571,7 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    release()
   }
 }
 

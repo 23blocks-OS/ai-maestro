@@ -280,7 +280,10 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       try {
         resolve(JSON.parse(body))
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        // Attach 400 status so the global catch block can respond with the correct HTTP status code
+        const err = new Error('Invalid JSON body') as any
+        err.status = 400
+        reject(err)
       }
     })
     req.on('error', reject)
@@ -433,13 +436,13 @@ const routes: Route[] = [
     try {
       if (query.local === 'true') {
         const result = await listLocalSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: false })
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: false } })
       } else {
         const result = await listSessions()
-        sendJson(res, 200, { sessions: result.sessions, fromCache: result.fromCache })
+        sendServiceResult(res, { status: 200, data: { sessions: result.sessions, fromCache: result.fromCache } })
       }
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch sessions', sessions: [] })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to fetch sessions' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/create$/, paramNames: [], handler: async (req, res) => {
@@ -451,7 +454,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = await checkIdleStatus(params.id)
-    sendJson(res, 200, result)
+    sendServiceResult(res, { status: 200, data: result })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/([^/]+)\/command$/, paramNames: ['id'], handler: async (req, res, params) => {
     const body = await readJsonBody(req)
@@ -463,7 +466,7 @@ const routes: Route[] = [
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res) => {
     const result = await listRestorableSessions()
-    sendJson(res, 200, result)
+    sendServiceResult(res, { status: 200, data: result })
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
@@ -475,9 +478,9 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
       const activity = await getActivity()
-      sendJson(res, 200, { activity })
+      sendServiceResult(res, { status: 200, data: { activity } })
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to fetch activity', activity: {} })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to fetch activity' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/sessions\/activity\/update$/, paramNames: [], handler: async (req, res) => {
@@ -533,15 +536,24 @@ const routes: Route[] = [
       const { file, options: optionsStr } = parseMultipart(rawBody, contentType)
 
       if (!file) {
-        sendJson(res, 400, { error: 'No file provided' })
+        sendServiceResult(res, { status: 400, error: 'No file provided' })
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options: Record<string, unknown> = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Invalid JSON in options field → 400, not 500
+          sendServiceResult(res, { status: 400, error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Unknown error' })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Unknown error' })
     }
   }},
   // Agent directory
@@ -807,7 +819,7 @@ const routes: Route[] = [
     try {
       const result = await exportAgentZip(params.id)
       if (result.error || !result.data) {
-        sendJson(res, result.status, { error: result.error })
+        sendServiceResult(res, result)
         return
       }
       const { buffer, filename, agentId, agentName } = result.data
@@ -820,7 +832,7 @@ const routes: Route[] = [
         'X-Export-Version': '1.0.0',
       })
     } catch (error) {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : 'Failed to export agent' })
+      sendServiceResult(res, { status: 500, error: error instanceof Error ? error.message : 'Failed to export agent' })
     }
   }},
   { method: 'POST', pattern: /^\/api\/agents\/([^/]+)\/export$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -897,26 +909,26 @@ const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = getAgentById(params.id)
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata || {} } })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
     const metadata = await readJsonBody(req)
     const result = updateAgentById(params.id, { metadata })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendServiceResult(res, { status: 200, data: { metadata: result.data?.agent?.metadata } })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {
     const result = updateAgentById(params.id, { metadata: {} })
     if (result.error) {
-      sendJson(res, result.status, { error: result.error })
+      sendServiceResult(res, result)
     } else {
-      sendJson(res, 200, { success: true })
+      sendServiceResult(res, { status: 200, data: { success: true } })
     }
   }},
 
@@ -1281,7 +1293,8 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // Use the error's status code if set (e.g. 400 for bad request), otherwise default to 500
+          sendJson(res, typeof (error as any)?.status === 'number' ? (error as any).status : 500, { error: error instanceof Error ? error.message : 'Internal server error' })
         }
       }
 

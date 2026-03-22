@@ -64,8 +64,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Build failed')
+        let errorMessage = 'Build failed'
+        try {
+          const data = await res.json()
+          errorMessage = data.error || errorMessage
+        } catch {
+          // Response body is not valid JSON — keep the generic message
+        }
+        setError(errorMessage)
         setBuilding(false)
         return
       }
@@ -183,7 +189,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         {/* Push to GitHub button */}
         <button
           onClick={() => setShowPush(!showPush)}
-          disabled={!isComplete}
+          disabled={!isComplete || pushing}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
         >
           <GitBranch className="w-4 h-4" />

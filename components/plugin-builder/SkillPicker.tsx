@@ -75,11 +75,11 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     )
   }, [searchQuery, marketplaceSkills])
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
     { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
     { id: 'repo' as const, label: 'GitHub Repo', count: null },
-  ]
+  ], [marketplaceSkills.length])
 
   return (
     <div className="flex flex-col h-full">

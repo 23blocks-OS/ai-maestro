@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(result.data)
   } catch (error) {
+    // Unexpected server-side error — not a client input problem
     console.error('Error scanning repo:', error)
     // All unexpected service errors are server-side failures — return 500
     return NextResponse.json(

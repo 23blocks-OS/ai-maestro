@@ -693,8 +693,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
  * Uses atomic replacement of the map entry to avoid torn reads.
  */
 async function runBuild(buildId: string, buildDir: string, manifest: PluginManifest): Promise<void> {
-  const existing = buildResults.get(buildId)
-  if (!existing) return
+  // Early guard: if the entry was evicted before we even start, abort immediately
+  if (!buildResults.get(buildId)) return
 
   try {
     if (!manifest.output) {

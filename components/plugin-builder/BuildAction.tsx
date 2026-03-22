@@ -88,6 +88,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         const data = await res.json()
         setError(data.error || 'Build failed')
         setBuilding(false)
+        clearPoll()
         return
       }
 
@@ -171,6 +172,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       // no interval can be running at this point, so no additional call is needed.
       setError('Failed to connect to server')
       setBuilding(false)
+      clearPoll()
     }
   }
 

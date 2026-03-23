@@ -151,7 +151,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
   const copyInstallCommand = () => {
     if (!result?.outputPath) return
-    navigator.clipboard.writeText(`claude plugin install ${result.outputPath}`).then(() => {
+    navigator.clipboard.writeText(`claude plugin install ${result?.outputPath}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
@@ -220,7 +220,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
+        {disabled && disabledReason && !building && !result && (
           <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
         )}
       </div>
@@ -280,7 +280,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result.logs?.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

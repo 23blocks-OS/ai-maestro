@@ -60,6 +60,8 @@ const PLUGIN_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 const GIT_REF_RE = /^[a-zA-Z0-9._\/-]+$/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/
 const SAFE_PATH_SEGMENT_RE = /^[a-zA-Z0-9._-]+$/
+// No dots or slashes — used for marketplace/plugin names that land in path.join calls
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/
 
 /**
  * Allowed git hosting domains. Blocks SSRF against internal networks.
@@ -161,6 +163,15 @@ function validateBuildConfig(config: PluginBuildConfig): string | null {
       const pathErr = validateSkillPath(skill.skillPath)
       if (pathErr) return `Repo skill "${skill.name}": ${pathErr}`
     }
+    if (skill.type === 'marketplace') {
+      // Both fields are used in path.join — must not contain dots, slashes, or ".."
+      if (!skill.marketplace || !SAFE_NAME_RE.test(skill.marketplace)) {
+        return `Marketplace skill "${skill.name}": marketplace name must contain only letters, numbers, hyphens, and underscores`
+      }
+      if (!skill.plugin || !SAFE_NAME_RE.test(skill.plugin)) {
+        return `Marketplace skill "${skill.name}": plugin name must contain only letters, numbers, hyphens, and underscores`
+      }
+    }
   }
 
   return null
@@ -242,7 +253,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace, group.plugin)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -603,10 +614,11 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
     const logs = [message]
     if (stderr) logs.push(...String(stderr).split('\n'))
 
-    // Atomic replacement
+    // Atomic replacement — explicitly clear outputPath so callers never see a stale path
     buildResults.set(buildId, {
       ...existing,
       status: 'failed',
+      outputPath: undefined,
       logs,
     })
   }
@@ -629,6 +641,10 @@ async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
 
         const fullPath = path.join(currentDir, entry.name)
         if (entry.isFile() && entry.name === 'SKILL.md') {
+          // Resolve symlinks on the file itself and verify it is still within the scan root
+          // to prevent reading sensitive files via symlinks pointing outside the cloned repo
+          const realFilePath = await fs.realpath(fullPath)
+          if (!realFilePath.startsWith(realDir)) continue
           const content = await fs.readFile(fullPath, 'utf-8')
           const parsed = matter(content)
           const frontmatter = parsed.data as Record<string, unknown>
@@ -665,6 +681,12 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
   const scriptsDir = path.join(dir, 'scripts')
 
   try {
+    // Resolve symlinks on the scripts directory itself and verify it is within the
+    // cloned repo root to prevent reading arbitrary files via a symlinked 'scripts' dir
+    const realDir = await fs.realpath(dir)
+    const realScriptsDir = await fs.realpath(scriptsDir)
+    if (!realScriptsDir.startsWith(realDir)) return scripts
+
     const entries = await fs.readdir(scriptsDir, { withFileTypes: true })
     for (const entry of entries) {
       if (entry.isFile() && !entry.isSymbolicLink() && entry.name.endsWith('.sh')) {

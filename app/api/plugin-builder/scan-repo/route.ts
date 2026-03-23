@@ -19,6 +19,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate optional ref field when provided
+    if (body.ref !== undefined && typeof body.ref !== 'string') {
+      return NextResponse.json(
+        { error: 'Repository reference must be a string' },
+        { status: 400 }
+      )
+    }
+
     const result = await scanRepo(body.url, body.ref || 'main')
 
     if (result.error) {
@@ -29,10 +37,17 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(result.data)
   } catch (error) {
+    // SyntaxError means the request body was not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
     console.error('Error scanning repo:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'An unexpected error occurred while scanning the repository' },
+      { status: 500 }
     )
   }
 }

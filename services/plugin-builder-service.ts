@@ -417,6 +417,15 @@ async function evictStaleBuildResults(): Promise<void> {
   } finally {
     isEvicting = false
   }
+
+  // Wait for all cleanup operations; allSettled ensures we never throw
+  await Promise.allSettled(cleanupPromises)
+
+  // Delete from the in-memory map only after filesystem cleanup has been attempted,
+  // so the map accurately reflects filesystem state throughout the eviction window.
+  for (const id of idsToDelete) {
+    buildResults.delete(id)
+  }
 }
 
 // Lazy eviction: only start the interval when the first build is created,
@@ -658,6 +667,8 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
         })
       }
     })
+    // runBuild is now running — its finally block owns the activeOps decrement,
+    // so we must not touch opIncremented or activeOps from this point forward.
 
     // Return the final build result now that the build has fully completed.
     const finalResult = buildResults.get(buildId)
@@ -673,6 +684,20 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
       })
     }
     console.error('Error starting plugin build:', error)
+
+    // If activeOps was incremented but runBuild was never launched (error between
+    // the increment and the runBuild call), runBuild's finally block will never
+    // run, so we must decrement here to keep the counter accurate.
+    if (opIncremented) {
+      activeOps = Math.max(0, activeOps - 1)
+    }
+
+    // Clean up any partially-created build directory so it does not accumulate
+    // on disk across repeated early failures.
+    if (buildDir) {
+      await fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+    }
+
     return { error: 'Failed to start plugin build', status: 500 }
   } finally {
     // Decrement exactly once when synchronous setup fails before the async
@@ -912,6 +937,10 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
   // Early guard: if the entry was evicted before we even start, abort immediately
   if (!buildResults.get(buildId)) return
 
+  // Outer try/catch/finally: catch ensures any unexpected error is reflected in
+  // the build status; finally decrements activeOps exactly once when the build
+  // truly completes or fails — keeping the counter accurate for the full async
+  // duration rather than just until buildPlugin returns its 202 response.
   try {
     if (!manifest.output) {
       throw new Error('manifest.output is required but was not provided')
@@ -1173,6 +1202,9 @@ function execPromise(
 
 /**
  * Recursively copy a directory, skipping symlinks.
+ * Symlinks are intentionally not followed to prevent copying files outside the
+ * source tree. A warning is logged for each skipped symlink so that incomplete
+ * plugin builds caused by symlinked entries are diagnosable.
  */
 async function copyDir(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true })
@@ -1184,8 +1216,12 @@ async function copyDir(src: string, dest: string): Promise<void> {
     throw new Error(`copyDir: cannot read source directory "${src}": ${(err as Error).message}`)
   }
   for (const entry of entries) {
-    // Skip symlinks to prevent copying files outside the source tree
-    if (entry.isSymbolicLink()) continue
+    // Skip symlinks to prevent copying files outside the source tree.
+    // Log a warning so operators can diagnose missing entries in the build output.
+    if (entry.isSymbolicLink()) {
+      console.warn(`copyDir: skipping symlink '${path.join(src, entry.name)}' — it will not appear in the plugin output`)
+      continue
+    }
 
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)

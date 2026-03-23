@@ -115,6 +115,8 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       }
 
       const data: PluginBuildResult = await res.json()
+      // Guard: component may have unmounted while the initial fetch response body was being parsed
+      if (!mountedRef.current) return
       setResult(data)
 
       // Clear any previous poll only after a new build has successfully started,
@@ -237,7 +239,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
         }),
       })
 
-      const data = await res.json()
+      // Guard against non-JSON responses (e.g. gateway errors, HTML pages)
+      let data: { message?: string; error?: string } = {}
+      try {
+        data = await res.json()
+      } catch { /* server returned non-JSON — fall through with empty data so defaults apply */ }
       setPushResult({
         ok: res.ok,
         message: res.ok ? (data.message || 'Pushed successfully') : (data.error || 'Push failed'),

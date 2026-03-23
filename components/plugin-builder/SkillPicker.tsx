@@ -32,6 +32,10 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   // Track the count of skills found by the repo scanner so the tab badge stays accurate
   const [repoSkillsCount, setRepoSkillsCount] = useState<number | null>(null)
 
+  // Track skills found by the last RepoScanner scan so the parent component
+  // is aware of available repo skills, honoring the onSkillsFound contract.
+  const [_repoScanResults, setRepoScanResults] = useState<RepoSkillInfo[]>([])
+
   // Build a set of selected skill keys for fast lookup
   const selectedKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -123,7 +127,12 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                // Clear stale repo scan results when leaving the repo tab so
+                // the count badge never shows data that is no longer visible.
+                if (activeTab === 'repo' && tab.id !== 'repo') setRepoScanResults([])
+                setActiveTab(tab.id)
+              }}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 activeTab === tab.id
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'

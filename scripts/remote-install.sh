@@ -1039,7 +1039,7 @@ act3_clone_and_build() {
                         maestro_info "Local changes restored."
                     fi
                 fi
-                git submodule update --init --recursive 2>/dev/null || maestro_warn "Some submodules failed to update"
+                git submodule update --init --recursive 2>/dev/null || { maestro_fail "Failed to update git submodules. Please check your git configuration."; exit 1; }
                 maestro_step 1 4 "Pulling latest changes..." "done"
 
                 maestro_step 2 4 "Installing dependencies..." ""
@@ -1102,7 +1102,7 @@ act3_clone_and_build() {
         exit 1
     fi
     cd "$INSTALL_DIR"
-    git submodule update --init --recursive || maestro_warn "Some submodules failed to initialize"
+    git submodule update --init --recursive || { maestro_fail "Failed to initialize git submodules. Please check your git configuration."; exit 1; }
     maestro_step 1 "$total_steps" "Downloading..." "done"
 
     maestro_step 2 "$total_steps" "Installing dependencies..." ""
@@ -1415,6 +1415,10 @@ act5_grand_finale() {
         echo ""
 
         INITIAL_PROMPT='Hi! I just installed AI Maestro. Can you verify everything is working and help me get started?'
+
+        # Shell-quote INITIAL_PROMPT so special characters are safely passed to the AI tool
+        local quoted_prompt
+        printf -v quoted_prompt '%q' "$INITIAL_PROMPT"
 
         if [ -n "$TMUX" ]; then
             # Already in tmux — create a new window and switch to it

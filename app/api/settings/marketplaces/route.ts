@@ -556,11 +556,15 @@ export async function POST(req: NextRequest) {
       case 'uninstall':
         return await handleUninstall(pluginName, marketplaceName, pluginKey)
       case 'update':
-        return await handleInstall(pluginName, marketplaceName, pluginKey) // same as install (overwrites)
+        return await handleUpdate(pluginName, marketplaceName, pluginKey)
       case 'enable':
+        return await handleEnable(pluginName, marketplaceName, pluginKey)
+      case 'disable':
+        return await handleDisable(pluginName, marketplaceName, pluginKey)
+      case '_legacy_enable':
         await setPluginEnabled(pluginKey, true)
         return NextResponse.json({ success: true, action: 'enable', pluginKey })
-      case 'disable':
+      case '_legacy_disable':
         await setPluginEnabled(pluginKey, false)
         return NextResponse.json({ success: true, action: 'disable', pluginKey })
       default:
@@ -570,6 +574,78 @@ export async function POST(req: NextRequest) {
     console.error('[marketplaces] POST failed:', error)
     return NextResponse.json({ error: 'Action failed' }, { status: 500 })
   }
+}
+
+/**
+ * Resolve the Claude CLI marketplace name for a given directory name.
+ * Claude CLI registers marketplaces by the name in marketplace.json, which may differ from the directory name.
+ * E.g. directory "kriscard-claude-plugins" → CLI name "kriscard"
+ */
+async function resolveCliMarketplaceName(dirName: string): Promise<string> {
+  const mktDir = join(MARKETPLACES_DIR, dirName)
+  // Try reading the declared name from marketplace.json
+  for (const p of [join(mktDir, '.claude-plugin', 'marketplace.json'), join(mktDir, 'marketplace.json')]) {
+    if (existsSync(p)) {
+      try {
+        const manifest = JSON.parse(await readFile(p, 'utf-8'))
+        if (manifest.name) return String(manifest.name)
+      } catch { /* continue */ }
+    }
+  }
+  // Fallback: ask Claude CLI
+  try {
+    const { execSync } = await import('child_process')
+    const output = execSync('claude plugin marketplace list 2>&1', { timeout: 10000 }).toString()
+    // Look for a line referencing our directory path
+    const lines = output.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(dirName)) {
+        // The marketplace name is on the previous "❯" line
+        for (let j = i; j >= 0; j--) {
+          const m = lines[j].match(/❯\s+(.+)/)
+          if (m) return m[1].trim()
+        }
+      }
+    }
+  } catch { /* fallback */ }
+  return dirName // last resort: use directory name as-is
+}
+
+/** Enable plugin via Claude CLI */
+async function handleEnable(pluginName: string, marketplaceName: string, pluginKey: string) {
+  try {
+    const { execSync } = await import('child_process')
+    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin enable "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 15000 })
+  } catch {
+    // Fallback: direct settings manipulation
+    await setPluginEnabled(pluginKey, true)
+  }
+  return NextResponse.json({ success: true, action: 'enable', pluginKey })
+}
+
+/** Disable plugin via Claude CLI */
+async function handleDisable(pluginName: string, marketplaceName: string, pluginKey: string) {
+  try {
+    const { execSync } = await import('child_process')
+    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin disable "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 15000 })
+  } catch {
+    await setPluginEnabled(pluginKey, false)
+  }
+  return NextResponse.json({ success: true, action: 'disable', pluginKey })
+}
+
+/** Update plugin via Claude CLI */
+async function handleUpdate(pluginName: string, marketplaceName: string, pluginKey: string) {
+  try {
+    const { execSync } = await import('child_process')
+    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin update "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 60000 })
+  } catch (err) {
+    return NextResponse.json({ error: `Update failed: ${err}` }, { status: 500 })
+  }
+  return NextResponse.json({ success: true, action: 'update', pluginKey })
 }
 
 /** Copy plugin from marketplace clone to cache + enable */
@@ -620,7 +696,8 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
 
   // Step 2: Install via Claude Code CLI (registers plugin properly with Claude Code)
   try {
-    execSync(`claude plugin install --scope user "${sourceDir}" 2>&1`, { timeout: 60000 })
+    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin install --scope user "${pluginName}@${cliMkt}" 2>&1`, { timeout: 60000 })
   } catch (err) {
     // CLI install failed — still usable from cache, but warn
     console.warn(`Claude CLI plugin install failed (plugin still available from cache): ${err}`)
@@ -635,7 +712,8 @@ async function handleUninstall(pluginName: string, marketplaceName: string, plug
   // Uninstall via Claude Code CLI first
   try {
     const { execSync } = await import('child_process')
-    execSync(`claude plugin uninstall "${pluginName}@${marketplaceName}" --scope user 2>&1`, { timeout: 30000 })
+    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin uninstall "${pluginName}@${cliMkt}" --scope user 2>&1`, { timeout: 30000 })
   } catch {
     // CLI uninstall may fail if plugin wasn't installed via CLI — continue with cache cleanup
   }
@@ -651,6 +729,15 @@ async function handleUninstall(pluginName: string, marketplaceName: string, plug
 async function handleDeleteMarketplace(marketplaceName?: string) {
   if (!marketplaceName) {
     return NextResponse.json({ error: 'marketplaceName is required' }, { status: 400 })
+  }
+
+  // Remove via Claude CLI first
+  try {
+    const { execSync } = await import('child_process')
+    const cliName = await resolveCliMarketplaceName(marketplaceName)
+    execSync(`claude plugin marketplace remove "${cliName}" 2>&1`, { timeout: 15000 })
+  } catch {
+    // CLI removal may fail if not registered — continue with file cleanup
   }
 
   // Remove clone dir
@@ -906,6 +993,24 @@ async function handleAddMarketplace(url?: string) {
     })
   } catch (err) {
     return NextResponse.json({ error: `Failed to clone: ${err}` }, { status: 500 })
+  }
+
+  // Register marketplace with Claude Code CLI using the GitHub URL directly
+  try {
+    execSync(`claude plugin marketplace add "https://github.com/${repo}" --scope user 2>&1`, {
+      timeout: 60000,
+      stdio: 'pipe',
+    })
+  } catch (err) {
+    // Fallback: try with local path
+    try {
+      execSync(`claude plugin marketplace add "${join(MARKETPLACES_DIR, marketplaceName)}" --scope user 2>&1`, {
+        timeout: 30000,
+        stdio: 'pipe',
+      })
+    } catch {
+      console.warn(`Claude CLI marketplace add failed (marketplace still available from clone): ${err}`)
+    }
   }
 
   // Add to extraKnownMarketplaces

@@ -413,6 +413,10 @@ const routes: Route[] = [
   }},
   { method: 'POST', pattern: /^\/api\/conversations\/parse$/, paramNames: [], handler: async (req, res) => {
     const body = await readJsonBody(req)
+    if (!body.filePath) {
+      sendJson(res, 400, { error: 'Missing filePath in request body' })
+      return
+    }
     sendServiceResult(res, parseConversationFile(body.filePath))
   }},
   { method: 'GET', pattern: /^\/api\/conversations\/([^/]+)\/messages$/, paramNames: ['file'], handler: async (_req, res, params, query) => {
@@ -537,7 +541,15 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          sendJson(res, 400, { error: 'Invalid options JSON' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -769,7 +781,11 @@ const routes: Route[] = [
     sendServiceResult(res, addSkill(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/skills$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeSkill(params.id, query.skill || ''))
+    if (!query.skill) {
+      sendJson(res, 400, { error: 'Missing skill query parameter' })
+      return
+    }
+    sendServiceResult(res, removeSkill(params.id, query.skill))
   }},
 
   // Subconscious
@@ -790,7 +806,11 @@ const routes: Route[] = [
     sendServiceResult(res, updateRepos(params.id, body))
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/repos$/, paramNames: ['id'], handler: async (_req, res, params, query) => {
-    sendServiceResult(res, removeRepo(params.id, query.url || ''))
+    if (!query.url) {
+      sendJson(res, 400, { error: 'Missing url query parameter' })
+      return
+    }
+    sendServiceResult(res, removeRepo(params.id, query.url))
   }},
 
   // Playback
@@ -899,7 +919,7 @@ const routes: Route[] = [
     if (result.error) {
       sendJson(res, result.status, { error: result.error })
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata || {} })
+      sendJson(res, 200, { metadata: result.agent?.metadata || {} })
     }
   }},
   { method: 'PATCH', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (req, res, params) => {
@@ -908,7 +928,7 @@ const routes: Route[] = [
     if (result.error) {
       sendJson(res, result.status, { error: result.error })
     } else {
-      sendJson(res, 200, { metadata: result.data?.agent?.metadata })
+      sendJson(res, 200, { metadata: result.agent?.metadata })
     }
   }},
   { method: 'DELETE', pattern: /^\/api\/agents\/([^/]+)\/metadata$/, paramNames: ['id'], handler: async (_req, res, params) => {

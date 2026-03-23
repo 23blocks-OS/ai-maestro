@@ -178,7 +178,7 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error('Failed to clean build dir:', err))
     }
   }
 
@@ -190,7 +190,7 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => console.error('Failed to clean build dir:', err))
     }
   }
 }
@@ -242,7 +242,10 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Sanitize marketplace and plugin names to prevent path traversal (keep dots and dashes for valid names)
+    const sanitizedMarketplace = group.marketplace.replace(/[^a-zA-Z0-9_.-]/g, '')
+    const sanitizedPlugin = group.plugin.replace(/[^a-zA-Z0-9_.-]/g, '')
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', sanitizedMarketplace)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -251,8 +254,8 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
       map[`skills/${skillName}`] = `skills/${skillName}`
     }
     sources.push({
-      name: `${group.plugin}-from-${group.marketplace}`,
-      description: `Skills from ${group.plugin} plugin (${group.marketplace} marketplace)`,
+      name: `${sanitizedPlugin}-from-${sanitizedMarketplace}`,
+      description: `Skills from ${sanitizedPlugin} plugin (${sanitizedMarketplace} marketplace)`,
       type: 'local',
       path: installPath,
       map,

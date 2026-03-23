@@ -210,8 +210,11 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
   switch (skill.type) {
     case 'core':
       return skill.name
-    case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+    case 'marketplace': {
+      // Guard against skill.id having fewer than 3 colon-separated parts
+      const parts = skill.id.split(':')
+      return (parts.length > 2 ? parts[2] : skill.id) || skill.id
+    }
     case 'repo':
       return skill.name
   }

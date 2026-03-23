@@ -9,17 +9,28 @@ import type { NextRequest } from 'next/server'
 import { scanRepo } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  // Separate catch for JSON parsing errors (client mistake → 400)
+  let body: { url?: unknown; ref?: unknown }
   try {
-    const body = await request.json()
+    body = await request.json()
+  } catch (error) {
+    console.error('Error parsing request body:', error)
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
+    )
+  }
 
-    if (!body.url || typeof body.url !== 'string') {
-      return NextResponse.json(
-        { error: 'Repository URL is required' },
-        { status: 400 }
-      )
-    }
+  if (!body.url || typeof body.url !== 'string') {
+    return NextResponse.json(
+      { error: 'Repository URL is required' },
+      { status: 400 }
+    )
+  }
 
-    const result = await scanRepo(body.url, body.ref || 'main')
+  // Separate catch for scanRepo() errors (server-side failure → 500)
+  try {
+    const result = await scanRepo(body.url, typeof body.ref === 'string' ? body.ref : 'main')
 
     if (result.error) {
       return NextResponse.json(
@@ -31,8 +42,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error scanning repo:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 }

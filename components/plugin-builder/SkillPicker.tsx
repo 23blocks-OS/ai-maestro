@@ -56,7 +56,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     }
     load()
     return () => { abortRef.current?.abort() }
-  }, [])
+  }, [setMarketplaceSkills, setLoadingMarketplace])
 
   // Filter skills by search query
   const filteredCoreSkills = useMemo(() => {
@@ -219,7 +219,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
                       }
                     }}
                     aria-pressed={isSelected}
-                    aria-label={`${skill.name}: ${skill.description || `${skill.plugin} / ${skill.marketplace}`}`}
+                    aria-label={`${skill.name}: ${(skill.description && skill.description.trim()) || `${skill.plugin} / ${skill.marketplace}`}`}
                   >
                     <div className={`p-1.5 rounded-md ${
                       isSelected ? 'bg-cyan-500/20' : 'bg-gray-700/50'

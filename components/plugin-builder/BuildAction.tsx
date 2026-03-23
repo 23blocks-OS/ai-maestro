@@ -75,6 +75,10 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
 
       // Poll for completion
       if (data.status === 'building') {
+        // Guard against a race: an await above means another handleBuild call could
+        // have fired and set a new interval before we reach this line. Clear it now
+        // so only one polling interval is ever active at a time.
+        if (pollRef.current) clearInterval(pollRef.current)
         pollRef.current = setInterval(async () => {
           try {
             const statusRes = await fetch(`/api/plugin-builder/builds/${data.buildId}`)
@@ -180,11 +184,11 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           {building ? 'Building...' : 'Quick Build'}
         </button>
 
-        {/* Push to GitHub button */}
+        {/* Push to GitHub button — disabled until a build has completed successfully */}
         <button
           onClick={() => setShowPush(!showPush)}
           disabled={!isComplete}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800/50 disabled:text-gray-600 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg border border-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <GitBranch className="w-4 h-4" />
           Push to GitHub
@@ -220,8 +224,14 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
           <span className="text-sm text-red-400 ml-auto">{error}</span>
         )}
 
-        {disabledReason && !building && !result && (
-          <span className="text-xs text-gray-500 ml-auto">{disabledReason}</span>
+        {/* Show disabledReason whenever the button is disabled and no build is active.
+            The !result guard was removed: after a completed build the user may edit
+            the form into an invalid state — the reason must still be visible so the
+            user understands why the Build button is disabled again. When a result
+            status or error is already occupying the ml-auto slot, render without it
+            to avoid conflicting flex alignment. */}
+        {disabledReason && !building && (
+          <span className={`text-xs text-gray-500${!result && !error ? ' ml-auto' : ''}`}>{disabledReason}</span>
         )}
       </div>
 
@@ -258,7 +268,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Install command */}
-      {isComplete && result.outputPath && (
+      {isComplete && result?.outputPath && (
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2 border border-gray-700">
             <code className="text-sm text-cyan-400 flex-1 truncate font-mono">
@@ -280,7 +290,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
       )}
 
       {/* Build logs (ANSI codes stripped) */}
-      {result && result.logs.length > 0 && (
+      {result && result.logs?.length > 0 && (
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}

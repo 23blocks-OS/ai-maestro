@@ -16,7 +16,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import matter from 'gray-matter'
 import type { ServiceResult } from '@/services/marketplace-service'
 import type {
@@ -178,7 +178,9 @@ function evictStaleBuildResults(): void {
       buildResults.delete(id)
       // Best-effort cleanup of build directory
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove stale build directory ${buildDir}:`, err)
+      })
     }
   }
 
@@ -190,7 +192,9 @@ function evictStaleBuildResults(): void {
     for (const [id] of toRemove) {
       buildResults.delete(id)
       const buildDir = path.join(BUILDS_DIR, id)
-      fs.rm(buildDir, { recursive: true, force: true }).catch(() => {})
+      fs.rm(buildDir, { recursive: true, force: true }).catch(err => {
+        console.error(`Failed to remove stale build directory ${buildDir}:`, err)
+      })
     }
   }
 }
@@ -242,7 +246,9 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
   }
 
   for (const [, group] of marketplaceGroups) {
-    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', group.marketplace)
+    // Sanitize marketplace name to prevent path traversal via `..` or path separators.
+    const safeMarketplace = group.marketplace.replace(/[^a-zA-Z0-9_-]/g, '')
+    const installPath = path.join(os.homedir(), '.claude', 'plugins', 'marketplaces', safeMarketplace)
     const map: Record<string, string> = {}
     for (const skill of group.skills) {
       // Extract skill name from the id (marketplace:plugin:skillName)
@@ -291,8 +297,7 @@ export function generateManifest(config: PluginBuildConfig): PluginManifest {
     description: config.description,
     output: `./plugins/${config.name}`,
     plugin: {
-      name: config.name,
-      version: config.version,
+      // name and version live on the top-level PluginManifest — not duplicated here
       author: { name: 'Plugin Builder' },
       license: 'MIT',
     },
@@ -316,11 +321,16 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
     return { error: 'Too many concurrent builds. Please wait and try again.', status: 429 }
   }
 
+  // Increment before the try block so the decrement paths are mutually exclusive:
+  // either the outer catch (sync setup failure) or the runBuild .finally() (async path)
+  // will decrement exactly once. Placing the increment inside the try would allow the
+  // catch to decrement an un-incremented counter if an error fires before line 328.
+  activeOps++
+
   try {
     // Evict stale builds before adding new ones
     evictStaleBuildResults()
 
-    activeOps++
     const buildId = randomUUID()
     const buildDir = path.join(BUILDS_DIR, buildId)
 
@@ -376,12 +386,15 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
         })
       }
     }).finally(() => {
-      activeOps = Math.max(0, activeOps - 1)
+      // One decrement per increment: outer catch handles the sync-failure path,
+      // this finally handles the async runBuild path — they are mutually exclusive.
+      activeOps--
     })
 
     return { data: result, status: 202 }
   } catch (error) {
-    activeOps = Math.max(0, activeOps - 1)
+    // Sync setup failed after activeOps was incremented — decrement here.
+    activeOps--
     console.error('Error starting plugin build:', error)
     return { error: 'Failed to start plugin build', status: 500 }
   }
@@ -422,9 +435,13 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
   const scanId = randomUUID().slice(0, 8)
   const scanDir = path.join(os.tmpdir(), `ai-maestro-scan-${scanId}`)
 
-  try {
-    activeOps++
+  // Increment before the try block so the decrement in finally is always paired
+  // with exactly one increment. If activeOps++ were inside the try, a synchronous
+  // error before that line would cause finally to decrement an un-incremented
+  // counter, driving activeOps negative and permanently blocking concurrency.
+  activeOps++
 
+  try {
     // Shallow clone (use -- to prevent ref from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', ref, '--', url, scanDir], {
       timeout: 30000,
@@ -456,7 +473,8 @@ export async function scanRepo(url: string, ref: string = 'main'): Promise<Servi
     console.error('Error scanning repo:', error)
     return { error: `Failed to scan repository: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    // One decrement per increment: activeOps++ is before the try, this finally always runs.
+    activeOps--
   }
 }
 
@@ -489,9 +507,13 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
   const pushId = randomUUID().slice(0, 8)
   const pushDir = path.join(os.tmpdir(), `ai-maestro-push-${pushId}`)
 
-  try {
-    activeOps++
+  // Increment before the try block so the decrement in finally is always paired
+  // with exactly one increment. If activeOps++ were inside the try, a synchronous
+  // error before that line would cause finally to decrement an un-incremented
+  // counter, driving activeOps negative and permanently blocking concurrency.
+  activeOps++
 
+  try {
     // Clone the fork (use -- to prevent branch from being parsed as a flag)
     await execPromise('git', ['clone', '--depth', '1', '--branch', branch, '--', config.forkUrl, pushDir], {
       timeout: 30000,
@@ -545,7 +567,8 @@ export async function pushToGitHub(config: PluginPushConfig): Promise<ServiceRes
     console.error('Error pushing to GitHub:', error)
     return { error: `Failed to push to GitHub: ${message}`, status: 500 }
   } finally {
-    activeOps = Math.max(0, activeOps - 1)
+    // One decrement per increment: activeOps++ is before the try, this finally always runs.
+    activeOps--
   }
 }
 
@@ -598,10 +621,12 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
       stats,
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
-    const stderr = (error as any)?.stderr
+    // execPromise attaches stderr to the error object before rejecting (see execPromise impl).
+    const err = error as { message?: string; stderr?: string }
+    const message = err.message || String(error)
     const logs = [message]
-    if (stderr) logs.push(...String(stderr).split('\n'))
+    // stderr is guaranteed to be a string by execPromise (passed directly from child_process callback).
+    if (err.stderr) logs.push(...err.stderr.split('\n'))
 
     // Atomic replacement
     buildResults.set(buildId, {
@@ -617,7 +642,14 @@ async function runBuild(buildId: string, buildDir: string, manifest: PluginManif
  */
 async function findSkillsInDir(dir: string): Promise<RepoSkillInfo[]> {
   const skills: RepoSkillInfo[] = []
-  const realDir = await fs.realpath(dir)
+  // Guard: if the directory does not exist or is inaccessible, return empty rather than throwing.
+  let realDir: string
+  try {
+    realDir = await fs.realpath(dir)
+  } catch (err) {
+    console.warn(`Could not resolve real path for directory ${dir}:`, err)
+    return []
+  }
 
   async function scan(currentDir: string, depth: number = 0) {
     if (depth > 5) return
@@ -682,16 +714,24 @@ async function findScriptsInDir(dir: string): Promise<RepoScriptInfo[]> {
 }
 
 /**
- * Sanitize a URL into a valid source name.
+ * Sanitize a URL into a valid, collision-free source name.
+ *
+ * A 6-character hash suffix derived from the full URL is appended so that two
+ * different URLs that share the same 40-character sanitized prefix still produce
+ * distinct names. The total length is capped at 47 characters (40 readable
+ * prefix + '-' + 6 hash digits).
  */
 function sanitizeSourceName(url: string): string {
-  return url
+  const readable = url
     .replace(/^https?:\/\//, '')
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40)
+  // Hash the original URL (not the sanitized form) for maximum discrimination.
+  const suffix = createHash('sha256').update(url).digest('hex').slice(0, 6)
+  return `${readable}-${suffix}`
 }
 
 /**
@@ -706,7 +746,7 @@ function execPromise(
     execFile(command, args, {
       cwd: options.cwd,
       timeout: options.timeout || 60000,
-      maxBuffer: 2 * 1024 * 1024, // 2MB (reduced from 10MB)
+      maxBuffer: 10 * 1024 * 1024, // 10MB — build scripts and git clones can produce verbose output
     }, (error, stdout, stderr) => {
       if (error) {
         const err = error as any

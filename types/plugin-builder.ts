@@ -69,22 +69,34 @@ export interface PluginManifest {
 }
 
 export interface PluginManifestMetadata {
-  name: string
-  version: string
+  // name, version, and output are intentionally excluded from PluginManifestMetadata —
+  // they live at the top level of PluginManifest (the single source of truth).
+  // Use PluginManifest.name / PluginManifest.version / PluginManifest.output instead.
   author?: { name: string }
   homepage?: string
   license?: string
 }
 
-export interface PluginManifestSource {
-  name: string
-  description?: string
-  type: 'local' | 'git'
-  path?: string                        // For local sources
-  repo?: string                        // For git sources
-  ref?: string                         // Git branch/tag
-  map: Record<string, string>          // Source pattern -> output pattern
-}
+// Tagged union ensures the correct required fields are present for each type:
+// 'local' sources must have `path`, 'git' sources must have `repo`.
+// A flat interface with all fields optional would allow invalid combinations
+// (e.g. type:'local' with a `repo` field set) that the build script rejects.
+export type PluginManifestSource =
+  | {
+      name: string
+      description?: string
+      type: 'local'
+      path: string                     // Required for local sources
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
+  | {
+      name: string
+      description?: string
+      type: 'git'
+      repo: string                     // Required for git sources
+      ref?: string                     // Git branch/tag
+      map: Record<string, string>      // Source pattern -> output pattern
+    }
 
 // ============================================================================
 // Repo Scanner

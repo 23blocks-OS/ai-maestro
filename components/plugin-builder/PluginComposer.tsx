@@ -211,7 +211,10 @@ function getSkillDisplayName(skill: PluginSkillSelection): string {
     case 'core':
       return skill.name
     case 'marketplace':
-      return skill.id.split(':')[2] || skill.id
+      // skill.id format is "marketplace:plugin:skill" — extract the trailing segment
+      // as the skill display name. Fall back to skill.id itself if pop() returns
+      // undefined (empty string or malformed id with no colons).
+      return skill.id.split(':').pop() || skill.id
     case 'repo':
       return skill.name
   }
@@ -223,7 +226,21 @@ function getSkillSubtitle(skill: PluginSkillSelection): string | null {
       return null
     case 'marketplace':
       return `${skill.plugin} / ${skill.marketplace}`
-    case 'repo':
-      return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+    case 'repo': {
+      // Use the URL API for reliable parsing; extract owner/repo for GitHub URLs
+      // so the subtitle is concise and human-readable rather than a raw URL.
+      // Fall back to a simple regex strip for non-standard or malformed URLs.
+      try {
+        const parsed = new URL(skill.url)
+        const parts = parsed.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
+        if (parts.length >= 2) {
+          // e.g. github.com/owner/repo  →  "owner/repo"
+          return `${parts[0]}/${parts[1]}`
+        }
+        return `${parsed.hostname}${parsed.pathname.replace(/\.git$/, '')}`
+      } catch {
+        return skill.url.replace(/^https?:\/\//, '').replace(/\.git$/, '')
+      }
+    }
   }
 }

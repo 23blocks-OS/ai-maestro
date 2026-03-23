@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Search, Plus, Check, Package, Brain, BookOpen, GitBranch, Code, Loader2 } from 'lucide-react'
 import RepoScanner from './RepoScanner'
 import type { MarketplaceSkill } from '@/types/marketplace'
-import type { PluginSkillSelection } from '@/types/plugin-builder'
+import type { PluginSkillSelection, RepoSkillInfo } from '@/types/plugin-builder'
 
 // Core AI Maestro skills (from plugin/src/skills/)
 const CORE_SKILLS = [
@@ -26,6 +26,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([])
   const [loadingMarketplace, setLoadingMarketplace] = useState(true)
   const [activeTab, setActiveTab] = useState<'core' | 'marketplace' | 'repo'>('core')
+  // Track skills found via repo scan so the tab can show a count
+  const [repoFoundSkillCount, setRepoFoundSkillCount] = useState<number | null>(null)
 
   // Build a set of selected skill keys for fast lookup
   const selectedKeys = useMemo(() => {
@@ -75,10 +77,18 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
     )
   }, [searchQuery, marketplaceSkills])
 
+  // Update the repo tab count when RepoScanner completes a scan
+  // The url and ref arguments are provided by RepoScanner but not needed here
+  const handleRepoSkillsFound = useCallback((skills: RepoSkillInfo[], _url: string, _ref: string) => {
+    setRepoFoundSkillCount(skills.length)
+  }, [])
+
+  // Use filtered counts so the tab badges reflect the current search query,
+  // not the total unfiltered collection which would be misleading while searching.
   const tabs = [
-    { id: 'core' as const, label: 'Core', count: CORE_SKILLS.length },
-    { id: 'marketplace' as const, label: 'Marketplace', count: marketplaceSkills.length },
-    { id: 'repo' as const, label: 'GitHub Repo', count: null },
+    { id: 'core' as const, label: 'Core', count: filteredCoreSkills.length },
+    { id: 'marketplace' as const, label: 'Marketplace', count: loadingMarketplace ? null : filteredMarketplaceSkills.length },
+    { id: 'repo' as const, label: 'GitHub Repo', count: repoFoundSkillCount },
   ]
 
   return (
@@ -124,7 +134,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
         {activeTab === 'core' && (
           <div className="space-y-2">
             {filteredCoreSkills.map(skill => {
-              const key = `core:${skill.name}`
+              // Use getSkillKey for consistency — single source of truth for key generation
+              const key = getSkillKey({ type: 'core', name: skill.name })
               const isSelected = selectedKeys.has(key)
               const Icon = skill.icon
               return (
@@ -187,7 +198,8 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
               </div>
             ) : filteredMarketplaceSkills.length > 0 ? (
               filteredMarketplaceSkills.map(skill => {
-                const key = `marketplace:${skill.id}`
+                // Use getSkillKey for consistency — single source of truth for key generation
+                const key = getSkillKey({ type: 'marketplace', id: skill.id, marketplace: skill.marketplace, plugin: skill.plugin })
                 const isSelected = selectedKeys.has(key)
                 return (
                   <div
@@ -252,7 +264,7 @@ export default function SkillPicker({ selectedSkills, onAddSkill, onRemoveSkill 
 
         {activeTab === 'repo' && (
           <RepoScanner
-            onSkillsFound={() => {}}
+            onSkillsFound={handleRepoSkillsFound}
             onAddSkill={onAddSkill}
             selectedSkillKeys={selectedKeys}
           />
@@ -272,6 +284,7 @@ export function getSkillKey(skill: PluginSkillSelection): string {
     case 'marketplace':
       return `marketplace:${skill.id}`
     case 'repo':
-      return `repo:${skill.url}:${skill.skillPath}`
+      // Include ref so skills from different branches of the same repo get distinct keys
+      return `repo:${skill.url}:${skill.ref}:${skill.skillPath}`
   }
 }

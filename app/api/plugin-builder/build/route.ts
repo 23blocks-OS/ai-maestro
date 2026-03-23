@@ -11,8 +11,27 @@ import type { NextRequest } from 'next/server'
 import { buildPlugin } from '@/services/plugin-builder-service'
 
 export async function POST(request: NextRequest) {
+  let body: unknown
   try {
-    const body = await request.json()
+    // Parse JSON separately so parse failures are always reported as 400
+    body = await request.json()
+  } catch (error) {
+    // SyntaxError is thrown by request.json() when the body is not valid JSON
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
+    // Any other unexpected error during body parsing is a server-side failure
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+
+  try {
+    // Errors thrown by buildPlugin are unexpected server errors, not client errors
     const result = await buildPlugin(body)
 
     if (result.error) {
@@ -22,10 +41,11 @@ export async function POST(request: NextRequest) {
       )
     }
     return NextResponse.json(result.data, { status: result.status })
-  } catch {
+  } catch (error) {
+    console.error('Error during plugin build:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error during plugin build' },
+      { status: 500 }
     )
   }
 }

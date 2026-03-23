@@ -270,6 +270,17 @@ import {
 // Utility helpers
 // ---------------------------------------------------------------------------
 
+/** Thrown (and caught) exclusively for malformed request bodies so the catch
+ *  block in `handle` can reliably distinguish a client error (400) from an
+ *  internal server error (500) without relying on fragile message-string
+ *  comparison. */
+class JsonParseError extends Error {
+  constructor() {
+    super('Invalid JSON body')
+    this.name = 'JsonParseError'
+  }
+}
+
 async function readJsonBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -280,7 +291,9 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
       try {
         resolve(JSON.parse(body))
       } catch (e) {
-        reject(new Error('Invalid JSON body'))
+        // Use a typed error so the router can distinguish a 400 client error
+        // from a 500 internal server error without matching on message strings.
+        reject(new JsonParseError())
       }
     })
     req.on('error', reject)
@@ -312,8 +325,11 @@ function sendBinary(res: ServerResponse, statusCode: number, buffer: Buffer | Ui
 }
 
 function sendServiceResult(res: ServerResponse, result: any) {
-  if (result.error && !result.data) {
-    sendJson(res, result.status || 500, { error: result.error }, result.headers)
+  // Determine error state by status code first (covers cases where error string is
+  // absent but the status signals failure), then fall back to the error string.
+  // This is important because ServiceResult.error is optional in the type definition.
+  if ((result.status && result.status >= 400) || result.error) {
+    sendJson(res, result.status || 500, { error: result.error || 'An error occurred' }, result.headers)
   } else {
     sendJson(res, result.status || 200, result.data, result.headers)
   }
@@ -338,10 +354,12 @@ function getQuery(url: string): Record<string, string> {
  * Handles the single use case: one file field + one text field for /api/agents/import.
  */
 function parseMultipart(body: Buffer, contentType: string): { file: Buffer | null; options: string | null } {
-  const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
+  // RFC 2046: boundary parameter may be quoted or unquoted. Capture both forms.
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/i)
   if (!boundaryMatch) return { file: null, options: null }
 
-  const boundary = '--' + boundaryMatch[1]
+  // Use the captured group that matched (quoted = [1], unquoted = [2])
+  const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2])
   const bodyStr = body.toString('latin1')
   const parts = bodyStr.split(boundary).slice(1, -1) // Remove preamble and epilogue
 
@@ -352,13 +370,18 @@ function parseMultipart(body: Buffer, contentType: string): { file: Buffer | nul
     const headerEnd = part.indexOf('\r\n\r\n')
     if (headerEnd === -1) continue
 
-    const headers = part.substring(0, headerEnd)
+    const rawHeaders = part.substring(0, headerEnd)
     const content = part.substring(headerEnd + 4).replace(/\r\n$/, '')
 
-    if (headers.includes('name="file"')) {
+    // Parse Content-Disposition header to extract field name (RFC 2183)
+    const dispositionMatch = rawHeaders.match(/Content-Disposition:\s*form-data\s*;[^;]*name="([^"]+)"/i)
+    if (!dispositionMatch) continue
+
+    const fieldName = dispositionMatch[1]
+    if (fieldName === 'file') {
       // Convert back to buffer from latin1 encoding
       file = Buffer.from(content, 'latin1')
-    } else if (headers.includes('name="options"')) {
+    } else if (fieldName === 'options') {
       options = content
     }
   }
@@ -470,7 +493,12 @@ const routes: Route[] = [
     sendServiceResult(res, await restoreSessions(body))
   }},
   { method: 'DELETE', pattern: /^\/api\/sessions\/restore$/, paramNames: [], handler: async (_req, res, _params, query) => {
-    sendServiceResult(res, deletePersistedSession(query.sessionId || ''))
+    // sessionId is required — an empty string would silently delete nothing or the wrong record
+    if (!query.sessionId) {
+      sendJson(res, 400, { error: 'sessionId query parameter is required' })
+      return
+    }
+    sendServiceResult(res, deletePersistedSession(query.sessionId))
   }},
   { method: 'GET', pattern: /^\/api\/sessions\/activity$/, paramNames: [], handler: async (_req, res) => {
     try {
@@ -537,7 +565,16 @@ const routes: Route[] = [
         return
       }
 
-      const options = optionsStr ? JSON.parse(optionsStr) : {}
+      let options = {}
+      if (optionsStr) {
+        try {
+          options = JSON.parse(optionsStr)
+        } catch {
+          // Malformed options JSON is a client error, not a server error
+          sendJson(res, 400, { error: 'Invalid JSON in options field' })
+          return
+        }
+      }
       const result = await importAgent(file, options)
       sendServiceResult(res, result)
     } catch (error) {
@@ -1281,7 +1318,12 @@ export function createHeadlessRouter() {
       } catch (error) {
         console.error(`[Headless] Error handling ${method} ${pathname}:`, error)
         if (!res.headersSent) {
-          sendJson(res, 500, { error: 'Internal server error' })
+          // readJsonBody rejects with JsonParseError — that is a 400 client error, not 500
+          if (error instanceof JsonParseError) {
+            sendJson(res, 400, { error: 'Invalid JSON body' })
+          } else {
+            sendJson(res, 500, { error: 'Internal server error' })
+          }
         }
       }
 

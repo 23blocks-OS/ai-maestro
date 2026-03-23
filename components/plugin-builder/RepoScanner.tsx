@@ -16,6 +16,11 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<RepoScanResult | null>(null)
+  // Store the url and ref that were actually used for the last scan so that
+  // handleAddSkill and key generation always match the scan that produced the results,
+  // even if the user edits the inputs after scanning.
+  const [scannedUrl, setScannedUrl] = useState('')
+  const [scannedRef, setScannedRef] = useState('main')
   const abortRef = useRef<AbortController | null>(null)
 
   const handleScan = async () => {
@@ -26,6 +31,10 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
     abortRef.current = new AbortController()
     const signal = abortRef.current.signal
 
+    // Resolve the effective ref here so the API call, key generation, and
+    // onSkillsFound callback all use the same value (empty input → 'main').
+    const effectiveRef = ref.trim() || 'main'
+
     setScanning(true)
     setError(null)
     setScanResult(null)
@@ -34,7 +43,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
       const res = await fetch('/api/plugin-builder/scan-repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), ref }),
+        body: JSON.stringify({ url: url.trim(), ref: effectiveRef }),
         signal,
       })
 
@@ -46,8 +55,15 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
 
       const data: RepoScanResult = await res.json()
       if (!signal.aborted) {
+        // Capture the exact url/ref used for this scan so handleAddSkill and
+        // key generation remain consistent even if the user edits the inputs afterwards.
+        // Do NOT sync the ref input field: the user's raw input is preserved so that
+        // an empty field stays empty (the effective default 'main' is captured in
+        // scannedRef, which is the single source of truth for all downstream operations).
+        setScannedUrl(url.trim())
+        setScannedRef(effectiveRef)
         setScanResult(data)
-        onSkillsFound(data.skills, url.trim(), ref)
+        onSkillsFound(data.skills, url.trim(), effectiveRef)
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
@@ -58,10 +74,12 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
   }
 
   const handleAddSkill = (skill: RepoSkillInfo) => {
+    // Use scannedUrl/scannedRef (the values actually used during the scan) so the
+    // resulting skill key always matches the key shown in the results list.
     onAddSkill({
       type: 'repo',
-      url: url.trim(),
-      ref,
+      url: scannedUrl,
+      ref: scannedRef,
       skillPath: skill.path,
       name: skill.name,
     })
@@ -93,7 +111,7 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             type="text"
             placeholder="Branch (main)"
             value={ref}
-            onChange={(e) => setRef(e.target.value || 'main')}
+            onChange={(e) => setRef(e.target.value)}
             className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30"
           />
           <button
@@ -124,7 +142,9 @@ export default function RepoScanner({ onSkillsFound, onAddSkill, selectedSkillKe
             Found {scanResult.skills.length} skill{scanResult.skills.length !== 1 ? 's' : ''}
           </p>
           {scanResult.skills.map((skill) => {
-            const key = `repo:${url}:${skill.path}`
+            // Build the key using scannedUrl/scannedRef and skill.path as skillPath,
+            // matching the getSkillKey format: repo:<url>:<ref>:<skillPath>
+            const key = `repo:${scannedUrl}:${scannedRef}:${skill.path}`
             const isSelected = selectedSkillKeys.has(key)
             return (
               <div

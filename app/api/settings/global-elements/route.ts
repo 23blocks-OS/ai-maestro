@@ -30,6 +30,8 @@ interface ElementInfo {
 interface PluginElements {
   pluginName: string
   marketplace: string
+  version: string | null
+  sourceUrl: string | null
   skills: ElementInfo[]
   agents: ElementInfo[]
   commands: ElementInfo[]
@@ -250,11 +252,32 @@ export async function GET() {
         listOutputStyles(versionDir, pluginName, marketplace),
       ])
 
+      // Read version and source URL from plugin.json
+      const versionName = versionDir.split('/').pop() || null
+      let sourceUrl: string | null = null
+      const manifestPath = join(versionDir, '.claude-plugin', 'plugin.json')
+      if (existsSync(manifestPath)) {
+        try {
+          const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+          const src = manifest.source as Record<string, string> | undefined
+          if (src?.repo) sourceUrl = `https://github.com/${src.repo}`
+          else if (manifest.repository) sourceUrl = manifest.repository as string
+          else if (manifest.homepage) sourceUrl = manifest.homepage as string
+        } catch { /* ignore */ }
+      }
+      // Fallback: marketplace source from extraKnownMarketplaces
+      if (!sourceUrl) {
+        const ekm = (settings.extraKnownMarketplaces || {}) as Record<string, unknown>
+        const ekmEntry = ekm[marketplace] as Record<string, unknown> | undefined
+        const srcInfo = ekmEntry?.source as Record<string, string> | undefined
+        if (srcInfo?.repo) sourceUrl = `https://github.com/${srcInfo.repo}`
+      }
+
       // Only include plugins that actually have elements
       const total = skills.length + agents.length + commands.length + hooks.length +
         rules.length + mcpServers.length + lspServers.length + outputStyles.length
       if (total > 0) {
-        results.push({ pluginName, marketplace, skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles })
+        results.push({ pluginName, marketplace, version: versionName, sourceUrl, skills, agents, commands, hooks, rules, mcpServers, lspServers, outputStyles })
       }
     }
 

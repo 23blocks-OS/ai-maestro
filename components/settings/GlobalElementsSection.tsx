@@ -37,6 +37,8 @@ interface ElementInfo {
 interface PluginElements {
   pluginName: string
   marketplace: string
+  version: string | null
+  sourceUrl: string | null
   skills: ElementInfo[]
   agents: ElementInfo[]
   commands: ElementInfo[]
@@ -457,17 +459,21 @@ export default function GlobalElementsSection() {
 
             return (
               <div key={pluginKey} className="rounded-lg border border-gray-800/60 overflow-hidden">
-                {/* Plugin header */}
-                <button
-                  onClick={() => toggleElementPlugin(pluginKey)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 bg-gray-800/30 hover:bg-gray-800/50 transition-colors text-left"
-                >
+                {/* Plugin header — name, version, marketplace, element count, source link */}
+                <div className="flex items-center gap-2.5 px-3 py-2 bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => toggleElementPlugin(pluginKey)}>
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
                   <Puzzle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                   <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plugin.pluginName}</span>
-                  <span className="text-[10px] text-gray-600 truncate max-w-[120px]">{plugin.marketplace}</span>
-                  <span className="text-[10px] text-gray-500 tabular-nums">{elemCount}</span>
-                </button>
+                  <span className="text-[9px] text-gray-600 tabular-nums flex-shrink-0">{plugin.version ? `v${plugin.version}` : '-'}</span>
+                  <Store className="w-3 h-3 text-amber-400/50 flex-shrink-0" />
+                  <span className="text-[10px] text-gray-600 truncate max-w-[100px]">{plugin.marketplace}</span>
+                  <span className="text-[10px] text-gray-500 tabular-nums flex-shrink-0">{elemCount}el</span>
+                  {plugin.sourceUrl && (
+                    <a href={plugin.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-0.5 rounded hover:bg-gray-700 transition-colors flex-shrink-0" title={plugin.sourceUrl}>
+                      <ExternalLink className="w-3 h-3 text-gray-600 hover:text-gray-300" />
+                    </a>
+                  )}
+                </div>
 
                 {/* Element sections */}
                 {isExpanded && (

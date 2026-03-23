@@ -683,7 +683,22 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
     execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
     return NextResponse.json({ success: true, action: 'install', pluginKey })
   } catch (firstErr) {
-    // First attempt failed — clean up any stale state and retry once
+    const errStr = String(firstErr)
+
+    // Distinguish remote errors (marketplace/plugin not found on GitHub) from local stale state
+    const isRemoteError = errStr.includes('not found in marketplace') ||
+      errStr.includes('404') ||
+      errStr.includes('Could not resolve') ||
+      errStr.includes('fatal: repository') ||
+      errStr.includes('network') ||
+      errStr.includes('timeout')
+
+    if (isRemoteError) {
+      // Remote error — nothing to clean up locally, the marketplace or plugin doesn't exist upstream
+      return NextResponse.json({ error: `Install failed (remote): plugin "${pluginName}" not found in marketplace "${cliMkt}". Check the marketplace URL and plugin name.`, errorType: 'remote' }, { status: 404 })
+    }
+
+    // Local error — likely stale state from a previous file-copy install. Clean up and retry.
     const staleKeys = [`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey]
     const settings = await readJsonSafe(SETTINGS_PATH) || {}
     const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
@@ -691,7 +706,6 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
     for (const key of new Set(staleKeys)) {
       if (ep[key] !== undefined) { delete ep[key]; cleaned = true }
     }
-    // Remove stale cache entries
     for (const mktName of [marketplaceName, cliMkt]) {
       const cacheDir = join(CACHE_DIR, mktName, pluginName)
       if (existsSync(cacheDir)) {
@@ -702,15 +716,15 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
     if (cleaned) {
       settings.enabledPlugins = ep
       await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
-      // Retry install after cleanup
+      // Retry after cleanup
       try {
         execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
         return NextResponse.json({ success: true, action: 'install', pluginKey, staleCleanup: true })
       } catch (retryErr) {
-        return NextResponse.json({ error: `Install failed after stale cleanup: ${String(retryErr).substring(0, 500)}` }, { status: 500 })
+        return NextResponse.json({ error: `Install failed after stale cleanup: ${String(retryErr).substring(0, 500)}`, errorType: 'local' }, { status: 500 })
       }
     }
-    return NextResponse.json({ error: `Install failed: ${String(firstErr).substring(0, 500)}` }, { status: 500 })
+    return NextResponse.json({ error: `Install failed: ${errStr.substring(0, 500)}`, errorType: 'unknown' }, { status: 500 })
   }
 }
 

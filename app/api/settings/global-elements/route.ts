@@ -13,6 +13,7 @@ import { readFile, readdir, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
+import semver from 'semver'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,10 +83,10 @@ async function getLatestVersionDir(pluginDir: string): Promise<string | null> {
         dirs.push(entry)
       }
     }
-    if (dirs.length === 0) return null
-    // Sort by semver-like order (simple lexicographic works for most cases)
-    dirs.sort()
-    return join(pluginDir, dirs[dirs.length - 1])
+    const semverDirs = dirs.filter(d => semver.valid(d))
+    if (semverDirs.length === 0) return null
+    semverDirs.sort(semver.rcompare)
+    return join(pluginDir, semverDirs[0])
   } catch {
     return null
   }

@@ -12,6 +12,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import semver from 'semver'
 import { getAgent } from '@/lib/agent-registry'
 import type { ServiceResult } from '@/types/service'
 import type {
@@ -527,10 +528,10 @@ function resolvePluginKeyToPath(key: string): string | null {
   const cachePath = path.join(homeDir, '.claude', 'plugins', 'cache', marketplaceName, pluginName)
   if (fs.existsSync(cachePath)) {
     // Return latest version
-    const versions = safeReaddir(cachePath).filter(e => !e.startsWith('.'))
+    const versions = safeReaddir(cachePath).filter(e => !e.startsWith('.') && semver.valid(e))
     if (versions.length > 0) {
-      versions.sort()
-      return path.join(cachePath, versions[versions.length - 1])
+      versions.sort(semver.rcompare)
+      return path.join(cachePath, versions[0])
     }
   }
 

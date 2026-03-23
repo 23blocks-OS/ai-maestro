@@ -428,7 +428,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
               {/* Marketplace metadata — always shown when expanded */}
               {isExpanded && (
                 <div className="px-3 py-1.5 bg-gray-900/40 text-[9px] text-gray-600 border-b border-gray-800/50 space-y-0.5">
-                  <div className="text-gray-500">{mkt.description || '-'}</div>
+                  <div>Description: <span className="text-gray-500">{mkt.description || '-'}</span></div>
                   <div className="flex flex-wrap gap-x-3">
                     <span>Author: <span className="text-gray-500">{mkt.author || '-'}</span></span>
                     <span>Email: <span className="text-gray-500">{mkt.authorEmail || '-'}</span></span>
@@ -511,7 +511,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                                 ) : plugUc && plugin.installed ? (
                                   <span className="text-[9px] text-emerald-500/70 flex-shrink-0">up to date</span>
                                 ) : null}
-                                {elCount > 0 && <span className="text-[9px] text-gray-600">{elCount}el</span>}
+                                {elCount > 0 && <span className="text-[9px] text-gray-600"><span className="hidden sm:inline">{elCount} elements</span><span className="sm:hidden">({elCount})</span></span>}
                                 {hasErrors && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setErrorPopup({ name: plugin.name, errors: plugin.errors }) }}
@@ -622,7 +622,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                           const kws = plugin.keywords || lm?.keywords || null
                           return (
                           <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1.5">
-                            <div className="text-[10px] text-gray-400">{desc}</div>
+                            <div>Description: <span className="text-gray-400">{desc}</span></div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Author: <span className="text-gray-400">{auth}</span></span>
                               <span>Email: <span className="text-gray-400">{email}</span></span>

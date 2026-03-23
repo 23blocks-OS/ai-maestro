@@ -458,7 +458,7 @@ export default function GlobalElementsSection() {
                         {/* Detail panel */}
                         {isExpPl && (
                           <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
-                            <div className="text-[10px] text-gray-400">{plugin.description || '-'}</div>
+                            <div>Description: <span className="text-gray-400">{plugin.description || '-'}</span></div>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Author: <span className="text-gray-400">{plugin.author || '-'}</span></span>
                               <span>Email: <span className="text-gray-400">{plugin.authorEmail || '-'}</span></span>
@@ -646,7 +646,7 @@ export default function GlobalElementsSection() {
                 {/* Expanded: description + metadata */}
                 {isExp && (
                   <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 space-y-1">
-                    <div className="text-[10px] text-gray-400">{el.description || '-'}</div>
+                    <div>Description: <span className="text-gray-400">{el.description || '-'}</span></div>
                     <div className="flex flex-wrap gap-x-3 text-[9px] text-gray-600">
                       <span>Type: <span className={ti.color}>{ti.label}</span></span>
                       <span>Plugin: <span

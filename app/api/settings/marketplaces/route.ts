@@ -11,6 +11,7 @@ import { readFile, readdir, stat, rm, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
+import semver from 'semver'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,10 +81,10 @@ async function readJsonSafe(filePath: string): Promise<Record<string, unknown> |
 async function getLatestVersion(pluginCacheDir: string): Promise<string | null> {
   try {
     const entries = await readdir(pluginCacheDir)
-    const dirs = entries.filter(e => !e.startsWith('.'))
+    const dirs = entries.filter(e => !e.startsWith('.') && semver.valid(e))
     if (dirs.length === 0) return null
-    dirs.sort()
-    return dirs[dirs.length - 1]
+    dirs.sort(semver.rcompare)
+    return dirs[0]
   } catch {
     return null
   }
@@ -920,9 +921,9 @@ async function handleSecurityCheck(pluginKey?: string) {
   let scriptPath: string | null = null
   if (existsSync(cpvCacheBase)) {
     try {
-      const versions = await readdir(cpvCacheBase)
-      versions.sort()
-      const latestVer = versions.filter(v => !v.startsWith('.'))[versions.length - 1]
+      const versions = (await readdir(cpvCacheBase)).filter(v => !v.startsWith('.') && semver.valid(v))
+      versions.sort(semver.rcompare)
+      const latestVer = versions[0]
       if (latestVer) {
         const candidate = join(cpvCacheBase, latestVer, 'scripts', 'validate_security.py')
         if (existsSync(candidate)) scriptPath = candidate

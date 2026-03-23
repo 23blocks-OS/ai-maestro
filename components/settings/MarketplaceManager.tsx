@@ -301,7 +301,7 @@ export default function MarketplaceManager() {
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                   <span className="text-xs font-medium text-gray-200 truncate">{mkt.name}</span>
-                  {mkt.version && <span className="text-[9px] text-gray-600 flex-shrink-0">v{mkt.version}</span>}
+                  <span className="text-[9px] text-gray-600 flex-shrink-0">{mkt.version ? `v${mkt.version}` : '-'}</span>
                   {/* Remote version check indicator */}
                   {uc?.checking && <Loader2 className="w-2.5 h-2.5 text-gray-500 animate-spin flex-shrink-0" />}
                   {uc && !uc.checking && uc.marketplaceOutdated && (
@@ -401,8 +401,7 @@ export default function MarketplaceManager() {
                                 <span className={`text-[11px] font-medium truncate ${plugin.installed ? 'text-gray-200' : 'text-gray-500'}`}>
                                   {plugin.name}
                                 </span>
-                                {plugin.version && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.version}</span>}
-                                {!plugin.version && (plugin.availableVersion || plugUc?.remote) && <span className="text-[9px] text-gray-600 tabular-nums">v{plugUc?.remote || plugin.availableVersion}</span>}
+                                <span className="text-[9px] text-gray-600 tabular-nums">{plugin.version ? `v${plugin.version}` : plugin.availableVersion || plugUc?.remote ? `v${plugUc?.remote || plugin.availableVersion}` : '-'}</span>
                                 {/* Outdated from local comparison */}
                                 {plugin.outdated && (
                                   <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded" title={`Update available: v${plugin.availableVersion}`}>

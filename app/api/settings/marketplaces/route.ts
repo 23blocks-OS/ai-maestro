@@ -588,10 +588,27 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
     return NextResponse.json({ error: `Plugin "${pluginName}" not found in marketplace clone` }, { status: 404 })
   }
 
-  // Copy to cache
+  // Read version from plugin.json, fall back to '0.0.0'
   const { execSync } = await import('child_process')
+  let version = '0.0.0'
+  const manifestPath = join(sourceDir, '.claude-plugin', 'plugin.json')
+  if (existsSync(manifestPath)) {
+    try {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+      if (manifest.version) version = String(manifest.version)
+    } catch { /* use fallback */ }
+  }
+  // Also check package.json as fallback
+  if (version === '0.0.0') {
+    const pkgPath = join(sourceDir, 'package.json')
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
+        if (pkg.version) version = String(pkg.version)
+      } catch { /* use fallback */ }
+    }
+  }
   const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
-  const version = '0.0.0'
   const destDir = join(pluginCacheDir, version)
 
   try {

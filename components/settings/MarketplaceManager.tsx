@@ -495,10 +495,12 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                     return (
                       <div key={plugin.key}>
                         <div
-                          className={`px-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isSelected ? 'bg-gray-800/40' : ''}`}
+                          className={`pl-6 pr-3 py-2 transition-colors cursor-pointer hover:bg-gray-800/30 ${isSelected ? 'bg-gray-800/40' : ''}`}
                           onClick={() => setSelectedPlugin(isSelected ? null : plugin.key)}
                         >
                           <div className="flex items-center gap-2">
+                            {/* Expand chevron */}
+                            {isSelected ? <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />}
                             {/* Status dot */}
                             <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${plugin.installed ? (plugin.enabled ? 'bg-emerald-400' : 'bg-gray-500') : 'bg-gray-700'}`} />
 
@@ -640,7 +642,7 @@ export default function MarketplaceManager({ expandMarketplace, onNavigateComple
                           const repo = plugin.repository || lm?.repository || null
                           const kws = plugin.keywords || lm?.keywords || null
                           return (
-                          <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
+                          <div className="pl-9 pr-3 py-2 bg-gray-900/50 border-t border-gray-800/30 text-[9px] text-gray-500 space-y-0.5">
                             <div>Description: <span className="text-gray-400">{desc}</span></div>
                             <div>Author: <span className="text-gray-400">{auth}</span></div>
                             <div>Email: <span className="text-gray-400">{email}</span></div>

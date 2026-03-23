@@ -453,6 +453,7 @@ export default function GlobalElementsSection() {
                 } ${isExpPl ? 'bg-gray-800/40' : ''}`}
                 onClick={() => setExpandedPlugin(isExpPl ? null : plugin.key)}
               >
+                {isExpPl ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                 <Puzzle className={`w-3.5 h-3.5 flex-shrink-0 ${plugin.enabled ? 'text-emerald-400' : 'text-gray-600'}`} />
                 <span className={`text-xs flex-1 min-w-0 truncate ${plugin.enabled ? 'text-gray-200' : 'text-gray-500'}`} title={plugin.name}>
                   {plugin.name}
@@ -649,15 +650,16 @@ export default function GlobalElementsSection() {
                     }
                   }}
                 >
-                  {/* Row 1: type icon + name + type label + disabled badge */}
+                  {/* Row 1: chevron + type icon + name + type label + disabled badge */}
                   <div className="flex items-center gap-2 min-w-0">
+                    {isExp ? <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />}
                     <TypeIcon className={`w-3.5 h-3.5 flex-shrink-0 ${ti.color}`} />
                     <span className="text-[11px] font-medium text-gray-200 min-w-0 truncate" title={el.name}>{el.name}</span>
                     <span className="text-[9px] text-gray-700 flex-shrink-0">{ti.label.replace(/ Servers?$/, '').replace(/Output /, '')}</span>
                     {!el.pluginEnabled && <span className="text-[8px] text-amber-500/80 bg-amber-500/10 px-1 rounded flex-shrink-0" title="Enable the plugin to activate this element">disabled</span>}
                   </div>
                   {/* Row 2 (mobile) / right side (desktop): plugin + marketplace info */}
-                  <div className="flex items-center gap-1.5 ml-[22px] sm:ml-auto flex-shrink-0">
+                  <div className="flex items-center gap-1.5 ml-[34px] sm:ml-auto flex-shrink-0">
                     <Puzzle className="w-2.5 h-2.5 text-gray-600 flex-shrink-0" />
                     <span
                       className="text-[9px] text-gray-600 min-w-0 truncate hover:text-blue-400 cursor-pointer"

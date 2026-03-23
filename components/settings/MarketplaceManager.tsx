@@ -16,6 +16,8 @@ interface PluginStatus {
   installed: boolean
   enabled: boolean
   version: string | null
+  availableVersion: string | null
+  outdated: boolean
   description: string | null
   sourceUrl: string | null
   errors: string[]
@@ -306,6 +308,12 @@ export default function MarketplaceManager() {
                                   {plugin.name}
                                 </span>
                                 {plugin.version && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.version}</span>}
+                                {!plugin.version && plugin.availableVersion && <span className="text-[9px] text-gray-600 tabular-nums">v{plugin.availableVersion}</span>}
+                                {plugin.outdated && (
+                                  <span className="text-[9px] text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded" title={`Update available: v${plugin.availableVersion}`}>
+                                    v{plugin.availableVersion}
+                                  </span>
+                                )}
                                 {elCount > 0 && <span className="text-[9px] text-gray-600">{elCount}el</span>}
                                 {hasErrors && (
                                   <button
@@ -401,7 +409,9 @@ export default function MarketplaceManager() {
                             {plugin.description && <p className="text-[10px] text-gray-400">{plugin.description}</p>}
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500">
                               <span>Key: <span className="text-gray-400 font-mono">{plugin.key}</span></span>
-                              {plugin.version && <span>Version: <span className="text-gray-400">{plugin.version}</span></span>}
+                              {plugin.version && <span>Installed: <span className="text-gray-400">v{plugin.version}</span></span>}
+                              {plugin.availableVersion && <span>Available: <span className={plugin.outdated ? 'text-amber-400' : 'text-gray-400'}>v{plugin.availableVersion}</span></span>}
+                              {plugin.outdated && <span className="text-amber-400">Update available</span>}
                               <span>Status: <span className={plugin.installed ? (plugin.enabled ? 'text-emerald-400' : 'text-gray-400') : 'text-gray-600'}>{plugin.installed ? (plugin.enabled ? 'enabled' : 'disabled') : 'not installed'}</span></span>
                             </div>
                             {plugin.sourceUrl && (

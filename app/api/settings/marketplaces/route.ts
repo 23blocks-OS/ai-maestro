@@ -29,6 +29,8 @@ interface PluginStatus {
   installed: boolean // present in user-scope cache
   enabled: boolean // enabledPlugins[key] === true
   version: string | null // installed version (from cache)
+  availableVersion: string | null // version available at the source (marketplace.json or clone)
+  outdated: boolean // true when installed version < available version
   description: string | null
   sourceUrl: string | null // plugin-level source URL/path
   errors: string[] // validation errors
@@ -202,204 +204,125 @@ export async function GET() {
             plugins: [],
           }
 
-          // Scan ALL plugins in the marketplace clone
+          // ---- Discover ALL plugins from 3 sources ----
           const seenPlugins = new Set<string>()
 
           // Helper: check if a directory looks like a Claude Code plugin
-          // A plugin can have any combination of these elements
           const looksLikePlugin = (dir: string) =>
             existsSync(join(dir, '.claude-plugin', 'plugin.json')) ||
-            existsSync(join(dir, 'skills')) ||
-            existsSync(join(dir, 'agents')) ||
-            existsSync(join(dir, 'commands')) ||
-            existsSync(join(dir, 'hooks')) ||
-            existsSync(join(dir, 'rules')) ||
-            existsSync(join(dir, '.mcp.json')) ||
-            existsSync(join(dir, '.lsp.json')) ||
-            existsSync(join(dir, 'output-styles'))
+            existsSync(join(dir, 'skills')) || existsSync(join(dir, 'agents')) ||
+            existsSync(join(dir, 'commands')) || existsSync(join(dir, 'hooks')) ||
+            existsSync(join(dir, 'rules')) || existsSync(join(dir, '.mcp.json')) ||
+            existsSync(join(dir, '.lsp.json')) || existsSync(join(dir, 'output-styles'))
 
-          // Case 1: The marketplace root itself IS a single plugin
-          if (looksLikePlugin(mktPath)) {
-            const plugName = mktName
+          // Helper: build a PluginStatus entry
+          const buildPluginEntry = async (plugName: string, availVer: string | null, mktDesc: string | null, mktSourceUrl: string | null): Promise<void> => {
+            if (seenPlugins.has(plugName)) return
             seenPlugins.add(plugName)
+
             const key = `${plugName}@${mktName}`
             const enabled = enabledPlugins[key] === true
-            const cacheDir = join(CACHE_DIR, mktName, plugName)
-            const installed = existsSync(cacheDir)
-            const latestVersion = installed ? await getLatestVersion(cacheDir) : null
-            let description: string | null = null
+            const plugCacheDir = join(CACHE_DIR, mktName, plugName)
+            const installed = existsSync(plugCacheDir)
+            const installedVersion = installed ? await getLatestVersion(plugCacheDir) : null
+
+            // Read metadata from best available source: cache (installed) > clone > marketplace.json
+            let description = mktDesc
             let elementCounts: PluginStatus['elementCounts'] = null
             let errors: string[] = []
-            let sourceUrl: string | null = null
-            const metadataDir = latestVersion ? join(cacheDir, latestVersion) : mktPath
-            const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
-            if (manifest) {
-              description = (manifest.description as string) || null
-              const plugSrc = manifest.source as Record<string, string> | undefined
-              if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
-              else if (plugSrc?.path) sourceUrl = plugSrc.path
-            }
-            elementCounts = await countElements(metadataDir)
-            if (installed && latestVersion) errors = detectPluginErrors(join(cacheDir, latestVersion), plugName)
-            info.plugins.push({ name: plugName, key, installed, enabled: installed && enabled, version: latestVersion, description, sourceUrl, errors, elementCounts })
-            if (installed) info.installedCount++
-            if (installed && enabled) info.enabledCount++
-          }
+            let sourceUrl = mktSourceUrl
 
-          // Case 2: The plugins/ directory itself IS a plugin (has skills/agents directly, not nested)
-          const pluginsDirPath = join(mktPath, 'plugins')
-          if (existsSync(pluginsDirPath) && !seenPlugins.has(mktName) && looksLikePlugin(pluginsDirPath)) {
-            // Check if plugins/ contains subdirs that look like plugins — if not, plugins/ IS the plugin
-            const pluginsDirEntries = await readdir(pluginsDirPath).catch(() => [] as string[])
-            const hasNestedPlugins = pluginsDirEntries.some(e => !e.startsWith('.') && existsSync(join(pluginsDirPath, e, '.claude-plugin', 'plugin.json')))
-            if (!hasNestedPlugins) {
-              const plugName = mktName
-              seenPlugins.add(plugName)
-              const key = `${plugName}@${mktName}`
-              const enabled = enabledPlugins[key] === true
-              const cacheDir = join(CACHE_DIR, mktName, plugName)
-              const installed = existsSync(cacheDir)
-              const latestVersion = installed ? await getLatestVersion(cacheDir) : null
-              const metadataDir = latestVersion ? join(cacheDir, latestVersion) : pluginsDirPath
-              const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
-              let description: string | null = null
-              let sourceUrl: string | null = null
+            // Try cache first (installed version), then clone dir
+            const metadataCandidates = [
+              installedVersion ? join(plugCacheDir, installedVersion) : null,
+              existsSync(join(mktPath, 'plugins', plugName)) ? join(mktPath, 'plugins', plugName) : null,
+              existsSync(join(mktPath, plugName)) ? join(mktPath, plugName) : null,
+              looksLikePlugin(mktPath) && plugName === mktName ? mktPath : null,
+            ].filter(Boolean) as string[]
+
+            for (const metaDir of metadataCandidates) {
+              const manifest = await readJsonSafe(join(metaDir, '.claude-plugin', 'plugin.json'))
               if (manifest) {
-                description = (manifest.description as string) || null
-                const plugSrc = manifest.source as Record<string, string> | undefined
-                if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
-                else if (plugSrc?.path) sourceUrl = plugSrc.path
-              }
-              const elementCounts = await countElements(metadataDir)
-              const errors = (installed && latestVersion) ? detectPluginErrors(join(cacheDir, latestVersion), plugName) : []
-              info.plugins.push({ name: plugName, key, installed, enabled: installed && enabled, version: latestVersion, description, sourceUrl, errors, elementCounts })
-              if (installed) info.installedCount++
-              if (installed && enabled) info.enabledCount++
-            }
-          }
-
-          // Case 3: Scan subdirectories for plugins
-          const pluginsDirs = [
-            join(mktPath, 'plugins'),
-            mktPath, // some marketplaces have plugins at root level
-          ]
-
-          for (const pluginsDir of pluginsDirs) {
-            if (!existsSync(pluginsDir)) continue
-            try {
-              const pluginEntries = await readdir(pluginsDir)
-              for (const plugName of pluginEntries) {
-                if (plugName.startsWith('.') || plugName === 'plugins' || seenPlugins.has(plugName)) continue
-                const plugDir = join(pluginsDir, plugName)
-                try {
-                  const ps = await stat(plugDir)
-                  if (!ps.isDirectory()) continue
-                } catch { continue }
-
-                if (!looksLikePlugin(plugDir)) continue
-
-                seenPlugins.add(plugName)
-
-                const key = `${plugName}@${mktName}`
-                const enabled = enabledPlugins[key] === true
-
-                // Check if installed in user-scope cache
-                const cacheDir = join(CACHE_DIR, mktName, plugName)
-                const installed = existsSync(cacheDir)
-                const latestVersion = installed ? await getLatestVersion(cacheDir) : null
-
-                let description: string | null = null
-                let elementCounts: PluginStatus['elementCounts'] = null
-                let errors: string[] = []
-                let sourceUrl: string | null = null
-
-                // Read metadata from cache (if installed) or from marketplace clone
-                const metadataDir = latestVersion ? join(cacheDir, latestVersion) : plugDir
-                const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
-                if (manifest) {
-                  description = (manifest.description as string) || null
-                  // Plugin-level source
+                if (!description) description = (manifest.description as string) || null
+                if (!sourceUrl) {
                   const plugSrc = manifest.source as Record<string, string> | undefined
                   if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
                   else if (plugSrc?.path) sourceUrl = plugSrc.path
                 }
-                elementCounts = await countElements(metadataDir)
-
-                // Detect errors for installed plugins
-                if (installed && latestVersion) {
-                  errors = detectPluginErrors(join(cacheDir, latestVersion), plugName)
-                }
-
-                info.plugins.push({
-                  name: plugName,
-                  key,
-                  installed,
-                  enabled: installed && enabled,
-                  version: latestVersion,
-                  description,
-                  sourceUrl,
-                  errors,
-                  elementCounts,
-                })
-
-                if (installed) info.installedCount++
-                if (installed && enabled) info.enabledCount++
               }
-            } catch { /* ignore dir scan errors */ }
+              if (!elementCounts) elementCounts = await countElements(metaDir)
+              if (elementCounts) break // got what we need
+            }
+
+            if (installed && installedVersion) {
+              errors = detectPluginErrors(join(plugCacheDir, installedVersion), plugName)
+            }
+
+            // Version comparison: outdated when installed version < available version
+            const outdated = !!(installed && installedVersion && availVer && installedVersion !== availVer && availVer > installedVersion)
+
+            info.plugins.push({
+              name: plugName, key, installed, enabled: installed && enabled,
+              version: installedVersion, availableVersion: availVer, outdated,
+              description, sourceUrl, errors, elementCounts,
+            })
+            if (installed) info.installedCount++
+            if (installed && enabled) info.enabledCount++
           }
 
-          // Case 4: Scan the CACHE for plugins belonging to this marketplace
-          // Registry-style marketplaces (like emasoft-plugins) list plugins in README
-          // but each plugin is in its own repo — only the cache has the actual files.
+          // Source 1: marketplace.json — authoritative plugin list with versions
+          const mktManifestPaths = [
+            join(mktPath, '.claude-plugin', 'marketplace.json'),
+            join(mktPath, 'marketplace.json'),
+          ]
+          for (const manifestPath of mktManifestPaths) {
+            const mktManifest = await readJsonSafe(manifestPath)
+            if (mktManifest?.plugins && Array.isArray(mktManifest.plugins)) {
+              for (const entry of mktManifest.plugins as Record<string, unknown>[]) {
+                const plugName = entry.name as string
+                if (!plugName) continue
+                const availVer = (entry.version as string) || null
+                const desc = (entry.description as string) || null
+                const src = entry.source as Record<string, string> | undefined
+                const repo = (entry.repository as string) || (src?.repo ? repoToUrl(src.repo) : null)
+                await buildPluginEntry(plugName, availVer, desc, repo)
+              }
+              break // only use the first marketplace.json found
+            }
+          }
+
+          // Source 2: Scan clone directories for plugins not in marketplace.json
+          // The marketplace root itself, plugins/ subdir, and root-level subdirs
+          if (looksLikePlugin(mktPath) && !seenPlugins.has(mktName)) {
+            await buildPluginEntry(mktName, null, null, null)
+          }
+          const scanDirs = [join(mktPath, 'plugins'), mktPath]
+          for (const scanDir of scanDirs) {
+            if (!existsSync(scanDir)) continue
+            try {
+              const entries = await readdir(scanDir)
+              for (const entry of entries) {
+                if (entry.startsWith('.') || entry === 'plugins' || seenPlugins.has(entry)) continue
+                const entryPath = join(scanDir, entry)
+                try { if (!(await stat(entryPath)).isDirectory()) continue } catch { continue }
+                if (!looksLikePlugin(entryPath)) continue
+                // Read available version from clone's plugin.json
+                const cloneManifest = await readJsonSafe(join(entryPath, '.claude-plugin', 'plugin.json'))
+                const cloneVer = (cloneManifest?.version as string) || null
+                await buildPluginEntry(entry, cloneVer, null, null)
+              }
+            } catch { /* ignore */ }
+          }
+
+          // Source 3: Scan cache for installed plugins not found in sources 1-2
           const mktCacheDir = join(CACHE_DIR, mktName)
           if (existsSync(mktCacheDir)) {
             try {
-              const cachedPlugins = await readdir(mktCacheDir)
-              for (const plugName of cachedPlugins) {
-                if (plugName.startsWith('.') || seenPlugins.has(plugName)) continue
-                const plugCacheDir = join(mktCacheDir, plugName)
-                try {
-                  const ps = await stat(plugCacheDir)
-                  if (!ps.isDirectory()) continue
-                } catch { continue }
-
-                seenPlugins.add(plugName)
-
-                const key = `${plugName}@${mktName}`
-                const enabled = enabledPlugins[key] === true
-                const latestVersion = await getLatestVersion(plugCacheDir)
-
-                let description: string | null = null
-                let elementCounts: PluginStatus['elementCounts'] = null
-                let errors: string[] = []
-                let sourceUrl: string | null = null
-
-                if (latestVersion) {
-                  const metadataDir = join(plugCacheDir, latestVersion)
-                  const manifest = await readJsonSafe(join(metadataDir, '.claude-plugin', 'plugin.json'))
-                  if (manifest) {
-                    description = (manifest.description as string) || null
-                    const plugSrc = manifest.source as Record<string, string> | undefined
-                    if (plugSrc?.repo) sourceUrl = repoToUrl(plugSrc.repo)
-                    else if (plugSrc?.path) sourceUrl = plugSrc.path
-                  }
-                  elementCounts = await countElements(metadataDir)
-                  errors = detectPluginErrors(metadataDir, plugName)
-                }
-
-                info.plugins.push({
-                  name: plugName,
-                  key,
-                  installed: true, // in cache = installed
-                  enabled,
-                  version: latestVersion,
-                  description,
-                  sourceUrl,
-                  errors,
-                  elementCounts,
-                })
-                info.installedCount++
-                if (enabled) info.enabledCount++
+              const entries = await readdir(mktCacheDir)
+              for (const entry of entries) {
+                if (entry.startsWith('.') || seenPlugins.has(entry)) continue
+                try { if (!(await stat(join(mktCacheDir, entry))).isDirectory()) continue } catch { continue }
+                await buildPluginEntry(entry, null, null, null)
               }
             } catch { /* ignore */ }
           }

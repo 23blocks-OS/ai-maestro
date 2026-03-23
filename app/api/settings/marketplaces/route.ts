@@ -635,28 +635,30 @@ async function resolveCliMarketplaceName(dirName: string): Promise<string> {
   return dirName // last resort: use directory name as-is
 }
 
-/** Enable plugin via Claude CLI */
+/** Enable plugin via Claude CLI — tries multiple key formats */
 async function handleEnable(pluginName: string, marketplaceName: string, pluginKey: string) {
   const { execSync } = await import('child_process')
-  try {
-    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin enable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
-  } catch (err) {
-    return NextResponse.json({ error: `Enable failed: ${String(err).substring(0, 500)}` }, { status: 500 })
+  const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+  for (const key of new Set([`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey])) {
+    try {
+      execSync(`claude plugin enable "${shellSafe(key)}" --scope user 2>&1`, { timeout: 15000 })
+      return NextResponse.json({ success: true, action: 'enable', pluginKey })
+    } catch { /* try next */ }
   }
-  return NextResponse.json({ success: true, action: 'enable', pluginKey })
+  return NextResponse.json({ error: `Enable failed: plugin not found with any key format` }, { status: 500 })
 }
 
-/** Disable plugin via Claude CLI */
+/** Disable plugin via Claude CLI — tries multiple key formats */
 async function handleDisable(pluginName: string, marketplaceName: string, pluginKey: string) {
   const { execSync } = await import('child_process')
-  try {
-    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin disable "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 15000 })
-  } catch (err) {
-    return NextResponse.json({ error: `Disable failed: ${String(err).substring(0, 500)}` }, { status: 500 })
+  const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+  for (const key of new Set([`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey])) {
+    try {
+      execSync(`claude plugin disable "${shellSafe(key)}" --scope user 2>&1`, { timeout: 15000 })
+      return NextResponse.json({ success: true, action: 'disable', pluginKey })
+    } catch { /* try next */ }
   }
-  return NextResponse.json({ success: true, action: 'disable', pluginKey })
+  return NextResponse.json({ error: `Disable failed: plugin not found with any key format` }, { status: 500 })
 }
 
 /** Update plugin via Claude CLI */
@@ -671,28 +673,90 @@ async function handleUpdate(pluginName: string, marketplaceName: string, pluginK
   return NextResponse.json({ success: true, action: 'update', pluginKey })
 }
 
-/** Install plugin via Claude CLI */
+/** Install plugin via Claude CLI — cleans up stale state before retrying on failure */
 async function handleInstall(pluginName: string, marketplaceName: string, pluginKey: string) {
   const { execSync } = await import('child_process')
+  const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+  const installKey = `${shellSafe(pluginName)}@${shellSafe(cliMkt)}`
+
   try {
-    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin install --scope user "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" 2>&1`, { timeout: 60000 })
-  } catch (err) {
-    return NextResponse.json({ error: `Install failed: ${String(err).substring(0, 500)}` }, { status: 500 })
+    execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
+    return NextResponse.json({ success: true, action: 'install', pluginKey })
+  } catch (firstErr) {
+    // First attempt failed — clean up any stale state and retry once
+    const staleKeys = [`${pluginName}@${cliMkt}`, `${pluginName}@${marketplaceName}`, pluginKey]
+    const settings = await readJsonSafe(SETTINGS_PATH) || {}
+    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+    let cleaned = false
+    for (const key of new Set(staleKeys)) {
+      if (ep[key] !== undefined) { delete ep[key]; cleaned = true }
+    }
+    // Remove stale cache entries
+    for (const mktName of [marketplaceName, cliMkt]) {
+      const cacheDir = join(CACHE_DIR, mktName, pluginName)
+      if (existsSync(cacheDir)) {
+        await rm(cacheDir, { recursive: true, force: true })
+        cleaned = true
+      }
+    }
+    if (cleaned) {
+      settings.enabledPlugins = ep
+      await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+      // Retry install after cleanup
+      try {
+        execSync(`claude plugin install --scope user "${installKey}" 2>&1`, { timeout: 60000 })
+        return NextResponse.json({ success: true, action: 'install', pluginKey, staleCleanup: true })
+      } catch (retryErr) {
+        return NextResponse.json({ error: `Install failed after stale cleanup: ${String(retryErr).substring(0, 500)}` }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ error: `Install failed: ${String(firstErr).substring(0, 500)}` }, { status: 500 })
   }
-  return NextResponse.json({ success: true, action: 'install', pluginKey })
 }
 
-/** Uninstall plugin via Claude CLI */
+/** Uninstall plugin via Claude CLI — with auto-cleanup of stale installations */
 async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
   const { execSync } = await import('child_process')
-  try {
-    const cliMkt = await resolveCliMarketplaceName(marketplaceName)
-    execSync(`claude plugin uninstall "${shellSafe(pluginName)}@${shellSafe(cliMkt)}" --scope user 2>&1`, { timeout: 30000 })
-  } catch (err) {
-    return NextResponse.json({ error: `Uninstall failed: ${String(err).substring(0, 500)}` }, { status: 500 })
+  let cliSucceeded = false
+
+  // Try CLI uninstall with all possible key formats
+  const cliMkt = await resolveCliMarketplaceName(marketplaceName)
+  const keysToTry = [
+    `${pluginName}@${cliMkt}`,
+    `${pluginName}@${marketplaceName}`,
+    pluginKey,
+  ]
+  // Deduplicate
+  const uniqueKeys = [...new Set(keysToTry)]
+  for (const key of uniqueKeys) {
+    try {
+      execSync(`claude plugin uninstall "${shellSafe(key)}" --scope user 2>&1`, { timeout: 15000 })
+      cliSucceeded = true
+      break
+    } catch { /* try next key format */ }
   }
-  return NextResponse.json({ success: true, action: 'uninstall', pluginKey })
+
+  // If CLI couldn't uninstall, this is a stale installation (installed via file copy, not CLI).
+  // Clean up manually: remove cache, remove from settings.
+  if (!cliSucceeded) {
+    // Remove all cache entries for this plugin across all marketplace name variants
+    for (const mktName of [marketplaceName, cliMkt]) {
+      const cacheDir = join(CACHE_DIR, mktName, pluginName)
+      if (existsSync(cacheDir)) {
+        await rm(cacheDir, { recursive: true, force: true })
+      }
+    }
+    // Remove all settings entries for this plugin (both key formats)
+    const settings = await readJsonSafe(SETTINGS_PATH) || {}
+    const ep = (settings.enabledPlugins || {}) as Record<string, boolean>
+    for (const key of uniqueKeys) {
+      delete ep[key]
+    }
+    settings.enabledPlugins = ep
+    await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n')
+  }
+
+  return NextResponse.json({ success: true, action: 'uninstall', pluginKey, staleCleanup: !cliSucceeded })
 }
 
 /** Remove marketplace: delete clone dir + remove from settings + clean cached plugins */

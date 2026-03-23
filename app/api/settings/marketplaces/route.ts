@@ -611,18 +611,34 @@ async function handleInstall(pluginName: string, marketplaceName: string, plugin
   const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
   const destDir = join(pluginCacheDir, version)
 
+  // Step 1: Copy to cache (for our dashboard's element scanning)
   try {
     execSync(`mkdir -p "${destDir}" && cp -R "${sourceDir}/." "${destDir}/"`, { timeout: 30000 })
   } catch (err) {
     return NextResponse.json({ error: `Failed to copy plugin: ${err}` }, { status: 500 })
   }
 
+  // Step 2: Install via Claude Code CLI (registers plugin properly with Claude Code)
+  try {
+    execSync(`claude plugin install --scope user "${sourceDir}" 2>&1`, { timeout: 60000 })
+  } catch (err) {
+    // CLI install failed — still usable from cache, but warn
+    console.warn(`Claude CLI plugin install failed (plugin still available from cache): ${err}`)
+  }
+
   await setPluginEnabled(pluginKey, true)
   return NextResponse.json({ success: true, action: 'install', pluginKey })
 }
 
-/** Remove plugin from cache and disable in settings */
+/** Remove plugin from cache, uninstall via CLI, and disable in settings */
 async function handleUninstall(pluginName: string, marketplaceName: string, pluginKey: string) {
+  // Uninstall via Claude Code CLI first
+  try {
+    const { execSync } = await import('child_process')
+    execSync(`claude plugin uninstall "${pluginName}@${marketplaceName}" --scope user 2>&1`, { timeout: 30000 })
+  } catch {
+    // CLI uninstall may fail if plugin wasn't installed via CLI — continue with cache cleanup
+  }
   const pluginCacheDir = join(CACHE_DIR, marketplaceName, pluginName)
   if (existsSync(pluginCacheDir)) {
     await rm(pluginCacheDir, { recursive: true, force: true })

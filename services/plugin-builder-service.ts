@@ -610,6 +610,13 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   // Increment before the try block so the finally/.catch path always decrements exactly once
   activeOps++
 
+  // Evict stale builds before adding new ones
+  evictStaleBuildResults()
+
+  activeOps++
+  const buildId = randomUUID()
+  const buildDir = path.join(BUILDS_DIR, buildId)
+
   try {
     // Evict stale builds before adding new ones; await to ensure map is clean
     // before the new entry is inserted (prevents stale entries from racing with the new build)

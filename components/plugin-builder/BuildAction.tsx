@@ -410,7 +410,7 @@ export default function BuildAction({ config, disabled, disabledReason }: BuildA
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-400 transition-colors mb-2"
           >
             {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Build Logs ({result.logs.length} lines)
+            Build Logs ({result.logs?.length ?? 0} lines)
           </button>
           {showLogs && (
             <div className="bg-gray-950 rounded-lg p-3 max-h-48 overflow-y-auto border border-gray-800">

@@ -43,6 +43,15 @@ const BUILDS_DIR = path.join(os.tmpdir(), 'ai-maestro-plugin-builds')
 /** Claude Code global config directory — where Claude installs plugins/marketplaces */
 const CLAUDE_DIR = path.join(os.homedir(), '.claude')
 
+/**
+ * Base directory where Claude Code marketplace plugins are installed.
+ * Override via CLAUDE_MARKETPLACE_PLUGINS_DIR env var when running in
+ * environments where the process user's home directory differs from the
+ * intended plugin installation location.
+ */
+const MARKETPLACE_PLUGINS_DIR = process.env.CLAUDE_MARKETPLACE_PLUGINS_DIR
+  || path.join(os.homedir(), '.claude', 'plugins', 'marketplaces')
+
 /** Max builds to keep in memory before evicting oldest */
 const MAX_BUILD_RESULTS = 50
 /** Auto-evict build results older than this (ms) */
@@ -596,6 +605,9 @@ export async function buildPlugin(config: PluginBuildConfig): Promise<ServiceRes
   let buildDir: string | undefined
 
   // Increment before try so the catch-block decrement always matches this increment
+  activeOps++
+
+  // Increment before the try block so the finally/.catch path always decrements exactly once
   activeOps++
 
   try {
